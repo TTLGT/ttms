@@ -1,0 +1,350 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import Link from 'next/link';
+import { getOrder, updateOrderStatus, listOrders, createOrder } from '@/lib/orders';
+import type { Order, OrderStatus } from '@/types/order';
+import { STATUS_LABEL, STATUS_NEXT } from '@/types/order';
+import StatusBadge from '@/components/orders/StatusBadge';
+import { useAuth } from '@/context/AuthContext';
+
+const PIPELINE: OrderStatus[] = [
+  'quote', 'booked', 'carrier_assigned', 'carrier_signed',
+  'shipper_signed', 'in_transit', 'delivered', 'completed',
+];
+
+function formatDate(ts: { toDate?: () => Date } | null | undefined): string {
+  if (!ts || typeof ts.toDate !== 'function') return '—';
+  return ts.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatCurrency(n: number | undefined): string {
+  if (n === undefined || n === null || n === 0) return '—';
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+}
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">{label}</p>
+      <p className="text-sm text-gray-900">{value || '—'}</p>
+    </div>
+  );
+}
+
+export default function OrderDetailPage() {
+  const params          = useParams();
+  const orderId         = params.orderId as string;
+  const router          = useRouter();
+  const { user }        = useAuth();
+
+  const [order, setOrder]           = useState<Order | null>(null);
+  const [suborders, setSuborders]   = useState<Order[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [advancing, setAdvancing]   = useState(false);
+  const [error, setError]           = useState('');
+  const [tab, setTab]               = useState<'details' | 'suborders'>('details');
+  const [splitting, setSplitting]   = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      try {
+        const o = await getOrder(orderId);
+        setOrder(o);
+        if (o) {
+          const all = await listOrders();
+          setSuborders(all.filter((x) => x.parentOrderId === orderId));
+        }
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Failed to load order');
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [orderId]);
+
+  async function handleAdvance() {
+    if (!order) return;
+    const next = STATUS_NEXT[order.status];
+    if (!next) return;
+    setAdvancing(true);
+    try {
+      await updateOrderStatus(orderId, next);
+      setOrder({ ...order, status: next });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to update status');
+    } finally {
+      setAdvancing(false);
+    }
+  }
+
+  async function handleCreateSuborder() {
+    if (!order || !user) return;
+    setSplitting(true);
+    try {
+      const id = await createOrder({
+        shipperId:    order.shipperId,
+        shipperName:  order.shipperName,
+        parentOrderId: orderId,
+        status:       'quote',
+        commodity:    order.commodity,
+        pieces:       1,
+        weight:       0,
+        origin:       order.origin,
+        destination:  order.destination,
+        pickupDate:   null,
+        deliveryDate: null,
+        carrierId:    null,
+        carrierName:  '',
+        driverName:   '',
+        driverPhone:  '',
+        driverLicenseStoragePath: null,
+        agreedRate:   0,
+        brokerFee:    0,
+        carrierPay:   0,
+        notes:        '',
+        createdBy:    user.uid,
+      });
+      router.push(`/dashboard/orders/${id}`);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to create suborder');
+      setSplitting(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="p-8">
+        <p className="text-gray-500">Order not found.</p>
+        <Link href="/dashboard/orders" className="text-sm text-brand-600 hover:underline mt-2 block">← Back to Orders</Link>
+      </div>
+    );
+  }
+
+  const nextStatus = STATUS_NEXT[order.status];
+  const currentStep = PIPELINE.indexOf(order.status);
+
+  return (
+    <div className="p-8 max-w-4xl">
+      {/* Back */}
+      <Link href="/dashboard/orders" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
+        ← Orders
+      </Link>
+
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-2xl font-bold text-gray-900 font-mono">{order.orderNumber}</h1>
+            <StatusBadge status={order.status} />
+            {order.parentOrderId && (
+              <Link
+                href={`/dashboard/orders/${order.parentOrderId}`}
+                className="text-xs text-gray-400 hover:text-brand-600"
+              >
+                Suborder of {order.parentOrderId.slice(0, 8)}…
+              </Link>
+            )}
+          </div>
+          <p className="text-sm text-gray-500">{order.shipperName} — {order.commodity}</p>
+        </div>
+
+        <div className="flex gap-2">
+          {nextStatus && order.status !== 'cancelled' && (
+            <button
+              onClick={handleAdvance}
+              disabled={advancing}
+              className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition"
+            >
+              {advancing ? 'Updating…' : `→ ${STATUS_LABEL[nextStatus]}`}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Status pipeline */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 overflow-x-auto">
+        <div className="flex items-center min-w-max">
+          {PIPELINE.map((s, i) => {
+            const done    = i < currentStep;
+            const active  = i === currentStep;
+            const future  = i > currentStep;
+            return (
+              <div key={s} className="flex items-center">
+                <div className={`flex flex-col items-center ${future ? 'opacity-40' : ''}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mb-1
+                    ${done   ? 'bg-brand-600 text-white' : ''}
+                    ${active ? 'bg-brand-600 text-white ring-4 ring-brand-100' : ''}
+                    ${future ? 'bg-gray-200 text-gray-400' : ''}
+                  `}>
+                    {done ? '✓' : i + 1}
+                  </div>
+                  <span className={`text-xs whitespace-nowrap ${active ? 'font-semibold text-brand-700' : 'text-gray-500'}`}>
+                    {STATUS_LABEL[s]}
+                  </span>
+                </div>
+                {i < PIPELINE.length - 1 && (
+                  <div className={`w-8 h-0.5 mx-1 mb-5 ${i < currentStep ? 'bg-brand-500' : 'bg-gray-200'}`} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600 mb-4">{error}</div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4 border-b border-gray-200">
+        {(['details', 'suborders'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition ${
+              tab === t
+                ? 'border-brand-600 text-brand-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t === 'suborders' ? `Suborders (${suborders.length})` : 'Details'}
+          </button>
+        ))}
+      </div>
+
+      {/* Details tab */}
+      {tab === 'details' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Shipment</h3>
+            <div className="grid grid-cols-3 gap-6">
+              <DetailRow label="Shipper" value={order.shipperName} />
+              <DetailRow label="Commodity" value={order.commodity} />
+              <DetailRow label="Pieces" value={order.pieces} />
+              <DetailRow label="Weight" value={order.weight ? `${order.weight.toLocaleString()} lbs` : '—'} />
+              <DetailRow label="Pickup Date" value={formatDate(order.pickupDate as { toDate: () => Date } | null)} />
+              <DetailRow label="Delivery Date" value={formatDate(order.deliveryDate as { toDate: () => Date } | null)} />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Route</h3>
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Origin</p>
+                <p className="text-sm text-gray-900">
+                  {[order.origin?.street, order.origin?.city, order.origin?.state, order.origin?.zip]
+                    .filter(Boolean).join(', ') || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Destination</p>
+                <p className="text-sm text-gray-900">
+                  {[order.destination?.street, order.destination?.city, order.destination?.state, order.destination?.zip]
+                    .filter(Boolean).join(', ') || '—'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Carrier</h3>
+            <div className="grid grid-cols-3 gap-6">
+              <DetailRow label="Carrier" value={order.carrierName} />
+              <DetailRow label="Driver" value={order.driverName} />
+              <DetailRow label="Driver Phone" value={order.driverPhone} />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Financials</h3>
+            <div className="grid grid-cols-3 gap-6">
+              <DetailRow label="Agreed Rate" value={formatCurrency(order.agreedRate)} />
+              <DetailRow label="Broker Fee" value={formatCurrency(order.brokerFee)} />
+              <DetailRow label="Carrier Pay" value={formatCurrency(order.carrierPay)} />
+            </div>
+          </div>
+
+          {order.notes && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Notes</h3>
+              <p className="text-sm text-gray-700 whitespace-pre-line">{order.notes}</p>
+            </div>
+          )}
+
+          <div className="text-xs text-gray-400">
+            Created {formatDate(order.createdAt as { toDate: () => Date } | null)} · Last updated {formatDate(order.updatedAt as { toDate: () => Date } | null)}
+          </div>
+        </div>
+      )}
+
+      {/* Suborders tab */}
+      {tab === 'suborders' && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-600">
+              Split this order into separate loads with different carriers or dates.
+            </p>
+            <button
+              onClick={handleCreateSuborder}
+              disabled={splitting}
+              className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition"
+            >
+              {splitting ? 'Creating…' : '+ Create Suborder'}
+            </button>
+          </div>
+
+          {suborders.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+              <p className="text-sm text-gray-400">No suborders yet.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-100">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {['Order #', 'Status', 'Carrier', 'Pickup', 'Carrier Pay', ''].map((h) => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {suborders.map((sub) => (
+                    <tr key={sub.id} className="hover:bg-gray-50 transition">
+                      <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700">{sub.orderNumber}</td>
+                      <td className="px-4 py-3"><StatusBadge status={sub.status} /></td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{sub.carrierName || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {formatDate(sub.pickupDate as { toDate: () => Date } | null)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-800">{formatCurrency(sub.carrierPay)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <Link href={`/dashboard/orders/${sub.id}`} className="text-xs text-brand-600 hover:underline font-medium">
+                          View →
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
