@@ -57,6 +57,10 @@ export default function OrderDetailPage() {
   const [driverPhone, setDriverPhone] = useState('');
   const [savingCarrier, setSavingCarrier] = useState(false);
 
+  // e-sign state
+  const [sendingAgreement, setSendingAgreement] = useState(false);
+  const [agreementSentTo, setAgreementSentTo]   = useState('');
+
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -110,6 +114,22 @@ export default function OrderDetailPage() {
       setError(e instanceof Error ? e.message : 'Failed to assign carrier');
     } finally {
       setSavingCarrier(false);
+    }
+  }
+
+  async function handleSendAgreement() {
+    if (!order) return;
+    setSendingAgreement(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/orders/${orderId}/send-agreement`, { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Failed to send');
+      setAgreementSentTo(body.sentTo ?? 'carrier');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to send agreement');
+    } finally {
+      setSendingAgreement(false);
     }
   }
 
@@ -298,6 +318,39 @@ export default function OrderDetailPage() {
                 </button>
               )}
             </div>
+
+            {/* Send for Signature / e-sign status */}
+            {!assigningCarrier && order.carrierId && (
+              <div className="mb-4">
+                {order.status === 'carrier_signed' ? (
+                  <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                    <span>✓</span>
+                    <span>
+                      Signed by <strong>{order.carrierSignerName || 'carrier'}</strong>
+                      {order.carrierSignedAt && (
+                        <> on {formatDate(order.carrierSignedAt as { toDate: () => Date })}</>
+                      )}
+                      {order.carrierSignerIp && (
+                        <span className="text-green-600 font-mono text-xs ml-1">({order.carrierSignerIp})</span>
+                      )}
+                    </span>
+                  </div>
+                ) : agreementSentTo ? (
+                  <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                    <span>✉</span>
+                    <span>Agreement sent to <strong>{agreementSentTo}</strong> — awaiting signature</span>
+                  </div>
+                ) : order.status === 'carrier_assigned' ? (
+                  <button
+                    onClick={handleSendAgreement}
+                    disabled={sendingAgreement}
+                    className="px-3 py-1.5 bg-brand-50 text-brand-700 border border-brand-200 text-xs font-semibold rounded-lg hover:bg-brand-100 disabled:opacity-50 transition"
+                  >
+                    {sendingAgreement ? 'Sending…' : '✉ Send for Signature'}
+                  </button>
+                ) : null}
+              </div>
+            )}
 
             {assigningCarrier ? (
               <div className="space-y-3">

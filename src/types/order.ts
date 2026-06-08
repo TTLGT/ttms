@@ -42,6 +42,9 @@ export interface Order {
   brokerFee: number;
   carrierPay: number;
   notes: string;
+  carrierSignedAt: Timestamp | null;
+  carrierSignerName: string | null;
+  carrierSignerIp: string | null;
   createdBy: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
