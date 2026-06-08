@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import { getOrder, updateOrderStatus, listOrders, createOrder } from '@/lib/orders';
+import { getOrder, updateOrderStatus, updateOrder, listOrders, createOrder } from '@/lib/orders';
+import { listCarriers } from '@/lib/carriers';
 import type { Order, OrderStatus } from '@/types/order';
+import type { Carrier } from '@/types/carrier';
 import { STATUS_LABEL, STATUS_NEXT } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
 import { useAuth } from '@/context/AuthContext';
@@ -34,29 +36,39 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 }
 
 export default function OrderDetailPage() {
-  const params          = useParams();
-  const orderId         = params.orderId as string;
-  const router          = useRouter();
-  const { user }        = useAuth();
+  const params   = useParams();
+  const orderId  = params.orderId as string;
+  const router   = useRouter();
+  const { user } = useAuth();
 
   const [order, setOrder]           = useState<Order | null>(null);
   const [suborders, setSuborders]   = useState<Order[]>([]);
+  const [carriers, setCarriers]     = useState<Carrier[]>([]);
   const [loading, setLoading]       = useState(true);
   const [advancing, setAdvancing]   = useState(false);
+  const [splitting, setSplitting]   = useState(false);
   const [error, setError]           = useState('');
   const [tab, setTab]               = useState<'details' | 'suborders'>('details');
-  const [splitting, setSplitting]   = useState(false);
+
+  // carrier assignment state
+  const [assigningCarrier, setAssigningCarrier] = useState(false);
+  const [selectedCarrierId, setSelectedCarrierId] = useState('');
+  const [driverName, setDriverName]   = useState('');
+  const [driverPhone, setDriverPhone] = useState('');
+  const [savingCarrier, setSavingCarrier] = useState(false);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
       try {
-        const o = await getOrder(orderId);
+        const [o, cs, all] = await Promise.all([
+          getOrder(orderId),
+          listCarriers(),
+          listOrders(),
+        ]);
         setOrder(o);
-        if (o) {
-          const all = await listOrders();
-          setSuborders(all.filter((x) => x.parentOrderId === orderId));
-        }
+        setCarriers(cs.filter((c) => c.isActive));
+        if (o) setSuborders(all.filter((x) => x.parentOrderId === orderId));
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Failed to load order');
       } finally {
@@ -65,6 +77,41 @@ export default function OrderDetailPage() {
     }
     load();
   }, [orderId]);
+
+  // Pre-fill edit fields when opening the carrier assignment form
+  function openCarrierAssign() {
+    setSelectedCarrierId(order?.carrierId ?? '');
+    setDriverName(order?.driverName ?? '');
+    setDriverPhone(order?.driverPhone ?? '');
+    setAssigningCarrier(true);
+  }
+
+  async function handleSaveCarrier() {
+    if (!order) return;
+    setSavingCarrier(true);
+    setError('');
+    try {
+      const carrier = carriers.find((c) => c.id === selectedCarrierId);
+      await updateOrder(orderId, {
+        carrierId:   selectedCarrierId || null,
+        carrierName: carrier?.companyName ?? '',
+        driverName:  driverName.trim(),
+        driverPhone: driverPhone.trim(),
+      });
+      setOrder({
+        ...order,
+        carrierId:   selectedCarrierId || null,
+        carrierName: carrier?.companyName ?? '',
+        driverName:  driverName.trim(),
+        driverPhone: driverPhone.trim(),
+      });
+      setAssigningCarrier(false);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to assign carrier');
+    } finally {
+      setSavingCarrier(false);
+    }
+  }
 
   async function handleAdvance() {
     if (!order) return;
@@ -115,29 +162,24 @@ export default function OrderDetailPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex justify-center py-20">
+      <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
-  if (!order) {
-    return (
-      <div className="p-8">
-        <p className="text-gray-500">Order not found.</p>
-        <Link href="/dashboard/orders" className="text-sm text-brand-600 hover:underline mt-2 block">← Back to Orders</Link>
-      </div>
-    );
-  }
+  if (!order) return (
+    <div className="p-8">
+      <p className="text-gray-500">Order not found.</p>
+      <Link href="/dashboard/orders" className="text-sm text-brand-600 hover:underline mt-2 block">← Back to Orders</Link>
+    </div>
+  );
 
-  const nextStatus = STATUS_NEXT[order.status];
+  const nextStatus  = STATUS_NEXT[order.status];
   const currentStep = PIPELINE.indexOf(order.status);
 
   return (
     <div className="p-8 max-w-4xl">
-      {/* Back */}
       <Link href="/dashboard/orders" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
         ← Orders
       </Link>
@@ -149,24 +191,17 @@ export default function OrderDetailPage() {
             <h1 className="text-2xl font-bold text-gray-900 font-mono">{order.orderNumber}</h1>
             <StatusBadge status={order.status} />
             {order.parentOrderId && (
-              <Link
-                href={`/dashboard/orders/${order.parentOrderId}`}
-                className="text-xs text-gray-400 hover:text-brand-600"
-              >
+              <Link href={`/dashboard/orders/${order.parentOrderId}`} className="text-xs text-gray-400 hover:text-brand-600">
                 Suborder of {order.parentOrderId.slice(0, 8)}…
               </Link>
             )}
           </div>
           <p className="text-sm text-gray-500">{order.shipperName} — {order.commodity}</p>
         </div>
-
         <div className="flex gap-2">
           {nextStatus && order.status !== 'cancelled' && (
-            <button
-              onClick={handleAdvance}
-              disabled={advancing}
-              className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition"
-            >
+            <button onClick={handleAdvance} disabled={advancing}
+              className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
               {advancing ? 'Updating…' : `→ ${STATUS_LABEL[nextStatus]}`}
             </button>
           )}
@@ -177,9 +212,9 @@ export default function OrderDetailPage() {
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 overflow-x-auto">
         <div className="flex items-center min-w-max">
           {PIPELINE.map((s, i) => {
-            const done    = i < currentStep;
-            const active  = i === currentStep;
-            const future  = i > currentStep;
+            const done   = i < currentStep;
+            const active = i === currentStep;
+            const future = i > currentStep;
             return (
               <div key={s} className="flex items-center">
                 <div className={`flex flex-col items-center ${future ? 'opacity-40' : ''}`}>
@@ -203,22 +238,15 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600 mb-4">{error}</div>
-      )}
+      {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600 mb-4">{error}</div>}
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 border-b border-gray-200">
         {(['details', 'suborders'] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
+          <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition ${
-              tab === t
-                ? 'border-brand-600 text-brand-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
+              tab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}>
             {t === 'suborders' ? `Suborders (${suborders.length})` : 'Details'}
           </button>
         ))}
@@ -227,6 +255,7 @@ export default function OrderDetailPage() {
       {/* Details tab */}
       {tab === 'details' && (
         <div className="space-y-4">
+          {/* Shipment */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Shipment</h3>
             <div className="grid grid-cols-3 gap-6">
@@ -239,35 +268,86 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
+          {/* Route */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Route</h3>
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-1">Origin</p>
                 <p className="text-sm text-gray-900">
-                  {[order.origin?.street, order.origin?.city, order.origin?.state, order.origin?.zip]
-                    .filter(Boolean).join(', ') || '—'}
+                  {[order.origin?.street, order.origin?.city, order.origin?.state, order.origin?.zip].filter(Boolean).join(', ') || '—'}
                 </p>
               </div>
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-1">Destination</p>
                 <p className="text-sm text-gray-900">
-                  {[order.destination?.street, order.destination?.city, order.destination?.state, order.destination?.zip]
-                    .filter(Boolean).join(', ') || '—'}
+                  {[order.destination?.street, order.destination?.city, order.destination?.state, order.destination?.zip].filter(Boolean).join(', ') || '—'}
                 </p>
               </div>
             </div>
           </div>
 
+          {/* Carrier */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Carrier</h3>
-            <div className="grid grid-cols-3 gap-6">
-              <DetailRow label="Carrier" value={order.carrierName} />
-              <DetailRow label="Driver" value={order.driverName} />
-              <DetailRow label="Driver Phone" value={order.driverPhone} />
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Carrier</h3>
+              {!assigningCarrier && (
+                <button onClick={openCarrierAssign}
+                  className="text-xs text-brand-600 hover:text-brand-700 font-medium">
+                  {order.carrierId ? 'Edit' : '+ Assign Carrier'}
+                </button>
+              )}
             </div>
+
+            {assigningCarrier ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Carrier</label>
+                  <select value={selectedCarrierId} onChange={(e) => setSelectedCarrierId(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
+                    <option value="">— Unassigned —</option>
+                    {carriers.map((c) => (
+                      <option key={c.id} value={c.id}>{c.companyName}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Driver Name</label>
+                    <input value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="Full name"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Driver Phone</label>
+                    <input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="(555) 555-5555"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={handleSaveCarrier} disabled={savingCarrier}
+                    className="px-4 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
+                    {savingCarrier ? 'Saving…' : 'Save'}
+                  </button>
+                  <button onClick={() => setAssigningCarrier(false)}
+                    className="px-4 py-1.5 border border-gray-300 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-6">
+                <DetailRow label="Carrier" value={
+                  order.carrierId
+                    ? <Link href={`/dashboard/carriers/${order.carrierId}`} className="text-brand-600 hover:underline">{order.carrierName}</Link>
+                    : null
+                } />
+                <DetailRow label="Driver" value={order.driverName} />
+                <DetailRow label="Driver Phone" value={order.driverPhone} />
+              </div>
+            )}
           </div>
 
+          {/* Financials */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Financials</h3>
             <div className="grid grid-cols-3 gap-6">
@@ -294,18 +374,12 @@ export default function OrderDetailPage() {
       {tab === 'suborders' && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-gray-600">
-              Split this order into separate loads with different carriers or dates.
-            </p>
-            <button
-              onClick={handleCreateSuborder}
-              disabled={splitting}
-              className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition"
-            >
+            <p className="text-sm text-gray-600">Split this order into separate loads with different carriers or dates.</p>
+            <button onClick={handleCreateSuborder} disabled={splitting}
+              className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
               {splitting ? 'Creating…' : '+ Create Suborder'}
             </button>
           </div>
-
           {suborders.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
               <p className="text-sm text-gray-400">No suborders yet.</p>
@@ -316,9 +390,7 @@ export default function OrderDetailPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     {['Order #', 'Status', 'Carrier', 'Pickup', 'Carrier Pay', ''].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        {h}
-                      </th>
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -328,14 +400,10 @@ export default function OrderDetailPage() {
                       <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700">{sub.orderNumber}</td>
                       <td className="px-4 py-3"><StatusBadge status={sub.status} /></td>
                       <td className="px-4 py-3 text-sm text-gray-600">{sub.carrierName || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {formatDate(sub.pickupDate as { toDate: () => Date } | null)}
-                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{formatDate(sub.pickupDate as { toDate: () => Date } | null)}</td>
                       <td className="px-4 py-3 text-sm text-gray-800">{formatCurrency(sub.carrierPay)}</td>
                       <td className="px-4 py-3 text-right">
-                        <Link href={`/dashboard/orders/${sub.id}`} className="text-xs text-brand-600 hover:underline font-medium">
-                          View →
-                        </Link>
+                        <Link href={`/dashboard/orders/${sub.id}`} className="text-xs text-brand-600 hover:underline font-medium">View →</Link>
                       </td>
                     </tr>
                   ))}
