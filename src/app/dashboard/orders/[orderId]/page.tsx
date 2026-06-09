@@ -10,6 +10,7 @@ import type { Carrier } from '@/types/carrier';
 import { STATUS_LABEL, STATUS_NEXT } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
 import DriverLicenseUpload from '@/components/orders/DriverLicenseUpload';
+import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload';
 import { useAuth } from '@/context/AuthContext';
 
 const PIPELINE: OrderStatus[] = [
@@ -49,7 +50,7 @@ export default function OrderDetailPage() {
   const [advancing, setAdvancing]   = useState(false);
   const [splitting, setSplitting]   = useState(false);
   const [error, setError]           = useState('');
-  const [tab, setTab]               = useState<'details' | 'suborders'>('details');
+  const [tab, setTab]               = useState<'details' | 'documents' | 'suborders'>('details');
 
   // carrier assignment state
   const [assigningCarrier, setAssigningCarrier] = useState(false);
@@ -71,6 +72,10 @@ export default function OrderDetailPage() {
   const [generatingBol, setGeneratingBol] = useState(false);
   const [bolUrl, setBolUrl]               = useState<string | null>(null);
 
+  // invoice / POD state
+  const [invoicePath, setInvoicePath] = useState<string | null>(null);
+  const [podPath, setPodPath]         = useState<string | null>(null);
+
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -82,7 +87,11 @@ export default function OrderDetailPage() {
         ]);
         setOrder(o);
         setCarriers(cs.filter((c) => c.isActive));
-        if (o) setSuborders(all.filter((x) => x.parentOrderId === orderId));
+        if (o) {
+          setSuborders(all.filter((x) => x.parentOrderId === orderId));
+          setInvoicePath(o.invoiceStoragePath ?? null);
+          setPodPath(o.podStoragePath ?? null);
+        }
         if (o?.bolStoragePath) {
           fetch(`/api/orders/${orderId}/bol`)
             .then((r) => r.json())
@@ -185,6 +194,18 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function handleInvoiceUploaded(path: string | null) {
+    setInvoicePath(path);
+    await updateOrder(orderId, { invoiceStoragePath: path }).catch(() => {});
+    if (order) setOrder({ ...order, invoiceStoragePath: path });
+  }
+
+  async function handlePodUploaded(path: string | null) {
+    setPodPath(path);
+    await updateOrder(orderId, { podStoragePath: path }).catch(() => {});
+    if (order) setOrder({ ...order, podStoragePath: path });
+  }
+
   async function handleAdvance() {
     if (!order) return;
     const next = STATUS_NEXT[order.status];
@@ -222,6 +243,8 @@ export default function OrderDetailPage() {
         driverPhone:  '',
         driverLicenseStoragePath: null,
         bolStoragePath: null,
+        invoiceStoragePath: null,
+        podStoragePath: null,
         agreedRate:   0,
         brokerFee:    0,
         carrierPay:   0,
@@ -326,12 +349,12 @@ export default function OrderDetailPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 border-b border-gray-200">
-        {(['details', 'suborders'] as const).map((t) => (
+        {(['details', 'documents', 'suborders'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition ${
               tab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}>
-            {t === 'suborders' ? `Suborders (${suborders.length})` : 'Details'}
+            {t === 'suborders' ? `Suborders (${suborders.length})` : t === 'documents' ? 'Documents' : 'Details'}
           </button>
         ))}
       </div>
@@ -557,6 +580,101 @@ export default function OrderDetailPage() {
           <div className="text-xs text-gray-400">
             Created {formatDate(order.createdAt as { toDate: () => Date } | null)} · Last updated {formatDate(order.updatedAt as { toDate: () => Date } | null)}
           </div>
+        </div>
+      )}
+
+      {/* Documents tab */}
+      {tab === 'documents' && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-100">
+            <thead className="bg-gray-50">
+              <tr>
+                {['Document', 'Status', 'Action'].map((h) => (
+                  <th key={h} className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {/* BOL */}
+              <tr className="hover:bg-gray-50 transition">
+                <td className="px-6 py-4">
+                  <p className="text-sm font-medium text-gray-900">Bill of Lading</p>
+                  <p className="text-xs text-gray-400">Auto-generated PDF</p>
+                </td>
+                <td className="px-6 py-4">
+                  {order.bolStoragePath
+                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Available</span>
+                    : <span className="text-xs text-gray-400">Not generated</span>}
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    {bolUrl && (
+                      <a href={bolUrl} target="_blank" rel="noreferrer"
+                        className="text-xs text-brand-600 hover:underline">View BOL</a>
+                    )}
+                    {(['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(
+                      order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed'
+                    ) && (
+                      <button onClick={handleGenerateBol} disabled={generatingBol}
+                        className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 bg-brand-50 rounded-lg px-3 py-1.5 font-medium transition hover:bg-brand-100 disabled:opacity-50">
+                        {generatingBol ? 'Generating…' : order.bolStoragePath ? 'Regenerate' : 'Generate BOL'}
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+
+              {/* Invoice */}
+              <tr className="hover:bg-gray-50 transition">
+                <td className="px-6 py-4">
+                  <p className="text-sm font-medium text-gray-900">Invoice</p>
+                  <p className="text-xs text-gray-400">PDF or image, max 20 MB</p>
+                </td>
+                <td className="px-6 py-4">
+                  {invoicePath
+                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Uploaded</span>
+                    : <span className="text-xs text-gray-400">Not uploaded</span>}
+                </td>
+                <td className="px-6 py-4">
+                  <DocumentUpload orderId={orderId} docType="invoice" existingPath={invoicePath} onUploaded={handleInvoiceUploaded} />
+                </td>
+              </tr>
+
+              {/* POD */}
+              <tr className="hover:bg-gray-50 transition">
+                <td className="px-6 py-4">
+                  <p className="text-sm font-medium text-gray-900">Proof of Delivery</p>
+                  <p className="text-xs text-gray-400">PDF or image, max 20 MB</p>
+                </td>
+                <td className="px-6 py-4">
+                  {podPath
+                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Uploaded</span>
+                    : <span className="text-xs text-gray-400">Not uploaded</span>}
+                </td>
+                <td className="px-6 py-4">
+                  <DocumentUpload orderId={orderId} docType="pod" existingPath={podPath} onUploaded={handlePodUploaded} />
+                </td>
+              </tr>
+
+              {/* Driver License */}
+              <tr className="hover:bg-gray-50 transition">
+                <td className="px-6 py-4">
+                  <p className="text-sm font-medium text-gray-900">Driver License</p>
+                  <p className="text-xs text-gray-400">Uploaded during carrier assignment</p>
+                </td>
+                <td className="px-6 py-4">
+                  {order.driverLicenseStoragePath
+                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Uploaded</span>
+                    : <span className="text-xs text-gray-400">Not uploaded</span>}
+                </td>
+                <td className="px-6 py-4">
+                  {order.driverLicenseStoragePath
+                    ? <DownloadLink storagePath={order.driverLicenseStoragePath} label="View License" />
+                    : <span className="text-xs text-gray-400">—</span>}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       )}
 

@@ -122,6 +122,8 @@ function NewOrderForm() {
         driverPhone:  '',
         driverLicenseStoragePath: null,
         bolStoragePath: null,
+        invoiceStoragePath: null,
+        podStoragePath: null,
         agreedRate:   parseFloat(agreedRate) || 0,
         brokerFee:    parseFloat(brokerFee)  || 0,
         carrierPay,
