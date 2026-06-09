@@ -9,6 +9,7 @@ import type { Order, OrderStatus } from '@/types/order';
 import type { Carrier } from '@/types/carrier';
 import { STATUS_LABEL, STATUS_NEXT } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
+import DriverLicenseUpload from '@/components/orders/DriverLicenseUpload';
 import { useAuth } from '@/context/AuthContext';
 
 const PIPELINE: OrderStatus[] = [
@@ -55,6 +56,7 @@ export default function OrderDetailPage() {
   const [selectedCarrierId, setSelectedCarrierId] = useState('');
   const [driverName, setDriverName]   = useState('');
   const [driverPhone, setDriverPhone] = useState('');
+  const [driverLicensePath, setDriverLicensePath] = useState<string | null>(null);
   const [savingCarrier, setSavingCarrier] = useState(false);
 
   // e-sign state
@@ -82,11 +84,11 @@ export default function OrderDetailPage() {
     load();
   }, [orderId]);
 
-  // Pre-fill edit fields when opening the carrier assignment form
   function openCarrierAssign() {
     setSelectedCarrierId(order?.carrierId ?? '');
     setDriverName(order?.driverName ?? '');
     setDriverPhone(order?.driverPhone ?? '');
+    setDriverLicensePath(order?.driverLicenseStoragePath ?? null);
     setAssigningCarrier(true);
   }
 
@@ -101,6 +103,7 @@ export default function OrderDetailPage() {
         carrierName: carrier?.companyName ?? '',
         driverName:  driverName.trim(),
         driverPhone: driverPhone.trim(),
+        driverLicenseStoragePath: driverLicensePath,
       });
       setOrder({
         ...order,
@@ -108,6 +111,7 @@ export default function OrderDetailPage() {
         carrierName: carrier?.companyName ?? '',
         driverName:  driverName.trim(),
         driverPhone: driverPhone.trim(),
+        driverLicenseStoragePath: driverLicensePath,
       });
       setAssigningCarrier(false);
     } catch (e: unknown) {
@@ -383,6 +387,14 @@ export default function OrderDetailPage() {
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
                   </div>
                 </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Driver License</label>
+                  <DriverLicenseUpload
+                    orderId={orderId}
+                    existingPath={driverLicensePath}
+                    onUploaded={setDriverLicensePath}
+                  />
+                </div>
                 <div className="flex gap-2 pt-1">
                   <button onClick={handleSaveCarrier} disabled={savingCarrier}
                     className="px-4 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
@@ -403,6 +415,11 @@ export default function OrderDetailPage() {
                 } />
                 <DetailRow label="Driver" value={order.driverName} />
                 <DetailRow label="Driver Phone" value={order.driverPhone} />
+                <DetailRow label="Driver License" value={
+                  order.driverLicenseStoragePath
+                    ? <DriverLicenseUpload orderId={orderId} existingPath={order.driverLicenseStoragePath} onUploaded={() => {}} readOnly />
+                    : null
+                } />
               </div>
             )}
           </div>
