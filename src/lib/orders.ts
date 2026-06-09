@@ -51,6 +51,7 @@ export async function updateOrderStatus(
   await updateDoc(doc(db, COL, orderId), {
     status,
     updatedAt: serverTimestamp(),
+    ...(status === 'delivered' && { deliveredAt: serverTimestamp() }),
   });
 }
 
