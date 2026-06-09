@@ -2,26 +2,26 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { listCustomers } from '@/lib/customers';
+import { listClients } from '@/lib/clients';
 import { useAuth } from '@/context/AuthContext';
-import type { Customer } from '@/types/customer';
+import type { Client } from '@/types/client';
 
-export default function CustomersPage() {
-  const { user, isAdmin }          = useAuth();
-  const [customers, setCustomers]  = useState<Customer[]>([]);
-  const [loading, setLoading]      = useState(true);
-  const [error, setError]          = useState('');
-  const [search, setSearch]        = useState('');
+export default function ClientsPage() {
+  const { user, isAdmin }      = useAuth();
+  const [clients, setClients]  = useState<Client[]>([]);
+  const [loading, setLoading]  = useState(true);
+  const [error, setError]      = useState('');
+  const [search, setSearch]    = useState('');
 
   useEffect(() => {
     if (!user) return;
-    listCustomers(isAdmin ? undefined : user.uid)
-      .then(setCustomers)
+    listClients(isAdmin ? undefined : user.uid)
+      .then(setClients)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [user, isAdmin]);
 
-  const filtered = customers.filter((c) => {
+  const filtered = clients.filter((c) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
@@ -36,8 +36,8 @@ export default function CustomersPage() {
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{customers.length} total</p>
+          <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{clients.length} total</p>
         </div>
       </div>
 
@@ -59,7 +59,7 @@ export default function CustomersPage() {
         <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600">{error}</div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20">
-          <p className="text-gray-400 text-sm">{search ? 'No customers match your search.' : 'No customers yet. Run the BATS import to populate.'}</p>
+          <p className="text-gray-400 text-sm">{search ? 'No clients match your search.' : 'No clients yet. Run the BATS import to populate.'}</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -91,7 +91,7 @@ export default function CustomersPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={`/dashboard/customers/${c.id}`} className="text-xs text-brand-600 hover:underline font-medium">
+                    <Link href={`/dashboard/clients/${c.id}`} className="text-xs text-brand-600 hover:underline font-medium">
                       View →
                     </Link>
                   </td>

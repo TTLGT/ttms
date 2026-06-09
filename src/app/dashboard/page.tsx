@@ -4,8 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { listOrders } from '@/lib/orders';
+import { getAlerts } from '@/lib/alerts';
 import type { Order } from '@/types/order';
+import type { OrderAlert } from '@/lib/alerts';
 import StatusBadge from '@/components/orders/StatusBadge';
+import AlertPanel from '@/components/orders/AlertPanel';
 
 const PENDING_PICKUP_STATUSES = new Set(['booked', 'carrier_assigned', 'carrier_signed', 'shipper_signed']);
 
@@ -29,16 +32,19 @@ function formatCurrency(n: number): string {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const firstName = user?.displayName?.split(' ')[0] ?? 'there';
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [alerts, setAlerts] = useState<OrderAlert[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    listOrders()
-      .then(setOrders)
-      .finally(() => setLoading(false));
+    listOrders().then((all) => {
+      setOrders(all);
+      const alertOrders = isAdmin ? all : all.filter((o) => o.createdBy === user?.uid);
+      setAlerts(getAlerts(alertOrders));
+    }).finally(() => setLoading(false));
   }, []);
 
   const primary = orders.filter((o) => o.parentOrderId === null || o.parentOrderId === undefined);
@@ -63,6 +69,8 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold text-gray-900">Good to see you, {firstName} 👋</h1>
         <p className="text-gray-500 mt-1 text-sm">Here&apos;s what&apos;s happening across your fleet today.</p>
       </div>
+
+      {!loading && <AlertPanel alerts={alerts} />}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
         {STAT_CARDS.map((card) => (

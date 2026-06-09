@@ -1,6 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 
-export interface Customer {
+export interface Client {
   id: string;
   batsId: string | null;
   name: string;

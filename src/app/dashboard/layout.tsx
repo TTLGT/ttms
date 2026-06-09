@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/orders',     label: 'Orders',     icon: '📋', adminOnly: false },
   { href: '/dashboard/carriers',   label: 'Carriers',   icon: '🚛', adminOnly: false },
   { href: '/dashboard/shippers',   label: 'Shippers',   icon: '🏢', adminOnly: false },
-  { href: '/dashboard/customers',  label: 'Customers',  icon: '👤', adminOnly: false },
+  { href: '/dashboard/clients',     label: 'Clients',    icon: '👤', adminOnly: false },
   { href: '/dashboard/documents',  label: 'Documents',  icon: '📁', adminOnly: false },
   { href: '/dashboard/settings',   label: 'Settings',   icon: '⚙️',  adminOnly: true  },
 ];
