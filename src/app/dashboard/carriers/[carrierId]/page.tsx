@@ -46,8 +46,16 @@ export default function CarrierDetailPage() {
   const [contactName, setContactName]           = useState('');
   const [email, setEmail]                       = useState('');
   const [phone, setPhone]                       = useState('');
+  const [address, setAddress]                   = useState('');
+  const [fax, setFax]                           = useState('');
   const [dot, setDot]                           = useState('');
   const [mc, setMc]                             = useState('');
+  const [dispatcher, setDispatcher]             = useState('');
+  const [dispatcherPhone, setDispatcherPhone]   = useState('');
+  const [dispatcherEmail, setDispatcherEmail]   = useState('');
+  const [billingContact, setBillingContact]     = useState('');
+  const [billingPhone, setBillingPhone]         = useState('');
+  const [billingEmail, setBillingEmail]         = useState('');
   const [insProvider, setInsProvider]           = useState('');
   const [insPolicyNo, setInsPolicyNo]           = useState('');
   const [insExpiry, setInsExpiry]               = useState('');
@@ -59,8 +67,16 @@ export default function CarrierDetailPage() {
     setContactName(c.contactName ?? '');
     setEmail(c.email ?? '');
     setPhone(c.phone ?? '');
+    setAddress(c.address ?? '');
+    setFax(c.fax ?? '');
     setDot(c.dot ?? '');
     setMc(c.mc ?? '');
+    setDispatcher(c.dispatcher ?? '');
+    setDispatcherPhone(c.dispatcherPhone ?? '');
+    setDispatcherEmail(c.dispatcherEmail ?? '');
+    setBillingContact(c.billingContact ?? '');
+    setBillingPhone(c.billingPhone ?? '');
+    setBillingEmail(c.billingEmail ?? '');
     setInsProvider(c.insuranceProvider ?? '');
     setInsPolicyNo(c.insurancePolicyNumber ?? '');
     setInsExpiry(toDateInput(c.insuranceExpiration));
@@ -95,8 +111,16 @@ export default function CarrierDetailPage() {
         contactName:          contactName.trim(),
         email:                email.trim(),
         phone:                phone.trim(),
+        address:              address.trim(),
+        fax:                  fax.trim(),
         dot:                  dot.trim(),
         mc:                   mc.trim(),
+        dispatcher:           dispatcher.trim(),
+        dispatcherPhone:      dispatcherPhone.trim(),
+        dispatcherEmail:      dispatcherEmail.trim(),
+        billingContact:       billingContact.trim(),
+        billingPhone:         billingPhone.trim(),
+        billingEmail:         billingEmail.trim(),
         insuranceProvider:    insProvider.trim(),
         insurancePolicyNumber: insPolicyNo.trim(),
         insuranceExpiration:  insExpiry ? Timestamp.fromDate(new Date(insExpiry)) : null,
@@ -201,6 +225,8 @@ export default function CarrierDetailPage() {
                   ['Contact', carrier.contactName],
                   ['Phone', carrier.phone],
                   ['Email', carrier.email],
+                  ['Address', carrier.address],
+                  ['Fax', carrier.fax],
                 ].map(([label, val]) => (
                   <div key={label as string}>
                     <p className="text-xs text-gray-500 mb-0.5">{label}</p>
@@ -210,12 +236,10 @@ export default function CarrierDetailPage() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
-                {editing && (
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
-                    <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={inputCls} />
-                  </div>
-                )}
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
+                  <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={inputCls} />
+                </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Contact Name</label>
                   <input value={contactName} onChange={(e) => setContactName(e.target.value)} className={inputCls} />
@@ -227,6 +251,14 @@ export default function CarrierDetailPage() {
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
                   <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Address (City, State)</label>
+                  <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Chicago, IL" className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Fax</label>
+                  <input type="tel" value={fax} onChange={(e) => setFax(e.target.value)} className={inputCls} />
                 </div>
               </div>
             )}
@@ -259,6 +291,78 @@ export default function CarrierDetailPage() {
               </div>
             )}
           </section>
+
+          {/* Dispatcher */}
+          {(carrier.dispatcher || carrier.dispatcherPhone || carrier.dispatcherEmail || editing) && (
+            <section className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Dispatcher</h3>
+              {!editing ? (
+                <div className="grid grid-cols-3 gap-6">
+                  {[
+                    ['Name', carrier.dispatcher],
+                    ['Phone', carrier.dispatcherPhone],
+                    ['Email', carrier.dispatcherEmail],
+                  ].map(([label, val]) => (
+                    <div key={label as string}>
+                      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+                      <p className="text-sm text-gray-900">{val || '—'}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Dispatcher Name</label>
+                    <input value={dispatcher} onChange={(e) => setDispatcher(e.target.value)} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Dispatcher Phone</label>
+                    <input type="tel" value={dispatcherPhone} onChange={(e) => setDispatcherPhone(e.target.value)} className={inputCls} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Dispatcher Email</label>
+                    <input type="email" value={dispatcherEmail} onChange={(e) => setDispatcherEmail(e.target.value)} className={inputCls} />
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Billing Contact */}
+          {(carrier.billingContact || carrier.billingPhone || carrier.billingEmail || editing) && (
+            <section className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Billing Contact</h3>
+              {!editing ? (
+                <div className="grid grid-cols-3 gap-6">
+                  {[
+                    ['Name', carrier.billingContact],
+                    ['Phone', carrier.billingPhone],
+                    ['Email', carrier.billingEmail],
+                  ].map(([label, val]) => (
+                    <div key={label as string}>
+                      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
+                      <p className="text-sm text-gray-900">{val || '—'}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Billing Contact Name</label>
+                    <input value={billingContact} onChange={(e) => setBillingContact(e.target.value)} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Billing Phone</label>
+                    <input type="tel" value={billingPhone} onChange={(e) => setBillingPhone(e.target.value)} className={inputCls} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Billing Email</label>
+                    <input type="email" value={billingEmail} onChange={(e) => setBillingEmail(e.target.value)} className={inputCls} />
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Insurance */}
           <section className="bg-white rounded-xl border border-gray-200 p-6">

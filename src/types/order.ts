@@ -21,18 +21,23 @@ export interface Address {
 
 export interface Order {
   id: string;
+  batsId: string | null;
   orderNumber: string;
   shipperId: string;
   shipperName: string;
   parentOrderId: string | null;
   status: OrderStatus;
   commodity: string;
+  vehicles: string;
   pieces: number;
   weight: number;
+  transportType: string;
   origin: Address;
   destination: Address;
   pickupDate: Timestamp | null;
   deliveryDate: Timestamp | null;
+  dispatchedAt: Timestamp | null;
+  pickedUpAt: Timestamp | null;
   carrierId: string | null;
   carrierName: string;
   driverName: string;
@@ -44,6 +49,8 @@ export interface Order {
   agreedRate: number;
   brokerFee: number;
   carrierPay: number;
+  assignedTo: string;
+  sourceName: string;
   notes: string;
   deliveredAt: Timestamp | null;
   carrierSignedAt: Timestamp | null;

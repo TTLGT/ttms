@@ -28,12 +28,21 @@ export default function NewCarrierPage() {
     setSaving(true);
     try {
       const id = await createCarrier({
+        batsId:               null,
         companyName:          companyName.trim(),
         contactName:          contactName.trim(),
         email:                email.trim(),
         phone:                phone.trim(),
         dot:                  dot.trim(),
         mc:                   mc.trim(),
+        address:              '',
+        fax:                  '',
+        dispatcher:           '',
+        dispatcherPhone:      '',
+        dispatcherEmail:      '',
+        billingContact:       '',
+        billingPhone:         '',
+        billingEmail:         '',
         insuranceProvider:    insuranceProvider.trim(),
         insurancePolicyNumber: insurancePolicyNumber.trim(),
         insuranceExpiration:  insuranceExpiration

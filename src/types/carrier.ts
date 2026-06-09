@@ -2,12 +2,21 @@ import type { Timestamp } from 'firebase/firestore';
 
 export interface Carrier {
   id: string;
+  batsId: string | null;
   companyName: string;
   contactName: string;
   email: string;
   phone: string;
   dot: string;
   mc: string;
+  address: string;
+  fax: string;
+  dispatcher: string;
+  dispatcherPhone: string;
+  dispatcherEmail: string;
+  billingContact: string;
+  billingPhone: string;
+  billingEmail: string;
   insuranceExpiration: Timestamp | null;
   insuranceProvider: string;
   insurancePolicyNumber: string;
