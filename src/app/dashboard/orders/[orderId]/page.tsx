@@ -72,9 +72,13 @@ export default function OrderDetailPage() {
   const [generatingBol, setGeneratingBol] = useState(false);
   const [bolUrl, setBolUrl]               = useState<string | null>(null);
 
-  // invoice / POD state
-  const [invoicePath, setInvoicePath] = useState<string | null>(null);
-  const [podPath, setPodPath]         = useState<string | null>(null);
+  // invoice state
+  const [generatingInvoice, setGeneratingInvoice] = useState(false);
+  const [invoiceUrl, setInvoiceUrl]               = useState<string | null>(null);
+  const [invoicePath, setInvoicePath]             = useState<string | null>(null);
+
+  // POD state
+  const [podPath, setPodPath] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -96,6 +100,12 @@ export default function OrderDetailPage() {
           fetch(`/api/orders/${orderId}/bol`)
             .then((r) => r.json())
             .then((b) => { if (b.url) setBolUrl(b.url); })
+            .catch(() => {});
+        }
+        if (o?.invoiceStoragePath) {
+          fetch(`/api/orders/${orderId}/invoice`)
+            .then((r) => r.json())
+            .then((b) => { if (b.url) setInvoiceUrl(b.url); })
             .catch(() => {});
         }
       } catch (e: unknown) {
@@ -194,10 +204,23 @@ export default function OrderDetailPage() {
     }
   }
 
-  async function handleInvoiceUploaded(path: string | null) {
-    setInvoicePath(path);
-    await updateOrder(orderId, { invoiceStoragePath: path }).catch(() => {});
-    if (order) setOrder({ ...order, invoiceStoragePath: path });
+  async function handleGenerateInvoice() {
+    if (!order) return;
+    setGeneratingInvoice(true);
+    setError('');
+    try {
+      const res  = await fetch(`/api/orders/${orderId}/invoice`, { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Failed to generate invoice');
+      setInvoiceUrl(body.url);
+      setInvoicePath(body.path);
+      setOrder({ ...order, invoiceStoragePath: body.path });
+      window.open(body.url, '_blank');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to generate invoice');
+    } finally {
+      setGeneratingInvoice(false);
+    }
   }
 
   async function handlePodUploaded(path: string | null) {
@@ -628,15 +651,28 @@ export default function OrderDetailPage() {
               <tr className="hover:bg-gray-50 transition">
                 <td className="px-6 py-4">
                   <p className="text-sm font-medium text-gray-900">Invoice</p>
-                  <p className="text-xs text-gray-400">PDF or image, max 20 MB</p>
+                  <p className="text-xs text-gray-400">Auto-generated PDF</p>
                 </td>
                 <td className="px-6 py-4">
                   {invoicePath
-                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Uploaded</span>
-                    : <span className="text-xs text-gray-400">Not uploaded</span>}
+                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Available</span>
+                    : <span className="text-xs text-gray-400">Not generated</span>}
                 </td>
                 <td className="px-6 py-4">
-                  <DocumentUpload orderId={orderId} docType="invoice" existingPath={invoicePath} onUploaded={handleInvoiceUploaded} />
+                  <div className="flex items-center gap-3">
+                    {invoiceUrl && (
+                      <a href={invoiceUrl} target="_blank" rel="noreferrer"
+                        className="text-xs text-brand-600 hover:underline">View Invoice</a>
+                    )}
+                    {(['shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(
+                      order.status as 'shipper_signed' | 'in_transit' | 'delivered' | 'completed'
+                    ) && (
+                      <button onClick={handleGenerateInvoice} disabled={generatingInvoice}
+                        className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 bg-brand-50 rounded-lg px-3 py-1.5 font-medium transition hover:bg-brand-100 disabled:opacity-50">
+                        {generatingInvoice ? 'Generating…' : invoicePath ? 'Regenerate' : 'Generate Invoice'}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
 
