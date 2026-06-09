@@ -59,9 +59,13 @@ export default function OrderDetailPage() {
   const [driverLicensePath, setDriverLicensePath] = useState<string | null>(null);
   const [savingCarrier, setSavingCarrier] = useState(false);
 
-  // e-sign state
+  // carrier e-sign state
   const [sendingAgreement, setSendingAgreement] = useState(false);
   const [agreementSentTo, setAgreementSentTo]   = useState('');
+
+  // shipper e-sign state
+  const [sendingShipperAgreement, setSendingShipperAgreement] = useState(false);
+  const [shipperAgreementSentTo, setShipperAgreementSentTo]   = useState('');
 
   // BOL state
   const [generatingBol, setGeneratingBol] = useState(false);
@@ -147,6 +151,22 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function handleSendShipperAgreement() {
+    if (!order) return;
+    setSendingShipperAgreement(true);
+    setError('');
+    try {
+      const res  = await fetch(`/api/orders/${orderId}/send-shipper-agreement`, { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Failed to send');
+      setShipperAgreementSentTo(body.sentTo ?? 'shipper');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to send shipper agreement');
+    } finally {
+      setSendingShipperAgreement(false);
+    }
+  }
+
   async function handleGenerateBol() {
     if (!order) return;
     setGeneratingBol(true);
@@ -206,10 +226,13 @@ export default function OrderDetailPage() {
         brokerFee:    0,
         carrierPay:   0,
         notes:        '',
-        deliveredAt:       null,
-        carrierSignedAt:   null,
-        carrierSignerName: null,
-        carrierSignerIp:   null,
+        deliveredAt:        null,
+        carrierSignedAt:    null,
+        carrierSignerName:  null,
+        carrierSignerIp:    null,
+        shipperSignedAt:    null,
+        shipperSignerName:  null,
+        shipperSignerIp:    null,
         createdBy:    user.uid,
       });
       router.push(`/dashboard/orders/${id}`);
@@ -453,6 +476,40 @@ export default function OrderDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Shipper Confirmation */}
+          {(['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed') && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Shipper Confirmation</h3>
+              {order.status === 'shipper_signed' || order.shipperSignerName ? (
+                <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  <span>✓</span>
+                  <span>
+                    Signed by <strong>{order.shipperSignerName || 'shipper'}</strong>
+                    {order.shipperSignedAt && (
+                      <> on {formatDate(order.shipperSignedAt as { toDate: () => Date })}</>
+                    )}
+                    {order.shipperSignerIp && (
+                      <span className="text-green-600 font-mono text-xs ml-1">({order.shipperSignerIp})</span>
+                    )}
+                  </span>
+                </div>
+              ) : shipperAgreementSentTo ? (
+                <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                  <span>✉</span>
+                  <span>Load confirmation sent to <strong>{shipperAgreementSentTo}</strong> — awaiting signature</span>
+                </div>
+              ) : (
+                <button
+                  onClick={handleSendShipperAgreement}
+                  disabled={sendingShipperAgreement}
+                  className="px-3 py-1.5 bg-brand-50 text-brand-700 border border-brand-200 text-xs font-semibold rounded-lg hover:bg-brand-100 disabled:opacity-50 transition"
+                >
+                  {sendingShipperAgreement ? 'Sending…' : '✉ Send for Shipper Signature'}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Financials */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">

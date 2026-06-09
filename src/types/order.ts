@@ -47,6 +47,9 @@ export interface Order {
   carrierSignedAt: Timestamp | null;
   carrierSignerName: string | null;
   carrierSignerIp: string | null;
+  shipperSignedAt: Timestamp | null;
+  shipperSignerName: string | null;
+  shipperSignerIp: string | null;
   createdBy: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;

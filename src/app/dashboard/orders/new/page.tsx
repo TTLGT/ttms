@@ -130,6 +130,9 @@ function NewOrderForm() {
         carrierSignedAt:    null,
         carrierSignerName:  null,
         carrierSignerIp:    null,
+        shipperSignedAt:    null,
+        shipperSignerName:  null,
+        shipperSignerIp:    null,
         createdBy:    user.uid,
       });
       router.push(`/dashboard/orders/${id}`);

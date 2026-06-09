@@ -36,19 +36,31 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   const now = Timestamp.now();
 
+  const isShipper = data.type === 'shipper_agreement';
+
+  const orderUpdate = isShipper
+    ? {
+        status:             'shipper_signed',
+        shipperSignedAt:    now,
+        shipperSignerName:  signerName.trim(),
+        shipperSignerIp:    ip,
+        updatedAt:          FieldValue.serverTimestamp(),
+      }
+    : {
+        status:            'carrier_signed',
+        carrierSignedAt:   now,
+        carrierSignerName: signerName.trim(),
+        carrierSignerIp:   ip,
+        updatedAt:         FieldValue.serverTimestamp(),
+      };
+
   await Promise.all([
     tokenRef.update({
       usedAt:     now,
       signerName: signerName.trim(),
       signerIp:   ip,
     }),
-    adminDb.collection('orders').doc(data.orderId).update({
-      status:            'carrier_signed',
-      carrierSignedAt:   now,
-      carrierSignerName: signerName.trim(),
-      carrierSignerIp:   ip,
-      updatedAt:         FieldValue.serverTimestamp(),
-    }),
+    adminDb.collection('orders').doc(data.orderId).update(orderUpdate),
   ]);
 
   return NextResponse.json({ success: true });

@@ -13,13 +13,13 @@ function fmtCurrency(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6 text-center">
           <p className="text-xs font-bold tracking-widest text-brand-600 uppercase mb-1">Total Transport Logistics</p>
-          <h1 className="text-2xl font-bold text-gray-900">Carrier Rate Confirmation</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
         </div>
         {children}
       </div>
@@ -32,9 +32,12 @@ export default async function SignPage({ params }: Props) {
 
   const snap = await adminDb.collection('signing_tokens').doc(token).get();
 
+  const isShipper = snap.exists && snap.data()!.type === 'shipper_agreement';
+  const pageTitle = isShipper ? 'Shipper Load Confirmation' : 'Carrier Rate Confirmation';
+
   if (!snap.exists) {
     return (
-      <Shell>
+      <Shell title={pageTitle}>
         <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
           <p className="text-4xl mb-4">🔗</p>
           <h2 className="text-lg font-semibold text-gray-800 mb-2">Link Not Found</h2>
@@ -49,12 +52,12 @@ export default async function SignPage({ params }: Props) {
   if (data.usedAt) {
     const signedDate = data.usedAt.toDate().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' });
     return (
-      <Shell>
+      <Shell title={pageTitle}>
         <div className="bg-white rounded-xl border border-green-200 p-10 text-center">
           <p className="text-4xl mb-4">✅</p>
           <h2 className="text-lg font-semibold text-gray-800 mb-2">Already Signed</h2>
           <p className="text-sm text-gray-600">
-            This rate confirmation was signed by <strong>{data.signerName}</strong> on {signedDate}.
+            This confirmation was signed by <strong>{data.signerName}</strong> on {signedDate}.
           </p>
           <p className="text-xs text-gray-400 mt-3">Order {data.orderNumber}</p>
         </div>
@@ -64,7 +67,7 @@ export default async function SignPage({ params }: Props) {
 
   if (data.expiresAt.toDate() < new Date()) {
     return (
-      <Shell>
+      <Shell title={pageTitle}>
         <div className="bg-white rounded-xl border border-red-200 p-10 text-center">
           <p className="text-4xl mb-4">⏰</p>
           <h2 className="text-lg font-semibold text-gray-800 mb-2">Link Expired</h2>
@@ -75,11 +78,12 @@ export default async function SignPage({ params }: Props) {
   }
 
   return (
-    <Shell>
+    <Shell title={pageTitle}>
       <SignForm
         token={token}
+        type={data.type === 'shipper_agreement' ? 'shipper_agreement' : 'carrier_agreement'}
         orderNumber={data.orderNumber}
-        carrierName={data.carrierName}
+        partyName={data.type === 'shipper_agreement' ? (data.shipperName || '') : (data.carrierName || '')}
         driverName={data.driverName || ''}
         commodity={data.commodity}
         weight={data.weight ? `${Number(data.weight).toLocaleString()} lbs` : '—'}
@@ -88,7 +92,7 @@ export default async function SignPage({ params }: Props) {
         destinationStr={data.destinationStr}
         pickupDate={fmt(data.pickupDate)}
         deliveryDate={fmt(data.deliveryDate)}
-        carrierPay={fmtCurrency(data.carrierPay)}
+        rate={fmtCurrency(data.type === 'shipper_agreement' ? data.agreedRate : data.carrierPay)}
         notes={data.notes || ''}
       />
     </Shell>

@@ -4,8 +4,9 @@ import { useState } from 'react';
 
 interface Props {
   token: string;
+  type: 'carrier_agreement' | 'shipper_agreement';
   orderNumber: string;
-  carrierName: string;
+  partyName: string;
   driverName: string;
   commodity: string;
   weight: string;
@@ -14,11 +15,11 @@ interface Props {
   destinationStr: string;
   pickupDate: string;
   deliveryDate: string;
-  carrierPay: string;
+  rate: string;
   notes: string;
 }
 
-const TERMS = `CARRIER AGREEMENT & RATE CONFIRMATION
+const CARRIER_TERMS = `CARRIER AGREEMENT & RATE CONFIRMATION
 
 This Rate Confirmation ("Agreement") is entered into between Total Transport Logistics ("Broker") and the carrier identified above ("Carrier").
 
@@ -38,6 +39,26 @@ This Rate Confirmation ("Agreement") is entered into between Total Transport Log
 
 8. GOVERNING LAW. This Agreement is governed by the laws of the United States and the state of Texas.`;
 
+const SHIPPER_TERMS = `SHIPPER LOAD CONFIRMATION
+
+This Load Confirmation ("Agreement") is entered into between Total Transport Logistics ("Broker") and the shipper identified above ("Shipper").
+
+1. LOAD ACCEPTANCE. By signing below, Shipper confirms the freight details described in this confirmation and authorizes Total Transport Logistics to arrange transportation of the described shipment.
+
+2. RATE. Shipper agrees to pay the Agreed Rate stated above for transportation services. Payment terms are net 30 days from invoice date.
+
+3. FREIGHT DESCRIPTION. Shipper warrants that the commodity description, weight, and piece count are accurate. Any discrepancies may result in additional charges.
+
+4. PICKUP & DELIVERY. Shipper is responsible for having freight ready at the origin location on the specified pickup date. Delivery estimates are not guaranteed unless stated as guaranteed service.
+
+5. CLAIMS. Any freight claims must be submitted in writing within 9 months of delivery. Shipper must retain all supporting documentation including bills of lading and delivery receipts.
+
+6. INDEMNIFICATION. Shipper shall indemnify and hold harmless Total Transport Logistics from any claims arising from Shipper's failure to properly prepare, describe, or label the freight.
+
+7. DIGITAL SIGNATURE. The parties agree that an electronic signature is legally binding to the same extent as a wet ink signature pursuant to the Electronic Signatures in Global and National Commerce Act (E-SIGN) and applicable state law. Shipper's name, IP address, date, and time are recorded upon submission.
+
+8. GOVERNING LAW. This Agreement is governed by the laws of the United States and the state of Texas.`;
+
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between py-2.5 border-b border-gray-100 last:border-0">
@@ -48,14 +69,19 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function SignForm({
-  token, orderNumber, carrierName, driverName, commodity, weight, pieces,
-  originStr, destinationStr, pickupDate, deliveryDate, carrierPay, notes,
+  token, type, orderNumber, partyName, driverName, commodity, weight, pieces,
+  originStr, destinationStr, pickupDate, deliveryDate, rate, notes,
 }: Props) {
   const [signerName, setSignerName] = useState('');
   const [agreed, setAgreed]         = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState('');
   const [signed, setSigned]         = useState(false);
+
+  const isShipper  = type === 'shipper_agreement';
+  const partyLabel = isShipper ? 'Shipper' : 'Carrier';
+  const rateLabel  = isShipper ? 'Agreed Rate' : 'Carrier Pay';
+  const terms      = isShipper ? SHIPPER_TERMS : CARRIER_TERMS;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -91,7 +117,7 @@ export default function SignForm({
           Thank you, <strong>{signerName}</strong>. Your signature has been recorded.
         </p>
         <p className="text-sm text-gray-600">
-          Rate confirmation <strong>{orderNumber}</strong> is now complete.
+          {isShipper ? 'Load confirmation' : 'Rate confirmation'} <strong>{orderNumber}</strong> is now complete.
         </p>
         <p className="text-xs text-gray-400 mt-4">You may close this window.</p>
       </div>
@@ -106,18 +132,18 @@ export default function SignForm({
           <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wide">Load Details</h2>
           <span className="font-mono text-sm font-bold text-gray-800">{orderNumber}</span>
         </div>
-        <DetailRow label="Carrier"    value={carrierName} />
-        {driverName && <DetailRow label="Driver"     value={driverName} />}
-        <DetailRow label="From"       value={originStr} />
-        <DetailRow label="To"         value={destinationStr} />
-        <DetailRow label="Commodity"  value={commodity} />
-        <DetailRow label="Weight"     value={weight} />
-        <DetailRow label="Pieces"     value={pieces} />
-        <DetailRow label="Pickup"     value={pickupDate} />
-        <DetailRow label="Delivery"   value={deliveryDate} />
+        <DetailRow label={partyLabel} value={partyName} />
+        {!isShipper && driverName && <DetailRow label="Driver" value={driverName} />}
+        <DetailRow label="From"      value={originStr} />
+        <DetailRow label="To"        value={destinationStr} />
+        <DetailRow label="Commodity" value={commodity} />
+        <DetailRow label="Weight"    value={weight} />
+        <DetailRow label="Pieces"    value={pieces} />
+        <DetailRow label="Pickup"    value={pickupDate} />
+        <DetailRow label="Delivery"  value={deliveryDate} />
         <div className="flex justify-between pt-3 mt-1 border-t-2 border-gray-200">
-          <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Carrier Pay</span>
-          <span className="text-xl font-bold text-gray-900">{carrierPay}</span>
+          <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">{rateLabel}</span>
+          <span className="text-xl font-bold text-gray-900">{rate}</span>
         </div>
         {notes && (
           <div className="mt-3 pt-3 border-t border-gray-100">
@@ -131,7 +157,7 @@ export default function SignForm({
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Agreement Terms</h2>
         <div className="bg-gray-50 rounded-lg p-4 h-56 overflow-y-auto border border-gray-200">
-          <pre className="text-xs text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">{TERMS}</pre>
+          <pre className="text-xs text-gray-600 whitespace-pre-wrap font-sans leading-relaxed">{terms}</pre>
         </div>
       </div>
 
@@ -161,7 +187,7 @@ export default function SignForm({
             className="mt-0.5 w-4 h-4 flex-shrink-0"
           />
           <span className="text-sm text-gray-700">
-            I have read and agree to all terms in this Carrier Agreement & Rate Confirmation. I understand this constitutes a legally binding electronic signature.
+            I have read and agree to all terms in this {isShipper ? 'Shipper Load Confirmation' : 'Carrier Agreement & Rate Confirmation'}. I understand this constitutes a legally binding electronic signature.
           </span>
         </label>
 
