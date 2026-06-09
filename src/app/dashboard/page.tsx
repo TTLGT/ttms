@@ -67,7 +67,7 @@ export default function DashboardPage() {
     <div className="p-8 max-w-6xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Good to see you, {firstName} 👋</h1>
-        <p className="text-gray-500 mt-1 text-sm">Here&apos;s what&apos;s happening across your fleet today.</p>
+        <p className="text-gray-500 mt-1 text-sm">Your loads and clients, at a glance.</p>
       </div>
 
       {!loading && <AlertPanel alerts={alerts} />}
