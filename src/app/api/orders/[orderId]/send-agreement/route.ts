@@ -7,6 +7,9 @@ import { randomBytes } from 'crypto';
 type RouteContext = { params: Promise<{ orderId: string }> };
 
 export async function POST(_req: NextRequest, { params }: RouteContext) {
+  if (!process.env.RESEND_API_KEY) {
+    return NextResponse.json({ error: 'Email sending is not configured' }, { status: 503 });
+  }
   const resend = new Resend(process.env.RESEND_API_KEY);
   const { orderId } = await params;
 
