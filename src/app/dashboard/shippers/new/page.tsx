@@ -98,11 +98,12 @@ export default function NewShipperPage() {
       const destIsBlank   = !defaultDest.city && !defaultDest.street;
 
       const id = await createShipper({
-        companyName:   companyName.trim(),
-        contacts:      cleanContacts,
-        defaultOrigin: originIsBlank ? null : defaultOrigin,
-        defaultDest:   destIsBlank   ? null : defaultDest,
-        notes:         notes.trim(),
+        companyName:    companyName.trim(),
+        contacts:       cleanContacts,
+        defaultOrigin:  originIsBlank ? null : defaultOrigin,
+        defaultDest:    destIsBlank   ? null : defaultDest,
+        assignedToUids: [],
+        notes:          notes.trim(),
       });
       router.push(`/dashboard/shippers/${id}`);
     } catch (err: unknown) {

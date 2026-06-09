@@ -14,6 +14,7 @@ export interface Shipper {
   contacts: Contact[];
   defaultOrigin: Address | null;
   defaultDest: Address | null;
+  assignedToUids: string[];
   notes: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;

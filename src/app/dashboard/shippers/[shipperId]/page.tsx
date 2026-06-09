@@ -5,8 +5,11 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getShipper, updateShipper } from '@/lib/shippers';
 import { listOrders } from '@/lib/orders';
+import { listUserProfiles } from '@/lib/userProfiles';
+import { useAuth } from '@/context/AuthContext';
 import type { Shipper, Contact } from '@/types/shipper';
 import type { Address, Order } from '@/types/order';
+import type { UserProfile } from '@/types/userProfile';
 import { BLANK_CONTACT } from '@/types/shipper';
 import StatusBadge from '@/components/orders/StatusBadge';
 
@@ -60,14 +63,17 @@ export default function ShipperDetailPage() {
   const params     = useParams();
   const shipperId  = params.shipperId as string;
   const router     = useRouter();
+  const { isAdmin } = useAuth();
 
-  const [shipper, setShipper]   = useState<Shipper | null>(null);
-  const [orders, setOrders]     = useState<Order[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [editing, setEditing]   = useState(false);
-  const [saving, setSaving]     = useState(false);
-  const [error, setError]       = useState('');
-  const [tab, setTab]           = useState<'details' | 'orders'>('details');
+  const [shipper, setShipper]       = useState<Shipper | null>(null);
+  const [orders, setOrders]         = useState<Order[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [editing, setEditing]       = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [error, setError]           = useState('');
+  const [tab, setTab]               = useState<'details' | 'orders'>('details');
+  const [allUsers, setAllUsers]     = useState<UserProfile[]>([]);
+  const [assignedUids, setAssignedUids] = useState<string[]>([]);
 
   // edit state
   const [companyName, setCompanyName] = useState('');
@@ -87,9 +93,13 @@ export default function ShipperDetailPage() {
           setOrigin(s.defaultOrigin ?? BLANK_ADDRESS);
           setDest(s.defaultDest ?? BLANK_ADDRESS);
           setNotes(s.notes ?? '');
+          setAssignedUids(s.assignedToUids ?? []);
         }
         const all = await listOrders();
         setOrders(all.filter((o) => o.shipperId === shipperId || o.shipperName === s?.companyName));
+        if (isAdmin) {
+          listUserProfiles().then(setAllUsers).catch(() => {});
+        }
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Failed to load');
       } finally {
@@ -97,7 +107,7 @@ export default function ShipperDetailPage() {
       }
     }
     load();
-  }, [shipperId]);
+  }, [shipperId, isAdmin]);
 
   function updateContact(i: number, field: keyof Contact, val: string) {
     setContacts((prev) => prev.map((c, idx) => idx === i ? { ...c, [field]: val } : c));
@@ -111,19 +121,21 @@ export default function ShipperDetailPage() {
       const originIsBlank = !defaultOrigin.city && !defaultOrigin.street;
       const destIsBlank   = !defaultDest.city && !defaultDest.street;
       await updateShipper(shipperId, {
-        companyName:   companyName.trim(),
-        contacts:      cleanContacts,
-        defaultOrigin: originIsBlank ? null : defaultOrigin,
-        defaultDest:   destIsBlank   ? null : defaultDest,
-        notes:         notes.trim(),
+        companyName:    companyName.trim(),
+        contacts:       cleanContacts,
+        defaultOrigin:  originIsBlank ? null : defaultOrigin,
+        defaultDest:    destIsBlank   ? null : defaultDest,
+        assignedToUids: assignedUids,
+        notes:          notes.trim(),
       });
       setShipper((prev) => prev ? {
         ...prev,
-        companyName: companyName.trim(),
-        contacts: cleanContacts,
-        defaultOrigin: originIsBlank ? null : defaultOrigin,
-        defaultDest:   destIsBlank   ? null : defaultDest,
-        notes: notes.trim(),
+        companyName:    companyName.trim(),
+        contacts:       cleanContacts,
+        defaultOrigin:  originIsBlank ? null : defaultOrigin,
+        defaultDest:    destIsBlank   ? null : defaultDest,
+        assignedToUids: assignedUids,
+        notes:          notes.trim(),
       } : prev);
       setEditing(false);
     } catch (e: unknown) {
@@ -139,6 +151,7 @@ export default function ShipperDetailPage() {
     setContacts(shipper.contacts?.length ? shipper.contacts : [{ ...BLANK_CONTACT }]);
     setOrigin(shipper.defaultOrigin ?? BLANK_ADDRESS);
     setDest(shipper.defaultDest ?? BLANK_ADDRESS);
+    setAssignedUids(shipper.assignedToUids ?? []);
     setNotes(shipper.notes ?? '');
     setEditing(false);
   }
@@ -337,6 +350,54 @@ export default function ShipperDetailPage() {
               )}
             </section>
           ) : null}
+
+          {/* User Access (admin only) */}
+          {isAdmin && (
+            <section className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">User Access</h3>
+              {!editing ? (
+                <div className="flex flex-wrap gap-2">
+                  {(shipper.assignedToUids ?? []).length === 0 ? (
+                    <p className="text-sm text-gray-400">No users assigned — only admins can see this shipper.</p>
+                  ) : (
+                    (shipper.assignedToUids ?? []).map((uid) => {
+                      const u = allUsers.find((p) => p.uid === uid);
+                      return (
+                        <span key={uid} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-brand-50 text-brand-700 border border-brand-200">
+                          {u ? u.displayName || u.email : uid}
+                        </span>
+                      );
+                    })
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {allUsers.map((u) => {
+                    const checked = assignedUids.includes(u.uid);
+                    return (
+                      <label key={u.uid} className="flex items-center gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setAssignedUids((prev) =>
+                              checked ? prev.filter((id) => id !== u.uid) : [...prev, u.uid]
+                            )
+                          }
+                          className="rounded border-gray-300 text-brand-600 focus:ring-brand-400"
+                        />
+                        <span className="text-sm text-gray-800">{u.displayName || u.email}</span>
+                        {u.isAdmin && <span className="text-xs text-gray-400">(admin)</span>}
+                      </label>
+                    );
+                  })}
+                  {allUsers.length === 0 && (
+                    <p className="text-sm text-gray-400">No other users in the system yet.</p>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
         </div>
       )}
 

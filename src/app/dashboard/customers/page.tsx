@@ -3,20 +3,23 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { listCustomers } from '@/lib/customers';
+import { useAuth } from '@/context/AuthContext';
 import type { Customer } from '@/types/customer';
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState('');
-  const [search, setSearch]       = useState('');
+  const { user, isAdmin }          = useAuth();
+  const [customers, setCustomers]  = useState<Customer[]>([]);
+  const [loading, setLoading]      = useState(true);
+  const [error, setError]          = useState('');
+  const [search, setSearch]        = useState('');
 
   useEffect(() => {
-    listCustomers()
+    if (!user) return;
+    listCustomers(isAdmin ? undefined : user.uid)
       .then(setCustomers)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [user, isAdmin]);
 
   const filtered = customers.filter((c) => {
     if (!search.trim()) return true;

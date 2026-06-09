@@ -19,6 +19,7 @@ export interface Customer {
   country: string;
   email: string;
   assignedTo: string;
+  assignedToUids: string[];
   leadSourceId: string;
   leadSourceName: string;
   batsCreatedAt: Timestamp | null;

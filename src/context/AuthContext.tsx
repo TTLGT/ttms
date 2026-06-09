@@ -15,11 +15,15 @@ import {
 } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { auth, googleProvider } from '@/lib/firebase';
+import { getOrCreateUserProfile } from '@/lib/userProfiles';
+import type { UserProfile } from '@/types/userProfile';
 
 const ALLOWED_DOMAIN = 'totaltransportlogistics.us';
 
 interface AuthContextValue {
   user: User | null;
+  profile: UserProfile | null;
+  isAdmin: boolean;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
@@ -29,6 +33,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]       = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const router                = useRouter();
 
@@ -38,21 +43,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const email = firebaseUser.email ?? '';
 
         if (!email.endsWith(`@${ALLOWED_DOMAIN}`)) {
-          // Hard reject — sign out immediately and surface an error in console
           console.warn(
             `[Auth] Unauthorized domain rejected: ${email}. ` +
             `Only @${ALLOWED_DOMAIN} accounts are permitted.`
           );
           await signOut(auth);
           setUser(null);
+          setProfile(null);
           setLoading(false);
           router.replace('/login?error=unauthorized_domain');
           return;
         }
 
         setUser(firebaseUser);
+        try {
+          const p = await getOrCreateUserProfile(firebaseUser);
+          setProfile(p);
+        } catch {
+          setProfile(null);
+        }
       } else {
         setUser(null);
+        setProfile(null);
       }
       setLoading(false);
     });
@@ -77,8 +89,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/login');
   };
 
+  const isAdmin = profile?.isAdmin ?? false;
+
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, profile, isAdmin, loading, signInWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

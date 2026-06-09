@@ -7,6 +7,7 @@ import {
   getDoc,
   query,
   orderBy,
+  where,
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
@@ -31,10 +32,12 @@ export async function getCustomer(customerId: string): Promise<Customer | null> 
   return { id: snap.id, ...snap.data() } as Customer;
 }
 
-export async function listCustomers(): Promise<Customer[]> {
-  const q = query(collection(db, COL), orderBy('name', 'asc'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Customer);
+export async function listCustomers(uid?: string): Promise<Customer[]> {
+  const snap = uid
+    ? await getDocs(query(collection(db, COL), where('assignedToUids', 'array-contains', uid)))
+    : await getDocs(query(collection(db, COL), orderBy('name', 'asc')));
+  const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Customer);
+  return uid ? docs.sort((a, b) => a.name.localeCompare(b.name)) : docs;
 }
 
 export async function updateCustomer(

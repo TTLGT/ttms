@@ -6,17 +6,18 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 
 const NAV_ITEMS = [
-  { href: '/dashboard',            label: 'Dashboard',  icon: '▦' },
-  { href: '/dashboard/orders',     label: 'Orders',     icon: '📋' },
-  { href: '/dashboard/carriers',   label: 'Carriers',   icon: '🚛' },
-  { href: '/dashboard/shippers',   label: 'Shippers',   icon: '🏢' },
-  { href: '/dashboard/customers',  label: 'Customers',  icon: '👤' },
-  { href: '/dashboard/documents',  label: 'Documents',  icon: '📁' },
+  { href: '/dashboard',            label: 'Dashboard',  icon: '▦',  adminOnly: false },
+  { href: '/dashboard/orders',     label: 'Orders',     icon: '📋', adminOnly: false },
+  { href: '/dashboard/carriers',   label: 'Carriers',   icon: '🚛', adminOnly: false },
+  { href: '/dashboard/shippers',   label: 'Shippers',   icon: '🏢', adminOnly: false },
+  { href: '/dashboard/customers',  label: 'Customers',  icon: '👤', adminOnly: false },
+  { href: '/dashboard/documents',  label: 'Documents',  icon: '📁', adminOnly: false },
+  { href: '/dashboard/settings',   label: 'Settings',   icon: '⚙️',  adminOnly: true  },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading, logout } = useAuth();
-  const router                    = useRouter();
+  const { user, loading, logout, isAdmin } = useAuth();
+  const router                             = useRouter();
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
@@ -40,7 +41,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {NAV_ITEMS.map((item) => (
+          {NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin).map((item) => (
             <Link
               key={item.href}
               href={item.href}

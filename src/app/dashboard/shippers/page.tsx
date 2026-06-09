@@ -3,20 +3,23 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { listShippers } from '@/lib/shippers';
+import { useAuth } from '@/context/AuthContext';
 import type { Shipper } from '@/types/shipper';
 
 export default function ShippersPage() {
-  const [shippers, setShippers] = useState<Shipper[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState('');
-  const [search, setSearch]     = useState('');
+  const { user, isAdmin }        = useAuth();
+  const [shippers, setShippers]  = useState<Shipper[]>([]);
+  const [loading, setLoading]    = useState(true);
+  const [error, setError]        = useState('');
+  const [search, setSearch]      = useState('');
 
   useEffect(() => {
-    listShippers()
+    if (!user) return;
+    listShippers(isAdmin ? undefined : user.uid)
       .then(setShippers)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [user, isAdmin]);
 
   const visible = search.trim()
     ? shippers.filter((s) =>

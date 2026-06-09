@@ -4,7 +4,10 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { getCustomer, updateCustomer } from '@/lib/customers';
+import { listUserProfiles } from '@/lib/userProfiles';
+import { useAuth } from '@/context/AuthContext';
 import type { Customer } from '@/types/customer';
+import type { UserProfile } from '@/types/userProfile';
 
 function formatDate(ts: { toDate?: () => Date } | null | undefined): string {
   if (!ts || typeof ts.toDate !== 'function') return '—';
@@ -16,12 +19,15 @@ const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm foc
 export default function CustomerDetailPage() {
   const params     = useParams();
   const customerId = params.customerId as string;
+  const { isAdmin } = useAuth();
 
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [loading, setLoading]   = useState(true);
-  const [editing, setEditing]   = useState(false);
-  const [saving, setSaving]     = useState(false);
-  const [error, setError]       = useState('');
+  const [customer, setCustomer]     = useState<Customer | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [editing, setEditing]       = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [error, setError]           = useState('');
+  const [allUsers, setAllUsers]     = useState<UserProfile[]>([]);
+  const [assignedUids, setAssignedUids] = useState<string[]>([]);
 
   const [name, setName]           = useState('');
   const [company, setCompany]     = useState('');
@@ -48,6 +54,7 @@ export default function CustomerDetailPage() {
     setState(c.state ?? '');
     setZip(c.zip ?? '');
     setAssignedTo(c.assignedTo ?? '');
+    setAssignedUids(c.assignedToUids ?? []);
     setNotes(c.notes ?? '');
   }
 
@@ -59,8 +66,11 @@ export default function CustomerDetailPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false));
+    if (isAdmin) {
+      listUserProfiles().then(setAllUsers).catch(() => {});
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customerId]);
+  }, [customerId, isAdmin]);
 
   async function handleSave() {
     setSaving(true);
@@ -78,6 +88,7 @@ export default function CustomerDetailPage() {
         state: state.trim(),
         zip: zip.trim(),
         assignedTo: assignedTo.trim(),
+        assignedToUids: assignedUids,
         notes: notes.trim(),
       };
       await updateCustomer(customerId, updates);
@@ -133,7 +144,7 @@ export default function CustomerDetailPage() {
           </button>
         ) : (
           <div className="flex gap-2">
-            <button onClick={() => { if (customer) syncFields(customer); setEditing(false); }}
+            <button onClick={() => { if (customer) { syncFields(customer); } setEditing(false); }}
               className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
               Cancel
             </button>
@@ -257,6 +268,53 @@ export default function CustomerDetailPage() {
               )
             ))}
           </div>
+
+          {isAdmin && (
+            <div className="mt-6 pt-5 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">User Access</p>
+              {!editing ? (
+                <div className="flex flex-wrap gap-2">
+                  {(customer.assignedToUids ?? []).length === 0 ? (
+                    <p className="text-sm text-gray-400">No users assigned — only admins can see this customer.</p>
+                  ) : (
+                    (customer.assignedToUids ?? []).map((uid) => {
+                      const u = allUsers.find((p) => p.uid === uid);
+                      return (
+                        <span key={uid} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-brand-50 text-brand-700 border border-brand-200">
+                          {u ? u.displayName || u.email : uid}
+                        </span>
+                      );
+                    })
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {allUsers.map((u) => {
+                    const checked = assignedUids.includes(u.uid);
+                    return (
+                      <label key={u.uid} className="flex items-center gap-2.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setAssignedUids((prev) =>
+                              checked ? prev.filter((id) => id !== u.uid) : [...prev, u.uid]
+                            )
+                          }
+                          className="rounded border-gray-300 text-brand-600 focus:ring-brand-400"
+                        />
+                        <span className="text-sm text-gray-800">{u.displayName || u.email}</span>
+                        {u.isAdmin && <span className="text-xs text-gray-400">(admin)</span>}
+                      </label>
+                    );
+                  })}
+                  {allUsers.length === 0 && (
+                    <p className="text-sm text-gray-400">No other users in the system yet.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         {/* Notes */}
