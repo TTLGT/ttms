@@ -12,3 +12,14 @@
     @apply bg-gray-50 text-gray-900 antialiased;
   }
 }
+
+@keyframes truck-pass {
+  0%   { transform: translateX(-150%); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { transform: translateX(150%); opacity: 0; }
+}
+
+.animate-truck-pass {
+  animation: truck-pass 2.2s ease-in-out infinite;
+}
