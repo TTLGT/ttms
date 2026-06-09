@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { createOrder } from '@/lib/orders';
+import { useRouter, useParams } from 'next/navigation';
+import Link from 'next/link';
+import { Timestamp } from 'firebase/firestore';
+import { getOrder, updateOrder } from '@/lib/orders';
 import { listShippers } from '@/lib/shippers';
-import type { Address } from '@/types/order';
+import type { Order, Address } from '@/types/order';
 import type { Shipper } from '@/types/shipper';
 
 const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
@@ -17,6 +17,11 @@ const US_STATES = [
   'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
   'VA','WA','WV','WI','WY',
 ];
+
+function tsToDateStr(ts: Order['pickupDate']): string {
+  if (!ts || typeof (ts as { toDate?: unknown }).toDate !== 'function') return '';
+  return (ts as { toDate: () => Date }).toDate().toISOString().slice(0, 10);
+}
 
 function AddressFields({ label, value, onChange }: {
   label: string; value: Address; onChange: (a: Address) => void;
@@ -45,17 +50,19 @@ function AddressFields({ label, value, onChange }: {
   );
 }
 
-function NewOrderForm() {
-  const router        = useRouter();
-  const searchParams  = useSearchParams();
-  const { user }      = useAuth();
+export default function EditOrderPage() {
+  const params   = useParams();
+  const orderId  = params.orderId as string;
+  const router   = useRouter();
 
-  const [shippers, setShippers]       = useState<Shipper[]>([]);
-  const [shipperId, setShipperId]     = useState(searchParams.get('shipperId') ?? '');
-  const [shipperName, setShipperName] = useState('');
-  const [saving, setSaving]           = useState(false);
-  const [error, setError]             = useState('');
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState('');
+  const [order, setOrder]       = useState<Order | null>(null);
+  const [shippers, setShippers] = useState<Shipper[]>([]);
 
+  const [shipperId, setShipperId]       = useState('');
+  const [shipperName, setShipperName]   = useState('');
   const [commodity, setCommodity]       = useState('');
   const [pieces, setPieces]             = useState('1');
   const [weight, setWeight]             = useState('');
@@ -70,81 +77,89 @@ function NewOrderForm() {
   const carrierPay = (parseFloat(agreedRate) || 0) - (parseFloat(brokerFee) || 0);
 
   useEffect(() => {
-    listShippers().then(setShippers).catch(() => {});
-  }, []);
-
-  // Pre-select shipper from query param once shippers are loaded
-  useEffect(() => {
-    const preId = searchParams.get('shipperId');
-    if (preId && shippers.length) {
-      const s = shippers.find((x) => x.id === preId);
-      if (s) {
-        setShipperId(s.id);
-        setShipperName(s.companyName);
-        if (s.defaultOrigin) setOrigin(s.defaultOrigin);
-        if (s.defaultDest)   setDest(s.defaultDest);
+    async function load() {
+      try {
+        const [o, ss] = await Promise.all([getOrder(orderId), listShippers()]);
+        if (!o) { setError('Order not found'); return; }
+        setOrder(o);
+        setShippers(ss);
+        setShipperId(o.shipperId ?? '');
+        setShipperName(o.shipperName ?? '');
+        setCommodity(o.commodity ?? '');
+        setPieces(String(o.pieces ?? 1));
+        setWeight(o.weight ? String(o.weight) : '');
+        setOrigin(o.origin ?? BLANK_ADDRESS);
+        setDest(o.destination ?? BLANK_ADDRESS);
+        setPickupDate(tsToDateStr(o.pickupDate));
+        setDeliveryDate(tsToDateStr(o.deliveryDate));
+        setAgreedRate(o.agreedRate ? String(o.agreedRate) : '');
+        setBrokerFee(o.brokerFee ? String(o.brokerFee) : '');
+        setNotes(o.notes ?? '');
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Failed to load order');
+      } finally {
+        setLoading(false);
       }
     }
-  }, [shippers, searchParams]);
+    load();
+  }, [orderId]);
 
   function handleShipperChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const id = e.target.value;
     setShipperId(id);
-    if (!id) { setShipperName(''); return; }
     const s = shippers.find((x) => x.id === id);
-    if (s) {
-      setShipperName(s.companyName);
-      if (s.defaultOrigin) setOrigin(s.defaultOrigin);
-    }
+    setShipperName(s?.companyName ?? '');
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!user) return;
+    if (!order) return;
     setError('');
     setSaving(true);
     try {
-      const id = await createOrder({
-        shipperId,
-        shipperName: shipperName.trim(),
-        parentOrderId: null,
-        status:       'quote',
+      await updateOrder(orderId, {
+        shipperId:    shipperId || order.shipperId,
+        shipperName:  shipperName.trim() || order.shipperName,
         commodity:    commodity.trim(),
         pieces:       parseInt(pieces) || 1,
         weight:       parseFloat(weight) || 0,
         origin,
         destination,
-        pickupDate:   pickupDate   ? (new Date(pickupDate)   as unknown as import('firebase/firestore').Timestamp) : null,
-        deliveryDate: deliveryDate ? (new Date(deliveryDate) as unknown as import('firebase/firestore').Timestamp) : null,
-        carrierId:    null,
-        carrierName:  '',
-        driverName:   '',
-        driverPhone:  '',
-        driverLicenseStoragePath: null,
+        pickupDate:   pickupDate   ? Timestamp.fromDate(new Date(pickupDate + 'T12:00:00'))   : null,
+        deliveryDate: deliveryDate ? Timestamp.fromDate(new Date(deliveryDate + 'T12:00:00')) : null,
         agreedRate:   parseFloat(agreedRate) || 0,
         brokerFee:    parseFloat(brokerFee)  || 0,
-        carrierPay,
+        carrierPay:   Math.max(0, carrierPay),
         notes:        notes.trim(),
-        carrierSignedAt:    null,
-        carrierSignerName:  null,
-        carrierSignerIp:    null,
-        createdBy:    user.uid,
       });
-      router.push(`/dashboard/orders/${id}`);
+      router.push(`/dashboard/orders/${orderId}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to create order');
+      setError(err instanceof Error ? err.message : 'Failed to save order');
       setSaving(false);
     }
   }
 
+  if (loading) return (
+    <div className="flex justify-center py-20">
+      <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  if (!order) return (
+    <div className="p-8">
+      <p className="text-red-600 text-sm">{error || 'Order not found.'}</p>
+      <Link href="/dashboard/orders" className="text-sm text-brand-600 hover:underline mt-2 block">← Orders</Link>
+    </div>
+  );
+
   return (
     <div className="p-8 max-w-3xl">
       <div className="mb-6">
-        <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-gray-700 mb-2 flex items-center gap-1">
-          ← Back
-        </button>
-        <h1 className="text-2xl font-bold text-gray-900">New Order</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Saved as a Quote — advance the status after creation.</p>
+        <Link href={`/dashboard/orders/${orderId}`} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-2">
+          ← Back to {order.orderNumber}
+        </Link>
+        <h1 className="text-2xl font-bold text-gray-900">Edit Order</h1>
+        <p className="text-sm text-gray-500 mt-0.5 font-mono">{order.orderNumber}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -155,16 +170,16 @@ function NewOrderForm() {
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Shipper / Client</label>
               {shippers.length > 0 ? (
-                <select required value={shipperId} onChange={handleShipperChange}
+                <select value={shipperId} onChange={handleShipperChange}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
-                  <option value="">Select a shipper…</option>
+                  <option value="">— Select a shipper —</option>
                   {shippers.map((s) => (
                     <option key={s.id} value={s.id}>{s.companyName}</option>
                   ))}
                 </select>
               ) : (
-                <input required value={shipperName} onChange={(e) => setShipperName(e.target.value)}
-                  placeholder="e.g. Acme Corp"
+                <input value={shipperName} onChange={(e) => setShipperName(e.target.value)}
+                  placeholder="Shipper name"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
               )}
             </div>
@@ -246,22 +261,14 @@ function NewOrderForm() {
         <div className="flex gap-3">
           <button type="submit" disabled={saving}
             className="px-6 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
-            {saving ? 'Saving…' : 'Create Quote'}
+            {saving ? 'Saving…' : 'Save Changes'}
           </button>
-          <button type="button" onClick={() => router.back()}
+          <Link href={`/dashboard/orders/${orderId}`}
             className="px-6 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
             Cancel
-          </button>
+          </Link>
         </div>
       </form>
     </div>
-  );
-}
-
-export default function NewOrderPage() {
-  return (
-    <Suspense fallback={<div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" /></div>}>
-      <NewOrderForm />
-    </Suspense>
   );
 }

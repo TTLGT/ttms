@@ -173,6 +173,9 @@ export default function OrderDetailPage() {
         brokerFee:    0,
         carrierPay:   0,
         notes:        '',
+        carrierSignedAt:   null,
+        carrierSignerName: null,
+        carrierSignerIp:   null,
         createdBy:    user.uid,
       });
       router.push(`/dashboard/orders/${id}`);
@@ -219,6 +222,10 @@ export default function OrderDetailPage() {
           <p className="text-sm text-gray-500">{order.shipperName} — {order.commodity}</p>
         </div>
         <div className="flex gap-2">
+          <Link href={`/dashboard/orders/${orderId}/edit`}
+            className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+            Edit
+          </Link>
           {nextStatus && order.status !== 'cancelled' && (
             <button onClick={handleAdvance} disabled={advancing}
               className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
