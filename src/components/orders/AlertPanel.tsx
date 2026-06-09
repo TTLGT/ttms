@@ -36,7 +36,7 @@ export default function AlertPanel({ alerts }: { alerts: OrderAlert[] }) {
         </span>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
         {alerts.map((alert) => {
           const s = alert.severity === 'critical' ? CRITICAL : WARNING;
           return (

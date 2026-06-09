@@ -61,7 +61,7 @@ export default function DashboardPage() {
     { label: 'Delivered Today',  value: deliveredTodayCount, color: 'bg-green-50  border-green-200  text-green-700'  },
   ];
 
-  const recentOrders = primary.slice(0, 5);
+  const recentOrders = primary.slice(0, 30);
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -101,8 +101,9 @@ export default function DashboardPage() {
             <Link href="/dashboard/orders/new" className="text-brand-600 hover:underline">create your first order</Link>.
           </div>
         ) : (
+          <div className="overflow-y-auto max-h-[320px]">
           <table className="min-w-full divide-y divide-gray-100">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 {['Order #', 'Shipper', 'Route', 'Status', 'Pickup', 'Rate', ''].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -139,6 +140,7 @@ export default function DashboardPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
