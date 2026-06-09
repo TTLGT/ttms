@@ -63,6 +63,10 @@ export default function OrderDetailPage() {
   const [sendingAgreement, setSendingAgreement] = useState(false);
   const [agreementSentTo, setAgreementSentTo]   = useState('');
 
+  // BOL state
+  const [generatingBol, setGeneratingBol] = useState(false);
+  const [bolUrl, setBolUrl]               = useState<string | null>(null);
+
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -75,6 +79,12 @@ export default function OrderDetailPage() {
         setOrder(o);
         setCarriers(cs.filter((c) => c.isActive));
         if (o) setSuborders(all.filter((x) => x.parentOrderId === orderId));
+        if (o?.bolStoragePath) {
+          fetch(`/api/orders/${orderId}/bol`)
+            .then((r) => r.json())
+            .then((b) => { if (b.url) setBolUrl(b.url); })
+            .catch(() => {});
+        }
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Failed to load order');
       } finally {
@@ -137,6 +147,24 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function handleGenerateBol() {
+    if (!order) return;
+    setGeneratingBol(true);
+    setError('');
+    try {
+      const res  = await fetch(`/api/orders/${orderId}/bol`, { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Failed to generate BOL');
+      setBolUrl(body.url);
+      setOrder({ ...order, bolStoragePath: body.path });
+      window.open(body.url, '_blank');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to generate BOL');
+    } finally {
+      setGeneratingBol(false);
+    }
+  }
+
   async function handleAdvance() {
     if (!order) return;
     const next = STATUS_NEXT[order.status];
@@ -173,10 +201,12 @@ export default function OrderDetailPage() {
         driverName:   '',
         driverPhone:  '',
         driverLicenseStoragePath: null,
+        bolStoragePath: null,
         agreedRate:   0,
         brokerFee:    0,
         carrierPay:   0,
         notes:        '',
+        deliveredAt:       null,
         carrierSignedAt:   null,
         carrierSignerName: null,
         carrierSignerIp:   null,
@@ -433,6 +463,32 @@ export default function OrderDetailPage() {
               <DetailRow label="Carrier Pay" value={formatCurrency(order.carrierPay)} />
             </div>
           </div>
+
+          {/* BOL */}
+          {(['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed') && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bill of Lading</h3>
+                  {order.bolStoragePath && !bolUrl && (
+                    <p className="text-xs text-gray-400 mt-1">Loading download link…</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {bolUrl && (
+                    <a href={bolUrl} target="_blank" rel="noreferrer"
+                      className="px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition">
+                      Download PDF
+                    </a>
+                  )}
+                  <button onClick={handleGenerateBol} disabled={generatingBol}
+                    className="px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
+                    {generatingBol ? 'Generating…' : order.bolStoragePath ? 'Regenerate BOL' : 'Generate BOL'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {order.notes && (
             <div className="bg-white rounded-xl border border-gray-200 p-6">

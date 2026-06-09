@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.5.1",
     "date-fns": "^4.1.0",
     "firebase": "^11.9.0",
     "firebase-admin": "^13.10.0",

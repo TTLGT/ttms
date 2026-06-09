@@ -38,6 +38,7 @@ export interface Order {
   driverName: string;
   driverPhone: string;
   driverLicenseStoragePath: string | null;
+  bolStoragePath: string | null;
   agreedRate: number;
   brokerFee: number;
   carrierPay: number;
