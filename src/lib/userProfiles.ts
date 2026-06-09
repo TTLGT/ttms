@@ -11,15 +11,23 @@ import type { User } from 'firebase/auth';
 import { db } from './firebase';
 import type { UserProfile } from '@/types/userProfile';
 
-const COL         = 'users';
-const SUPER_ADMIN = 'it@totaltransportlogistics.us';
+const COL          = 'users';
+const ADMIN_EMAILS = new Set([
+  'it@totaltransportlogistics.us',
+  'operations@totaltransportlogistics.us',
+  'dispatch@totaltransportlogistics.us',
+]);
+
+function isAutoAdmin(email: string | null): boolean {
+  return !!email && ADMIN_EMAILS.has(email);
+}
 
 export async function getOrCreateUserProfile(user: User): Promise<UserProfile> {
   const ref  = doc(db, COL, user.uid);
   const snap = await getDoc(ref);
   if (snap.exists()) {
     const existing = snap.data() as UserProfile;
-    if (user.email === SUPER_ADMIN && !existing.isAdmin) {
+    if (isAutoAdmin(user.email) && !existing.isAdmin) {
       await updateDoc(ref, { isAdmin: true });
       return { ...existing, isAdmin: true };
     }
@@ -30,7 +38,7 @@ export async function getOrCreateUserProfile(user: User): Promise<UserProfile> {
     uid:         user.uid,
     email:       user.email ?? '',
     displayName: user.displayName ?? '',
-    isAdmin:     user.email === SUPER_ADMIN,
+    isAdmin:     isAutoAdmin(user.email),
     createdAt:   serverTimestamp(),
   };
   await setDoc(ref, profile);
