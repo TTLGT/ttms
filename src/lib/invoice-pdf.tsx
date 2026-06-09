@@ -1,5 +1,6 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet, renderToBuffer } from '@react-pdf/renderer';
+import path from 'path';
+import { Document, Page, Text, View, StyleSheet, Image as PdfImage, renderToBuffer } from '@react-pdf/renderer';
 
 export type InvoiceData = {
   invoiceNumber: string;
@@ -81,6 +82,8 @@ function fmt(n: number) {
   return n ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n) : '—';
 }
 
+const LOGO_PATH = path.join(process.cwd(), 'public', 'logo-circle.png');
+
 function InvoiceDocument({ d }: { d: InvoiceData }) {
   const route = [d.originCity, d.originState].filter(Boolean).join(', ')
     + ' → '
@@ -92,9 +95,12 @@ function InvoiceDocument({ d }: { d: InvoiceData }) {
 
         {/* Header */}
         <View style={s.header}>
-          <View>
-            <Text style={s.hLabel}>TOTAL TRANSPORT LOGISTICS</Text>
-            <Text style={s.hTitle}>INVOICE</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <PdfImage src={LOGO_PATH} style={{ width: 46, height: 46, marginRight: 10 }} />
+            <View>
+              <Text style={s.hLabel}>TOTAL TRANSPORT LOGISTICS</Text>
+              <Text style={s.hTitle}>INVOICE</Text>
+            </View>
           </View>
           <View style={s.hRight}>
             <Text style={s.hInvNum}>{d.invoiceNumber}</Text>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 
 export default function LoginPage() {
@@ -43,14 +44,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
 
         {/* Header stripe */}
-        <div className="bg-brand-900 px-8 py-6 flex flex-col items-center gap-2">
-          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg">
-            {/* Truck icon */}
-            <svg className="w-9 h-9 text-brand-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zm10 0a2 2 0 11-4 0 2 2 0 014 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M1 3h12v12H1zM14 8h4l3 4v5h-7V8z" />
-            </svg>
-          </div>
+        <div className="bg-brand-900 px-8 py-6 flex flex-col items-center gap-3">
+          <Image src="/logo-circle.png" alt="Total Transport Logistics" width={88} height={88} className="rounded-full shadow-lg" />
           <h1 className="text-white text-xl font-bold tracking-wide">Total Transport Logistics</h1>
           <p className="text-blue-200 text-sm">Transportation Management System</p>
         </div>

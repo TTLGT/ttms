@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 
 const NAV_ITEMS = [
@@ -35,9 +36,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen flex">
       {/* Sidebar */}
       <aside className="w-60 flex-shrink-0 bg-brand-900 text-white flex flex-col">
-        <div className="px-5 py-5 border-b border-brand-700">
-          <p className="text-xs font-semibold uppercase tracking-widest text-blue-300 mb-0.5">Total Transport</p>
-          <p className="text-lg font-bold leading-tight">TMS</p>
+        <div className="px-4 py-4 border-b border-brand-700 flex items-center gap-3">
+          <Image src="/logo-circle.png" alt="TTL" width={44} height={44} className="flex-shrink-0" />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-blue-300 mb-0.5">Total Transport</p>
+            <p className="text-lg font-bold leading-tight text-white">TMS</p>
+          </div>
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
