@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/shippers',   label: 'Shippers',   icon: '🏢', adminOnly: false },
   { href: '/dashboard/clients',     label: 'Clients',    icon: '👤', adminOnly: false },
   { href: '/dashboard/documents',  label: 'Documents',  icon: '📁', adminOnly: false },
+  { href: '/dashboard/analytics',  label: 'Analytics',  icon: '📊', adminOnly: true  },
   { href: '/dashboard/settings',   label: 'Settings',   icon: '⚙️',  adminOnly: true  },
 ];
 
