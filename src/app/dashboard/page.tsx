@@ -64,6 +64,7 @@ interface StatCard {
   color: string;
   icon: LucideIcon;
   anim: string;
+  hoverAnim?: string;
   truckPass?: boolean;
   items?: TooltipItem[];
   emptyMsg?: string;
@@ -106,7 +107,10 @@ function StatCardGrid({ cards, loading }: { cards: StatCard[]; loading: boolean 
                   <card.icon size={32} className={`opacity-60 ${card.anim}`} />
                 </div>
               ) : (
-                <card.icon size={32} className={`opacity-60 ${card.anim}`} />
+                <card.icon
+                  size={32}
+                  className={`opacity-60 transition-transform ${isHovered ? (card.hoverAnim ?? card.anim) : card.anim}`}
+                />
               )}
             </div>
 
@@ -256,7 +260,7 @@ export default function DashboardPage() {
       label: 'Active Orders',
       value: activeOrders.length,
       color: 'bg-blue-50 border-blue-200 text-blue-700',
-      icon: PackageOpen, anim: 'animate-bounce',
+      icon: PackageOpen, anim: 'animate-bounce', hoverAnim: 'animate-pop',
       items: activeOrders.map((o) => orderToItem(o, STATUS_LABEL[o.status])),
       emptyMsg: 'No active orders',
     },
@@ -264,7 +268,7 @@ export default function DashboardPage() {
       label: 'Pending Pick-ups',
       value: pendingPickupOrders.length,
       color: 'bg-yellow-50 border-yellow-200 text-yellow-700',
-      icon: Clock, anim: 'animate-spin [animation-duration:3s]',
+      icon: Clock, anim: 'animate-spin [animation-duration:3s]', hoverAnim: 'animate-spin [animation-duration:0.8s]',
       items: pendingPickupOrders.map((o) => orderToItem(o, formatDate(o.pickupDate as TS))),
       emptyMsg: 'No pending pick-ups',
     },
@@ -280,7 +284,7 @@ export default function DashboardPage() {
       label: 'Delivered Today',
       value: deliveredToday.length,
       color: 'bg-green-50 border-green-200 text-green-700',
-      icon: PackageCheck, anim: '',
+      icon: PackageCheck, anim: '', hoverAnim: 'animate-bounce',
       items: deliveredToday.map((o) => orderToItem(o, formatCurrency(o.agreedRate))),
       emptyMsg: 'No deliveries today yet',
     },
@@ -291,7 +295,7 @@ export default function DashboardPage() {
       label: 'Revenue This Month',
       value: formatCurrency(revenueThisMonth),
       color: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-      icon: DollarSign, anim: '',
+      icon: DollarSign, anim: '', hoverAnim: 'animate-bounce',
       items: thisMonthActive.map((o) => orderToItem(o, formatCurrency(o.agreedRate))),
       emptyMsg: 'No revenue this month',
     },
@@ -299,7 +303,7 @@ export default function DashboardPage() {
       label: 'Total Tariff',
       value: formatCurrency(totalTariff),
       color: 'bg-teal-50 border-teal-200 text-teal-700',
-      icon: TrendingUp, anim: '',
+      icon: TrendingUp, anim: '', hoverAnim: 'animate-pulse',
       items: thisMonthActive.map((o) => orderToItem(o, formatCurrency(o.brokerFee))),
       emptyMsg: 'No tariff this month',
     },
@@ -307,7 +311,7 @@ export default function DashboardPage() {
       label: 'Loads Booked Today',
       value: bookedToday.length,
       color: 'bg-sky-50 border-sky-200 text-sky-700',
-      icon: FilePlus, anim: '',
+      icon: FilePlus, anim: '', hoverAnim: 'animate-bounce',
       items: bookedToday.map((o) => orderToItem(o, STATUS_LABEL[o.status])),
       emptyMsg: 'No loads booked today',
     },
@@ -315,7 +319,7 @@ export default function DashboardPage() {
       label: 'Cancelled This Month',
       value: `${cancelledThisMonth.length} (${cancelRate}%)`,
       color: 'bg-red-50 border-red-200 text-red-700',
-      icon: XCircle, anim: '',
+      icon: XCircle, anim: '', hoverAnim: 'animate-spin [animation-duration:1.5s]',
       items: cancelledThisMonth.map((o) => orderToItem(o, formatDate(o.updatedAt as TS))),
       emptyMsg: 'No cancellations this month',
     },
@@ -323,7 +327,7 @@ export default function DashboardPage() {
       label: 'Overdue Invoices',
       value: overdueInvoices.length,
       color: 'bg-orange-50 border-orange-200 text-orange-700',
-      icon: ReceiptText, anim: overdueInvoices.length > 0 ? 'animate-pulse' : '',
+      icon: ReceiptText, anim: overdueInvoices.length > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-bounce',
       items: overdueInvoices.map((o) => orderToItem(o, STATUS_LABEL[o.status])),
       emptyMsg: 'All invoices uploaded',
     },
@@ -331,7 +335,7 @@ export default function DashboardPage() {
       label: 'Unsigned Agreements',
       value: unsignedOrders.length,
       color: 'bg-amber-50 border-amber-200 text-amber-700',
-      icon: PenLine, anim: unsignedOrders.length > 0 ? 'animate-pulse' : '',
+      icon: PenLine, anim: unsignedOrders.length > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-wiggle',
       items: unsignedOrders.map((o) => {
         const missing: string[] = [];
         if (!o.carrierSignedAt) missing.push('Carrier');
@@ -344,7 +348,7 @@ export default function DashboardPage() {
       label: 'Stale Quotes',
       value: staleQuotes.length,
       color: 'bg-lime-50 border-lime-200 text-lime-700',
-      icon: Hourglass, anim: '',
+      icon: Hourglass, anim: '', hoverAnim: 'animate-spin [animation-duration:2s]',
       items: staleQuotes.map((o) => {
         const updated = (o.updatedAt as any)?.toDate?.() as Date | undefined;
         const days = updated ? Math.floor((Date.now() - updated.getTime()) / 86_400_000) : null;
@@ -356,7 +360,7 @@ export default function DashboardPage() {
       label: 'Active Clients',
       value: activeClientIds.size,
       color: 'bg-indigo-50 border-indigo-200 text-indigo-700',
-      icon: Building2, anim: '',
+      icon: Building2, anim: '', hoverAnim: 'animate-pulse',
       items: Array.from(activeClientIds).map((id) => {
         const client    = clientMap.get(id);
         const loadCount = activeOrders.filter((o) => o.shipperId === id).length;
@@ -374,7 +378,7 @@ export default function DashboardPage() {
       label: 'Delivered This Month',
       value: deliveredThisMonth.length,
       color: 'bg-violet-50 border-violet-200 text-violet-700',
-      icon: FlagTriangleRight, anim: '',
+      icon: FlagTriangleRight, anim: '', hoverAnim: 'animate-bounce',
       items: deliveredThisMonth.map((o) => orderToItem(o, formatDate(o.deliveredAt as TS))),
       emptyMsg: 'No deliveries this month yet',
     },
@@ -382,7 +386,7 @@ export default function DashboardPage() {
       label: 'New Clients This Month',
       value: newClientsThisMonth.length,
       color: 'bg-cyan-50 border-cyan-200 text-cyan-700',
-      icon: UserPlus, anim: '',
+      icon: UserPlus, anim: '', hoverAnim: 'animate-bounce',
       items: newClientsThisMonth.map((c) => ({
         id:    c.id,
         label: c.name,
@@ -396,7 +400,7 @@ export default function DashboardPage() {
       label: 'Expiring Insurance',
       value: expiringCarriers.length,
       color: 'bg-rose-50 border-rose-200 text-rose-700',
-      icon: ShieldAlert, anim: expiringCarriers.length > 0 ? 'animate-pulse' : '',
+      icon: ShieldAlert, anim: expiringCarriers.length > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-pop',
       items: expiringCarriers.map((c) => {
         const status  = getInsuranceStatus(c.insuranceExpiration);
         const expDate = formatDate(c.insuranceExpiration as TS);
@@ -414,7 +418,7 @@ export default function DashboardPage() {
       label: 'Documents Missing',
       value: documentsMissing.length,
       color: 'bg-pink-50 border-pink-200 text-pink-700',
-      icon: Paperclip, anim: documentsMissing.length > 0 ? 'animate-pulse' : '',
+      icon: Paperclip, anim: documentsMissing.length > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-wiggle',
       items: documentsMissing.map((o) => {
         const missing: string[] = [];
         if (['in_transit', 'delivered', 'completed'].includes(o.status) && !o.bolStoragePath) missing.push('BOL');
