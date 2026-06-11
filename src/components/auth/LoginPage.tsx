@@ -46,15 +46,16 @@ export default function LoginPage() {
         {/* Header stripe */}
         <div className="bg-brand-900 px-8 py-6 flex flex-col items-center gap-3">
           <Image src="/logo-circle.png" alt="Total Transport Logistics" width={88} height={88} className="rounded-full shadow-lg" />
-          <h1 className="text-white text-xl font-bold tracking-wide">Total Transport Logistics</h1>
-          <p className="text-blue-200 text-sm">Transportation Management System</p>
+          <h1 className="text-white text-5xl font-black tracking-widest drop-shadow-lg">TTMS</h1>
+          <p className="text-blue-200 text-sm font-medium tracking-wide">Total Transport Logistics</p>
+          <p className="text-blue-300 text-xs italic tracking-wide opacity-80">Transportation Management System</p>
         </div>
 
         {/* Body */}
         <div className="px-8 py-8 flex flex-col gap-5">
           <div className="text-center">
             <h2 className="text-gray-800 text-lg font-semibold">Welcome back</h2>
-            <p className="text-gray-500 text-sm mt-1">Sign in with your company Google account to continue</p>
+            <p className="text-gray-500 text-sm mt-1">Sign in with your TTL Google account to continue</p>
           </div>
 
           {error && (
