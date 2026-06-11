@@ -4,17 +4,28 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import {
+  LayoutDashboard,
+  ClipboardList,
+  Truck,
+  Building2,
+  Users,
+  Folder,
+  BarChart2,
+  Settings,
+  LucideIcon,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
-const NAV_ITEMS = [
-  { href: '/dashboard',            label: 'Dashboard',  icon: '▦',  adminOnly: false },
-  { href: '/dashboard/orders',     label: 'Orders',     icon: '📋', adminOnly: false },
-  { href: '/dashboard/carriers',   label: 'Carriers',   icon: '🚛', adminOnly: false },
-  { href: '/dashboard/shippers',   label: 'Shippers',   icon: '🏢', adminOnly: false },
-  { href: '/dashboard/clients',     label: 'Clients',    icon: '👤', adminOnly: false },
-  { href: '/dashboard/documents',  label: 'Documents',  icon: '📁', adminOnly: false },
-  { href: '/dashboard/analytics',  label: 'Analytics',  icon: '📊', adminOnly: true  },
-  { href: '/dashboard/settings',   label: 'Settings',   icon: '⚙️',  adminOnly: true  },
+const NAV_ITEMS: { href: string; label: string; Icon: LucideIcon; adminOnly: boolean }[] = [
+  { href: '/dashboard',           label: 'Dashboard', Icon: LayoutDashboard, adminOnly: false },
+  { href: '/dashboard/orders',    label: 'Orders',    Icon: ClipboardList,   adminOnly: false },
+  { href: '/dashboard/carriers',  label: 'Carriers',  Icon: Truck,           adminOnly: false },
+  { href: '/dashboard/shippers',  label: 'Shippers',  Icon: Building2,       adminOnly: false },
+  { href: '/dashboard/clients',   label: 'Clients',   Icon: Users,           adminOnly: false },
+  { href: '/dashboard/documents', label: 'Documents', Icon: Folder,          adminOnly: false },
+  { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart2,       adminOnly: true  },
+  { href: '/dashboard/settings',  label: 'Settings',  Icon: Settings,        adminOnly: true  },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -46,14 +57,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin).map((item) => (
+          {NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin).map(({ href, label, Icon }) => (
             <Link
-              key={item.href}
-              href={item.href}
+              key={href}
+              href={href}
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-brand-700 hover:text-white transition"
             >
-              <span className="text-base">{item.icon}</span>
-              {item.label}
+              <Icon size={16} className="flex-shrink-0" />
+              {label}
             </Link>
           ))}
         </nav>
