@@ -40,8 +40,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="px-4 py-4 border-b border-brand-700 flex items-center gap-3">
           <Image src="/logo-circle.png" alt="TTL" width={44} height={44} className="flex-shrink-0" />
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-blue-300 mb-0.5">Total Transport</p>
-            <p className="text-lg font-bold leading-tight text-white">TMS</p>
+            <p className="font-[family-name:var(--font-rajdhani)] text-3xl font-bold tracking-[0.2em] pl-[0.2em] leading-tight text-white">TTMS</p>
+            <p className="text-[10px] font-medium uppercase tracking-widest text-blue-300 mt-0.5">Total Transportation Management System</p>
           </div>
         </div>
 
