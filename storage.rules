@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// Mirrors firestore.rules: only authenticated @totaltransportlogistics.us
+// accounts may read/write files in this bucket (driver's licenses, BOLs,
+// invoices, PODs, carrier/shipper documents, etc). No storage.rules file
+// existed before this — without one, the bucket falls back to whatever was
+// last set (or left default) in the Firebase Console, which could be more
+// permissive than intended given driver's license images live here.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isCompanyUser() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.matches('.*@totaltransportlogistics[.]us$');
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if isCompanyUser();
+    }
+  }
+}
