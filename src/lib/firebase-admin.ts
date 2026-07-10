@@ -1,6 +1,7 @@
 import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
+import { getAuth } from 'firebase-admin/auth';
 
 export { FieldValue };
 
@@ -20,3 +21,30 @@ const adminApp = initAdmin();
 
 export const adminDb      = getFirestore(adminApp);
 export const adminStorage = getStorage(adminApp);
+export const adminAuth    = getAuth(adminApp);
+
+/** Verifies the request's Bearer ID token and confirms the caller is an admin (per their users/{uid} profile). */
+export async function requireAdmin(req: Request): Promise<{ uid: string; email: string | undefined }> {
+  const authHeader = req.headers.get('authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) throw new AdminAuthError('Missing Authorization header', 401);
+
+  const decoded = await adminAuth.verifyIdToken(token).catch(() => {
+    throw new AdminAuthError('Invalid or expired token', 401);
+  });
+
+  const profile = await adminDb.collection('users').doc(decoded.uid).get();
+  if (!profile.exists || profile.data()?.isAdmin !== true) {
+    throw new AdminAuthError('Admin access required', 403);
+  }
+
+  return { uid: decoded.uid, email: decoded.email };
+}
+
+export class AdminAuthError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}

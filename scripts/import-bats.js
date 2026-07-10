@@ -20,12 +20,17 @@
  *   carriers-export-*.csv
  *   customers-export-*.csv
  *   orders-export-*.csv   (handles multiple files — deduplicates by BATS Id)
+ *
+ * Re-running with a newer export is safe and fast: each row is hashed and
+ * compared against the last-imported hash (stored as _importHash on the doc),
+ * so unchanged rows are skipped entirely and only new/changed rows are written.
  */
 
 'use strict';
 
-const fs   = require('fs');
-const path = require('path');
+const fs     = require('fs');
+const path   = require('path');
+const crypto = require('crypto');
 
 // ── Load .env.local ──────────────────────────────────────────────────────────
 const envPath = path.join(__dirname, '..', '.env.local');
@@ -131,23 +136,74 @@ function shouldRun(col) {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// ── Change detection ─────────────────────────────────────────────────────────
+// Hash every field except createdAt/updatedAt (which churn every run) so we
+// can skip re-writing rows whose actual content hasn't changed since the
+// last import.
+function stableStringify(value) {
+  if (value === null || value === undefined) return 'null';
+  if (value instanceof Timestamp) return `T:${value.toMillis()}`;
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (typeof value === 'object') {
+    const keys = Object.keys(value).sort();
+    return `{${keys.map(k => `${k}:${stableStringify(value[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function hashRecord(rec) {
+  const { createdAt, updatedAt, ...stable } = rec;
+  return crypto.createHash('sha1').update(stableStringify(stable)).digest('hex');
+}
+
+/** Cheaply pull just the hash + createdAt of every existing doc (field-masked read). */
+async function loadExistingMeta(collectionName) {
+  const snap = await db.collection(collectionName).select('_importHash', 'createdAt').get();
+  const map  = new Map();
+  snap.forEach((doc) => map.set(doc.id, doc.data()));
+  return map;
+}
+
 // ── Batch write helper ────────────────────────────────────────────────────────
 async function batchWrite(records, collectionName, getId) {
+  const existing = await loadExistingMeta(collectionName);
+
+  const toWrite = [];
+  let skipped = 0;
+  for (const rec of records) {
+    const id     = getId(rec);
+    const hash   = hashRecord(rec);
+    const prior  = id ? existing.get(id) : null;
+
+    if (prior && prior._importHash === hash) {
+      skipped++;
+      continue;
+    }
+
+    toWrite.push({
+      id,
+      data: {
+        ...rec,
+        createdAt:   (prior && prior.createdAt) || rec.createdAt,
+        _importHash: hash,
+      },
+    });
+  }
+
   const CHUNK = 400;
   let written = 0;
-  for (let i = 0; i < records.length; i += CHUNK) {
+  for (let i = 0; i < toWrite.length; i += CHUNK) {
     const batch = db.batch();
-    for (const rec of records.slice(i, i + CHUNK)) {
-      const id  = getId(rec);
+    for (const { id, data } of toWrite.slice(i, i + CHUNK)) {
       const ref = id ? db.collection(collectionName).doc(id) : db.collection(collectionName).doc();
-      batch.set(ref, rec, { merge: true });
+      batch.set(ref, data, { merge: true });
     }
     await batch.commit();
-    written += Math.min(CHUNK, records.length - i);
-    process.stdout.write(`  ${collectionName}: ${written}/${records.length}\r`);
-    if (i + CHUNK < records.length) await sleep(BATCH_DELAY);
+    written += Math.min(CHUNK, toWrite.length - i);
+    process.stdout.write(`  ${collectionName}: ${written}/${toWrite.length} written\r`);
+    if (i + CHUNK < toWrite.length) await sleep(BATCH_DELAY);
   }
-  console.log(`  ${collectionName}: ${written} records written.      `);
+  console.log(`  ${collectionName}: ${written} written, ${skipped} unchanged skipped (${records.length} total).      `);
 }
 
 // ── Find CSV files ────────────────────────────────────────────────────────────

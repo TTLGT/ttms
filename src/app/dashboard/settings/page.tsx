@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { listUserProfiles, setUserAdmin } from '@/lib/userProfiles';
 import { useAuth } from '@/context/AuthContext';
 import type { UserProfile } from '@/types/userProfile';
+import BatsImportPanel from '@/components/settings/BatsImportPanel';
 
 export default function SettingsPage() {
   const { user, isAdmin }        = useAuth();
@@ -121,6 +122,8 @@ export default function SettingsPage() {
       <p className="mt-4 text-xs text-gray-400">
         Users appear in this list after signing in for the first time.
       </p>
+
+      <BatsImportPanel />
     </div>
   );
 }
