@@ -5,5 +5,7 @@ export interface UserProfile {
   email: string;
   displayName: string;
   isAdmin: boolean;
+  isDispatcher?: boolean;
+  isFinance?: boolean;
   createdAt: Timestamp;
 }

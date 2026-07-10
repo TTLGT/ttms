@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb, requirePermission, AdminAuthError } from '@/lib/firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
 import { randomBytes } from 'crypto';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
-export async function POST(_req: NextRequest, { params }: RouteContext) {
+export async function POST(req: NextRequest, { params }: RouteContext) {
+  try {
+    await requirePermission(req, ['dispatcher']);
+  } catch (e) {
+    if (e instanceof AdminAuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    throw e;
+  }
+
   if (!process.env.RESEND_API_KEY) {
     return NextResponse.json({ error: 'Email sending is not configured' }, { status: 503 });
   }

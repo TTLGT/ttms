@@ -35,11 +35,13 @@ export async function getOrCreateUserProfile(user: User): Promise<UserProfile> {
   }
 
   const profile = {
-    uid:         user.uid,
-    email:       user.email ?? '',
-    displayName: user.displayName ?? '',
-    isAdmin:     isAutoAdmin(user.email),
-    createdAt:   serverTimestamp(),
+    uid:          user.uid,
+    email:        user.email ?? '',
+    displayName:  user.displayName ?? '',
+    isAdmin:      isAutoAdmin(user.email),
+    isDispatcher: false,
+    isFinance:    false,
+    createdAt:    serverTimestamp(),
   };
   await setDoc(ref, profile);
   // Return a plain object; createdAt will be a real Timestamp on the next read
@@ -53,4 +55,12 @@ export async function listUserProfiles(): Promise<UserProfile[]> {
 
 export async function setUserAdmin(uid: string, isAdmin: boolean): Promise<void> {
   await updateDoc(doc(db, COL, uid), { isAdmin });
+}
+
+export async function setUserDispatcher(uid: string, isDispatcher: boolean): Promise<void> {
+  await updateDoc(doc(db, COL, uid), { isDispatcher });
+}
+
+export async function setUserFinance(uid: string, isFinance: boolean): Promise<void> {
+  await updateDoc(doc(db, COL, uid), { isFinance });
 }

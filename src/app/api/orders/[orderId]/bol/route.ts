@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, adminStorage } from '@/lib/firebase-admin';
+import { adminDb, adminStorage, requirePermission, requireCompanyUser, AdminAuthError } from '@/lib/firebase-admin';
 import { generateBolBuffer } from '@/lib/bol-pdf';
 import type { BolData } from '@/lib/bol-pdf';
 
@@ -18,7 +18,16 @@ async function getSignedUrl(filePath: string): Promise<string> {
   return url;
 }
 
-export async function POST(_req: NextRequest, { params }: RouteContext) {
+export async function POST(req: NextRequest, { params }: RouteContext) {
+  try {
+    await requirePermission(req, ['finance']);
+  } catch (e) {
+    if (e instanceof AdminAuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    throw e;
+  }
+
   const { orderId } = await params;
 
   const orderSnap = await adminDb.collection('orders').doc(orderId).get();
@@ -83,7 +92,16 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
   return NextResponse.json({ url, path: filePath });
 }
 
-export async function GET(_req: NextRequest, { params }: RouteContext) {
+export async function GET(req: NextRequest, { params }: RouteContext) {
+  try {
+    await requireCompanyUser(req);
+  } catch (e) {
+    if (e instanceof AdminAuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    throw e;
+  }
+
   const { orderId } = await params;
 
   const orderSnap = await adminDb.collection('orders').doc(orderId).get();

@@ -23,19 +23,53 @@ export const adminDb      = getFirestore(adminApp);
 export const adminStorage = getStorage(adminApp);
 export const adminAuth    = getAuth(adminApp);
 
-/** Verifies the request's Bearer ID token and confirms the caller is an admin (per their users/{uid} profile). */
-export async function requireAdmin(req: Request): Promise<{ uid: string; email: string | undefined }> {
+async function verifyRequestToken(req: Request) {
   const authHeader = req.headers.get('authorization') ?? '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (!token) throw new AdminAuthError('Missing Authorization header', 401);
 
-  const decoded = await adminAuth.verifyIdToken(token).catch(() => {
+  return adminAuth.verifyIdToken(token).catch(() => {
     throw new AdminAuthError('Invalid or expired token', 401);
   });
+}
+
+/** Verifies the request's Bearer ID token and confirms the caller is a signed-in @totaltransportlogistics.us user. */
+export async function requireCompanyUser(req: Request): Promise<{ uid: string; email: string | undefined }> {
+  const decoded = await verifyRequestToken(req);
+  if (!decoded.email?.endsWith('@totaltransportlogistics.us')) {
+    throw new AdminAuthError('Unauthorized', 403);
+  }
+  return { uid: decoded.uid, email: decoded.email };
+}
+
+/** Verifies the request's Bearer ID token and confirms the caller is an admin (per their users/{uid} profile). */
+export async function requireAdmin(req: Request): Promise<{ uid: string; email: string | undefined }> {
+  const decoded = await verifyRequestToken(req);
 
   const profile = await adminDb.collection('users').doc(decoded.uid).get();
   if (!profile.exists || profile.data()?.isAdmin !== true) {
     throw new AdminAuthError('Admin access required', 403);
+  }
+
+  return { uid: decoded.uid, email: decoded.email };
+}
+
+export type Role = 'dispatcher' | 'finance';
+
+const ROLE_FIELD: Record<Role, 'isDispatcher' | 'isFinance'> = {
+  dispatcher: 'isDispatcher',
+  finance:    'isFinance',
+};
+
+/** Verifies the caller is an admin, or holds at least one of the given non-admin roles. */
+export async function requirePermission(req: Request, allowedRoles: Role[]): Promise<{ uid: string; email: string | undefined }> {
+  const decoded = await verifyRequestToken(req);
+
+  const profile = await adminDb.collection('users').doc(decoded.uid).get();
+  const data = profile.data();
+  const hasAccess = data?.isAdmin === true || allowedRoles.some((role) => data?.[ROLE_FIELD[role]] === true);
+  if (!profile.exists || !hasAccess) {
+    throw new AdminAuthError('You do not have permission to perform this action', 403);
   }
 
   return { uid: decoded.uid, email: decoded.email };

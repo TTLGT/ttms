@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { listUserProfiles, setUserAdmin } from '@/lib/userProfiles';
+import { listUserProfiles, setUserAdmin, setUserDispatcher, setUserFinance } from '@/lib/userProfiles';
 import { useAuth } from '@/context/AuthContext';
 import type { UserProfile } from '@/types/userProfile';
 import BatsImportPanel from '@/components/settings/BatsImportPanel';
@@ -28,13 +28,22 @@ export default function SettingsPage() {
       .finally(() => setLoading(false));
   }, [isAdmin, router]);
 
-  async function handleToggle(profile: UserProfile) {
-    if (profile.uid === user?.uid) return; // can't remove your own admin
-    setToggling(profile.uid);
+  type RoleField = 'isAdmin' | 'isDispatcher' | 'isFinance';
+  const ROLE_SETTERS: Record<RoleField, (uid: string, value: boolean) => Promise<void>> = {
+    isAdmin:      setUserAdmin,
+    isDispatcher: setUserDispatcher,
+    isFinance:    setUserFinance,
+  };
+
+  async function handleToggle(profile: UserProfile, field: RoleField) {
+    if (field === 'isAdmin' && profile.uid === user?.uid) return; // can't remove your own admin
+    const key = `${profile.uid}:${field}`;
+    setToggling(key);
     try {
-      await setUserAdmin(profile.uid, !profile.isAdmin);
+      const next = !profile[field];
+      await ROLE_SETTERS[field](profile.uid, next);
       setUsers((prev) =>
-        prev.map((u) => u.uid === profile.uid ? { ...u, isAdmin: !u.isAdmin } : u)
+        prev.map((u) => u.uid === profile.uid ? { ...u, [field]: next } : u)
       );
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to update');
@@ -54,7 +63,8 @@ export default function SettingsPage() {
         <div className="px-6 py-4 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-900">Team Members</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Admins can see all records and manage access. Regular users only see records assigned to them.
+            Admins can see all records and manage access. Dispatchers can send carrier/shipper agreements.
+            Finance can generate BOLs and invoices. Click a role to toggle it for a user.
           </p>
         </div>
 
@@ -71,46 +81,50 @@ export default function SettingsPage() {
         ) : (
           <ul className="divide-y divide-gray-100">
             {users.map((u) => {
-              const isSelf     = u.uid === user?.uid;
-              const isToggling = toggling === u.uid;
+              const isSelf = u.uid === user?.uid;
+              const roleChips: { field: RoleField; label: string }[] = [
+                { field: 'isAdmin',      label: 'Admin' },
+                { field: 'isDispatcher', label: 'Dispatcher' },
+                { field: 'isFinance',    label: 'Finance' },
+              ];
               return (
-                <li key={u.uid} className="flex items-center justify-between px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-semibold text-sm">
+                <li key={u.uid} className="flex items-center justify-between px-6 py-4 gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-semibold text-sm flex-shrink-0">
                       {(u.displayName || u.email).charAt(0).toUpperCase()}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
                         {u.displayName || '—'}
                         {isSelf && <span className="ml-1.5 text-xs text-gray-400">(you)</span>}
                       </p>
-                      <p className="text-xs text-gray-500">{u.email}</p>
+                      <p className="text-xs text-gray-500 truncate">{u.email}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-                      u.isAdmin
-                        ? 'bg-brand-50 text-brand-700 border border-brand-200'
-                        : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {u.isAdmin ? 'Admin' : 'User'}
-                    </span>
-
-                    <button
-                      onClick={() => handleToggle(u)}
-                      disabled={isSelf || isToggling}
-                      title={isSelf ? "You can't change your own role" : undefined}
-                      className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
-                        isSelf
-                          ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                          : u.isAdmin
-                          ? 'border-red-200 text-red-600 hover:bg-red-50'
-                          : 'border-brand-200 text-brand-600 hover:bg-brand-50'
-                      }`}
-                    >
-                      {isToggling ? '…' : u.isAdmin ? 'Remove Admin' : 'Make Admin'}
-                    </button>
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    {roleChips.map(({ field, label }) => {
+                      const active      = !!u[field];
+                      const disabled    = field === 'isAdmin' && isSelf;
+                      const isToggling  = toggling === `${u.uid}:${field}`;
+                      return (
+                        <button
+                          key={field}
+                          onClick={() => handleToggle(u, field)}
+                          disabled={disabled || isToggling}
+                          title={disabled ? "You can't change your own role" : undefined}
+                          className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+                            disabled
+                              ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                              : active
+                              ? 'border-brand-200 bg-brand-50 text-brand-700'
+                              : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                          }`}
+                        >
+                          {isToggling ? '…' : label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </li>
               );

@@ -96,14 +96,16 @@ export default function OrderDetailPage() {
           setInvoicePath(o.invoiceStoragePath ?? null);
           setPodPath(o.podStoragePath ?? null);
         }
-        if (o?.bolStoragePath) {
-          fetch(`/api/orders/${orderId}/bol`)
+        if (o?.bolStoragePath && user) {
+          user.getIdToken()
+            .then((idToken) => fetch(`/api/orders/${orderId}/bol`, { headers: { Authorization: `Bearer ${idToken}` } }))
             .then((r) => r.json())
             .then((b) => { if (b.url) setBolUrl(b.url); })
             .catch(() => {});
         }
-        if (o?.invoiceStoragePath) {
-          fetch(`/api/orders/${orderId}/invoice`)
+        if (o?.invoiceStoragePath && user) {
+          user.getIdToken()
+            .then((idToken) => fetch(`/api/orders/${orderId}/invoice`, { headers: { Authorization: `Bearer ${idToken}` } }))
             .then((r) => r.json())
             .then((b) => { if (b.url) setInvoiceUrl(b.url); })
             .catch(() => {});
@@ -115,7 +117,7 @@ export default function OrderDetailPage() {
       }
     }
     load();
-  }, [orderId]);
+  }, [orderId, user]);
 
   function openCarrierAssign() {
     setSelectedCarrierId(order?.carrierId ?? '');
@@ -155,11 +157,15 @@ export default function OrderDetailPage() {
   }
 
   async function handleSendAgreement() {
-    if (!order) return;
+    if (!order || !user) return;
     setSendingAgreement(true);
     setError('');
     try {
-      const res = await fetch(`/api/orders/${orderId}/send-agreement`, { method: 'POST' });
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/orders/${orderId}/send-agreement`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'Failed to send');
       setAgreementSentTo(body.sentTo ?? 'carrier');
@@ -171,11 +177,15 @@ export default function OrderDetailPage() {
   }
 
   async function handleSendShipperAgreement() {
-    if (!order) return;
+    if (!order || !user) return;
     setSendingShipperAgreement(true);
     setError('');
     try {
-      const res  = await fetch(`/api/orders/${orderId}/send-shipper-agreement`, { method: 'POST' });
+      const idToken = await user.getIdToken();
+      const res  = await fetch(`/api/orders/${orderId}/send-shipper-agreement`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'Failed to send');
       setShipperAgreementSentTo(body.sentTo ?? 'shipper');
@@ -187,11 +197,15 @@ export default function OrderDetailPage() {
   }
 
   async function handleGenerateBol() {
-    if (!order) return;
+    if (!order || !user) return;
     setGeneratingBol(true);
     setError('');
     try {
-      const res  = await fetch(`/api/orders/${orderId}/bol`, { method: 'POST' });
+      const idToken = await user.getIdToken();
+      const res  = await fetch(`/api/orders/${orderId}/bol`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'Failed to generate BOL');
       setBolUrl(body.url);
@@ -205,11 +219,15 @@ export default function OrderDetailPage() {
   }
 
   async function handleGenerateInvoice() {
-    if (!order) return;
+    if (!order || !user) return;
     setGeneratingInvoice(true);
     setError('');
     try {
-      const res  = await fetch(`/api/orders/${orderId}/invoice`, { method: 'POST' });
+      const idToken = await user.getIdToken();
+      const res  = await fetch(`/api/orders/${orderId}/invoice`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'Failed to generate invoice');
       setInvoiceUrl(body.url);
