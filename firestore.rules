@@ -1,0 +1,86 @@
+rules_version = '2';
+
+// Matches the intent documented in docs/schema-guide.md:
+// only authenticated @totaltransportlogistics.us accounts may read/write.
+// The public e-sign flow (src/app/api/sign/[token]/route.ts) goes through
+// the Admin SDK, which bypasses these rules entirely — no public rule needed here.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isCompanyUser() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.matches('.*@totaltransportlogistics[.]us$');
+    }
+
+    function isAdmin() {
+      return isCompanyUser()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Mirrors ADMIN_EMAILS in src/lib/userProfiles.ts — lets those accounts
+    // self-promote to admin on first sign-in without needing an admin already.
+    function isAutoAdminEmail() {
+      return request.auth.token.email in [
+        'it@totaltransportlogistics.us',
+        'operations@totaltransportlogistics.us',
+        'dispatch@totaltransportlogistics.us'
+      ];
+    }
+
+    match /users/{userId} {
+      allow read:   if isCompanyUser();
+      allow create: if isCompanyUser() && request.auth.uid == userId;
+      allow update: if isCompanyUser() && (
+        isAdmin() ||
+        (request.auth.uid == userId && isAutoAdminEmail())
+      );
+    }
+
+    match /shippers/{shipperId} {
+      allow read:   if isCompanyUser() && (
+        isAdmin() || (resource.data.assignedToUids is list && request.auth.uid in resource.data.assignedToUids)
+      );
+      allow create: if isCompanyUser();
+      allow update, delete: if isCompanyUser();
+
+      match /documents/{documentId} {
+        allow read, write: if isCompanyUser();
+      }
+    }
+
+    match /customers/{customerId} {
+      allow read:   if isCompanyUser() && (
+        isAdmin() || (resource.data.assignedToUids is list && request.auth.uid in resource.data.assignedToUids)
+      );
+      allow create: if isCompanyUser();
+      allow update, delete: if isCompanyUser();
+    }
+
+    match /carriers/{carrierId} {
+      allow read, create, update, delete: if isCompanyUser();
+
+      match /documents/{documentId} {
+        allow read, write: if isCompanyUser();
+      }
+    }
+
+    match /orders/{orderId} {
+      allow read, create, update, delete: if isCompanyUser();
+
+      match /documents/{documentId} {
+        allow read, write: if isCompanyUser();
+      }
+    }
+
+    match /agreements/{agreementId} {
+      allow read: if isCompanyUser();
+      allow write: if false; // written only by the Admin SDK (signing route)
+    }
+
+    match /signing_tokens/{token} {
+      allow read, write: if false; // Admin SDK only — never touched by the client
+    }
+  }
+}
