@@ -19,7 +19,10 @@ export const db      = getFirestore(app);
 export const storage = getStorage(app);
 
 export const googleProvider = new GoogleAuthProvider();
-// "hd" is a login-hint only — the hard domain check is enforced in AuthContext
-googleProvider.setCustomParameters({ hd: 'totaltransportlogistics.us' });
+// No "hd" domain restriction: access is granted per-address via the allowlist
+// (see src/lib/accessControl.ts), so pinning the account picker to one domain
+// would block a collaborator an admin deliberately invited from outside it.
+// Authenticating still grants nothing without an allowedUsers entry.
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export default app;

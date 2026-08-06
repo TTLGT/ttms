@@ -207,8 +207,41 @@ documents/{documentId}
 
 ---
 
+## Access Control (invitation only)
+
+Signing in with Google grants nothing on its own. An admin must first add the
+person's email under **Settings → Grant Access**, which creates an
+`allowedUsers/{email}` document — that document is what authorizes the account.
+Email domain is no longer a grant, so external collaborators can be added and
+a company address that was never invited is refused.
+
+| Collection     | Role                                                                       |
+|----------------|----------------------------------------------------------------------------|
+| `allowedUsers` | The allowlist, keyed by lowercased email. Source of truth for roles. Admin-readable, never client-writable. |
+| `users`        | Live profile for someone who has actually signed in, keyed by uid. Provisioned server-side from the allowlist. |
+
+An entry with `uid: null` is a pending invite — created, but the person has not
+signed in yet.
+
+**Flow.** `/api/auth/session` runs on every sign-in: it verifies the ID token,
+requires an `allowedUsers` entry, provisions `users/{uid}` with the roles from
+that entry, and mirrors them into custom claims. `AuthContext` signs the user
+out if this call fails, so there is no signed-in state without a verified entry.
+
+**Revocation** (Settings → trash icon) deletes both documents, clears the custom
+claims, revokes refresh tokens and disables the Auth account. Firestore cuts off
+on the next request; Storage relies on the claim, so it lags until the current
+ID token expires (max one hour).
+
+**Lockout protection.** `BOOTSTRAP_ADMIN_EMAILS` in `src/lib/accessControl.ts`
+(mirrored in `firestore.rules`) is always allowed and always admin, so an empty
+or damaged allowlist can never lock everyone out. Those accounts cannot be
+removed or demoted through the UI. Run `node scripts/seed-allowed-users.js`
+once when migrating an existing deployment onto the allowlist.
+
 ## Security Rules (high-level intent)
 
-- Only authenticated users whose email ends with `@totaltransportlogistics.us` may read/write any document.
+- Only authenticated users with an `allowedUsers` entry (or a bootstrap admin address) may read/write any document.
+- `allowedUsers` and `users` are never writable from the client — all changes go through the Admin SDK, so nobody can self-promote to admin.
 - `agreements` documents may be written by unauthenticated signers **only** via a secure Cloud Function that validates a one-time token — never directly from the client SDK.
-- Storage rules mirror Firestore: authenticated company users only, except signed agreement PDFs which are read-accessible via the one-time token link.
+- Storage rules cannot read Firestore, so they gate on the `ttlAccess` custom claim that `/api/auth/session` stamps at sign-in.

@@ -1,21 +1,25 @@
 rules_version = '2';
 
-// Mirrors firestore.rules: only authenticated @totaltransportlogistics.us
-// accounts may read/write files in this bucket (driver's licenses, BOLs,
-// invoices, PODs, carrier/shipper documents, etc). No storage.rules file
-// existed before this — without one, the bucket falls back to whatever was
-// last set (or left default) in the Firebase Console, which could be more
-// permissive than intended given driver's license images live here.
+// Mirrors firestore.rules: access is an explicit allowlist, not an email domain.
+//
+// Storage rules cannot read Firestore, so they cannot check the `allowedUsers`
+// collection directly. Instead /api/auth/session stamps a `ttlAccess` custom
+// claim on the account at sign-in, and that claim is what gates this bucket
+// (driver's licenses, BOLs, invoices, PODs, carrier/shipper documents).
+//
+// Revoking someone in Settings clears the claim, revokes their refresh tokens
+// and disables the account, so they cannot mint a new token. Their current ID
+// token stays valid until it expires (max one hour) — Firestore cuts off
+// immediately, Storage lags by that window.
 service firebase.storage {
   match /b/{bucket}/o {
-    function isCompanyUser() {
+    function isAllowedUser() {
       return request.auth != null
-        && request.auth.token.email != null
-        && request.auth.token.email.matches('.*@totaltransportlogistics[.]us$');
+        && request.auth.token.ttlAccess == true;
     }
 
     match /{allPaths=**} {
-      allow read, write: if isCompanyUser();
+      allow read, write: if isAllowedUser();
     }
   }
 }

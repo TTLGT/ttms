@@ -1,66 +1,23 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-  updateDoc,
-  serverTimestamp,
-} from 'firebase/firestore';
-import type { User } from 'firebase/auth';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { db } from './firebase';
+import { USERS_COLLECTION } from './accessControl';
 import type { UserProfile } from '@/types/userProfile';
 
-const COL          = 'users';
-const ADMIN_EMAILS = new Set([
-  'it@totaltransportlogistics.us',
-  'operations@totaltransportlogistics.us',
-  'dispatch@totaltransportlogistics.us',
-]);
+/**
+ * `users/{uid}` is the live profile for someone who has actually signed in.
+ * It is written server-side by /api/auth/session, which provisions it from the
+ * `allowedUsers` entry — profiles are never created from the client, so an
+ * uninvited account cannot bring one into existence.
+ *
+ * Role changes go through /api/admin/users (see src/lib/allowedUsers.ts).
+ */
 
-function isAutoAdmin(email: string | null): boolean {
-  return !!email && ADMIN_EMAILS.has(email);
-}
-
-export async function getOrCreateUserProfile(user: User): Promise<UserProfile> {
-  const ref  = doc(db, COL, user.uid);
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    const existing = snap.data() as UserProfile;
-    if (isAutoAdmin(user.email) && !existing.isAdmin) {
-      await updateDoc(ref, { isAdmin: true });
-      return { ...existing, isAdmin: true };
-    }
-    return existing;
-  }
-
-  const profile = {
-    uid:          user.uid,
-    email:        user.email ?? '',
-    displayName:  user.displayName ?? '',
-    isAdmin:      isAutoAdmin(user.email),
-    isDispatcher: false,
-    isFinance:    false,
-    createdAt:    serverTimestamp(),
-  };
-  await setDoc(ref, profile);
-  // Return a plain object; createdAt will be a real Timestamp on the next read
-  return { ...profile, createdAt: null } as unknown as UserProfile;
+export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  const snap = await getDoc(doc(db, USERS_COLLECTION, uid));
+  return snap.exists() ? (snap.data() as UserProfile) : null;
 }
 
 export async function listUserProfiles(): Promise<UserProfile[]> {
-  const snap = await getDocs(collection(db, COL));
+  const snap = await getDocs(collection(db, USERS_COLLECTION));
   return snap.docs.map((d) => d.data() as UserProfile);
-}
-
-export async function setUserAdmin(uid: string, isAdmin: boolean): Promise<void> {
-  await updateDoc(doc(db, COL, uid), { isAdmin });
-}
-
-export async function setUserDispatcher(uid: string, isDispatcher: boolean): Promise<void> {
-  await updateDoc(doc(db, COL, uid), { isDispatcher });
-}
-
-export async function setUserFinance(uid: string, isFinance: boolean): Promise<void> {
-  await updateDoc(doc(db, COL, uid), { isFinance });
 }

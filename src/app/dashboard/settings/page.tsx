@@ -1,54 +1,101 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { listUserProfiles, setUserAdmin, setUserDispatcher, setUserFinance } from '@/lib/userProfiles';
+import { Trash2, UserPlus } from 'lucide-react';
+import {
+  listAllowedUsers,
+  inviteUser,
+  setAllowedUserRole,
+  revokeUser,
+} from '@/lib/allowedUsers';
+import { isBootstrapAdmin, normalizeEmail } from '@/lib/accessControl';
 import { useAuth } from '@/context/AuthContext';
-import type { UserProfile } from '@/types/userProfile';
+import type { AllowedUser, AllowedUserRole } from '@/types/allowedUser';
 import BatsImportPanel from '@/components/settings/BatsImportPanel';
 
+const ROLE_CHIPS: { field: AllowedUserRole; label: string }[] = [
+  { field: 'isAdmin',      label: 'Admin' },
+  { field: 'isDispatcher', label: 'Dispatcher' },
+  { field: 'isFinance',    label: 'Finance' },
+];
+
 export default function SettingsPage() {
-  const { user, isAdmin }        = useAuth();
-  const router                   = useRouter();
-  const [users, setUsers]        = useState<UserProfile[]>([]);
-  const [loading, setLoading]    = useState(true);
-  const [error, setError]        = useState('');
-  const [toggling, setToggling]  = useState<string | null>(null);
+  const { user, isAdmin }       = useAuth();
+  const router                  = useRouter();
+  const [people, setPeople]     = useState<AllowedUser[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState('');
+  const [busy, setBusy]         = useState<string | null>(null);
+
+  const [newEmail, setNewEmail]   = useState('');
+  const [newRoles, setNewRoles]   = useState({ isAdmin: false, isDispatcher: false, isFinance: false });
+  const [inviting, setInviting]   = useState(false);
+
+  const myEmail = normalizeEmail(user?.email);
+
+  const refresh = useCallback(async () => {
+    const list = await listAllowedUsers();
+    setPeople(list);
+  }, []);
 
   useEffect(() => {
     if (!isAdmin) {
       router.replace('/dashboard');
       return;
     }
-    listUserProfiles()
-      .then((profiles) =>
-        setUsers(profiles.sort((a, b) => a.email.localeCompare(b.email)))
-      )
+    refresh()
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [isAdmin, router]);
+  }, [isAdmin, router, refresh]);
 
-  type RoleField = 'isAdmin' | 'isDispatcher' | 'isFinance';
-  const ROLE_SETTERS: Record<RoleField, (uid: string, value: boolean) => Promise<void>> = {
-    isAdmin:      setUserAdmin,
-    isDispatcher: setUserDispatcher,
-    isFinance:    setUserFinance,
-  };
-
-  async function handleToggle(profile: UserProfile, field: RoleField) {
-    if (field === 'isAdmin' && profile.uid === user?.uid) return; // can't remove your own admin
-    const key = `${profile.uid}:${field}`;
-    setToggling(key);
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setInviting(true);
     try {
-      const next = !profile[field];
-      await ROLE_SETTERS[field](profile.uid, next);
-      setUsers((prev) =>
-        prev.map((u) => u.uid === profile.uid ? { ...u, [field]: next } : u)
-      );
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to update');
+      await inviteUser(newEmail, newRoles);
+      setNewEmail('');
+      setNewRoles({ isAdmin: false, isDispatcher: false, isFinance: false });
+      await refresh();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not grant access');
     } finally {
-      setToggling(null);
+      setInviting(false);
+    }
+  }
+
+  async function handleToggle(person: AllowedUser, field: AllowedUserRole) {
+    const key = `${person.email}:${field}`;
+    setBusy(key);
+    setError('');
+    try {
+      await setAllowedUserRole(person.email, field, !person[field]);
+      setPeople((prev) =>
+        prev.map((p) => (p.email === person.email ? { ...p, [field]: !person[field] } : p)),
+      );
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not update role');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleRevoke(person: AllowedUser) {
+    const ok = window.confirm(
+      `Remove access for ${person.email}?\n\nThey will be signed out immediately and will not be able to sign in again unless you re-add them.`,
+    );
+    if (!ok) return;
+
+    setBusy(`${person.email}:revoke`);
+    setError('');
+    try {
+      await revokeUser(person.email);
+      setPeople((prev) => prev.filter((p) => p.email !== person.email));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not remove access');
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -59,12 +106,67 @@ export default function SettingsPage() {
         <p className="text-sm text-gray-500 mt-0.5">Manage team access and permissions</p>
       </div>
 
+      {error && (
+        <div className="mb-6 rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
+      <section className="bg-white rounded-xl border border-gray-200 mb-6">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-900">Grant Access</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Only people on this list can sign in. Add their Google account email — they can sign in
+            as soon as you add them, and appear below as “Pending” until they do.
+          </p>
+        </div>
+
+        <form onSubmit={handleInvite} className="px-6 py-4 flex flex-col gap-3">
+          <div className="flex gap-2">
+            <input
+              type="email"
+              required
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="name@totaltransportlogistics.us"
+              className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            />
+            <button
+              type="submit"
+              disabled={inviting || !newEmail.trim()}
+              className="flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <UserPlus size={15} />
+              {inviting ? 'Adding…' : 'Add Person'}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">Roles:</span>
+            {ROLE_CHIPS.map(({ field, label }) => (
+              <button
+                key={field}
+                type="button"
+                onClick={() => setNewRoles((r) => ({ ...r, [field]: !r[field] }))}
+                className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+                  newRoles[field]
+                    ? 'border-brand-200 bg-brand-50 text-brand-700'
+                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </form>
+      </section>
+
       <section className="bg-white rounded-xl border border-gray-200">
         <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-900">Team Members</h2>
+          <h2 className="text-sm font-semibold text-gray-900">People With Access</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Admins can see all records and manage access. Dispatchers can send carrier/shipper agreements.
-            Finance can generate BOLs and invoices. Click a role to toggle it for a user.
+            Admins can see all records and manage access. Dispatchers can send carrier/shipper
+            agreements. Finance can generate BOLs and invoices. Click a role to toggle it.
           </p>
         </div>
 
@@ -72,59 +174,83 @@ export default function SettingsPage() {
           <div className="flex justify-center py-16">
             <div className="w-7 h-7 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : error ? (
-          <div className="m-6 rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600">{error}</div>
-        ) : users.length === 0 ? (
+        ) : people.length === 0 ? (
           <div className="py-16 text-center text-sm text-gray-400">
-            No users yet. Users appear here after their first sign-in.
+            No one has been granted access yet.
           </div>
         ) : (
           <ul className="divide-y divide-gray-100">
-            {users.map((u) => {
-              const isSelf = u.uid === user?.uid;
-              const roleChips: { field: RoleField; label: string }[] = [
-                { field: 'isAdmin',      label: 'Admin' },
-                { field: 'isDispatcher', label: 'Dispatcher' },
-                { field: 'isFinance',    label: 'Finance' },
-              ];
+            {people.map((p) => {
+              const isSelf      = normalizeEmail(p.email) === myEmail;
+              const isProtected = isBootstrapAdmin(p.email);
+              const pending     = !p.uid;
+
               return (
-                <li key={u.uid} className="flex items-center justify-between px-6 py-4 gap-4">
+                <li key={p.email} className="flex items-center justify-between px-6 py-4 gap-4">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-semibold text-sm flex-shrink-0">
-                      {(u.displayName || u.email).charAt(0).toUpperCase()}
+                      {p.email.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">
-                        {u.displayName || '—'}
+                        {p.email}
                         {isSelf && <span className="ml-1.5 text-xs text-gray-400">(you)</span>}
                       </p>
-                      <p className="text-xs text-gray-500 truncate">{u.email}</p>
+                      <p className="text-xs text-gray-500">
+                        {pending ? (
+                          <span className="text-amber-600">Pending first sign-in</span>
+                        ) : (
+                          <span className="text-green-600">Active</span>
+                        )}
+                        {isProtected && (
+                          <span className="ml-2 text-gray-400">· Protected account</span>
+                        )}
+                      </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap justify-end">
-                    {roleChips.map(({ field, label }) => {
-                      const active      = !!u[field];
-                      const disabled    = field === 'isAdmin' && isSelf;
-                      const isToggling  = toggling === `${u.uid}:${field}`;
+                    {ROLE_CHIPS.map(({ field, label }) => {
+                      const active   = !!p[field];
+                      const locked   = field === 'isAdmin' && (isSelf || isProtected);
+                      const working  = busy === `${p.email}:${field}`;
                       return (
                         <button
                           key={field}
-                          onClick={() => handleToggle(u, field)}
-                          disabled={disabled || isToggling}
-                          title={disabled ? "You can't change your own role" : undefined}
+                          onClick={() => handleToggle(p, field)}
+                          disabled={locked || working}
+                          title={locked ? 'This admin role cannot be removed' : undefined}
                           className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
-                            disabled
+                            locked
                               ? 'border-gray-200 text-gray-300 cursor-not-allowed'
                               : active
                               ? 'border-brand-200 bg-brand-50 text-brand-700'
                               : 'border-gray-200 text-gray-500 hover:bg-gray-50'
                           }`}
                         >
-                          {isToggling ? '…' : label}
+                          {working ? '…' : label}
                         </button>
                       );
                     })}
+
+                    <button
+                      onClick={() => handleRevoke(p)}
+                      disabled={isSelf || isProtected || busy === `${p.email}:revoke`}
+                      title={
+                        isSelf
+                          ? 'You cannot remove your own access'
+                          : isProtected
+                          ? 'Protected accounts cannot be removed here'
+                          : 'Remove access'
+                      }
+                      className={`p-2 rounded-lg border transition ${
+                        isSelf || isProtected
+                          ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                          : 'border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
+                      }`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </li>
               );
@@ -132,10 +258,6 @@ export default function SettingsPage() {
           </ul>
         )}
       </section>
-
-      <p className="mt-4 text-xs text-gray-400">
-        Users appear in this list after signing in for the first time.
-      </p>
 
       <BatsImportPanel />
     </div>

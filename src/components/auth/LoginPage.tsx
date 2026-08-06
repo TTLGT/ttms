@@ -12,8 +12,13 @@ export default function LoginPage() {
   const [signingIn, setSigningIn]     = useState(false);
 
   useEffect(() => {
-    if (searchParams.get('error') === 'unauthorized_domain') {
-      setError('Access denied. Only @totaltransportlogistics.us accounts are permitted.');
+    const reason = searchParams.get('error');
+    if (reason === 'not_invited') {
+      setError(
+        'This account does not have access to TTMS. Ask an administrator to add your email address, then try again.',
+      );
+    } else if (reason === 'session_failed') {
+      setError('We could not verify your access just now. Please try signing in again.');
     }
   }, [searchParams]);
 
@@ -84,7 +89,7 @@ export default function LoginPage() {
           </button>
 
           <p className="text-center text-xs text-gray-400">
-            Access restricted to <span className="font-medium text-gray-600">@totaltransportlogistics.us</span> accounts only
+            Access is by invitation only. Contact an administrator if you need an account.
           </p>
         </div>
       </div>

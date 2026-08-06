@@ -1,0 +1,117 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { FieldValue, adminAuth, adminDb } from '@/lib/firebase-admin';
+import {
+  ALLOWED_USERS_COLLECTION,
+  USERS_COLLECTION,
+  isBootstrapAdmin,
+  normalizeEmail,
+} from '@/lib/accessControl';
+
+/**
+ * Called by AuthContext immediately after Firebase sign-in.
+ *
+ * This is the gate: a Google account that authenticates successfully still has
+ * no access until it appears in `allowedUsers`. On success it provisions the
+ * `users/{uid}` profile from the allowlist entry and mirrors the roles into
+ * custom claims (Storage rules read those — they cannot query Firestore).
+ * On failure it revokes the session so the rejected account cannot linger.
+ */
+export async function POST(req: NextRequest) {
+  const authHeader = req.headers.get('authorization') ?? '';
+  const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!idToken) {
+    return NextResponse.json({ error: 'Missing Authorization header' }, { status: 401 });
+  }
+
+  let decoded;
+  try {
+    decoded = await adminAuth.verifyIdToken(idToken, true);
+  } catch {
+    return NextResponse.json({ error: 'Invalid or expired session' }, { status: 401 });
+  }
+
+  const { uid } = decoded;
+  const email = normalizeEmail(decoded.email);
+  if (!email) {
+    await denyAccess(uid);
+    return NextResponse.json({ error: 'This account has no email address.' }, { status: 403 });
+  }
+
+  const allowRef = adminDb.collection(ALLOWED_USERS_COLLECTION).doc(email);
+  const allowSnap = await allowRef.get();
+  const bootstrap = isBootstrapAdmin(email);
+
+  if (!allowSnap.exists && !bootstrap) {
+    await denyAccess(uid);
+    return NextResponse.json(
+      { error: 'not_invited', message: 'This account has not been granted access to TTMS.' },
+      { status: 403 },
+    );
+  }
+
+  const entry = allowSnap.data() ?? {};
+  const roles = {
+    // Bootstrap accounts are admin by definition — they exist to prevent lockout.
+    isAdmin:      bootstrap || entry.isAdmin === true,
+    isDispatcher: entry.isDispatcher === true,
+    isFinance:    entry.isFinance === true,
+  };
+
+  const profile = {
+    uid,
+    email,
+    displayName: decoded.name ?? entry.displayName ?? '',
+    ...roles,
+  };
+
+  const profileRef = adminDb.collection(USERS_COLLECTION).doc(uid);
+  const profileExists = (await profileRef.get()).exists;
+  await profileRef.set(
+    {
+      ...profile,
+      lastLoginAt: FieldValue.serverTimestamp(),
+      ...(profileExists ? {} : { createdAt: FieldValue.serverTimestamp() }),
+    },
+    { merge: true },
+  );
+
+  // Bind the invite to a uid so the admin UI can show "pending" vs "active",
+  // and self-heal a bootstrap admin who was never explicitly invited.
+  await allowRef.set(
+    {
+      email,
+      ...roles,
+      uid,
+      lastLoginAt: FieldValue.serverTimestamp(),
+      ...(allowSnap.exists ? {} : { invitedBy: 'system:bootstrap', invitedAt: FieldValue.serverTimestamp() }),
+    },
+    { merge: true },
+  );
+
+  await syncClaims(uid, decoded, roles);
+
+  return NextResponse.json({ profile });
+}
+
+/** Storage rules can only see custom claims, so roles are mirrored there. */
+async function syncClaims(
+  uid: string,
+  decoded: Record<string, unknown>,
+  roles: { isAdmin: boolean; isDispatcher: boolean; isFinance: boolean },
+) {
+  const desired = {
+    ttlAccess:  true,
+    admin:      roles.isAdmin,
+    dispatcher: roles.isDispatcher,
+    finance:    roles.isFinance,
+  };
+  const unchanged = Object.entries(desired).every(([key, value]) => decoded[key] === value);
+
+  if (!unchanged) await adminAuth.setCustomUserClaims(uid, desired);
+}
+
+/** Strip access from an account that authenticated but is not on the allowlist. */
+async function denyAccess(uid: string) {
+  await adminAuth.setCustomUserClaims(uid, { ttlAccess: false }).catch(() => {});
+  await adminAuth.revokeRefreshTokens(uid).catch(() => {});
+}

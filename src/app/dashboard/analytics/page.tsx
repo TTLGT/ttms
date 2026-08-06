@@ -22,6 +22,15 @@ function fmt$(n: number) {
   }).format(n);
 }
 
+// Recharts types tooltip values as this union — every series on this page is
+// numeric, so formatters take the wide type and narrow it here.
+type ChartValue = number | string | readonly (number | string)[] | undefined;
+
+function toNum(v: ChartValue): number {
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function toDate(ts: unknown): Date | null {
   if (!ts) return null;
   if (typeof (ts as { toDate?: () => Date }).toDate === 'function') {
@@ -192,11 +201,11 @@ export default function AnalyticsPage() {
                   <YAxis yAxisId="left"  tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} width={52} />
                   <YAxis yAxisId="right" orientation="right" tickFormatter={(v) => `${v}%`}  tick={{ fontSize: 11 }} width={40} />
                   <Tooltip
-                    formatter={(value: number, name: string) => {
-                      if (name === 'marginPct') return [`${value}%`,  'Margin %'];
-                      if (name === 'revenue')   return [fmt$(value),  'Revenue'];
-                      if (name === 'margin')    return [fmt$(value),  'Gross Margin'];
-                      return [value, name];
+                    formatter={(value: ChartValue, name: string | number | undefined) => {
+                      if (name === 'marginPct') return [`${toNum(value)}%`,  'Margin %'];
+                      if (name === 'revenue')   return [fmt$(toNum(value)),  'Revenue'];
+                      if (name === 'margin')    return [fmt$(toNum(value)),  'Gross Margin'];
+                      return [String(value ?? ''), String(name ?? '')];
                     }}
                   />
                   <Bar  yAxisId="left"  dataKey="revenue"   fill="#93c5fd" name="revenue"   radius={[3, 3, 0, 0]} />
@@ -217,7 +226,7 @@ export default function AnalyticsPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
                     <XAxis type="number" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
                     <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={90} />
-                    <Tooltip formatter={(v: number) => [fmt$(v), 'Revenue']} />
+                    <Tooltip formatter={(v: ChartValue) => [fmt$(toNum(v)), 'Revenue']} />
                     <Bar dataKey="revenue" fill="#1d4ed8" radius={[0, 3, 3, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -232,7 +241,7 @@ export default function AnalyticsPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="type" tick={{ fontSize: 11 }} />
                     <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} width={40} />
-                    <Tooltip formatter={(v: number) => [`${v}%`, 'Margin %']} />
+                    <Tooltip formatter={(v: ChartValue) => [`${toNum(v)}%`, 'Margin %']} />
                     <Bar dataKey="marginPct" fill="#1d4ed8" radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

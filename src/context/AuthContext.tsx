@@ -15,10 +15,7 @@ import {
 } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { auth, googleProvider } from '@/lib/firebase';
-import { getOrCreateUserProfile } from '@/lib/userProfiles';
 import type { UserProfile } from '@/types/userProfile';
-
-const ALLOWED_DOMAIN = 'totaltransportlogistics.us';
 
 interface AuthContextValue {
   user: User | null;
@@ -31,6 +28,34 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+class AccessDeniedError extends Error {}
+
+/**
+ * Hands the fresh ID token to the server, which is the authority on whether
+ * this account is allowed in. Authenticating with Google is not enough — an
+ * admin must have added the address to the allowlist first.
+ */
+async function establishSession(firebaseUser: User): Promise<UserProfile> {
+  const idToken = await firebaseUser.getIdToken();
+  const res = await fetch('/api/auth/session', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (res.status === 403) {
+    throw new AccessDeniedError(data.message || 'This account does not have access to TTMS.');
+  }
+  if (!res.ok) {
+    throw new Error(data.error || 'Could not verify your access. Please try again.');
+  }
+
+  // The server may have just set custom claims; refresh so Storage rules see them.
+  await firebaseUser.getIdToken(true);
+  return data.profile as UserProfile;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]       = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -39,34 +64,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const email = firebaseUser.email ?? '';
-
-        if (!email.endsWith(`@${ALLOWED_DOMAIN}`)) {
-          console.warn(
-            `[Auth] Unauthorized domain rejected: ${email}. ` +
-            `Only @${ALLOWED_DOMAIN} accounts are permitted.`
-          );
-          await signOut(auth);
-          setUser(null);
-          setProfile(null);
-          setLoading(false);
-          router.replace('/login?error=unauthorized_domain');
-          return;
-        }
-
-        setUser(firebaseUser);
-        try {
-          const p = await getOrCreateUserProfile(firebaseUser);
-          setProfile(p);
-        } catch {
-          setProfile(null);
-        }
-      } else {
+      if (!firebaseUser) {
         setUser(null);
         setProfile(null);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      try {
+        const p = await establishSession(firebaseUser);
+        setUser(firebaseUser);
+        setProfile(p);
+      } catch (err) {
+        // Any failure to establish access ends the session — never fall through
+        // to a signed-in state without a verified allowlist entry.
+        await signOut(auth);
+        setUser(null);
+        setProfile(null);
+        const reason = err instanceof AccessDeniedError ? 'not_invited' : 'session_failed';
+        router.replace(`/login?error=${reason}`);
+      } finally {
+        setLoading(false);
+      }
     });
 
     return () => unsubscribe();
@@ -74,11 +93,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, googleProvider);
-    const email  = result.user.email ?? '';
 
-    if (!email.endsWith(`@${ALLOWED_DOMAIN}`)) {
+    try {
+      await establishSession(result.user);
+    } catch (err) {
       await signOut(auth);
-      throw new Error(`Only @${ALLOWED_DOMAIN} accounts are allowed.`);
+      throw new Error(
+        err instanceof AccessDeniedError
+          ? err.message
+          : 'Could not verify your access. Please try again.',
+      );
     }
 
     router.push('/dashboard');

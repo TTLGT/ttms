@@ -2,6 +2,7 @@ import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { getAuth } from 'firebase-admin/auth';
+import { ALLOWED_USERS_COLLECTION, isBootstrapAdmin, normalizeEmail } from './accessControl';
 
 export { FieldValue };
 
@@ -28,23 +29,39 @@ async function verifyRequestToken(req: Request) {
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (!token) throw new AdminAuthError('Missing Authorization header', 401);
 
-  return adminAuth.verifyIdToken(token).catch(() => {
+  // checkRevoked: true so a revoked user is rejected immediately rather than
+  // staying valid until their ID token expires.
+  return adminAuth.verifyIdToken(token, true).catch(() => {
     throw new AdminAuthError('Invalid or expired token', 401);
   });
 }
 
-/** Verifies the request's Bearer ID token and confirms the caller is a signed-in @totaltransportlogistics.us user. */
+/**
+ * Verifies the request's Bearer ID token and confirms the caller is on the
+ * sign-in allowlist. Email domain grants nothing on its own — an admin must
+ * have added the address via Settings → Team Access.
+ */
 export async function requireCompanyUser(req: Request): Promise<{ uid: string; email: string | undefined }> {
   const decoded = await verifyRequestToken(req);
-  if (!decoded.email?.endsWith('@totaltransportlogistics.us')) {
-    throw new AdminAuthError('Unauthorized', 403);
+  const email = normalizeEmail(decoded.email);
+
+  if (!email) throw new AdminAuthError('Unauthorized', 403);
+  if (isBootstrapAdmin(email)) return { uid: decoded.uid, email: decoded.email };
+
+  const allowed = await adminDb.collection(ALLOWED_USERS_COLLECTION).doc(email).get();
+  if (!allowed.exists) {
+    throw new AdminAuthError('Your access to TTMS has been removed.', 403);
   }
+
   return { uid: decoded.uid, email: decoded.email };
 }
 
 /** Verifies the request's Bearer ID token and confirms the caller is an admin (per their users/{uid} profile). */
 export async function requireAdmin(req: Request): Promise<{ uid: string; email: string | undefined }> {
   const decoded = await verifyRequestToken(req);
+
+  // Bootstrap admins pass without a profile, so an empty allowlist is recoverable.
+  if (isBootstrapAdmin(decoded.email)) return { uid: decoded.uid, email: decoded.email };
 
   const profile = await adminDb.collection('users').doc(decoded.uid).get();
   if (!profile.exists || profile.data()?.isAdmin !== true) {

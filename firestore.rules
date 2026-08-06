@@ -1,81 +1,101 @@
 rules_version = '2';
 
-// Matches the intent documented in docs/schema-guide.md:
-// only authenticated @totaltransportlogistics.us accounts may read/write.
-// The public e-sign flow (src/app/api/sign/[token]/route.ts) goes through
-// the Admin SDK, which bypasses these rules entirely — no public rule needed here.
+// Access is an explicit allowlist, not an email domain.
+//
+// A Google account only reaches data if an admin created its
+// `allowedUsers/{email}` entry (see Settings → Grant Access). Because the check
+// is a live document lookup, removing that entry cuts off access on the very
+// next request rather than when the user's ID token expires.
+//
+// The public e-sign flow (src/app/api/sign/[token]/route.ts) goes through the
+// Admin SDK, which bypasses these rules entirely — no public rule needed here.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isCompanyUser() {
+    // Keep in sync with BOOTSTRAP_ADMIN_EMAILS in src/lib/accessControl.ts.
+    // These accounts are always allowed so an empty or broken allowlist can
+    // never lock everyone out of the system.
+    function isBootstrapAdmin() {
+      return request.auth != null
+        && request.auth.token.email in [
+          'it@totaltransportlogistics.us',
+          'operations@totaltransportlogistics.us',
+          'dispatch@totaltransportlogistics.us'
+        ];
+    }
+
+    function isAllowedUser() {
       return request.auth != null
         && request.auth.token.email != null
-        && request.auth.token.email.matches('.*@totaltransportlogistics[.]us$');
+        && (
+          isBootstrapAdmin()
+          || exists(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email.lower()))
+        );
     }
 
     function isAdmin() {
-      return isCompanyUser()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-    }
-
-    // Mirrors ADMIN_EMAILS in src/lib/userProfiles.ts — lets those accounts
-    // self-promote to admin on first sign-in without needing an admin already.
-    function isAutoAdminEmail() {
-      return request.auth.token.email in [
-        'it@totaltransportlogistics.us',
-        'operations@totaltransportlogistics.us',
-        'dispatch@totaltransportlogistics.us'
-      ];
-    }
-
-    match /users/{userId} {
-      allow read:   if isCompanyUser();
-      allow create: if isCompanyUser() && request.auth.uid == userId;
-      allow update: if isCompanyUser() && (
-        isAdmin() ||
-        (request.auth.uid == userId && isAutoAdminEmail())
+      return isAllowedUser() && (
+        isBootstrapAdmin() || (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+        )
       );
+    }
+
+    // The allowlist itself: readable by admins so Settings can render it,
+    // never writable from the client. All changes go through
+    // /api/admin/users, which also updates Firebase Auth (claims, revocation).
+    match /allowedUsers/{email} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+
+    // Profiles are provisioned server-side by /api/auth/session from the
+    // allowlist entry. Client writes are closed so an uninvited account cannot
+    // create a profile for itself, and nobody can self-promote to admin.
+    match /users/{userId} {
+      allow read:  if isAllowedUser();
+      allow write: if false;
     }
 
     match /shippers/{shipperId} {
-      allow read:   if isCompanyUser() && (
+      allow read:   if isAllowedUser() && (
         isAdmin() || (resource.data.assignedToUids is list && request.auth.uid in resource.data.assignedToUids)
       );
-      allow create: if isCompanyUser();
-      allow update, delete: if isCompanyUser();
+      allow create: if isAllowedUser();
+      allow update, delete: if isAllowedUser();
 
       match /documents/{documentId} {
-        allow read, write: if isCompanyUser();
+        allow read, write: if isAllowedUser();
       }
     }
 
     match /customers/{customerId} {
-      allow read:   if isCompanyUser() && (
+      allow read:   if isAllowedUser() && (
         isAdmin() || (resource.data.assignedToUids is list && request.auth.uid in resource.data.assignedToUids)
       );
-      allow create: if isCompanyUser();
-      allow update, delete: if isCompanyUser();
+      allow create: if isAllowedUser();
+      allow update, delete: if isAllowedUser();
     }
 
     match /carriers/{carrierId} {
-      allow read, create, update, delete: if isCompanyUser();
+      allow read, create, update, delete: if isAllowedUser();
 
       match /documents/{documentId} {
-        allow read, write: if isCompanyUser();
+        allow read, write: if isAllowedUser();
       }
     }
 
     match /orders/{orderId} {
-      allow read, create, update, delete: if isCompanyUser();
+      allow read, create, update, delete: if isAllowedUser();
 
       match /documents/{documentId} {
-        allow read, write: if isCompanyUser();
+        allow read, write: if isAllowedUser();
       }
     }
 
     match /agreements/{agreementId} {
-      allow read: if isCompanyUser();
+      allow read: if isAllowedUser();
       allow write: if false; // written only by the Admin SDK (signing route)
     }
 
