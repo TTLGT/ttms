@@ -25,6 +25,7 @@ export default function SettingsPage() {
   const router                  = useRouter();
   const [people, setPeople]     = useState<AllowedUser[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError]       = useState('');
   const [busy, setBusy]         = useState<string | null>(null);
 
@@ -37,17 +38,29 @@ export default function SettingsPage() {
   const refresh = useCallback(async () => {
     const list = await listAllowedUsers();
     setPeople(list);
+    setLoadFailed(false);
   }, []);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError('');
+    refresh()
+      .catch((e) => {
+        // Distinguish "the list is genuinely empty" from "we never got the
+        // list" — otherwise a permissions error reads as missing data.
+        setLoadFailed(true);
+        setError(e.message);
+      })
+      .finally(() => setLoading(false));
+  }, [refresh]);
 
   useEffect(() => {
     if (!isAdmin) {
       router.replace('/dashboard');
       return;
     }
-    refresh()
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [isAdmin, router, refresh]);
+    load();
+  }, [isAdmin, router, load]);
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -173,6 +186,16 @@ export default function SettingsPage() {
         {loading ? (
           <div className="flex justify-center py-16">
             <div className="w-7 h-7 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : loadFailed ? (
+          <div className="py-16 text-center">
+            <p className="text-sm text-gray-500">Could not load the list.</p>
+            <button
+              onClick={load}
+              className="mt-3 text-xs font-medium text-brand-700 hover:text-brand-800 underline"
+            >
+              Try again
+            </button>
           </div>
         ) : people.length === 0 ? (
           <div className="py-16 text-center text-sm text-gray-400">
