@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminAuth, adminDb, requireAdmin, AdminAuthError } from '@/lib/firebase-admin';
 import {
+  ALLOWED_EMAIL_DOMAIN,
   ALLOWED_USERS_COLLECTION,
   USERS_COLLECTION,
+  isAllowedEmailDomain,
   isBootstrapAdmin,
   normalizeEmail,
+  parseEmailList,
 } from '@/lib/accessControl';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -22,45 +25,95 @@ async function guard(req: NextRequest): Promise<Guard | NextResponse> {
   }
 }
 
-/** Invite someone: creates the allowlist entry that lets them sign in. */
+/** Upper bound on one paste, so a runaway list cannot hammer Firestore. */
+const MAX_BATCH = 100;
+
+type InviteStatus = 'added' | 'exists' | 'invalid' | 'wrong-domain' | 'error';
+type InviteResult = { email: string; status: InviteStatus; message: string };
+
+type Roles = { isAdmin: boolean; isDispatcher: boolean; isFinance: boolean };
+
+/** Add one address. Never throws — every outcome comes back as a result row. */
+async function invite(email: string, roles: Roles, invitedBy: string): Promise<InviteResult> {
+  if (!EMAIL_RE.test(email)) {
+    return { email, status: 'invalid', message: 'Not a valid email address.' };
+  }
+  if (!isAllowedEmailDomain(email)) {
+    return {
+      email,
+      status: 'wrong-domain',
+      message: `Only @${ALLOWED_EMAIL_DOMAIN} addresses can be added.`,
+    };
+  }
+
+  try {
+    const ref = adminDb.collection(ALLOWED_USERS_COLLECTION).doc(email);
+    if ((await ref.get()).exists) {
+      return { email, status: 'exists', message: 'Already has access — skipped.' };
+    }
+
+    await ref.set({
+      email,
+      ...roles,
+      uid:         null,
+      invitedBy,
+      invitedAt:   FieldValue.serverTimestamp(),
+      lastLoginAt: null,
+    });
+
+    // If they were previously revoked, lift the disable so they can sign in again.
+    const existing = await adminAuth.getUserByEmail(email).catch(() => null);
+    if (existing?.disabled) {
+      await adminAuth.updateUser(existing.uid, { disabled: false });
+    }
+
+    return { email, status: 'added', message: 'Access granted.' };
+  } catch {
+    return { email, status: 'error', message: 'Could not be added — try again.' };
+  }
+}
+
+/**
+ * Invite one or many people: creates the allowlist entries that let them sign in.
+ *
+ * Accepts `email` (a single address or a pasted block) or `emails` (an array).
+ * A bad address never fails the batch — the response carries one result row per
+ * address so the caller can show exactly which ones landed.
+ */
 export async function POST(req: NextRequest) {
   const caller = await guard(req);
   if (caller instanceof NextResponse) return caller;
 
   const body = await req.json().catch(() => ({}));
-  const email = normalizeEmail(body.email);
+  const raw = Array.isArray(body.emails) ? body.emails.join(' ') : String(body.email ?? '');
+  const emails = parseEmailList(raw);
 
-  if (!EMAIL_RE.test(email)) {
-    return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 });
+  if (emails.length === 0) {
+    return NextResponse.json({ error: 'Enter at least one email address.' }, { status: 400 });
+  }
+  if (emails.length > MAX_BATCH) {
+    return NextResponse.json(
+      { error: `Too many addresses at once — ${MAX_BATCH} is the limit.` },
+      { status: 400 },
+    );
   }
 
-  const ref = adminDb.collection(ALLOWED_USERS_COLLECTION).doc(email);
-  if ((await ref.get()).exists) {
-    return NextResponse.json({ error: 'That person already has access.' }, { status: 409 });
-  }
-
-  const roles = {
+  const roles: Roles = {
     isAdmin:      body.isAdmin === true,
     isDispatcher: body.isDispatcher === true,
     isFinance:    body.isFinance === true,
   };
+  const invitedBy = caller.email ?? caller.uid;
 
-  await ref.set({
-    email,
-    ...roles,
-    uid:         null,
-    invitedBy:   caller.email ?? caller.uid,
-    invitedAt:   FieldValue.serverTimestamp(),
-    lastLoginAt: null,
-  });
-
-  // If they were previously revoked, lift the disable so they can sign in again.
-  const existing = await adminAuth.getUserByEmail(email).catch(() => null);
-  if (existing?.disabled) {
-    await adminAuth.updateUser(existing.uid, { disabled: false });
+  // Sequential on purpose: keeps result order stable and stays well inside
+  // Firestore/Auth rate limits even at the batch cap.
+  const results: InviteResult[] = [];
+  for (const email of emails) {
+    results.push(await invite(email, roles, invitedBy));
   }
 
-  return NextResponse.json({ ok: true, email });
+  const added = results.filter((r) => r.status === 'added').length;
+  return NextResponse.json({ ok: true, added, results });
 }
 
 /** Change a role on an existing allowlist entry (and the live profile). */

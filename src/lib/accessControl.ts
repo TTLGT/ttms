@@ -25,6 +25,32 @@ export function isBootstrapAdmin(email: string | null | undefined): boolean {
   return BOOTSTRAP_ADMIN_EMAILS.includes(normalizeEmail(email));
 }
 
+/**
+ * Invites are restricted to company addresses. This does NOT grant access —
+ * the `allowedUsers` entry is still the only thing that authorizes an account.
+ * It only stops an admin from adding an outside address by mistake, which is
+ * how a typo'd domain used to become a permanently pending entry.
+ */
+export const ALLOWED_EMAIL_DOMAIN = 'totaltransportlogistics.us';
+
+export function isAllowedEmailDomain(email: string | null | undefined): boolean {
+  return normalizeEmail(email).endsWith(`@${ALLOWED_EMAIL_DOMAIN}`);
+}
+
+/**
+ * Splits a pasted block of addresses into a normalized, de-duplicated list.
+ * Accepts newlines, commas, semicolons or spaces as separators so a column
+ * copied out of a spreadsheet works as-is. Order of first appearance is kept.
+ */
+export function parseEmailList(input: string | null | undefined): string[] {
+  const seen = new Set<string>();
+  for (const part of (input ?? '').split(/[\s,;]+/)) {
+    const email = normalizeEmail(part);
+    if (email) seen.add(email);
+  }
+  return [...seen];
+}
+
 export const ALLOWED_USERS_COLLECTION = 'allowedUsers';
 export const USERS_COLLECTION = 'users';
 

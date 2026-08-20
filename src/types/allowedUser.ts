@@ -20,3 +20,12 @@ export interface AllowedUser {
 }
 
 export type AllowedUserRole = 'isAdmin' | 'isDispatcher' | 'isFinance';
+
+/** Outcome of a single address in a bulk invite, one row per address sent. */
+export type InviteStatus = 'added' | 'exists' | 'invalid' | 'wrong-domain' | 'error';
+
+export interface InviteResult {
+  email: string;
+  status: InviteStatus;
+  message: string;
+}

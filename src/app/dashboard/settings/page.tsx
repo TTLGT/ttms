@@ -1,17 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Trash2, UserPlus } from 'lucide-react';
+import { AlertCircle, Check, Trash2, UserPlus } from 'lucide-react';
 import {
   listAllowedUsers,
-  inviteUser,
+  inviteUsers,
   setAllowedUserRole,
   revokeUser,
 } from '@/lib/allowedUsers';
-import { isBootstrapAdmin, normalizeEmail } from '@/lib/accessControl';
+import {
+  ALLOWED_EMAIL_DOMAIN,
+  isAllowedEmailDomain,
+  isBootstrapAdmin,
+  normalizeEmail,
+  parseEmailList,
+} from '@/lib/accessControl';
 import { useAuth } from '@/context/AuthContext';
-import type { AllowedUser, AllowedUserRole } from '@/types/allowedUser';
+import type { AllowedUser, AllowedUserRole, InviteResult } from '@/types/allowedUser';
 import BatsImportPanel from '@/components/settings/BatsImportPanel';
 import WorkGroupsPanel from '@/components/settings/WorkGroupsPanel';
 
@@ -30,11 +36,18 @@ export default function SettingsPage() {
   const [error, setError]       = useState('');
   const [busy, setBusy]         = useState<string | null>(null);
 
-  const [newEmail, setNewEmail]   = useState('');
+  const [newEmails, setNewEmails] = useState('');
   const [newRoles, setNewRoles]   = useState({ isAdmin: false, isDispatcher: false, isFinance: false });
   const [inviting, setInviting]   = useState(false);
+  const [results, setResults]     = useState<InviteResult[]>([]);
 
   const myEmail = normalizeEmail(user?.email);
+
+  // Parsed live so the admin sees the count and any off-domain address before
+  // submitting. This runs the same parse the server does, so the preview and
+  // the outcome cannot disagree.
+  const parsed    = useMemo(() => parseEmailList(newEmails), [newEmails]);
+  const offDomain = useMemo(() => parsed.filter((e) => !isAllowedEmailDomain(e)), [parsed]);
 
   const refresh = useCallback(async () => {
     const list = await listAllowedUsers();
@@ -65,12 +78,23 @@ export default function SettingsPage() {
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
+    if (parsed.length === 0) return;
+
     setError('');
+    setResults([]);
     setInviting(true);
     try {
-      await inviteUser(newEmail, newRoles);
-      setNewEmail('');
-      setNewRoles({ isAdmin: false, isDispatcher: false, isFinance: false });
+      const rows = await inviteUsers(parsed, newRoles);
+      setResults(rows);
+
+      // Leave the addresses that did not land in the box so a typo can be
+      // fixed in place and resubmitted; clear the ones that succeeded.
+      const leftover = rows.filter((r) => r.status !== 'added').map((r) => r.email);
+      setNewEmails(leftover.join('\n'));
+      if (leftover.length === 0) {
+        setNewRoles({ isAdmin: false, isDispatcher: false, isFinance: false });
+      }
+
       await refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not grant access');
@@ -113,6 +137,8 @@ export default function SettingsPage() {
     }
   }
 
+  const addedCount = results.filter((r) => r.status === 'added').length;
+
   return (
     <div className="p-8 max-w-3xl">
       <div className="mb-8">
@@ -130,48 +156,121 @@ export default function SettingsPage() {
         <div className="px-6 py-4 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-900">Grant Access</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Only people on this list can sign in. Add their Google account email — they can sign in
-            as soon as you add them, and appear below as “Pending” until they do.
+            Only people on this list can sign in. Paste one or more{' '}
+            <span className="font-medium text-gray-600">@{ALLOWED_EMAIL_DOMAIN}</span> addresses,
+            one per line. They can sign in as soon as you add them, and appear below as “Pending”
+            until they do.
           </p>
         </div>
 
         <form onSubmit={handleInvite} className="px-6 py-4 flex flex-col gap-3">
-          <div className="flex gap-2">
-            <input
-              type="email"
-              required
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="name@totaltransportlogistics.us"
-              className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-            />
+          <textarea
+            value={newEmails}
+            onChange={(e) => setNewEmails(e.target.value)}
+            rows={5}
+            spellCheck={false}
+            placeholder={`name@${ALLOWED_EMAIL_DOMAIN}\nanother@${ALLOWED_EMAIL_DOMAIN}`}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+          />
+
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-xs text-gray-500">
+              {parsed.length === 0
+                ? 'No addresses yet'
+                : `${parsed.length} address${parsed.length === 1 ? '' : 'es'}`}
+              {offDomain.length > 0 && (
+                <span className="ml-2 text-amber-600">
+                  · {offDomain.length} outside @{ALLOWED_EMAIL_DOMAIN}
+                </span>
+              )}
+            </p>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Roles:</span>
+              {ROLE_CHIPS.map(({ field, label }) => (
+                <button
+                  key={field}
+                  type="button"
+                  onClick={() => setNewRoles((r) => ({ ...r, [field]: !r[field] }))}
+                  className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+                    newRoles[field]
+                      ? 'border-brand-200 bg-brand-50 text-brand-700'
+                      : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {offDomain.length > 0 && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+              <div className="flex items-start gap-2">
+                <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    {offDomain.length === 1 ? 'This address' : 'These addresses'} will be skipped —
+                    check for a mistyped domain:
+                  </p>
+                  <ul className="mt-1 font-mono break-all">
+                    {offDomain.map((e) => (
+                      <li key={e}>{e}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div>
             <button
               type="submit"
-              disabled={inviting || !newEmail.trim()}
+              disabled={inviting || parsed.length === 0}
               className="flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <UserPlus size={15} />
-              {inviting ? 'Adding…' : 'Add Person'}
+              {inviting
+                ? 'Adding…'
+                : parsed.length > 1
+                ? `Add ${parsed.length} People`
+                : 'Add Person'}
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">Roles:</span>
-            {ROLE_CHIPS.map(({ field, label }) => (
-              <button
-                key={field}
-                type="button"
-                onClick={() => setNewRoles((r) => ({ ...r, [field]: !r[field] }))}
-                className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
-                  newRoles[field]
-                    ? 'border-brand-200 bg-brand-50 text-brand-700'
-                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {results.length > 0 && (
+            <div className="rounded-lg border border-gray-200 divide-y divide-gray-100">
+              <div className="px-3 py-2 text-xs font-medium text-gray-600 bg-gray-50 rounded-t-lg">
+                Added {addedCount} of {results.length}
+              </div>
+              {results.map((r) => (
+                <div key={r.email} className="flex items-start gap-2 px-3 py-2 text-xs">
+                  {r.status === 'added' ? (
+                    <Check size={13} className="mt-0.5 text-green-600 flex-shrink-0" />
+                  ) : (
+                    <AlertCircle
+                      size={13}
+                      className={`mt-0.5 flex-shrink-0 ${
+                        r.status === 'exists' ? 'text-gray-400' : 'text-amber-600'
+                      }`}
+                    />
+                  )}
+                  <span className="font-mono text-gray-700 truncate">{r.email}</span>
+                  <span
+                    className={`ml-auto flex-shrink-0 ${
+                      r.status === 'added'
+                        ? 'text-green-600'
+                        : r.status === 'exists'
+                        ? 'text-gray-500'
+                        : 'text-amber-700'
+                    }`}
+                  >
+                    {r.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </form>
       </section>
 

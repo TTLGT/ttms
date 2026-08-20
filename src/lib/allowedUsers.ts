@@ -1,7 +1,7 @@
 import { collection, getDocs } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { ALLOWED_USERS_COLLECTION } from './accessControl';
-import type { AllowedUser, AllowedUserRole } from '@/types/allowedUser';
+import type { AllowedUser, AllowedUserRole, InviteResult } from '@/types/allowedUser';
 
 /**
  * Client helpers for the sign-in allowlist.
@@ -12,7 +12,7 @@ import type { AllowedUser, AllowedUserRole } from '@/types/allowedUser';
  * which only the Admin SDK can do.
  */
 
-async function authedFetch(input: string, init: RequestInit = {}): Promise<void> {
+async function authedFetch<T>(input: string, init: RequestInit = {}): Promise<T> {
   const user = auth.currentUser;
   if (!user) throw new Error('You are not signed in.');
 
@@ -26,10 +26,9 @@ async function authedFetch(input: string, init: RequestInit = {}): Promise<void>
     },
   });
 
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Request failed');
-  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data as T;
 }
 
 export async function listAllowedUsers(): Promise<AllowedUser[]> {
@@ -39,14 +38,22 @@ export async function listAllowedUsers(): Promise<AllowedUser[]> {
     .sort((a, b) => a.email.localeCompare(b.email));
 }
 
-export async function inviteUser(
-  email: string,
+/**
+ * Grant access to one or many people in a single request.
+ *
+ * A rejected address (bad syntax, outside domain, already on the list) does not
+ * fail the batch — it comes back as its own result row, so the caller can show
+ * exactly which addresses landed and which did not.
+ */
+export async function inviteUsers(
+  emails: string[],
   roles: { isAdmin?: boolean; isDispatcher?: boolean; isFinance?: boolean } = {},
-): Promise<void> {
-  await authedFetch('/api/admin/users', {
+): Promise<InviteResult[]> {
+  const data = await authedFetch<{ results: InviteResult[] }>('/api/admin/users', {
     method: 'POST',
-    body: JSON.stringify({ email, ...roles }),
+    body: JSON.stringify({ emails, ...roles }),
   });
+  return data.results ?? [];
 }
 
 export async function setAllowedUserRole(
