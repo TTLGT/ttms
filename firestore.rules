@@ -42,6 +42,51 @@ service cloud.firestore {
       );
     }
 
+    // One lookup, reused for every role flag. Reading the profile once keeps
+    // the evaluation inside Firestore's per-request document-access limit, and
+    // `.get(field, false)` tolerates profiles where the optional dispatcher and
+    // finance flags were never written — indexing a missing key errors out and
+    // would deny the request outright.
+    function profileData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasProfile() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Keep in sync with canSeeAllParties() in src/lib/accessControl.ts.
+    function canSeeAllParties() {
+      return isAllowedUser() && (
+        isBootstrapAdmin() || (
+          hasProfile() && (
+            profileData().get('isAdmin', false) == true
+            || profileData().get('isDispatcher', false) == true
+            || profileData().get('isFinance', false) == true
+          )
+        )
+      );
+    }
+
+    // A party is visible to its owners, to the privileged roles, and to
+    // everyone when nobody owns it. Defaults keep the check safe on documents
+    // written before these fields existed.
+    function partyVisible() {
+      return canSeeAllParties()
+        || (request.auth.uid in resource.data.get('assignedToUids', []))
+        // Group ownership is tested against the membership mirrored onto the
+        // user's profile. Rules cannot query, so without that mirror this would
+        // need one document read per owning group.
+        || resource.data.get('assignedToGroupIds', []).hasAny(
+             hasProfile() ? profileData().get('groupIds', []) : []
+           )
+        || (
+          resource.data.get('assignedToUids', []).size() == 0
+          && resource.data.get('assignedToGroupIds', []).size() == 0
+          && resource.data.get('assignedToName', '') == ''
+        );
+    }
+
     // The allowlist itself: readable by admins so Settings can render it,
     // never writable from the client. All changes go through
     // /api/admin/users, which also updates Firebase Auth (claims, revocation).
@@ -55,6 +100,55 @@ service cloud.firestore {
     // create a profile for itself, and nobody can self-promote to admin.
     match /users/{userId} {
       allow read:  if isAllowedUser();
+      allow write: if false;
+    }
+
+    // Parties (clients, shippers, consignees) are owned records, not shared
+    // reference data. A user sees one only if they own it, or if nobody owns it
+    // at all; admin, dispatch and finance see everything.
+    //
+    // These rules are the floor, not the whole story. The app reads parties
+    // through /api/parties, which applies the same test with the Admin SDK and
+    // additionally lends visibility for an approved access request — something
+    // rules cannot express without a query. Direct client reads are still
+    // gated here so a bypass of the API gains nothing.
+    //
+    // Creates go through /api/parties so the name-collision check can see
+    // records the caller cannot; the client path is closed.
+    match /parties/{partyId} {
+      allow read:   if isAllowedUser() && partyVisible();
+      allow create: if false;
+      allow update: if isAllowedUser() && partyVisible();
+      allow delete: if isAdmin();
+
+      match /documents/{documentId} {
+        allow read, write: if isAllowedUser();
+      }
+    }
+
+    // Access requests and the probe log are written only by the API routes,
+    // which capture the approver's IP from request headers. A client-side write
+    // could forge the audit trail, so all writes are closed here.
+    match /partyAccessRequests/{requestId} {
+      allow read: if isAllowedUser() && (
+        isAdmin()
+        || resource.data.requestedByUid == request.auth.uid
+        || (request.auth.uid in resource.data.get('ownerUids', []))
+      );
+      allow write: if false;
+    }
+
+    // Work groups are readable by any signed-in user so pickers can show names,
+    // but membership is written only by /api/work-groups, which keeps each
+    // member's users/{uid}.groupIds mirror in step inside a transaction.
+    // A client-side write could grant itself access to another team's records.
+    match /workGroups/{groupId} {
+      allow read:  if isAllowedUser();
+      allow write: if false;
+    }
+
+    match /partyAccessProbes/{probeId} {
+      allow read:  if isAdmin();
       allow write: if false;
     }
 

@@ -267,8 +267,12 @@ export default function OrderDetailPage() {
     setSplitting(true);
     try {
       const id = await createOrder({
-        shipperId:    order.shipperId,
-        shipperName:  order.shipperName,
+        clientId:      order.clientId ?? '',
+        clientName:    order.clientName ?? '',
+        shipperId:     order.shipperId ?? '',
+        shipperName:   order.shipperName ?? '',
+        consigneeId:   order.consigneeId ?? '',
+        consigneeName: order.consigneeName ?? '',
         parentOrderId: orderId,
         status:       'quote',
         commodity:    order.commodity,
@@ -304,6 +308,10 @@ export default function OrderDetailPage() {
         shipperSignedAt:    null,
         shipperSignerName:  null,
         shipperSignerIp:    null,
+        partyApprovals:     [],
+        clientSignedAt:     null,
+        clientSignerName:   null,
+        clientSignerIp:     null,
         createdBy:    user.uid,
       });
       router.push(`/dashboard/orders/${id}`);
@@ -347,7 +355,7 @@ export default function OrderDetailPage() {
               </Link>
             )}
           </div>
-          <p className="text-sm text-gray-500">{order.shipperName} — {order.commodity}</p>
+          <p className="text-sm text-gray-500">{order.clientName || order.shipperName} — {order.commodity}</p>
         </div>
         <div className="flex gap-2">
           <Link href={`/dashboard/orders/${orderId}/edit`}
@@ -414,7 +422,9 @@ export default function OrderDetailPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Shipment</h3>
             <div className="grid grid-cols-3 gap-6">
-              <DetailRow label="Shipper" value={order.shipperName} />
+              <DetailRow label="Client"    value={order.clientName || '—'} />
+              <DetailRow label="Shipper"   value={order.shipperName || '—'} />
+              <DetailRow label="Consignee" value={order.consigneeName || '—'} />
               <DetailRow label="Commodity" value={order.commodity} />
               <DetailRow label="Pieces" value={order.pieces} />
               <DetailRow label="Weight" value={order.weight ? `${order.weight.toLocaleString()} lbs` : '—'} />
@@ -547,6 +557,38 @@ export default function OrderDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Shared-record approvals */}
+          {(order.partyApprovals ?? []).length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">
+                Shared Record Approvals
+              </h3>
+              <p className="text-xs text-gray-500 mb-3">
+                This order uses records belonging to another user. Each was authorized before use.
+              </p>
+              <ul className="space-y-3">
+                {(order.partyApprovals ?? []).map((a) => (
+                  <li key={a.requestId} className="rounded-lg bg-gray-50 border border-gray-200 p-3">
+                    <p className="text-sm text-gray-900">
+                      <strong>{a.partyName}</strong>
+                      <span className="ml-2 px-1.5 py-0.5 rounded bg-gray-200 text-gray-700 text-xs font-medium">
+                        as {a.role}
+                      </span>
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Approved by <strong>{a.approvedByName}</strong>
+                      {a.approvedByAdmin && ' (admin)'}
+                      {a.approvedAt && <> on {formatDate(a.approvedAt as { toDate: () => Date })}</>}
+                      {a.approvedByIp && (
+                        <span className="text-gray-500 font-mono ml-1">({a.approvedByIp})</span>
+                      )}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Shipper Confirmation */}
           {(['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed') && (

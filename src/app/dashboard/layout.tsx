@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -9,6 +9,8 @@ import {
   ClipboardList,
   Truck,
   Building2,
+  PackageCheck,
+  ShieldCheck,
   Users,
   Folder,
   BarChart2,
@@ -16,13 +18,16 @@ import {
   LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { listAccessRequests } from '@/lib/parties';
 
 const NAV_ITEMS: { href: string; label: string; Icon: LucideIcon; adminOnly: boolean }[] = [
   { href: '/dashboard',           label: 'Dashboard', Icon: LayoutDashboard, adminOnly: false },
   { href: '/dashboard/orders',    label: 'Orders',    Icon: ClipboardList,   adminOnly: false },
   { href: '/dashboard/carriers',  label: 'Carriers',  Icon: Truck,           adminOnly: false },
-  { href: '/dashboard/shippers',  label: 'Shippers',  Icon: Building2,       adminOnly: false },
   { href: '/dashboard/clients',   label: 'Clients',   Icon: Users,           adminOnly: false },
+  { href: '/dashboard/shippers',  label: 'Shippers',  Icon: Building2,       adminOnly: false },
+  { href: '/dashboard/consignees', label: 'Consignees', Icon: PackageCheck,  adminOnly: false },
+  { href: '/dashboard/approvals', label: 'Approvals', Icon: ShieldCheck,      adminOnly: false },
   { href: '/dashboard/documents', label: 'Documents', Icon: Folder,          adminOnly: false },
   { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart2,       adminOnly: true  },
   { href: '/dashboard/settings',  label: 'Settings',  Icon: Settings,        adminOnly: true  },
@@ -31,6 +36,18 @@ const NAV_ITEMS: { href: string; label: string; Icon: LucideIcon; adminOnly: boo
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, logout, isAdmin } = useAuth();
   const router                             = useRouter();
+  const [pendingApprovals, setPending]     = useState(0);
+
+  // A request that nobody notices blocks the requester's order, so the count
+  // sits in the nav rather than only on the Approvals screen.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    listAccessRequests('incoming')
+      .then((rs) => { if (!cancelled) setPending(rs.filter((r) => r.status === 'pending').length); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user]);
 
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
@@ -64,7 +81,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-brand-700 hover:text-white transition"
             >
               <Icon size={16} className="flex-shrink-0" />
-              {label}
+              <span className="flex-1">{label}</span>
+              {href === '/dashboard/approvals' && pendingApprovals > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-brand-900 text-[10px] font-bold">
+                  {pendingApprovals}
+                </span>
+              )}
             </Link>
           ))}
         </nav>

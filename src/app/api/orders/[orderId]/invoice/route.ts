@@ -37,6 +37,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const data: InvoiceData = {
     invoiceNumber:     order.orderNumber          ?? '',
     invoiceDate:       new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    clientName:       order.clientName    ?? '',
+    consigneeName:    order.consigneeName ?? '',
     shipperName:       order.shipperName          ?? '',
     commodity:         order.commodity            ?? '',
     pieces:            order.pieces               ?? 0,

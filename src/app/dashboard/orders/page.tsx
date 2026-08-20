@@ -103,7 +103,7 @@ export default function OrdersPage() {
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>
-                {['Order #', 'Shipper', 'Route', 'Commodity', 'Status', 'Pickup', 'Rate', ''].map((h) => (
+                {['Order #', 'Client', 'Shipper', 'Route', 'Commodity', 'Status', 'Pickup', 'Rate', ''].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
                     {h}
                   </th>
@@ -116,7 +116,8 @@ export default function OrdersPage() {
                   <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700">
                     {order.orderNumber}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-800">{order.shipperName || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-800">{order.clientName || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">{order.shipperName || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
                     {order.origin?.city}, {order.origin?.state}
                     <span className="mx-1 text-gray-300">→</span>

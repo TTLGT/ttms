@@ -13,6 +13,7 @@ import { isBootstrapAdmin, normalizeEmail } from '@/lib/accessControl';
 import { useAuth } from '@/context/AuthContext';
 import type { AllowedUser, AllowedUserRole } from '@/types/allowedUser';
 import BatsImportPanel from '@/components/settings/BatsImportPanel';
+import WorkGroupsPanel from '@/components/settings/WorkGroupsPanel';
 
 const ROLE_CHIPS: { field: AllowedUserRole; label: string }[] = [
   { field: 'isAdmin',      label: 'Admin' },
@@ -282,6 +283,7 @@ export default function SettingsPage() {
         )}
       </section>
 
+      <WorkGroupsPanel />
       <BatsImportPanel />
     </div>
   );

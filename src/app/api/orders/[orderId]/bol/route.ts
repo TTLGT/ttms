@@ -45,9 +45,19 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     }
   }
 
+  // Phone numbers live on the party records, not the order.
+  const [shipperPhone, consigneePhone] = await Promise.all([
+    partyPhone(order.shipperId),
+    partyPhone(order.consigneeId),
+  ]);
+
   const data: BolData = {
     orderNumber:      order.orderNumber        ?? '',
+    clientName:       order.clientName         ?? '',
     shipperName:      order.shipperName        ?? '',
+    shipperPhone,
+    consigneeName:    order.consigneeName      ?? '',
+    consigneePhone,
     carrierName:      order.carrierName        ?? '',
     carrierDot,
     carrierMc,
@@ -112,4 +122,10 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
 
   const url = await getSignedUrl(order.bolStoragePath as string);
   return NextResponse.json({ url, path: order.bolStoragePath });
+}
+
+async function partyPhone(partyId: string | undefined | null): Promise<string> {
+  if (!partyId) return '';
+  const snap = await adminDb.collection('parties').doc(partyId).get();
+  return snap.exists ? (snap.data()!.phone ?? '') : '';
 }

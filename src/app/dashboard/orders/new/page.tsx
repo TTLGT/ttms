@@ -5,9 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { createOrder } from '@/lib/orders';
-import { listShippers } from '@/lib/shippers';
+import { listParties, tagPartyRole, recordPartyApproval } from '@/lib/parties';
+import PartyCombobox from '@/components/parties/PartyCombobox';
+import type { PartySelection } from '@/components/parties/PartyCombobox';
+import { partyDisplayName } from '@/types/party';
 import type { Address } from '@/types/order';
-import type { Shipper } from '@/types/shipper';
+import type { Party, PartyRole } from '@/types/party';
 
 const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
 
@@ -50,11 +53,12 @@ function NewOrderForm() {
   const searchParams  = useSearchParams();
   const { user }      = useAuth();
 
-  const [shippers, setShippers]       = useState<Shipper[]>([]);
-  const [shipperId, setShipperId]     = useState(searchParams.get('shipperId') ?? '');
-  const [shipperName, setShipperName] = useState('');
-  const [saving, setSaving]           = useState(false);
-  const [error, setError]             = useState('');
+  const [parties, setParties]     = useState<Party[]>([]);
+  const [client, setClient]       = useState<PartySelection>({ id: '', name: '' });
+  const [shipper, setShipper]     = useState<PartySelection>({ id: '', name: '' });
+  const [consignee, setConsignee] = useState<PartySelection>({ id: '', name: '' });
+  const [saving, setSaving]       = useState(false);
+  const [error, setError]         = useState('');
 
   const [commodity, setCommodity]       = useState('');
   const [pieces, setPieces]             = useState('1');
@@ -70,32 +74,43 @@ function NewOrderForm() {
   const carrierPay = (parseFloat(agreedRate) || 0) - (parseFloat(brokerFee) || 0);
 
   useEffect(() => {
-    listShippers().then(setShippers).catch(() => {});
+    listParties().then(setParties).catch(() => {});
   }, []);
 
-  // Pre-select shipper from query param once shippers are loaded
+  // Pre-select the party passed in the query string (e.g. "New order" from a
+  // party page) once the list has loaded.
   useEffect(() => {
-    const preId = searchParams.get('shipperId');
-    if (preId && shippers.length) {
-      const s = shippers.find((x) => x.id === preId);
-      if (s) {
-        setShipperId(s.id);
-        setShipperName(s.companyName);
-        if (s.defaultOrigin) setOrigin(s.defaultOrigin);
-        if (s.defaultDest)   setDest(s.defaultDest);
-      }
+    for (const role of ['client', 'shipper', 'consignee'] as const) {
+      const preId = searchParams.get(`${role}Id`);
+      if (!preId || !parties.length) continue;
+      const p = parties.find((x) => x.id === preId);
+      if (!p) continue;
+      const selection = { id: p.id, name: partyDisplayName(p) };
+      if (role === 'client')    setClient(selection);
+      if (role === 'shipper')   { setShipper(selection);   if (p.defaultOrigin) setOrigin(p.defaultOrigin); }
+      if (role === 'consignee') { setConsignee(selection); if (p.defaultDest)   setDest(p.defaultDest); }
     }
-  }, [shippers, searchParams]);
+  }, [parties, searchParams]);
 
-  function handleShipperChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const id = e.target.value;
-    setShipperId(id);
-    if (!id) { setShipperName(''); return; }
-    const s = shippers.find((x) => x.id === id);
-    if (s) {
-      setShipperName(s.companyName);
-      if (s.defaultOrigin) setOrigin(s.defaultOrigin);
-    }
+  function cacheParty(p: Party) {
+    setParties((prev) => (prev.some((x) => x.id === p.id) ? prev : [...prev, p]));
+  }
+
+  /** Prefills the origin address from a shipper's saved default pickup location. */
+  function handleShipperPicked(selection: PartySelection, party: Party | null) {
+    setShipper(selection);
+    if (party?.defaultOrigin) setOrigin(party.defaultOrigin);
+  }
+
+  function handleConsigneePicked(selection: PartySelection, party: Party | null) {
+    setConsignee(selection);
+    if (party?.defaultDest) setDest(party.defaultDest);
+  }
+
+  async function tagRoleIfNew(partyId: string, role: PartyRole) {
+    const p = parties.find((x) => x.id === partyId);
+    if (p && (p.roles ?? []).includes(role)) return;
+    await tagPartyRole(partyId, role);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -104,9 +119,23 @@ function NewOrderForm() {
     setError('');
     setSaving(true);
     try {
+      // A party may be reused in a role it has never held before; record that
+      // so role-filtered lists pick it up.
+      await Promise.all(
+        ([['client', client], ['shipper', shipper], ['consignee', consignee]] as const)
+          .filter(([, sel]) => sel.id)
+          // Best-effort: a party used under an approval is not writable by the
+          // requester, and failing to tag a role must not block the order.
+          .map(([role, sel]) => tagRoleIfNew(sel.id, role).catch(() => {})),
+      );
+
       const id = await createOrder({
-        shipperId,
-        shipperName: shipperName.trim(),
+        clientId:      client.id,
+        clientName:    client.name.trim(),
+        shipperId:     shipper.id,
+        shipperName:   shipper.name.trim(),
+        consigneeId:   consignee.id,
+        consigneeName: consignee.name.trim(),
         parentOrderId: null,
         status:       'quote',
         commodity:    commodity.trim(),
@@ -142,8 +171,20 @@ function NewOrderForm() {
         shipperSignedAt:    null,
         shipperSignerName:  null,
         shipperSignerIp:    null,
+        partyApprovals:     [],
+        clientSignedAt:     null,
+        clientSignerName:   null,
+        clientSignerIp:     null,
         createdBy:    user.uid,
       });
+      // Stamp proof of authorization for any party the creator does not own.
+      // Server-side, so the record cannot be fabricated by its beneficiary.
+      await Promise.all(
+        ([['client', client], ['shipper', shipper], ['consignee', consignee]] as const)
+          .filter(([, sel]) => sel.id)
+          .map(([role, sel]) => recordPartyApproval(id, sel.id, role).catch(() => {})),
+      );
+
       router.push(`/dashboard/orders/${id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create order');
@@ -166,21 +207,32 @@ function NewOrderForm() {
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Shipment Info</h2>
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Shipper / Client</label>
-              {shippers.length > 0 ? (
-                <select required value={shipperId} onChange={handleShipperChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
-                  <option value="">Select a shipper…</option>
-                  {shippers.map((s) => (
-                    <option key={s.id} value={s.id}>{s.companyName}</option>
-                  ))}
-                </select>
-              ) : (
-                <input required value={shipperName} onChange={(e) => setShipperName(e.target.value)}
-                  placeholder="e.g. Acme Corp"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              )}
+            <div className="col-span-2 grid grid-cols-3 gap-4">
+              <PartyCombobox
+                role="client"
+                label="Client (signs the contract)"
+                parties={parties}
+                value={client}
+                onChange={setClient}
+                onPartyCreated={cacheParty}
+                required
+              />
+              <PartyCombobox
+                role="shipper"
+                label="Shipper (pickup)"
+                parties={parties}
+                value={shipper}
+                onChange={handleShipperPicked}
+                onPartyCreated={cacheParty}
+              />
+              <PartyCombobox
+                role="consignee"
+                label="Consignee (delivery)"
+                parties={parties}
+                value={consignee}
+                onChange={handleConsigneePicked}
+                onPartyCreated={cacheParty}
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Commodity</label>

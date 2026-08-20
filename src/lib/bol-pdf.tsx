@@ -4,7 +4,11 @@ import { Document, Page, Text, View, StyleSheet, Image as PdfImage, renderToBuff
 
 export type BolData = {
   orderNumber: string;
+  clientName: string;
   shipperName: string;
+  shipperPhone: string;
+  consigneeName: string;
+  consigneePhone: string;
   carrierName: string;
   carrierDot: string;
   carrierMc: string;
@@ -112,11 +116,25 @@ function BolDocument({ d }: { d: BolData }) {
           </View>
         </View>
 
-        {/* Shipper + Carrier */}
+        {/* Shipper + Consignee */}
         <View style={s.row2}>
           <View style={s.card}>
-            <Text style={s.secTitle}>SHIPPER</Text>
+            <Text style={s.secTitle}>SHIPPER (ORIGIN)</Text>
             <Field label="Company" value={d.shipperName} />
+            {d.shipperPhone ? <Field label="Phone" value={d.shipperPhone} /> : null}
+          </View>
+          <View style={s.cardLast}>
+            <Text style={s.secTitle}>CONSIGNEE (DESTINATION)</Text>
+            <Field label="Company" value={d.consigneeName} />
+            {d.consigneePhone ? <Field label="Phone" value={d.consigneePhone} /> : null}
+          </View>
+        </View>
+
+        {/* Client + Carrier */}
+        <View style={s.row2}>
+          <View style={s.card}>
+            <Text style={s.secTitle}>CLIENT (BILL TO)</Text>
+            <Field label="Company" value={d.clientName} />
           </View>
           <View style={s.cardLast}>
             <Text style={s.secTitle}>CARRIER / DRIVER</Text>

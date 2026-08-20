@@ -32,14 +32,20 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: 'No shipper assigned to this order' }, { status: 400 });
   }
 
-  const shipperSnap = await adminDb.collection('shippers').doc(order.shipperId).get();
+  const shipperSnap = await adminDb.collection('parties').doc(order.shipperId).get();
   if (!shipperSnap.exists) {
     return NextResponse.json({ error: 'Shipper not found' }, { status: 404 });
   }
   const shipper = shipperSnap.data()!;
 
+  // Prefer a named contact, but fall back to the address on the party record so
+  // a shipper created inline from an order can still be sent an agreement.
   const contacts: { name: string; email: string }[] = shipper.contacts ?? [];
-  const contact = contacts.find((c) => c.email?.trim()) ?? null;
+  const contact =
+    contacts.find((c) => c.email?.trim()) ??
+    (shipper.email?.trim()
+      ? { name: shipper.contactName || shipper.companyName || '', email: shipper.email.trim() }
+      : null);
   if (!contact) {
     return NextResponse.json({ error: 'Shipper has no email address on file' }, { status: 400 });
   }
@@ -78,7 +84,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     pickupDate:   order.pickupDate   || null,
     deliveryDate: order.deliveryDate || null,
     agreedRate:   order.agreedRate   || 0,
-    shipperName:  shipper.companyName,
+    shipperName:  shipper.companyName || shipper.contactName,
     carrierName:  order.carrierName  || '',
     notes:        order.notes        || '',
   });
@@ -91,7 +97,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     to:      contact.email,
     subject: `Load Confirmation — ${order.orderNumber}`,
     html:    buildEmailHtml({
-      shipperName:  shipper.companyName,
+      shipperName:  shipper.companyName || shipper.contactName,
       contactName:  contact.name || shipper.companyName,
       orderNumber:  order.orderNumber,
       originStr,

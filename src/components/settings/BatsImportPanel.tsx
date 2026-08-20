@@ -111,7 +111,7 @@ export default function BatsImportPanel() {
   }
 
   const COLLECTION_LABEL: Record<string, string> = {
-    carriers: 'Carriers', customers: 'Customers', orders: 'Orders',
+    carriers: 'Carriers', customers: 'Customers', orders: 'Orders', parties: 'Parties',
   };
 
   return (
@@ -146,11 +146,14 @@ export default function BatsImportPanel() {
         <div className="px-6 pb-6">
           <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
             {results.map((r) => (
-              <li key={r.collection} className="flex items-center justify-between px-4 py-2.5 text-sm bg-gray-50">
-                <span className="font-medium text-gray-700">{COLLECTION_LABEL[r.collection] ?? r.collection}</span>
-                <span className="text-gray-500">
-                  {r.written} written · {r.skipped} unchanged · {r.total} total
-                </span>
+              <li key={r.collection} className="px-4 py-2.5 text-sm bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-700">{COLLECTION_LABEL[r.collection] ?? r.collection}</span>
+                  <span className="text-gray-500">
+                    {r.written} written · {r.skipped} unchanged · {r.total} total
+                  </span>
+                </div>
+                {r.notes && <p className="text-xs text-gray-500 mt-1">{r.notes}</p>}
               </li>
             ))}
           </ul>

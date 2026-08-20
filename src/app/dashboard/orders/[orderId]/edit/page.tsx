@@ -5,9 +5,11 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Timestamp } from 'firebase/firestore';
 import { getOrder, updateOrder } from '@/lib/orders';
-import { listShippers } from '@/lib/shippers';
+import { listParties, tagPartyRole } from '@/lib/parties';
+import PartyCombobox from '@/components/parties/PartyCombobox';
+import type { PartySelection } from '@/components/parties/PartyCombobox';
 import type { Order, Address } from '@/types/order';
-import type { Shipper } from '@/types/shipper';
+import type { Party, PartyRole } from '@/types/party';
 
 const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
 
@@ -59,10 +61,11 @@ export default function EditOrderPage() {
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState('');
   const [order, setOrder]       = useState<Order | null>(null);
-  const [shippers, setShippers] = useState<Shipper[]>([]);
+  const [parties, setParties] = useState<Party[]>([]);
 
-  const [shipperId, setShipperId]       = useState('');
-  const [shipperName, setShipperName]   = useState('');
+  const [client, setClient]       = useState<PartySelection>({ id: '', name: '' });
+  const [shipper, setShipper]     = useState<PartySelection>({ id: '', name: '' });
+  const [consignee, setConsignee] = useState<PartySelection>({ id: '', name: '' });
   const [commodity, setCommodity]       = useState('');
   const [pieces, setPieces]             = useState('1');
   const [weight, setWeight]             = useState('');
@@ -79,12 +82,13 @@ export default function EditOrderPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [o, ss] = await Promise.all([getOrder(orderId), listShippers()]);
+        const [o, ss] = await Promise.all([getOrder(orderId), listParties()]);
         if (!o) { setError('Order not found'); return; }
         setOrder(o);
-        setShippers(ss);
-        setShipperId(o.shipperId ?? '');
-        setShipperName(o.shipperName ?? '');
+        setParties(ss);
+        setClient({    id: o.clientId    ?? '', name: o.clientName    ?? '' });
+        setShipper({   id: o.shipperId   ?? '', name: o.shipperName   ?? '' });
+        setConsignee({ id: o.consigneeId ?? '', name: o.consigneeName ?? '' });
         setCommodity(o.commodity ?? '');
         setPieces(String(o.pieces ?? 1));
         setWeight(o.weight ? String(o.weight) : '');
@@ -104,11 +108,14 @@ export default function EditOrderPage() {
     load();
   }, [orderId]);
 
-  function handleShipperChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const id = e.target.value;
-    setShipperId(id);
-    const s = shippers.find((x) => x.id === id);
-    setShipperName(s?.companyName ?? '');
+  function cacheParty(p: Party) {
+    setParties((prev) => (prev.some((x) => x.id === p.id) ? prev : [...prev, p]));
+  }
+
+  async function tagRoleIfNew(partyId: string, role: PartyRole) {
+    const p = parties.find((x) => x.id === partyId);
+    if (p && (p.roles ?? []).includes(role)) return;
+    await tagPartyRole(partyId, role);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -117,9 +124,23 @@ export default function EditOrderPage() {
     setError('');
     setSaving(true);
     try {
+      // Reassigning a party to a role it has not held before must show up in
+      // that role's list.
+      await Promise.all(
+        ([['client', client], ['shipper', shipper], ['consignee', consignee]] as const)
+          .filter(([, sel]) => sel.id)
+          // Best-effort: a party used under an approval is not writable by the
+          // requester, and failing to tag a role must not block the order.
+          .map(([role, sel]) => tagRoleIfNew(sel.id, role).catch(() => {})),
+      );
+
       await updateOrder(orderId, {
-        shipperId:    shipperId || order.shipperId,
-        shipperName:  shipperName.trim() || order.shipperName,
+        clientId:      client.id,
+        clientName:    client.name.trim(),
+        shipperId:     shipper.id,
+        shipperName:   shipper.name.trim(),
+        consigneeId:   consignee.id,
+        consigneeName: consignee.name.trim(),
         commodity:    commodity.trim(),
         pieces:       parseInt(pieces) || 1,
         weight:       parseFloat(weight) || 0,
@@ -167,21 +188,13 @@ export default function EditOrderPage() {
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Shipment Info</h2>
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Shipper / Client</label>
-              {shippers.length > 0 ? (
-                <select value={shipperId} onChange={handleShipperChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
-                  <option value="">— Select a shipper —</option>
-                  {shippers.map((s) => (
-                    <option key={s.id} value={s.id}>{s.companyName}</option>
-                  ))}
-                </select>
-              ) : (
-                <input value={shipperName} onChange={(e) => setShipperName(e.target.value)}
-                  placeholder="Shipper name"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              )}
+            <div className="col-span-2 grid grid-cols-3 gap-4">
+              <PartyCombobox role="client"    label="Client (signs the contract)" parties={parties}
+                value={client}    onChange={setClient}    onPartyCreated={cacheParty} required />
+              <PartyCombobox role="shipper"   label="Shipper (pickup)"           parties={parties}
+                value={shipper}   onChange={setShipper}   onPartyCreated={cacheParty} />
+              <PartyCombobox role="consignee" label="Consignee (delivery)"       parties={parties}
+                value={consignee} onChange={setConsignee} onPartyCreated={cacheParty} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Commodity</label>

@@ -27,3 +27,60 @@ export function isBootstrapAdmin(email: string | null | undefined): boolean {
 
 export const ALLOWED_USERS_COLLECTION = 'allowedUsers';
 export const USERS_COLLECTION = 'users';
+
+// ── Party visibility ─────────────────────────────────────────────────────────
+
+/**
+ * Roles that see every client, shipper and consignee regardless of ownership.
+ * Keep in sync with `canSeeAllParties()` in firestore.rules.
+ */
+export interface RoleFlags {
+  isAdmin?: boolean;
+  isDispatcher?: boolean;
+  isFinance?: boolean;
+  /** Work groups this user belongs to, mirrored onto their profile. */
+  groupIds?: string[];
+}
+
+export function canSeeAllParties(profile: RoleFlags | null | undefined): boolean {
+  if (!profile) return false;
+  return profile.isAdmin === true || profile.isDispatcher === true || profile.isFinance === true;
+}
+
+/**
+ * Whether `uid` may see a party's details. Ownership is the boundary: a party
+ * with no owner at all is shared reference data, but one owned by a rep — even
+ * a rep who has no TMS account yet — is private to them.
+ */
+export function canSeeParty(
+  party: {
+    assignedToUids?: string[];
+    assignedToName?: string;
+    assignedToGroupIds?: string[];
+  },
+  uid: string,
+  profile: RoleFlags | null | undefined,
+): boolean {
+  if (canSeeAllParties(profile)) return true;
+
+  const owners = party.assignedToUids ?? [];
+  if (owners.includes(uid)) return true;
+
+  const groups = party.assignedToGroupIds ?? [];
+  const mine   = profile?.groupIds ?? [];
+  if (groups.some((g) => mine.includes(g))) return true;
+
+  return owners.length === 0
+    && groups.length === 0
+    && !(party.assignedToName ?? '').trim();
+}
+
+/** Who may decide an access request: any current owner, or any admin. */
+export function canDecideRequest(
+  request: { ownerUids?: string[] },
+  uid: string,
+  profile: RoleFlags | null | undefined,
+): boolean {
+  if (profile?.isAdmin === true) return true;
+  return (request.ownerUids ?? []).includes(uid);
+}

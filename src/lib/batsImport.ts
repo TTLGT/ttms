@@ -1,14 +1,20 @@
 import { Timestamp } from 'firebase-admin/firestore';
 import { createHash } from 'crypto';
 import { adminDb } from './firebase-admin';
+import { toNameKey } from '@/types/party';
+import { STATUS_RANK } from '@/types/order';
+import type { OrderStatus } from '@/types/order';
+import type { PartyRole } from '@/types/party';
 
-export type ImportCollection = 'carriers' | 'customers' | 'orders';
+export type ImportCollection = 'carriers' | 'customers' | 'orders' | 'parties';
 
 export interface ImportResult {
   collection: ImportCollection;
   written: number;
   skipped: number;
   total: number;
+  /** Human-readable extra detail, shown under the row in the import panel. */
+  notes?: string;
 }
 
 // ── CSV parser (handles quoted fields with embedded commas/newlines) ──────────
@@ -49,15 +55,43 @@ function str(val: string | undefined): string {
   return (val || '').trim();
 }
 
-/** Parse "City, ST Zip" or "Facility | Phone | City, ST Zip" → Address object */
-function parseOrderAddress(raw: string) {
+interface OrderLocation {
+  /** The facility/party name, when BATS supplied one. */
+  facility: string;
+  phone: string;
+  address: { street: string; city: string; state: string; zip: string; country: string };
+}
+
+/**
+ * Parse "City, ST Zip" or "Facility | Phone | City, ST Zip".
+ *
+ * BATS packs the pickup/delivery facility and its phone into the same field as
+ * the address. The facility on Origin is the shipper and the one on Destination
+ * is the consignee, so both are kept rather than discarded.
+ */
+function parseOrderLocation(raw: string): OrderLocation {
   const blank = { street: '', city: '', state: '', zip: '', country: '' };
-  if (!raw || !raw.trim()) return blank;
-  const segments = raw.split('|').map((s) => s.trim());
-  const addrPart = segments[segments.length - 1];
+  if (!raw || !raw.trim()) return { facility: '', phone: '', address: blank };
+
+  const segments = raw.split('|').map((s) => s.trim()).filter(Boolean);
+  const addrPart = segments[segments.length - 1] ?? '';
+  const lead     = segments.slice(0, -1);
+
+  // A lead segment that is mostly digits is the phone, not a facility name.
+  const phone    = lead.find((s) => isPhoneLike(s)) ?? '';
+  const facility = lead.find((s) => !isPhoneLike(s)) ?? '';
+
   const m = addrPart.match(/^(.+?),\s*([A-Z]{2})\s*(\d{5}(?:-\d{4})?)?$/);
-  if (m) return { street: '', city: m[1].trim(), state: m[2].trim(), zip: (m[3] || '').trim(), country: 'US' };
-  return { ...blank, city: addrPart };
+  const address = m
+    ? { street: '', city: m[1].trim(), state: m[2].trim(), zip: (m[3] || '').trim(), country: 'US' }
+    : { ...blank, city: addrPart };
+
+  return { facility, phone, address };
+}
+
+function isPhoneLike(s: string): boolean {
+  const digits = s.replace(/\D/g, '');
+  return digits.length >= 7 && digits.length / s.length > 0.5;
 }
 
 function mapOrderStatus(batsStatus: string): string {
@@ -95,9 +129,72 @@ function hashRecord(rec: Record<string, unknown>): string {
   return createHash('sha1').update(stableStringify(stable)).digest('hex');
 }
 
-async function loadExistingMeta(collectionName: string) {
-  const snap = await adminDb.collection(collectionName).select('_importHash', 'createdAt').get();
-  const map = new Map<string, { _importHash?: string; createdAt?: Timestamp }>();
+/**
+ * Fields that belong to the TMS, not to BATS.
+ *
+ * A CSV row carries no knowledge of them, so the import must leave them alone
+ * on any document that already exists. Without this, re-importing to pick up a
+ * changed phone number would also blank the assigned carrier, the uploaded BOL
+ * and the e-signature audit trail on every order it rewrote.
+ */
+const PRESERVE: Record<ImportCollection, string[]> = {
+  orders: [
+    'carrierId', 'carrierName', 'driverName', 'driverPhone',
+    'driverLicenseStoragePath', 'bolStoragePath', 'invoiceStoragePath', 'podStoragePath',
+    'notes', 'parentOrderId',
+    'carrierSignedAt', 'carrierSignerName', 'carrierSignerIp',
+    'shipperSignedAt', 'shipperSignerName', 'shipperSignerIp',
+    'clientSignedAt',  'clientSignerName',  'clientSignerIp',
+    'partyApprovals',
+  ],
+  carriers: [
+    'insuranceExpiration', 'insuranceProvider', 'insurancePolicyNumber',
+    'dot', 'notes',
+  ],
+  customers: ['notes', 'assignedToUids'],
+  // Parties are protected inside flushParties, which needs the values before
+  // the records are built.
+  parties: [],
+};
+
+/**
+ * Merges an imported status with the one already stored.
+ *
+ * BATS and the TMS both move an order forward, but they are not always in
+ * step: dispatch may have advanced a load here while BATS still shows it
+ * awaiting signature. Taking the further-along of the two lets a refresh push
+ * an order forward without ever undoing work done in the TMS.
+ *
+ * Cancellation is treated as sticky in both directions — if either system says
+ * a load died, a re-import will not quietly revive it.
+ */
+function reconcileStatus(prior: unknown, incoming: unknown): unknown {
+  const a = prior as OrderStatus | undefined;
+  const b = incoming as OrderStatus;
+  if (!a) return b;
+  if (a === 'cancelled' || b === 'cancelled') return 'cancelled';
+
+  const rankA = STATUS_RANK[a as Exclude<OrderStatus, 'cancelled'>];
+  const rankB = STATUS_RANK[b as Exclude<OrderStatus, 'cancelled'>];
+  if (rankA === undefined) return b;
+  if (rankB === undefined) return a;
+  return rankB > rankA ? b : a;
+}
+
+/** Fields needing a comparison rather than a straight "existing value wins". */
+const RECONCILE: Partial<Record<ImportCollection, Record<string, (p: unknown, i: unknown) => unknown>>> = {
+  orders: { status: reconcileStatus },
+};
+
+async function loadExistingMeta(collectionName: ImportCollection) {
+  const fields = [
+    '_importHash',
+    'createdAt',
+    ...PRESERVE[collectionName],
+    ...Object.keys(RECONCILE[collectionName] ?? {}),
+  ];
+  const snap = await adminDb.collection(collectionName).select(...fields).get();
+  const map = new Map<string, Record<string, unknown>>();
   snap.forEach((doc) => map.set(doc.id, doc.data()));
   return map;
 }
@@ -121,11 +218,24 @@ async function batchWrite(
       continue;
     }
 
+    const { _docId, ...stored } = rec;
+    void _docId;
+
+    // Work the TMS owns survives the refresh; BATS only supplies the rest.
+    if (prior) {
+      for (const field of PRESERVE[collectionName]) {
+        if (prior[field] !== undefined) stored[field] = prior[field];
+      }
+      for (const [field, merge] of Object.entries(RECONCILE[collectionName] ?? {})) {
+        stored[field] = merge(prior[field], stored[field]);
+      }
+    }
+
     toWrite.push({
       id,
       data: {
-        ...rec,
-        createdAt:   prior?.createdAt || rec.createdAt,
+        ...stored,
+        createdAt:   (prior?.createdAt as Timestamp | undefined) || rec.createdAt,
         _importHash: hash,
       },
     });
@@ -144,6 +254,143 @@ async function batchWrite(
   }
 
   return { collection: collectionName, written, skipped, total: records.length };
+}
+
+// ── Party registry ───────────────────────────────────────────────────────────
+// Clients, shippers and consignees are all parties. The same company can show
+// up as a customer row and as a pickup facility on an order, so every name is
+// funnelled through one registry keyed on its normalized form. That collapses
+// "Acme Corp." and "ACME Corporation" onto a single record.
+
+interface PartyDraft {
+  id: string;
+  companyName: string;
+  nameKey: string;
+  batsId: string | null;
+  phone: string;
+  email: string;
+  address: Record<string, string> | null;
+  roles: Set<PartyRole>;
+  defaultOrigin: Record<string, string> | null;
+  defaultDest: Record<string, string> | null;
+  /** Owning rep as BATS names them; only applied when the party is new. */
+  assignedToName: string;
+}
+
+type PartyRegistry = Map<string, PartyDraft>;
+
+/** Deterministic id so repeat imports converge on the same document. */
+function partyDocId(key: string): string {
+  return `p-${createHash('sha1').update(key).digest('hex').slice(0, 16)}`;
+}
+
+function registerParty(
+  reg: PartyRegistry,
+  name: string,
+  role: PartyRole,
+  extra: Partial<Omit<PartyDraft, 'id' | 'nameKey' | 'roles'>> = {},
+): string {
+  const key = toNameKey(name);
+  if (!key) return '';
+
+  let draft = reg.get(key);
+  if (!draft) {
+    draft = {
+      id: partyDocId(key),
+      companyName: name.trim(),
+      nameKey: key,
+      batsId: null,
+      phone: '',
+      email: '',
+      address: null,
+      roles: new Set<PartyRole>(),
+      defaultOrigin: null,
+      defaultDest: null,
+      assignedToName: '',
+    };
+    reg.set(key, draft);
+  }
+  draft.roles.add(role);
+  // First non-empty value wins, so a later sparse row cannot blank out details.
+  draft.batsId        ||= extra.batsId        ?? null;
+  draft.phone         ||= extra.phone         ?? '';
+  draft.email         ||= extra.email         ?? '';
+  draft.address       ||= extra.address       ?? null;
+  draft.defaultOrigin ||= extra.defaultOrigin ?? null;
+  draft.defaultDest   ||= extra.defaultDest   ?? null;
+  draft.assignedToName ||= extra.assignedToName ?? '';
+  return draft.id;
+}
+
+/**
+ * Writes the registry to `parties`, unioning roles with whatever is already
+ * stored so a role applied by hand in the app is never dropped by an import.
+ */
+async function flushParties(reg: PartyRegistry, now: Timestamp): Promise<ImportResult> {
+  if (reg.size === 0) return { collection: 'parties', written: 0, skipped: 0, total: 0 };
+
+  // Fields the import must never overwrite. Ownership, contacts and notes are
+  // maintained inside the TMS; a CSV re-upload knows nothing about them, so
+  // blanking them here would silently destroy work every time someone
+  // refreshed the data.
+  interface Preserved {
+    roles: PartyRole[];
+    assignedToUids: string[];
+    assignedToGroupIds: string[];
+    assignedToName: string;
+    contactName: string;
+    contacts: unknown[];
+    notes: string;
+  }
+
+  const existing = new Map<string, Preserved>();
+  const snap = await adminDb.collection('parties')
+    .select('roles', 'assignedToUids', 'assignedToGroupIds', 'assignedToName',
+            'contactName', 'contacts', 'notes')
+    .get();
+  snap.forEach((doc) => {
+    const v = doc.data();
+    existing.set(doc.id, {
+      roles:          (v.roles ?? []) as PartyRole[],
+      assignedToUids: (v.assignedToUids ?? []) as string[],
+      assignedToGroupIds: (v.assignedToGroupIds ?? []) as string[],
+      assignedToName: (v.assignedToName ?? '') as string,
+      contactName:    (v.contactName ?? '') as string,
+      contacts:       (v.contacts ?? []) as unknown[],
+      notes:          (v.notes ?? '') as string,
+    });
+  });
+
+  const records = [...reg.values()].map((d) => {
+    const prior  = existing.get(d.id);
+    const merged = new Set<PartyRole>([...(prior?.roles ?? []), ...d.roles]);
+    return {
+      _docId:         d.id,
+      batsId:         d.batsId,
+      companyName:    d.companyName,
+      nameKey:        d.nameKey,
+      phone:          d.phone,
+      email:          d.email,
+      address:        d.address ?? { street: '', city: '', state: '', zip: '', country: '' },
+      roles:          [...merged].sort(),
+      defaultOrigin:  d.defaultOrigin,
+      defaultDest:    d.defaultDest,
+      // Existing values win; the CSV only supplies these for a brand-new party.
+      contactName:    prior?.contactName    ?? '',
+      contacts:       prior?.contacts       ?? [],
+      notes:          prior?.notes          ?? '',
+      assignedToUids: prior?.assignedToUids ?? [],
+      assignedToName: prior ? prior.assignedToName : d.assignedToName,
+      // Must always be written: listVisibleParties finds unowned records with
+      // `where('assignedToGroupIds', '==', [])`, which never matches a document
+      // where the field is absent.
+      assignedToGroupIds: prior?.assignedToGroupIds ?? [],
+      createdAt:      now,
+      updatedAt:      now,
+    };
+  });
+
+  return batchWrite(records, 'parties', (r) => r._docId as string);
 }
 
 // ── Carriers ────────────────────────────────────────────────────────────────
@@ -219,6 +466,22 @@ export async function importCustomersCSV(text: string): Promise<ImportResult> {
     updatedAt:       now,
   })).filter((c) => c.batsId && c.name);
 
+  // Customers are clients in TMS terms; seed them into the shared party list so
+  // orders can link to the same record a shipper or consignee would use.
+  const reg: PartyRegistry = new Map();
+  for (const c of records) {
+    registerParty(reg, c.company || c.name, 'client', {
+      batsId:  c.batsId,
+      phone:   c.phone,
+      email:   c.email,
+      address: { street: c.address, city: c.city, state: c.state, zip: c.zip, country: c.country },
+      // BATS names the owning rep; this makes the party private to them rather
+      // than open to everyone. Ignored if the party already exists.
+      assignedToName: c.assignedTo,
+    });
+  }
+  await flushParties(reg, now);
+
   return batchWrite(records, 'customers', (c) => `bats-${c.batsId}`);
 }
 
@@ -229,6 +492,7 @@ export async function importCustomersCSV(text: string): Promise<ImportResult> {
 //   AssignedTo,SourceName,Dispatched,PickedUp,Delivered,AssignedPickup,AssignedDelivery
 export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
   const seen = new Map<string, Record<string, unknown>>();
+  const reg: PartyRegistry = new Map();
   const now  = Timestamp.now();
 
   for (const text of texts) {
@@ -242,20 +506,49 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
       const carrierPay = parseFloat(r[17]) || 0;
       const brokerFee  = parseFloat(r[18]) || 0;
 
+      // Col 8 is CustomerName — the client, not the shipper. The shipper and
+      // consignee are the facility names packed into Origin and Destination.
+      const clientName = str(r[8]);
+      const origin     = parseOrderLocation(str(r[12]));
+      const dest       = parseOrderLocation(str(r[13]));
+
+      const clientId = registerParty(reg, clientName, 'client', {
+        phone: str(r[9]),
+        email: str(r[10]),
+      });
+      const shipperId = registerParty(reg, origin.facility, 'shipper', {
+        phone:         origin.phone,
+        address:       origin.address,
+        defaultOrigin: origin.address,
+      });
+      const consigneeId = registerParty(reg, dest.facility, 'consignee', {
+        phone:       dest.phone,
+        address:     dest.address,
+        defaultDest: dest.address,
+      });
+
       seen.set(batsId, {
         batsId,
         orderNumber:               batsId,
         status:                    mapOrderStatus(str(r[5])),
-        shipperId:                 '',
-        shipperName:               str(r[8]),
+        clientId,
+        clientName,
+        shipperId,
+        shipperName:               origin.facility,
+        consigneeId,
+        consigneeName:             dest.facility,
         parentOrderId:             null,
         commodity:                 str(r[11]),
         vehicles:                  str(r[11]),
         pieces:                    0,
         weight:                    0,
         transportType:             str(r[15]),
-        origin:                    parseOrderAddress(str(r[12])),
-        destination:               parseOrderAddress(str(r[13])),
+        origin:                    origin.address,
+        destination:               dest.address,
+        // Kept verbatim so the facility segment stays recoverable if the
+        // parsing rules ever need to change.
+        _rawOrigin:                str(r[12]),
+        _rawDestination:           str(r[13]),
         pickupDate:                ts(str(r[24])), // AssignedPickup
         deliveryDate:              ts(str(r[25])), // AssignedDelivery
         dispatchedAt:              ts(str(r[21])),
@@ -281,6 +574,9 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
         shipperSignedAt:           null,
         shipperSignerName:         null,
         shipperSignerIp:           null,
+        clientSignedAt:            null,
+        clientSignerName:          null,
+        clientSignerIp:            null,
         createdBy:                 'bats-import',
         createdAt:                 ts(str(r[7])) || now,
         updatedAt:                 now,
@@ -288,6 +584,19 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
     }
   }
 
+  // Parties must land before the orders that reference them.
+  const partyResult = await flushParties(reg, now);
+
   const records = [...seen.values()];
-  return batchWrite(records, 'orders', (o) => `bats-${o.batsId}`);
+  const missingShipper   = records.filter((o) => !o.shipperId).length;
+  const missingConsignee = records.filter((o) => !o.consigneeId).length;
+
+  const result = await batchWrite(records, 'orders', (o) => `bats-${o.batsId}`);
+  return {
+    ...result,
+    notes:
+      `${partyResult.total} parties linked. ` +
+      `${records.length - missingShipper}/${records.length} orders got a shipper from Origin, ` +
+      `${records.length - missingConsignee}/${records.length} got a consignee from Destination.`,
+  };
 }

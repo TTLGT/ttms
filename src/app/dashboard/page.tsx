@@ -10,11 +10,12 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { listOrders } from '@/lib/orders';
-import { listClients } from '@/lib/clients';
+import { listParties } from '@/lib/parties';
 import { listCarriers } from '@/lib/carriers';
 import { getAlerts } from '@/lib/alerts';
 import type { Order } from '@/types/order';
-import type { Client } from '@/types/client';
+import { partyDisplayName } from '@/types/party';
+import type { Party } from '@/types/party';
 import type { Carrier } from '@/types/carrier';
 import type { OrderAlert } from '@/lib/alerts';
 import type { LucideIcon } from 'lucide-react';
@@ -179,7 +180,7 @@ export default function DashboardPage() {
   const firstName = user?.displayName?.split(' ')[0] ?? 'there';
 
   const [orders,   setOrders]   = useState<Order[]>([]);
-  const [clients,  setClients]  = useState<Client[]>([]);
+  const [clients,  setClients]  = useState<Party[]>([]);
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [alerts,   setAlerts]   = useState<OrderAlert[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -187,7 +188,8 @@ export default function DashboardPage() {
   useEffect(() => {
     Promise.all([
       listOrders(),
-      listClients(isAdmin ? undefined : user?.uid),
+      // Visibility is applied server-side, so no uid filter is passed here.
+      listParties({ role: 'client' }),
       listCarriers(),
     ]).then(([allOrders, allClients, allCarriers]) => {
       setOrders(allOrders);
@@ -251,7 +253,7 @@ export default function DashboardPage() {
   });
 
   // ── Clients ───────────────────────────────────────────────────────────────
-  const activeClientIds = new Set(activeOrders.map((o) => o.shipperId));
+  const activeClientIds = new Set(activeOrders.map((o) => o.clientId).filter(Boolean));
   const clientMap       = new Map(clients.map((c) => [c.id, c]));
 
   // ── Card definitions ──────────────────────────────────────────────────────
@@ -363,13 +365,13 @@ export default function DashboardPage() {
       icon: Building2, anim: '', hoverAnim: 'animate-pulse',
       items: Array.from(activeClientIds).map((id) => {
         const client    = clientMap.get(id);
-        const loadCount = activeOrders.filter((o) => o.shipperId === id).length;
+        const loadCount = activeOrders.filter((o) => o.clientId === id).length;
         return {
           id,
-          label: client?.name ?? id,
-          sub:   client?.company ?? '',
+          label: client ? partyDisplayName(client) : id,
+          sub:   client?.contactName ?? '',
           badge: `${loadCount} load${loadCount !== 1 ? 's' : ''}`,
-          href:  `/dashboard/clients/${id}`,
+          href:  `/dashboard/parties/${id}`,
         };
       }),
       emptyMsg: 'No active clients',
@@ -389,10 +391,10 @@ export default function DashboardPage() {
       icon: UserPlus, anim: '', hoverAnim: 'animate-bounce',
       items: newClientsThisMonth.map((c) => ({
         id:    c.id,
-        label: c.name,
-        sub:   c.company,
+        label: partyDisplayName(c),
+        sub:   c.contactName,
         badge: formatDate(c.createdAt as TS),
-        href:  `/dashboard/clients/${c.id}`,
+        href:  `/dashboard/parties/${c.id}`,
       })),
       emptyMsg: 'No new clients this month',
     },

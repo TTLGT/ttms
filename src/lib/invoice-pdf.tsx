@@ -5,7 +5,9 @@ import { Document, Page, Text, View, StyleSheet, Image as PdfImage, renderToBuff
 export type InvoiceData = {
   invoiceNumber: string;
   invoiceDate: string;
+  clientName: string;
   shipperName: string;
+  consigneeName: string;
   commodity: string;
   pieces: number;
   weight: number;
@@ -112,7 +114,7 @@ function InvoiceDocument({ d }: { d: InvoiceData }) {
         <View style={s.row2}>
           <View style={s.card}>
             <Text style={s.secTitle}>BILL TO</Text>
-            <Field label="Company" value={d.shipperName} />
+            <Field label="Company" value={d.clientName || d.shipperName} />
           </View>
           <View style={s.cardLast}>
             <Text style={s.secTitle}>FROM</Text>

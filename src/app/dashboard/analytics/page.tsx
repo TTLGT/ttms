@@ -123,8 +123,11 @@ export default function AnalyticsPage() {
   const topClients = useMemo(() => {
     const map = new Map<string, { name: string; revenue: number; loads: number }>();
     filtered.forEach((o) => {
-      const prev = map.get(o.shipperId) ?? { name: o.shipperName || 'Unknown', revenue: 0, loads: 0 };
-      map.set(o.shipperId, { ...prev, revenue: prev.revenue + (o.agreedRate || 0), loads: prev.loads + 1 });
+      // Group on the client, falling back to the name so orders that predate
+      // the party migration do not all collapse into one empty-id bucket.
+      const key  = o.clientId || `name:${(o.clientName || '').toLowerCase()}` || 'unknown';
+      const prev = map.get(key) ?? { name: o.clientName || 'Unknown', revenue: 0, loads: 0 };
+      map.set(key, { ...prev, revenue: prev.revenue + (o.agreedRate || 0), loads: prev.loads + 1 });
     });
     return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
   }, [filtered]);
