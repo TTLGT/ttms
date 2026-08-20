@@ -9,11 +9,33 @@ import type { Timestamp } from 'firebase/firestore';
  */
 export interface AllowedUser {
   email: string;
-  /** Set by an admin. Wins over the name Google reports at sign-in. */
+  /**
+   * Set by an admin, and the source of truth for the name. Wins over the name
+   * Google reports at sign-in.
+   */
+  firstName?: string;
+  lastName?: string;
+  /**
+   * The two above joined, kept in step by the API. Stored rather than derived
+   * because the rest of the app — work groups, party approvals — reads a
+   * single name off `users/{uid}` and has no business splitting it.
+   */
   displayName?: string;
+  /**
+   * The US work number. Kept under the original `phone` key: it is what the
+   * profile mirror and everything reading a single number already point at,
+   * and renaming it would only buy a migration.
+   */
   phone?: string;
+  /** Guatemala number, for the people who have one as well as the US line. */
+  phoneGt?: string;
   /** Desk extension, kept apart from `phone` so it stays dialable on its own. */
   extension?: string;
+  /**
+   * Storage path of the profile photo, not a download URL — URLs expire and
+   * change, the path does not. Resolved with getDownloadURL when displayed.
+   */
+  photoPath?: string | null;
   /** Which site they work out of — `sites/{id}`, or null for unassigned. */
   siteId?: string | null;
   isAdmin: boolean;
@@ -47,10 +69,33 @@ export type AllowedUserRole = 'isAdmin' | 'isDispatcher' | 'isFinance';
 
 /** The contact fields an admin edits together, as one patch. */
 export interface AllowedUserDetails {
-  displayName: string;
+  firstName: string;
+  lastName: string;
   phone: string;
+  phoneGt: string;
   extension: string;
   siteId: string | null;
+}
+
+/** The name to show, or '' when nobody has entered one. */
+export function fullName(user: Pick<AllowedUser, 'firstName' | 'lastName' | 'displayName'>): string {
+  const joined = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+  return joined || (user.displayName ?? '').trim();
+}
+
+/**
+ * Best-effort split of a single name into first and last, used only to seed
+ * the editor for an entry saved before the two were separate fields. Splits on
+ * the LAST space, so "Maria del Carmen Ruiz" keeps everything but "Ruiz" as
+ * the first name rather than guessing at compound surnames.
+ */
+export function splitName(name: string | null | undefined): { firstName: string; lastName: string } {
+  const trimmed = (name ?? '').trim().replace(/\s+/g, ' ');
+  if (!trimmed) return { firstName: '', lastName: '' };
+
+  const cut = trimmed.lastIndexOf(' ');
+  if (cut === -1) return { firstName: trimmed, lastName: '' };
+  return { firstName: trimmed.slice(0, cut), lastName: trimmed.slice(cut + 1) };
 }
 
 /** Outcome of a single address in a bulk invite, one row per address sent. */

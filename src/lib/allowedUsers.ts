@@ -67,7 +67,22 @@ export async function inviteUsers(
   return data.results ?? [];
 }
 
-/** Update someone's name, phone, extension and site in one request. */
+/**
+ * Attach or clear a profile photo. Separate from the details patch because the
+ * upload has already happened by the time this runs — the file is in Storage,
+ * and this is what records where.
+ */
+export async function setAllowedUserPhoto(
+  email: string,
+  photoPath: string | null,
+): Promise<void> {
+  await authedFetch('/api/admin/users', {
+    method: 'PATCH',
+    body: JSON.stringify({ email, field: 'photoPath', value: photoPath }),
+  });
+}
+
+/** Update someone's name, phones, extension and site in one request. */
 export async function setAllowedUserDetails(
   email: string,
   details: AllowedUserDetails,

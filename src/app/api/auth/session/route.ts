@@ -68,16 +68,22 @@ export async function POST(req: NextRequest) {
     isFinance:    entry.isFinance === true,
   };
 
+  // An admin-entered name wins over the one Google reports: it is the name the
+  // office actually uses, and it would be pointless to type it in Settings only
+  // for the next sign-in to overwrite it.
+  const enteredName = [entry.firstName, entry.lastName].filter(Boolean).join(' ').trim();
+
   const profile = {
     uid,
     email,
-    // An admin-entered name wins over the one Google reports: it is the name
-    // the office actually uses, and it would be pointless to type it in
-    // Settings only for the next sign-in to overwrite it.
-    displayName: entry.displayName || decoded.name || '',
+    firstName:   entry.firstName ?? '',
+    lastName:    entry.lastName ?? '',
+    displayName: enteredName || entry.displayName || decoded.name || '',
     phone:       entry.phone ?? '',
+    phoneGt:     entry.phoneGt ?? '',
     extension:   entry.extension ?? '',
     siteId:      entry.siteId ?? null,
+    photoPath:   entry.photoPath ?? null,
     ...roles,
     // Written on every sign-in so a restored account cannot keep a stale
     // `suspended: true` on its profile, which the rules would still honour.

@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, Ban, Check, Pencil, RotateCcw, Trash2, UserPlus, X } from 'lucide-react';
+import {
+  AlertCircle, ArrowDown, ArrowUp, Ban, Check, Download, Pencil, RotateCcw, Trash2, UserPlus, X,
+} from 'lucide-react';
 import {
   listAllowedUsers,
   inviteUsers,
   setAllowedUserRole,
   setAllowedUserDetails,
+  setAllowedUserPhoto,
   setAllowedUserSuspended,
   revokeUser,
 } from '@/lib/allowedUsers';
@@ -20,11 +23,13 @@ import {
   parseEmailList,
 } from '@/lib/accessControl';
 import { useAuth } from '@/context/AuthContext';
-import { accessStatus } from '@/types/allowedUser';
+import { accessStatus, fullName, splitName } from '@/types/allowedUser';
 import type { AllowedUser, AllowedUserRole, InviteResult } from '@/types/allowedUser';
+import { toCsv, csvDate, downloadCsv } from '@/lib/csv';
 import type { Site } from '@/types/site';
 import BatsImportPanel from '@/components/settings/BatsImportPanel';
 import SitesPanel from '@/components/settings/SitesPanel';
+import { AvatarUploader, UserAvatar } from '@/components/settings/UserAvatar';
 import WorkGroupsPanel from '@/components/settings/WorkGroupsPanel';
 
 /**
@@ -43,18 +48,70 @@ const NO_ROLES = { isAdmin: false, isDispatcher: false, isFinance: false };
 type StatusFilter = 'all' | 'active' | 'pending' | 'suspended';
 /** 'broker' means "no elevated role" — the default everyone starts with. */
 type RoleFilter   = 'all' | AllowedUserRole | 'broker';
-type SortKey      = 'name-asc' | 'name-desc' | 'newest' | 'oldest';
+type SortField =
+  | 'firstName' | 'lastName' | 'email' | 'phone' | 'phoneGt' | 'extension' | 'added';
+type SortDir   = 'asc' | 'desc';
 
-const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: 'name-asc',  label: 'Name A → Z' },
-  { key: 'name-desc', label: 'Name Z → A' },
-  { key: 'newest',    label: 'Newest first' },
-  { key: 'oldest',    label: 'Oldest first' },
+const SORT_FIELDS: { key: SortField; label: string }[] = [
+  { key: 'firstName', label: 'First name' },
+  { key: 'lastName',  label: 'Last name' },
+  { key: 'email',     label: 'Email' },
+  { key: 'phone',     label: 'Work phone (US)' },
+  { key: 'phoneGt',   label: 'Guatemala phone' },
+  { key: 'extension', label: 'Extension' },
+  { key: 'added',     label: 'Date added' },
 ];
 
-/** What the row is alphabetized by: the name if there is one, else the email. */
-function sortLabel(p: AllowedUser): string {
-  return (p.displayName || p.email).toLowerCase();
+/** Direction reads differently depending on what is being ordered. */
+function directionLabel(field: SortField, dir: SortDir): string {
+  if (field === 'added') return dir === 'asc' ? 'Oldest first' : 'Newest first';
+  if (field === 'phone' || field === 'phoneGt' || field === 'extension') {
+    return dir === 'asc' ? 'Low → High' : 'High → Low';
+  }
+  return dir === 'asc' ? 'A → Z' : 'Z → A';
+}
+
+const digitsOnly = (value: string | null | undefined) => (value ?? '').replace(/\D/g, '');
+
+/**
+ * Phone numbers are typed however the admin types them — (555) 123-4567,
+ * 555.123.4567, +1 555 123 4567 — so they are compared as digits alone. The
+ * country code is dropped so a number entered with it files next to the same
+ * number entered without, rather than in a separate block of its own: +1 for
+ * the US line, +502 for the Guatemala one.
+ */
+function phoneKey(value: string | null | undefined, countryCode: '1' | '502'): string {
+  const d = digitsOnly(value);
+  const national = countryCode === '1' ? 10 : 8;
+  return d.length === national + countryCode.length && d.startsWith(countryCode)
+    ? d.slice(countryCode.length)
+    : d;
+}
+
+/**
+ * Extensions are numbers, so they have to sort like numbers: comparing them as
+ * text would put 1050 ahead of 204. Zero-padding to a fixed width gets numeric
+ * order out of the same string compare everything else uses. Anything not
+ * purely numeric falls back to its own text.
+ */
+function extensionKey(p: AllowedUser): string {
+  const raw = (p.extension ?? '').trim().toLowerCase();
+  const d = digitsOnly(raw);
+  return d ? d.padStart(8, '0') : raw;
+}
+
+/**
+ * The text a row sorts under. Empty for someone the field is blank on, which
+ * the comparator treats as "unknown" and sends to the end — a block of blanks
+ * at the top is just noise, and pending invites often have no details at all.
+ */
+function sortText(p: AllowedUser, field: SortField): string {
+  if (field === 'email')     return p.email.toLowerCase();
+  if (field === 'phone')     return phoneKey(p.phone, '1');
+  if (field === 'phoneGt')   return phoneKey(p.phoneGt, '502');
+  if (field === 'extension') return extensionKey(p);
+  const value = field === 'lastName' ? p.lastName : p.firstName;
+  return (value ?? '').trim().toLowerCase();
 }
 
 /**
@@ -132,7 +189,8 @@ export default function SettingsPage() {
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [roleFilter, setRoleFilter]     = useState<RoleFilter>('all');
-  const [sortKey, setSortKey]           = useState<SortKey>('name-asc');
+  const [sortField, setSortField]       = useState<SortField>('firstName');
+  const [sortDir, setSortDir]           = useState<SortDir>('asc');
 
   // Loaded by SitesPanel below and handed up, so the collection is read once
   // for both the picker here and the list there.
@@ -141,7 +199,9 @@ export default function SettingsPage() {
     sites.find((x) => x.id === id)?.name ?? null;
 
   const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft]     = useState({ displayName: '', phone: '', extension: '', siteId: '' });
+  const [draft, setDraft]     = useState({
+    firstName: '', lastName: '', phone: '', phoneGt: '', extension: '', siteId: '',
+  });
 
   const [newEmails, setNewEmails] = useState('');
   const [newRoles, setNewRoles]   = useState(NO_ROLES);
@@ -240,14 +300,63 @@ export default function SettingsPage() {
     }
   }
 
+  /**
+   * Exports exactly what is on screen — same filters, same order — because the
+   * list an admin has narrowed down is the one they are asking for. The header
+   * says how many rows that is, so an unexpected filter cannot go unnoticed.
+   */
+  function handleExport() {
+    const header = [
+      'First name', 'Last name', 'Email', 'Work phone (US)', 'Guatemala phone',
+      'Extension', 'Site', 'Roles', 'Status', 'Added', 'Added by', 'Last sign-in',
+    ];
+
+    const rows = visiblePeople.map((p) => {
+      const roles = ROLE_CHIPS.filter(({ field }) => p[field]).map(({ label }) => label);
+      return [
+        p.firstName ?? '',
+        p.lastName ?? '',
+        p.email,
+        p.phone ?? '',
+        p.phoneGt ?? '',
+        p.extension ?? '',
+        siteName(p.siteId) ?? '',
+        // Broker is the absence of the others, so it is spelled out here rather
+        // than leaving the cell blank and making the reader infer it.
+        roles.length > 0 ? roles.join(', ') : 'Broker',
+        accessStatus(p),
+        csvDate(p.invitedAt),
+        p.invitedBy ?? '',
+        csvDate(p.lastLoginAt),
+      ];
+    });
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(`people-with-access-${stamp}.csv`, toCsv([header, ...rows]));
+  }
+
   function startEditing(person: AllowedUser) {
+    // An entry saved before the name was split has only displayName; seed the
+    // two fields from it so editing anything else does not wipe the name.
+    const name = person.firstName || person.lastName
+      ? { firstName: person.firstName ?? '', lastName: person.lastName ?? '' }
+      : splitName(person.displayName);
+
     setEditing(person.email);
     setDraft({
-      displayName: person.displayName ?? '',
-      phone:       person.phone ?? '',
-      extension:   person.extension ?? '',
-      siteId:      person.siteId ?? '',
+      ...name,
+      phone:     person.phone ?? '',
+      phoneGt:   person.phoneGt ?? '',
+      extension: person.extension ?? '',
+      siteId:    person.siteId ?? '',
     });
+  }
+
+  async function handlePhoto(person: AllowedUser, photoPath: string | null) {
+    await setAllowedUserPhoto(person.email, photoPath);
+    setPeople((prev) =>
+      prev.map((p) => (p.email === person.email ? { ...p, photoPath } : p)),
+    );
   }
 
   async function handleSaveDetails(person: AllowedUser) {
@@ -256,8 +365,11 @@ export default function SettingsPage() {
     try {
       const details = { ...draft, siteId: draft.siteId || null };
       await setAllowedUserDetails(person.email, details);
+      // The server composes displayName from the two parts; mirror that here so
+      // the row does not keep showing the name it had before the edit.
+      const displayName = [details.firstName, details.lastName].filter(Boolean).join(' ');
       setPeople((prev) =>
-        prev.map((p) => (p.email === person.email ? { ...p, ...details } : p)),
+        prev.map((p) => (p.email === person.email ? { ...p, ...details, displayName } : p)),
       );
       setEditing(null);
     } catch (err: unknown) {
@@ -363,18 +475,32 @@ They will be signed out immediately and cannot sign in until you restore them. T
       if (roleFilter !== 'all')    return !!p[roleFilter];
       return true;
     });
-    return rows.sort((a, b) => {
-      if (sortKey === 'name-asc')  return sortLabel(a).localeCompare(sortLabel(b));
-      if (sortKey === 'name-desc') return sortLabel(b).localeCompare(sortLabel(a));
+    const flip = sortDir === 'asc' ? 1 : -1;
 
-      const at = millis(a.invitedAt);
-      const bt = millis(b.invitedAt);
-      // Undated entries go last in both directions — they carry no information
-      // about when they were added, so neither end of the list is right for them.
-      if (at === null || bt === null) return at === bt ? 0 : at === null ? 1 : -1;
-      return sortKey === 'newest' ? bt - at : at - bt;
+    return rows.sort((a, b) => {
+      if (sortField === 'added') {
+        const at = millis(a.invitedAt);
+        const bt = millis(b.invitedAt);
+        // Undated entries go last in both directions — they say nothing about
+        // when they were added, so neither end of the list is right for them.
+        if (at === null || bt === null) return at === bt ? 0 : at === null ? 1 : -1;
+        // 'asc' reads as oldest first here, which is what the label promises.
+        return (at - bt) * flip;
+      }
+
+      const at = sortText(a, sortField);
+      const bt = sortText(b, sortField);
+      if (!at || !bt) {
+        // Same rule as undated: a blank field is unknown, not empty-string-first.
+        if (at !== bt) return at ? -1 : 1;
+        return a.email.localeCompare(b.email) * flip;
+      }
+
+      // Email breaks ties so two people sharing a first name — or an extension
+      // — keep a stable order rather than whatever the filter pass produced.
+      return (at.localeCompare(bt) || a.email.localeCompare(b.email)) * flip;
     });
-  }, [people, statusFilter, roleFilter, sortKey]);
+  }, [people, statusFilter, roleFilter, sortField, sortDir]);
 
   const filtered = statusFilter !== 'all' || roleFilter !== 'all';
 
@@ -649,6 +775,15 @@ They will be signed out immediately and cannot sign in until you restore them. T
               </p>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleExport}
+                  disabled={visiblePeople.length === 0}
+                  title="Download the list as shown, as a CSV that opens in Excel"
+                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download size={13} />
+                  Export CSV
+                </button>
                 {filtered && (
                   <button
                     onClick={clearFilters}
@@ -658,17 +793,25 @@ They will be signed out immediately and cannot sign in until you restore them. T
                   </button>
                 )}
                 <label className="flex items-center gap-1.5 text-xs text-gray-500">
-                  Sort
+                  Sort by
                   <select
-                    value={sortKey}
-                    onChange={(e) => setSortKey(e.target.value as SortKey)}
+                    value={sortField}
+                    onChange={(e) => setSortField(e.target.value as SortField)}
                     className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
                   >
-                    {SORT_OPTIONS.map(({ key, label }) => (
+                    {SORT_FIELDS.map(({ key, label }) => (
                       <option key={key} value={key}>{label}</option>
                     ))}
                   </select>
                 </label>
+                <button
+                  onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                  title="Reverse the order"
+                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+                >
+                  {sortDir === 'asc' ? <ArrowDown size={13} /> : <ArrowUp size={13} />}
+                  {directionLabel(sortField, sortDir)}
+                </button>
               </div>
             </div>
           </div>
@@ -714,33 +857,34 @@ They will be signed out immediately and cannot sign in until you restore them. T
                 <li key={p.email} className={suspended ? 'bg-red-50/40' : ''}>
                   <div className="flex items-center justify-between px-6 py-4 gap-4">
                     <div className="flex items-center gap-3 min-w-0">
-                    <div
-                      className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0 ${
-                        suspended ? 'bg-gray-200 text-gray-400' : 'bg-brand-100 text-brand-700'
-                      }`}
-                    >
-                      {p.email.charAt(0).toUpperCase()}
-                    </div>
+                    <UserAvatar
+                      photoPath={p.photoPath}
+                      fallback={(fullName(p) || p.email).charAt(0).toUpperCase()}
+                      muted={suspended}
+                    />
                     <div className="min-w-0">
                       <p
                         className={`text-sm font-medium truncate ${
                           suspended ? 'text-gray-500' : 'text-gray-900'
                         }`}
                       >
-                        {p.displayName || p.email}
+                        {fullName(p) || p.email}
                         {isSelf && <span className="ml-1.5 text-xs text-gray-400">(you)</span>}
                       </p>
 
                       {/* Only worth a line of its own once a name is displacing
                           it from the line above. */}
-                      {p.displayName && (
+                      {fullName(p) && (
                         <p className="text-xs text-gray-500 truncate">{p.email}</p>
                       )}
 
-                      {(p.phone || p.extension || p.siteId) && (
+                      {(p.phone || p.phoneGt || p.extension || p.siteId) && (
                         <p className="text-xs text-gray-500 truncate">
                           {[
-                            p.phone,
+                            // Labelled, because two bare numbers side by side
+                            // give no clue which one to dial from where.
+                            p.phone ? `US ${p.phone}` : null,
+                            p.phoneGt ? `GT ${p.phoneGt}` : null,
                             p.extension ? `ext. ${p.extension}` : null,
                             siteName(p.siteId),
                           ]
@@ -888,13 +1032,30 @@ They will be signed out immediately and cannot sign in until you restore them. T
                   {editing === p.email && (
                     <div className="px-6 pb-4 pt-1">
                       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <div className="pb-4 mb-4 border-b border-gray-200">
+                          <AvatarUploader
+                            email={p.email}
+                            photoPath={p.photoPath}
+                            onChange={(path) => handlePhoto(p, path)}
+                          />
+                        </div>
+
                         <div className="grid gap-3 sm:grid-cols-2">
                           <label className="text-xs text-gray-500">
-                            Name
+                            First name
                             <input
-                              value={draft.displayName}
-                              onChange={(e) => setDraft((d) => ({ ...d, displayName: e.target.value }))}
-                              placeholder="Full name"
+                              value={draft.firstName}
+                              onChange={(e) => setDraft((d) => ({ ...d, firstName: e.target.value }))}
+                              placeholder="First"
+                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                            />
+                          </label>
+                          <label className="text-xs text-gray-500">
+                            Last name
+                            <input
+                              value={draft.lastName}
+                              onChange={(e) => setDraft((d) => ({ ...d, lastName: e.target.value }))}
+                              placeholder="Last"
                               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
                             />
                           </label>
@@ -912,11 +1073,20 @@ They will be signed out immediately and cannot sign in until you restore them. T
                             </select>
                           </label>
                           <label className="text-xs text-gray-500">
-                            Phone
+                            Work phone (US)
                             <input
                               value={draft.phone}
                               onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
                               placeholder="(555) 123-4567"
+                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                            />
+                          </label>
+                          <label className="text-xs text-gray-500">
+                            Guatemala phone
+                            <input
+                              value={draft.phoneGt}
+                              onChange={(e) => setDraft((d) => ({ ...d, phoneGt: e.target.value }))}
+                              placeholder="+502 5555 5555"
                               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
                             />
                           </label>
