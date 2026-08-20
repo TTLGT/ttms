@@ -17,6 +17,10 @@ export default function LoginPage() {
       setError(
         'This account does not have access to TTMS. Ask an administrator to add your email address, then try again.',
       );
+    } else if (reason === 'suspended') {
+      setError(
+        'Your access to TTMS is suspended. Ask an administrator to restore it, then try again.',
+      );
     } else if (reason === 'session_failed') {
       setError('We could not verify your access just now. Please try signing in again.');
     }

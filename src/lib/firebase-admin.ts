@@ -52,6 +52,9 @@ export async function requireCompanyUser(req: Request): Promise<{ uid: string; e
   if (!allowed.exists) {
     throw new AdminAuthError('Your access to TTMS has been removed.', 403);
   }
+  if (allowed.data()?.suspended === true) {
+    throw new AdminAuthError('Your access to TTMS is suspended.', 403);
+  }
 
   return { uid: decoded.uid, email: decoded.email };
 }
@@ -66,6 +69,9 @@ export async function requireAdmin(req: Request): Promise<{ uid: string; email: 
   const profile = await adminDb.collection('users').doc(decoded.uid).get();
   if (!profile.exists || profile.data()?.isAdmin !== true) {
     throw new AdminAuthError('Admin access required', 403);
+  }
+  if (profile.data()?.suspended === true) {
+    throw new AdminAuthError('Your access to TTMS is suspended.', 403);
   }
 
   return { uid: decoded.uid, email: decoded.email };
@@ -84,7 +90,9 @@ export async function requirePermission(req: Request, allowedRoles: Role[]): Pro
 
   const profile = await adminDb.collection('users').doc(decoded.uid).get();
   const data = profile.data();
-  const hasAccess = data?.isAdmin === true || allowedRoles.some((role) => data?.[ROLE_FIELD[role]] === true);
+  const hasAccess =
+    data?.suspended !== true
+    && (data?.isAdmin === true || allowedRoles.some((role) => data?.[ROLE_FIELD[role]] === true));
   if (!profile.exists || !hasAccess) {
     throw new AdminAuthError('You do not have permission to perform this action', 403);
   }

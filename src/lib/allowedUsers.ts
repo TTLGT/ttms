@@ -1,7 +1,12 @@
 import { collection, getDocs } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { ALLOWED_USERS_COLLECTION } from './accessControl';
-import type { AllowedUser, AllowedUserRole, InviteResult } from '@/types/allowedUser';
+import type {
+  AllowedUser,
+  AllowedUserDetails,
+  AllowedUserRole,
+  InviteResult,
+} from '@/types/allowedUser';
 
 /**
  * Client helpers for the sign-in allowlist.
@@ -48,12 +53,29 @@ export async function listAllowedUsers(): Promise<AllowedUser[]> {
 export async function inviteUsers(
   emails: string[],
   roles: { isAdmin?: boolean; isDispatcher?: boolean; isFinance?: boolean } = {},
+  /**
+   * Applied to every address in the batch. Only the site belongs here — a name
+   * or a phone number is per-person, so those are set afterwards via
+   * `setAllowedUserDetails`.
+   */
+  siteId: string | null = null,
 ): Promise<InviteResult[]> {
   const data = await authedFetch<{ results: InviteResult[] }>('/api/admin/users', {
     method: 'POST',
-    body: JSON.stringify({ emails, ...roles }),
+    body: JSON.stringify({ emails, ...roles, siteId }),
   });
   return data.results ?? [];
+}
+
+/** Update someone's name, phone, extension and site in one request. */
+export async function setAllowedUserDetails(
+  email: string,
+  details: AllowedUserDetails,
+): Promise<void> {
+  await authedFetch('/api/admin/users', {
+    method: 'PATCH',
+    body: JSON.stringify({ email, details }),
+  });
 }
 
 export async function setAllowedUserRole(
@@ -64,6 +86,17 @@ export async function setAllowedUserRole(
   await authedFetch('/api/admin/users', {
     method: 'PATCH',
     body: JSON.stringify({ email, field, value }),
+  });
+}
+
+/**
+ * Suspend or restore someone. Suspending keeps the entry and its roles but
+ * blocks sign-in and kills any live session; restoring puts it all back.
+ */
+export async function setAllowedUserSuspended(email: string, suspended: boolean): Promise<void> {
+  await authedFetch('/api/admin/users', {
+    method: 'PATCH',
+    body: JSON.stringify({ email, field: 'suspended', value: suspended }),
   });
 }
 

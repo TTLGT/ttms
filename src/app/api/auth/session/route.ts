@@ -50,6 +50,17 @@ export async function POST(req: NextRequest) {
   }
 
   const entry = allowSnap.data() ?? {};
+
+  // Suspension blocks sign-in while keeping the entry and its roles intact.
+  // Bootstrap accounts are exempt by design — they exist to prevent lockout.
+  if (entry.suspended === true && !bootstrap) {
+    await denyAccess(uid);
+    return NextResponse.json(
+      { error: 'suspended', message: 'Your access to TTMS is suspended. Contact an administrator.' },
+      { status: 403 },
+    );
+  }
+
   const roles = {
     // Bootstrap accounts are admin by definition — they exist to prevent lockout.
     isAdmin:      bootstrap || entry.isAdmin === true,
@@ -60,8 +71,17 @@ export async function POST(req: NextRequest) {
   const profile = {
     uid,
     email,
-    displayName: decoded.name ?? entry.displayName ?? '',
+    // An admin-entered name wins over the one Google reports: it is the name
+    // the office actually uses, and it would be pointless to type it in
+    // Settings only for the next sign-in to overwrite it.
+    displayName: entry.displayName || decoded.name || '',
+    phone:       entry.phone ?? '',
+    extension:   entry.extension ?? '',
+    siteId:      entry.siteId ?? null,
     ...roles,
+    // Written on every sign-in so a restored account cannot keep a stale
+    // `suspended: true` on its profile, which the rules would still honour.
+    suspended: false,
   };
 
   const profileRef = adminDb.collection(USERS_COLLECTION).doc(uid);

@@ -53,6 +53,7 @@ export function parseEmailList(input: string | null | undefined): string[] {
 
 export const ALLOWED_USERS_COLLECTION = 'allowedUsers';
 export const USERS_COLLECTION = 'users';
+export const SITES_COLLECTION = 'sites';
 
 // ── Party visibility ─────────────────────────────────────────────────────────
 
@@ -71,6 +72,21 @@ export interface RoleFlags {
 export function canSeeAllParties(profile: RoleFlags | null | undefined): boolean {
   if (!profile) return false;
   return profile.isAdmin === true || profile.isDispatcher === true || profile.isFinance === true;
+}
+
+/**
+ * Broker is the default role: what someone has when no elevated role is set.
+ * A broker works their own book — their clients, their loads — and sees only
+ * the parties they own or that nobody owns. Admin, dispatcher and finance are
+ * additions on top, so holding one means you are no longer a plain broker.
+ *
+ * Deliberately derived rather than stored as `isBroker`. A stored flag would
+ * allow an account that is neither a broker nor anything else, a state nothing
+ * in the rules enforces and which would silently keep full baseline access.
+ */
+export function isBroker(roles: RoleFlags | null | undefined): boolean {
+  if (!roles) return false;
+  return roles.isAdmin !== true && roles.isDispatcher !== true && roles.isFinance !== true;
 }
 
 /**

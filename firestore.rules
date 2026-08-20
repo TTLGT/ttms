@@ -3,9 +3,10 @@ rules_version = '2';
 // Access is an explicit allowlist, not an email domain.
 //
 // A Google account only reaches data if an admin created its
-// `allowedUsers/{email}` entry (see Settings → Grant Access). Because the check
-// is a live document lookup, removing that entry cuts off access on the very
-// next request rather than when the user's ID token expires.
+// `allowedUsers/{email}` entry (see Settings → Grant Access) and that entry is
+// not suspended. Because the check is a live document lookup, removing or
+// suspending the entry cuts off access on the very next request rather than
+// when the user's ID token expires.
 //
 // The public e-sign flow (src/app/api/sign/[token]/route.ts) goes through the
 // Admin SDK, which bypasses these rules entirely — no public rule needed here.
@@ -24,12 +25,24 @@ service cloud.firestore {
         ];
     }
 
+    function allowlistRef() {
+      return /databases/$(database)/documents/allowedUsers/$(request.auth.token.email.lower());
+    }
+
+    // A suspended entry stays in the collection — it keeps the person's roles
+    // so access can be restored — so existence alone is no longer enough.
+    // This has to be checked here rather than left to the disabled Auth account:
+    // rules cannot see `disabled`, and an ID token minted before the suspension
+    // stays valid for up to an hour.
     function isAllowedUser() {
       return request.auth != null
         && request.auth.token.email != null
         && (
           isBootstrapAdmin()
-          || exists(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email.lower()))
+          || (
+            exists(allowlistRef())
+            && get(allowlistRef()).data.get('suspended', false) != true
+          )
         );
     }
 
@@ -142,6 +155,14 @@ service cloud.firestore {
     // but membership is written only by /api/work-groups, which keeps each
     // member's users/{uid}.groupIds mirror in step inside a transaction.
     // A client-side write could grant itself access to another team's records.
+    // Sites are reference data — where someone works, not what they can see.
+    // Readable by everyone signed in so a site name can be shown next to a
+    // person; written only through /api/sites, which detaches users on delete.
+    match /sites/{siteId} {
+      allow read:  if isAllowedUser();
+      allow write: if false;
+    }
+
     match /workGroups/{groupId} {
       allow read:  if isAllowedUser();
       allow write: if false;

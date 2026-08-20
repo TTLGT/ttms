@@ -28,7 +28,12 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-class AccessDeniedError extends Error {}
+/** `reason` is the server's machine-readable code, mapped to copy on /login. */
+class AccessDeniedError extends Error {
+  constructor(message: string, readonly reason: string = 'not_invited') {
+    super(message);
+  }
+}
 
 /**
  * Hands the fresh ID token to the server, which is the authority on whether
@@ -45,7 +50,10 @@ async function establishSession(firebaseUser: User): Promise<UserProfile> {
   const data = await res.json().catch(() => ({}));
 
   if (res.status === 403) {
-    throw new AccessDeniedError(data.message || 'This account does not have access to TTMS.');
+    throw new AccessDeniedError(
+      data.message || 'This account does not have access to TTMS.',
+      data.error === 'suspended' ? 'suspended' : 'not_invited',
+    );
   }
   if (!res.ok) {
     throw new Error(data.error || 'Could not verify your access. Please try again.');
@@ -81,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signOut(auth);
         setUser(null);
         setProfile(null);
-        const reason = err instanceof AccessDeniedError ? 'not_invited' : 'session_failed';
+        const reason = err instanceof AccessDeniedError ? err.reason : 'session_failed';
         router.replace(`/login?error=${reason}`);
       } finally {
         setLoading(false);
