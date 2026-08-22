@@ -15,6 +15,7 @@ import {
   Folder,
   BarChart2,
   Settings,
+  BookOpen,
   LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -31,6 +32,7 @@ const NAV_ITEMS: { href: string; label: string; Icon: LucideIcon; adminOnly: boo
   { href: '/dashboard/documents', label: 'Documents', Icon: Folder,          adminOnly: false },
   { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart2,       adminOnly: true  },
   { href: '/dashboard/settings',  label: 'Settings',  Icon: Settings,        adminOnly: true  },
+  { href: '/dashboard/handbook',  label: 'Handbook',  Icon: BookOpen,        adminOnly: true  },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
