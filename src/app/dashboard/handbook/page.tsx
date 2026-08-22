@@ -384,11 +384,21 @@ const CHAPTERS: Chapter[] = [
         </Step>
 
         <Step n={6} title="Make a shortcut" time="~1 min">
-          <p>
-            Right-click <strong>start-ttms.bat</strong> → <strong>Show more options</strong> →{' '}
-            <strong>Send to</strong> → <strong>Desktop (create shortcut)</strong>, then rename it{' '}
-            <strong>Start TTMS</strong>.
-          </p>
+          <ol className="list-decimal space-y-1 pl-5">
+            <li>
+              Right-click <strong>start-ttms.bat</strong> → <strong>Show more options</strong> →{' '}
+              <strong>Send to</strong> → <strong>Desktop (create shortcut)</strong>.
+            </li>
+            <li>Rename it <strong>Start TTMS</strong>.</li>
+            <li>
+              Right-click it → <strong>Properties</strong> → <strong>Change Icon</strong> →{' '}
+              <strong>Browse</strong>, and pick <Mono>ttms\scripts\ttms.ico</Mono>.
+            </li>
+          </ol>
+          <Expect>
+            the TTMS logo on the Desktop instead of a blank cog. Chapter 2 is the everyday routine
+            from here on.
+          </Expect>
         </Step>
       </div>
     ),
