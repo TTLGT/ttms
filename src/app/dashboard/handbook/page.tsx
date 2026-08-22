@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
+import {
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, ReactNode,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle, BookOpen, ChevronDown, ChevronUp, CheckCircle2, Info, Ban,
@@ -116,6 +118,27 @@ function Table({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Chapter bodies are module-level data, so they cannot reach the page's own
+ * `jumpTo`. Passing it down by context lets one chapter send the reader to
+ * another — opening it as well as scrolling, which a plain `#id` anchor cannot
+ * do while chapters are collapsed.
+ */
+const JumpContext = createContext<(id: string) => void>(() => {});
+
+function ChapterLink({ to, children }: { to: string; children: ReactNode }) {
+  const jump = useContext(JumpContext);
+  return (
+    <button
+      type="button"
+      onClick={() => jump(to)}
+      className="font-semibold text-brand-500 underline underline-offset-2 transition hover:text-brand-600"
+    >
+      {children}
+    </button>
+  );
+}
+
 // ── Content ──────────────────────────────────────────────────────────────────
 
 /**
@@ -202,6 +225,21 @@ const CHAPTERS: Chapter[] = [
     subtitle: 'The everyday routine — nothing to type',
     body: (
       <>
+        {/* This chapter assumes a Desktop shortcut that only step 6 of the setup
+            chapter creates. Someone arriving cold at a machine that has never run
+            TTMS would otherwise dead-end on the very first line. */}
+        <Callout tone="caution" title="No Start TTMS on the Desktop?">
+          <p>
+            Then this computer has never run TTMS, and the steps below will not work yet. Do{' '}
+            <ChapterLink to="setup">Setting it up on a new computer</ChapterLink> first — about 30
+            minutes, once per machine — then come back here.
+          </p>
+          <p>
+            You will need the settings file <Mono>.env.local</Mono>, which is not in the repository.
+            Step 4 of that chapter says where to get it — you do not need to wait for anyone.
+          </p>
+        </Callout>
+
         <h3 className="text-sm font-semibold text-gray-900">Starting it</h3>
         <ol className="list-decimal space-y-1 pl-5">
           <li>Double-click <strong>Start TTMS</strong> on the Desktop.</li>
@@ -297,13 +335,23 @@ const CHAPTERS: Chapter[] = [
         <Step n={4} title="Put the settings file in place" time="~2 min">
           <p>
             TTMS needs a small file of passwords called <Mono>.env.local</Mono>, deliberately not
-            included with the code. Ask whoever currently runs TTMS for it.
+            included with the code. It is kept in the <strong>IT</strong> folder of the{' '}
+            <strong>IT &amp; Facilities</strong> Google Drive — sign in as{' '}
+            <Mono>it@totaltransportlogistics.us</Mono>, the same account you use for everything
+            else. Download it from there.
           </p>
-          <Callout tone="critical" title="Hand this file over carefully">
+          {/* Named here rather than in docs/handover-guide.md at the owner's request:
+              this page is admin-gated, that file is readable by anyone who can clone
+              the repository. Deliberately the location only — never the values. */}
+          <Callout tone="critical" title="Handle this file carefully">
             <p>
-              On a USB stick, in person, or through a password manager —{' '}
-              <strong>not by email, chat or a shared drive.</strong> It is the key to all company
-              data.
+              That Drive folder, a password manager, a USB stick, or in person. Never{' '}
+              <strong>email, chat, or any drive shared more widely.</strong> It is the key to all
+              company data.
+            </p>
+            <p>
+              If you ever put a copy somewhere new, check its sharing first — a folder set to{' '}
+              <em>anyone with the link</em> is the same as publishing it.
             </p>
           </Callout>
           <p>Put it inside the <Mono>ttms</Mono> folder, alongside <Mono>package.json</Mono>.</p>
@@ -882,44 +930,46 @@ export default function HandbookPage() {
         </Callout>
       </div>
 
-      <div ref={contentRef} className="space-y-3">
-        {CHAPTERS.map((c, i) => {
-          const open = openIds.has(c.id);
-          return (
-            <section
-              key={c.id}
-              id={c.id}
-              className="scroll-mt-20 overflow-hidden rounded-xl border border-gray-200 bg-white"
-            >
-              <button
-                type="button"
-                onClick={() => toggle(c.id)}
-                aria-expanded={open}
-                className="flex w-full items-center gap-3 px-6 py-4 text-left transition hover:bg-gray-50"
+      <JumpContext.Provider value={jumpTo}>
+        <div ref={contentRef} className="space-y-3">
+          {CHAPTERS.map((c, i) => {
+            const open = openIds.has(c.id);
+            return (
+              <section
+                key={c.id}
+                id={c.id}
+                className="scroll-mt-20 overflow-hidden rounded-xl border border-gray-200 bg-white"
               >
-                <span
-                  data-no-search
-                  className="font-mono text-[11px] tabular-nums text-gray-400"
+                <button
+                  type="button"
+                  onClick={() => toggle(c.id)}
+                  aria-expanded={open}
+                  className="flex w-full items-center gap-3 px-6 py-4 text-left transition hover:bg-gray-50"
                 >
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-gray-900">{c.title}</span>
-                  <span className="mt-0.5 block text-xs text-gray-500">{c.subtitle}</span>
-                </span>
-                <ChevronDown
-                  size={16}
-                  className={`flex-shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
-                />
-              </button>
-              {/* Kept mounted while collapsed so search can still find it. */}
-              <div hidden={!open} className="space-y-4 border-t border-gray-100 px-6 py-5">
-                {c.body}
-              </div>
-            </section>
-          );
-        })}
-      </div>
+                  <span
+                    data-no-search
+                    className="font-mono text-[11px] tabular-nums text-gray-400"
+                  >
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-gray-900">{c.title}</span>
+                    <span className="mt-0.5 block text-xs text-gray-500">{c.subtitle}</span>
+                  </span>
+                  <ChevronDown
+                    size={16}
+                    className={`flex-shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {/* Kept mounted while collapsed so search can still find it. */}
+                <div hidden={!open} className="space-y-4 border-t border-gray-100 px-6 py-5">
+                  {c.body}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </JumpContext.Provider>
 
       {/* ── For developers ─────────────────────────────────────────────── */}
       <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 px-6 py-5">
