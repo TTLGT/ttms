@@ -878,19 +878,25 @@ They will be signed out immediately and cannot sign in until you restore them. T
                         <p className="text-xs text-gray-500 truncate">{p.email}</p>
                       )}
 
-                      {(p.phone || p.phoneGt || p.extension || p.siteId) && (
+                      {/* The US number carries the extension and site with it;
+                          crowding the GT number onto the same line pushed those
+                          two past the truncation point. */}
+                      {(p.phone || p.extension || p.siteId) && (
                         <p className="text-xs text-gray-500 truncate">
                           {[
-                            // Labelled, because two bare numbers side by side
-                            // give no clue which one to dial from where.
+                            // Labelled, because two bare numbers on adjacent
+                            // lines give no clue which to dial from where.
                             p.phone ? `US ${p.phone}` : null,
-                            p.phoneGt ? `GT ${p.phoneGt}` : null,
                             p.extension ? `ext. ${p.extension}` : null,
                             siteName(p.siteId),
                           ]
                             .filter(Boolean)
                             .join(' · ')}
                         </p>
+                      )}
+
+                      {p.phoneGt && (
+                        <p className="text-xs text-gray-500 truncate">GT {p.phoneGt}</p>
                       )}
 
                       <p className="text-xs text-gray-500">
