@@ -64,10 +64,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Sidebar */}
+    /* h-screen + overflow-hidden, not min-h-screen: the shell is exactly the
+       viewport, so a long page scrolls inside <main> instead of scrolling the
+       window and carrying the nav off the top of the screen with it. */
+    <div className="h-screen flex overflow-hidden">
+      {/* Sidebar — always visible; only its nav list scrolls */}
       <aside className="w-60 flex-shrink-0 bg-brand-900 text-white flex flex-col">
-        <div className="px-4 py-4 border-b border-brand-700 flex items-center gap-3">
+        <div className="flex-shrink-0 px-4 py-4 border-b border-brand-700 flex items-center gap-3">
           <Image src="/logo-circle.png" alt="TTL" width={44} height={44} className="flex-shrink-0" />
           <div>
             <p className="font-[family-name:var(--font-rajdhani)] text-3xl font-bold tracking-[0.2em] pl-[0.2em] leading-tight text-white">TTMS</p>
@@ -75,7 +78,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        {/* min-h-0 is load-bearing: a flex child defaults to min-height:auto and
+            would refuse to shrink below its content, so the list would push the
+            sign-out block off-screen instead of scrolling. */}
+        <nav className="flex-1 min-h-0 overflow-y-auto sidebar-scroll px-3 py-4 space-y-1">
           {NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin).map(({ href, label, Icon }) => (
             <Link
               key={href}
@@ -93,7 +99,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           ))}
         </nav>
 
-        <div className="px-4 py-4 border-t border-brand-700">
+        <div className="flex-shrink-0 px-4 py-4 border-t border-brand-700">
           <div className="flex items-center gap-3 mb-3">
             {user.photoURL && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -113,7 +119,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto bg-gray-50">
+      <main className="flex-1 overflow-y-auto bg-gray-50">
         {children}
       </main>
     </div>

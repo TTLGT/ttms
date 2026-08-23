@@ -41,3 +41,26 @@
 .animate-pop {
   animation: pop 0.6s ease-in-out infinite;
 }
+
+/*
+ * Scrollbar for the dark sidebar nav. Only shows up once there are more menu
+ * items than fit; the browser default renders as a bright grey slab against
+ * brand-900, which reads as a rendering fault rather than a scrollbar.
+ */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.35);
+}
