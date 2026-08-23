@@ -37,7 +37,10 @@ const path = require('path');
 const envPath = path.join(__dirname, '..', '.env.local');
 if (fs.existsSync(envPath)) {
   for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
-    const m = line.match(/^([^#=\s][^=]*)=(.*)$/);
+    // `.` does not match a carriage return in JS, so a .env.local saved with
+    // Windows CRLF endings would match nothing at all and every value would
+    // come back undefined. Strip the CR before matching.
+    const m = line.replace(/\r$/, '').match(/^([^#=\s][^=]*)=(.*)$/);
     if (m) process.env[m[1].trim()] = m[2].trim().replace(/^["']|["']$/g, '');
   }
 }
