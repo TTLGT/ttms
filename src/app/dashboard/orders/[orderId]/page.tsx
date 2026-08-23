@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import { getOrder, updateOrderStatus, updateOrder, listOrders, createOrder } from '@/lib/orders';
 import { listCarriers } from '@/lib/carriers';
@@ -11,6 +12,7 @@ import { STATUS_LABEL, STATUS_NEXT } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
 import DriverLicenseUpload from '@/components/orders/DriverLicenseUpload';
 import QuickAddCarrierModal from '@/components/carriers/QuickAddCarrierModal';
+import PersonNameFields from '@/components/PersonNameFields';
 import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload';
 import { useAuth } from '@/context/AuthContext';
 
@@ -33,6 +35,39 @@ function formatCurrency(n: number | undefined): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 }
 
+interface DriverDetails {
+  driverName: string;
+  driverPhone: string;
+  driverLicenseStoragePath: string | null;
+  /** Order the details came from, so the UI can say where they came from. */
+  sourceOrderNumber: string;
+}
+
+/**
+ * Driver details from the most recent other order run with this carrier.
+ *
+ * There is no drivers collection — a driver only exists as three fields on an
+ * order — so "the driver we used last time" has to be read back out of order
+ * history. `orders` arrives sorted by createdAt desc, so the first hit is the
+ * most recent one.
+ */
+function lastDriverForCarrier(
+  orders: Order[],
+  carrierId: string,
+  excludeOrderId: string
+): DriverDetails | null {
+  const prev = orders.find(
+    (o) => o.id !== excludeOrderId && o.carrierId === carrierId && !!o.driverName?.trim()
+  );
+  if (!prev) return null;
+  return {
+    driverName:  prev.driverName ?? '',
+    driverPhone: prev.driverPhone ?? '',
+    driverLicenseStoragePath: prev.driverLicenseStoragePath ?? null,
+    sourceOrderNumber: prev.orderNumber ?? '',
+  };
+}
+
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
@@ -50,6 +85,7 @@ export default function OrderDetailPage() {
 
   const [order, setOrder]           = useState<Order | null>(null);
   const [suborders, setSuborders]   = useState<Order[]>([]);
+  const [allOrders, setAllOrders]   = useState<Order[]>([]);
   const [carriers, setCarriers]     = useState<Carrier[]>([]);
   const [loading, setLoading]       = useState(true);
   const [advancing, setAdvancing]   = useState(false);
@@ -65,6 +101,10 @@ export default function OrderDetailPage() {
   const [driverLicensePath, setDriverLicensePath] = useState<string | null>(null);
   const [savingCarrier, setSavingCarrier] = useState(false);
   const [addingCarrier, setAddingCarrier] = useState(false);
+  // What the last carrier selection auto-filled, so a later selection can
+  // replace its own guess without overwriting anything the user typed.
+  const [prefill, setPrefill] = useState<DriverDetails | null>(null);
+  const [prefillSource, setPrefillSource] = useState('');
 
   // carrier e-sign state
   const [sendingAgreement, setSendingAgreement] = useState(false);
@@ -98,6 +138,7 @@ export default function OrderDetailPage() {
         setOrder(o);
         setCarriers(cs.filter((c) => c.isActive));
         if (o) {
+          setAllOrders(all);
           setSuborders(all.filter((x) => x.parentOrderId === orderId));
           setInvoicePath(o.invoiceStoragePath ?? null);
           setPodPath(o.podStoragePath ?? null);
@@ -130,6 +171,8 @@ export default function OrderDetailPage() {
     setDriverName(order?.driverName ?? '');
     setDriverPhone(order?.driverPhone ?? '');
     setDriverLicensePath(order?.driverLicenseStoragePath ?? null);
+    setPrefill(null);
+    setPrefillSource('');
     setAssigningCarrier(true);
   }
 
@@ -140,7 +183,36 @@ export default function OrderDetailPage() {
       setAddingCarrier(true);
       return;
     }
-    setSelectedCarrierId(e.target.value);
+    const carrierId = e.target.value;
+    setSelectedCarrierId(carrierId);
+    applyDriverPrefill(
+      carrierId ? lastDriverForCarrier(allOrders, carrierId, orderId) : null
+    );
+  }
+
+  /**
+   * Fill the driver fields from the carrier's last load.
+   *
+   * Only fields that are empty, or that still hold the previous selection's
+   * guess, are touched — anything the user typed themselves survives a change
+   * of carrier.
+   */
+  function applyDriverPrefill(next: DriverDetails | null) {
+    const isOursOrEmpty = (value: string, previous: string | undefined) =>
+      value.trim() === '' || (previous !== undefined && value === previous);
+
+    if (isOursOrEmpty(driverName, prefill?.driverName)) {
+      setDriverName(next?.driverName ?? '');
+    }
+    if (isOursOrEmpty(driverPhone, prefill?.driverPhone)) {
+      setDriverPhone(next?.driverPhone ?? '');
+    }
+    if (driverLicensePath === null || driverLicensePath === prefill?.driverLicenseStoragePath) {
+      setDriverLicensePath(next?.driverLicenseStoragePath ?? null);
+    }
+
+    setPrefill(next);
+    setPrefillSource(next?.sourceOrderNumber ?? '');
   }
 
   function handleCarrierCreated(carrier: Carrier) {
@@ -148,6 +220,8 @@ export default function OrderDetailPage() {
       [...prev, carrier].sort((a, b) => a.companyName.localeCompare(b.companyName))
     );
     setSelectedCarrierId(carrier.id);
+    // A carrier created just now has no past loads to inherit a driver from.
+    applyDriverPrefill(null);
     setAddingCarrier(false);
   }
 
@@ -532,21 +606,28 @@ export default function OrderDetailPage() {
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Carrier</label>
-                  <select value={selectedCarrierId} onChange={handleCarrierSelect}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
-                    <option value="">— Unassigned —</option>
-                    {carriers.map((c) => (
-                      <option key={c.id} value={c.id}>{c.companyName}</option>
-                    ))}
-                    <option value={NEW_CARRIER}>+ Add a new carrier…</option>
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Driver Name</label>
-                    <input value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="Full name"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+                  {/* The button sits outside the dropdown because a trailing
+                      option is invisible until you scroll a long carrier list —
+                      the row inside the list is kept as a second way in, near
+                      the top where it shows without scrolling. */}
+                  <div className="flex gap-2">
+                    <select value={selectedCarrierId} onChange={handleCarrierSelect}
+                      className="flex-1 min-w-0 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
+                      <option value="">— Unassigned —</option>
+                      <option value={NEW_CARRIER}>+ Add a new carrier…</option>
+                      {carriers.map((c) => (
+                        <option key={c.id} value={c.id}>{c.companyName}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={() => setAddingCarrier(true)}
+                      className="shrink-0 inline-flex items-center gap-1 px-3 py-2 border border-brand-200 bg-brand-50 text-brand-700 text-xs font-semibold rounded-lg hover:bg-brand-100 transition">
+                      <Plus className="w-3.5 h-3.5" />
+                      New Carrier
+                    </button>
                   </div>
+                </div>
+                <PersonNameFields label="Driver" value={driverName} onChange={setDriverName} />
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Driver Phone</label>
                     <input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="(555) 555-5555"
@@ -558,9 +639,15 @@ export default function OrderDetailPage() {
                   <DriverLicenseUpload
                     orderId={orderId}
                     existingPath={driverLicensePath}
-                    onUploaded={setDriverLicensePath}
+                    onUploaded={(path) => { setDriverLicensePath(path); setPrefillSource(''); }}
                   />
                 </div>
+                {prefillSource && (
+                  <p className="text-xs text-gray-500">
+                    Driver carried over from <strong className="font-medium">{prefillSource}</strong>,
+                    the last load with this carrier. Change it if a different driver is running this one.
+                  </p>
+                )}
                 <div className="flex gap-2 pt-1">
                   <button onClick={handleSaveCarrier} disabled={savingCarrier}
                     className="px-4 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">

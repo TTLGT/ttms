@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { createCarrier } from '@/lib/carriers';
 import type { Carrier } from '@/types/carrier';
+import PersonNameFields from '@/components/PersonNameFields';
 
 /**
  * Quick-add carrier, used from the carrier dropdown on an order.
@@ -96,10 +97,8 @@ export default function QuickAddCarrierModal({
               <input required autoFocus value={companyName} onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="e.g. Swift Transport LLC" className={inputCls} />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Contact Name</label>
-              <input value={contactName} onChange={(e) => setContactName(e.target.value)}
-                placeholder="Primary contact" className={inputCls} />
+            <div className="col-span-2">
+              <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Timestamp } from 'firebase/firestore';
 import { getCarrier, updateCarrier } from '@/lib/carriers';
+import PersonNameFields from '@/components/PersonNameFields';
 import { listOrders } from '@/lib/orders';
 import type { Carrier } from '@/types/carrier';
 import type { Order } from '@/types/order';
@@ -240,9 +241,8 @@ export default function CarrierDetailPage() {
                   <label className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
                   <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={inputCls} />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Contact Name</label>
-                  <input value={contactName} onChange={(e) => setContactName(e.target.value)} className={inputCls} />
+                <div className="col-span-2">
+                  <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
@@ -311,9 +311,8 @@ export default function CarrierDetailPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Dispatcher Name</label>
-                    <input value={dispatcher} onChange={(e) => setDispatcher(e.target.value)} className={inputCls} />
+                  <div className="col-span-2">
+                    <PersonNameFields label="Dispatcher" value={dispatcher} onChange={setDispatcher} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Dispatcher Phone</label>
@@ -347,9 +346,8 @@ export default function CarrierDetailPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Billing Contact Name</label>
-                    <input value={billingContact} onChange={(e) => setBillingContact(e.target.value)} className={inputCls} />
+                  <div className="col-span-2">
+                    <PersonNameFields label="Billing Contact" value={billingContact} onChange={setBillingContact} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Billing Phone</label>

@@ -40,7 +40,13 @@ export default function DriverLicenseUpload({ orderId, existingPath, onUploaded,
     if (!existingPath) return;
     setRemoving(true);
     try {
-      await deleteObject(ref(storage, existingPath));
+      // Assigning a carrier can carry their license over from a previous
+      // order, which leaves two orders pointing at one file. Only delete the
+      // object when it was uploaded against THIS order — otherwise just drop
+      // the reference, or removing it here would break the other order's copy.
+      if (existingPath.startsWith(`driver-licenses/${orderId}/`)) {
+        await deleteObject(ref(storage, existingPath));
+      }
     } catch {
       // ignore — file may already be gone
     } finally {

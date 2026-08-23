@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
 import { createCarrier } from '@/lib/carriers';
+import PersonNameFields from '@/components/PersonNameFields';
 
 export default function NewCarrierPage() {
   const router = useRouter();
@@ -79,10 +80,8 @@ export default function NewCarrierPage() {
               <input required value={companyName} onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="e.g. Swift Transport LLC" className={inputCls} />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Contact Name</label>
-              <input value={contactName} onChange={(e) => setContactName(e.target.value)}
-                placeholder="Primary contact" className={inputCls} />
+            <div className="col-span-2">
+              <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
