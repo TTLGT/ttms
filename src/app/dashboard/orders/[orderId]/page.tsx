@@ -10,8 +10,13 @@ import type { Carrier } from '@/types/carrier';
 import { STATUS_LABEL, STATUS_NEXT } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
 import DriverLicenseUpload from '@/components/orders/DriverLicenseUpload';
+import QuickAddCarrierModal from '@/components/carriers/QuickAddCarrierModal';
 import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload';
 import { useAuth } from '@/context/AuthContext';
+
+// Sentinel value for the dropdown's "add a new carrier" row. Not a document id,
+// so it can never collide with a real carrier.
+const NEW_CARRIER = '__new__';
 
 const PIPELINE: OrderStatus[] = [
   'quote', 'booked', 'carrier_assigned', 'carrier_signed',
@@ -59,6 +64,7 @@ export default function OrderDetailPage() {
   const [driverPhone, setDriverPhone] = useState('');
   const [driverLicensePath, setDriverLicensePath] = useState<string | null>(null);
   const [savingCarrier, setSavingCarrier] = useState(false);
+  const [addingCarrier, setAddingCarrier] = useState(false);
 
   // carrier e-sign state
   const [sendingAgreement, setSendingAgreement] = useState(false);
@@ -125,6 +131,24 @@ export default function OrderDetailPage() {
     setDriverPhone(order?.driverPhone ?? '');
     setDriverLicensePath(order?.driverLicenseStoragePath ?? null);
     setAssigningCarrier(true);
+  }
+
+  function handleCarrierSelect(e: React.ChangeEvent<HTMLSelectElement>) {
+    if (e.target.value === NEW_CARRIER) {
+      // Leave the select on its previous value — the new carrier is only
+      // selected once it actually saves, so cancelling changes nothing.
+      setAddingCarrier(true);
+      return;
+    }
+    setSelectedCarrierId(e.target.value);
+  }
+
+  function handleCarrierCreated(carrier: Carrier) {
+    setCarriers((prev) =>
+      [...prev, carrier].sort((a, b) => a.companyName.localeCompare(b.companyName))
+    );
+    setSelectedCarrierId(carrier.id);
+    setAddingCarrier(false);
   }
 
   async function handleSaveCarrier() {
@@ -497,16 +521,24 @@ export default function OrderDetailPage() {
               </div>
             )}
 
+            {addingCarrier && (
+              <QuickAddCarrierModal
+                onCreated={handleCarrierCreated}
+                onCancel={() => setAddingCarrier(false)}
+              />
+            )}
+
             {assigningCarrier ? (
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Carrier</label>
-                  <select value={selectedCarrierId} onChange={(e) => setSelectedCarrierId(e.target.value)}
+                  <select value={selectedCarrierId} onChange={handleCarrierSelect}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
                     <option value="">— Unassigned —</option>
                     {carriers.map((c) => (
                       <option key={c.id} value={c.id}>{c.companyName}</option>
                     ))}
+                    <option value={NEW_CARRIER}>+ Add a new carrier…</option>
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
