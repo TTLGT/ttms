@@ -85,6 +85,8 @@ orders/{orderId}
   origin          : Address
   destination     : Address
   routeMapUrl     : string          // Google Maps directions link; auto-built, editable
+  laneMiles       : number | null   // distance between the two addresses; see below
+  laneMilesSource : "estimate" | "routes" | null   // how laneMiles was obtained
   pickupDate      : Timestamp | null
   deliveryDate    : Timestamp | null
   carrierId       : string | null   // → carriers/{carrierId}; null until assigned
@@ -99,6 +101,50 @@ orders/{orderId}
   createdAt       : Timestamp
   updatedAt       : Timestamp
 ```
+
+### `laneMiles` and `laneMilesSource`
+
+Distance between the order's two addresses. **Which method produced it is
+recorded alongside the number**, because the two are not interchangeable — an
+estimate must never be billed against.
+
+| `laneMilesSource` | Method | Cost | Accuracy |
+|---|---|---|---|
+| `"estimate"` | Great-circle distance between the two ZIP centroids (US Census ZCTA table at `src/lib/data/zipCentroids.json`), times a circuity factor for roads not running straight. `src/lib/routeDistance.ts`. | Free, offline | ~5% typical; mountain lanes ~17% low |
+| `"routes"` | Google Routes API, real road miles. `src/lib/routeDistanceGoogle.ts`. | **Billed per lookup** | Exact |
+| `null` | Not worked out — no ZIP, or lane distances switched off. | — | — |
+
+An admin picks the method for the whole company in Settings → Lane Distance;
+it is stored in `appSettings/general` (below). The mode is read **server-side**
+in `/api/route-distance` and never taken from the request, so a client cannot
+run up a Routes bill by asking for it.
+
+If Google Routes is selected but fails — no key, billing lapsed, an address it
+cannot route — the order silently falls back to the free estimate, records
+`"estimate"` as the source, and the form says so. Showing a rougher number
+beats showing none.
+
+Stored on the order rather than recomputed on read: it is looked up once, when
+the order is created or first viewed without one. That keeps the figure a
+broker quoted against fixed, and under Routes it is what stops every page view
+from costing money.
+
+## Collection: `appSettings`
+
+Company-wide settings, as a single document. One doc rather than one per
+setting: there are few, they are read together, and one document is one read.
+
+```
+appSettings/general
+  laneDistanceMode : "off" | "estimate" | "routes"   // default "estimate"
+  updatedAt        : Timestamp
+  updatedBy        : string          // email or uid of the admin who changed it
+```
+
+Readable by any allowed user — a broker's order form has to know whether to
+show a distance. Written only through `PUT /api/app-settings`, admin-only, like
+every other collection that shapes app behaviour. The default is `"estimate"`
+and not `"routes"`: a default must never be the option that spends money.
 
 ### `CommodityItem`
 

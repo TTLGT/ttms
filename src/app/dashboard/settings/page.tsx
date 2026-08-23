@@ -28,6 +28,7 @@ import type { AllowedUser, AllowedUserRole, InviteResult } from '@/types/allowed
 import { toCsv, csvDate, downloadCsv } from '@/lib/csv';
 import type { Site } from '@/types/site';
 import BatsImportPanel from '@/components/settings/BatsImportPanel';
+import LaneDistancePanel from '@/components/settings/LaneDistancePanel';
 import SitesPanel from '@/components/settings/SitesPanel';
 import { AvatarUploader, UserAvatar } from '@/components/settings/UserAvatar';
 import WorkGroupsPanel from '@/components/settings/WorkGroupsPanel';
@@ -1138,6 +1139,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
         )}
       </section>
 
+      <LaneDistancePanel />
       <SitesPanel onChange={handleSitesLoaded} />
       <WorkGroupsPanel />
       <BatsImportPanel />

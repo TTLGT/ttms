@@ -168,6 +168,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Company-wide settings. Everyone reads them — a broker's order form has
+    // to know whether to show a lane distance — but only /api/app-settings
+    // writes, and only for an admin.
+    match /appSettings/{settingId} {
+      allow read:  if isAllowedUser();
+      allow write: if false;
+    }
+
     match /partyAccessProbes/{probeId} {
       allow read:  if isAdmin();
       allow write: if false;

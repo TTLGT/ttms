@@ -182,6 +182,48 @@ export function addressToQuery(a: Address | null | undefined): string {
 }
 
 /**
+ * `estimate` — free, offline, from ZIP centroids (`src/lib/routeDistance.ts`).
+ * `routes`   — exact road miles from the Google Routes API, billed per lookup.
+ */
+export type LaneMilesSource = 'estimate' | 'routes';
+
+/**
+ * How a lane distance is phrased everywhere it is shown, hedged according to
+ * how it was obtained. Two ZIPs in the same town share a centroid and estimate
+ * to zero, which is not a useful thing to print, so anything very short is
+ * reported as a floor instead.
+ */
+export function formatLaneMiles(
+  miles: number | null | undefined,
+  source: LaneMilesSource | null | undefined,
+): string {
+  if (miles === null || miles === undefined) return '';
+  if (source === 'routes') return `${Math.round(miles).toLocaleString()} mi`;
+  if (miles < 10) return 'under 10 mi';
+  return `about ${Math.round(miles).toLocaleString()} mi`;
+}
+
+/** The caveat that has to travel with the number, or '' when there is none. */
+export function laneMilesCaption(source: LaneMilesSource | null | undefined): string {
+  if (source === 'routes') return 'driving distance via Google Routes';
+  if (source === 'estimate') return 'straight-line estimate, not exact road miles';
+  return '';
+}
+
+/** The label the number sits under. */
+export function laneMilesLabel(source: LaneMilesSource | null | undefined): string {
+  return source === 'routes' ? 'Driving distance' : 'Estimated distance';
+}
+
+/**
+ * Whether an address can be placed on the map at all. The distance estimate
+ * works off ZIP centroids, so a ZIP is the one part it cannot do without.
+ */
+export function isRoutableAddress(a: Address | null | undefined): boolean {
+  return Boolean((a?.zip ?? '').trim());
+}
+
+/**
  * A Google Maps directions link for the load. Built with the documented Maps
  * URLs API rather than a scraped /maps/dir/ path, so it needs no API key and
  * survives Maps UI changes — it simply opens Maps with the route filled in.
@@ -234,6 +276,21 @@ export interface Order {
    * yard that geocoding a street address does not find.
    */
   routeMapUrl: string;
+  /**
+   * Distance between the two addresses, in miles. null = not worked out (no
+   * ZIP, or lane distances are switched off).
+   *
+   * Stored rather than recomputed on read, so the figure a broker quoted
+   * against does not move under them.
+   */
+  laneMiles: number | null;
+  /**
+   * How `laneMiles` was arrived at. Matters because the two methods are not
+   * interchangeable — an estimate is roughly ±5% and must never be billed
+   * against, while a routed figure is exact. Every surface that shows the
+   * number reads this to know what to call it.
+   */
+  laneMilesSource: LaneMilesSource | null;
   pickupDate: Timestamp | null;
   deliveryDate: Timestamp | null;
   dispatchedAt: Timestamp | null;

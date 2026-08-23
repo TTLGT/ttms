@@ -12,7 +12,7 @@ Next.js 16 (App Router, Turbopack) · React 19 · TypeScript · Tailwind 3 ·
 Firebase (Firestore, Storage, Auth) · Resend for email · `@react-pdf/renderer`
 for documents. Firebase project `ttms-59aa5`.
 
-Human-facing docs: [`docs/handover-guide.md`](docs/handover-guide.md) (setup and
+Human-facing docs: [`docs/admin-handbook.md`](docs/admin-handbook.md) (setup and
 operations, written for non-technical staff too) and
 [`docs/schema-guide.md`](docs/schema-guide.md) (data model).
 
@@ -31,7 +31,7 @@ Consequences for you:
 - If asked to "add test data" or "reset the database", stop and confirm — that would hit production.
 
 Standing up a dev Firebase project (or the Emulator Suite) is a known
-outstanding task; see the Deployment section of the handover guide.
+outstanding task; see the Deployment section of the Admin Handbook.
 
 ## Commands
 
@@ -187,6 +187,11 @@ means a suborder — its own carrier, dates and BOL.
 
 - `@react-pdf/renderer` is in `serverExternalPackages` in `next.config.ts`. Removing it breaks the build.
 - Resend is lazily initialized on purpose, so a missing `RESEND_API_KEY` fails at send time rather than crashing the build.
+- Order lane distances have **two methods behind one admin setting** (`appSettings/general.laneDistanceMode`, Settings → Lane Distance): `estimate` (default) is free and offline — ZIP centroids in `src/lib/data/zipCentroids.json` plus a circuity factor, `src/lib/routeDistance.ts`, ~5% typical error and ~17% on mountain lanes; `routes` is the Google Routes API, exact but **billed per lookup**, `src/lib/routeDistanceGoogle.ts`, needs `GOOGLE_MAPS_API_KEY`. `off` hides distances entirely.
+  - The mode is read server-side in `/api/route-distance` and **never taken from the request** — a client that could name its own method could run up a Routes bill.
+  - The default is `estimate` on purpose: a default must never be the option that spends money.
+  - Distances are looked up once and stored on the order (`laneMiles` + `laneMilesSource`). Don't add code that re-derives them on render — under `routes` that bills on every page view.
+  - An estimate is labelled as one everywhere it appears. Keep it that way; it must never be billed per mile against.
 - `NEXT_PUBLIC_APP_URL` is still `http://localhost:3000`. Every e-sign link emailed to a carrier is built from it, so links currently point at localhost. Fixing this properly requires a real deployment.
 - No deployment exists: no `vercel.json`, no `.github/workflows/`, no Hosting block in `firebase.json`.
 - Firestore composite indexes are listed in `docs/schema-guide.md`. A missing-index error links to a one-click creator in the Console.

@@ -1,6 +1,6 @@
-# TTMS — Handover Guide
+# TTMS — Admin Handbook
 
-This guide has **three parts**. Start with whichever describes you.
+This handbook has **three parts**. Start with whichever describes you.
 
 | | |
 |---|---|
@@ -149,7 +149,7 @@ nothing below will work without it.
    git clone https://github.com/TTLGT/ttms.git
    ```
 
-   You can copy that line from this guide and **right-click inside the dark window to paste** — Ctrl+V often does not work there.
+   You can copy that line from this handbook and **right-click inside the dark window to paste** — Ctrl+V often does not work there.
 5. A GitHub sign-in window may pop up. Choose **Continue with Google** and sign
    in as `it@totaltransportlogistics.us` — there is no separate GitHub password.
 6. Wait. Text will scroll past. When your cursor comes back and stops moving, it's done.
@@ -397,9 +397,15 @@ FIREBASE_ADMIN_PRIVATE_KEY=
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=noreply@totaltransportlogistics.us
 
+GOOGLE_MAPS_API_KEY=
+
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
+- `GOOGLE_MAPS_API_KEY` is **optional and costs money**. Leave it blank unless
+  someone has decided to pay for exact mileage. Orders work fine without it —
+  they use the free built-in estimate, which is the default. See
+  [Lane distance](#lane-distance) below before adding it.
 - *Client values*: Firebase Console → Project Settings → General → Your apps.
 - *Admin values*: Project Settings → Service Accounts → **Generate new private key**; take `client_email` and `private_key` from the JSON.
 - `FIREBASE_ADMIN_PRIVATE_KEY` keeps its `\n` escapes and is quoted; `src/lib/firebase-admin.ts` converts them back.
@@ -613,6 +619,35 @@ Then open a PR against `main`.
 Remote branches `feat/invite-only-access`, `feat/user-directory` and
 `party-model-and-ownership` are merged into `main` and are history.
 
+### Lane distance
+
+Every order can show the distance between its pickup and delivery addresses.
+An admin chooses how in **Settings → Lane Distance**, and the choice applies to
+everyone:
+
+| Option | What it does | Cost |
+|---|---|---|
+| **Off** | No distance shown. | — |
+| **Estimate** *(default)* | Worked out inside TTMS from the two ZIP codes. Usually within about 5% of real driving distance. Mountain routes such as Denver–Salt Lake read low, because the interstate detours a long way around. | Free |
+| **Google Routes** | Real road miles from Google. | **Google charges for every lookup** |
+
+Two things worth knowing before switching to Google Routes:
+
+1. It needs `GOOGLE_MAPS_API_KEY` in `.env.local`. Until that is set the option
+   is greyed out in Settings. To get one: Google Cloud Console for `ttms-59aa5`
+   (the same `it@totaltransportlogistics.us` sign-in as Firebase) → enable the
+   **Routes API** → APIs & Services → Credentials → create an API key →
+   restrict it to the Routes API. Billing must be on for the project.
+2. It bills per lookup, on each new order and each time an address changes.
+   TTMS looks a lane up **once** and stores the answer on the order, so viewing
+   an order again is free — but a busy day of new orders is a real bill.
+
+Whichever is chosen, the number is stored on the order and labelled with how it
+was obtained, so nobody mistakes an estimate for exact mileage. **Never bill a
+customer per mile from an estimate.**
+
+---
+
 ## Deployment — currently unresolved
 
 **There is no deployment configured.** Confirmed: no `vercel.json` or
@@ -660,6 +695,10 @@ Until #2 is done, assume every local change is live.
 | Everyone locked out | Sign in as `it@totaltransportlogistics.us`. If a rules deploy caused it, `rollback-rules.js --list` then `--to <rulesetId>`. |
 | Signing links point at localhost | `NEXT_PUBLIC_APP_URL` wrong for that environment. |
 | No email at all | `RESEND_API_KEY` missing, or sending domain lost verification. Resend init is deliberately lazy, so it fails at send time, not build time. |
+| No distance on an order's Route section | Either lane distance is set to **Off** in Settings, or the two addresses are missing a ZIP. The field says which on screen. |
+| An order's distance looks wrong | On **Estimate** it is not a routed distance — see [Lane distance](#lane-distance). Usually within ~5%; mountain routes read low. Never bill per mile off an estimate. |
+| An order says "Google Routes unavailable — showing an estimate" | The key is missing or wrong, billing lapsed on `ttms-59aa5`, or Google could not route those addresses. The message carries Google's own reason. Orders keep working on the free estimate meanwhile. |
+| A script says a setting is missing when `.env.local` is clearly there | Was a real bug until Aug 2026: the scripts could not read a `.env.local` saved with Windows line endings. Fixed. If it recurs, check the file was not saved in an editor that mangled it. |
 | Revoked user still opens a Storage file | Expected, up to one hour — claim lives in the ID token until expiry. |
 | Build fails on `@react-pdf/renderer` | It's in `serverExternalPackages` in `next.config.ts` for a reason. Don't remove it. |
 | Firestore query errors on a missing index | See the composite index table in `schema-guide.md`; the error links to a one-click creator. |

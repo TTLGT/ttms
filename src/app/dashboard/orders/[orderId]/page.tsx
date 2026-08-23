@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ExternalLink, Map, Plus } from 'lucide-react';
+import { ExternalLink, Map, Plus, Route } from 'lucide-react';
 import Link from 'next/link';
 import { getOrder, updateOrderStatus, updateOrder, listOrders, createOrder } from '@/lib/orders';
 import { listCarriers } from '@/lib/carriers';
@@ -15,7 +15,12 @@ import {
   itemWeightLb,
   orderCommodityItems,
   buildRouteMapUrl,
+  formatLaneMiles,
+  isRoutableAddress,
+  laneMilesCaption,
+  laneMilesLabel,
 } from '@/types/order';
+import { fetchLaneDistance } from '@/lib/routeDistanceClient';
 import StatusBadge from '@/components/orders/StatusBadge';
 import DriverLicenseUpload from '@/components/orders/DriverLicenseUpload';
 import QuickAddCarrierModal from '@/components/carriers/QuickAddCarrierModal';
@@ -133,6 +138,10 @@ export default function OrderDetailPage() {
   // POD state
   const [podPath, setPodPath] = useState<string | null>(null);
 
+  // Stops the backfill below from re-running and re-writing on every render
+  // that produces a new `order` object.
+  const backfilledRef = useRef<string | null>(null);
+
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -172,6 +181,34 @@ export default function OrderDetailPage() {
     }
     load();
   }, [orderId, user]);
+
+  /**
+   * Fill in the distance for an order that has none — one created before this
+   * feature, or whose addresses were completed after it was saved. Written
+   * back so the number stays fixed to what the broker saw, rather than moving
+   * if the estimate is retuned or the method is switched later.
+   *
+   * Runs once per order. Under Google Routes that restraint is what stops
+   * viewing an order from billing a lookup every time.
+   */
+  useEffect(() => {
+    if (!order || order.laneMiles !== null && order.laneMiles !== undefined) return;
+    if (!isRoutableAddress(order.origin) || !isRoutableAddress(order.destination)) return;
+    if (backfilledRef.current === order.id) return;
+    backfilledRef.current = order.id;
+
+    let cancelled = false;
+    (async () => {
+      const result = await fetchLaneDistance(order.origin, order.destination);
+      if (cancelled || result.status !== 'ok') return;
+      const patch = { laneMiles: result.miles, laneMilesSource: result.source };
+      setOrder((prev) => (prev ? { ...prev, ...patch } : prev));
+      // Best-effort: showing the distance matters more than storing it, and a
+      // failed write just means the next viewer works it out again.
+      updateOrder(order.id, patch).catch(() => {});
+    })();
+    return () => { cancelled = true; };
+  }, [order]);
 
   function openCarrierAssign() {
     setSelectedCarrierId(order?.carrierId ?? '');
@@ -390,6 +427,10 @@ export default function OrderDetailPage() {
         origin:       order.origin,
         destination:  order.destination,
         routeMapUrl:  order.routeMapUrl ?? '',
+        // Same origin and destination as the parent, so the same lane — and
+        // under Google Routes, no reason to buy the identical lookup twice.
+        laneMiles:       order.laneMiles ?? null,
+        laneMilesSource: order.laneMilesSource ?? null,
         pickupDate:   null,
         deliveryDate: null,
         carrierId:    null,
@@ -446,6 +487,7 @@ export default function OrderDetailPage() {
 
   const nextStatus  = STATUS_NEXT[order.status];
   const currentStep = PIPELINE.indexOf(order.status);
+
 
   return (
     <div className="p-8 max-w-4xl">
@@ -588,6 +630,18 @@ export default function OrderDetailPage() {
                 </p>
               </div>
             </div>
+            {order.laneMiles !== null && order.laneMiles !== undefined ? (
+              <div className="mt-4 flex items-center gap-2.5">
+                <Route className="w-4 h-4 text-brand-600 shrink-0" />
+                <div>
+                  <p className="text-xs font-medium text-gray-500">{laneMilesLabel(order.laneMilesSource)}</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {formatLaneMiles(order.laneMiles, order.laneMilesSource)}
+                    <span className="font-normal text-gray-500"> · {laneMilesCaption(order.laneMilesSource)}</span>
+                  </p>
+                </div>
+              </div>
+            ) : null}
             {/* Falls back to a link built on the fly, so orders saved before
                 the field existed still get a usable route. */}
             {(() => {

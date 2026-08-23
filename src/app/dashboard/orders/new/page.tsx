@@ -11,6 +11,8 @@ import type { PartySelection } from '@/components/parties/PartyCombobox';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
+import RouteDistanceField from '@/components/orders/RouteDistanceField';
+import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
 import { partyDisplayName } from '@/types/party';
 import { blankCommodityItem, commoditySummary, totalPieces, totalWeightLb } from '@/types/order';
 import type { Address, CommodityItem } from '@/types/order';
@@ -68,6 +70,7 @@ function NewOrderForm() {
   const [origin, setOrigin]             = useState<Address>(BLANK_ADDRESS);
   const [destination, setDest]          = useState<Address>(BLANK_ADDRESS);
   const [routeMapUrl, setRouteMapUrl]   = useState('');
+  const [distance, setDistance]         = useState<LaneDistanceValue>({ laneMiles: null, laneMilesSource: null });
   const [pickupDate, setPickupDate]     = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [agreedRate, setAgreedRate]     = useState('');
@@ -152,6 +155,8 @@ function NewOrderForm() {
         origin,
         destination,
         routeMapUrl:  routeMapUrl.trim(),
+        laneMiles:       distance.laneMiles,
+        laneMilesSource: distance.laneMilesSource,
         pickupDate:   pickupDate   ? (new Date(pickupDate)   as unknown as import('firebase/firestore').Timestamp) : null,
         deliveryDate: deliveryDate ? (new Date(deliveryDate) as unknown as import('firebase/firestore').Timestamp) : null,
         carrierId:    null,
@@ -276,6 +281,12 @@ function NewOrderForm() {
               <AddressFields label="Origin" value={origin} onChange={setOrigin} />
               <AddressFields label="Destination" value={destination} onChange={setDest} />
             </div>
+            <RouteDistanceField
+              origin={origin}
+              destination={destination}
+              value={distance}
+              onChange={setDistance}
+            />
             <RouteMapLinkField
               origin={origin}
               destination={destination}

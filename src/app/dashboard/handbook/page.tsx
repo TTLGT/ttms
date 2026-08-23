@@ -12,12 +12,12 @@ import { useAuth } from '@/context/AuthContext';
 import { BOOTSTRAP_ADMIN_EMAILS, ALLOWED_EMAIL_DOMAIN } from '@/lib/accessControl';
 
 /**
- * The administration half of the handover guide, in-app so an admin can reach
+ * The administration half of the Admin Handbook, in-app so an admin can reach
  * it without hunting for a document. Deliberately only the operational part:
  * the technical reference is developer material and lives with the code it
  * describes, where it stays in step with the source of truth.
  *
- * Full version: docs/handover-guide.md in the repository.
+ * Full version: docs/admin-handbook.md in the repository.
  */
 
 const REPO = 'https://github.com/TTLGT/ttms';
@@ -340,7 +340,7 @@ const CHAPTERS: Chapter[] = [
             <Mono>it@totaltransportlogistics.us</Mono>, the same account you use for everything
             else. Download it from there.
           </p>
-          {/* Named here rather than in docs/handover-guide.md at the owner's request:
+          {/* Named here rather than in docs/admin-handbook.md at the owner's request:
               this page is admin-gated, that file is readable by anyone who can clone
               the repository. Deliberately the location only — never the values. */}
           <Callout tone="critical" title="Handle this file carefully">
@@ -935,7 +935,7 @@ export default function HandbookPage() {
           </p>
           <p>
             Putting TTMS on a real web address is the biggest outstanding job on this project. It
-            needs a developer — see <Mono>docs/handover-guide.md</Mono> in the repository.
+            needs a developer — see <Mono>docs/admin-handbook.md</Mono> in the repository.
           </p>
         </Callout>
       </div>
@@ -993,7 +993,7 @@ export default function HandbookPage() {
           step with what it describes.
         </p>
         <ul className="mt-3 space-y-1 text-sm text-gray-600">
-          <li><Mono>docs/handover-guide.md</Mono> — the full guide, all three parts</li>
+          <li><Mono>docs/admin-handbook.md</Mono> — the full handbook, all three parts</li>
           <li><Mono>docs/schema-guide.md</Mono> — the data model</li>
           <li><Mono>CLAUDE.md</Mono> — context for AI-assisted work</li>
         </ul>

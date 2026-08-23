@@ -11,6 +11,8 @@ import type { PartySelection } from '@/components/parties/PartyCombobox';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
+import RouteDistanceField from '@/components/orders/RouteDistanceField';
+import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
 import { commoditySummary, orderCommodityItems, totalPieces, totalWeightLb } from '@/types/order';
 import type { Order, Address, CommodityItem } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
@@ -74,6 +76,7 @@ export default function EditOrderPage() {
   const [origin, setOrigin]             = useState<Address>(BLANK_ADDRESS);
   const [destination, setDest]          = useState<Address>(BLANK_ADDRESS);
   const [routeMapUrl, setRouteMapUrl]   = useState('');
+  const [distance, setDistance]         = useState<LaneDistanceValue>({ laneMiles: null, laneMilesSource: null });
   const [pickupDate, setPickupDate]     = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [agreedRate, setAgreedRate]     = useState('');
@@ -102,6 +105,7 @@ export default function EditOrderPage() {
         setOrigin(o.origin ?? BLANK_ADDRESS);
         setDest(o.destination ?? BLANK_ADDRESS);
         setRouteMapUrl(o.routeMapUrl ?? '');
+        setDistance({ laneMiles: o.laneMiles ?? null, laneMilesSource: o.laneMilesSource ?? null });
         setPickupDate(tsToDateStr(o.pickupDate));
         setDeliveryDate(tsToDateStr(o.deliveryDate));
         setAgreedRate(o.agreedRate ? String(o.agreedRate) : '');
@@ -156,6 +160,8 @@ export default function EditOrderPage() {
         origin,
         destination,
         routeMapUrl:  routeMapUrl.trim(),
+        laneMiles:       distance.laneMiles,
+        laneMilesSource: distance.laneMilesSource,
         pickupDate:   pickupDate   ? Timestamp.fromDate(new Date(pickupDate + 'T12:00:00'))   : null,
         deliveryDate: deliveryDate ? Timestamp.fromDate(new Date(deliveryDate + 'T12:00:00')) : null,
         agreedRate:   parseFloat(agreedRate) || 0,
@@ -239,6 +245,12 @@ export default function EditOrderPage() {
               <AddressFields label="Origin" value={origin} onChange={setOrigin} />
               <AddressFields label="Destination" value={destination} onChange={setDest} />
             </div>
+            <RouteDistanceField
+              origin={origin}
+              destination={destination}
+              value={distance}
+              onChange={setDistance}
+            />
             <RouteMapLinkField
               origin={origin}
               destination={destination}
