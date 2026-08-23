@@ -2,6 +2,17 @@ import React from 'react';
 import path from 'path';
 import { Document, Page, Text, View, StyleSheet, Image as PdfImage, renderToBuffer } from '@react-pdf/renderer';
 
+/**
+ * One freight line as it prints. Pre-formatted by the route so this module
+ * stays free of domain logic and unit conversion, as the rest of BolData is.
+ */
+export type BolCommodityLine = {
+  description: string;
+  quantity: string;
+  dimensions: string;
+  weight: string;
+};
+
 export type BolData = {
   orderNumber: string;
   clientName: string;
@@ -17,6 +28,8 @@ export type BolData = {
   commodity: string;
   pieces: number;
   weight: number;
+  /** Itemised freight. Always at least one line — see `orderCommodityItems`. */
+  items: BolCommodityLine[];
   originStreet: string;
   originCity: string;
   originState: string;
@@ -63,8 +76,12 @@ const s = StyleSheet.create({
   table:     { borderWidth: 1, borderColor: GRAY, borderStyle: 'solid', borderRadius: 3, marginBottom: 10 },
   tHead:     { flexDirection: 'row', backgroundColor: LGRAY, borderBottomWidth: 1, borderBottomColor: GRAY, borderBottomStyle: 'solid' },
   tRow:      { flexDirection: 'row' },
+  tRowDivided: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: GRAY, borderTopStyle: 'solid' },
+  tRowTotal: { flexDirection: 'row', backgroundColor: LGRAY, borderTopWidth: 1, borderTopColor: GRAY, borderTopStyle: 'solid' },
   th:        { flex: 1, padding: 6, fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#6b7280' },
+  thWide:    { flex: 2, padding: 6, fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#6b7280' },
   td:        { flex: 1, padding: 6, fontSize: 9, color: '#111827' },
+  tdWide:    { flex: 2, padding: 6, fontSize: 9, color: '#111827' },
   tdBold:    { flex: 1, padding: 6, fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#111827' },
 
   notesBox:  { borderWidth: 1, borderColor: GRAY, borderStyle: 'solid', borderRadius: 3, padding: 8, marginBottom: 10 },
@@ -146,18 +163,31 @@ function BolDocument({ d }: { d: BolData }) {
           </View>
         </View>
 
-        {/* Commodity */}
+{/* Commodity — one row per item, so a mixed load is described piece by
+            piece. The carrier signs against this table. */}
         <View style={s.table}>
           <View style={s.tHead}>
-            <Text style={s.th}>COMMODITY</Text>
+            <Text style={s.thWide}>COMMODITY</Text>
             <Text style={s.th}>PIECES</Text>
+            <Text style={s.thWide}>DIMENSIONS (L × W × H)</Text>
             <Text style={s.th}>WEIGHT</Text>
           </View>
-          <View style={s.tRow}>
-            <Text style={s.td}>{d.commodity || '—'}</Text>
-            <Text style={s.td}>{d.pieces ? String(d.pieces) : '—'}</Text>
-            <Text style={s.td}>{d.weight ? `${d.weight.toLocaleString()} lbs` : '—'}</Text>
-          </View>
+          {d.items.map((it, i) => (
+            <View key={i} style={i === 0 ? s.tRow : s.tRowDivided}>
+              <Text style={s.tdWide}>{it.description || '—'}</Text>
+              <Text style={s.td}>{it.quantity || '—'}</Text>
+              <Text style={s.tdWide}>{it.dimensions || '—'}</Text>
+              <Text style={s.td}>{it.weight || '—'}</Text>
+            </View>
+          ))}
+          {d.items.length > 1 && (
+            <View style={s.tRowTotal}>
+              <Text style={s.tdWide}>TOTAL</Text>
+              <Text style={s.td}>{d.pieces ? String(d.pieces) : '—'}</Text>
+              <Text style={s.tdWide}> </Text>
+              <Text style={s.td}>{d.weight ? `${d.weight.toLocaleString()} lbs` : '—'}</Text>
+            </View>
+          )}
         </View>
 
         {/* Origin + Destination */}

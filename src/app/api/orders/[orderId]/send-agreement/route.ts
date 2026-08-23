@@ -3,6 +3,8 @@ import { adminDb, requirePermission, AdminAuthError } from '@/lib/firebase-admin
 import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
 import { randomBytes } from 'crypto';
+import { dimensionsSummary, orderCommodityItems } from '@/types/order';
+import type { Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -71,6 +73,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     commodity:    order.commodity || '',
     weight:       order.weight    || 0,
     pieces:       order.pieces    || 0,
+    // Snapshotted with the rest of the load: what the carrier signed against
+    // must not shift if the order is edited afterwards.
+    dimensions:   dimensionsSummary(orderCommodityItems(order as Partial<Order>)),
     originStr,
     destinationStr,
     pickupDate:   order.pickupDate   || null,

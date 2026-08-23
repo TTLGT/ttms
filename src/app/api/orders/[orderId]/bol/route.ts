@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, adminStorage, requirePermission, requireCompanyUser, AdminAuthError } from '@/lib/firebase-admin';
 import { generateBolBuffer } from '@/lib/bol-pdf';
 import type { BolData } from '@/lib/bol-pdf';
+import { formatDimensions, itemWeightLb, orderCommodityItems } from '@/types/order';
+import type { Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -66,6 +68,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     commodity:        order.commodity          ?? '',
     pieces:           order.pieces             ?? 0,
     weight:           order.weight             ?? 0,
+    items:            orderCommodityItems(order as Partial<Order>).map((it) => ({
+      description: it.description,
+      quantity:    it.quantity ? String(it.quantity) : '',
+      dimensions:  formatDimensions(it),
+      weight:      itemWeightLb(it) ? `${Math.round(itemWeightLb(it)).toLocaleString()} lbs` : '',
+    })),
     originStreet:     order.origin?.street     ?? '',
     originCity:       order.origin?.city       ?? '',
     originState:      order.origin?.state      ?? '',

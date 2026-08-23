@@ -20,6 +20,183 @@ export interface Address {
   country: string;
 }
 
+export type DimensionUnit = 'in' | 'ft' | 'cm' | 'm';
+export type WeightUnit = 'lb' | 'kg';
+
+/**
+ * One line of freight on an order. A load is rarely a single uniform object —
+ * a broker may move a tractor, its detached bucket and a crate of parts on the
+ * same order, each with its own size and weight — so dimensions live per item
+ * rather than on the order.
+ *
+ * Units are stored alongside the numbers instead of being normalised on save:
+ * a carrier quoted "8 ft wide" wants to read back "8 ft", not "96 in", and an
+ * over-dimension permit is written in the units the broker was quoted in.
+ * Conversion happens at the point of calculation — see `toInches`/`toPounds`.
+ */
+export interface CommodityItem {
+  /** Client-generated and stable across edits. Only used as a React key. */
+  id: string;
+  description: string;
+  /** How many identical pieces this line covers. */
+  quantity: number;
+  length: number;
+  width: number;
+  height: number;
+  dimensionUnit: DimensionUnit;
+  /** Weight of ONE piece — the line total is `quantity * weight`. */
+  weight: number;
+  weightUnit: WeightUnit;
+}
+
+const INCHES_PER: Record<DimensionUnit, number> = { in: 1, ft: 12, cm: 1 / 2.54, m: 100 / 2.54 };
+const POUNDS_PER: Record<WeightUnit, number> = { lb: 1, kg: 2.20462262185 };
+
+export const DIMENSION_UNITS: DimensionUnit[] = ['in', 'ft', 'cm', 'm'];
+export const WEIGHT_UNITS: WeightUnit[] = ['lb', 'kg'];
+
+export const DIMENSION_UNIT_LABEL: Record<DimensionUnit, string> = {
+  in: 'in', ft: 'ft', cm: 'cm', m: 'm',
+};
+export const WEIGHT_UNIT_LABEL: Record<WeightUnit, string> = { lb: 'lbs', kg: 'kg' };
+
+export function toInches(value: number, unit: DimensionUnit): number {
+  return (value || 0) * INCHES_PER[unit];
+}
+
+export function toPounds(value: number, unit: WeightUnit): number {
+  return (value || 0) * POUNDS_PER[unit];
+}
+
+export function convertLength(value: number, from: DimensionUnit, to: DimensionUnit): number {
+  return toInches(value, from) / INCHES_PER[to];
+}
+
+export function convertWeight(value: number, from: WeightUnit, to: WeightUnit): number {
+  return toPounds(value, from) / POUNDS_PER[to];
+}
+
+/** A fresh blank line for the itemised commodity editor. */
+export function blankCommodityItem(): CommodityItem {
+  return {
+    // crypto.randomUUID is unavailable on http:// origins other than localhost,
+    // and this id never leaves the browser, so a cheap random suffix is enough.
+    id: `ci_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    description: '',
+    quantity: 1,
+    length: 0,
+    width: 0,
+    height: 0,
+    dimensionUnit: 'in',
+    weight: 0,
+    weightUnit: 'lb',
+  };
+}
+
+/** Total weight of one commodity line, in pounds. */
+export function itemWeightLb(item: CommodityItem): number {
+  return toPounds(item.weight, item.weightUnit) * (item.quantity || 0);
+}
+
+/** Cubic feet occupied by one commodity line. */
+export function itemVolumeFt3(item: CommodityItem): number {
+  const cubicInches =
+    toInches(item.length, item.dimensionUnit) *
+    toInches(item.width, item.dimensionUnit) *
+    toInches(item.height, item.dimensionUnit);
+  return (cubicInches / 1728) * (item.quantity || 0);
+}
+
+export function totalPieces(items: CommodityItem[]): number {
+  return items.reduce((sum, i) => sum + (i.quantity || 0), 0);
+}
+
+export function totalWeightLb(items: CommodityItem[]): number {
+  return items.reduce((sum, i) => sum + itemWeightLb(i), 0);
+}
+
+/** "48 x 40 x 60 in", or '' when the line carries no dimensions. */
+export function formatDimensions(item: CommodityItem): string {
+  const { length, width, height } = item;
+  if (!length && !width && !height) return '';
+  const n = (v: number) => (Number.isInteger(v) ? String(v) : String(Number((v || 0).toFixed(2))));
+  return `${n(length)} × ${n(width)} × ${n(height)} ${DIMENSION_UNIT_LABEL[item.dimensionUnit]}`;
+}
+
+/**
+ * The one-line description written back to the legacy `commodity` field. Order
+ * lists, invoices and agreement emails were built against that single string
+ * and still read it, so it is kept in sync rather than dropped.
+ */
+export function commoditySummary(items: CommodityItem[]): string {
+  const named = items.map((i) => i.description.trim()).filter(Boolean);
+  if (!named.length) return '';
+  if (named.length === 1) return named[0];
+  return `${named[0]} + ${named.length - 1} more`;
+}
+
+/**
+ * Itemised freight for an order, including orders written before the
+ * `commodities` array existed and BATS imports, which carry only a
+ * description. Those collapse to a single dimensionless line so every reader —
+ * detail page, BOL, invoice — can assume an array.
+ */
+export function orderCommodityItems(
+  order: Partial<Pick<Order, 'commodities' | 'commodity' | 'pieces' | 'weight'>>,
+): CommodityItem[] {
+  if (order.commodities?.length) return order.commodities;
+  const quantity = order.pieces || 0;
+  return [{
+    ...blankCommodityItem(),
+    // Fixed rather than random: this runs on every render of a legacy order,
+    // and a key that changed each time would remount the row.
+    id: 'legacy',
+    description: order.commodity ?? '',
+    quantity: quantity || 1,
+    // The legacy field held the whole load's weight; dividing it back out
+    // keeps the line total identical to what the order has always shown.
+    weight: quantity > 1 ? (order.weight ?? 0) / quantity : (order.weight ?? 0),
+  }];
+}
+
+/**
+ * Every item's dimensions on one line, for places that have room for a string
+ * but not a table — the agreement emails and the public signing page.
+ */
+export function dimensionsSummary(items: CommodityItem[]): string {
+  const parts = items
+    .map((i) => {
+      const dims = formatDimensions(i);
+      if (!dims) return '';
+      const name = i.description.trim();
+      return name ? `${name}: ${dims}` : dims;
+    })
+    .filter(Boolean);
+  return parts.join('; ');
+}
+
+/** An address flattened into something Google Maps can geocode. */
+export function addressToQuery(a: Address | null | undefined): string {
+  if (!a) return '';
+  return [a.street, a.city, a.state, a.zip].map((v) => (v ?? '').trim()).filter(Boolean).join(', ');
+}
+
+/**
+ * A Google Maps directions link for the load. Built with the documented Maps
+ * URLs API rather than a scraped /maps/dir/ path, so it needs no API key and
+ * survives Maps UI changes — it simply opens Maps with the route filled in.
+ * Returns '' unless both ends are known, so a half-built link is never saved.
+ */
+export function buildRouteMapUrl(
+  origin: Address | null | undefined,
+  destination: Address | null | undefined,
+): string {
+  const from = addressToQuery(origin);
+  const to = addressToQuery(destination);
+  if (!from || !to) return '';
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving`;
+}
+
 export interface Order {
   id: string;
   batsId: string | null;
@@ -35,13 +212,28 @@ export interface Order {
   consigneeName: string;
   parentOrderId: string | null;
   status: OrderStatus;
+  /**
+   * One-line freight description. Derived from `commodities` on save — see
+   * `commoditySummary` — and kept because order lists, PDFs and the agreement
+   * emails read it directly.
+   */
   commodity: string;
+  /** Itemised freight. The source of truth for pieces, weight and dimensions. */
+  commodities: CommodityItem[];
   vehicles: string;
+  /** Sum of `commodities[].quantity`. Derived — see `totalPieces`. */
   pieces: number;
+  /** Total load weight in pounds. Derived — see `totalWeightLb`. */
   weight: number;
   transportType: string;
   origin: Address;
   destination: Address;
+  /**
+   * Google Maps directions link for the route. Auto-built from the two
+   * addresses but editable — a broker often needs to pin the exact gate or
+   * yard that geocoding a street address does not find.
+   */
+  routeMapUrl: string;
   pickupDate: Timestamp | null;
   deliveryDate: Timestamp | null;
   dispatchedAt: Timestamp | null;

@@ -2,13 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import { ExternalLink, Map, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { getOrder, updateOrderStatus, updateOrder, listOrders, createOrder } from '@/lib/orders';
 import { listCarriers } from '@/lib/carriers';
 import type { Order, OrderStatus } from '@/types/order';
 import type { Carrier } from '@/types/carrier';
-import { STATUS_LABEL, STATUS_NEXT } from '@/types/order';
+import {
+  STATUS_LABEL,
+  STATUS_NEXT,
+  formatDimensions,
+  itemWeightLb,
+  orderCommodityItems,
+  buildRouteMapUrl,
+} from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
 import DriverLicenseUpload from '@/components/orders/DriverLicenseUpload';
 import QuickAddCarrierModal from '@/components/carriers/QuickAddCarrierModal';
@@ -374,10 +381,15 @@ export default function OrderDetailPage() {
         parentOrderId: orderId,
         status:       'quote',
         commodity:    order.commodity,
+        // A suborder is a split of the parent's freight — which pieces go on it
+        // is exactly what the broker is about to decide, so it starts empty
+        // rather than duplicating the whole load.
+        commodities:  [],
         pieces:       1,
         weight:       0,
         origin:       order.origin,
         destination:  order.destination,
+        routeMapUrl:  order.routeMapUrl ?? '',
         pickupDate:   null,
         deliveryDate: null,
         carrierId:    null,
@@ -523,11 +535,39 @@ export default function OrderDetailPage() {
               <DetailRow label="Client"    value={order.clientName || '—'} />
               <DetailRow label="Shipper"   value={order.shipperName || '—'} />
               <DetailRow label="Consignee" value={order.consigneeName || '—'} />
-              <DetailRow label="Commodity" value={order.commodity} />
               <DetailRow label="Pieces" value={order.pieces} />
               <DetailRow label="Weight" value={order.weight ? `${order.weight.toLocaleString()} lbs` : '—'} />
               <DetailRow label="Pickup Date" value={formatDate(order.pickupDate as { toDate: () => Date } | null)} />
               <DetailRow label="Delivery Date" value={formatDate(order.deliveryDate as { toDate: () => Date } | null)} />
+            </div>
+          </div>
+
+          {/* Freight */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Freight</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wide border-b border-gray-200">
+                    <th className="pb-2 pr-4 font-medium">Commodity</th>
+                    <th className="pb-2 pr-4 font-medium">Pieces</th>
+                    <th className="pb-2 pr-4 font-medium">Dimensions (L × W × H)</th>
+                    <th className="pb-2 font-medium">Weight</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orderCommodityItems(order).map((item) => (
+                    <tr key={item.id} className="border-b border-gray-100 last:border-0">
+                      <td className="py-2 pr-4 text-gray-900">{item.description || '—'}</td>
+                      <td className="py-2 pr-4 text-gray-600">{item.quantity || '—'}</td>
+                      <td className="py-2 pr-4 text-gray-600">{formatDimensions(item) || '—'}</td>
+                      <td className="py-2 text-gray-600">
+                        {itemWeightLb(item) ? `${Math.round(itemWeightLb(item)).toLocaleString()} lbs` : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -548,6 +588,20 @@ export default function OrderDetailPage() {
                 </p>
               </div>
             </div>
+            {/* Falls back to a link built on the fly, so orders saved before
+                the field existed still get a usable route. */}
+            {(() => {
+              const mapUrl = order.routeMapUrl || buildRouteMapUrl(order.origin, order.destination);
+              if (!mapUrl) return null;
+              return (
+                <a href={mapUrl} target="_blank" rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700">
+                  <Map className="w-4 h-4" />
+                  View route in Google Maps
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              );
+            })()}
           </div>
 
           {/* Carrier */}

@@ -11,6 +11,8 @@ interface Props {
   commodity: string;
   weight: string;
   pieces: string;
+  /** Pre-formatted by the sender; '' on agreements sent before dimensions existed. */
+  dimensions: string;
   originStr: string;
   destinationStr: string;
   pickupDate: string;
@@ -69,7 +71,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function SignForm({
-  token, type, orderNumber, partyName, driverName, commodity, weight, pieces,
+  token, type, orderNumber, partyName, driverName, commodity, weight, pieces, dimensions,
   originStr, destinationStr, pickupDate, deliveryDate, rate, notes,
 }: Props) {
   const [signerName, setSignerName] = useState('');
@@ -139,6 +141,7 @@ export default function SignForm({
         <DetailRow label="Commodity" value={commodity} />
         <DetailRow label="Weight"    value={weight} />
         <DetailRow label="Pieces"    value={pieces} />
+        {dimensions && <DetailRow label="Dimensions" value={dimensions} />}
         <DetailRow label="Pickup"    value={pickupDate} />
         <DetailRow label="Delivery"  value={deliveryDate} />
         <div className="flex justify-between pt-3 mt-1 border-t-2 border-gray-200">

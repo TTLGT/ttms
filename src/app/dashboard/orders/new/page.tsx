@@ -8,8 +8,12 @@ import { createOrder } from '@/lib/orders';
 import { listParties, tagPartyRole, recordPartyApproval } from '@/lib/parties';
 import PartyCombobox from '@/components/parties/PartyCombobox';
 import type { PartySelection } from '@/components/parties/PartyCombobox';
+import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
+import DimensionConverter from '@/components/orders/DimensionConverter';
+import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
 import { partyDisplayName } from '@/types/party';
-import type { Address } from '@/types/order';
+import { blankCommodityItem, commoditySummary, totalPieces, totalWeightLb } from '@/types/order';
+import type { Address, CommodityItem } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 
 const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
@@ -60,11 +64,10 @@ function NewOrderForm() {
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
 
-  const [commodity, setCommodity]       = useState('');
-  const [pieces, setPieces]             = useState('1');
-  const [weight, setWeight]             = useState('');
+  const [commodities, setCommodities]   = useState<CommodityItem[]>([blankCommodityItem()]);
   const [origin, setOrigin]             = useState<Address>(BLANK_ADDRESS);
   const [destination, setDest]          = useState<Address>(BLANK_ADDRESS);
+  const [routeMapUrl, setRouteMapUrl]   = useState('');
   const [pickupDate, setPickupDate]     = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [agreedRate, setAgreedRate]     = useState('');
@@ -72,6 +75,10 @@ function NewOrderForm() {
   const [notes, setNotes]               = useState('');
 
   const carrierPay = (parseFloat(agreedRate) || 0) - (parseFloat(brokerFee) || 0);
+
+  // The legacy single-value fields stay on the order, derived from the items,
+  // so lists, PDFs and agreement emails keep working unchanged.
+  const commodityItems = commodities.filter((c) => c.description.trim() || c.weight || c.length || c.width || c.height);
 
   useEffect(() => {
     listParties().then(setParties).catch(() => {});
@@ -138,11 +145,13 @@ function NewOrderForm() {
         consigneeName: consignee.name.trim(),
         parentOrderId: null,
         status:       'quote',
-        commodity:    commodity.trim(),
-        pieces:       parseInt(pieces) || 1,
-        weight:       parseFloat(weight) || 0,
+        commodity:    commoditySummary(commodityItems),
+        commodities:  commodityItems,
+        pieces:       totalPieces(commodityItems) || 1,
+        weight:       Math.round(totalWeightLb(commodityItems)),
         origin,
         destination,
+        routeMapUrl:  routeMapUrl.trim(),
         pickupDate:   pickupDate   ? (new Date(pickupDate)   as unknown as import('firebase/firestore').Timestamp) : null,
         deliveryDate: deliveryDate ? (new Date(deliveryDate) as unknown as import('firebase/firestore').Timestamp) : null,
         carrierId:    null,
@@ -193,7 +202,7 @@ function NewOrderForm() {
   }
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-8 max-w-7xl">
       <div className="mb-6">
         <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-gray-700 mb-2 flex items-center gap-1">
           ← Back
@@ -202,124 +211,128 @@ function NewOrderForm() {
         <p className="text-sm text-gray-500 mt-0.5">Saved as a Quote — advance the status after creation.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Shipment Info */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Shipment Info</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 grid grid-cols-3 gap-4">
-              <PartyCombobox
-                role="client"
-                label="Client (signs the contract)"
-                parties={parties}
-                value={client}
-                onChange={setClient}
-                onPartyCreated={cacheParty}
-                required
-              />
-              <PartyCombobox
-                role="shipper"
-                label="Shipper (pickup)"
-                parties={parties}
-                value={shipper}
-                onChange={handleShipperPicked}
-                onPartyCreated={cacheParty}
-              />
-              <PartyCombobox
-                role="consignee"
-                label="Consignee (delivery)"
-                parties={parties}
-                value={consignee}
-                onChange={handleConsigneePicked}
-                onPartyCreated={cacheParty}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Commodity</label>
-              <input required value={commodity} onChange={(e) => setCommodity(e.target.value)}
-                placeholder="e.g. Vehicle, Heavy Machinery"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_20rem] gap-6 items-start">
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Shipment Info */}
+          <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Shipment Info</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 grid grid-cols-3 gap-4">
+                <PartyCombobox
+                  role="client"
+                  label="Client (signs the contract)"
+                  parties={parties}
+                  value={client}
+                  onChange={setClient}
+                  onPartyCreated={cacheParty}
+                  required
+                />
+                <PartyCombobox
+                  role="shipper"
+                  label="Shipper (pickup)"
+                  parties={parties}
+                  value={shipper}
+                  onChange={handleShipperPicked}
+                  onPartyCreated={cacheParty}
+                />
+                <PartyCombobox
+                  role="consignee"
+                  label="Consignee (delivery)"
+                  parties={parties}
+                  value={consignee}
+                  onChange={handleConsigneePicked}
+                  onPartyCreated={cacheParty}
+                />
+              </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Pieces</label>
-                <input type="number" min="1" value={pieces} onChange={(e) => setPieces(e.target.value)}
+                <label className="block text-xs font-medium text-gray-600 mb-1">Pickup Date</label>
+                <input type="date" value={pickupDate} onChange={(e) => setPickupDate(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Weight (lbs)</label>
-                <input type="number" min="0" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="0"
+                <label className="block text-xs font-medium text-gray-600 mb-1">Delivery Date</label>
+                <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Pickup Date</label>
-              <input type="date" value={pickupDate} onChange={(e) => setPickupDate(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Delivery Date</label>
-              <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-            </div>
-          </div>
-        </section>
+          </section>
 
-        {/* Route */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-5">Route</h2>
-          <div className="grid grid-cols-2 gap-6">
-            <AddressFields label="Origin" value={origin} onChange={setOrigin} />
-            <AddressFields label="Destination" value={destination} onChange={setDest} />
-          </div>
-        </section>
+          {/* Freight */}
+          <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Freight</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                One line per commodity, each with its own weight and dimensions. Pieces and total
+                weight are added up for you.
+              </p>
+            </div>
+            <CommodityItemsFields value={commodities} onChange={setCommodities} />
+          </section>
 
-        {/* Financials */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Financials</h2>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Agreed Rate (USD)</label>
-              <input type="number" min="0" step="0.01" value={agreedRate} onChange={(e) => setAgreedRate(e.target.value)} placeholder="0.00"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+          {/* Route */}
+          <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Route</h2>
+            <div className="grid grid-cols-2 gap-6">
+              <AddressFields label="Origin" value={origin} onChange={setOrigin} />
+              <AddressFields label="Destination" value={destination} onChange={setDest} />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Broker Fee (USD)</label>
-              <input type="number" min="0" step="0.01" value={brokerFee} onChange={(e) => setBrokerFee(e.target.value)} placeholder="0.00"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Carrier Pay (auto)</label>
-              <div className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700">
-                {carrierPay > 0
-                  ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(carrierPay)
-                  : '—'}
+            <RouteMapLinkField
+              origin={origin}
+              destination={destination}
+              value={routeMapUrl}
+              onChange={setRouteMapUrl}
+            />
+          </section>
+
+          {/* Financials */}
+          <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Financials</h2>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Agreed Rate (USD)</label>
+                <input type="number" min="0" step="0.01" value={agreedRate} onChange={(e) => setAgreedRate(e.target.value)} placeholder="0.00"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Broker Fee (USD)</label>
+                <input type="number" min="0" step="0.01" value={brokerFee} onChange={(e) => setBrokerFee(e.target.value)} placeholder="0.00"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Carrier Pay (auto)</label>
+                <div className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700">
+                  {carrierPay > 0
+                    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(carrierPay)
+                    : '—'}
+                </div>
               </div>
             </div>
+          </section>
+
+          {/* Notes */}
+          <section className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-3">Notes</h2>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
+              placeholder="Any special instructions or details…"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none" />
+          </section>
+
+          {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600">{error}</div>}
+
+          <div className="flex gap-3">
+            <button type="submit" disabled={saving}
+              className="px-6 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
+              {saving ? 'Saving…' : 'Create Quote'}
+            </button>
+            <button type="button" onClick={() => router.back()}
+              className="px-6 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+              Cancel
+            </button>
           </div>
-        </section>
+        </form>
 
-        {/* Notes */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-3">Notes</h2>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
-            placeholder="Any special instructions or details…"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none" />
-        </section>
-
-        {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600">{error}</div>}
-
-        <div className="flex gap-3">
-          <button type="submit" disabled={saving}
-            className="px-6 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
-            {saving ? 'Saving…' : 'Create Quote'}
-          </button>
-          <button type="button" onClick={() => router.back()}
-            className="px-6 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
-            Cancel
-          </button>
-        </div>
-      </form>
+        <DimensionConverter />
+      </div>
     </div>
   );
 }

@@ -88,6 +88,7 @@ export default async function SignPage({ params }: Props) {
         commodity={data.commodity}
         weight={data.weight ? `${Number(data.weight).toLocaleString()} lbs` : '—'}
         pieces={data.pieces ? String(data.pieces) : '—'}
+        dimensions={data.dimensions || ''}
         originStr={data.originStr}
         destinationStr={data.destinationStr}
         pickupDate={fmt(data.pickupDate)}

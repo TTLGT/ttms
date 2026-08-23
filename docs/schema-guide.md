@@ -78,11 +78,13 @@ orders/{orderId}
   shipperId       : string          // → shippers/{shipperId}
   parentOrderId   : string | null   // null = primary order; set = suborder
   status          : OrderStatus
-  commodity       : string          // "Vehicle", "Heavy Machinery", "Pallets", etc.
-  pieces          : number
-  weight          : number          // lbs
+  commodity       : string          // one-line summary, DERIVED from commodities
+  commodities     : CommodityItem[] // itemised freight — source of truth
+  pieces          : number          // DERIVED: sum of commodities[].quantity
+  weight          : number          // DERIVED: total lbs across commodities
   origin          : Address
   destination     : Address
+  routeMapUrl     : string          // Google Maps directions link; auto-built, editable
   pickupDate      : Timestamp | null
   deliveryDate    : Timestamp | null
   carrierId       : string | null   // → carriers/{carrierId}; null until assigned
@@ -97,6 +99,35 @@ orders/{orderId}
   createdAt       : Timestamp
   updatedAt       : Timestamp
 ```
+
+### `CommodityItem`
+
+One line of freight. A load is often a mix of objects of different sizes, so
+weight and dimensions live per item rather than on the order.
+
+```
+{
+  id            : string          // client-generated; React key only
+  description   : string
+  quantity      : number          // pieces on this line
+  length        : number
+  width         : number
+  height        : number
+  dimensionUnit : "in" | "ft" | "cm" | "m"
+  weight        : number          // per PIECE, in weightUnit
+  weightUnit    : "lb" | "kg"
+}
+```
+
+Units are stored beside the numbers rather than normalised, so a dimension
+reads back in the units it was quoted in. Convert with the helpers in
+`src/types/order.ts` (`toInches`, `toPounds`, `itemWeightLb`, `itemVolumeFt3`).
+
+`order.commodity`, `order.pieces` and `order.weight` are derived from this
+array on every save and kept because order lists, the BOL/invoice PDFs and the
+agreement emails read them directly. Orders written before this array existed
+have no `commodities` field — read them through `orderCommodityItems(order)`,
+which collapses the legacy fields into a single dimensionless line.
 
 ### `OrderStatus` enum
 ```
