@@ -51,6 +51,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => { cancelled = true; };
   }, [user]);
 
+  // The shell is exactly the viewport, so the window itself has no business
+  // scrolling here. See .app-shell-locked in globals.css for what makes it try.
+  useEffect(() => {
+    document.documentElement.classList.add('app-shell-locked');
+    return () => document.documentElement.classList.remove('app-shell-locked');
+  }, []);
+
   useEffect(() => {
     if (!loading && !user) router.replace('/login');
   }, [user, loading, router]);

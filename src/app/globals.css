@@ -64,3 +64,20 @@
 .sidebar-scroll::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.35);
 }
+
+/*
+ * The dashboard shell is exactly the viewport and scrolls inside <main>
+ * (src/app/dashboard/layout.tsx), so the window should never scroll on a
+ * dashboard route. It still can: anything that lands in <body> beside the
+ * shell — the iframe Firebase Auth appends, the dev overlay, a browser
+ * extension's injected node — stacks under the shell's 100vh and makes the
+ * document taller than the viewport. The result is a second scrollbar and a
+ * band of empty background below the sidebar. Pinning the document height
+ * removes that outer scroll whatever put it there. The class is added by the
+ * dashboard layout only; /login and /sign are ordinary scrolling pages.
+ */
+html.app-shell-locked,
+html.app-shell-locked body {
+  height: 100%;
+  overflow: hidden;
+}
