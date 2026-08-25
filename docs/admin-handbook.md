@@ -87,7 +87,7 @@ and most of the rest opens up.
 | **Firebase Console** (`ttms-59aa5`) | Google — `it@totaltransportlogistics.us` | The database, uploaded files, sign-in, and security rules |
 | **Vercel** | Google — `it@totaltransportlogistics.us` | Website hosting. The account exists, but **TTMS is not deployed on it yet** — see [Deployment](#deployment--currently-unresolved). |
 | **TTMS itself** | Google — your own company address | The app. Being in the allowlist is what grants access, not the Google login itself. |
-| **Resend** | Ask whoever currently runs TTMS | Sends the agreement emails |
+| **Resend** | **Continue with GitHub** — which is itself Google, `it@totaltransportlogistics.us` | Sends the agreement emails. Account is owned by the `it@` role account. **Not yet usable — no verified domain, no API key.** See [Email sending](#email-sending--not-yet-provisioned). |
 | **Claude Code** | ⚠️ **No company account exists** — see below | Optional AI assistant for code work |
 
 > ### ⚠️ The Claude account is personal, and it leaves with Erwin
@@ -409,7 +409,10 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 - *Client values*: Firebase Console → Project Settings → General → Your apps.
 - *Admin values*: Project Settings → Service Accounts → **Generate new private key**; take `client_email` and `private_key` from the JSON.
 - `FIREBASE_ADMIN_PRIVATE_KEY` keeps its `\n` escapes and is quoted; `src/lib/firebase-admin.ts` converts them back.
-- *Resend*: resend.com → API Keys. The sending domain must stay verified.
+- *Resend*: resend.com → API Keys. **There is no key yet, and the sending
+  domain is not verified** — leave `RESEND_API_KEY` blank until both are done, or
+  agreement emails will fail at send time. See
+  [Email sending](#email-sending--not-yet-provisioned).
 
 > ⚠️ `NEXT_PUBLIC_APP_URL` is still `http://localhost:3000`. Every e-sign link
 > emailed to a carrier or shipper is built from it.
@@ -648,6 +651,53 @@ customer per mile from an estimate.**
 
 ---
 
+## Email sending — not yet provisioned
+
+TTMS sends two emails, both carrying an e-signature link: the carrier rate
+confirmation and the shipper load confirmation. Both go through Resend. **Today
+neither can send.** Nothing is broken — it was simply never finished.
+
+**What exists.** A Resend account, on the team `totaltransportlogistics`, owned
+by `it@totaltransportlogistics.us`. Sign in at resend.com with **Continue with
+GitHub** — that GitHub account is itself Google sign-in as `it@`, so the chain is
+Google → GitHub → Resend. There is no password to look for. If you try
+email-and-password you will conclude you have no access, and you would be wrong.
+
+**What is missing.** Three things, in this order:
+
+1. **A verified sending domain.** Resend lists no domains. `totaltransportlogistics.us`
+   has no Resend DNS records at all.
+2. **An API key.** Resend lists none, and `.env.local` has no `RESEND_API_KEY`.
+3. **A real `NEXT_PUBLIC_APP_URL`.** Signing links are built from it, so until
+   there is a deployment they point at `localhost` and are useless to a carrier.
+
+Because Resend is initialized lazily and both routes check for the key first,
+the current behaviour is a clean failure at send time — not a crash, and not a
+silently dropped email. No agreement email has ever been sent from this system.
+
+### Finishing it
+
+The step that depends on someone else is **DNS**, so start there.
+
+1. Resend → **Domains** → Add domain → `totaltransportlogistics.us`. Resend shows
+   the DKIM and SPF records to add.
+2. Add those records to the DNS zone for `totaltransportlogistics.us`. **You need
+   whoever controls that zone.** Mail is on Google Workspace (`smtp.google.com`),
+   so it is likely managed alongside it.
+3. Once Resend shows the domain verified: **API keys** → Create API key → put it
+   in `.env.local` as `RESEND_API_KEY`. Never commit it.
+
+Two things worth deciding while you are in there:
+
+- **MFA is off** on the only member of the account, and that member is an Admin.
+  This account sends the documents your signature audit trail is built on. Turn
+  it on.
+- **The domain's SPF record currently authorizes SendGrid**, not Resend
+  (`include:sendgrid.net`). Someone at TTL set that up for something. Before
+  adding a second email provider, it is worth asking whether TTL already pays
+  for one — switching TTMS to it is a code change in both send routes, not a
+  settings change, so decide before rather than after.
+
 ## Deployment — currently unresolved
 
 **There is no deployment configured.** Confirmed: no `vercel.json` or
@@ -676,14 +726,14 @@ Until #2 is done, assume every local change is live.
 - [ ] GitHub org (`TTLGT`) reachable via **Continue with Google** as `it@`; repo cloned.
 - [ ] Firebase Console access to `ttms-59aa5` (Google, `it@`) — ideally Owner, some rules operations need it.
 - [ ] Vercel reachable (Google, `it@`). Nothing is deployed there yet.
-- [ ] Resend account login — **owner unknown, ask before handover completes.**
+- [ ] Resend reachable at resend.com via **Continue with GitHub** as `it@`. Owned by the `it@` role account — nothing to chase. **Turn on MFA:** it is currently off, and this account sends your signed agreements.
 - [ ] Confirmed sign-in to TTMS itself as `it@totaltransportlogistics.us` — the lockout recovery path.
 - [ ] **If you want the Claude Code workflow: TTL has no paid Claude account.** The prior work used a personal one. Budget for a company plan or skip Part 3.
 - [ ] `.env.local` built and `npm run dev` serving the dashboard.
 - [ ] `npm run build` passes on a clean checkout.
 - [ ] `node scripts/deploy-rules.js --dry-run` confirms deployed rules match the repo. If not, that's job one.
 - [ ] Read `accessControl.ts` and `firebase-admin.ts` end to end — short, and they govern everything.
-- [ ] Resend sending domain still verified.
+- [ ] Resend sending domain verified — **it is not yet.** This blocks all agreement email; see [Email sending](#email-sending--not-yet-provisioned).
 - [ ] Production deployment and dev/prod split planned.
 
 ## Troubleshooting

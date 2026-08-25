@@ -189,8 +189,8 @@ const CHAPTERS: Chapter[] = [
             ]} />
             <Row cells={[
               <strong key="rs">Resend</strong>,
-              'Ask whoever currently runs TTMS',
-              'Sends the agreement emails',
+              <><strong>Continue with GitHub</strong> — which is Google, <Mono>it@</Mono></>,
+              'Sends the agreement emails. Owned by the it@ role account. Not usable yet — the sending domain is unverified and no API key exists.',
             ]} />
           </tbody>
         </Table>
