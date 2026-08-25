@@ -27,3 +27,7 @@ tsconfig.tsbuildinfo
 
 # Live-rules dumps written by scripts/compare-rules.js when it finds drift
 live-*.rules.tmp
+
+# BATS CRM exports — real client/carrier data, dropped in the root for the
+# importer. Never commit them.
+*-export-*.csv
