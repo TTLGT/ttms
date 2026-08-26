@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
     isAdmin:      bootstrap || entry.isAdmin === true,
     isDispatcher: entry.isDispatcher === true,
     isFinance:    entry.isFinance === true,
+    isHr:         entry.isHr === true,
   };
 
   // An admin-entered name wins over the one Google reports: it is the name the
@@ -83,6 +84,11 @@ export async function POST(req: NextRequest) {
     phoneGt:     entry.phoneGt ?? '',
     extension:   entry.extension ?? '',
     siteId:      entry.siteId ?? null,
+    // Mirrored so the app can show who someone reports to without reading the
+    // allowlist. The payroll fields on that entry — legal name, date of birth,
+    // personal email, start date — deliberately stay behind, because every
+    // signed-in user can read this document.
+    teamId:      entry.teamId ?? null,
     photoPath:   entry.photoPath ?? null,
     ...roles,
     // Written on every sign-in so a restored account cannot keep a stale
@@ -119,11 +125,18 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ profile });
 }
 
-/** Storage rules can only see custom claims, so roles are mirrored there. */
+/**
+ * Storage rules can only see custom claims, so roles are mirrored there.
+ *
+ * `isHr` is deliberately absent: nothing in storage.rules or firestore.rules
+ * reads it — HR is enforced against the `users/{uid}` profile, which rules can
+ * look up — and a claim nobody reads is only one more thing to drift out of
+ * sync. Add it here the day a Storage path actually needs it.
+ */
 async function syncClaims(
   uid: string,
   decoded: Record<string, unknown>,
-  roles: { isAdmin: boolean; isDispatcher: boolean; isFinance: boolean },
+  roles: { isAdmin: boolean; isDispatcher: boolean; isFinance: boolean; isHr: boolean },
 ) {
   const desired = {
     ttlAccess:  true,

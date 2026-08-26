@@ -8,6 +8,7 @@ import { formatCalendarDate } from '@/types/allowedUser';
 import { removedUserName, removedUserRoles } from '@/types/removedUser';
 import type { RemovedUser } from '@/types/removedUser';
 import type { Site } from '@/types/site';
+import type { Team } from '@/types/team';
 
 /**
  * The removal log — who was taken off the system, when, and by whom.
@@ -38,7 +39,13 @@ function csvWhen(iso: string | null): string {
          `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export default function RemovedPeoplePanel({ sites }: { sites: Site[] }) {
+export default function RemovedPeoplePanel({
+  sites,
+  teams,
+}: {
+  sites: Site[];
+  teams: Team[];
+}) {
   const [open, setOpen]           = useState(false);
   const [users, setUsers]         = useState<RemovedUser[] | null>(null);
   const [truncated, setTruncated] = useState(false);
@@ -47,6 +54,11 @@ export default function RemovedPeoplePanel({ sites }: { sites: Site[] }) {
 
   const siteName = (id: string | null | undefined) =>
     sites.find((s) => s.id === id)?.name ?? null;
+  // A team deleted after the person was removed resolves to nothing, which is
+  // the honest answer — the archive keeps the id, not a name that may have
+  // been renamed since.
+  const teamName = (id: string | null | undefined) =>
+    teams.find((t) => t.id === id)?.name ?? null;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,8 +86,9 @@ export default function RemovedPeoplePanel({ sites }: { sites: Site[] }) {
     if (!users) return;
 
     const header = [
-      'Name', 'Email', 'Personal email', 'Work phone (US)', 'Guatemala phone',
-      'Extension', 'Site', 'Date of birth', 'Start date', 'Roles held',
+      'Name', 'Full legal name', 'Email', 'Personal email', 'Work phone (US)',
+      'Guatemala phone', 'Extension', 'Site', 'Team', 'Date of birth', 'Start date',
+      'Roles held',
       'Was suspended', 'Added', 'Added by', 'Last sign-in', 'Removed', 'Removed by',
     ];
 
@@ -83,12 +96,14 @@ export default function RemovedPeoplePanel({ sites }: { sites: Site[] }) {
       const roles = removedUserRoles(u);
       return [
         removedUserName(u),
+        u.legalName ?? '',
         u.email,
         u.personalEmail ?? '',
         u.phone ?? '',
         u.phoneGt ?? '',
         u.extension ?? '',
         siteName(u.siteId) ?? '',
+        teamName(u.teamId) ?? '',
         u.dateOfBirth ?? '',
         u.startDate ?? '',
         // Same convention as the main export: Broker is the absence of the
@@ -195,6 +210,7 @@ export default function RemovedPeoplePanel({ sites }: { sites: Site[] }) {
                             {[
                               roles.length > 0 ? roles.join(', ') : 'Broker',
                               siteName(u.siteId),
+                              teamName(u.teamId) ? `Team ${teamName(u.teamId)}` : null,
                               u.extension ? `ext. ${u.extension}` : null,
                               u.phone ? `US ${u.phone}` : null,
                               u.phoneGt ? `GT ${u.phoneGt}` : null,
@@ -204,9 +220,10 @@ export default function RemovedPeoplePanel({ sites }: { sites: Site[] }) {
                           {/* Kept because they are what an admin needs if the
                               removal turns out to have been a mistake and the
                               person has to be set up again. */}
-                          {(u.personalEmail || u.startDate || u.dateOfBirth) && (
+                          {(u.personalEmail || u.legalName || u.startDate || u.dateOfBirth) && (
                             <p className="text-xs text-gray-500 truncate">
                               {[
+                                u.legalName ? `legally ${u.legalName}` : null,
                                 u.personalEmail,
                                 u.startDate ? `started ${formatCalendarDate(u.startDate)}` : null,
                                 u.dateOfBirth ? `b. ${formatCalendarDate(u.dateOfBirth)}` : null,

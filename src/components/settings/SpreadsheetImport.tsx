@@ -97,9 +97,13 @@ export default function SpreadsheetImport({ onImported }: { onImported: () => vo
    * way to explain an accepted date format is to show one.
    */
   function handleTemplate() {
+    // The legal name in the example differs from first + last on purpose: that
+    // is the whole reason the column exists, and an example that repeated
+    // "Maria Ruiz" would teach the opposite.
     const example = [
-      `new.person@${ALLOWED_EMAIL_DOMAIN}`, 'Maria', 'Ruiz', 'maria.ruiz@example.com',
-      '(555) 123-4567', '+502 5555 5555', '204', 'Houston Office',
+      `new.person@${ALLOWED_EMAIL_DOMAIN}`, 'Maria', 'Ruiz',
+      'Maria del Carmen Ruiz Gómez', 'maria.ruiz@example.com',
+      '(555) 123-4567', '+502 5555 5555', '204', 'Houston Office', 'Top Brokers',
       '1990-03-04', '2024-01-15', 'Dispatcher, Finance',
     ];
     downloadCsv('ttms-people-template.csv', toCsv([TEMPLATE_HEADERS, example]));

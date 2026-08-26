@@ -229,7 +229,9 @@ dark window. Either is fine.
 ## 6. Giving someone access
 
 **All of this happens inside TTMS in your browser. No typing commands.**
-You must be signed in as an **Admin** to see the Settings page.
+You must be signed in as an **Admin** to change anything on the Settings page.
+Someone with the **HR** role can open it and read the list, but every button
+described in this section is absent for them.
 
 > Signing in with Google grants nothing on its own. A person can only get in
 > once their email address has been added here. This is deliberate.
@@ -240,13 +242,15 @@ You must be signed in as an **Admin** to see the Settings page.
 3. Type their email address into the box.
    - It must end in **`@totaltransportlogistics.us`**. Anything else is skipped, and a yellow warning appears naming it — usually that means a typo.
    - You can paste **several** addresses, one per line, to add a batch.
-4. Fill in **Their details** — name, personal email, phones, extension, start
-   date, date of birth. Fill in what you know; the rest can be added later.
+4. Fill in **Their details** — name, **full legal name**, personal email,
+   phones, extension, start date, date of birth. Fill in what you know; the
+   rest can be added later.
    - These fields are only available when there is **one** address in the box.
      A name and a birthday belong to one person, so with several addresses
      pasted in they grey out. Use the Spreadsheet mode to give details to
      several people at once.
-5. Pick their **Site** from the dropdown, if your company uses sites.
+5. Pick their **Site** and their **Team** from the dropdowns. Site is where
+   they sit; Team is who they report to. See section 6a.
 6. Pick their **Roles**:
 
    | Role | What they can do |
@@ -255,9 +259,10 @@ You must be signed in as an **Admin** to see the Settings page.
    | **Admin** | Sees every record, and can manage who has access. |
    | **Dispatcher** | Can send carrier and shipper agreements. |
    | **Finance** | Can generate BOLs and invoices. |
+   | **HR** | Can open Settings and **read** the people list, including full legal names, birthdays and personal emails. Can export it. Cannot change anything, and sees no more clients or loads than a Broker. |
 
    Everyone is a Broker unless you give them something else. Clicking **Broker** takes the other roles away.
-   Site and roles are the two things that **do** apply to everyone in a batch, which is why they stay available however many addresses you paste.
+   Site, team and roles are the things that **do** apply to everyone in a batch, which is why they stay available however many addresses you paste.
 7. Click **Add Person** (or **Add N People**).
 8. **You should see:** a small list confirming *"Added 3 of 3"*, with a green tick next to each address.
 
@@ -267,13 +272,19 @@ The new person appears in the **People With Access** list below, marked
 ### Filling in their details
 
 Click the **pencil** icon on someone's row to record who they are: first and
-last name, a photo, their site, work phone, Guatemala phone, desk extension,
-**personal email**, **start date** and **date of birth**.
+last name, a photo, their site, their team, work phone, Guatemala phone, desk
+extension, **full legal name**, **personal email**, **start date** and
+**date of birth**.
 
-> **Date of birth and personal email are admin-only.** They are stored against
-> the access list, which only Admins can read — they are never copied onto the
-> profile the rest of the company can see. Start date, name, phones and site
-> are visible to everyone.
+> **Full legal name, date of birth and personal email are seen by Admins and HR
+> only.** They are stored against the access list, which nobody else can read —
+> they are never copied onto the profile the rest of the company can see. Name,
+> phones, extension, site and team are visible to everyone.
+
+**Full legal name** is for payroll: the name exactly as it appears on their
+paperwork, for the people whose everyday name is not the one on the form —
+a maiden name, a full compound surname, a middle name nobody uses at work.
+Leave it blank when it is simply their first and last name.
 
 Use this to change details **after** someone is on the list — when adding them,
 fill the same fields in on the Add People panel instead. For more than a handful
@@ -302,8 +313,8 @@ next time they load a page.
 Removing someone deletes their entry, so the list below stops showing them
 entirely. **Settings → Removed People** is the record that they were ever here:
 click it open to see everyone who has been removed, when, and **which admin did
-it** — along with the name, phones, site, roles, start date and personal email
-they had at the time.
+it** — along with the name, full legal name, phones, site, team, roles, start
+date and personal email they had at the time.
 
 Two things it is good for:
 
@@ -328,6 +339,56 @@ you have filtered the list, you get the filtered version.
 
 ---
 
+## 6a. Sites, Teams and Work Groups
+
+Three panels near the bottom of Settings group people in three different ways.
+They are easy to mix up, so here is the difference in one table.
+
+| Panel | Answers | Changes what they can see? |
+|---|---|---|
+| **Sites** | *Where do they sit?* An office, terminal or yard. | **No** |
+| **Teams** | *Who do they report to?* | **No** |
+| **Work Groups** | *Whose clients and loads can they open?* | **Yes** |
+
+**Sites** and **Teams** are just labels. Putting someone on a team records
+their place in the org chart and nothing else — it does not give them access to
+one single extra record. **Work Groups** are the opposite: everyone in a work
+group can see every client, shipper and consignee that group owns. That is the
+whole point of them.
+
+> If you want two people to share a book of business, that is a **Work Group**.
+> If you want to record that Maria reports to Gabe, that is a **Team**. Doing it
+> with the wrong one either fails to share anything, or shares far more than you
+> meant to.
+
+### Setting up teams
+
+**Settings → Teams**.
+
+1. Type the team name — for example `GT`, `Top Brokers`, `Hibrid`, `Staff`.
+2. Pick the **lead** from the dropdown: the person everyone on that team reports
+   to. You can leave it as *No lead yet* and set it later.
+   - Only people who have **already signed in at least once** appear in this
+     list. Someone still showing as *Pending* cannot be made a lead until they
+     log in.
+3. Click **Add team**.
+
+Each team's row shows who it reports to and how many people are on it. The
+pencil icon renames it or changes the lead; the trash icon deletes it.
+
+**Deleting a team** leaves everyone who was on it without a team. It does not
+touch their access, their records or anything else — TTMS tells you how many
+people were affected.
+
+A team often turns out to be everyone in one office, but it does not have to
+be. Site and team are separate fields precisely so a team can span two offices,
+or one office can hold several teams.
+
+People are put on a team from the **People With Access** list above — the pencil
+icon on their row — or in bulk with the spreadsheet in section 7.
+
+---
+
 ## 7. Adding or updating many people at once
 
 When you are setting up TTMS for the whole company — or your HR list has been
@@ -347,12 +408,14 @@ typing each person in.
    | Column | Notes |
    |---|---|
    | **Email** | Required. Must end in `@totaltransportlogistics.us`. This is what identifies the person. |
-   | First name, Last name | |
-   | Personal email | Any address. Admin-only. |
+   | First name, Last name | The name the office uses. |
+   | **Full legal name** | The payroll name, if it differs. Admin and HR only. Leave blank when it is just their first and last name. |
+   | Personal email | Any address. Admin and HR only. |
    | Work phone (US), Guatemala phone, Extension | Typed however you like. |
    | Site | The site's **name**, spelled as it appears under Sites. Write `None` to clear it. |
+   | **Team** | The team's **name**, spelled as it appears under Teams. Write `None` to clear it. |
    | Date of birth, Start date | Best written as `1990-03-04`. `3/4/2020` and `Mar 4, 2020` also work. |
-   | Roles | `Admin`, `Dispatcher`, `Finance` — separated by commas — or `Broker` for none. |
+   | Roles | `Admin`, `Dispatcher`, `Finance`, `HR` — separated by commas — or `Broker` for none. |
 
 3. Drag the file onto the drop box and click **Check the file**.
 4. **You should see:** a summary such as *"Ready to save: 4 new, 11 updated"*,
@@ -373,9 +436,11 @@ typing each person in.
   adds and updates. It never suspends and never removes anyone — those are
   still deliberate, one-at-a-time actions.
 
-If a row has something TTMS cannot read — an unrecognisable date, a site that
-does not exist, a misspelled role — that **whole row** is skipped and named in
-the results, so it never gets half-saved. Fix it in Excel and upload again.
+If a row has something TTMS cannot read — an unrecognisable date, a site or
+team that does not exist, a misspelled role — that **whole row** is skipped and
+named in the results, so it never gets half-saved. Fix it in Excel and upload
+again. Sites and teams have to exist before you can import people into them, so
+add those first.
 
 > You cannot remove your own Admin role this way, and neither can the protected
 > `it@`, `operations@` and `dispatch@` accounts lose theirs. If a file tries,
@@ -574,9 +639,25 @@ without a verified entry.
 Neither is client-writable; all changes go through the Admin SDK, so nobody can
 self-promote.
 
-**Roles:** `isAdmin`, `isDispatcher`, `isFinance`. *Broker* is the default and is
-derived, not stored — deliberately, so there is no account that is neither a
-broker nor anything else.
+**Roles:** `isAdmin`, `isDispatcher`, `isFinance`, `isHr`. *Broker* is the
+default and is derived, not stored — deliberately, so there is no account that
+is neither a broker nor anything else.
+
+`isHr` grants **read-only access to the people directory and nothing else**: an
+HR user can open Settings, read every allowlist entry including the payroll
+fields (`legalName`, `dateOfBirth`, `personalEmail`, `startDate`) and export the
+list. They cannot write anything, and they are deliberately absent from
+`canSeeAllParties()`, so they see no more clients or loads than a plain broker.
+Three things follow, all easy to break by accident:
+
+- The `allowedUsers` read rule in `firestore.rules` is `isAdmin() || isHr()`. That rule, not the Settings page, is what enforces this.
+- `isHr` has **no custom claim**. Nothing in either rules file reads one, and the profile lookup is enough. Don't add one speculatively.
+- Payroll fields must never reach `users/{uid}` — every signed-in user can read that document. Check `MIRRORED_FIELDS` in `src/lib/userImport.ts` and the `patch`/`privatePatch` split in `/api/admin/users` before adding a field.
+
+**Sites vs teams vs work groups.** `sites` (where someone sits) and `teams` (who
+they report to) are reference data and grant nothing; `workGroups` is an access
+boundary that shares parties between members. Nothing in `firestore.rules` reads
+`teamId` and nothing should start to — see `src/types/team.ts`.
 
 **🔑 Lockout escape hatch.** `BOOTSTRAP_ADMIN_EMAILS` in
 `src/lib/accessControl.ts` is always allowed and always admin, even against an
@@ -607,7 +688,7 @@ All under `src/app/api/`. Each guards itself with a helper from
 | `/api/orders/[id]/party-approvals` | Record party authorization | authenticated |
 | `/api/parties`, `/api/parties/resolve` | Party CRUD, dedup lookup | authenticated |
 | `/api/parties/access-requests[/id]` | Request/approve party access | authenticated |
-| `/api/sites[/id]`, `/api/work-groups[/id]` | Settings reference data | authenticated |
+| `/api/sites[/id]`, `/api/teams[/id]`, `/api/work-groups[/id]` | Settings reference data. `GET` authenticated; writes `requireAdmin`. | authenticated |
 | **`POST /api/sign/[token]`** | **PUBLIC.** External signer submits a signature | One-time token |
 
 **The e-sign flow** is the one genuinely public surface. `/sign/{token}` takes no

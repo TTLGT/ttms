@@ -294,8 +294,20 @@ a company address that was never invited is refused.
 
 | Collection     | Role                                                                       |
 |----------------|----------------------------------------------------------------------------|
-| `allowedUsers` | The allowlist, keyed by lowercased email. Source of truth for roles. Admin-readable, never client-writable. |
+| `allowedUsers` | The allowlist, keyed by lowercased email. Source of truth for roles. Readable by admins and HR, never client-writable. |
 | `users`        | Live profile for someone who has actually signed in, keyed by uid. Provisioned server-side from the allowlist. |
+
+**Roles.** `isAdmin`, `isDispatcher`, `isFinance`, `isHr`. Broker is derived —
+it is what someone has when none of the four is set (`isBroker()` in
+`src/lib/accessControl.ts`) — and is deliberately never stored.
+
+`isHr` is the odd one out: it grants **read-only access to this directory and
+nothing else**. An HR user opens Settings, sees the people list including the
+payroll fields below, and can export it; they cannot grant a role, edit an
+entry, suspend, remove or import. They see no more clients or loads than a
+plain broker, which is why `isHr` is deliberately absent from
+`canSeeAllParties()`. It is also the one role with no custom claim — nothing in
+the rules reads one, and it is enforced against `users/{uid}` instead.
 
 An entry with `uid: null` is a pending invite — created, but the person has not
 signed in yet.
@@ -306,12 +318,16 @@ that entry, and mirrors them into custom claims. `AuthContext` signs the user
 out if this call fails, so there is no signed-in state without a verified entry.
 
 **Personal fields are not mirrored.** The allowlist entry also carries
-`personalEmail`, `dateOfBirth` and `startDate`. Unlike the name, phones,
-extension and site, these are **never** copied onto `users/{uid}`: that document
-is readable by every signed-in user under `firestore.rules`, while `allowedUsers`
-is admin-only. Anything added to the mirror in `/api/admin/users` or
-`src/lib/userImport.ts` is published to the whole company — check before
-extending it.
+`legalName`, `personalEmail`, `dateOfBirth` and `startDate`. Unlike the name,
+phones, extension, site and team, these are **never** copied onto `users/{uid}`:
+that document is readable by every signed-in user under `firestore.rules`, while
+`allowedUsers` is readable only by admins and HR. Anything added to the mirror in
+`/api/admin/users` or `src/lib/userImport.ts` is published to the whole company —
+check before extending it.
+
+`legalName` is the name as it appears on payroll and legal paperwork, for the
+people whose everyday name is not the one on the form. It is one free-text field
+rather than parts, because it exists to be copied verbatim onto a document.
 
 **Bulk import.** Settings → Add People → Spreadsheet (`/api/admin/users/import`)
 adds and updates entries from a CSV, matching on email. It never suspends or
@@ -344,6 +360,31 @@ the only evidence a person was ever on the system and the only place their
 details survive a mistaken removal, so shortening its life defeats both reasons
 it exists. If a future legal obligation forces expiry, that is a decision for
 the owner, not a maintenance task.
+
+## Collections: `sites` and `teams`
+
+Two pieces of reference data about people, both assignable from the People With
+Access list, both **non-access-bearing**.
+
+| Collection | Answers | Stored on the person as |
+|---|---|---|
+| `sites` | Where they sit — an office, terminal or yard. `{ name, address }` | `siteId` |
+| `teams` | Who they report to. `{ name, leadUid }` — everyone on a team reports to its lead. | `teamId` |
+
+Both are mirrored onto `users/{uid}` and both are cleared from every allowlist
+entry and profile when the parent document is deleted (see the `DELETE` in
+`/api/sites/[siteId]` and `/api/teams/[teamId]`). A team's `leadUid` is also
+cleared when that person is removed from the system.
+
+**Teams are not work groups.** A team is an org chart; a `workGroups` document
+is an access boundary that shares clients, shippers and consignees between its
+members. Nothing in `firestore.rules` reads `teamId`, and nothing should start
+to — recording that someone reports to a manager must never hand them that
+manager's book of business. The two exist side by side on purpose.
+
+Teams often line up with sites, because a team is frequently everyone in one
+office, but they are separate fields: a team can span offices and an office can
+hold several teams.
 
 **Lockout protection.** `BOOTSTRAP_ADMIN_EMAILS` in `src/lib/accessControl.ts`
 (mirrored in `firestore.rules`) is always allowed and always admin, so an empty

@@ -100,11 +100,22 @@ claims. Any failure signs the user straight back out. Preserve that property:
 - `users/{uid}` — live profile, provisioned server-side.
 - Neither is client-writable. All mutations go through the Admin SDK so nobody can self-promote.
 
-Roles: `isAdmin`, `isDispatcher`, `isFinance`. **Broker is derived, never
-stored** — `isBroker()` returns true when none of the three is set. Do not add
-an `isBroker` field; the file explains why (a stored flag would permit an
+Roles: `isAdmin`, `isDispatcher`, `isFinance`, `isHr`. **Broker is derived,
+never stored** — `isBroker()` returns true when none of the four is set. Do not
+add an `isBroker` field; the file explains why (a stored flag would permit an
 account that is neither a broker nor anything else, a state the rules don't
 enforce).
+
+`isHr` is read-only access to the people directory and nothing else. It is
+deliberately **not** in `canSeeAllParties()` and deliberately has **no custom
+claim**. The payroll fields it exists to expose (`legalName`, `dateOfBirth`,
+`personalEmail`, `startDate`) must never be mirrored onto `users/{uid}`, which
+every signed-in user can read — check `MIRRORED_FIELDS` in `src/lib/userImport.ts`
+and the `patch`/`privatePatch` split in `/api/admin/users` before adding a field.
+
+`sites` and `teams` are reference data that grant nothing — a team records who
+someone reports to. `workGroups` is the access boundary. Nothing in the rules
+reads `teamId`; don't make it.
 
 ### Duplicated logic that must stay in sync
 
@@ -115,6 +126,7 @@ Changing one without the other creates a silent security hole:
 |---|---|
 | `BOOTSTRAP_ADMIN_EMAILS` | `isBootstrapAdmin()` |
 | `canSeeAllParties()` | `canSeeAllParties()` |
+| `canSeeDirectory()` | `isHr()` + the `allowedUsers` read rule |
 
 Both carry "keep in sync" comments. **After editing either, deploy the rules
 (below) — otherwise only half the change is live.**

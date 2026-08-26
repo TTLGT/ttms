@@ -14,6 +14,8 @@ import {
   revokeUser,
 } from '@/lib/allowedUsers';
 import { isBootstrapAdmin, isBroker, normalizeEmail } from '@/lib/accessControl';
+import { listSites } from '@/lib/sites';
+import { listTeams } from '@/lib/teams';
 import { useAuth } from '@/context/AuthContext';
 import {
   accessStatus, formatCalendarDate, fullName, splitName, yearsSince,
@@ -21,11 +23,13 @@ import {
 import type { AllowedUser, AllowedUserRole } from '@/types/allowedUser';
 import { toCsv, csvDate, downloadCsv } from '@/lib/csv';
 import type { Site } from '@/types/site';
+import type { Team } from '@/types/team';
 import AddPeoplePanel from '@/components/settings/AddPeoplePanel';
 import BatsImportPanel from '@/components/settings/BatsImportPanel';
 import LaneDistancePanel from '@/components/settings/LaneDistancePanel';
 import RemovedPeoplePanel from '@/components/settings/RemovedPeoplePanel';
 import SitesPanel from '@/components/settings/SitesPanel';
+import TeamsPanel from '@/components/settings/TeamsPanel';
 import { AvatarUploader, UserAvatar } from '@/components/settings/UserAvatar';
 import WorkGroupsPanel from '@/components/settings/WorkGroupsPanel';
 
@@ -38,9 +42,10 @@ const ROLE_CHIPS: { field: AllowedUserRole; label: string }[] = [
   { field: 'isAdmin',      label: 'Admin' },
   { field: 'isDispatcher', label: 'Dispatcher' },
   { field: 'isFinance',    label: 'Finance' },
+  { field: 'isHr',         label: 'HR' },
 ];
 
-const NO_ROLES = { isAdmin: false, isDispatcher: false, isFinance: false };
+const NO_ROLES = { isAdmin: false, isDispatcher: false, isFinance: false, isHr: false };
 
 type StatusFilter = 'all' | 'active' | 'pending' | 'suspended';
 /** 'broker' means "no elevated role" — the default everyone starts with. */
@@ -187,7 +192,7 @@ function CountTile({
 }
 
 export default function SettingsPage() {
-  const { user, isAdmin }       = useAuth();
+  const { user, isAdmin, isHr } = useAuth();
   const router                  = useRouter();
   const [people, setPeople]     = useState<AllowedUser[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -203,14 +208,24 @@ export default function SettingsPage() {
   // Loaded by SitesPanel below and handed up, so the collection is read once
   // for both the picker here and the list there.
   const [sites, setSites] = useState<Site[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const siteName = (id: string | null | undefined) =>
     sites.find((x) => x.id === id)?.name ?? null;
+  const teamName = (id: string | null | undefined) =>
+    teams.find((x) => x.id === id)?.name ?? null;
 
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft]     = useState({
-    firstName: '', lastName: '', personalEmail: '', phone: '', phoneGt: '',
-    extension: '', dateOfBirth: '', startDate: '', siteId: '',
+    firstName: '', lastName: '', legalName: '', personalEmail: '', phone: '', phoneGt: '',
+    extension: '', dateOfBirth: '', startDate: '', siteId: '', teamId: '',
   });
+
+  /**
+   * HR reads this page; only admins act on it. Everything that writes is gated
+   * on this rather than on `isAdmin` directly, so there is one place to look
+   * when asking what HR can do here.
+   */
+  const canEdit = isAdmin;
 
   const myEmail = normalizeEmail(user?.email);
 
@@ -223,6 +238,17 @@ export default function SettingsPage() {
     setPeople((prev) =>
       prev.some((p) => p.siteId && !live.has(p.siteId))
         ? prev.map((p) => (p.siteId && !live.has(p.siteId) ? { ...p, siteId: null } : p))
+        : prev,
+    );
+  }, []);
+
+  /** Same contract as handleSitesLoaded above, for the same reasons. */
+  const handleTeamsLoaded = useCallback((rows: Team[]) => {
+    setTeams(rows);
+    const live = new Set(rows.map((r) => r.id));
+    setPeople((prev) =>
+      prev.some((p) => p.teamId && !live.has(p.teamId))
+        ? prev.map((p) => (p.teamId && !live.has(p.teamId) ? { ...p, teamId: null } : p))
         : prev,
     );
   }, []);
@@ -247,12 +273,25 @@ export default function SettingsPage() {
   }, [refresh]);
 
   useEffect(() => {
-    if (!isAdmin) {
+    // HR belongs here too — read-only. Anyone else is bounced, and the
+    // Firestore rules on `allowedUsers` refuse them independently of this.
+    if (!isAdmin && !isHr) {
       router.replace('/dashboard');
       return;
     }
     load();
-  }, [isAdmin, router, load]);
+  }, [isAdmin, isHr, router, load]);
+
+  // Sites and teams normally arrive from the panels at the bottom of the page,
+  // which hand their rows up rather than making this component fetch the same
+  // two collections again. Those panels only render for admins, so HR has to
+  // fetch them directly — without this every row would show a blank site and
+  // team. Both endpoints are readable by any signed-in user.
+  useEffect(() => {
+    if (canEdit) return;
+    void listSites().then(setSites).catch(() => {});
+    void listTeams().then(setTeams).catch(() => {});
+  }, [canEdit]);
 
   async function handleToggle(person: AllowedUser, field: AllowedUserRole) {
     const key = `${person.email}:${field}`;
@@ -279,8 +318,9 @@ export default function SettingsPage() {
     // These headings are the ones the importer reads back, so an export can be
     // edited in Excel and uploaded again — see COLUMNS in lib/userImportColumns.
     const header = [
-      'First name', 'Last name', 'Email', 'Personal email', 'Work phone (US)',
-      'Guatemala phone', 'Extension', 'Site', 'Date of birth', 'Start date',
+      'First name', 'Last name', 'Full legal name', 'Email', 'Personal email',
+      'Work phone (US)', 'Guatemala phone', 'Extension', 'Site', 'Team',
+      'Date of birth', 'Start date',
       'Roles', 'Status', 'Added', 'Added by', 'Last sign-in',
     ];
 
@@ -289,12 +329,16 @@ export default function SettingsPage() {
       return [
         p.firstName ?? '',
         p.lastName ?? '',
+        p.legalName ?? '',
         p.email,
         p.personalEmail ?? '',
         p.phone ?? '',
         p.phoneGt ?? '',
         p.extension ?? '',
         siteName(p.siteId) ?? '',
+        // By name, not id — the importer matches teams by name, so an export
+        // edited in Excel goes back in without anyone touching a document id.
+        teamName(p.teamId) ?? '',
         // Left as YYYY-MM-DD rather than prettified: Excel reads that as a real
         // date, and it is the format the importer takes back without argument.
         p.dateOfBirth ?? '',
@@ -323,6 +367,7 @@ export default function SettingsPage() {
     setEditing(person.email);
     setDraft({
       ...name,
+      legalName:     person.legalName ?? '',
       personalEmail: person.personalEmail ?? '',
       phone:         person.phone ?? '',
       phoneGt:       person.phoneGt ?? '',
@@ -330,6 +375,7 @@ export default function SettingsPage() {
       dateOfBirth:   person.dateOfBirth ?? '',
       startDate:     person.startDate ?? '',
       siteId:        person.siteId ?? '',
+      teamId:        person.teamId ?? '',
     });
   }
 
@@ -344,7 +390,11 @@ export default function SettingsPage() {
     setBusy(`${person.email}:details`);
     setError('');
     try {
-      const details = { ...draft, siteId: draft.siteId || null };
+      const details = {
+        ...draft,
+        siteId: draft.siteId || null,
+        teamId: draft.teamId || null,
+      };
       await setAllowedUserDetails(person.email, details);
       // The server composes displayName from the two parts; mirror that here so
       // the row does not keep showing the name it had before the edit.
@@ -435,7 +485,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
   // person can hold several roles — so they do not sum to the total.
   const counts = useMemo(() => {
     const roleCount = (p: AllowedUser) =>
-      Number(p.isAdmin) + Number(p.isDispatcher) + Number(p.isFinance);
+      Number(p.isAdmin) + Number(p.isDispatcher) + Number(p.isFinance) + Number(p.isHr);
     return {
       all:          people.length,
       active:       people.filter((p) => accessStatus(p) === 'active').length,
@@ -444,6 +494,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
       isAdmin:      people.filter((p) => p.isAdmin).length,
       isDispatcher: people.filter((p) => p.isDispatcher).length,
       isFinance:    people.filter((p) => p.isFinance).length,
+      isHr:         people.filter((p) => p.isHr).length,
       broker:       people.filter(isBroker).length,
       multiRole:    people.filter((p) => roleCount(p) > 1).length,
     };
@@ -494,7 +545,11 @@ They will be signed out immediately and cannot sign in until you restore them. T
     <div className="p-8 max-w-3xl">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Manage team access and permissions</p>
+        <p className="text-sm text-gray-500 mt-0.5">
+          {canEdit
+            ? 'Manage access, permissions, sites and teams'
+            : 'The company directory. Read-only — ask an admin to change anything here.'}
+        </p>
       </div>
 
       {error && (
@@ -503,7 +558,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
         </div>
       )}
 
-      <AddPeoplePanel sites={sites} onChanged={load} />
+      {canEdit && <AddPeoplePanel sites={sites} teams={teams} onChanged={load} />}
 
       <section className="bg-white rounded-xl border border-gray-200">
         <div className="px-6 py-4 border-b border-gray-100">
@@ -511,12 +566,23 @@ They will be signed out immediately and cannot sign in until you restore them. T
             <div className="min-w-0">
               <h2 className="text-sm font-semibold text-gray-900">People With Access</h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                Everyone is a Broker by default — their own clients and loads, and nothing they
-                do not own. Admins can see all records and manage access, dispatchers can send
-                carrier/shipper agreements, and finance can generate BOLs and invoices. Click a
-                role to toggle it, or Broker to take the others away. Suspending blocks sign-in
-                but keeps the roles, so access can be restored; removing deletes the entry
-                outright.
+                {canEdit ? (
+                  <>
+                    Everyone is a Broker by default — their own clients and loads, and nothing they
+                    do not own. Admins can see all records and manage access, dispatchers can send
+                    carrier/shipper agreements, finance can generate BOLs and invoices, and HR can
+                    read this directory and nothing else. Click a role to toggle it, or Broker to
+                    take the others away. Suspending blocks sign-in but keeps the roles, so access
+                    can be restored; removing deletes the entry outright.
+                  </>
+                ) : (
+                  <>
+                    Everyone who can sign in to TTMS, with the details on file for them — including
+                    full legal name, date of birth and personal email, which nobody outside this
+                    page can see. Use Export CSV to take the list into Excel. Changing any of it
+                    is an admin job.
+                  </>
+                )}
               </p>
             </div>
             <div className="text-right flex-shrink-0">
@@ -712,7 +778,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
                       {/* The US number carries the extension and site with it;
                           crowding the GT number onto the same line pushed those
                           two past the truncation point. */}
-                      {(p.phone || p.extension || p.siteId) && (
+                      {(p.phone || p.extension || p.siteId || p.teamId) && (
                         <p className="text-xs text-gray-500 truncate">
                           {[
                             // Labelled, because two bare numbers on adjacent
@@ -720,6 +786,9 @@ They will be signed out immediately and cannot sign in until you restore them. T
                             p.phone ? `US ${p.phone}` : null,
                             p.extension ? `ext. ${p.extension}` : null,
                             siteName(p.siteId),
+                            // Prefixed so a team called "Staff" cannot be read
+                            // as another site sitting next to the real one.
+                            teamName(p.teamId) ? `Team ${teamName(p.teamId)}` : null,
                           ]
                             .filter(Boolean)
                             .join(' · ')}
@@ -766,6 +835,11 @@ They will be signed out immediately and cannot sign in until you restore them. T
                     </div>
                   </div>
 
+                  {/* Every control in here writes. HR reads this page, so the
+                      whole cluster is absent for them rather than disabled —
+                      a row of greyed buttons would only invite a support call
+                      asking why none of them work. */}
+                  {canEdit && (
                   <div className="flex items-center gap-2 flex-wrap justify-end">
                     {(() => {
                       const active = isBroker(p);
@@ -880,9 +954,10 @@ They will be signed out immediately and cannot sign in until you restore them. T
                       <Trash2 size={14} />
                     </button>
                     </div>
+                  )}
                   </div>
 
-                  {editing === p.email && (
+                  {canEdit && editing === p.email && (
                     <div className="px-6 pb-4 pt-1">
                       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                         <div className="pb-4 mb-4 border-b border-gray-200">
@@ -911,6 +986,28 @@ They will be signed out immediately and cannot sign in until you restore them. T
                               placeholder="Last"
                               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
                             />
+                          </label>
+                          <label className="text-xs text-gray-500">
+                            Full legal name
+                            <input
+                              value={draft.legalName}
+                              onChange={(e) => setDraft((d) => ({ ...d, legalName: e.target.value }))}
+                              placeholder="As it appears on payroll"
+                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                            />
+                          </label>
+                          <label className="text-xs text-gray-500">
+                            Team
+                            <select
+                              value={draft.teamId}
+                              onChange={(e) => setDraft((d) => ({ ...d, teamId: e.target.value }))}
+                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                            >
+                              <option value="">No team</option>
+                              {teams.map((team) => (
+                                <option key={team.id} value={team.id}>{team.name}</option>
+                              ))}
+                            </select>
                           </label>
                           <label className="text-xs text-gray-500">
                             Site
@@ -987,8 +1084,10 @@ They will be signed out immediately and cannot sign in until you restore them. T
                         {/* Said once, next to the two fields it applies to,
                             rather than left for someone to assume either way. */}
                         <p className="text-[11px] text-gray-400 mt-2">
-                          Date of birth and personal email are visible to admins only — they are
-                          not copied onto the profile the rest of the company can read.
+                          Full legal name, date of birth and personal email are visible to admins
+                          and HR only — they are not copied onto the profile the rest of the
+                          company can read. Leave the legal name blank when it is the same as the
+                          first and last name above.
                         </p>
 
                         <div className="flex items-center gap-2 mt-3">
@@ -1011,6 +1110,11 @@ They will be signed out immediately and cannot sign in until you restore them. T
                               No sites yet — add one under Sites below.
                             </span>
                           )}
+                          {teams.length === 0 && (
+                            <span className="text-xs text-gray-400">
+                              No teams yet — add one under Teams below.
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1022,12 +1126,21 @@ They will be signed out immediately and cannot sign in until you restore them. T
         )}
       </section>
 
-      <RemovedPeoplePanel sites={sites} />
+      {/* Everything below manages the system rather than reading it, so none
+          of it renders for HR. Sites and Teams are the two the people list
+          depends on for names — see the effect that fetches them directly when
+          these panels are absent. */}
+      {canEdit && (
+        <>
+          <RemovedPeoplePanel sites={sites} teams={teams} />
 
-      <LaneDistancePanel />
-      <SitesPanel onChange={handleSitesLoaded} />
-      <WorkGroupsPanel />
-      <BatsImportPanel />
+          <LaneDistancePanel />
+          <SitesPanel onChange={handleSitesLoaded} />
+          <TeamsPanel onChange={handleTeamsLoaded} />
+          <WorkGroupsPanel />
+          <BatsImportPanel />
+        </>
+      )}
     </div>
   );
 }

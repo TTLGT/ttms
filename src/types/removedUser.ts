@@ -32,15 +32,19 @@ export interface RemovedUser {
   lastName?: string;
   displayName?: string;
   personalEmail?: string;
+  /** Payroll name as of removal — see AllowedUser.legalName. */
+  legalName?: string;
   phone?: string;
   phoneGt?: string;
   extension?: string;
   dateOfBirth?: string;
   startDate?: string;
   siteId?: string | null;
+  teamId?: string | null;
   isAdmin: boolean;
   isDispatcher: boolean;
   isFinance: boolean;
+  isHr?: boolean;
   /**
    * Whether they were already suspended when removed. Worth keeping: a removal
    * that follows a suspension is a normal offboarding, whereas removing an
@@ -86,5 +90,6 @@ export function removedUserRoles(user: RemovedUser): string[] {
     user.isAdmin && 'Admin',
     user.isDispatcher && 'Dispatcher',
     user.isFinance && 'Finance',
+    user.isHr && 'HR',
   ].filter(Boolean) as string[];
 }

@@ -12,6 +12,7 @@ import {
   parseEmailList,
   REMOVED_USERS_COLLECTION,
   SITES_COLLECTION,
+  TEAMS_COLLECTION,
 } from '@/lib/accessControl';
 import { normalizeCalendarDate } from '@/types/allowedUser';
 
@@ -36,7 +37,7 @@ const MAX_BATCH = 100;
 type InviteStatus = 'added' | 'exists' | 'suspended' | 'invalid' | 'wrong-domain' | 'error';
 type InviteResult = { email: string; status: InviteStatus; message: string };
 
-type Roles = { isAdmin: boolean; isDispatcher: boolean; isFinance: boolean };
+type Roles = { isAdmin: boolean; isDispatcher: boolean; isFinance: boolean; isHr: boolean };
 
 /**
  * The contact block an admin can fill in while adding someone, already
@@ -50,6 +51,7 @@ async function invite(
   roles: Roles,
   invitedBy: string,
   siteId: string | null,
+  teamId: string | null,
   details: NewPersonDetails | null,
 ): Promise<InviteResult> {
   if (!EMAIL_RE.test(email)) {
@@ -81,6 +83,7 @@ async function invite(
       lastName:      '',
       displayName:   '',
       personalEmail: '',
+      legalName:     '',
       phone:         '',
       phoneGt:       '',
       extension:     '',
@@ -88,6 +91,7 @@ async function invite(
       startDate:     '',
       photoPath:     null,
       siteId,
+      teamId,
       // Written over the blanks above, so someone added with their details
       // filled in lands as one complete document instead of needing a second
       // pass in the editor. Never present on a multi-address batch.
@@ -150,6 +154,7 @@ export async function POST(req: NextRequest) {
     isAdmin:      body.isAdmin === true,
     isDispatcher: body.isDispatcher === true,
     isFinance:    body.isFinance === true,
+    isHr:         body.isHr === true,
   };
   const invitedBy = caller.email ?? caller.uid;
 
@@ -161,13 +166,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'That site no longer exists.' }, { status: 400 });
   }
 
+  // A team applies to the whole batch for the same reason a site does: a paste
+  // is normally one team's worth of new hires.
+  const teamId = typeof body.teamId === 'string' && body.teamId ? body.teamId : null;
+  if (teamId && !(await adminDb.collection(TEAMS_COLLECTION).doc(teamId).get()).exists) {
+    return NextResponse.json({ error: 'That team no longer exists.' }, { status: 400 });
+  }
+
   const details = emails.length === 1 ? newPersonDetails(body.details) : null;
 
   // Sequential on purpose: keeps result order stable and stays well inside
   // Firestore/Auth rate limits even at the batch cap.
   const results: InviteResult[] = [];
   for (const email of emails) {
-    results.push(await invite(email, roles, invitedBy, siteId, details));
+    results.push(await invite(email, roles, invitedBy, siteId, teamId, details));
   }
 
   const added = results.filter((r) => r.status === 'added').length;
@@ -200,6 +212,9 @@ function newPersonDetails(value: unknown): Record<string, string> | null {
     // Kept in step with the parts, exactly as updateDetails does.
     displayName:   [firstName, lastName].filter(Boolean).join(' '),
     personalEmail: text(d.personalEmail, 120),
+    // Longer cap than first/last together: this is a full legal name, which is
+    // routinely four or five parts.
+    legalName:     text(d.legalName, 160),
     phone:         text(d.phone, 40),
     phoneGt:       text(d.phoneGt, 40),
     extension:     text(d.extension, 12),
@@ -231,6 +246,11 @@ async function updateDetails(email: string, details: Record<string, unknown>) {
     return NextResponse.json({ error: 'That site no longer exists.' }, { status: 400 });
   }
 
+  const teamId = typeof details.teamId === 'string' && details.teamId ? details.teamId : null;
+  if (teamId && !(await adminDb.collection(TEAMS_COLLECTION).doc(teamId).get()).exists) {
+    return NextResponse.json({ error: 'That team no longer exists.' }, { status: 400 });
+  }
+
   const firstName = text(details.firstName, 60);
   const lastName  = text(details.lastName, 60);
 
@@ -244,13 +264,18 @@ async function updateDetails(email: string, details: Record<string, unknown>) {
     phoneGt:     text(details.phoneGt, 40),
     extension:   text(details.extension, 12),
     siteId,
+    teamId,
   };
 
   // Anything not a real YYYY-MM-DD is stored as '' rather than rejected: the
   // date inputs can only produce that shape or nothing, so a bad value here
   // means a hand-built request, not an admin who needs an error message.
+  // Written to the allowlist entry only, never to `users/{uid}`. The legal name
+  // is payroll data and belongs with the birthday and the personal address, not
+  // with the phone number the whole office can look up.
   const privatePatch = {
     personalEmail: text(details.personalEmail, 120),
+    legalName:     text(details.legalName, 160),
     dateOfBirth:   normalizeCalendarDate(details.dateOfBirth),
     startDate:     normalizeCalendarDate(details.startDate),
   };
@@ -310,7 +335,7 @@ export async function PATCH(req: NextRequest) {
     return updatePhoto(email, typeof body.value === 'string' ? body.value : null);
   }
 
-  if (!['isAdmin', 'isDispatcher', 'isFinance', 'suspended'].includes(field)) {
+  if (!['isAdmin', 'isDispatcher', 'isFinance', 'isHr', 'suspended'].includes(field)) {
     return NextResponse.json({ error: 'Unknown field.' }, { status: 400 });
   }
   if (field === 'isAdmin' && !value && normalizeEmail(caller.email) === email) {
@@ -375,6 +400,8 @@ export async function PATCH(req: NextRequest) {
         // sign-in re-syncs these anyway; setting them here keeps Storage rules
         // correct from the moment access is restored.
         await adminAuth.updateUser(uid, { disabled: false }).catch(() => {});
+        // No `hr` claim: nothing in the rules reads one — see syncClaims in
+        // /api/auth/session for why.
         await adminAuth
           .setCustomUserClaims(uid, {
             ttlAccess:  true,
@@ -424,15 +451,18 @@ async function archiveRemoval(
     lastName:      entry.lastName ?? '',
     displayName:   entry.displayName ?? '',
     personalEmail: entry.personalEmail ?? '',
+    legalName:     entry.legalName ?? '',
     phone:         entry.phone ?? '',
     phoneGt:       entry.phoneGt ?? '',
     extension:     entry.extension ?? '',
     dateOfBirth:   entry.dateOfBirth ?? '',
     startDate:     entry.startDate ?? '',
     siteId:        entry.siteId ?? null,
+    teamId:        entry.teamId ?? null,
     isAdmin:       entry.isAdmin === true,
     isDispatcher:  entry.isDispatcher === true,
     isFinance:     entry.isFinance === true,
+    isHr:          entry.isHr === true,
     // Removing an already-suspended account is routine offboarding; removing an
     // active one is the case someone may later need to ask about.
     wasSuspended:  entry.suspended === true,
@@ -497,6 +527,17 @@ export async function DELETE(req: NextRequest) {
   await ref.delete();
 
   if (uid) {
+    // A team pointing at a profile that no longer exists would render a blank
+    // lead with no way to tell it from "nobody named yet". Clearing it says the
+    // true thing: this team needs a new lead. Suspension deliberately does not
+    // do this — a suspended lead is still the lead they come back to.
+    const led = await adminDb.collection(TEAMS_COLLECTION).where('leadUid', '==', uid).get();
+    if (!led.empty) {
+      const batch = adminDb.batch();
+      for (const doc of led.docs) batch.update(doc.ref, { leadUid: null });
+      await batch.commit().catch(() => {});
+    }
+
     await adminDb.collection(USERS_COLLECTION).doc(uid).delete().catch(() => {});
     // Kill the session now rather than waiting for the ID token to expire.
     await adminAuth.setCustomUserClaims(uid, { ttlAccess: false }).catch(() => {});

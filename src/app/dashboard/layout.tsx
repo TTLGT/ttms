@@ -21,7 +21,14 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { listAccessRequests } from '@/lib/parties';
 
-const NAV_ITEMS: { href: string; label: string; Icon: LucideIcon; adminOnly: boolean }[] = [
+const NAV_ITEMS: {
+  href: string;
+  label: string;
+  Icon: LucideIcon;
+  adminOnly: boolean;
+  /** Admin-only, but HR gets in too. Only Settings uses this. */
+  alsoHr?: boolean;
+}[] = [
   { href: '/dashboard',           label: 'Dashboard', Icon: LayoutDashboard, adminOnly: false },
   { href: '/dashboard/orders',    label: 'Orders',    Icon: ClipboardList,   adminOnly: false },
   { href: '/dashboard/carriers',  label: 'Carriers',  Icon: Truck,           adminOnly: false },
@@ -31,13 +38,16 @@ const NAV_ITEMS: { href: string; label: string; Icon: LucideIcon; adminOnly: boo
   { href: '/dashboard/approvals', label: 'Approvals', Icon: ShieldCheck,      adminOnly: false },
   { href: '/dashboard/documents', label: 'Documents', Icon: Folder,          adminOnly: false },
   { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart2,       adminOnly: true  },
-  { href: '/dashboard/settings',  label: 'Settings',  Icon: Settings,        adminOnly: true  },
+  // Also open to HR, who read the people directory there and nothing else —
+  // the page itself renders read-only for them. Analytics and Handbook stay
+  // admin-only.
+  { href: '/dashboard/settings',  label: 'Settings',  Icon: Settings,        adminOnly: true, alsoHr: true },
   { href: '/dashboard/handbook',  label: 'Handbook',  Icon: BookOpen,        adminOnly: true  },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading, logout, isAdmin } = useAuth();
-  const router                             = useRouter();
+  const { user, loading, logout, isAdmin, isHr } = useAuth();
+  const router                                   = useRouter();
   const [pendingApprovals, setPending]     = useState(0);
 
   // A request that nobody notices blocks the requester's order, so the count
@@ -89,7 +99,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             would refuse to shrink below its content, so the list would push the
             sign-out block off-screen instead of scrolling. */}
         <nav className="flex-1 min-h-0 overflow-y-auto sidebar-scroll px-3 py-4 space-y-1">
-          {NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin).map(({ href, label, Icon }) => (
+          {NAV_ITEMS.filter(
+            (item) => !item.adminOnly || isAdmin || (item.alsoHr === true && isHr),
+          ).map(({ href, label, Icon }) => (
             <Link
               key={href}
               href={href}

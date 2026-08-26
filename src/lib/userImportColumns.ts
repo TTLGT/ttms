@@ -10,8 +10,8 @@ import { headerKey } from './csv';
  */
 
 export type ColumnKey =
-  | 'email' | 'firstName' | 'lastName' | 'personalEmail'
-  | 'phone' | 'phoneGt' | 'extension' | 'site'
+  | 'email' | 'firstName' | 'lastName' | 'legalName' | 'personalEmail'
+  | 'phone' | 'phoneGt' | 'extension' | 'site' | 'team'
   | 'dateOfBirth' | 'startDate' | 'roles';
 
 /**
@@ -25,11 +25,19 @@ export const COLUMNS: { key: ColumnKey; label: string; aliases: string[] }[] = [
   { key: 'email',         label: 'Email',           aliases: ['work email', 'company email', 'email address', 'address', 'e mail'] },
   { key: 'firstName',     label: 'First name',      aliases: ['first', 'given name', 'firstname'] },
   { key: 'lastName',      label: 'Last name',       aliases: ['last', 'surname', 'family name', 'lastname'] },
+  // Payroll files are where this column usually comes from, hence the aliases.
+  // A bare "Full name" is deliberately NOT one of them: in a directory export
+  // it means the everyday name, and accepting it here would quietly file
+  // "Maria Ruiz" as the payroll name for the whole company.
+  { key: 'legalName',     label: 'Full legal name', aliases: ['legal name', 'name on payroll', 'payroll name', 'legal full name', 'name as on id', 'full legal name'] },
   { key: 'personalEmail', label: 'Personal email',  aliases: ['private email', 'personal email address', 'home email'] },
   { key: 'phone',         label: 'Work phone (US)', aliases: ['work phone', 'us phone', 'phone', 'phone us', 'mobile', 'cell'] },
   { key: 'phoneGt',       label: 'Guatemala phone', aliases: ['gt phone', 'phone gt', 'guatemala', 'phone guatemala'] },
   { key: 'extension',     label: 'Extension',       aliases: ['ext', 'desk extension'] },
   { key: 'site',          label: 'Site',            aliases: ['office', 'location'] },
+  // Not aliased to "group" — that reads as a work group, which is a different
+  // thing entirely (record sharing, not reporting).
+  { key: 'team',          label: 'Team',            aliases: ['reports to', 'department', 'reporting team', 'team name'] },
   { key: 'dateOfBirth',   label: 'Date of birth',   aliases: ['dob', 'birthday', 'birth date', 'date of birth dob'] },
   { key: 'startDate',     label: 'Start date',      aliases: ['start', 'started', 'hire date', 'date started', 'start date in the company'] },
   { key: 'roles',         label: 'Roles',           aliases: ['role', 'permissions', 'permission'] },

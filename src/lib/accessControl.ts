@@ -55,6 +55,11 @@ export const ALLOWED_USERS_COLLECTION = 'allowedUsers';
 export const USERS_COLLECTION = 'users';
 export const SITES_COLLECTION = 'sites';
 /**
+ * Reporting units. Reference data like sites, NOT an access boundary — see
+ * src/types/team.ts. Nothing in this file grants visibility on a team.
+ */
+export const TEAMS_COLLECTION = 'teams';
+/**
  * Append-only record of revoked access. Written by the DELETE in
  * /api/admin/users and read only through the Admin SDK — see RemovedUser.
  */
@@ -70,17 +75,27 @@ export interface RoleFlags {
   isAdmin?: boolean;
   isDispatcher?: boolean;
   isFinance?: boolean;
+  /**
+   * Read-only access to the people directory. Deliberately absent from
+   * `canSeeAllParties` below — HR is a back-office role and has no business
+   * seeing the brokers' clients.
+   */
+  isHr?: boolean;
   /** Work groups this user belongs to, mirrored onto their profile. */
   groupIds?: string[];
 }
 
 export function canSeeAllParties(profile: RoleFlags | null | undefined): boolean {
   if (!profile) return false;
+  // isHr is intentionally not in this list. HR reads the people directory and
+  // nothing else; adding it here would hand payroll staff every client in the
+  // company. If a new role is added, decide this deliberately rather than by
+  // pattern-matching the line above.
   return profile.isAdmin === true || profile.isDispatcher === true || profile.isFinance === true;
 }
 
 /**
- * Broker is the default role: what someone has when no elevated role is set.
+ * Broker is the default role: what someone has when no other role is set.
  * A broker works their own book — their clients, their loads — and sees only
  * the parties they own or that nobody owns. Admin, dispatcher and finance are
  * additions on top, so holding one means you are no longer a plain broker.
@@ -91,7 +106,23 @@ export function canSeeAllParties(profile: RoleFlags | null | undefined): boolean
  */
 export function isBroker(roles: RoleFlags | null | undefined): boolean {
   if (!roles) return false;
-  return roles.isAdmin !== true && roles.isDispatcher !== true && roles.isFinance !== true;
+  return roles.isAdmin !== true
+    && roles.isDispatcher !== true
+    && roles.isFinance !== true
+    && roles.isHr !== true;
+}
+
+/**
+ * Who may read the people directory — the allowlist entries and the payroll
+ * fields on them (legal name, date of birth, personal email, start date).
+ *
+ * Admins manage it; HR only reads it. Keep in sync with the `allowedUsers`
+ * read rule in firestore.rules, which is what actually enforces this — this
+ * function only decides what the Settings page renders.
+ */
+export function canSeeDirectory(profile: RoleFlags | null | undefined): boolean {
+  if (!profile) return false;
+  return profile.isAdmin === true || profile.isHr === true;
 }
 
 /**

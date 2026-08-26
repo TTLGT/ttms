@@ -11,6 +11,7 @@ import {
 } from '@/lib/accessControl';
 import type { AllowedUserRole, InviteResult } from '@/types/allowedUser';
 import type { Site } from '@/types/site';
+import type { Team } from '@/types/team';
 import SpreadsheetImport from './SpreadsheetImport';
 
 /**
@@ -22,21 +23,22 @@ import SpreadsheetImport from './SpreadsheetImport';
  *
  * The typed-in mode **adapts to how many addresses are in the box**, because
  * the per-person fields genuinely cannot apply to a batch: one address and the
- * whole form is there, several and only the site and roles remain — those are
- * the only two things that can honestly be true of everyone pasted in. That
- * rule is enforced on the server as well, not just here.
+ * whole form is there, several and only the site, team and roles remain —
+ * those are the only things that can honestly be true of everyone pasted in.
+ * That rule is enforced on the server as well, not just here.
  */
 
 const ROLE_CHIPS: { field: AllowedUserRole; label: string }[] = [
   { field: 'isAdmin',      label: 'Admin' },
   { field: 'isDispatcher', label: 'Dispatcher' },
   { field: 'isFinance',    label: 'Finance' },
+  { field: 'isHr',         label: 'HR' },
 ];
 
-const NO_ROLES = { isAdmin: false, isDispatcher: false, isFinance: false };
+const NO_ROLES = { isAdmin: false, isDispatcher: false, isFinance: false, isHr: false };
 
 const EMPTY_DETAILS: NewPersonDetails = {
-  firstName: '', lastName: '', personalEmail: '',
+  firstName: '', lastName: '', legalName: '', personalEmail: '',
   phone: '', phoneGt: '', extension: '', dateOfBirth: '', startDate: '',
 };
 
@@ -75,9 +77,11 @@ function Field({
 
 export default function AddPeoplePanel({
   sites,
+  teams,
   onChanged,
 }: {
   sites: Site[];
+  teams: Team[];
   /** Called after anything is written, so the list below can re-read. */
   onChanged: () => void;
 }) {
@@ -86,6 +90,7 @@ export default function AddPeoplePanel({
   const [emails, setEmails]   = useState('');
   const [roles, setRoles]     = useState(NO_ROLES);
   const [siteId, setSiteId]   = useState('');
+  const [teamId, setTeamId]   = useState('');
   const [details, setDetails] = useState<NewPersonDetails>(EMPTY_DETAILS);
   const [busy, setBusy]       = useState(false);
   const [error, setError]     = useState('');
@@ -112,7 +117,9 @@ export default function AddPeoplePanel({
     setResults([]);
     setBusy(true);
     try {
-      const rows = await inviteUsers(parsed, roles, siteId || null, single ? details : null);
+      const rows = await inviteUsers(
+        parsed, roles, siteId || null, teamId || null, single ? details : null,
+      );
       setResults(rows);
 
       // Leave the addresses that did not land in the box so a typo can be
@@ -192,7 +199,7 @@ export default function AddPeoplePanel({
               ? `One address to add someone with their full details, or several — one per line — to add a batch.`
               : parsed.length === 1
               ? 'Fill in as much as you know below. You can add the rest later.'
-              : `${parsed.length} addresses · details are per-person, so only the site and roles below apply to all of them.`}
+              : `${parsed.length} addresses · details are per-person, so only the site, team and roles below apply to all of them.`}
             {offDomain.length > 0 && (
               <span className="ml-2 text-amber-600">
                 · {offDomain.length} outside @{ALLOWED_EMAIL_DOMAIN}
@@ -243,6 +250,7 @@ export default function AddPeoplePanel({
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="First name" value={details.firstName} onChange={setField('firstName')} placeholder="First" disabled={!single} />
               <Field label="Last name" value={details.lastName} onChange={setField('lastName')} placeholder="Last" disabled={!single} />
+              <Field label="Full legal name" value={details.legalName} onChange={setField('legalName')} placeholder="As it appears on payroll" disabled={!single} />
               <Field label="Personal email" type="email" value={details.personalEmail} onChange={setField('personalEmail')} placeholder="name@example.com" disabled={!single} />
               <Field label="Work phone (US)" value={details.phone} onChange={setField('phone')} placeholder="(555) 123-4567" disabled={!single} />
               <Field label="Guatemala phone" value={details.phoneGt} onChange={setField('phoneGt')} placeholder="+502 5555 5555" disabled={!single} />
@@ -252,12 +260,13 @@ export default function AddPeoplePanel({
             </div>
 
             <p className="text-[11px] text-gray-400 mt-2">
-              Date of birth and personal email are visible to admins only — they are not copied
-              onto the profile the rest of the company can read.
+              Full legal name, date of birth and personal email are visible to admins and HR only —
+              they are not copied onto the profile the rest of the company can read. Leave the
+              legal name blank if it is the same as the first and last name above.
             </p>
           </fieldset>
 
-          {/* Site and roles sit outside that fieldset because they are the two
+          {/* Site, team and roles sit outside that fieldset because they are the
               things that stay true however many addresses are in the box. */}
           <div className="flex items-center justify-end gap-2 flex-wrap">
             <label className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -270,6 +279,20 @@ export default function AddPeoplePanel({
                 <option value="">No site</option>
                 {sites.map((site) => (
                   <option key={site.id} value={site.id}>{site.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex items-center gap-1.5 text-xs text-gray-500">
+              Team:
+              <select
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+                className="rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
+              >
+                <option value="">No team</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>{team.name}</option>
                 ))}
               </select>
             </label>

@@ -44,8 +44,12 @@ export async function listAllowedUsers(): Promise<AllowedUser[]> {
     .sort((a, b) => a.email.localeCompare(b.email));
 }
 
-/** The per-person block that can be filled in while adding one new person. */
-export type NewPersonDetails = Omit<AllowedUserDetails, 'siteId'>;
+/**
+ * The per-person block that can be filled in while adding one new person.
+ * Site and team are excluded because they are passed separately — they apply
+ * to the whole batch, and these fields never can.
+ */
+export type NewPersonDetails = Omit<AllowedUserDetails, 'siteId' | 'teamId'>;
 
 /**
  * Grant access to one or many people in a single request.
@@ -56,19 +60,26 @@ export type NewPersonDetails = Omit<AllowedUserDetails, 'siteId'>;
  */
 export async function inviteUsers(
   emails: string[],
-  roles: { isAdmin?: boolean; isDispatcher?: boolean; isFinance?: boolean } = {},
+  roles: {
+    isAdmin?: boolean;
+    isDispatcher?: boolean;
+    isFinance?: boolean;
+    isHr?: boolean;
+  } = {},
   /** Applied to every address in the batch, because a site can be. */
   siteId: string | null = null,
+  /** Likewise — a pasted list is usually one team's worth of new hires. */
+  teamId: string | null = null,
   /**
-   * Name, phones, dates and personal email for the person being added. The
-   * server ignores this unless `emails` holds exactly one address — none of it
-   * can be true of a batch.
+   * Name, legal name, phones, dates and personal email for the person being
+   * added. The server ignores this unless `emails` holds exactly one address —
+   * none of it can be true of a batch.
    */
   details: NewPersonDetails | null = null,
 ): Promise<InviteResult[]> {
   const data = await authedFetch<{ results: InviteResult[] }>('/api/admin/users', {
     method: 'POST',
-    body: JSON.stringify({ emails, ...roles, siteId, details }),
+    body: JSON.stringify({ emails, ...roles, siteId, teamId, details }),
   });
   return data.results ?? [];
 }
@@ -88,7 +99,7 @@ export async function setAllowedUserPhoto(
   });
 }
 
-/** Update someone's name, phones, extension and site in one request. */
+/** Update someone's name, phones, extension, site and team in one request. */
 export async function setAllowedUserDetails(
   email: string,
   details: AllowedUserDetails,

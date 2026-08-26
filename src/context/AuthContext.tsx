@@ -21,6 +21,12 @@ interface AuthContextValue {
   user: User | null;
   profile: UserProfile | null;
   isAdmin: boolean;
+  /**
+   * Read-only access to the people directory, and nothing else. Kept separate
+   * from `isAdmin` rather than folded into it: HR must never light up an admin
+   * control just because both roles can open the same page.
+   */
+  isHr: boolean;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
@@ -122,9 +128,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isAdmin = profile?.isAdmin ?? false;
+  const isHr    = profile?.isHr ?? false;
 
   return (
-    <AuthContext.Provider value={{ user, profile, isAdmin, loading, signInWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, profile, isAdmin, isHr, loading, signInWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

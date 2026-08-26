@@ -38,15 +38,35 @@ export interface AllowedUser {
    */
   personalEmail?: string;
   /**
+   * The name as it appears on payroll and legal paperwork, for the people
+   * whose everyday name is not the one on the form — a maiden name, a full
+   * compound surname, a middle name nobody uses at work.
+   *
+   * One free-text field rather than parts, on purpose: it exists to be copied
+   * verbatim onto a payroll document, and splitting it would invite exactly
+   * the guessing at compound surnames that `splitName` below warns about.
+   *
+   * Admin- and HR-only, and grouped with the two fields below rather than the
+   * contact ones above: it is never mirrored onto `users/{uid}`.
+   */
+  legalName?: string;
+  /**
+   * Which team they report through — `teams/{id}`, or null for unassigned.
+   * Unlike the fields below this one IS mirrored onto `users/{uid}`: who
+   * someone reports to is ordinary org-chart information, not payroll data.
+   */
+  teamId?: string | null;
+  /**
    * Calendar dates, stored as `YYYY-MM-DD` text rather than Timestamps. A
    * birthday and a start date have no time and no timezone — as a Timestamp
    * they would land at midnight UTC and read back a day early for anyone west
    * of it. Text also sorts chronologically for free and round-trips through
    * `<input type="date">` unchanged.
    *
-   * These three, unlike the contact fields above, are NOT mirrored onto
-   * `users/{uid}`: that document is readable by every signed-in user, and a
-   * birthday and a private address are admin-only information.
+   * These two, along with `legalName` and `personalEmail` above, are NOT
+   * mirrored onto `users/{uid}`: that document is readable by every signed-in
+   * user, and a birthday, a private address and a payroll name are for admins
+   * and HR only.
    */
   dateOfBirth?: string;
   startDate?: string;
@@ -60,6 +80,14 @@ export interface AllowedUser {
   isAdmin: boolean;
   isDispatcher: boolean;
   isFinance: boolean;
+  /**
+   * Read-only access to the people directory, including the payroll fields
+   * above. HR is the one role that grants no operational access at all — an
+   * HR user sees no more clients or loads than a plain broker, and cannot
+   * grant a role, suspend anyone or edit an entry. Absent on documents
+   * written before the role existed; treat as false.
+   */
+  isHr?: boolean;
   invitedBy: string;
   invitedAt: Timestamp | null;
   /** Filled in on first sign-in — null means the invite is still pending. */
@@ -84,12 +112,14 @@ export function accessStatus(user: Pick<AllowedUser, 'uid' | 'suspended'>): Acce
   return user.uid ? 'active' : 'pending';
 }
 
-export type AllowedUserRole = 'isAdmin' | 'isDispatcher' | 'isFinance';
+export type AllowedUserRole = 'isAdmin' | 'isDispatcher' | 'isFinance' | 'isHr';
 
 /** The contact fields an admin edits together, as one patch. */
 export interface AllowedUserDetails {
   firstName: string;
   lastName: string;
+  /** Payroll name — blank when it is the same as first + last. */
+  legalName: string;
   personalEmail: string;
   phone: string;
   phoneGt: string;
@@ -98,6 +128,7 @@ export interface AllowedUserDetails {
   dateOfBirth: string;
   startDate: string;
   siteId: string | null;
+  teamId: string | null;
 }
 
 /** The name to show, or '' when nobody has entered one. */

@@ -57,15 +57,28 @@ service cloud.firestore {
 
     // One lookup, reused for every role flag. Reading the profile once keeps
     // the evaluation inside Firestore's per-request document-access limit, and
-    // `.get(field, false)` tolerates profiles where the optional dispatcher and
-    // finance flags were never written — indexing a missing key errors out and
-    // would deny the request outright.
+    // `.get(field, false)` tolerates profiles where the optional dispatcher,
+    // finance and hr flags were never written — indexing a missing key errors
+    // out and would deny the request outright.
     function profileData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
     function hasProfile() {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Read-only access to the people directory. Keep in sync with
+    // canSeeDirectory() in src/lib/accessControl.ts.
+    //
+    // Deliberately NOT part of canSeeAllParties() below: HR reads the staff
+    // directory and nothing else. A payroll clerk must not inherit every
+    // broker's book of business by being given a role named after a filing
+    // cabinet.
+    function isHr() {
+      return isAllowedUser()
+        && hasProfile()
+        && profileData().get('isHr', false) == true;
     }
 
     // Keep in sync with canSeeAllParties() in src/lib/accessControl.ts.
@@ -100,11 +113,15 @@ service cloud.firestore {
         );
     }
 
-    // The allowlist itself: readable by admins so Settings can render it,
-    // never writable from the client. All changes go through
+    // The allowlist itself: readable by admins so Settings can render it, and
+    // by HR, who need the payroll fields these entries carry (legal name, date
+    // of birth, personal email, start date) and have no other way to reach
+    // them. Read only — HR cannot write here any more than anyone else can.
+    //
+    // Never writable from the client. All changes go through
     // /api/admin/users, which also updates Firebase Auth (claims, revocation).
     match /allowedUsers/{email} {
-      allow read:  if isAdmin();
+      allow read:  if isAdmin() || isHr();
       allow write: if false;
     }
 
@@ -160,10 +177,6 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Work groups are readable by any signed-in user so pickers can show names,
-    // but membership is written only by /api/work-groups, which keeps each
-    // member's users/{uid}.groupIds mirror in step inside a transaction.
-    // A client-side write could grant itself access to another team's records.
     // Sites are reference data — where someone works, not what they can see.
     // Readable by everyone signed in so a site name can be shown next to a
     // person; written only through /api/sites, which detaches users on delete.
@@ -172,6 +185,20 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Teams are reference data too — who someone reports to. Note that nothing
+    // anywhere in this file reads teamId: a team is an org chart, not an access
+    // boundary, and work groups below are the thing that shares records. Do not
+    // start gating visibility on a team; that is what work groups are for.
+    // Written only through /api/teams, which detaches users on delete.
+    match /teams/{teamId} {
+      allow read:  if isAllowedUser();
+      allow write: if false;
+    }
+
+    // Work groups are readable by any signed-in user so pickers can show names,
+    // but membership is written only by /api/work-groups, which keeps each
+    // member's users/{uid}.groupIds mirror in step inside a transaction.
+    // A client-side write could grant itself access to another group's records.
     match /workGroups/{groupId} {
       allow read:  if isAllowedUser();
       allow write: if false;

@@ -4,6 +4,7 @@ import {
   ALLOWED_EMAIL_DOMAIN,
   ALLOWED_USERS_COLLECTION,
   SITES_COLLECTION,
+  TEAMS_COLLECTION,
   USERS_COLLECTION,
   isAllowedEmailDomain,
   isBootstrapAdmin,
@@ -170,13 +171,13 @@ function dateOutOfRange(key: 'dateOfBirth' | 'startDate', value: string): string
   return null;
 }
 
-type Roles = { isAdmin: boolean; isDispatcher: boolean; isFinance: boolean };
+type Roles = { isAdmin: boolean; isDispatcher: boolean; isFinance: boolean; isHr: boolean };
 
-const NO_ROLES: Roles = { isAdmin: false, isDispatcher: false, isFinance: false };
+const NO_ROLES: Roles = { isAdmin: false, isDispatcher: false, isFinance: false, isHr: false };
 
 /**
- * Read a roles cell. Broker is not a flag — it is the absence of the other
- * three — so "Broker", "None" and "-" all mean the same thing: clear them.
+ * Read a roles cell. Broker is not a flag — it is the absence of every other
+ * role — so "Broker", "None" and "-" all mean the same thing: clear them.
  * A blank cell is different again, and means "do not touch the roles at all".
  */
 function parseRolesCell(raw: string): Roles | 'unrecognised' {
@@ -188,6 +189,7 @@ function parseRolesCell(raw: string): Roles | 'unrecognised' {
     if (t === 'admin' || t === 'administrator') roles.isAdmin = true;
     else if (t === 'dispatcher' || t === 'dispatch') roles.isDispatcher = true;
     else if (t === 'finance' || t === 'accounting') roles.isFinance = true;
+    else if (t === 'hr' || t === 'payroll') roles.isHr = true;
     // The default. Named explicitly so a cell can say "leave them a broker"
     // rather than the admin having to know that empty would not do that.
     else if (t === 'broker' || t === 'none' || t === '-') continue;
@@ -203,14 +205,18 @@ function parseRolesCell(raw: string): Roles | 'unrecognised' {
  * Fields copied onto `users/{uid}` when they change, so the app sees the update
  * without waiting for the person to sign in again.
  *
- * Date of birth, personal email and start date are deliberately absent:
- * `users/{uid}` is readable by every signed-in user (see firestore.rules), and
- * those three are admin-only. They stay on the allowlist entry, which only
- * admins can read.
+ * Date of birth, personal email, start date and legal name are deliberately
+ * absent: `users/{uid}` is readable by every signed-in user (see
+ * firestore.rules), and those four are for admins and HR only. They stay on the
+ * allowlist entry, which is the document the rules gate on.
+ *
+ * `teamId` IS mirrored — who someone reports to is ordinary directory
+ * information, and the app shows it next to their name.
  */
 const MIRRORED_FIELDS = [
-  'firstName', 'lastName', 'displayName', 'phone', 'phoneGt', 'extension', 'siteId',
-  'isAdmin', 'isDispatcher', 'isFinance',
+  'firstName', 'lastName', 'displayName', 'phone', 'phoneGt', 'extension',
+  'siteId', 'teamId',
+  'isAdmin', 'isDispatcher', 'isFinance', 'isHr',
 ] as const;
 
 interface Plan extends UserImportRow {
@@ -273,13 +279,15 @@ export async function importUsersCsv(
 
   // Read both collections once up front: planning every row against them in
   // memory keeps a 500-row file to two queries rather than a thousand reads.
-  const [allowSnap, siteSnap] = await Promise.all([
+  const [allowSnap, siteSnap, teamSnap] = await Promise.all([
     adminDb.collection(ALLOWED_USERS_COLLECTION).get(),
     adminDb.collection(SITES_COLLECTION).get(),
+    adminDb.collection(TEAMS_COLLECTION).get(),
   ]);
 
   const existingByEmail = new Map(allowSnap.docs.map((d) => [d.id, d.data()]));
   const siteIdByName = new Map(siteSnap.docs.map((d) => [headerKey(String(d.data().name ?? '')), d.id]));
+  const teamIdByName = new Map(teamSnap.docs.map((d) => [headerKey(String(d.data().name ?? '')), d.id]));
 
   const cell = (row: string[], key: ColumnKey): string => {
     const index = columns.get(key);
@@ -290,7 +298,7 @@ export async function importUsersCsv(
 
   const seen = new Set<string>();
   const plans: Plan[] = dataRows.map(({ cells, line }) =>
-    planRow(cells, line, { cell, existingByEmail, siteIdByName, seen, actor }),
+    planRow(cells, line, { cell, existingByEmail, siteIdByName, teamIdByName, seen, actor }),
   );
 
   if (options.apply) {
@@ -335,11 +343,12 @@ function planRow(
     cell: (row: string[], key: ColumnKey) => string;
     existingByEmail: Map<string, FirebaseFirestore.DocumentData>;
     siteIdByName: Map<string, string>;
+    teamIdByName: Map<string, string>;
     seen: Set<string>;
     actor: Actor;
   },
 ): Plan {
-  const { cell, existingByEmail, siteIdByName, seen, actor } = ctx;
+  const { cell, existingByEmail, siteIdByName, teamIdByName, seen, actor } = ctx;
 
   const email = normalizeEmail(cell(row, 'email'));
   const displayFallback = [cell(row, 'firstName'), cell(row, 'lastName')].filter(Boolean).join(' ');
@@ -384,7 +393,8 @@ function planRow(
 
   // ── Text fields. Blank never clears — see the note at the top of the file.
   const textFields: [ColumnKey, string][] = [
-    ['firstName', 'firstName'], ['lastName', 'lastName'], ['personalEmail', 'personalEmail'],
+    ['firstName', 'firstName'], ['lastName', 'lastName'], ['legalName', 'legalName'],
+    ['personalEmail', 'personalEmail'],
     ['phone', 'phone'], ['phoneGt', 'phoneGt'], ['extension', 'extension'],
   ];
   for (const [column, field] of textFields) {
@@ -435,6 +445,21 @@ function planRow(
     }
   }
 
+  // ── Team, matched by name. Same shape as the site block above.
+  const teamCell = cell(row, 'team');
+  if (teamCell) {
+    const clearing = ['none', 'no team', '-'].includes(headerKey(teamCell));
+    const teamId = clearing ? null : teamIdByName.get(headerKey(teamCell)) ?? null;
+    if (!clearing && !teamId) {
+      return reject('invalid', `There is no team called “${teamCell}”. Add it under Teams first.`);
+    }
+    const before = existing?.teamId ?? null;
+    if (before !== teamId) {
+      patch.teamId = teamId;
+      changes.push(LABELS.team);
+    }
+  }
+
   // ── Roles
   let rolesChanged = false;
   const rolesCell = cell(row, 'roles');
@@ -443,7 +468,7 @@ function planRow(
     if (roles === 'unrecognised') {
       return reject(
         'invalid',
-        `Roles “${rolesCell}” was not understood. Use Admin, Dispatcher, Finance — separated by commas — or Broker for none.`,
+        `Roles “${rolesCell}” was not understood. Use Admin, Dispatcher, Finance, HR — separated by commas — or Broker for none.`,
       );
     }
 
@@ -451,6 +476,7 @@ function planRow(
       isAdmin:      existing?.isAdmin === true,
       isDispatcher: existing?.isDispatcher === true,
       isFinance:    existing?.isFinance === true,
+      isHr:         existing?.isHr === true,
     };
     const differs = (Object.keys(roles) as (keyof Roles)[]).some((k) => before[k] !== roles[k]);
 
@@ -469,7 +495,8 @@ function planRow(
       Object.assign(patch, roles);
       rolesChanged = true;
       const held = [
-        roles.isAdmin && 'Admin', roles.isDispatcher && 'Dispatcher', roles.isFinance && 'Finance',
+        roles.isAdmin && 'Admin', roles.isDispatcher && 'Dispatcher',
+        roles.isFinance && 'Finance', roles.isHr && 'HR',
       ].filter(Boolean);
       changes.push(`${LABELS.roles} → ${held.length ? held.join(', ') : 'Broker'}`);
     }
@@ -520,6 +547,7 @@ async function applyPlan(plan: Plan, actor: Actor): Promise<void> {
       lastName:      '',
       displayName:   '',
       personalEmail: '',
+      legalName:     '',
       phone:         '',
       phoneGt:       '',
       extension:     '',
@@ -527,9 +555,11 @@ async function applyPlan(plan: Plan, actor: Actor): Promise<void> {
       startDate:     '',
       photoPath:     null,
       siteId:        null,
+      teamId:        null,
       isAdmin:       false,
       isDispatcher:  false,
       isFinance:     false,
+      isHr:          false,
       uid:           null,
       invitedBy:     actor.email || actor.uid,
       invitedAt:     FieldValue.serverTimestamp(),
