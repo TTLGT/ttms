@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { BOOTSTRAP_ADMIN_EMAILS, ALLOWED_EMAIL_DOMAIN } from '@/lib/accessControl';
+import { PHONE_EXAMPLE } from '@/lib/phone';
 
 /**
  * The administration half of the Admin Handbook, in-app so an admin can reach
@@ -431,6 +432,13 @@ const CHAPTERS: Chapter[] = [
             start date, date of birth. As much or as little as you know.
           </li>
           <li>
+            Phone numbers tidy themselves up as you tab out of the box: type a US number any way
+            you like and it is saved as <Mono>{PHONE_EXAMPLE.US}</Mono>, a Guatemala one as{' '}
+            <Mono>{PHONE_EXAMPLE.GT}</Mono>. One with the wrong count of digits turns the box
+            amber and is <strong>not saved</strong> — US needs 10 digits, Guatemala 8, and a desk
+            extension belongs in the Extension box rather than on the end of the number.
+          </li>
+          <li>
             Pick their <strong>Site</strong> and <strong>Roles</strong>, then click{' '}
             <strong>Add Person</strong>.
           </li>
@@ -511,6 +519,11 @@ const CHAPTERS: Chapter[] = [
           birth. It is also the only place that can <strong>clear</strong> a field — for a whole
           list at once, use the spreadsheet below.
         </p>
+        <p>
+          Phones are reformatted here too, and a number of the wrong length is saved{' '}
+          <strong>blank</strong> rather than as typed. Read the amber note under a phone box
+          before you save: this is the one screen that clears a field on purpose.
+        </p>
         <Callout tone="info" title="Admin-only fields">
           <p>
             <strong>Date of birth</strong> and <strong>personal email</strong> are kept on the
@@ -554,7 +567,8 @@ const CHAPTERS: Chapter[] = [
             <Row cells={[<strong key="e">Email</strong>, <>Required, and what identifies the person. Must end in <Mono>@{ALLOWED_EMAIL_DOMAIN}</Mono>.</>]} />
             <Row cells={['First name, Last name', 'As you want them shown.']} />
             <Row cells={['Personal email', 'Any address. Admin-only.']} />
-            <Row cells={['Work phone (US), Guatemala phone, Extension', 'Typed however you like.']} />
+            <Row cells={['Work phone (US), Guatemala phone', <>Typed however you like — all of <Mono key="a">4699354100</Mono>, <Mono>(469) 935-4100</Mono> and <Mono>+1 469-935-4100</Mono> save as <Mono>{PHONE_EXAMPLE.US}</Mono>. US needs 10 digits, Guatemala 8.</>]} />
+            <Row cells={['Extension', <>Typed however you like. Keep it out of the phone columns — a number with an extension on the end has too many digits and is left out.</>]} />
             <Row cells={['Site', <>The site&rsquo;s <strong key="n">name</strong>, as it appears under Sites. Write <Mono>None</Mono> to clear it.</>]} />
             <Row cells={['Date of birth, Start date', <>Best as <Mono>1990-03-04</Mono>. <Mono>3/4/2020</Mono> and <Mono>Mar 4, 2020</Mono> also work.</>]} />
             <Row cells={['Roles', <>Admin, Dispatcher, Finance — comma-separated — or <Mono>Broker</Mono> for none.</>]} />
@@ -580,7 +594,29 @@ const CHAPTERS: Chapter[] = [
         <p>
           A row TTMS cannot read — an unrecognisable date, a site that does not exist, a misspelled
           role — is skipped <strong>whole</strong> and named in the results, so it is never
-          half-saved. Fix it in Excel and upload again.
+          half-saved.
+        </p>
+        <Callout tone="good" title="Fix it without going back to Excel">
+          <p>
+            Every row in the results has a button on the right: <strong>Fix</strong> in amber where
+            something went wrong, <strong>Edit</strong> everywhere else. It opens the whole person
+            — name, legal name, personal email, both phones, extension, site, team, dates and roles
+            — with the box that caused the problem outlined in amber and the reason under it. Site,
+            team and roles are dropdowns and buttons, so the same mistake cannot happen twice, and
+            you can fill in a column the spreadsheet does not even have.
+          </p>
+          <p>
+            It edits <strong>the spreadsheet, not the directory</strong>. Once you have made a
+            change the Apply button disappears until you press <strong>Check again</strong> —
+            nothing is saved against a preview that no longer matches the file.{' '}
+            <strong>Download corrected file</strong> gives you the fixed spreadsheet to keep.
+          </p>
+        </Callout>
+        <p>
+          <strong>A phone number is the exception.</strong> One with the wrong count of digits does
+          not throw its row away: the rest of that person saves and only the number is left out.
+          The summary says how many were dropped and the row names them. Someone who already has a
+          number keeps the one they have — a bad cell never overwrites a good number.
         </p>
         <Callout tone="info" title="What a spreadsheet cannot do">
           <p>

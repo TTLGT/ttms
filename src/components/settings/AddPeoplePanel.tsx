@@ -9,6 +9,13 @@ import {
   isBroker,
   parseEmailList,
 } from '@/lib/accessControl';
+import {
+  PHONE_EXAMPLE,
+  PHONE_LABEL,
+  normalizePhone,
+  phoneHint,
+  type PhoneRegion,
+} from '@/lib/phone';
 import type { AllowedUserRole, InviteResult } from '@/types/allowedUser';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
@@ -51,11 +58,14 @@ const MODES: { id: Mode; label: string; Icon: typeof Keyboard }[] = [
 
 /** One labelled text input in the details grid. */
 function Field({
-  label, value, onChange, placeholder, type = 'text', disabled,
+  label, value, onChange, onBlur, hint, placeholder, type = 'text', disabled,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
+  /** Shown under the field in amber. Used to say what will not be saved. */
+  hint?: string;
   placeholder?: string;
   type?: string;
   disabled: boolean;
@@ -67,10 +77,12 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
         disabled={disabled}
         className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
       />
+      {hint && <span className="mt-1 block text-[11px] text-amber-700">{hint}</span>}
     </label>
   );
 }
@@ -95,6 +107,7 @@ export default function AddPeoplePanel({
   const [busy, setBusy]       = useState(false);
   const [error, setError]     = useState('');
   const [results, setResults] = useState<InviteResult[]>([]);
+  const [skippedPhones, setSkippedPhones] = useState<string[]>([]);
 
   // Parsed live so the admin sees the count and any off-domain address before
   // submitting. This runs the same parse the server does, so the preview and
@@ -109,18 +122,35 @@ export default function AddPeoplePanel({
   const setField = (key: keyof NewPersonDetails) => (value: string) =>
     setDetails((d) => ({ ...d, [key]: value }));
 
+  /**
+   * Rewrite a phone field into the shape it will be stored in as soon as it
+   * loses focus, so the admin sees the real value before they submit rather
+   * than after.
+   *
+   * A number that cannot be read is left exactly as typed: it is saved blank,
+   * but blanking the box here would take away the digits they need in order to
+   * fix it. The hint under the field is what says it will not be kept.
+   */
+  const tidyPhone = (key: 'phone' | 'phoneGt', region: PhoneRegion) => () =>
+    setDetails((d) => {
+      const { value, rejected } = normalizePhone(d[key], region);
+      return rejected ? d : { ...d, [key]: value };
+    });
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (parsed.length === 0) return;
 
     setError('');
     setResults([]);
+    setSkippedPhones([]);
     setBusy(true);
     try {
-      const rows = await inviteUsers(
+      const { results: rows, skippedPhones: dropped } = await inviteUsers(
         parsed, roles, siteId || null, teamId || null, single ? details : null,
       );
       setResults(rows);
+      setSkippedPhones(dropped);
 
       // Leave the addresses that did not land in the box so a typo can be
       // fixed in place and resubmitted; clear the ones that succeeded.
@@ -179,7 +209,7 @@ export default function AddPeoplePanel({
       </div>
 
       {mode === 'spreadsheet' ? (
-        <SpreadsheetImport onImported={onChanged} />
+        <SpreadsheetImport sites={sites} teams={teams} onImported={onChanged} />
       ) : (
         <form onSubmit={handleSubmit} className="px-6 py-4 flex flex-col gap-3">
           <label className="text-xs text-gray-500">
@@ -252,8 +282,24 @@ export default function AddPeoplePanel({
               <Field label="Last name" value={details.lastName} onChange={setField('lastName')} placeholder="Last" disabled={!single} />
               <Field label="Full legal name" value={details.legalName} onChange={setField('legalName')} placeholder="As it appears on payroll" disabled={!single} />
               <Field label="Personal email" type="email" value={details.personalEmail} onChange={setField('personalEmail')} placeholder="name@example.com" disabled={!single} />
-              <Field label="Work phone (US)" value={details.phone} onChange={setField('phone')} placeholder="(555) 123-4567" disabled={!single} />
-              <Field label="Guatemala phone" value={details.phoneGt} onChange={setField('phoneGt')} placeholder="+502 5555 5555" disabled={!single} />
+              <Field
+                label={PHONE_LABEL.US}
+                value={details.phone}
+                onChange={setField('phone')}
+                onBlur={tidyPhone('phone', 'US')}
+                hint={phoneHint(details.phone, 'US')}
+                placeholder={PHONE_EXAMPLE.US}
+                disabled={!single}
+              />
+              <Field
+                label={PHONE_LABEL.GT}
+                value={details.phoneGt}
+                onChange={setField('phoneGt')}
+                onBlur={tidyPhone('phoneGt', 'GT')}
+                hint={phoneHint(details.phoneGt, 'GT')}
+                placeholder={PHONE_EXAMPLE.GT}
+                disabled={!single}
+              />
               <Field label="Extension" value={details.extension} onChange={setField('extension')} placeholder="e.g. 204" disabled={!single} />
               <Field label="Start date" type="date" value={details.startDate} onChange={setField('startDate')} disabled={!single} />
               <Field label="Date of birth" type="date" value={details.dateOfBirth} onChange={setField('dateOfBirth')} disabled={!single} />
@@ -346,6 +392,20 @@ export default function AddPeoplePanel({
                 : 'Add Person'}
             </button>
           </div>
+
+          {/* Separate from the per-address rows below: the address was added,
+              and this is the one part of the form that did not come with it. */}
+          {skippedPhones.length > 0 && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+              <div className="flex items-start gap-2">
+                <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                <p>
+                  Saved without {skippedPhones.join(' or ')} — the number was not the right
+                  length, so it was left blank. Add it with the pencil icon below.
+                </p>
+              </div>
+            </div>
+          )}
 
           {results.length > 0 && (
             <div className="rounded-lg border border-gray-200 divide-y divide-gray-100">

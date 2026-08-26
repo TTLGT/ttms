@@ -14,6 +14,13 @@ import {
   revokeUser,
 } from '@/lib/allowedUsers';
 import { isBootstrapAdmin, isBroker, normalizeEmail } from '@/lib/accessControl';
+import {
+  PHONE_EXAMPLE,
+  PHONE_LABEL,
+  normalizePhone,
+  phoneHint,
+  type PhoneRegion,
+} from '@/lib/phone';
 import { listSites } from '@/lib/sites';
 import { listTeams } from '@/lib/teams';
 import { useAuth } from '@/context/AuthContext';
@@ -83,11 +90,13 @@ function directionLabel(field: SortField, dir: SortDir): string {
 const digitsOnly = (value: string | null | undefined) => (value ?? '').replace(/\D/g, '');
 
 /**
- * Phone numbers are typed however the admin types them — (555) 123-4567,
- * 555.123.4567, +1 555 123 4567 — so they are compared as digits alone. The
- * country code is dropped so a number entered with it files next to the same
- * number entered without, rather than in a separate block of its own: +1 for
- * the US line, +502 for the Guatemala one.
+ * Compare phone numbers as digits alone.
+ *
+ * New and re-saved numbers are all one shape now (lib/phone.ts), but entries
+ * that have not been touched since still hold whatever was typed at the time —
+ * (555) 123-4567, 555.123.4567, +1 555 123 4567 — and those have to sort in
+ * with the rest rather than in a block of their own. The country code is
+ * dropped for the same reason: +1 for the US line, +502 for the Guatemala one.
  */
 function phoneKey(value: string | null | undefined, countryCode: '1' | '502'): string {
   const d = digitsOnly(value);
@@ -219,6 +228,24 @@ export default function SettingsPage() {
     firstName: '', lastName: '', legalName: '', personalEmail: '', phone: '', phoneGt: '',
     extension: '', dateOfBirth: '', startDate: '', siteId: '', teamId: '',
   });
+  /**
+   * Something that was not an error but that the admin still has to be told —
+   * currently only a phone number that could not be read and was therefore
+   * saved blank. Kept apart from `error`, because the save itself worked.
+   */
+  const [notice, setNotice]   = useState('');
+
+  /**
+   * Rewrite a phone field into the shape it is stored in when it loses focus.
+   * Same rule as the add form: a number that cannot be read is left as typed so
+   * it can be corrected, and the hint under the field says it will not be kept.
+   * See lib/phone.ts.
+   */
+  const tidyPhone = (key: 'phone' | 'phoneGt', region: PhoneRegion) => () =>
+    setDraft((d) => {
+      const { value, rejected } = normalizePhone(d[key], region);
+      return rejected ? d : { ...d, [key]: value };
+    });
 
   /**
    * HR reads this page; only admins act on it. Everything that writes is gated
@@ -365,6 +392,7 @@ export default function SettingsPage() {
       : splitName(person.displayName);
 
     setEditing(person.email);
+    setNotice('');
     setDraft({
       ...name,
       legalName:     person.legalName ?? '',
@@ -389,19 +417,33 @@ export default function SettingsPage() {
   async function handleSaveDetails(person: AllowedUser) {
     setBusy(`${person.email}:details`);
     setError('');
+    setNotice('');
     try {
       const details = {
         ...draft,
         siteId: draft.siteId || null,
         teamId: draft.teamId || null,
       };
-      await setAllowedUserDetails(person.email, details);
+      const { skippedPhones } = await setAllowedUserDetails(person.email, details);
       // The server composes displayName from the two parts; mirror that here so
       // the row does not keep showing the name it had before the edit.
       const displayName = [details.firstName, details.lastName].filter(Boolean).join(' ');
+      // Phones are taken from what the server would have accepted, not from the
+      // draft: one it could not read was stored blank, and leaving the typed
+      // digits in the row would show a number that is not on the record.
+      const saved = {
+        ...details,
+        phone:   normalizePhone(details.phone, 'US').value,
+        phoneGt: normalizePhone(details.phoneGt, 'GT').value,
+      };
       setPeople((prev) =>
-        prev.map((p) => (p.email === person.email ? { ...p, ...details, displayName } : p)),
+        prev.map((p) => (p.email === person.email ? { ...p, ...saved, displayName } : p)),
       );
+      if (skippedPhones.length > 0) {
+        setNotice(
+          `Saved, but ${skippedPhones.join(' and ')} was not the right length, so it was left blank.`,
+        );
+      }
       setEditing(null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not save the details');
@@ -555,6 +597,12 @@ They will be signed out immediately and cannot sign in until you restore them. T
       {error && (
         <div className="mb-6 rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600">
           {error}
+        </div>
+      )}
+
+      {notice && (
+        <div className="mb-6 rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-700">
+          {notice}
         </div>
       )}
 
@@ -1023,22 +1071,34 @@ They will be signed out immediately and cannot sign in until you restore them. T
                             </select>
                           </label>
                           <label className="text-xs text-gray-500">
-                            Work phone (US)
+                            {PHONE_LABEL.US}
                             <input
                               value={draft.phone}
                               onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
-                              placeholder="(555) 123-4567"
+                              onBlur={tidyPhone('phone', 'US')}
+                              placeholder={PHONE_EXAMPLE.US}
                               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
                             />
+                            {phoneHint(draft.phone, 'US') && (
+                              <span className="mt-1 block text-[11px] text-amber-700">
+                                {phoneHint(draft.phone, 'US')}
+                              </span>
+                            )}
                           </label>
                           <label className="text-xs text-gray-500">
-                            Guatemala phone
+                            {PHONE_LABEL.GT}
                             <input
                               value={draft.phoneGt}
                               onChange={(e) => setDraft((d) => ({ ...d, phoneGt: e.target.value }))}
-                              placeholder="+502 5555 5555"
+                              onBlur={tidyPhone('phoneGt', 'GT')}
+                              placeholder={PHONE_EXAMPLE.GT}
                               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
                             />
+                            {phoneHint(draft.phoneGt, 'GT') && (
+                              <span className="mt-1 block text-[11px] text-amber-700">
+                                {phoneHint(draft.phoneGt, 'GT')}
+                              </span>
+                            )}
                           </label>
                           <label className="text-xs text-gray-500">
                             Extension

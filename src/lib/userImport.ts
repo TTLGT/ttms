@@ -11,6 +11,7 @@ import {
   normalizeEmail,
 } from './accessControl';
 import { isCalendarDate } from '@/types/allowedUser';
+import { normalizePhone, phoneSkipMessage, type PhoneRegion } from './phone';
 import {
   COLUMN_LABELS as LABELS,
   IGNORED_COLUMNS,
@@ -33,6 +34,8 @@ import {
  * 2. **A row is applied whole or not at all.** A row with a date nobody can
  *    parse is rejected outright rather than written with that one column
  *    dropped — a half-applied row looks successful and quietly loses data.
+ *    The single exception is a phone number of the wrong length, which is
+ *    dropped on its own and reported; the reasoning is at that block below.
  *
  * The import can only add and update. It never suspends, never revokes, and
  * never reads anything into someone's *absence* from the file: a directory
@@ -52,6 +55,21 @@ export type UserImportAction =
   | 'duplicate'    // the same address appeared on an earlier row
   | 'error';       // the write itself failed
 
+/**
+ * One thing wrong with one cell, named by column rather than only described in
+ * prose.
+ *
+ * `message` alone was enough while the report was something to read and act on
+ * in Excel. It is not enough to *offer a fix*: the panel has to know which box
+ * to put in front of the admin, which is what `column` is for. The two travel
+ * together — the message is what a person reads, the column is what the UI
+ * keys on — and both describe the same fault.
+ */
+export interface ImportProblem {
+  column: ColumnKey;
+  message: string;
+}
+
 export interface UserImportRow {
   /** Line number in the file, header included, so it matches what Excel shows. */
   line: number;
@@ -63,6 +81,12 @@ export interface UserImportRow {
   changes: string[];
   /** Why it was rejected, or a caveat about what was applied. */
   message: string;
+  /**
+   * The same faults, per cell. Empty on a row with nothing wrong with it, and
+   * on one that failed to write — a save that did not happen is not the fault
+   * of any particular column.
+   */
+  problems: ImportProblem[];
 }
 
 export interface UserImportReport {
@@ -75,6 +99,12 @@ export interface UserImportReport {
     unchanged: number;
     /** Everything that will not be written: invalid, wrong-domain, duplicate, error. */
     rejected: number;
+    /**
+     * Phone cells that were not a number of the right length. Counted apart
+     * from `rejected` because they do not reject anything: the rest of the row
+     * is still applied, and only that one cell is dropped.
+     */
+    phonesSkipped: number;
   };
   /** Headers that were understood, echoed back so a mis-named column is visible. */
   matchedColumns: string[];
@@ -222,6 +252,8 @@ const MIRRORED_FIELDS = [
 interface Plan extends UserImportRow {
   /** Fields to write. Empty on any row that will not be written. */
   patch: Record<string, unknown>;
+  /** How many phone cells on this row were dropped — see the counts above. */
+  phonesSkipped: number;
   /** True when a role flag differs, which also forces a token refresh. */
   rolesChanged: boolean;
   existing: FirebaseFirestore.DocumentData | null;
@@ -312,13 +344,20 @@ export async function importUsersCsv(
         plan.action = 'error';
         plan.message = 'Could not be saved. Check this row again — someone may have just changed it.';
         plan.changes = [];
+        // Nothing was written, so a phone note about this row would only be one
+        // more thing to read on a row the admin has to redo anyway. There is no
+        // cell to point at either: the row was fine, the write was not.
+        plan.phonesSkipped = 0;
+        plan.problems = [];
       }
     }
   }
 
-  const rows: UserImportRow[] = plans.map(({ line, email, name, action, changes, message }) => ({
-    line, email, name, action, changes, message,
-  }));
+  const rows: UserImportRow[] = plans.map(
+    ({ line, email, name, action, changes, message, problems }) => ({
+      line, email, name, action, changes, message, problems,
+    }),
+  );
 
   return {
     applied: options.apply,
@@ -330,6 +369,10 @@ export async function importUsersCsv(
       rejected:  rows.filter((r) =>
         r.action === 'invalid' || r.action === 'wrong-domain' ||
         r.action === 'duplicate' || r.action === 'error').length,
+      // Counted off the plans rather than the rows: a rejected row builds a
+      // fresh plan and never carries a phone note, which is what we want — a
+      // row that was not written has nothing to say about one cell on it.
+      phonesSkipped: plans.reduce((n, plan) => n + plan.phonesSkipped, 0),
     },
     matchedColumns,
     unknownColumns,
@@ -353,18 +396,26 @@ function planRow(
   const email = normalizeEmail(cell(row, 'email'));
   const displayFallback = [cell(row, 'firstName'), cell(row, 'lastName')].filter(Boolean).join(' ');
 
-  const reject = (action: UserImportAction, message: string): Plan => ({
+  // `column` is the cell to put in front of the admin when they ask to fix the
+  // row in place. Every rejection has one: there is no way to refuse a row
+  // without having read something specific that was wrong with it.
+  const reject = (action: UserImportAction, message: string, column: ColumnKey): Plan => ({
     line, email, name: displayFallback, action, changes: [], message,
-    patch: {}, rolesChanged: false, existing: null,
+    problems: [{ column, message }],
+    patch: {}, rolesChanged: false, existing: null, phonesSkipped: 0,
   });
 
-  if (!email) return reject('invalid', 'No email address on this row.');
-  if (!EMAIL_RE.test(email)) return reject('invalid', 'Not a valid email address.');
+  if (!email) return reject('invalid', 'No email address on this row.', 'email');
+  if (!EMAIL_RE.test(email)) return reject('invalid', 'Not a valid email address.', 'email');
   if (!isAllowedEmailDomain(email)) {
-    return reject('wrong-domain', `Only @${ALLOWED_EMAIL_DOMAIN} addresses can be added.`);
+    return reject('wrong-domain', `Only @${ALLOWED_EMAIL_DOMAIN} addresses can be added.`, 'email');
   }
   if (seen.has(email)) {
-    return reject('duplicate', 'This address appears earlier in the file — this row was skipped.');
+    return reject(
+      'duplicate',
+      'This address appears earlier in the file — this row was skipped.',
+      'email',
+    );
   }
   seen.add(email);
 
@@ -372,6 +423,7 @@ function planRow(
   const patch: Record<string, unknown> = {};
   const changes: string[] = [];
   const notes: string[] = [];
+  const problems: ImportProblem[] = [];
 
   /** Record a field change, but only when the file actually says something new. */
   const set = (key: string, label: string, value: unknown) => {
@@ -388,18 +440,54 @@ function planRow(
 
   const personalEmail = cell(row, 'personalEmail');
   if (personalEmail && !EMAIL_RE.test(personalEmail)) {
-    return reject('invalid', `Personal email “${personalEmail}” is not a valid address.`);
+    return reject(
+      'invalid',
+      `Personal email “${personalEmail}” is not a valid address.`,
+      'personalEmail',
+    );
   }
 
   // ── Text fields. Blank never clears — see the note at the top of the file.
   const textFields: [ColumnKey, string][] = [
     ['firstName', 'firstName'], ['lastName', 'lastName'], ['legalName', 'legalName'],
-    ['personalEmail', 'personalEmail'],
-    ['phone', 'phone'], ['phoneGt', 'phoneGt'], ['extension', 'extension'],
+    ['personalEmail', 'personalEmail'], ['extension', 'extension'],
   ];
   for (const [column, field] of textFields) {
     const value = cell(row, column);
     if (value) set(field, LABELS[column], value);
+  }
+
+  // ── Phones, rewritten to one shape on the way in — see lib/phone.ts.
+  //
+  // A cell that is not a number of the right length is the one thing here that
+  // does NOT reject its row. Rule 2 at the top of this file says a row applies
+  // whole or not at all, and this is a deliberate exception to it: a mistyped
+  // phone number is the most common thing wrong with one of these files, and
+  // throwing away a correct name, team and start date over one digit would
+  // send the admin back to Excel for the whole row. The cell is dropped, the
+  // row is applied, and the number is named both in the row's message and in
+  // the summary count, so it cannot pass unnoticed.
+  //
+  // Dropped means *not written*, not written as blank: on someone who already
+  // has a number, a bad cell leaves the good number alone. That is rule 1 —
+  // the spreadsheet is a source of updates, not a replacement for the record.
+  let phonesSkipped = 0;
+  const phoneFields: [ColumnKey, string, PhoneRegion][] = [
+    ['phone', 'phone', 'US'], ['phoneGt', 'phoneGt', 'GT'],
+  ];
+  for (const [column, field, region] of phoneFields) {
+    const raw = cell(row, column);
+    if (!raw) continue;
+
+    const { value, rejected } = normalizePhone(raw, region);
+    if (rejected) {
+      phonesSkipped++;
+      const message = phoneSkipMessage(raw, region, Boolean(existing?.[field]));
+      notes.push(message);
+      problems.push({ column, message });
+      continue;
+    }
+    set(field, LABELS[column], value);
   }
 
   // displayName is stored rather than derived, so it has to be recomputed from
@@ -420,10 +508,13 @@ function planRow(
       return reject(
         'invalid',
         `${LABELS[key]} “${raw}” was not understood. Write it as YYYY-MM-DD (for example 1990-03-04).`,
+        key,
       );
     }
     const problem = dateOutOfRange(key, parsed);
-    if (problem) return reject('invalid', `${LABELS[key]} “${raw}” was rejected because ${problem}.`);
+    if (problem) {
+      return reject('invalid', `${LABELS[key]} “${raw}” was rejected because ${problem}.`, key);
+    }
 
     set(key, LABELS[key], parsed);
   }
@@ -436,7 +527,11 @@ function planRow(
     const clearing = ['none', 'no site', '-'].includes(headerKey(siteCell));
     const siteId = clearing ? null : siteIdByName.get(headerKey(siteCell)) ?? null;
     if (!clearing && !siteId) {
-      return reject('invalid', `There is no site called “${siteCell}”. Add it under Sites first.`);
+      return reject(
+        'invalid',
+        `There is no site called “${siteCell}”. Add it under Sites first.`,
+        'site',
+      );
     }
     const before = existing?.siteId ?? null;
     if (before !== siteId) {
@@ -451,7 +546,11 @@ function planRow(
     const clearing = ['none', 'no team', '-'].includes(headerKey(teamCell));
     const teamId = clearing ? null : teamIdByName.get(headerKey(teamCell)) ?? null;
     if (!clearing && !teamId) {
-      return reject('invalid', `There is no team called “${teamCell}”. Add it under Teams first.`);
+      return reject(
+        'invalid',
+        `There is no team called “${teamCell}”. Add it under Teams first.`,
+        'team',
+      );
     }
     const before = existing?.teamId ?? null;
     if (before !== teamId) {
@@ -469,6 +568,7 @@ function planRow(
       return reject(
         'invalid',
         `Roles “${rolesCell}” was not understood. Use Admin, Dispatcher, Finance, HR — separated by commas — or Broker for none.`,
+        'roles',
       );
     }
 
@@ -522,9 +622,11 @@ function planRow(
     action,
     changes,
     message: notes.join(' '),
+    problems,
     patch,
     rolesChanged,
     existing,
+    phonesSkipped,
   };
 }
 

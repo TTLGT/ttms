@@ -52,6 +52,16 @@ export async function listAllowedUsers(): Promise<AllowedUser[]> {
 export type NewPersonDetails = Omit<AllowedUserDetails, 'siteId' | 'teamId'>;
 
 /**
+ * What every write of a details block reports back: the labels of any phone
+ * numbers the server could not read and therefore did not store. Empty on the
+ * normal path. The caller is expected to show it — a number that was dropped
+ * silently is the whole reason this is plumbed through rather than ignored.
+ */
+export interface PhoneReport {
+  skippedPhones: string[];
+}
+
+/**
  * Grant access to one or many people in a single request.
  *
  * A rejected address (bad syntax, outside domain, already on the list) does not
@@ -76,12 +86,15 @@ export async function inviteUsers(
    * none of it can be true of a batch.
    */
   details: NewPersonDetails | null = null,
-): Promise<InviteResult[]> {
-  const data = await authedFetch<{ results: InviteResult[] }>('/api/admin/users', {
-    method: 'POST',
-    body: JSON.stringify({ emails, ...roles, siteId, teamId, details }),
-  });
-  return data.results ?? [];
+): Promise<PhoneReport & { results: InviteResult[] }> {
+  const data = await authedFetch<{ results: InviteResult[]; skippedPhones?: string[] }>(
+    '/api/admin/users',
+    {
+      method: 'POST',
+      body: JSON.stringify({ emails, ...roles, siteId, teamId, details }),
+    },
+  );
+  return { results: data.results ?? [], skippedPhones: data.skippedPhones ?? [] };
 }
 
 /**
@@ -99,15 +112,21 @@ export async function setAllowedUserPhoto(
   });
 }
 
-/** Update someone's name, phones, extension, site and team in one request. */
+/**
+ * Update someone's name, phones, extension, site and team in one request.
+ *
+ * Returns the phones the server could not read: those are saved blank, and the
+ * caller has to say so rather than let a number quietly disappear from the row.
+ */
 export async function setAllowedUserDetails(
   email: string,
   details: AllowedUserDetails,
-): Promise<void> {
-  await authedFetch('/api/admin/users', {
+): Promise<PhoneReport> {
+  const data = await authedFetch<{ skippedPhones?: string[] }>('/api/admin/users', {
     method: 'PATCH',
     body: JSON.stringify({ email, details }),
   });
+  return { skippedPhones: data.skippedPhones ?? [] };
 }
 
 export async function setAllowedUserRole(

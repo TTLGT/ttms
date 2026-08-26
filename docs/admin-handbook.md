@@ -245,6 +245,14 @@ described in this section is absent for them.
 4. Fill in **Their details** — name, **full legal name**, personal email,
    phones, extension, start date, date of birth. Fill in what you know; the
    rest can be added later.
+   - **Phone numbers tidy themselves up.** Type a US number any way you like —
+     `4699354100`, `(469) 935-4100`, `+1 469-935-4100` — and it is saved as
+     **+(469) 935-4100**. A Guatemala number, with or without the 502, is saved
+     as **+(502) 4874-0227**. You will see the field change as you tab out of it.
+   - A number with the wrong number of digits is **not saved** — the box turns
+     amber and says so, and the person is still added without it. US numbers
+     need 10 digits, Guatemala numbers 8. A desk extension goes in the
+     **Extension** box, not on the end of the number.
    - These fields are only available when there is **one** address in the box.
      A name and a birthday belong to one person, so with several addresses
      pasted in they grey out. Use the Spreadsheet mode to give details to
@@ -275,6 +283,12 @@ Click the **pencil** icon on someone's row to record who they are: first and
 last name, a photo, their site, their team, work phone, Guatemala phone, desk
 extension, **full legal name**, **personal email**, **start date** and
 **date of birth**.
+
+Phone numbers are reformatted here the same way they are on the Add People
+panel — to **+(469) 935-4100** and **+(502) 4874-0227** — and one with the wrong
+number of digits is saved blank rather than as typed, with a message saying so.
+This is the one place that clears a field on purpose, so check the amber note
+under a phone box before saving.
 
 > **Full legal name, date of birth and personal email are seen by Admins and HR
 > only.** They are stored against the access list, which nobody else can read —
@@ -411,7 +425,8 @@ typing each person in.
    | First name, Last name | The name the office uses. |
    | **Full legal name** | The payroll name, if it differs. Admin and HR only. Leave blank when it is just their first and last name. |
    | Personal email | Any address. Admin and HR only. |
-   | Work phone (US), Guatemala phone, Extension | Typed however you like. |
+   | Work phone (US), Guatemala phone | Typed however you like — `4699354100`, `(469) 935-4100` and `+1 469-935-4100` all save as `+(469) 935-4100`. US needs 10 digits, Guatemala 8. |
+   | Extension | Typed however you like. Keep it out of the phone columns — a number with an extension stuck on the end has too many digits and will be left out. |
    | Site | The site's **name**, spelled as it appears under Sites. Write `None` to clear it. |
    | **Team** | The team's **name**, spelled as it appears under Teams. Write `None` to clear it. |
    | Date of birth, Start date | Best written as `1990-03-04`. `3/4/2020` and `Mar 4, 2020` also work. |
@@ -421,7 +436,25 @@ typing each person in.
 4. **You should see:** a summary such as *"Ready to save: 4 new, 11 updated"*,
    then a line per person saying exactly which fields would change.
    Read it. Nothing has been saved yet.
-5. If it looks right, click **Apply N changes**.
+5. **Fix anything that went wrong without leaving the screen.** Every row has a
+   button on the right — it reads **Fix** in amber on a row with a problem, and
+   **Edit** on the rest. It opens the whole person: email, name, legal name,
+   personal email, both phones, extension, site, team, dates and roles. The box
+   that caused the problem is outlined in amber with the reason under it.
+   - Site, team and roles are **dropdowns and buttons**, so a name that does not
+     exist or a misspelled role cannot happen twice.
+   - Dates are a date picker, so what goes back is always readable.
+   - Phone numbers tidy themselves up here too.
+   - You can fill in a column **the spreadsheet does not even have** — pick a
+     Team on a file with no Team column and the column is added for you.
+   - This edits **the spreadsheet, not the directory.** After editing, the
+     Apply button disappears and the Check button turns blue: press
+     **Check again** to see what your corrections would now do. That is
+     deliberate — nothing is ever saved against a preview that no longer
+     matches the file.
+   - **Download corrected file** gives you the spreadsheet with your fixes in
+     it, to keep or to send back to whoever produced it.
+6. If it looks right, click **Apply N changes**.
 
 **The three rules that make this safe to use:**
 
@@ -441,6 +474,17 @@ team that does not exist, a misspelled role — that **whole row** is skipped an
 named in the results, so it never gets half-saved. Fix it in Excel and upload
 again. Sites and teams have to exist before you can import people into them, so
 add those first.
+
+**A phone number is the one exception.** A number with the wrong count of digits
+does not throw its row away — the rest of that person's row saves, and only the
+number is left out. The summary says how many were dropped and the row itself
+names them, for example *"Work phone (US) “469-935-41” is not a 10-digit US
+number, so it was left blank."* On someone who already has a number on file, the
+one they have is kept rather than overwritten.
+
+Either way you do not have to go back to Excel: click **Fix** on the row, correct
+it there, and **Check again**. Uploading a corrected file from Excel still works
+exactly as it always did.
 
 > You cannot remove your own Admin role this way, and neither can the protected
 > `it@`, `operations@` and `dispatch@` accounts lose theirs. If a file tries,

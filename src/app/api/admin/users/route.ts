@@ -15,6 +15,7 @@ import {
   TEAMS_COLLECTION,
 } from '@/lib/accessControl';
 import { normalizeCalendarDate } from '@/types/allowedUser';
+import { PHONE_LABEL, normalizePhone } from '@/lib/phone';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -173,7 +174,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'That team no longer exists.' }, { status: 400 });
   }
 
-  const details = emails.length === 1 ? newPersonDetails(body.details) : null;
+  // Only ever read for a single address — see the note above this function. A
+  // batch carries no details, so it has no phone number to report on either.
+  const { details, skippedPhones } = emails.length === 1
+    ? newPersonDetails(body.details)
+    : { details: null, skippedPhones: [] as string[] };
 
   // Sequential on purpose: keeps result order stable and stays well inside
   // Firestore/Auth rate limits even at the batch cap.
@@ -183,7 +188,9 @@ export async function POST(req: NextRequest) {
   }
 
   const added = results.filter((r) => r.status === 'added').length;
-  return NextResponse.json({ ok: true, added, results });
+  // `skippedPhones` rides along with the results rather than failing the add:
+  // the person still gets access, and the caller says which number to re-enter.
+  return NextResponse.json({ ok: true, added, results, skippedPhones });
 }
 
 /** Free text an admin types, trimmed and length-capped before it is stored. */
@@ -192,19 +199,51 @@ function text(value: unknown, max: number): string {
 }
 
 /**
- * Sanitise the optional details block on a single-person add. Returns null when
- * nothing usable was sent, so `invite` can tell "no details" from "details that
- * are all blank" and leave its own defaults in place either way.
+ * Both phone numbers in the one shape the directory stores them in, plus the
+ * labels of any that could not be read at all.
  *
- * Same rules as the details PATCH: capped text, and a date is stored only if it
- * is a real YYYY-MM-DD.
+ * A number of the wrong length is stored blank rather than as typed — see
+ * lib/phone.ts for why the length is the whole test — and the labels travel
+ * back in the response so the admin is told which number to re-enter now,
+ * instead of discovering the field empty a week later. No length cap: what
+ * comes out of `normalizePhone` is either a fixed-width number or ''.
  */
-function newPersonDetails(value: unknown): Record<string, string> | null {
-  if (!value || typeof value !== 'object') return null;
+function phones(d: Record<string, unknown>): {
+  phone: string;
+  phoneGt: string;
+  skippedPhones: string[];
+} {
+  const us = normalizePhone(d.phone, 'US');
+  const gt = normalizePhone(d.phoneGt, 'GT');
+
+  return {
+    phone:   us.value,
+    phoneGt: gt.value,
+    skippedPhones: [
+      ...(us.rejected ? [PHONE_LABEL.US] : []),
+      ...(gt.rejected ? [PHONE_LABEL.GT] : []),
+    ],
+  };
+}
+
+/**
+ * Sanitise the optional details block on a single-person add. `details` is null
+ * when nothing usable was sent, so `invite` can tell "no details" from "details
+ * that are all blank" and leave its own defaults in place either way.
+ *
+ * Same rules as the details PATCH: capped text, a date is stored only if it is
+ * a real YYYY-MM-DD, and a phone only if it is the right length.
+ */
+function newPersonDetails(value: unknown): {
+  details: Record<string, string> | null;
+  skippedPhones: string[];
+} {
+  if (!value || typeof value !== 'object') return { details: null, skippedPhones: [] };
   const d = value as Record<string, unknown>;
 
   const firstName = text(d.firstName, 60);
   const lastName  = text(d.lastName, 60);
+  const { phone, phoneGt, skippedPhones } = phones(d);
 
   const details = {
     firstName,
@@ -215,14 +254,19 @@ function newPersonDetails(value: unknown): Record<string, string> | null {
     // Longer cap than first/last together: this is a full legal name, which is
     // routinely four or five parts.
     legalName:     text(d.legalName, 160),
-    phone:         text(d.phone, 40),
-    phoneGt:       text(d.phoneGt, 40),
+    phone,
+    phoneGt,
     extension:     text(d.extension, 12),
     dateOfBirth:   normalizeCalendarDate(d.dateOfBirth),
     startDate:     normalizeCalendarDate(d.startDate),
   };
 
-  return Object.values(details).some(Boolean) ? details : null;
+  // Reported even when every field came out blank: an add whose only content
+  // was an unreadable phone number still needs to say so.
+  return {
+    details: Object.values(details).some(Boolean) ? details : null,
+    skippedPhones,
+  };
 }
 
 /**
@@ -253,6 +297,11 @@ async function updateDetails(email: string, details: Record<string, unknown>) {
 
   const firstName = text(details.firstName, 60);
   const lastName  = text(details.lastName, 60);
+  // A number that cannot be read is saved blank rather than as typed. The
+  // editor warns about it under the field before this is ever sent, and the
+  // response below names it again — this is the deliberate place to clear a
+  // field, so silently keeping the old value would be the wrong call here.
+  const { phone, phoneGt, skippedPhones } = phones(details);
 
   const patch = {
     firstName,
@@ -260,8 +309,8 @@ async function updateDetails(email: string, details: Record<string, unknown>) {
     // Written alongside the parts so everything that reads a single name off
     // the profile keeps working without having to join them itself.
     displayName: [firstName, lastName].filter(Boolean).join(' '),
-    phone:       text(details.phone, 40),
-    phoneGt:     text(details.phoneGt, 40),
+    phone,
+    phoneGt,
     extension:   text(details.extension, 12),
     siteId,
     teamId,
@@ -287,7 +336,7 @@ async function updateDetails(email: string, details: Record<string, unknown>) {
     await adminDb.collection(USERS_COLLECTION).doc(uid).set(patch, { merge: true });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, skippedPhones });
 }
 
 /** Points the entry at an uploaded photo, or clears it. */
