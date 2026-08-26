@@ -3,32 +3,28 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  AlertCircle, ArrowDown, ArrowUp, Ban, Check, Download, Pencil, RotateCcw, Trash2, UserPlus, X,
+  ArrowDown, ArrowUp, Ban, Check, Download, Pencil, RotateCcw, Trash2, X,
 } from 'lucide-react';
 import {
   listAllowedUsers,
-  inviteUsers,
   setAllowedUserRole,
   setAllowedUserDetails,
   setAllowedUserPhoto,
   setAllowedUserSuspended,
   revokeUser,
 } from '@/lib/allowedUsers';
-import {
-  ALLOWED_EMAIL_DOMAIN,
-  isAllowedEmailDomain,
-  isBootstrapAdmin,
-  isBroker,
-  normalizeEmail,
-  parseEmailList,
-} from '@/lib/accessControl';
+import { isBootstrapAdmin, isBroker, normalizeEmail } from '@/lib/accessControl';
 import { useAuth } from '@/context/AuthContext';
-import { accessStatus, fullName, splitName } from '@/types/allowedUser';
-import type { AllowedUser, AllowedUserRole, InviteResult } from '@/types/allowedUser';
+import {
+  accessStatus, formatCalendarDate, fullName, splitName, yearsSince,
+} from '@/types/allowedUser';
+import type { AllowedUser, AllowedUserRole } from '@/types/allowedUser';
 import { toCsv, csvDate, downloadCsv } from '@/lib/csv';
 import type { Site } from '@/types/site';
+import AddPeoplePanel from '@/components/settings/AddPeoplePanel';
 import BatsImportPanel from '@/components/settings/BatsImportPanel';
 import LaneDistancePanel from '@/components/settings/LaneDistancePanel';
+import RemovedPeoplePanel from '@/components/settings/RemovedPeoplePanel';
 import SitesPanel from '@/components/settings/SitesPanel';
 import { AvatarUploader, UserAvatar } from '@/components/settings/UserAvatar';
 import WorkGroupsPanel from '@/components/settings/WorkGroupsPanel';
@@ -50,7 +46,8 @@ type StatusFilter = 'all' | 'active' | 'pending' | 'suspended';
 /** 'broker' means "no elevated role" — the default everyone starts with. */
 type RoleFilter   = 'all' | AllowedUserRole | 'broker';
 type SortField =
-  | 'firstName' | 'lastName' | 'email' | 'phone' | 'phoneGt' | 'extension' | 'added';
+  | 'firstName' | 'lastName' | 'email' | 'phone' | 'phoneGt' | 'extension'
+  | 'startDate' | 'dateOfBirth' | 'added';
 type SortDir   = 'asc' | 'desc';
 
 const SORT_FIELDS: { key: SortField; label: string }[] = [
@@ -60,12 +57,18 @@ const SORT_FIELDS: { key: SortField; label: string }[] = [
   { key: 'phone',     label: 'Work phone (US)' },
   { key: 'phoneGt',   label: 'Guatemala phone' },
   { key: 'extension', label: 'Extension' },
+  { key: 'startDate', label: 'Start date' },
+  { key: 'dateOfBirth', label: 'Date of birth' },
   { key: 'added',     label: 'Date added' },
 ];
 
 /** Direction reads differently depending on what is being ordered. */
 function directionLabel(field: SortField, dir: SortDir): string {
-  if (field === 'added') return dir === 'asc' ? 'Oldest first' : 'Newest first';
+  if (field === 'added')     return dir === 'asc' ? 'Oldest first' : 'Newest first';
+  if (field === 'startDate') return dir === 'asc' ? 'Longest here first' : 'Newest hire first';
+  // The earliest birthday belongs to the oldest person, which is the way round
+  // anyone sorting by it is actually thinking.
+  if (field === 'dateOfBirth') return dir === 'asc' ? 'Oldest first' : 'Youngest first';
   if (field === 'phone' || field === 'phoneGt' || field === 'extension') {
     return dir === 'asc' ? 'Low → High' : 'High → Low';
   }
@@ -111,6 +114,10 @@ function sortText(p: AllowedUser, field: SortField): string {
   if (field === 'phone')     return phoneKey(p.phone, '1');
   if (field === 'phoneGt')   return phoneKey(p.phoneGt, '502');
   if (field === 'extension') return extensionKey(p);
+  // Stored as YYYY-MM-DD precisely so plain text order is date order; a blank
+  // one falls through to the same "unknown, so put it last" rule as the rest.
+  if (field === 'startDate')   return (p.startDate ?? '').trim();
+  if (field === 'dateOfBirth') return (p.dateOfBirth ?? '').trim();
   const value = field === 'lastName' ? p.lastName : p.firstName;
   return (value ?? '').trim().toLowerCase();
 }
@@ -201,22 +208,11 @@ export default function SettingsPage() {
 
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft]     = useState({
-    firstName: '', lastName: '', phone: '', phoneGt: '', extension: '', siteId: '',
+    firstName: '', lastName: '', personalEmail: '', phone: '', phoneGt: '',
+    extension: '', dateOfBirth: '', startDate: '', siteId: '',
   });
 
-  const [newEmails, setNewEmails] = useState('');
-  const [newRoles, setNewRoles]   = useState(NO_ROLES);
-  const [newSiteId, setNewSiteId] = useState('');
-  const [inviting, setInviting]   = useState(false);
-  const [results, setResults]     = useState<InviteResult[]>([]);
-
   const myEmail = normalizeEmail(user?.email);
-
-  // Parsed live so the admin sees the count and any off-domain address before
-  // submitting. This runs the same parse the server does, so the preview and
-  // the outcome cannot disagree.
-  const parsed    = useMemo(() => parseEmailList(newEmails), [newEmails]);
-  const offDomain = useMemo(() => parsed.filter((e) => !isAllowedEmailDomain(e)), [parsed]);
 
   const handleSitesLoaded = useCallback((rows: Site[]) => {
     setSites(rows);
@@ -258,33 +254,6 @@ export default function SettingsPage() {
     load();
   }, [isAdmin, router, load]);
 
-  async function handleInvite(e: React.FormEvent) {
-    e.preventDefault();
-    if (parsed.length === 0) return;
-
-    setError('');
-    setResults([]);
-    setInviting(true);
-    try {
-      const rows = await inviteUsers(parsed, newRoles, newSiteId || null);
-      setResults(rows);
-
-      // Leave the addresses that did not land in the box so a typo can be
-      // fixed in place and resubmitted; clear the ones that succeeded.
-      const leftover = rows.filter((r) => r.status !== 'added').map((r) => r.email);
-      setNewEmails(leftover.join('\n'));
-      if (leftover.length === 0) {
-        setNewRoles(NO_ROLES);
-      }
-
-      await refresh();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not grant access');
-    } finally {
-      setInviting(false);
-    }
-  }
-
   async function handleToggle(person: AllowedUser, field: AllowedUserRole) {
     const key = `${person.email}:${field}`;
     setBusy(key);
@@ -307,9 +276,12 @@ export default function SettingsPage() {
    * says how many rows that is, so an unexpected filter cannot go unnoticed.
    */
   function handleExport() {
+    // These headings are the ones the importer reads back, so an export can be
+    // edited in Excel and uploaded again — see COLUMNS in lib/userImportColumns.
     const header = [
-      'First name', 'Last name', 'Email', 'Work phone (US)', 'Guatemala phone',
-      'Extension', 'Site', 'Roles', 'Status', 'Added', 'Added by', 'Last sign-in',
+      'First name', 'Last name', 'Email', 'Personal email', 'Work phone (US)',
+      'Guatemala phone', 'Extension', 'Site', 'Date of birth', 'Start date',
+      'Roles', 'Status', 'Added', 'Added by', 'Last sign-in',
     ];
 
     const rows = visiblePeople.map((p) => {
@@ -318,10 +290,15 @@ export default function SettingsPage() {
         p.firstName ?? '',
         p.lastName ?? '',
         p.email,
+        p.personalEmail ?? '',
         p.phone ?? '',
         p.phoneGt ?? '',
         p.extension ?? '',
         siteName(p.siteId) ?? '',
+        // Left as YYYY-MM-DD rather than prettified: Excel reads that as a real
+        // date, and it is the format the importer takes back without argument.
+        p.dateOfBirth ?? '',
+        p.startDate ?? '',
         // Broker is the absence of the others, so it is spelled out here rather
         // than leaving the cell blank and making the reader infer it.
         roles.length > 0 ? roles.join(', ') : 'Broker',
@@ -346,10 +323,13 @@ export default function SettingsPage() {
     setEditing(person.email);
     setDraft({
       ...name,
-      phone:     person.phone ?? '',
-      phoneGt:   person.phoneGt ?? '',
-      extension: person.extension ?? '',
-      siteId:    person.siteId ?? '',
+      personalEmail: person.personalEmail ?? '',
+      phone:         person.phone ?? '',
+      phoneGt:       person.phoneGt ?? '',
+      extension:     person.extension ?? '',
+      dateOfBirth:   person.dateOfBirth ?? '',
+      startDate:     person.startDate ?? '',
+      siteId:        person.siteId ?? '',
     });
   }
 
@@ -510,8 +490,6 @@ They will be signed out immediately and cannot sign in until you restore them. T
     setRoleFilter('all');
   }
 
-  const addedCount = results.filter((r) => r.status === 'added').length;
-
   return (
     <div className="p-8 max-w-3xl">
       <div className="mb-8">
@@ -525,155 +503,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
         </div>
       )}
 
-      <section className="bg-white rounded-xl border border-gray-200 mb-6">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-900">Grant Access</h2>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Only people on this list can sign in. Paste one or more{' '}
-            <span className="font-medium text-gray-600">@{ALLOWED_EMAIL_DOMAIN}</span> addresses,
-            one per line. They can sign in as soon as you add them, and appear below as “Pending”
-            until they do. The roles and site you pick apply to everyone in the batch; names,
-            phone numbers and extensions are per-person, so add those below once they are on
-            the list.
-          </p>
-        </div>
-
-        <form onSubmit={handleInvite} className="px-6 py-4 flex flex-col gap-3">
-          <textarea
-            value={newEmails}
-            onChange={(e) => setNewEmails(e.target.value)}
-            rows={5}
-            spellCheck={false}
-            placeholder={`name@${ALLOWED_EMAIL_DOMAIN}\nanother@${ALLOWED_EMAIL_DOMAIN}`}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-          />
-
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-xs text-gray-500">
-              {parsed.length === 0
-                ? 'No addresses yet'
-                : `${parsed.length} address${parsed.length === 1 ? '' : 'es'}`}
-              {offDomain.length > 0 && (
-                <span className="ml-2 text-amber-600">
-                  · {offDomain.length} outside @{ALLOWED_EMAIL_DOMAIN}
-                </span>
-              )}
-            </p>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              <label className="flex items-center gap-1.5 text-xs text-gray-500">
-                Site:
-                <select
-                  value={newSiteId}
-                  onChange={(e) => setNewSiteId(e.target.value)}
-                  className="rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                >
-                  <option value="">No site</option>
-                  {sites.map((site) => (
-                    <option key={site.id} value={site.id}>{site.name}</option>
-                  ))}
-                </select>
-              </label>
-
-              <span className="text-xs text-gray-500 ml-1">Roles:</span>
-              <button
-                type="button"
-                onClick={() => setNewRoles(NO_ROLES)}
-                title="The default — their own clients and loads, nothing else"
-                className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
-                  isBroker(newRoles)
-                    ? 'border-brand-200 bg-brand-50 text-brand-700'
-                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-                }`}
-              >
-                Broker
-              </button>
-              {ROLE_CHIPS.map(({ field, label }) => (
-                <button
-                  key={field}
-                  type="button"
-                  onClick={() => setNewRoles((r) => ({ ...r, [field]: !r[field] }))}
-                  className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
-                    newRoles[field]
-                      ? 'border-brand-200 bg-brand-50 text-brand-700'
-                      : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {offDomain.length > 0 && (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-              <div className="flex items-start gap-2">
-                <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="font-medium">
-                    {offDomain.length === 1 ? 'This address' : 'These addresses'} will be skipped —
-                    check for a mistyped domain:
-                  </p>
-                  <ul className="mt-1 font-mono break-all">
-                    {offDomain.map((e) => (
-                      <li key={e}>{e}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <button
-              type="submit"
-              disabled={inviting || parsed.length === 0}
-              className="flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <UserPlus size={15} />
-              {inviting
-                ? 'Adding…'
-                : parsed.length > 1
-                ? `Add ${parsed.length} People`
-                : 'Add Person'}
-            </button>
-          </div>
-
-          {results.length > 0 && (
-            <div className="rounded-lg border border-gray-200 divide-y divide-gray-100">
-              <div className="px-3 py-2 text-xs font-medium text-gray-600 bg-gray-50 rounded-t-lg">
-                Added {addedCount} of {results.length}
-              </div>
-              {results.map((r) => (
-                <div key={r.email} className="flex items-start gap-2 px-3 py-2 text-xs">
-                  {r.status === 'added' ? (
-                    <Check size={13} className="mt-0.5 text-green-600 flex-shrink-0" />
-                  ) : (
-                    <AlertCircle
-                      size={13}
-                      className={`mt-0.5 flex-shrink-0 ${
-                        r.status === 'exists' ? 'text-gray-400' : 'text-amber-600'
-                      }`}
-                    />
-                  )}
-                  <span className="font-mono text-gray-700 truncate">{r.email}</span>
-                  <span
-                    className={`ml-auto flex-shrink-0 ${
-                      r.status === 'added'
-                        ? 'text-green-600'
-                        : r.status === 'exists'
-                        ? 'text-gray-500'
-                        : 'text-amber-700'
-                    }`}
-                  >
-                    {r.message}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </form>
-      </section>
+      <AddPeoplePanel sites={sites} onChanged={load} />
 
       <section className="bg-white rounded-xl border border-gray-200">
         <div className="px-6 py-4 border-b border-gray-100">
@@ -900,6 +730,22 @@ They will be signed out immediately and cannot sign in until you restore them. T
                         <p className="text-xs text-gray-500 truncate">GT {p.phoneGt}</p>
                       )}
 
+                      {/* Start date earns a line because it answers "how long
+                          has this person been here" at a glance. Date of birth
+                          does not — it stays in the editor, where it is not on
+                          screen every time someone opens Settings. */}
+                      {p.startDate && (
+                        <p className="text-xs text-gray-500 truncate">
+                          Started {formatCalendarDate(p.startDate)}
+                          {(() => {
+                            const years = yearsSince(p.startDate);
+                            return years !== null && years >= 1
+                              ? ` · ${years} year${years === 1 ? '' : 's'}`
+                              : '';
+                          })()}
+                        </p>
+                      )}
+
                       <p className="text-xs text-gray-500">
                         {status === 'suspended' ? (
                           <span className="text-red-600 font-medium">Suspended</span>
@@ -1106,7 +952,44 @@ They will be signed out immediately and cannot sign in until you restore them. T
                               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
                             />
                           </label>
+                          <label className="text-xs text-gray-500">
+                            Personal email
+                            <input
+                              type="email"
+                              value={draft.personalEmail}
+                              onChange={(e) => setDraft((d) => ({ ...d, personalEmail: e.target.value }))}
+                              placeholder="name@example.com"
+                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                            />
+                          </label>
+                          {/* type="date" so the value is always a real
+                              YYYY-MM-DD and there is nothing to parse. */}
+                          <label className="text-xs text-gray-500">
+                            Start date
+                            <input
+                              type="date"
+                              value={draft.startDate}
+                              onChange={(e) => setDraft((d) => ({ ...d, startDate: e.target.value }))}
+                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                            />
+                          </label>
+                          <label className="text-xs text-gray-500">
+                            Date of birth
+                            <input
+                              type="date"
+                              value={draft.dateOfBirth}
+                              onChange={(e) => setDraft((d) => ({ ...d, dateOfBirth: e.target.value }))}
+                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                            />
+                          </label>
                         </div>
+
+                        {/* Said once, next to the two fields it applies to,
+                            rather than left for someone to assume either way. */}
+                        <p className="text-[11px] text-gray-400 mt-2">
+                          Date of birth and personal email are visible to admins only — they are
+                          not copied onto the profile the rest of the company can read.
+                        </p>
 
                         <div className="flex items-center gap-2 mt-3">
                           <button
@@ -1138,6 +1021,8 @@ They will be signed out immediately and cannot sign in until you restore them. T
           </ul>
         )}
       </section>
+
+      <RemovedPeoplePanel sites={sites} />
 
       <LaneDistancePanel />
       <SitesPanel onChange={handleSitesLoaded} />

@@ -287,7 +287,7 @@ documents/{documentId}
 ## Access Control (invitation only)
 
 Signing in with Google grants nothing on its own. An admin must first add the
-person's email under **Settings → Grant Access**, which creates an
+person's email under **Settings → Add People**, which creates an
 `allowedUsers/{email}` document — that document is what authorizes the account.
 Email domain is no longer a grant, so external collaborators can be added and
 a company address that was never invited is refused.
@@ -305,10 +305,45 @@ requires an `allowedUsers` entry, provisions `users/{uid}` with the roles from
 that entry, and mirrors them into custom claims. `AuthContext` signs the user
 out if this call fails, so there is no signed-in state without a verified entry.
 
+**Personal fields are not mirrored.** The allowlist entry also carries
+`personalEmail`, `dateOfBirth` and `startDate`. Unlike the name, phones,
+extension and site, these are **never** copied onto `users/{uid}`: that document
+is readable by every signed-in user under `firestore.rules`, while `allowedUsers`
+is admin-only. Anything added to the mirror in `/api/admin/users` or
+`src/lib/userImport.ts` is published to the whole company — check before
+extending it.
+
+**Bulk import.** Settings → Add People → Spreadsheet (`/api/admin/users/import`)
+adds and updates entries from a CSV, matching on email. It never suspends or
+deletes, and a blank cell never clears a stored value — see the header comment
+in `src/lib/userImport.ts` for why. The column set is defined once in
+`src/lib/userImportColumns.ts` and shared with the CSV export, so an export can
+be edited and re-imported.
+
 **Revocation** (Settings → trash icon) deletes both documents, clears the custom
 claims, revokes refresh tokens and disables the Auth account. Firestore cuts off
 on the next request; Storage relies on the claim, so it lags until the current
 ID token expires (max one hour).
+
+**Removals are logged.** Before the entry is deleted, a copy of it plus
+`removedAt`, `removedBy` and `removedByUid` is appended to `removedUsers` — the
+only trace a removal leaves. The write happens **first** and a failure aborts the
+removal, because an unlogged deletion is the gap the log exists to close.
+Documents use generated ids, not the email, so removing the same person twice
+keeps two rows rather than overwriting the first.
+
+The log carries the departed person's date of birth and personal email, so
+`firestore.rules` denies `removedUsers` to the client SDK outright; admins read
+it through `GET /api/admin/users/removed`.
+
+**Retention is permanent, by decision of the business owner (2026-08-26).**
+Removal records are never aged out, purged or trimmed. Nothing in the app
+deletes from this collection and nothing should be added that does — not a
+cleanup script, not a TTL policy, not a "tidy up old records" button. The log is
+the only evidence a person was ever on the system and the only place their
+details survive a mistaken removal, so shortening its life defeats both reasons
+it exists. If a future legal obligation forces expiry, that is a decision for
+the owner, not a maintenance task.
 
 **Lockout protection.** `BOOTSTRAP_ADMIN_EMAILS` in `src/lib/accessControl.ts`
 (mirrored in `firestore.rules`) is always allowed and always admin, so an empty

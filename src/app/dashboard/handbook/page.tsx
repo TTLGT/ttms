@@ -413,21 +413,37 @@ const CHAPTERS: Chapter[] = [
         <Callout tone="info" title="By design">
           <p>
             Signing in with Google grants nothing on its own. Someone can only get in once their
-            address has been added under <strong>Settings → Grant Access</strong>.
+            address has been added under <strong>Settings → Add People</strong>.
           </p>
         </Callout>
         <ol className="list-decimal space-y-1 pl-5">
-          <li>Go to <strong>Settings</strong> → <strong>Grant Access</strong>.</li>
           <li>
-            Paste addresses into the big box, <strong>one per line</strong>. They must end in{' '}
-            <Mono>@{ALLOWED_EMAIL_DOMAIN}</Mono> — anything else is skipped with a yellow warning,
-            which usually means a typo.
+            Go to <strong>Settings</strong> → <strong>Add People</strong>. Leave the mode switch
+            in the top right on <strong>Type it in</strong>.
+          </li>
+          <li>
+            Type their address. It must end in <Mono>@{ALLOWED_EMAIL_DOMAIN}</Mono> — anything
+            else is skipped with a yellow warning, which usually means a typo. Paste{' '}
+            <strong>several</strong>, one per line, to add a batch.
+          </li>
+          <li>
+            Fill in <strong>Their details</strong> — name, personal email, phones, extension,
+            start date, date of birth. As much or as little as you know.
           </li>
           <li>
             Pick their <strong>Site</strong> and <strong>Roles</strong>, then click{' '}
             <strong>Add Person</strong>.
           </li>
         </ol>
+        <Callout tone="info" title="Why the details grey out">
+          <p>
+            A name and a birthday belong to <strong>one person</strong>, so those fields are only
+            available when there is a single address in the box. Paste several and they grey out,
+            leaving <strong>Site</strong> and <strong>Roles</strong> — the two things that can
+            honestly apply to everyone in a batch. To give details to several people at once,
+            switch to <strong>Spreadsheet</strong>.
+          </p>
+        </Callout>
         <Expect>a short list confirming &ldquo;Added 3 of 3&rdquo;, with a green tick per address.</Expect>
         <p>
           They appear below as <strong className="text-amber-600">Pending first sign-in</strong>{' '}
@@ -469,6 +485,109 @@ const CHAPTERS: Chapter[] = [
             They lose access to records immediately. But a file they already had open — a PDF, a
             scanned document — may still download for <strong>up to one hour</strong> afterwards.
             That is expected. If it matters urgently, have them sign out, or wait the hour.
+          </p>
+        </Callout>
+
+        <h3 className="pt-2 text-sm font-semibold text-gray-900">The removal log</h3>
+        <p>
+          Removing someone deletes their entry, so they vanish from the list.{' '}
+          <strong>Settings → Removed People</strong> is the record that they were ever here —
+          click it open for everyone who has been removed, when, and <strong>which admin did
+          it</strong>, with the name, phones, site, roles, start date and personal email they had
+          at the time. It exports to CSV like the main list, and nothing in TTMS can edit or
+          delete it.
+        </p>
+        <Callout tone="info" title="Also how you undo a mistake">
+          <p>
+            Removing someone keeps their details nowhere else. If they have to be set up again,
+            the log is where to copy the details back from.
+          </p>
+        </Callout>
+
+        <h3 className="pt-2 text-sm font-semibold text-gray-900">Changing their details later</h3>
+        <p>
+          The <strong>pencil</strong> icon on someone&rsquo;s row edits who they are: name, photo,
+          site, work phone, Guatemala phone, extension, personal email, start date and date of
+          birth. It is also the only place that can <strong>clear</strong> a field — for a whole
+          list at once, use the spreadsheet below.
+        </p>
+        <Callout tone="info" title="Admin-only fields">
+          <p>
+            <strong>Date of birth</strong> and <strong>personal email</strong> are kept on the
+            access list, which only Admins can read. They are never copied onto the profile the
+            rest of the company can see. Name, phones, site and start date are visible to everyone.
+          </p>
+        </Callout>
+      </>
+    ),
+  },
+
+  {
+    id: 'people-import',
+    title: 'Adding or updating many people at once',
+    subtitle: 'A spreadsheet, with a preview before anything is saved',
+    body: (
+      <>
+        <p>
+          Setting TTMS up for the whole company, or matching it to an updated HR list, is a
+          spreadsheet job rather than a typing job. Go to <strong>Settings</strong> →{' '}
+          <strong>Add People</strong>, and switch it to <strong>Spreadsheet</strong>.
+        </p>
+        <ol className="list-decimal space-y-1 pl-5">
+          <li>
+            Click <strong>Template</strong> for a CSV with the right headings and an example row —
+            or <strong>Export CSV</strong> above the people list to edit what you already have.
+            Both files have the same columns, so an export goes straight back in.
+          </li>
+          <li>Fill it in in Excel. <strong>Email</strong> is the only required column.</li>
+          <li>Drag the file onto the drop box and click <strong>Check the file</strong>.</li>
+          <li>Read the preview, then click <strong>Apply N changes</strong>.</li>
+        </ol>
+        <Expect>
+          a summary like &ldquo;Ready to save: 4 new, 11 updated&rdquo;, then a line per person
+          naming exactly which fields would change. Nothing is saved until you click Apply.
+        </Expect>
+
+        <Table>
+          <thead><Row header cells={['Column', 'Notes']} /></thead>
+          <tbody>
+            <Row cells={[<strong key="e">Email</strong>, <>Required, and what identifies the person. Must end in <Mono>@{ALLOWED_EMAIL_DOMAIN}</Mono>.</>]} />
+            <Row cells={['First name, Last name', 'As you want them shown.']} />
+            <Row cells={['Personal email', 'Any address. Admin-only.']} />
+            <Row cells={['Work phone (US), Guatemala phone, Extension', 'Typed however you like.']} />
+            <Row cells={['Site', <>The site&rsquo;s <strong key="n">name</strong>, as it appears under Sites. Write <Mono>None</Mono> to clear it.</>]} />
+            <Row cells={['Date of birth, Start date', <>Best as <Mono>1990-03-04</Mono>. <Mono>3/4/2020</Mono> and <Mono>Mar 4, 2020</Mono> also work.</>]} />
+            <Row cells={['Roles', <>Admin, Dispatcher, Finance — comma-separated — or <Mono>Broker</Mono> for none.</>]} />
+          </tbody>
+        </Table>
+
+        <Callout tone="good" title="Three rules that make this safe">
+          <p>
+            <strong>Someone already on the list is updated, not duplicated.</strong> TTMS matches
+            on the email address, so uploading a fuller version of the same list fills in the gaps.
+          </p>
+          <p>
+            <strong>An empty cell changes nothing.</strong> Fill in the two birthdays you know and
+            leave the rest of the column blank — nobody else is touched. To erase something, clear
+            it with the pencil icon on their row; a blank cell will never do it.
+          </p>
+          <p>
+            <strong>Leaving someone out does nothing to them.</strong> The import only adds and
+            updates — it never suspends and never removes.
+          </p>
+        </Callout>
+
+        <p>
+          A row TTMS cannot read — an unrecognisable date, a site that does not exist, a misspelled
+          role — is skipped <strong>whole</strong> and named in the results, so it is never
+          half-saved. Fix it in Excel and upload again.
+        </p>
+        <Callout tone="info" title="What a spreadsheet cannot do">
+          <p>
+            You cannot remove your own Admin role this way, and the protected{' '}
+            <Mono>it@</Mono>, <Mono>operations@</Mono> and <Mono>dispatch@</Mono> accounts cannot
+            lose theirs. If a file tries, the Roles column on that row is ignored and the rest of
+            the row still saves.
           </p>
         </Callout>
       </>
@@ -545,7 +664,7 @@ const CHAPTERS: Chapter[] = [
           <Row cells={[
             'Someone signs in and is instantly signed back out',
             'Their email is not on the access list.',
-            'Add them under Settings → Grant Access.',
+            'Add them under Settings → Add People.',
           ]} />
           <Row cells={[
             <>&ldquo;Missing or insufficient permissions&rdquo;</>,

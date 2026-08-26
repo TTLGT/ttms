@@ -116,6 +116,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // The removal log: who was taken off the system, when, and by whom.
+    // It keeps the departed person's date of birth and personal email, so it
+    // is closed to the client SDK outright — admins read it through
+    // /api/admin/users/removed, which guards on isAdmin server-side. Do not
+    // open this up to make a client query work; route it instead.
+    match /removedUsers/{removalId} {
+      allow read, write: if false; // Admin SDK only
+    }
+
     // Parties (clients, shippers, consignees) are owned records, not shared
     // reference data. A user sees one only if they own it, or if nobody owns it
     // at all; admin, dispatch and finance see everything.

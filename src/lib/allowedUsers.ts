@@ -7,6 +7,7 @@ import type {
   AllowedUserRole,
   InviteResult,
 } from '@/types/allowedUser';
+import type { RemovedUser } from '@/types/removedUser';
 
 /**
  * Client helpers for the sign-in allowlist.
@@ -43,6 +44,9 @@ export async function listAllowedUsers(): Promise<AllowedUser[]> {
     .sort((a, b) => a.email.localeCompare(b.email));
 }
 
+/** The per-person block that can be filled in while adding one new person. */
+export type NewPersonDetails = Omit<AllowedUserDetails, 'siteId'>;
+
 /**
  * Grant access to one or many people in a single request.
  *
@@ -53,16 +57,18 @@ export async function listAllowedUsers(): Promise<AllowedUser[]> {
 export async function inviteUsers(
   emails: string[],
   roles: { isAdmin?: boolean; isDispatcher?: boolean; isFinance?: boolean } = {},
-  /**
-   * Applied to every address in the batch. Only the site belongs here — a name
-   * or a phone number is per-person, so those are set afterwards via
-   * `setAllowedUserDetails`.
-   */
+  /** Applied to every address in the batch, because a site can be. */
   siteId: string | null = null,
+  /**
+   * Name, phones, dates and personal email for the person being added. The
+   * server ignores this unless `emails` holds exactly one address — none of it
+   * can be true of a batch.
+   */
+  details: NewPersonDetails | null = null,
 ): Promise<InviteResult[]> {
   const data = await authedFetch<{ results: InviteResult[] }>('/api/admin/users', {
     method: 'POST',
-    body: JSON.stringify({ emails, ...roles, siteId }),
+    body: JSON.stringify({ emails, ...roles, siteId, details }),
   });
   return data.results ?? [];
 }
@@ -117,4 +123,22 @@ export async function setAllowedUserSuspended(email: string, suspended: boolean)
 
 export async function revokeUser(email: string): Promise<void> {
   await authedFetch(`/api/admin/users?email=${encodeURIComponent(email)}`, { method: 'DELETE' });
+}
+
+/**
+ * The removal log, newest first.
+ *
+ * Unlike `listAllowedUsers`, this does not read Firestore directly: the log
+ * keeps date of birth and personal email for people who have left, so the
+ * collection is closed to the client SDK entirely and this route is the only
+ * way to it.
+ */
+export async function listRemovedUsers(): Promise<{
+  users: RemovedUser[];
+  truncated: boolean;
+}> {
+  const data = await authedFetch<{ users: RemovedUser[]; truncated: boolean }>(
+    '/api/admin/users/removed',
+  );
+  return { users: data.users ?? [], truncated: data.truncated === true };
 }

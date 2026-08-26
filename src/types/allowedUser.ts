@@ -32,6 +32,25 @@ export interface AllowedUser {
   /** Desk extension, kept apart from `phone` so it stays dialable on its own. */
   extension?: string;
   /**
+   * A personal address, for reaching someone when the company account is gone
+   * or unreachable. Never an identity: sign-in is keyed on `email` alone, and
+   * this field is deliberately not checked against the allowlist.
+   */
+  personalEmail?: string;
+  /**
+   * Calendar dates, stored as `YYYY-MM-DD` text rather than Timestamps. A
+   * birthday and a start date have no time and no timezone — as a Timestamp
+   * they would land at midnight UTC and read back a day early for anyone west
+   * of it. Text also sorts chronologically for free and round-trips through
+   * `<input type="date">` unchanged.
+   *
+   * These three, unlike the contact fields above, are NOT mirrored onto
+   * `users/{uid}`: that document is readable by every signed-in user, and a
+   * birthday and a private address are admin-only information.
+   */
+  dateOfBirth?: string;
+  startDate?: string;
+  /**
    * Storage path of the profile photo, not a download URL — URLs expire and
    * change, the path does not. Resolved with getDownloadURL when displayed.
    */
@@ -71,9 +90,13 @@ export type AllowedUserRole = 'isAdmin' | 'isDispatcher' | 'isFinance';
 export interface AllowedUserDetails {
   firstName: string;
   lastName: string;
+  personalEmail: string;
   phone: string;
   phoneGt: string;
   extension: string;
+  /** Both `YYYY-MM-DD`, or '' for not recorded. */
+  dateOfBirth: string;
+  startDate: string;
   siteId: string | null;
 }
 
@@ -96,6 +119,67 @@ export function splitName(name: string | null | undefined): { firstName: string;
   const cut = trimmed.lastIndexOf(' ');
   if (cut === -1) return { firstName: trimmed, lastName: '' };
   return { firstName: trimmed.slice(0, cut), lastName: trimmed.slice(cut + 1) };
+}
+
+// ── Calendar dates ────────────────────────────────────────────────────────────
+
+const MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/**
+ * Whether `value` is a real `YYYY-MM-DD` date and not merely shaped like one.
+ * Round-tripping through Date catches 2025-02-30 and 2025-13-01, which a
+ * regex alone would wave through. Parsed in UTC to match how the string was
+ * built — nothing here is ever displayed from this Date.
+ */
+export function isCalendarDate(value: string | null | undefined): boolean {
+  const v = (value ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+
+  const d = new Date(`${v}T00:00:00Z`);
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
+
+/** A valid `YYYY-MM-DD`, or '' for anything else — including junk input. */
+export function normalizeCalendarDate(value: unknown): string {
+  const v = typeof value === 'string' ? value.trim() : '';
+  return isCalendarDate(v) ? v : '';
+}
+
+/**
+ * Format `YYYY-MM-DD` for display, e.g. "Mar 4, 1990".
+ *
+ * The parts are read off the string rather than handed to `new Date(value)`,
+ * which parses a bare date as UTC midnight and then renders it in local time —
+ * showing every date a day early for anyone in the Americas, this office
+ * included.
+ */
+export function formatCalendarDate(value: string | null | undefined): string {
+  const v = (value ?? '').trim();
+  if (!isCalendarDate(v)) return '';
+
+  const [year, month, day] = v.split('-');
+  return `${MONTHS[Number(month) - 1]} ${Number(day)}, ${year}`;
+}
+
+/**
+ * Years elapsed since `value`, or null if it is not a date. Used for the
+ * "N years" note beside a start date; counts completed years, so someone who
+ * started eleven months ago reads as 0 rather than 1.
+ */
+export function yearsSince(value: string | null | undefined): number | null {
+  const v = (value ?? '').trim();
+  if (!isCalendarDate(v)) return null;
+
+  const [y, m, d] = v.split('-').map(Number);
+  const now = new Date();
+  let years = now.getFullYear() - y;
+  // Roll back a year until the anniversary has actually passed this year.
+  const monthNow = now.getMonth() + 1;
+  if (monthNow < m || (monthNow === m && now.getDate() < d)) years -= 1;
+  return years;
 }
 
 /** Outcome of a single address in a bulk invite, one row per address sent. */

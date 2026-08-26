@@ -10,8 +10,10 @@ import {
   isBootstrapAdmin,
   normalizeEmail,
   parseEmailList,
+  REMOVED_USERS_COLLECTION,
   SITES_COLLECTION,
 } from '@/lib/accessControl';
+import { normalizeCalendarDate } from '@/types/allowedUser';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -36,12 +38,19 @@ type InviteResult = { email: string; status: InviteStatus; message: string };
 
 type Roles = { isAdmin: boolean; isDispatcher: boolean; isFinance: boolean };
 
+/**
+ * The contact block an admin can fill in while adding someone, already
+ * sanitised. Only ever set on a single-address add — see the POST below.
+ */
+type NewPersonDetails = Record<string, string>;
+
 /** Add one address. Never throws — every outcome comes back as a result row. */
 async function invite(
   email: string,
   roles: Roles,
   invitedBy: string,
   siteId: string | null,
+  details: NewPersonDetails | null,
 ): Promise<InviteResult> {
   if (!EMAIL_RE.test(email)) {
     return { email, status: 'invalid', message: 'Not a valid email address.' };
@@ -68,14 +77,21 @@ async function invite(
 
     await ref.set({
       email,
-      firstName:   '',
-      lastName:    '',
-      displayName: '',
-      phone:       '',
-      phoneGt:     '',
-      extension:   '',
-      photoPath:   null,
+      firstName:     '',
+      lastName:      '',
+      displayName:   '',
+      personalEmail: '',
+      phone:         '',
+      phoneGt:       '',
+      extension:     '',
+      dateOfBirth:   '',
+      startDate:     '',
+      photoPath:     null,
       siteId,
+      // Written over the blanks above, so someone added with their details
+      // filled in lands as one complete document instead of needing a second
+      // pass in the editor. Never present on a multi-address batch.
+      ...(details ?? {}),
       ...roles,
       uid:         null,
       invitedBy,
@@ -104,6 +120,13 @@ async function invite(
  * Accepts `email` (a single address or a pasted block) or `emails` (an array).
  * A bad address never fails the batch — the response carries one result row per
  * address so the caller can show exactly which ones landed.
+ *
+ * `details` fills in the new person's name, phones, dates and personal email at
+ * the same time. It is honoured **only for a single address**: a name or a
+ * birthday cannot be true of a whole batch, and silently stamping one person's
+ * details onto everyone pasted in would be worse than ignoring the field. The
+ * check is here rather than only in the UI, so it holds however the route is
+ * called.
  */
 export async function POST(req: NextRequest) {
   const caller = await guard(req);
@@ -138,11 +161,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'That site no longer exists.' }, { status: 400 });
   }
 
+  const details = emails.length === 1 ? newPersonDetails(body.details) : null;
+
   // Sequential on purpose: keeps result order stable and stays well inside
   // Firestore/Auth rate limits even at the batch cap.
   const results: InviteResult[] = [];
   for (const email of emails) {
-    results.push(await invite(email, roles, invitedBy, siteId));
+    results.push(await invite(email, roles, invitedBy, siteId, details));
   }
 
   const added = results.filter((r) => r.status === 'added').length;
@@ -155,8 +180,44 @@ function text(value: unknown, max: number): string {
 }
 
 /**
- * Writes the contact block to the allowlist entry and mirrors it onto the live
- * profile, so the rest of the app sees the change without a re-login.
+ * Sanitise the optional details block on a single-person add. Returns null when
+ * nothing usable was sent, so `invite` can tell "no details" from "details that
+ * are all blank" and leave its own defaults in place either way.
+ *
+ * Same rules as the details PATCH: capped text, and a date is stored only if it
+ * is a real YYYY-MM-DD.
+ */
+function newPersonDetails(value: unknown): Record<string, string> | null {
+  if (!value || typeof value !== 'object') return null;
+  const d = value as Record<string, unknown>;
+
+  const firstName = text(d.firstName, 60);
+  const lastName  = text(d.lastName, 60);
+
+  const details = {
+    firstName,
+    lastName,
+    // Kept in step with the parts, exactly as updateDetails does.
+    displayName:   [firstName, lastName].filter(Boolean).join(' '),
+    personalEmail: text(d.personalEmail, 120),
+    phone:         text(d.phone, 40),
+    phoneGt:       text(d.phoneGt, 40),
+    extension:     text(d.extension, 12),
+    dateOfBirth:   normalizeCalendarDate(d.dateOfBirth),
+    startDate:     normalizeCalendarDate(d.startDate),
+  };
+
+  return Object.values(details).some(Boolean) ? details : null;
+}
+
+/**
+ * Writes the contact block to the allowlist entry and mirrors *part* of it onto
+ * the live profile, so the rest of the app sees the change without a re-login.
+ *
+ * Date of birth, personal email and start date are written to the allowlist
+ * entry only. `users/{uid}` is readable by every signed-in user under
+ * firestore.rules; those three are admin-only information and mirroring them
+ * would publish them to the whole company.
  */
 async function updateDetails(email: string, details: Record<string, unknown>) {
   const ref = adminDb.collection(ALLOWED_USERS_COLLECTION).doc(email);
@@ -185,7 +246,16 @@ async function updateDetails(email: string, details: Record<string, unknown>) {
     siteId,
   };
 
-  await ref.update(patch);
+  // Anything not a real YYYY-MM-DD is stored as '' rather than rejected: the
+  // date inputs can only produce that shape or nothing, so a bad value here
+  // means a hand-built request, not an admin who needs an error message.
+  const privatePatch = {
+    personalEmail: text(details.personalEmail, 120),
+    dateOfBirth:   normalizeCalendarDate(details.dateOfBirth),
+    startDate:     normalizeCalendarDate(details.startDate),
+  };
+
+  await ref.update({ ...patch, ...privatePatch });
 
   const uid = snap.data()?.uid;
   if (uid) {
@@ -331,6 +401,51 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
+/**
+ * Copy the entry into the append-only removal log before it is deleted.
+ *
+ * Removal is otherwise total — entry, profile and photo all go — leaving no way
+ * to answer "who took Ana off the system, and when?". This is the only trace
+ * that survives it, so it is written *before* the delete: a failure here must
+ * stop the removal rather than let it proceed unlogged.
+ *
+ * A generated document id, not the email: someone can be added, removed,
+ * re-added and removed again, and keying on the address would overwrite the
+ * first removal with the second.
+ */
+async function archiveRemoval(
+  entry: FirebaseFirestore.DocumentData,
+  email: string,
+  caller: Guard,
+) {
+  await adminDb.collection(REMOVED_USERS_COLLECTION).add({
+    email,
+    firstName:     entry.firstName ?? '',
+    lastName:      entry.lastName ?? '',
+    displayName:   entry.displayName ?? '',
+    personalEmail: entry.personalEmail ?? '',
+    phone:         entry.phone ?? '',
+    phoneGt:       entry.phoneGt ?? '',
+    extension:     entry.extension ?? '',
+    dateOfBirth:   entry.dateOfBirth ?? '',
+    startDate:     entry.startDate ?? '',
+    siteId:        entry.siteId ?? null,
+    isAdmin:       entry.isAdmin === true,
+    isDispatcher:  entry.isDispatcher === true,
+    isFinance:     entry.isFinance === true,
+    // Removing an already-suspended account is routine offboarding; removing an
+    // active one is the case someone may later need to ask about.
+    wasSuspended:  entry.suspended === true,
+    uid:           entry.uid ?? null,
+    invitedBy:     entry.invitedBy ?? '',
+    invitedAt:     entry.invitedAt ?? null,
+    lastLoginAt:   entry.lastLoginAt ?? null,
+    removedAt:     FieldValue.serverTimestamp(),
+    removedBy:     caller.email ?? caller.uid,
+    removedByUid:  caller.uid,
+  });
+}
+
 /** Revoke access entirely: removes the invite, the profile, and the live session. */
 export async function DELETE(req: NextRequest) {
   const caller = await guard(req);
@@ -355,7 +470,25 @@ export async function DELETE(req: NextRequest) {
   const snap = await ref.get();
   const uid = snap.data()?.uid ?? (await adminAuth.getUserByEmail(email).catch(() => null))?.uid;
 
+  // The log is written before anything is destroyed, and failing to write it
+  // aborts the whole removal — an unlogged deletion is the exact gap this was
+  // added to close, so it must not be possible to get one by having the log
+  // write fail. Skipped when there is no entry to copy: a repeat DELETE on an
+  // address that is already gone should not add a second, emptier row.
+  if (snap.exists) {
+    try {
+      await archiveRemoval(snap.data() ?? {}, email, caller);
+    } catch {
+      return NextResponse.json(
+        { error: 'Could not record the removal, so nothing was removed. Try again.' },
+        { status: 500 },
+      );
+    }
+  }
+
   // Removing the person should not leave their photo sitting in the bucket.
+  // The archive stores no photoPath as a result — it would only point at a
+  // file that no longer exists.
   const photoPath = snap.data()?.photoPath;
   if (typeof photoPath === 'string' && photoPath) {
     await adminStorage.bucket().file(photoPath).delete().catch(() => {});

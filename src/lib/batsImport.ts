@@ -1,6 +1,7 @@
 import { Timestamp } from 'firebase-admin/firestore';
 import { createHash } from 'crypto';
 import { adminDb } from './firebase-admin';
+import { parseCsv } from './csv';
 import { toNameKey } from '@/types/party';
 import { STATUS_RANK } from '@/types/order';
 import type { OrderStatus } from '@/types/order';
@@ -17,30 +18,8 @@ export interface ImportResult {
   notes?: string;
 }
 
-// ── CSV parser (handles quoted fields with embedded commas/newlines) ──────────
-function parseCSV(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [], field = '', inQ = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i], nx = text[i + 1];
-    if (inQ) {
-      if (ch === '"' && nx === '"') { field += '"'; i++; }
-      else if (ch === '"')           { inQ = false; }
-      else                           { field += ch; }
-    } else {
-      if      (ch === '"')                 { inQ = true; }
-      else if (ch === ',')                 { row.push(field); field = ''; }
-      else if (ch === '\r' && nx === '\n') { row.push(field); field = ''; rows.push(row); row = []; i++; }
-      else if (ch === '\n' || ch === '\r') { row.push(field); field = ''; rows.push(row); row = []; }
-      else                                 { field += ch; }
-    }
-  }
-  if (field || row.length) { row.push(field); rows.push(row); }
-  return rows;
-}
-
 function loadCSV(text: string): string[][] {
-  const rows = parseCSV(text);
+  const rows = parseCsv(text);
   if (rows.length < 2) return [];
   return rows.slice(1).filter((r) => r.some((f) => f.trim()));
 }

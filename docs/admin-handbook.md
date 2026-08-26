@@ -22,7 +22,7 @@ Part 3 is written for you and the repo is already set up for it.
 
 **Written for someone who has never used a command line.** Follow the steps
 exactly, in order. Where a step says "you should see", check that you see it
-before moving on. If you don't, jump to [When something goes wrong](#8-when-something-goes-wrong).
+before moving on. If you don't, jump to [When something goes wrong](#9-when-something-goes-wrong).
 
 > **Most of this Part is also inside TTMS itself.** Once you can sign in as an
 > admin, everything below — accounts, starting and stopping, giving access,
@@ -235,11 +235,19 @@ You must be signed in as an **Admin** to see the Settings page.
 > once their email address has been added here. This is deliberate.
 
 1. In the left-hand menu click **Settings**.
-2. Find the panel headed **Grant Access**.
-3. Type or paste their email addresses into the big box, **one per line**. You can add several people at once.
-   - Addresses must end in **`@totaltransportlogistics.us`**. Anything else is skipped, and a yellow warning appears naming it — usually that means a typo.
-4. Pick their **Site** from the dropdown, if your company uses sites.
-5. Pick their **Roles**:
+2. Find the panel headed **Add People**. It has two modes, in the top right:
+   **Type it in** (what follows) and **Spreadsheet** (section 7).
+3. Type their email address into the box.
+   - It must end in **`@totaltransportlogistics.us`**. Anything else is skipped, and a yellow warning appears naming it — usually that means a typo.
+   - You can paste **several** addresses, one per line, to add a batch.
+4. Fill in **Their details** — name, personal email, phones, extension, start
+   date, date of birth. Fill in what you know; the rest can be added later.
+   - These fields are only available when there is **one** address in the box.
+     A name and a birthday belong to one person, so with several addresses
+     pasted in they grey out. Use the Spreadsheet mode to give details to
+     several people at once.
+5. Pick their **Site** from the dropdown, if your company uses sites.
+6. Pick their **Roles**:
 
    | Role | What they can do |
    |---|---|
@@ -249,12 +257,27 @@ You must be signed in as an **Admin** to see the Settings page.
    | **Finance** | Can generate BOLs and invoices. |
 
    Everyone is a Broker unless you give them something else. Clicking **Broker** takes the other roles away.
-   The roles you pick apply to **everyone in the batch**.
-6. Click **Add Person** (or **Add N People**).
-7. **You should see:** a small list confirming *"Added 3 of 3"*, with a green tick next to each address.
+   Site and roles are the two things that **do** apply to everyone in a batch, which is why they stay available however many addresses you paste.
+7. Click **Add Person** (or **Add N People**).
+8. **You should see:** a small list confirming *"Added 3 of 3"*, with a green tick next to each address.
 
 The new person appears in the **People With Access** list below, marked
 **Pending first sign-in** (amber) until they actually log in, then **Active** (green).
+
+### Filling in their details
+
+Click the **pencil** icon on someone's row to record who they are: first and
+last name, a photo, their site, work phone, Guatemala phone, desk extension,
+**personal email**, **start date** and **date of birth**.
+
+> **Date of birth and personal email are admin-only.** They are stored against
+> the access list, which only Admins can read — they are never copied onto the
+> profile the rest of the company can see. Start date, name, phones and site
+> are visible to everyone.
+
+Use this to change details **after** someone is on the list — when adding them,
+fill the same fields in on the Add People panel instead. For more than a handful
+of people, use the spreadsheet in section 7.
 
 ### Changing what someone can do
 
@@ -274,14 +297,93 @@ next time they load a page.
 > may still download for **up to one hour** afterwards. That is normal and
 > expected. If it matters urgently, tell them to sign out, or wait the hour.
 
+### The removal log
+
+Removing someone deletes their entry, so the list below stops showing them
+entirely. **Settings → Removed People** is the record that they were ever here:
+click it open to see everyone who has been removed, when, and **which admin did
+it** — along with the name, phones, site, roles, start date and personal email
+they had at the time.
+
+Two things it is good for:
+
+- **Answering "who took Ana off the system?"** — every removal is stamped with
+  the admin's address and the date and time.
+- **Undoing a mistake.** Removing someone does not keep their details anywhere
+  else, so if they have to be set up again, this is where to copy them from.
+
+There is an **Export CSV** button, same as the main list. Nothing here can be
+edited or deleted from inside TTMS — it is a record, not a list you manage.
+
+> **These records are kept forever.** That is a deliberate decision, not an
+> oversight: the log is the only evidence someone was ever on the system, and
+> the only place their details survive if a removal turns out to have been a
+> mistake. Nothing in TTMS will ever delete from it.
+
 ### Exporting the list
 
-The **Download** icon above the list saves everyone as a CSV file that opens in
-Excel — useful for HR or an audit.
+The **Export CSV** button above the list saves everyone as a CSV file that opens
+in Excel — useful for HR or an audit. It saves exactly what is on screen, so if
+you have filtered the list, you get the filtered version.
 
 ---
 
-## 7. Importing data from BATS
+## 7. Adding or updating many people at once
+
+When you are setting up TTMS for the whole company — or your HR list has been
+updated and you want TTMS to match — do it with a spreadsheet instead of
+typing each person in.
+
+**Settings → Add People**, then switch the mode in the top right to
+**Spreadsheet**.
+
+1. Click **Template** to download a CSV with the right column headings and one
+   example row. Open it in Excel.
+   - Or click **Export CSV** above the People With Access list to download
+     everyone you already have, and edit that. The two files have the same
+     columns, so an export can be edited and uploaded straight back.
+2. Fill it in. The columns are:
+
+   | Column | Notes |
+   |---|---|
+   | **Email** | Required. Must end in `@totaltransportlogistics.us`. This is what identifies the person. |
+   | First name, Last name | |
+   | Personal email | Any address. Admin-only. |
+   | Work phone (US), Guatemala phone, Extension | Typed however you like. |
+   | Site | The site's **name**, spelled as it appears under Sites. Write `None` to clear it. |
+   | Date of birth, Start date | Best written as `1990-03-04`. `3/4/2020` and `Mar 4, 2020` also work. |
+   | Roles | `Admin`, `Dispatcher`, `Finance` — separated by commas — or `Broker` for none. |
+
+3. Drag the file onto the drop box and click **Check the file**.
+4. **You should see:** a summary such as *"Ready to save: 4 new, 11 updated"*,
+   then a line per person saying exactly which fields would change.
+   Read it. Nothing has been saved yet.
+5. If it looks right, click **Apply N changes**.
+
+**The three rules that make this safe to use:**
+
+- **Someone already on the list is updated, not duplicated.** TTMS matches on
+  the email address, so uploading a fuller version of the same list fills in
+  the gaps rather than creating everyone twice.
+- **An empty cell changes nothing.** If you only know two people's birthdays,
+  fill in those two and leave the rest of the column blank — nobody else's
+  details are touched. To *erase* something, clear it with the pencil icon on
+  their row; a blank cell will never do it.
+- **Leaving someone out of the file does nothing to them.** The import only
+  adds and updates. It never suspends and never removes anyone — those are
+  still deliberate, one-at-a-time actions.
+
+If a row has something TTMS cannot read — an unrecognisable date, a site that
+does not exist, a misspelled role — that **whole row** is skipped and named in
+the results, so it never gets half-saved. Fix it in Excel and upload again.
+
+> You cannot remove your own Admin role this way, and neither can the protected
+> `it@`, `operations@` and `dispatch@` accounts lose theirs. If a file tries,
+> the Roles column on that row is ignored and the rest of it still saves.
+
+---
+
+## 8. Importing data from BATS
 
 The old BATS CRM data can be pulled in through the browser. **No commands needed.**
 
@@ -304,7 +406,7 @@ Groups** (teams that share client records). Both are simple add-and-name lists.
 
 ---
 
-## 8. When something goes wrong
+## 9. When something goes wrong
 
 Work down this table. The **Call for help** column tells you when to stop and
 escalate rather than experiment — because the data is live.
@@ -316,7 +418,7 @@ escalate rather than experiment — because the data is live.
 | **"Node.js is not installed"** | Setup Step 1 didn't finish, or you skipped the restart. | Redo [Step 1](#step-1--install-nodejs-about-5-minutes), including restarting the computer. |
 | **"the settings file is missing"** | `.env.local` isn't there, or is misnamed. | Redo [Step 4](#step-4--put-the-settings-file-in-place-about-2-minutes). Check the `.txt` trap. |
 | **"port 3000 is in use"** / **EADDRINUSE** | TTMS is already running in another window. | Look on your taskbar for another dark window and use that one. |
-| **You sign in and are instantly signed back out** | Your email isn't on the access list. | Ask an Admin to add you under [Grant Access](#6-giving-someone-access). |
+| **You sign in and are instantly signed back out** | Your email isn't on the access list. | Ask an Admin to add you under [Add People](#6-giving-someone-access). |
 | **"Missing or insufficient permissions"** | A technical settings change hasn't been published to Google. | **Call for help.** A developer must run the rules deploy — [Part 2, section 07](#security-rules--the-trap-that-already-cost-five-weeks). |
 | **Nobody in the company can sign in** | Something has gone wrong with the access list. | **Call for help immediately.** The recovery account is `it@totaltransportlogistics.us` — do not remove or change it. |
 | **Agreement emails aren't arriving** | The email service key has expired, or the sending domain lost verification. | Check the junk folder first. Then **call for help** — see [Part 2, Troubleshooting](#troubleshooting). |
@@ -325,7 +427,7 @@ escalate rather than experiment — because the data is live.
 
 ---
 
-## 9. Things you must never do
+## 10. Things you must never do
 
 - **Never post the `.env.local` file anywhere** — not email, not chat, not a shared drive. It is the password to all company data.
 - **Never delete or demote `it@totaltransportlogistics.us`** in Settings. It is the emergency way back in if the access list breaks. The system will refuse, and it is right to.
@@ -458,7 +560,7 @@ src/
 ## Access control
 
 Signing in with Google grants nothing. An admin must create an
-`allowedUsers/{email}` document via **Settings → Grant Access**.
+`allowedUsers/{email}` document via **Settings → Add People**.
 
 On every sign-in: `AuthContext` posts the ID token to `POST /api/auth/session`,
 which verifies it, requires an `allowedUsers` entry, provisions `users/{uid}`
@@ -741,7 +843,7 @@ Until #2 is done, assume every local change is live.
 | Symptom | Cause / fix |
 |---|---|
 | *"Missing or insufficient permissions"* | Repo rules aren't deployed. `node scripts/deploy-rules.js`. |
-| Signed in, immediately signed back out | No `allowedUsers` entry. Add via Settings → Grant Access, or use a bootstrap admin. |
+| Signed in, immediately signed back out | No `allowedUsers` entry. Add via Settings → Add People, or use a bootstrap admin. |
 | Everyone locked out | Sign in as `it@totaltransportlogistics.us`. If a rules deploy caused it, `rollback-rules.js --list` then `--to <rulesetId>`. |
 | Signing links point at localhost | `NEXT_PUBLIC_APP_URL` wrong for that environment. |
 | No email at all | `RESEND_API_KEY` missing, or sending domain lost verification. Resend init is deliberately lazy, so it fails at send time, not build time. |

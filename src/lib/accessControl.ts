@@ -54,6 +54,11 @@ export function parseEmailList(input: string | null | undefined): string[] {
 export const ALLOWED_USERS_COLLECTION = 'allowedUsers';
 export const USERS_COLLECTION = 'users';
 export const SITES_COLLECTION = 'sites';
+/**
+ * Append-only record of revoked access. Written by the DELETE in
+ * /api/admin/users and read only through the Admin SDK — see RemovedUser.
+ */
+export const REMOVED_USERS_COLLECTION = 'removedUsers';
 
 // ── Party visibility ─────────────────────────────────────────────────────────
 
