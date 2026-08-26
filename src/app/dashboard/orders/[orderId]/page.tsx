@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ExternalLink, Map, Plus, Route } from 'lucide-react';
+import { ExternalLink, Map, Plus, RefreshCw, Route } from 'lucide-react';
 import Link from 'next/link';
 import { getOrder, updateOrderStatus, updateOrder, listOrders, createOrder } from '@/lib/orders';
 import { listCarriers } from '@/lib/carriers';
@@ -93,7 +93,10 @@ export default function OrderDetailPage() {
   const params   = useParams();
   const orderId  = params.orderId as string;
   const router   = useRouter();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+
+  const [refreshingMiles, setRefreshingMiles] = useState(false);
+  const [milesNote, setMilesNote]             = useState('');
 
   const [order, setOrder]           = useState<Order | null>(null);
   const [suborders, setSuborders]   = useState<Order[]>([]);
@@ -209,6 +212,57 @@ export default function OrderDetailPage() {
     })();
     return () => { cancelled = true; };
   }, [order]);
+
+  /**
+   * Ask Google for this lane again, overwriting what was stored.
+   *
+   * Admin only and never automatic: a stored mileage is normally permanent, so
+   * this is the deliberate way to correct one somebody believes has gone stale.
+   * It bills a lookup, hence the confirm. Only this order is updated — other
+   * orders already on this lane keep the number they were quoted on, which is
+   * the point of storing it per order in the first place.
+   */
+  async function handleRefreshMiles() {
+    if (!order || !user) return;
+
+    const ok = window.confirm(
+      'Ask Google for this lane again?\n\n'
+      + 'This charges for one lookup and replaces the mileage stored for this '
+      + 'order. Other orders on the same lane keep their current mileage.',
+    );
+    if (!ok) return;
+
+    setRefreshingMiles(true);
+    setMilesNote('');
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/route-distance/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          origin: order.origin,
+          destination: order.destination,
+          orderId: order.id,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Refresh failed');
+
+      const patch = { laneMiles: body.miles as number, laneMilesSource: 'routes' as const };
+      setOrder((prev) => (prev ? { ...prev, ...patch } : prev));
+      await updateOrder(order.id, patch);
+
+      setMilesNote(
+        body.previousMiles === null || body.previousMiles === body.miles
+          ? 'Rechecked — unchanged.'
+          : `Updated from ${body.previousMiles} mi.`,
+      );
+    } catch (e: unknown) {
+      setMilesNote(e instanceof Error ? e.message : 'Refresh failed');
+    } finally {
+      setRefreshingMiles(false);
+    }
+  }
 
   function openCarrierAssign() {
     setSelectedCarrierId(order?.carrierId ?? '');
@@ -639,6 +693,22 @@ export default function OrderDetailPage() {
                     {formatLaneMiles(order.laneMiles, order.laneMilesSource)}
                     <span className="font-normal text-gray-500"> · {laneMilesCaption(order.laneMilesSource)}</span>
                   </p>
+                  {/* Admins only, and only on a Google figure: an estimate is
+                      recomputed from scratch every time, so there is nothing
+                      stale about it to refresh. */}
+                  {isAdmin && order.laneMilesSource === 'routes' ? (
+                    <div className="mt-1 flex items-center gap-2">
+                      <button
+                        onClick={handleRefreshMiles}
+                        disabled={refreshingMiles}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700 disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${refreshingMiles ? 'animate-spin' : ''}`} />
+                        {refreshingMiles ? 'Checking…' : 'Recheck with Google'}
+                      </button>
+                      {milesNote ? <span className="text-xs text-gray-500">{milesNote}</span> : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : null}

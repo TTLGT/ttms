@@ -261,5 +261,19 @@ service cloud.firestore {
     match /signing_tokens/{token} {
       allow read, write: if false; // Admin SDK only — never touched by the client
     }
+
+    // Stored Google Routes mileage, so a lane is only ever billed once, plus
+    // the log of admin-forced rechecks. Written only by /api/route-distance and
+    // /api/route-distance/refresh through the Admin SDK. A client that could
+    // write here could plant a mileage an invoice is built on.
+    match /laneDistances/{laneId} {
+      allow read, write: if false; // Admin SDK only
+
+      // Subcollections are not covered by the parent match, so the refresh log
+      // needs its own rule or it would fall through to the default.
+      match /refreshes/{refreshId} {
+        allow read, write: if false; // Admin SDK only
+      }
+    }
   }
 }

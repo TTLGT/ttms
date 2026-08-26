@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, requireCompanyUser, AdminAuthError } from '@/lib/firebase-admin';
 import { estimateRouteMiles } from '@/lib/routeDistance';
 import { lookupDrivingMiles } from '@/lib/routeDistanceGoogle';
+import { readCachedLane, writeCachedLane } from '@/lib/laneDistanceCache';
 import { DEFAULT_APP_SETTINGS, isLaneDistanceMode } from '@/types/appSettings';
 import type { LaneDistanceMode } from '@/types/appSettings';
 import type { Address } from '@/types/order';
@@ -47,8 +48,21 @@ export async function POST(req: NextRequest) {
   if (mode === 'off') return NextResponse.json({ status: 'disabled' });
 
   if (mode === 'routes') {
+    // Every lane Google has already answered is stored, so a repeat lane — the
+    // same warehouse pair on a second order, or an order being re-opened — is a
+    // Firestore read instead of a billed lookup. Only an admin refresh ever
+    // re-asks Google. See `laneDistanceCache.ts`.
+    const cached = await readCachedLane(body.origin, body.destination);
+    if (cached !== null) {
+      return NextResponse.json({ status: 'ok', miles: cached, source: 'routes' });
+    }
+
     const routed = await lookupDrivingMiles(body.origin, body.destination);
     if (routed.status === 'ok') {
+      // Gated on `ok` specifically, never on the response merely being
+      // returnable: writing down a degraded fallback would pin this lane to an
+      // estimate forever, and fixing the billing would not bring it back.
+      await writeCachedLane(body.origin, body.destination, routed.miles);
       return NextResponse.json({ status: 'ok', miles: routed.miles, source: 'routes' });
     }
     // Rather than show a broker nothing, fall through to the free estimate and
