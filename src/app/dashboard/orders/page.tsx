@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { listOrders } from '@/lib/orders';
 import type { Order, OrderStatus } from '@/types/order';
-import { STATUS_LABEL } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
+import ResizableTh from '@/components/table/ResizableTh';
+import { useColumnWidths, type ColumnWidths } from '@/lib/useColumnWidths';
 
 const FILTER_TABS: { label: string; value: OrderStatus | 'all' }[] = [
   { label: 'All',            value: 'all' },
@@ -16,6 +17,30 @@ const FILTER_TABS: { label: string; value: OrderStatus | 'all' }[] = [
   { label: 'Delivered',      value: 'delivered' },
   { label: 'Completed',      value: 'completed' },
 ];
+
+/**
+ * Column order, labels and starting widths in one place.
+ *
+ * The keys are persisted in the user's browser, so renaming one silently
+ * discards everyone's saved width for that column — change a key only when you
+ * mean to reset it.
+ */
+const COLUMNS: { key: string; label: string; align?: 'left' | 'right'; width: number }[] = [
+  { key: 'orderNumber', label: 'Order #',   width: 120 },
+  { key: 'client',      label: 'Client',    width: 150 },
+  { key: 'shipper',     label: 'Shipper',   width: 165 },
+  { key: 'route',       label: 'Route',     width: 230 },
+  { key: 'commodity',   label: 'Commodity', width: 300 },
+  { key: 'status',      label: 'Status',    width: 145 },
+  { key: 'pickup',      label: 'Pickup',    width: 120 },
+  { key: 'rate',        label: 'Rate',      width: 105 },
+  { key: 'actions',     label: '',          width: 90, align: 'right' },
+];
+
+// Module-level so the hook's load effect has a stable dependency.
+const DEFAULT_WIDTHS: ColumnWidths = Object.fromEntries(COLUMNS.map((c) => [c.key, c.width]));
+
+const WIDTH_STORAGE_KEY = 'ttms.columnWidths.orders';
 
 function formatDate(ts: { toDate?: () => Date } | null): string {
   if (!ts || typeof ts.toDate !== 'function') return '—';
@@ -32,6 +57,9 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
   const [filter, setFilter]   = useState<OrderStatus | 'all'>('all');
+
+  const columnWidths = useColumnWidths(WIDTH_STORAGE_KEY, DEFAULT_WIDTHS);
+  const tableWidth = COLUMNS.reduce((sum, c) => sum + (columnWidths.widths[c.key] ?? c.width), 0);
 
   useEffect(() => {
     listOrders()
@@ -63,7 +91,7 @@ export default function OrdersPage() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-1 mb-6 border-b border-gray-200">
+      <div className="flex items-center gap-1 mb-6 border-b border-gray-200">
         {FILTER_TABS.map((tab) => (
           <button
             key={tab.value}
@@ -82,6 +110,17 @@ export default function OrdersPage() {
             )}
           </button>
         ))}
+
+        {/* Only offered once there is something to undo. */}
+        {columnWidths.customized && (
+          <button
+            onClick={columnWidths.reset}
+            className="ml-auto mb-1 px-2 py-1 text-xs text-gray-400 hover:text-gray-700 transition"
+            title="Put every column back to its standard width"
+          >
+            Reset column widths
+          </button>
+        )}
       </div>
 
       {/* Table */}
@@ -99,38 +138,64 @@ export default function OrdersPage() {
           </Link>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-100">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          {/*
+            `table-fixed` is what makes the widths stick: under the default auto
+            layout the browser re-measures every column against its content and
+            quietly overrides whatever the user dragged.
+          */}
+          <table className="min-w-full table-fixed divide-y divide-gray-100" style={{ width: tableWidth }}>
+            <colgroup>
+              {COLUMNS.map((col, i) => (
+                <col
+                  key={col.key}
+                  // The trailing column is left unsized so it soaks up any slack
+                  // when the window is wider than the columns need.
+                  style={i === COLUMNS.length - 1 ? undefined : { width: columnWidths.widths[col.key] ?? col.width }}
+                />
+              ))}
+            </colgroup>
             <thead className="bg-gray-50">
               <tr>
-                {['Order #', 'Client', 'Shipper', 'Route', 'Commodity', 'Status', 'Pickup', 'Rate', ''].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    {h}
-                  </th>
+                {COLUMNS.map((col, i) => (
+                  <ResizableTh
+                    key={col.key}
+                    columnKey={col.key}
+                    label={col.label}
+                    align={col.align}
+                    resizable={i !== COLUMNS.length - 1}
+                    controls={columnWidths}
+                  />
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {visible.map((order) => (
                 <tr key={order.id} className="hover:bg-gray-50 transition">
-                  <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700">
+                  {/*
+                    Cells clip or wrap rather than pushing their column wider —
+                    under a fixed layout an overflowing cell spills across its
+                    neighbour instead of resizing it. Free text wraps so a wider
+                    column reveals more of it; short fixed values truncate.
+                  */}
+                  <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700 break-words">
                     {order.orderNumber}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-800">{order.clientName || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{order.shipperName || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                  <td className="px-4 py-3 text-sm text-gray-800 break-words">{order.clientName || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 break-words">{order.shipperName || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 break-words">
                     {order.origin?.city}, {order.origin?.state}
                     <span className="mx-1 text-gray-300">→</span>
                     {order.destination?.city}, {order.destination?.state}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{order.commodity || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 break-words">{order.commodity || '—'}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={order.status} />
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                  <td className="px-4 py-3 text-sm text-gray-600 truncate">
                     {formatDate(order.pickupDate as { toDate: () => Date } | null)}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-800 font-medium">
+                  <td className="px-4 py-3 text-sm text-gray-800 font-medium truncate">
                     {formatCurrency(order.agreedRate)}
                   </td>
                   <td className="px-4 py-3 text-right">
