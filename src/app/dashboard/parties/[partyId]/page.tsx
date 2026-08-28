@@ -14,6 +14,10 @@ import type { Address, Order } from '@/types/order';
 import type { UserProfile } from '@/types/userProfile';
 import type { WorkGroup } from '@/types/workGroup';
 import StatusBadge from '@/components/orders/StatusBadge';
+import LeadSourceField from '@/components/orders/LeadSourceField';
+import { canEditSource } from '@/lib/accessControl';
+import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
+import type { LeadSource } from '@/types/leadSource';
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -71,10 +75,11 @@ function rolesOnOrder(order: Order, partyId: string): PartyRole[] {
 export default function PartyDetailPage() {
   const params  = useParams();
   const partyId = params.partyId as string;
-  const { isAdmin, isDispatcher } = useAuth();
+  const { user, profile, isAdmin, isDispatcher } = useAuth();
   // Ownership is admins and dispatchers; everything else on this form is open
   // to anyone who can already see the record.
   const canAssign = isAdmin || isDispatcher;
+
 
   const [party, setParty]     = useState<Party | null>(null);
   const [orders, setOrders]   = useState<Order[]>([]);
@@ -95,13 +100,21 @@ export default function PartyDetailPage() {
   const [defaultDest, setDest]        = useState<Address>(BLANK_ADDRESS);
   const [assignedUids, setAssigned]   = useState<string[]>([]);
   const [assignedGroups, setGroupIds] = useState<string[]>([]);
+  const [sourceId, setSourceId]       = useState<string | null>(null);
   const [notes, setNotes]             = useState('');
+  const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
+
+  // Narrower than the right to edit the party: dispatch can maintain a client's
+  // details without being able to change who gets credited for winning it.
+  const canEditThisSource = !!user && !!party && canEditSource(party, user.uid, profile);
+  const isClient = (party?.roles ?? []).includes('client');
 
   useEffect(() => {
     (async () => {
       try {
         const p = await getParty(partyId);
         setParty(p);
+        setLeadSources(await listLeadSources().catch(() => []));
         const all = await listOrders();
         setOrders(all.filter((o) => rolesOnOrder(o, partyId).length > 0));
         // Group names are needed for the ownership summary even for non-admins.
@@ -126,6 +139,7 @@ export default function PartyDetailPage() {
     setDest(party.defaultDest ?? BLANK_ADDRESS);
     setAssigned(party.assignedToUids ?? []);
     setGroupIds(party.assignedToGroupIds ?? []);
+    setSourceId(party.sourceId ?? null);
     setNotes(party.notes ?? '');
     setEditing(true);
   }
@@ -175,6 +189,10 @@ export default function PartyDetailPage() {
         address,
         defaultOrigin: hasAny(defaultOrigin) ? defaultOrigin : null,
         defaultDest:   hasAny(defaultDest)   ? defaultDest   : null,
+        // Only sent when this user may change it. The rules reject any write to
+        // the field from someone who is neither an admin nor an owner, even a
+        // write of the identical value, and that would fail the whole save.
+        ...(canEditThisSource ? { sourceId } : {}),
         notes,
       };
       await updateParty(partyId, patch);
@@ -353,6 +371,18 @@ export default function PartyDetailPage() {
             </div>
           )}
 
+          {/* A lead source only means anything on a client. A shipper or
+              consignee is a facility on somebody's route, not a lead. */}
+          {isClient && (
+            <LeadSourceField
+              value={sourceId}
+              onChange={setSourceId}
+              canEdit={canEditThisSource}
+              fallbackName={party.sourceName ?? ''}
+              hint="How this client came to us. Used for attribution reporting."
+            />
+          )}
+
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
@@ -380,6 +410,9 @@ export default function PartyDetailPage() {
             <Detail label="Default pickup"   value={formatAddress(party.defaultOrigin)} />
             <Detail label="Default delivery" value={formatAddress(party.defaultDest)} />
             <Detail label="Owned by"         value={ownerSummary(party, profiles, groups)} />
+            {isClient && (
+              <Detail label="Lead source" value={leadSourceLabel(leadSources, party.sourceId, party.sourceName)} />
+            )}
           </dl>
           {party.notes && (
             <div className="mt-5 pt-5 border-t border-gray-100">

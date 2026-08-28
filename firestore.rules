@@ -150,6 +150,30 @@ service cloud.firestore {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
     }
 
+    // Whether this write leaves the lead source alone. Source is attribution —
+    // it decides whose campaign or referral gets credited for a load — so it is
+    // held to a narrower test than the rest of the record below.
+    function sourceUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['sourceId', 'sourceName']);
+    }
+
+    // Keep in sync with canEditSource() in src/lib/accessControl.ts.
+    //
+    // Narrower than "can edit this record" on purpose. Anyone who can see an
+    // order can edit it, which takes in dispatch and finance, but changing what
+    // a load is attributed to belongs to the people who own the relationship,
+    // plus admins who have to be able to correct a mistake. A record nobody
+    // owns therefore leaves only an admin able to set it — which falls out of
+    // the rule rather than being a special case, and errs closed.
+    function canEditSource() {
+      return isAdmin()
+        || (request.auth.uid in resource.data.get('assignedToUids', []))
+        || resource.data.get('assignedToGroupIds', []).hasAny(
+             hasProfile() ? profileData().get('groupIds', []) : []
+           );
+    }
+
     // The allowlist itself: readable by admins so Settings can render it, and
     // by HR, who need the payroll fields these entries carry (legal name, date
     // of birth, personal email, start date) and have no other way to reach
@@ -196,7 +220,7 @@ service cloud.firestore {
       allow create: if false;
       allow update: if isAllowedUser() && partyVisible() && ownershipUnchanged([
         'assignedToUids', 'assignedToGroupIds', 'assignedToEmails', 'assignedToName'
-      ]);
+      ]) && (sourceUnchanged() || canEditSource());
       allow delete: if isAdmin();
 
 
@@ -223,6 +247,17 @@ service cloud.firestore {
     // Readable by everyone signed in so a site name can be shown next to a
     // person; written only through /api/sites, which detaches users on delete.
     match /sites/{siteId} {
+      allow read:  if isAllowedUser();
+      allow write: if false;
+    }
+
+    // Lead sources are reference data — where a client or a load came from.
+    // Readable by everyone signed in so a picker can render and a record can
+    // show its source label; written only through /api/lead-sources, which is
+    // admin-only and refuses to delete a source anything still points at.
+    // Note the asymmetry: reading the *list* grants nothing, but setting a
+    // source *on a record* is restricted — see canEditSource() above.
+    match /leadSources/{sourceId} {
       allow read:  if isAllowedUser();
       allow write: if false;
     }
@@ -303,7 +338,7 @@ service cloud.firestore {
       allow update: if isAllowedUser() && orderVisible() && ownershipUnchanged([
         'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
         'clientOwnerUids', 'clientOwnerGroupIds', 'assignedTo'
-      ]);
+      ]) && (sourceUnchanged() || canEditSource());
 
       allow delete: if isAdmin();
 

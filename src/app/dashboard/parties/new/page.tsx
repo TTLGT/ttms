@@ -6,6 +6,7 @@ import { createParty, PartyOwnedError } from '@/lib/parties';
 import { PARTY_ROLES, ROLE_LABEL, BLANK_ADDRESS } from '@/types/party';
 import type { Address } from '@/types/order';
 import type { PartyRole } from '@/types/party';
+import LeadSourceField from '@/components/orders/LeadSourceField';
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -52,6 +53,7 @@ function NewPartyForm() {
   const [email, setEmail]             = useState('');
   const [address, setAddress]         = useState<Address>(BLANK_ADDRESS);
   const [roles, setRoles]             = useState<PartyRole[]>([initialRole]);
+  const [sourceId, setSourceId]       = useState<string | null>(null);
   const [notes, setNotes]             = useState('');
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState('');
@@ -75,6 +77,9 @@ function NewPartyForm() {
         email: email.trim(),
         address,
         roles,
+        // Only meaningful on a client, so it is not sent when the record is
+        // being created purely as a shipper or consignee.
+        sourceId: roles.includes('client') ? sourceId : null,
         notes: notes.trim(),
       });
       router.push(`/dashboard/parties/${id}`);
@@ -145,6 +150,18 @@ function NewPartyForm() {
           </div>
 
           <AddressFields label="Address" value={address} onChange={setAddress} />
+
+          {/* Only a client has a lead source — a shipper or consignee is a
+              facility on somebody's route, not a lead. The creator owns the
+              record they are about to write, so they may always set it. */}
+          {roles.includes('client') && (
+            <LeadSourceField
+              value={sourceId}
+              onChange={setSourceId}
+              canEdit
+              hint="How this client came to us. Used for attribution reporting."
+            />
+          )}
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>

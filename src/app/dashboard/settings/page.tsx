@@ -34,6 +34,7 @@ import type { Team } from '@/types/team';
 import AddPeoplePanel from '@/components/settings/AddPeoplePanel';
 import BatsImportPanel from '@/components/settings/BatsImportPanel';
 import LaneDistancePanel from '@/components/settings/LaneDistancePanel';
+import LeadSourcesPanel from '@/components/settings/LeadSourcesPanel';
 import RemovedPeoplePanel from '@/components/settings/RemovedPeoplePanel';
 import SitesPanel from '@/components/settings/SitesPanel';
 import TeamsPanel from '@/components/settings/TeamsPanel';
@@ -1195,6 +1196,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
           <RemovedPeoplePanel sites={sites} teams={teams} />
 
           <LaneDistancePanel />
+          <LeadSourcesPanel />
           <SitesPanel onChange={handleSitesLoaded} />
           <TeamsPanel onChange={handleTeamsLoaded} />
           <WorkGroupsPanel />

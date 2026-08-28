@@ -291,6 +291,16 @@ export interface Order {
    * number reads this to know what to call it.
    */
   laneMilesSource: LaneMilesSource | null;
+  /**
+   * Earliest date the freight can be collected, as the client stated it.
+   *
+   * Deliberately separate from `pickupDate`: this is a constraint the client
+   * gives us and it does not move, while `pickupDate` is the date dispatch
+   * actually scheduled and is rewritten as the load is worked. Imported from
+   * the BATS `FirstAvailablePickup` column, which is why the two must not be
+   * collapsed into one field.
+   */
+  firstAvailablePickup: Timestamp | null;
   pickupDate: Timestamp | null;
   deliveryDate: Timestamp | null;
   dispatchedAt: Timestamp | null;
@@ -340,6 +350,24 @@ export interface Order {
    */
   clientOwnerUids: string[];
   clientOwnerGroupIds: string[];
+  /**
+   * The managed lead source this load is attributed to — a `leadSources`
+   * document id, or null when nobody has set one.
+   *
+   * Only the id is stored. The name is resolved from the list at render time
+   * so an admin renaming a source updates every order at once; mirroring the
+   * label here would mean rewriting thousands of documents on a rename.
+   *
+   * Who may change it is narrower than who may edit the order — see
+   * canEditSource() in src/lib/accessControl.ts.
+   */
+  sourceId: string | null;
+  /**
+   * The source exactly as BATS wrote it. Kept as a fallback label for imported
+   * orders whose text matched nothing on the managed list, so the order still
+   * shows where it came from. Not written by the app — new orders set
+   * `sourceId` instead.
+   */
   sourceName: string;
   notes: string;
   deliveredAt: Timestamp | null;

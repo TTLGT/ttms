@@ -17,6 +17,7 @@ import { partyDisplayName } from '@/types/party';
 import { blankCommodityItem, commoditySummary, totalPieces, totalWeightLb } from '@/types/order';
 import type { Address, CommodityItem } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
+import LeadSourceField from '@/components/orders/LeadSourceField';
 
 const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
 
@@ -71,6 +72,8 @@ function NewOrderForm() {
   const [destination, setDest]          = useState<Address>(BLANK_ADDRESS);
   const [routeMapUrl, setRouteMapUrl]   = useState('');
   const [distance, setDistance]         = useState<LaneDistanceValue>({ laneMiles: null, laneMilesSource: null });
+  const [sourceId, setSourceId] = useState<string | null>(null);
+  const [firstAvailable, setFirstAvailable] = useState('');
   const [pickupDate, setPickupDate]     = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [agreedRate, setAgreedRate]     = useState('');
@@ -159,6 +162,7 @@ function NewOrderForm() {
         routeMapUrl:  routeMapUrl.trim(),
         laneMiles:       distance.laneMiles,
         laneMilesSource: distance.laneMilesSource,
+        firstAvailablePickup: firstAvailable ? (new Date(firstAvailable) as unknown as import('firebase/firestore').Timestamp) : null,
         pickupDate:   pickupDate   ? (new Date(pickupDate)   as unknown as import('firebase/firestore').Timestamp) : null,
         deliveryDate: deliveryDate ? (new Date(deliveryDate) as unknown as import('firebase/firestore').Timestamp) : null,
         carrierId:    null,
@@ -189,6 +193,9 @@ function NewOrderForm() {
         // syncClientOwners() whenever the client changes hands.
         clientOwnerUids:     clientParty?.assignedToUids     ?? [],
         clientOwnerGroupIds: clientParty?.assignedToGroupIds ?? [],
+        sourceId,
+        // BATS's raw text, and only ever written by the import. An order made
+        // here picks a managed source or none at all.
         sourceName:         '',
         dispatchedAt:       null,
         pickedUpAt:         null,
@@ -264,6 +271,12 @@ function NewOrderForm() {
                 />
               </div>
               <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">First Available Pickup</label>
+                <input type="date" value={firstAvailable} onChange={(e) => setFirstAvailable(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+                <p className="text-xs text-gray-500 mt-1">Earliest the client says the freight can be collected.</p>
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Pickup Date</label>
                 <input type="date" value={pickupDate} onChange={(e) => setPickupDate(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
@@ -273,6 +286,10 @@ function NewOrderForm() {
                 <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
               </div>
+              {/* Whoever writes an order is put on it as an owner, so the
+                  creator can always set the source on their own new load. */}
+              <LeadSourceField value={sourceId} onChange={setSourceId} canEdit
+                hint="Where this load came from. Used for attribution reporting." />
             </div>
           </section>
 

@@ -82,6 +82,12 @@ export async function POST(req: NextRequest) {
       // records with `where('assignedToEmails', '==', [])`, and that never
       // matches a document where the field is absent.
       assignedToEmails: [],
+      // The creator owns the new party, so they are entitled to set its source
+      // straight away — canEditSource() would say yes on the very next edit.
+      sourceId:       body.sourceId ? String(body.sourceId) : null,
+      // BATS's raw text. Only the import writes it; a party created here either
+      // picks a managed source or has none.
+      sourceName:     '',
       notes:          String(body.notes ?? '').trim(),
       createdAt:      FieldValue.serverTimestamp(),
       updatedAt:      FieldValue.serverTimestamp(),

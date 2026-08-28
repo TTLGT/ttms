@@ -73,6 +73,20 @@ export interface Party {
    * make the record read as unowned, hence its place in isUnowned() below.
    */
   assignedToEmails: string[];
+  /**
+   * How this client came to us — a `leadSources` document id, or null.
+   *
+   * Only meaningful on a client; a shipper or consignee is a facility, not a
+   * lead. Stored as an id with the label resolved from the list at render
+   * time, for the same reason as on the order — see src/types/order.ts.
+   */
+  sourceId: string | null;
+  /**
+   * The lead source exactly as BATS wrote it (its `LeadSourceName` column).
+   * A fallback label for imported clients whose text matched nothing on the
+   * managed list. Not written by the app.
+   */
+  sourceName: string;
   notes: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;

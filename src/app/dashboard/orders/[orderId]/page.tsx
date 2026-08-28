@@ -27,6 +27,8 @@ import QuickAddCarrierModal from '@/components/carriers/QuickAddCarrierModal';
 import PersonNameFields from '@/components/PersonNameFields';
 import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload';
 import { useAuth } from '@/context/AuthContext';
+import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
+import type { LeadSource } from '@/types/leadSource';
 
 // Sentinel value for the dropdown's "add a new carrier" row. Not a document id,
 // so it can never collide with a real carrier.
@@ -40,6 +42,20 @@ const PIPELINE: OrderStatus[] = [
 function formatDate(ts: { toDate?: () => Date } | null | undefined): string {
   if (!ts || typeof ts.toDate !== 'function') return '—';
   return ts.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+/**
+ * Label for the parent-order link.
+ *
+ * An imported order's document id is `bats-<BATS Id>` and its order number is
+ * that same BATS Id, so stripping the prefix gives the number a broker will
+ * actually recognise from BATS. Anything else is a Firestore auto-id with no
+ * meaning to a reader, so it stays truncated as before.
+ */
+function parentLabel(parentOrderId: string): string {
+  return parentOrderId.startsWith('bats-')
+    ? parentOrderId.slice(5)
+    : `${parentOrderId.slice(0, 8)}…`;
 }
 
 function formatCurrency(n: number | undefined): string {
@@ -99,6 +115,10 @@ export default function OrderDetailPage() {
   const [milesNote, setMilesNote]             = useState('');
 
   const [order, setOrder]           = useState<Order | null>(null);
+  // Loaded so the order can show its source's current name. Only the id is
+  // stored on the order, so a source an admin renames reads correctly here
+  // without any order being rewritten.
+  const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   const [suborders, setSuborders]   = useState<Order[]>([]);
   const [allOrders, setAllOrders]   = useState<Order[]>([]);
   const [carriers, setCarriers]     = useState<Carrier[]>([]);
@@ -149,12 +169,14 @@ export default function OrderDetailPage() {
     async function load() {
       setLoading(true);
       try {
-        const [o, cs, all] = await Promise.all([
+        const [o, cs, all, srcs] = await Promise.all([
           getOrder(orderId),
           listCarriers(),
           listOrders(),
+          listLeadSources(),
         ]);
         setOrder(o);
+        setLeadSources(srcs);
         setCarriers(cs.filter((c) => c.isActive));
         if (o) {
           setAllOrders(all);
@@ -485,6 +507,10 @@ export default function OrderDetailPage() {
         // under Google Routes, no reason to buy the identical lookup twice.
         laneMiles:       order.laneMiles ?? null,
         laneMilesSource: order.laneMilesSource ?? null,
+        // The client's earliest-pickup constraint applies to the whole load, so
+        // it carries onto a split. The scheduled dates do not — those are for
+        // dispatch to set per suborder.
+        firstAvailablePickup: order.firstAvailablePickup ?? null,
         pickupDate:   null,
         deliveryDate: null,
         carrierId:    null,
@@ -513,7 +539,10 @@ export default function OrderDetailPage() {
         // Same client as the parent, so the same mirrored client owners.
         clientOwnerUids:     order.clientOwnerUids     ?? [],
         clientOwnerGroupIds: order.clientOwnerGroupIds ?? [],
-        sourceName:         '',
+        // A split came from wherever the parent load came from, so it inherits
+        // the attribution rather than starting unattributed.
+        sourceId:           order.sourceId ?? null,
+        sourceName:         order.sourceName ?? '',
         dispatchedAt:       null,
         pickedUpAt:         null,
         deliveredAt:        null,
@@ -567,7 +596,7 @@ export default function OrderDetailPage() {
             <StatusBadge status={order.status} />
             {order.parentOrderId && (
               <Link href={`/dashboard/orders/${order.parentOrderId}`} className="text-xs text-gray-400 hover:text-brand-600">
-                Suborder of {order.parentOrderId.slice(0, 8)}…
+                Suborder of {parentLabel(order.parentOrderId)}
               </Link>
             )}
           </div>
@@ -643,6 +672,8 @@ export default function OrderDetailPage() {
               <DetailRow label="Consignee" value={order.consigneeName || '—'} />
               <DetailRow label="Pieces" value={order.pieces} />
               <DetailRow label="Weight" value={order.weight ? `${order.weight.toLocaleString()} lbs` : '—'} />
+              <DetailRow label="Lead Source" value={leadSourceLabel(leadSources, order.sourceId, order.sourceName)} />
+              <DetailRow label="First Available" value={formatDate(order.firstAvailablePickup as { toDate: () => Date } | null)} />
               <DetailRow label="Pickup Date" value={formatDate(order.pickupDate as { toDate: () => Date } | null)} />
               <DetailRow label="Delivery Date" value={formatDate(order.deliveryDate as { toDate: () => Date } | null)} />
             </div>

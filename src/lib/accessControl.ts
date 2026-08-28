@@ -203,6 +203,39 @@ export function canSeeOrder(
   return groups.some((g) => mine.includes(g));
 }
 
+/**
+ * Whether `uid` may set or change the lead source on a record.
+ *
+ * Deliberately narrower than "can edit this record". Anyone who can see an
+ * order can currently edit it, which includes dispatch and finance — but the
+ * source is what commission and marketing spend get argued over, so it is
+ * restricted to the people who actually own the relationship, plus admins who
+ * have to be able to fix a mistake.
+ *
+ * A record nobody owns therefore has no one but an admin who can set it. That
+ * falls out of the rule rather than being a special case, and it is the safe
+ * direction: an unowned party is shared reference data that any user can see,
+ * so letting them all write its source would be the same free-for-all that
+ * unrestricted ownership writes used to be.
+ *
+ * Keep in sync with canEditSource() in firestore.rules.
+ */
+export function canEditSource(
+  record: {
+    assignedToUids?: string[];
+    assignedToGroupIds?: string[];
+  },
+  uid: string,
+  profile: RoleFlags | null | undefined,
+): boolean {
+  if (profile?.isAdmin) return true;
+
+  if ((record.assignedToUids ?? []).includes(uid)) return true;
+
+  const mine = profile?.groupIds ?? [];
+  return (record.assignedToGroupIds ?? []).some((g) => mine.includes(g));
+}
+
 /** Who may decide an access request: any current owner, or any admin. */
 export function canDecideRequest(
   request: { ownerUids?: string[] },

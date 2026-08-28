@@ -463,6 +463,42 @@ or damaged allowlist can never lock everyone out. Those accounts cannot be
 removed or demoted through the UI. Run `node scripts/seed-allowed-users.js`
 once when migrating an existing deployment onto the allowlist.
 
+## Collection: `leadSources`
+
+The managed list of places a client or a load can come from — a referral, a
+load board, a campaign. Reference data, **non-access-bearing**: every signed-in
+user can read the list, and only admins can change it, through
+`/api/lead-sources` (the collection is closed to the client SDK).
+
+| Field | Notes |
+|---|---|
+| `name` | What brokers see in the picker. |
+| `nameKey` | `toSourceKey(name)` — lowercased, punctuation stripped. What the BATS import matches on. |
+| `isActive` | `false` = retired: hidden from the pickers, still shown on records that carry it. |
+
+Document ids are derived, not random: `ls-<nameKey with spaces hyphenated>`,
+e.g. `ls-google-ads`. That lets the two importers, the API and the browser all
+arrive at the same id for the same name without sharing a hashing
+implementation, and makes a re-import idempotent.
+
+**Orders and parties store only `sourceId`.** The label is resolved from this
+list at render time, so renaming a source updates every screen at once instead
+of requiring thousands of documents to be rewritten. Both also carry a
+`sourceName` holding the raw text BATS supplied — a fallback label for imported
+records whose source matched nothing on the list. The app never writes it.
+
+**Who may set it is narrower than who may edit the record.** Anyone who can see
+an order can edit it, but the source decides attribution, so changing it is
+limited to admins and the record's own owners — `canEditSource()` in
+`src/lib/accessControl.ts`, mirrored as `canEditSource()` in `firestore.rules`.
+A record nobody owns can therefore only be attributed by an admin.
+
+Deleting is refused by `/api/lead-sources/[sourceId]` while any order or party
+still points at the source; retiring it is the intended path. This is
+deliberately unlike `/api/sites`, which detaches users on delete: a site is an
+attribute of a person and losing it costs little, whereas a lead source is the
+evidence behind "this campaign brought in these loads".
+
 ## Security Rules (high-level intent)
 
 - Only authenticated users with an `allowedUsers` entry (or a bootstrap admin address) may read/write any document.

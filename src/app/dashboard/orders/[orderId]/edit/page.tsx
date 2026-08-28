@@ -16,6 +16,9 @@ import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
 import { commoditySummary, orderCommodityItems, totalPieces, totalWeightLb } from '@/types/order';
 import type { Order, Address, CommodityItem } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
+import LeadSourceField from '@/components/orders/LeadSourceField';
+import { canEditSource } from '@/lib/accessControl';
+import { useAuth } from '@/context/AuthContext';
 
 const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
 
@@ -59,6 +62,7 @@ function AddressFields({ label, value, onChange }: {
 }
 
 export default function EditOrderPage() {
+  const { user, profile } = useAuth();
   const params   = useParams();
   const orderId  = params.orderId as string;
   const router   = useRouter();
@@ -77,6 +81,8 @@ export default function EditOrderPage() {
   const [destination, setDest]          = useState<Address>(BLANK_ADDRESS);
   const [routeMapUrl, setRouteMapUrl]   = useState('');
   const [distance, setDistance]         = useState<LaneDistanceValue>({ laneMiles: null, laneMilesSource: null });
+  const [sourceId, setSourceId] = useState<string | null>(null);
+  const [firstAvailable, setFirstAvailable] = useState('');
   const [pickupDate, setPickupDate]     = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [agreedRate, setAgreedRate]     = useState('');
@@ -84,6 +90,10 @@ export default function EditOrderPage() {
   const [notes, setNotes]               = useState('');
 
   const carrierPay = (parseFloat(agreedRate) || 0) - (parseFloat(brokerFee) || 0);
+
+  // Narrower than the right to edit the order at all — dispatch and finance can
+  // work a load without being able to change what it is credited to.
+  const canEditThisSource = !!user && !!order && canEditSource(order, user.uid, profile);
 
   // The legacy single-value fields are kept in sync from the items — see the
   // note on Order.commodity.
@@ -106,6 +116,8 @@ export default function EditOrderPage() {
         setDest(o.destination ?? BLANK_ADDRESS);
         setRouteMapUrl(o.routeMapUrl ?? '');
         setDistance({ laneMiles: o.laneMiles ?? null, laneMilesSource: o.laneMilesSource ?? null });
+        setSourceId(o.sourceId ?? null);
+        setFirstAvailable(tsToDateStr(o.firstAvailablePickup));
         setPickupDate(tsToDateStr(o.pickupDate));
         setDeliveryDate(tsToDateStr(o.deliveryDate));
         setAgreedRate(o.agreedRate ? String(o.agreedRate) : '');
@@ -162,6 +174,12 @@ export default function EditOrderPage() {
         routeMapUrl:  routeMapUrl.trim(),
         laneMiles:       distance.laneMiles,
         laneMilesSource: distance.laneMilesSource,
+        // Only sent when this user is allowed to change it. Writing the same
+        // value back would still be a write to the field, and the rules reject
+        // any touch of it from someone who is neither an admin nor an owner —
+        // which would fail the whole save, not just this field.
+        ...(canEditThisSource ? { sourceId } : {}),
+        firstAvailablePickup: firstAvailable ? Timestamp.fromDate(new Date(firstAvailable + 'T12:00:00')) : null,
         pickupDate:   pickupDate   ? Timestamp.fromDate(new Date(pickupDate + 'T12:00:00'))   : null,
         deliveryDate: deliveryDate ? Timestamp.fromDate(new Date(deliveryDate + 'T12:00:00')) : null,
         agreedRate:   parseFloat(agreedRate) || 0,
@@ -214,6 +232,12 @@ export default function EditOrderPage() {
                   value={consignee} onChange={setConsignee} onPartyCreated={cacheParty} />
               </div>
               <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">First Available Pickup</label>
+                <input type="date" value={firstAvailable} onChange={(e) => setFirstAvailable(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+                <p className="text-xs text-gray-500 mt-1">Earliest the client says the freight can be collected.</p>
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Pickup Date</label>
                 <input type="date" value={pickupDate} onChange={(e) => setPickupDate(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
@@ -223,6 +247,13 @@ export default function EditOrderPage() {
                 <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
               </div>
+              <LeadSourceField
+                value={sourceId}
+                onChange={setSourceId}
+                canEdit={canEditThisSource}
+                fallbackName={order?.sourceName ?? ''}
+                hint="Where this load came from. Used for attribution reporting."
+              />
             </div>
           </section>
 

@@ -135,6 +135,92 @@ function str(val) {
   return (val || '').trim();
 }
 
+// ── Lead sources ──────────────────────────────────────────────────────────────
+// KEEP IN SYNC with src/types/leadSource.ts and src/lib/batsImport.ts.
+
+function toSourceKey(raw) {
+  return String(raw || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function leadSourceDocId(key) {
+  return `ls-${key.replace(/\s+/g, '-')}`;
+}
+
+/**
+ * Loads the managed lead-source list, keyed for matching.
+ *
+ * Matching is on `nameKey`, not on the derived document id, so that a source an
+ * admin has renamed is still found rather than being re-created under its new
+ * name's id.
+ */
+async function loadLeadSources() {
+  const snap = await db.collection('leadSources').select('nameKey').get();
+  const byKey = new Map();
+  snap.forEach((d) => byKey.set(d.get('nameKey') || '', d.id));
+  return { byKey, pending: new Map() };
+}
+
+/**
+ * Matches a BATS source name to the managed list, queueing it for creation the
+ * first time it is seen.
+ *
+ * This is what makes an imported record arrive with its source already
+ * selected: the free text BATS carried is resolved to a real list entry here,
+ * and the record stores that id. The raw text is returned alongside and kept on
+ * the record as a fallback label.
+ *
+ * A source an admin has since retired stays retired — it is still in the
+ * collection, so it matches here and is never re-created as active.
+ */
+function resolveSource(dir, rawName) {
+  const name = str(rawName);
+  const key  = toSourceKey(name);
+  if (!key) return { id: null, name: '' };
+
+  const found = dir.byKey.get(key);
+  if (found) return { id: found, name };
+
+  // Not on the list yet. The id is derived from the key, so it can be handed to
+  // the record now and the document written in the same run.
+  const id = leadSourceDocId(key);
+  if (!dir.pending.has(key)) dir.pending.set(key, { id, name, nameKey: key });
+  return { id, name };
+}
+
+/** Writes the sources the CSVs named that the list did not already have. */
+async function flushLeadSources(dir, now) {
+  if (dir.pending.size === 0) return 0;
+
+  const rows = [...dir.pending.values()];
+  if (DRY_RUN) {
+    console.log(`      would add ${rows.length} new lead source(s): ${rows.map((r) => r.name).join(', ')}`);
+    return 0;
+  }
+
+  const batch = db.batch();
+  for (const r of rows) {
+    // merge:true so a name seen in both the customers and orders files, or in a
+    // later run, never resets a source an admin has since renamed or retired.
+    batch.set(db.collection('leadSources').doc(r.id), {
+      name:      r.name,
+      nameKey:   r.nameKey,
+      isActive:  true,
+      createdAt: now,
+      createdBy: 'bats-import',
+      updatedAt: now,
+    }, { merge: true });
+    dir.byKey.set(r.nameKey, r.id);
+  }
+  await batch.commit();
+  dir.pending.clear();
+  console.log(`      added ${rows.length} new lead source(s)`);
+  return rows.length;
+}
+
 function isPhoneLike(s) {
   const digits = s.replace(/\D/g, '');
   return digits.length >= 7 && digits.length / s.length > 0.5;
@@ -239,7 +325,7 @@ const PRESERVE = {
   orders: [
     'carrierId', 'carrierName', 'driverName', 'driverPhone',
     'driverLicenseStoragePath', 'bolStoragePath', 'invoiceStoragePath', 'podStoragePath',
-    'notes', 'parentOrderId',
+    'notes',
     'carrierSignedAt', 'carrierSignerName', 'carrierSignerIp',
     'shipperSignedAt', 'shipperSignerName', 'shipperSignerIp',
     'clientSignedAt',  'clientSignerName',  'clientSignerIp',
@@ -304,9 +390,27 @@ function reconcileStatus(prior, incoming) {
   return rankB > rankA ? b : a;
 }
 
+/**
+ * Keeps a stored value, but lets the CSV fill an empty one.
+ *
+ * Neither field this covers can be a plain PRESERVE entry. PRESERVE lets any
+ * stored value — null included — beat the CSV, and every order imported before
+ * these columns were read holds null in both. A refresh would keep re-applying
+ * that null and no historical order would ever get its master link or its lead
+ * source. A value set in the TMS still wins, because BATS knows nothing about a
+ * split done here or a source an owner picked here.
+ */
+function preferExisting(prior, incoming) {
+  return prior || incoming || null;
+}
+
 /** Fields needing a comparison rather than a straight "existing value wins". */
 const RECONCILE = {
-  orders: { status: reconcileStatus },
+  orders: {
+    status:        reconcileStatus,
+    parentOrderId: preferExisting,
+    sourceId:      preferExisting,
+  },
 };
 
 /** Cheaply pull the hash, createdAt and preserved fields of every existing doc. */
@@ -674,6 +778,8 @@ function registerParty(reg, name, role, extra = {}) {
       defaultDest: null,
       assignedToName: '',
       owners: null,
+      sourceId: null,
+      sourceName: '',
     };
     reg.set(key, draft);
   }
@@ -687,6 +793,8 @@ function registerParty(reg, name, role, extra = {}) {
   draft.defaultDest    ||= extra.defaultDest    || null;
   draft.assignedToName ||= extra.assignedToName || '';
   draft.owners         ||= extra.owners         || null;
+  draft.sourceId       ||= (extra.source && extra.source.id)   || null;
+  draft.sourceName     ||= (extra.source && extra.source.name) || '';
   return draft.id;
 }
 
@@ -704,7 +812,7 @@ async function flushParties(reg, now) {
   const existing = new Map();
   const snap = await db.collection('parties')
     .select('roles', 'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
-            'assignedToName', 'contactName', 'contacts', 'notes')
+            'assignedToName', 'contactName', 'contacts', 'notes', 'sourceId')
     .get();
   snap.forEach((doc) => {
     const v = doc.data();
@@ -717,6 +825,7 @@ async function flushParties(reg, now) {
       contactName:        v.contactName        || '',
       contacts:           v.contacts           || [],
       notes:              v.notes              || '',
+      sourceId:           v.sourceId           || null,
     });
   });
 
@@ -763,6 +872,11 @@ async function flushParties(reg, now) {
       // joined that query when ownership-by-email was added.
       assignedToGroupIds: groupIds,
       assignedToEmails:   emails,
+      // A source an owner picked in the TMS wins; the CSV only fills a blank.
+      // The raw name is BATS's to supply, so it is refreshed either way and
+      // acts as the fallback label when nothing matched the managed list.
+      sourceId:   (prior && prior.sourceId) || d.sourceId || null,
+      sourceName: d.sourceName,
       createdAt: now,
       updatedAt: now,
     };
@@ -861,8 +975,9 @@ async function importCustomers() {
 
   // Customers are clients in TMS terms; seed them into the shared party list so
   // orders can link to the same record a shipper or consignee would use.
-  const dir   = await loadOwnerDirectory();
-  const tally = newTally();
+  const dir     = await loadOwnerDirectory();
+  const sources = await loadLeadSources();
+  const tally   = newTally();
   const reg = new Map();
   for (const c of records) {
     const owners = resolveOwner(dir, c.assignedTo);
@@ -871,6 +986,9 @@ async function importCustomers() {
       batsId:  c.batsId,
       phone:   c.phone,
       email:   c.email,
+      // BATS's LeadSourceName, matched to the managed list so the client lands
+      // with its source already selected rather than as unattributed text.
+      source:  resolveSource(sources, c.leadSourceName),
       address: { street: c.address, city: c.city, state: c.state, zip: c.zip, country: c.country },
       // BATS names the owning rep. Resolved here into real owners so the party
       // lands assigned rather than merely private; a name matching nobody falls
@@ -879,6 +997,8 @@ async function importCustomers() {
       owners,
     });
   }
+  // Sources must exist before the parties that point at them.
+  await flushLeadSources(sources, now);
   await flushParties(reg, now);
   reportTally(tally, 'customer');
 
@@ -899,8 +1019,9 @@ async function importOrders() {
   const now  = Timestamp.now();
   // Read the directory once for the whole run, not per row: a BATS file is tens
   // of thousands of rows against a few dozen people.
-  const dir   = await loadOwnerDirectory();
-  const tally = newTally();
+  const dir     = await loadOwnerDirectory();
+  const sources = await loadLeadSources();
+  const tally   = newTally();
 
   for (const filepath of files) {
     const rows = loadCSV(filepath);
@@ -908,6 +1029,11 @@ async function importOrders() {
       const batsId = str(r[0]);
       if (!batsId || isNaN(Number(batsId))) continue;  // skip garbled rows
       if (seen.has(batsId)) continue;                   // deduplicate
+
+      // Guarded the same way as the row's own Id: BATS writes an empty cell on
+      // a standalone order, and garbled rows turn up in these exports.
+      const masterRaw  = str(r[4]);
+      const masterId   = masterRaw && !isNaN(Number(masterRaw)) ? masterRaw : '';
 
       const agreedRate = parseFloat(r[16]) || 0;
       const carrierPay = parseFloat(r[17]) || 0;
@@ -926,6 +1052,10 @@ async function importOrders() {
       const ownerName = str(r[19]);
       const owners    = resolveOwner(dir, ownerName);
       tallyOwner(tally, ownerName, owners);
+
+      // Col 20 is SourceName — where the load came from. Matched to the managed
+      // list here so an imported order opens with its source already selected.
+      const source = resolveSource(sources, r[20]);
 
       const clientId = registerParty(reg, clientName, 'client', {
         phone: str(r[9]),
@@ -954,7 +1084,12 @@ async function importOrders() {
         shipperName:              origin.facility,
         consigneeId,
         consigneeName:            dest.facility,
-        parentOrderId:            null,
+        // Col 4 is MasterOrderId — set on a suborder, empty on a standalone
+        // load. Imported orders are keyed `bats-<BATS Id>`, so the parent's
+        // document id can be built from it directly with no lookup. A master
+        // that never made it into the export leaves a dangling id; the
+        // suborders tab simply finds nothing, which is the same as today.
+        parentOrderId:            masterId ? `bats-${masterId}` : null,
         commodity:                str(r[11]),
         vehicles:                 str(r[11]),
         pieces:                   0,
@@ -966,6 +1101,7 @@ async function importOrders() {
         // parsing rules ever need to change.
         _rawOrigin:               str(r[12]),
         _rawDestination:          str(r[13]),
+        firstAvailablePickup:     ts(str(r[14])),  // FirstAvailablePickup
         pickupDate:               ts(str(r[24])),  // AssignedPickup
         deliveryDate:             ts(str(r[25])),  // AssignedDelivery
         dispatchedAt:             ts(str(r[21])),
@@ -991,7 +1127,8 @@ async function importOrders() {
         // Filled in below, once flushParties reports where the client landed.
         clientOwnerUids:          [],
         clientOwnerGroupIds:      [],
-        sourceName:               str(r[20]),
+        sourceId:                 source.id,
+        sourceName:               source.name,
         notes:                    '',
         carrierSignedAt:          null,
         carrierSignerName:        null,
@@ -1012,6 +1149,8 @@ async function importOrders() {
   const records = [...seen.values()];
   console.log(`  ${records.length} unique orders after dedup`);
 
+  // Sources first, then parties, then the orders that reference both.
+  await flushLeadSources(sources, now);
   // Parties must land before the orders that reference them.
   const partyResult = await flushParties(reg, now);
   const ownership   = partyResult.ownership || new Map();

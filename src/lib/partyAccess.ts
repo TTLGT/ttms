@@ -47,6 +47,8 @@ export interface VisibleParty {
   assignedToName: string;
   assignedToGroupIds: string[];
   assignedToEmails: string[];
+  sourceId: string | null;
+  sourceName: string;
   notes: string;
 }
 
@@ -66,6 +68,8 @@ export function toVisibleParty(id: string, d: FirebaseFirestore.DocumentData): V
     assignedToName:     d.assignedToName     ?? '',
     assignedToGroupIds: d.assignedToGroupIds ?? [],
     assignedToEmails:   d.assignedToEmails   ?? [],
+    sourceId:           d.sourceId           ?? null,
+    sourceName:         d.sourceName         ?? '',
     notes:              d.notes              ?? '',
   };
 }

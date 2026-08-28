@@ -129,6 +129,7 @@ Changing one without the other creates a silent security hole:
 | `canSeeDirectory()` | `isHr()` + the `allowedUsers` read rule |
 | `canSeeParty()` | `partyVisible()` |
 | `canSeeOrder()` | `orderVisible()` |
+| `canEditSource()` | `canEditSource()` |
 
 The owner matcher is duplicated three ways for the same reason — plain node
 scripts cannot import TypeScript either:
@@ -136,6 +137,10 @@ scripts cannot import TypeScript either:
 | `src/lib/ownerResolution.ts` | mirrored in |
 |---|---|
 | `resolveOwner()` + `loadOwnerDirectory()` | `scripts/import-bats.js`, `scripts/resolve-party-owners.js` |
+
+| `src/types/leadSource.ts` | mirrored in |
+|---|---|
+| `toSourceKey()` + `leadSourceDocId()` | `scripts/import-bats.js` |
 
 Both carry "keep in sync" comments. **After editing either, deploy the rules
 (below) — otherwise only half the change is live.**

@@ -5,6 +5,7 @@ import { parseCsv } from './csv';
 import { toNameKey } from '@/types/party';
 import { STATUS_RANK } from '@/types/order';
 import { loadOwnerDirectory, resolveOwner, hasOwner } from './ownerResolution';
+import { leadSourceDocId, toSourceKey } from '@/types/leadSource';
 import { labelOwners, ownerTargets, writeOwnerEvents } from './ownership';
 import { IMPORT_ORIGIN_EVENT_ID } from '@/types/ownerEvent';
 import type { OwnerDirectory, ResolvedOwner } from './ownerResolution';
@@ -145,6 +146,81 @@ function parseOrderLocation(raw: string): OrderLocation {
   return { facility, phone, address };
 }
 
+// ── Lead sources ────────────────────────────────────────────────────────────
+// KEEP IN SYNC with the copies in scripts/import-bats.js. `toSourceKey` and
+// `leadSourceDocId` come from src/types/leadSource.ts, which the script cannot
+// import.
+
+interface SourceDirectory {
+  byKey: Map<string, string>;
+  pending: Map<string, { id: string; name: string; nameKey: string }>;
+}
+
+/**
+ * Loads the managed lead-source list, keyed for matching.
+ *
+ * Matching is on `nameKey`, not on the derived document id, so that a source an
+ * admin has renamed is still found rather than being re-created under its new
+ * name's id.
+ */
+async function loadLeadSources(): Promise<SourceDirectory> {
+  const snap = await adminDb.collection('leadSources').select('nameKey').get();
+  const byKey = new Map<string, string>();
+  snap.forEach((d) => byKey.set((d.get('nameKey') as string) || '', d.id));
+  return { byKey, pending: new Map() };
+}
+
+/**
+ * Matches a BATS source name to the managed list, queueing it for creation the
+ * first time it is seen.
+ *
+ * This is what makes an imported record arrive with its source already
+ * selected: the free text BATS carried is resolved to a real list entry here,
+ * and the record stores that id. The raw text is returned alongside and kept on
+ * the record as a fallback label.
+ *
+ * A source an admin has since retired stays retired — it is still in the
+ * collection, so it matches here and is never re-created as active.
+ */
+function resolveSource(dir: SourceDirectory, rawName: string): { id: string | null; name: string } {
+  const name = str(rawName);
+  const key  = toSourceKey(name);
+  if (!key) return { id: null, name: '' };
+
+  const found = dir.byKey.get(key);
+  if (found) return { id: found, name };
+
+  // Not on the list yet. The id is derived from the key, so it can be handed to
+  // the record now and the document written in the same run.
+  const id = leadSourceDocId(key);
+  if (!dir.pending.has(key)) dir.pending.set(key, { id, name, nameKey: key });
+  return { id, name };
+}
+
+/** Writes the sources the CSVs named that the list did not already have. */
+async function flushLeadSources(dir: SourceDirectory, now: Timestamp): Promise<number> {
+  if (dir.pending.size === 0) return 0;
+
+  const rows = [...dir.pending.values()];
+  const batch = adminDb.batch();
+  for (const r of rows) {
+    // merge:true so a name seen in both the customers and orders files, or in a
+    // later run, never resets a source an admin has since renamed or retired.
+    batch.set(adminDb.collection('leadSources').doc(r.id), {
+      name:      r.name,
+      nameKey:   r.nameKey,
+      isActive:  true,
+      createdAt: now,
+      createdBy: 'bats-import',
+      updatedAt: now,
+    }, { merge: true });
+    dir.byKey.set(r.nameKey, r.id);
+  }
+  await batch.commit();
+  dir.pending.clear();
+  return rows.length;
+}
+
 function isPhoneLike(s: string): boolean {
   const digits = s.replace(/\D/g, '');
   return digits.length >= 7 && digits.length / s.length > 0.5;
@@ -197,7 +273,7 @@ const PRESERVE: Record<ImportCollection, string[]> = {
   orders: [
     'carrierId', 'carrierName', 'driverName', 'driverPhone',
     'driverLicenseStoragePath', 'bolStoragePath', 'invoiceStoragePath', 'podStoragePath',
-    'notes', 'parentOrderId',
+    'notes',
     'carrierSignedAt', 'carrierSignerName', 'carrierSignerIp',
     'shipperSignedAt', 'shipperSignerName', 'shipperSignerIp',
     'clientSignedAt',  'clientSignerName',  'clientSignerIp',
@@ -244,9 +320,27 @@ function reconcileStatus(prior: unknown, incoming: unknown): unknown {
   return rankB > rankA ? b : a;
 }
 
+/**
+ * Keeps a stored value, but lets the CSV fill an empty one.
+ *
+ * Neither field this covers can be a plain PRESERVE entry. PRESERVE lets any
+ * stored value — null included — beat the CSV, and every order imported before
+ * these columns were read holds null in both. A refresh would keep re-applying
+ * that null and no historical order would ever get its master link or its lead
+ * source. A value set in the TMS still wins, because BATS knows nothing about a
+ * split done here or a source an owner picked here.
+ */
+function preferExisting(prior: unknown, incoming: unknown): unknown {
+  return prior || incoming || null;
+}
+
 /** Fields needing a comparison rather than a straight "existing value wins". */
 const RECONCILE: Partial<Record<ImportCollection, Record<string, (p: unknown, i: unknown) => unknown>>> = {
-  orders: { status: reconcileStatus },
+  orders: {
+    status:        reconcileStatus,
+    parentOrderId: preferExisting,
+    sourceId:      preferExisting,
+  },
 };
 
 async function loadExistingMeta(collectionName: ImportCollection) {
@@ -343,6 +437,10 @@ interface PartyDraft {
    * named nobody. Only applied when the party is new — see flushParties.
    */
   owners: ResolvedOwner | null;
+  /** Managed lead source, matched from the CSV's free text by resolveSource. */
+  sourceId: string | null;
+  /** That free text, kept as the fallback label when nothing matched. */
+  sourceName: string;
 }
 
 type PartyRegistry = Map<string, PartyDraft>;
@@ -356,7 +454,8 @@ function registerParty(
   reg: PartyRegistry,
   name: string,
   role: PartyRole,
-  extra: Partial<Omit<PartyDraft, 'id' | 'nameKey' | 'roles'>> = {},
+  extra: Partial<Omit<PartyDraft, 'id' | 'nameKey' | 'roles' | 'sourceId' | 'sourceName'>>
+    & { source?: { id: string | null; name: string } } = {},
 ): string {
   const key = toNameKey(name);
   if (!key) return '';
@@ -376,6 +475,8 @@ function registerParty(
       defaultDest: null,
       assignedToName: '',
       owners: null,
+      sourceId: null,
+      sourceName: '',
     };
     reg.set(key, draft);
   }
@@ -389,6 +490,8 @@ function registerParty(
   draft.defaultDest   ||= extra.defaultDest   ?? null;
   draft.assignedToName ||= extra.assignedToName ?? '';
   draft.owners        ||= extra.owners        ?? null;
+  draft.sourceId      ||= extra.source?.id    ?? null;
+  draft.sourceName    ||= extra.source?.name  ?? '';
   return draft.id;
 }
 
@@ -429,12 +532,13 @@ async function flushParties(
     contactName: string;
     contacts: unknown[];
     notes: string;
+    sourceId: string | null;
   }
 
   const existing = new Map<string, Preserved>();
   const snap = await adminDb.collection('parties')
     .select('roles', 'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
-            'assignedToName', 'contactName', 'contacts', 'notes')
+            'assignedToName', 'contactName', 'contacts', 'notes', 'sourceId')
     .get();
   snap.forEach((doc) => {
     const v = doc.data();
@@ -447,6 +551,7 @@ async function flushParties(
       contactName:    (v.contactName ?? '') as string,
       contacts:       (v.contacts ?? []) as unknown[],
       notes:          (v.notes ?? '') as string,
+      sourceId:       (v.sourceId ?? null) as string | null,
     });
   });
 
@@ -492,6 +597,11 @@ async function flushParties(
       // joined that query when ownership-by-email was added.
       assignedToGroupIds: groupIds,
       assignedToEmails:   emails,
+      // A source an owner picked in the TMS wins; the CSV only fills a blank.
+      // The raw name is BATS's to supply, so it is refreshed either way and
+      // acts as the fallback label when nothing matched the managed list.
+      sourceId:   prior?.sourceId || d.sourceId || null,
+      sourceName: d.sourceName,
       createdAt:      now,
       updatedAt:      now,
     };
@@ -618,8 +728,9 @@ export async function importCustomersCSV(text: string): Promise<ImportResult> {
 
   // Customers are clients in TMS terms; seed them into the shared party list so
   // orders can link to the same record a shipper or consignee would use.
-  const dir   = await loadOwnerDirectory();
-  const tally = new OwnerTally();
+  const dir     = await loadOwnerDirectory();
+  const sources = await loadLeadSources();
+  const tally   = new OwnerTally();
   const reg: PartyRegistry = new Map();
   for (const c of records) {
     const owners = resolveOwner(dir, c.assignedTo);
@@ -628,6 +739,9 @@ export async function importCustomersCSV(text: string): Promise<ImportResult> {
       batsId:  c.batsId,
       phone:   c.phone,
       email:   c.email,
+      // BATS's LeadSourceName, matched to the managed list so the client lands
+      // with its source already selected rather than as unattributed text.
+      source:  resolveSource(sources, c.leadSourceName),
       address: { street: c.address, city: c.city, state: c.state, zip: c.zip, country: c.country },
       // BATS names the owning rep. Resolved here into real owners so the party
       // lands assigned rather than merely private; a name matching nobody
@@ -637,6 +751,8 @@ export async function importCustomersCSV(text: string): Promise<ImportResult> {
       owners,
     });
   }
+  // Sources must exist before the parties that point at them.
+  await flushLeadSources(sources, now);
   await flushParties(reg, now);
 
   const result = await batchWrite(records, 'customers', (c) => `bats-${c.batsId}`);
@@ -652,8 +768,9 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
   const seen = new Map<string, Record<string, unknown>>();
   const reg: PartyRegistry = new Map();
   const now  = Timestamp.now();
-  const dir  = await loadOwnerDirectory();
-  const tally = new OwnerTally();
+  const dir     = await loadOwnerDirectory();
+  const sources = await loadLeadSources();
+  const tally   = new OwnerTally();
 
   for (const text of texts) {
     const rows = loadCSV(text);
@@ -661,6 +778,11 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
       const batsId = str(r[0]);
       if (!batsId || isNaN(Number(batsId))) continue; // skip garbled rows
       if (seen.has(batsId)) continue;                  // deduplicate
+
+      // Guarded the same way as the row's own Id: BATS writes an empty cell on
+      // a standalone order, and garbled rows turn up in these exports.
+      const masterRaw  = str(r[4]);
+      const masterId   = masterRaw && !isNaN(Number(masterRaw)) ? masterRaw : '';
 
       const agreedRate = parseFloat(r[16]) || 0;
       const carrierPay = parseFloat(r[17]) || 0;
@@ -679,6 +801,10 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
       const ownerName = str(r[19]);
       const owners    = resolveOwner(dir, ownerName);
       tally.record(ownerName, owners);
+
+      // Col 20 is SourceName — where the load came from. Matched to the managed
+      // list here so an imported order opens with its source already selected.
+      const source = resolveSource(sources, r[20]);
 
       const clientId = registerParty(reg, clientName, 'client', {
         phone: str(r[9]),
@@ -707,7 +833,12 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
         shipperName:               origin.facility,
         consigneeId,
         consigneeName:             dest.facility,
-        parentOrderId:             null,
+        // Col 4 is MasterOrderId — set on a suborder, empty on a standalone
+        // load. Imported orders are keyed `bats-<BATS Id>`, so the parent's
+        // document id can be built from it directly with no lookup. A master
+        // that never made it into the export leaves a dangling id; the
+        // suborders tab simply finds nothing, which is the same as today.
+        parentOrderId:             masterId ? `bats-${masterId}` : null,
         commodity:                 str(r[11]),
         vehicles:                  str(r[11]),
         pieces:                    0,
@@ -719,6 +850,7 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
         // parsing rules ever need to change.
         _rawOrigin:                str(r[12]),
         _rawDestination:           str(r[13]),
+        firstAvailablePickup:      ts(str(r[14])), // FirstAvailablePickup
         pickupDate:                ts(str(r[24])), // AssignedPickup
         deliveryDate:              ts(str(r[25])), // AssignedDelivery
         dispatchedAt:              ts(str(r[21])),
@@ -744,7 +876,8 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
         // Filled in below, once flushParties reports where the client landed.
         clientOwnerUids:           [] as string[],
         clientOwnerGroupIds:       [] as string[],
-        sourceName:                str(r[20]),
+        sourceId:                  source.id,
+        sourceName:                source.name,
         notes:                     '',
         carrierSignedAt:           null,
         carrierSignerName:         null,
@@ -763,6 +896,8 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
   }
 
   // Parties must land before the orders that reference them.
+  // Sources first, then parties, then the orders that reference both.
+  await flushLeadSources(sources, now);
   const { result: partyResult, ownership } = await flushParties(reg, now);
 
   const records = [...seen.values()];
