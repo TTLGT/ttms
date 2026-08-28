@@ -246,5 +246,9 @@ assignment is held in `assignedToEmails` / `memberEmails` and converted by
 
 ## Git
 
-Branch off `main`, PR back into it. Do not commit or push unless asked.
-Never commit `.env.local` or the service-account JSON.
+Commit straight to `main` and push. **No feature branches, no PRs** — this is a
+solo repo and the code is reviewed in the editor, so a branch only adds a merge
+step. (This replaced an earlier "branch off main, PR back into it" rule.)
+
+Do not commit or push unless asked. Never commit `.env.local` or the
+service-account JSON.
