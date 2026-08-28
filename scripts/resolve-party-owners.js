@@ -1,18 +1,22 @@
 /**
- * Turn BATS owner names into real ownership.
+ * Turn BATS owner names into real ownership, after the fact.
  *
- * BATS records the owning rep as a display name ("Nery Mendez"), not an
- * account. Parties carry that string in `assignedToName`, which makes them
- * private-but-unclaimed: nobody but admin/dispatch/finance can see them, and
- * the collision warning names the rep so a requester knows who to ask.
+ * The BATS import now resolves owners as it runs (src/lib/ownerResolution.ts),
+ * so most records arrive already assigned. This script is the mop-up for the
+ * ones that did not: names that matched nobody at the time, which resolve once
+ * the person has been invited or the work group created. Run it whenever you
+ * onboard reps.
  *
- * Run this whenever you onboard reps. For every party whose `assignedToName`
- * matches a TMS user, it moves ownership into `assignedToUids` so that person
- * sees their own book of business and can approve requests themselves.
+ * A record whose owner name matches nothing is left exactly as it is — the name
+ * stays as text, and the record stays visible only to admin, dispatch and
+ * finance until somebody is assigned. Ambiguous names are skipped and listed,
+ * never guessed: a wrong owner hands one broker another broker's book of
+ * business, which is far worse than a record someone has to look at.
  *
- * Matching is on the user's display name or the local part of their email,
- * compared case- and punctuation-insensitively. Anything ambiguous is skipped
- * and listed, never guessed.
+ * Matching is against `allowedUsers`, which holds everyone, not `users`, which
+ * holds only people who have signed in. Someone who exists but has never logged
+ * in is assigned for real — the assignment is simply held under their email
+ * until their first sign-in converts it to a uid.
  *
  * Usage:
  *   node scripts/resolve-party-owners.js --dry-run   — report only
@@ -23,6 +27,12 @@
  *
  * Names holding two people ("Gabe/Axel", "Manny / Mary") are split on / and
  * both are assigned, since a record can have several owners.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ⚠️  KEEP IN SYNC with src/lib/ownerResolution.ts and the mirror of it in
+ * scripts/import-bats.js. Security rules cannot import TypeScript and neither
+ * can a plain node script, so the matcher exists in three places on purpose.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 'use strict';
@@ -72,107 +82,290 @@ function norm(s) {
   return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+const NO_OWNER = { uids: [], groupIds: [], emails: [], unresolved: true, ambiguous: false };
+
+function addLabel(map, label, person) {
+  const key = norm(label);
+  if (!key) return;
+  const list = map.get(key) || [];
+  if (!list.some((p) => p.email === person.email)) list.push(person);
+  map.set(key, list);
+}
+
+async function loadOwnerDirectory() {
+  const [groupSnap, allowSnap, userSnap] = await Promise.all([
+    db.collection('workGroups').get(),
+    db.collection('allowedUsers').get(),
+    db.collection('users').get(),
+  ]);
+
+  const groups = new Map();
+  groupSnap.forEach((doc) => {
+    const key = norm(doc.data().name);
+    if (key) groups.set(key, doc.id);
+  });
+
+  const byEmail = new Map();
+  const people  = new Map();
+
+  allowSnap.forEach((doc) => {
+    const d = doc.data();
+    const email = String(d.email || doc.id).trim().toLowerCase();
+    if (!email) return;
+    const person = { email, uid: d.uid || null };
+    byEmail.set(email, person);
+    addLabel(people, [d.firstName, d.lastName].filter(Boolean).join(' '), person);
+    addLabel(people, d.displayName || '', person);
+    addLabel(people, email.split('@')[0], person);
+  });
+
+  userSnap.forEach((doc) => {
+    const d = doc.data();
+    const email = String(d.email || '').trim().toLowerCase();
+    if (!email) return;
+    let person = byEmail.get(email);
+    if (!person) {
+      person = { email, uid: doc.id };
+      byEmail.set(email, person);
+      addLabel(people, email.split('@')[0], person);
+    }
+    person.uid = doc.id;
+    addLabel(people, d.displayName || '', person);
+  });
+
+  console.log('People on the allowlist: ' + allowSnap.size +
+    '  (' + userSnap.size + ' have signed in)');
+  console.log('Work groups:             ' + groupSnap.size +
+    (groupSnap.size ? '  (' + groupSnap.docs.map((d) => d.data().name).join(', ') + ')' : ''));
+
+  return { groups, people, byEmail };
+}
+
+function forPerson(person) {
+  return person.uid
+    ? { uids: [person.uid], groupIds: [], emails: [], unresolved: false, ambiguous: false }
+    : { uids: [], groupIds: [], emails: [person.email], unresolved: false, ambiguous: false };
+}
+
+function resolveSegment(dir, name) {
+  const key = norm(name);
+  if (!key) return NO_OWNER;
+
+  const groupId = dir.groups.get(key);
+  if (groupId) {
+    return { uids: [], groupIds: [groupId], emails: [], unresolved: false, ambiguous: false };
+  }
+
+  const hits = dir.people.get(key) || [];
+  if (hits.length === 1) return forPerson(hits[0]);
+  if (hits.length > 1) return Object.assign({}, NO_OWNER, { ambiguous: true });
+  return NO_OWNER;
+}
+
+function resolveOwner(dir, rawName) {
+  const name = String(rawName || '').trim();
+  if (!name) return NO_OWNER;
+
+  const override = MANUAL.get(norm(name));
+  if (override) {
+    if (override.toLowerCase().startsWith('group:')) {
+      const groupId = dir.groups.get(norm(override.slice(6)));
+      return groupId
+        ? { uids: [], groupIds: [groupId], emails: [], unresolved: false, ambiguous: false }
+        : NO_OWNER;
+    }
+    const person = dir.byEmail.get(String(override).trim().toLowerCase());
+    return person ? forPerson(person) : NO_OWNER;
+  }
+
+  const parts = name.split('/').map((x) => x.trim()).filter(Boolean);
+  if (!parts.length) return NO_OWNER;
+
+  const uids = [], groupIds = [], emails = [];
+  for (const part of parts) {
+    const hit = resolveSegment(dir, part);
+    if (hit.unresolved) return Object.assign({}, NO_OWNER, { ambiguous: hit.ambiguous });
+    uids.push.apply(uids, hit.uids);
+    groupIds.push.apply(groupIds, hit.groupIds);
+    emails.push.apply(emails, hit.emails);
+  }
+  return {
+    uids: [...new Set(uids)],
+    groupIds: [...new Set(groupIds)],
+    emails: [...new Set(emails)],
+    unresolved: false,
+    ambiguous: false,
+  };
+}
+
+function hasOwner(r) {
+  return r.uids.length > 0 || r.groupIds.length > 0 || r.emails.length > 0;
+}
+
+/**
+ * Collects the records of one collection that still carry an unresolved name.
+ * `nameField` differs because a party keeps the BATS text in `assignedToName`
+ * and an order keeps it in `assignedTo`.
+ */
+async function planCollection(dir, collectionName, nameField, stats) {
+  const snap = await db.collection(collectionName).get();
+  const plan = [];
+
+  snap.forEach((doc) => {
+    const d = doc.data();
+    const name = String(d[nameField] || '').trim();
+    if (!name) return;
+    // Already owned: never re-decide a record somebody has since assigned.
+    if ((d.assignedToUids || []).length
+      || (d.assignedToGroupIds || []).length
+      || (d.assignedToEmails || []).length) return;
+
+    stats.named++;
+    const owners = resolveOwner(dir, name);
+    if (!hasOwner(owners)) {
+      if (owners.ambiguous) stats.ambiguous++;
+      else stats.misses.set(name, (stats.misses.get(name) || 0) + 1);
+      return;
+    }
+    plan.push({ ref: doc.ref, id: doc.id, name, owners, clientId: d.clientId || null });
+  });
+
+  return plan;
+}
+
+/** Names for the history entries, resolved once for the whole run. */
+async function labelMap(plans) {
+  const uids = new Set(), groupIds = new Set();
+  for (const p of plans) {
+    for (const u of p.owners.uids) uids.add(u);
+    for (const g of p.owners.groupIds) groupIds.add(g);
+  }
+  const labels = new Map();
+  const refs = [
+    ...[...uids].map((u) => db.collection('users').doc(u)),
+    ...[...groupIds].map((g) => db.collection('workGroups').doc(g)),
+  ];
+  if (!refs.length) return labels;
+  const docs = await db.getAll.apply(db, refs);
+  for (const doc of docs) {
+    const d = doc.data();
+    if (!d) continue;
+    if (uids.has(doc.id)) labels.set('user:' + doc.id, d.displayName || d.email || doc.id);
+    else labels.set('group:' + doc.id, d.name || doc.id);
+  }
+  return labels;
+}
+
+function eventsFor(plan, labels) {
+  const o = plan.owners;
+  return [
+    ...o.uids.map((id) => ({
+      action: 'changed', targetType: 'user', targetId: id, targetLabel: labels.get('user:' + id) || id,
+    })),
+    ...o.groupIds.map((id) => ({
+      action: 'changed', targetType: 'group', targetId: id, targetLabel: labels.get('group:' + id) || id,
+    })),
+    ...o.emails.map((id) => ({
+      action: 'changed', targetType: 'email', targetId: id, targetLabel: id,
+    })),
+  ];
+}
+
+async function applyPlan(plans, nameField, labels, now) {
+  const CHUNK = 300;
+  for (let i = 0; i < plans.length; i += CHUNK) {
+    const batch = db.batch();
+    for (const p of plans.slice(i, i + CHUNK)) {
+      const patch = {
+        assignedToUids:     p.owners.uids,
+        assignedToGroupIds: p.owners.groupIds,
+        assignedToEmails:   p.owners.emails,
+        updatedAt:          now,
+      };
+      // The BATS text and a real assignment are alternative answers to the same
+      // question; once there is an owner, the name lives on in the history.
+      patch[nameField] = '';
+      batch.update(p.ref, patch);
+
+      const col = p.ref.collection('ownerEvents');
+      eventsFor(p, labels).forEach((event, n) => {
+        batch.set(col.doc(), Object.assign({}, event, {
+          actorUid:  'resolve-party-owners',
+          actorName: 'Owner resolution script',
+          actorIp:   null,
+          at:        now,
+          // Kept so the timeline can say what the name used to be.
+          fromName:  p.name,
+        }));
+      });
+    }
+    await batch.commit();
+  }
+}
+
+/**
+ * Owning a client carries all of its orders, and the rules read that from a
+ * mirror on each order rather than by querying. A party that just changed hands
+ * has to push the new owners out, or its new owner cannot see the orders they
+ * were just given.
+ */
+async function syncClientOwners(partyIds, now) {
+  let touched = 0;
+  for (const partyId of partyIds) {
+    const party = await db.collection('parties').doc(partyId).get();
+    if (!party.exists) continue;
+    const d = party.data();
+    const clientOwnerUids     = d.assignedToUids || [];
+    const clientOwnerGroupIds = d.assignedToGroupIds || [];
+
+    const orders = await db.collection('orders').where('clientId', '==', partyId).get();
+    if (orders.empty) continue;
+
+    const CHUNK = 300;
+    for (let i = 0; i < orders.docs.length; i += CHUNK) {
+      const batch = db.batch();
+      for (const doc of orders.docs.slice(i, i + CHUNK)) {
+        batch.update(doc.ref, { clientOwnerUids, clientOwnerGroupIds, updatedAt: now });
+      }
+      await batch.commit();
+    }
+    touched += orders.size;
+  }
+  return touched;
+}
+
+function reportMisses(stats, label) {
+  const unresolved = [...stats.misses.values()].reduce((a, b) => a + b, 0);
+  console.log('\n' + label);
+  console.log('  still carrying a name: ' + stats.named);
+  console.log('  resolvable:            ' + stats.resolvable);
+  console.log('  ambiguous (skipped):   ' + stats.ambiguous);
+  console.log('  no match:              ' + unresolved);
+  if (stats.misses.size) {
+    for (const [name, n] of [...stats.misses.entries()].sort((a, b) => b[1] - a[1]).slice(0, 25)) {
+      console.log('    ' + String(n).padStart(5) + '  ' + name);
+    }
+  }
+}
+
 async function main() {
   const now = Timestamp.now();
   console.log(DRY_RUN ? '-- DRY RUN: nothing will be written --\n' : '-- APPLYING --\n');
 
-  const usersSnap = await db.collection('users').get();
-  const byKey = new Map();   // normalized name/email-local -> [uid]
-  const byEmail = new Map();
+  const dir = await loadOwnerDirectory();
 
-  usersSnap.forEach((d) => {
-    const u = d.data();
-    const email = (u.email || '').toLowerCase();
-    if (email) byEmail.set(email, d.id);
-    for (const candidate of [u.displayName, email.split('@')[0]]) {
-      const k = norm(candidate);
-      if (!k) continue;
-      if (!byKey.has(k)) byKey.set(k, []);
-      if (!byKey.get(k).includes(d.id)) byKey.get(k).push(d.id);
-    }
-  });
-  console.log('TMS user accounts: ' + usersSnap.size);
+  const partyStats = { named: 0, ambiguous: 0, resolvable: 0, misses: new Map() };
+  const orderStats = { named: 0, ambiguous: 0, resolvable: 0, misses: new Map() };
 
-  const groupsSnap = await db.collection('workGroups').get();
-  const groupByName = new Map();
-  groupsSnap.forEach((d) => groupByName.set(norm(d.data().name), d.id));
-  console.log('Work groups:       ' + groupsSnap.size +
-    (groupsSnap.size ? '  (' + [...groupsSnap.docs.map((d) => d.data().name)].join(', ') + ')' : ''));
+  const partyPlan = await planCollection(dir, 'parties', 'assignedToName', partyStats);
+  const orderPlan = await planCollection(dir, 'orders', 'assignedTo', orderStats);
+  partyStats.resolvable = partyPlan.length;
+  orderStats.resolvable = orderPlan.length;
 
-  const partiesSnap = await db.collection('parties')
-    .where('assignedToName', '!=', '')
-    .get();
+  reportMisses(partyStats, 'Clients / shippers / consignees');
+  reportMisses(orderStats, 'Orders');
 
-  const writes = [];
-  const unresolved = new Map();
-  let ambiguous = 0;
-
-  partiesSnap.forEach((doc) => {
-    const p = doc.data();
-    if ((p.assignedToUids || []).length > 0) return;   // already owned
-
-    const name = (p.assignedToName || '').trim();
-    const key  = norm(name);
-
-    // An explicit mapping wins, and may point at a work group instead of a user.
-    if (MANUAL.has(key)) {
-      const target = MANUAL.get(key);
-      if (target.toLowerCase().startsWith('group:')) {
-        const groupName = target.slice(6).trim();
-        const groupId   = groupByName.get(norm(groupName));
-        if (!groupId) {
-          unresolved.set(name + '  -> no group named "' + groupName + '"',
-            (unresolved.get(name) || 0) + 1);
-          return;
-        }
-        writes.push({
-          ref: doc.ref,
-          data: { assignedToGroupIds: [groupId], assignedToName: '', updatedAt: now },
-        });
-        return;
-      }
-      const uid = byEmail.get(target.toLowerCase());
-      if (!uid) { unresolved.set(name, (unresolved.get(name) || 0) + 1); return; }
-      writes.push({
-        ref: doc.ref,
-        data: { assignedToUids: [uid], assignedToName: '', updatedAt: now },
-      });
-      return;
-    }
-
-    // "Gabe/Axel" is two owners, not an unresolvable name — a record can be
-    // owned by several people.
-    const parts = name.split('/').map((x) => x.trim()).filter(Boolean);
-    const uids  = [];
-    let failed  = false;
-    for (const part of parts) {
-      const hits = byKey.get(norm(part)) || [];
-      if (hits.length === 1) uids.push(hits[0]);
-      else if (hits.length > 1) { ambiguous++; failed = true; break; }
-      else { failed = true; break; }
-    }
-
-    if (failed || uids.length === 0) {
-      unresolved.set(name, (unresolved.get(name) || 0) + 1);
-      return;
-    }
-
-    writes.push({
-      ref: doc.ref,
-      data: { assignedToUids: [...new Set(uids)], assignedToName: '', updatedAt: now },
-    });
-  });
-
-  console.log('Parties owned by name:  ' + partiesSnap.size);
-  console.log('  resolvable to a user: ' + writes.length);
-  console.log('  ambiguous (skipped):  ' + ambiguous);
-  console.log('  still unresolved:     ' + [...unresolved.values()].reduce((a, b) => a + b, 0));
-
-  if (unresolved.size) {
-    console.log('\nBATS names with no matching account:');
-    for (const [name, n] of [...unresolved.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40)) {
-      console.log('  ' + String(n).padStart(5) + '  ' + name);
-    }
+  if (partyStats.misses.size || orderStats.misses.size) {
     console.log('\nInvite these people, or map one explicitly:');
     console.log('  --map "Nery Mendez=nery@totaltransportlogistics.us"');
     console.log('  --map "TTL Team 1=group:Team 1"   (create the work group in Settings first)');
@@ -183,13 +376,15 @@ async function main() {
     return;
   }
 
-  const CHUNK = 400;
-  for (let i = 0; i < writes.length; i += CHUNK) {
-    const batch = db.batch();
-    for (const w of writes.slice(i, i + CHUNK)) batch.update(w.ref, w.data);
-    await batch.commit();
-  }
-  console.log('\nTransferred ownership on ' + writes.length + ' parties.');
+  const labels = await labelMap([...partyPlan, ...orderPlan]);
+  await applyPlan(partyPlan, 'assignedToName', labels, now);
+  await applyPlan(orderPlan, 'assignedTo', labels, now);
+
+  const touched = await syncClientOwners(partyPlan.map((p) => p.id), now);
+
+  console.log('\nAssigned ' + partyPlan.length + ' client/shipper/consignee record(s) and '
+    + orderPlan.length + ' order(s).');
+  console.log('Refreshed the client-owner mirror on ' + touched + ' order(s).');
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

@@ -139,6 +139,8 @@ function NewOrderForm() {
           .map(([role, sel]) => tagRoleIfNew(sel.id, role).catch(() => {})),
       );
 
+      const clientParty = parties.find((p) => p.id === client.id);
+
       const id = await createOrder({
         clientId:      client.id,
         clientName:    client.name.trim(),
@@ -175,6 +177,18 @@ function NewOrderForm() {
         vehicles:           '',
         transportType:      '',
         assignedTo:         '',
+        // Whoever writes the order owns it. Orders are closed by default —
+        // unlike a party, one with no owner is visible only to admin, dispatch
+        // and finance — so a broker who did not put themselves on it would not
+        // be able to open the order they had just created.
+        assignedToUids:     [user.uid],
+        assignedToGroupIds: [],
+        assignedToEmails:   [],
+        // The client's owners reach the order as a mirror, because rules
+        // cannot query for them at read time. Kept in step afterwards by
+        // syncClientOwners() whenever the client changes hands.
+        clientOwnerUids:     clientParty?.assignedToUids     ?? [],
+        clientOwnerGroupIds: clientParty?.assignedToGroupIds ?? [],
         sourceName:         '',
         dispatchedAt:       null,
         pickedUpAt:         null,

@@ -109,8 +109,45 @@ service cloud.firestore {
         || (
           resource.data.get('assignedToUids', []).size() == 0
           && resource.data.get('assignedToGroupIds', []).size() == 0
+          // A party held for somebody who has not signed in yet is owned, not
+          // unowned. Leaving this out would publish their book of business to
+          // the whole company until the day they first logged in.
+          && resource.data.get('assignedToEmails', []).size() == 0
           && resource.data.get('assignedToName', '') == ''
         );
+    }
+
+    // Keep in sync with canSeeOrder() in src/lib/accessControl.ts.
+    //
+    // Deliberately stricter than partyVisible(): there is no "nobody owns it,
+    // so everybody can see it" branch. An unowned party is usually a facility
+    // nobody has claimed and is harmless to share; an unowned order is a live
+    // load with rates on it, so it stays with admin, dispatch and finance until
+    // somebody is assigned to it.
+    function orderVisible() {
+      return canSeeAllParties()
+        || (request.auth.uid in resource.data.get('assignedToUids', []))
+        || (request.auth.uid in resource.data.get('clientOwnerUids', []))
+        || resource.data.get('assignedToGroupIds', []).hasAny(
+             hasProfile() ? profileData().get('groupIds', []) : []
+           )
+        // Owning the client carries every one of its orders. Rules cannot run
+        // the query that would answer this, and a get() on the client party
+        // per order would blow the document-access limit on any list, so the
+        // client's owners are mirrored onto the order by syncClientOwners().
+        || resource.data.get('clientOwnerGroupIds', []).hasAny(
+             hasProfile() ? profileData().get('groupIds', []) : []
+           );
+    }
+
+    // Ownership decides who can read a record, so it must not be writable by
+    // the same people who can read it — otherwise anyone who could see an
+    // unowned client could claim it and shut everybody else out, silently.
+    // All ownership changes go through /api/{orders,parties}/{id}/owners,
+    // which is admin- and dispatcher-only and writes the history entry in the
+    // same batch.
+    function ownershipUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
     }
 
     // The allowlist itself: readable by admins so Settings can render it, and
@@ -157,11 +194,16 @@ service cloud.firestore {
     match /parties/{partyId} {
       allow read:   if isAllowedUser() && partyVisible();
       allow create: if false;
-      allow update: if isAllowedUser() && partyVisible();
+      allow update: if isAllowedUser() && partyVisible() && ownershipUnchanged([
+        'assignedToUids', 'assignedToGroupIds', 'assignedToEmails', 'assignedToName'
+      ]);
       allow delete: if isAdmin();
 
-      match /documents/{documentId} {
-        allow read, write: if isAllowedUser();
+
+      // See the same block under /orders for why this is closed rather than
+      // gated on partyVisible(). Read through GET /api/parties/{id}/owners.
+      match /ownerEvents/{eventId} {
+        allow read, write: if false; // Admin SDK only
       }
     }
 
@@ -224,9 +266,6 @@ service cloud.firestore {
       allow create: if isAllowedUser();
       allow update, delete: if isAllowedUser();
 
-      match /documents/{documentId} {
-        allow read, write: if isAllowedUser();
-      }
     }
 
     match /customers/{customerId} {
@@ -240,16 +279,59 @@ service cloud.firestore {
     match /carriers/{carrierId} {
       allow read, create, update, delete: if isAllowedUser();
 
-      match /documents/{documentId} {
-        allow read, write: if isAllowedUser();
-      }
     }
 
+    // Orders are owned records, like parties — but closed by default. See
+    // orderVisible() above for why an order with no owner stays with the
+    // privileged roles instead of falling open to everyone.
+    //
+    // As with parties, these rules are the floor. The app reads orders through
+    // /api/orders, which applies canSeeOrder() with the Admin SDK; a client-SDK
+    // query over this collection cannot express "mine, my groups', or my
+    // clients'" in a form these rules could approve, so the API is the only
+    // read path the app actually uses. This stays here so bypassing it gains
+    // nothing.
     match /orders/{orderId} {
-      allow read, create, update, delete: if isAllowedUser();
+      allow read: if isAllowedUser() && orderVisible();
 
-      match /documents/{documentId} {
-        allow read, write: if isAllowedUser();
+      // The creator has to be on the order. Orders are closed by default, so
+      // an order created without an owner would be invisible to the person who
+      // just wrote it.
+      allow create: if isAllowedUser()
+        && (request.auth.uid in request.resource.data.get('assignedToUids', []));
+
+      allow update: if isAllowedUser() && orderVisible() && ownershipUnchanged([
+        'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
+        'clientOwnerUids', 'clientOwnerGroupIds', 'assignedTo'
+      ]);
+
+      allow delete: if isAdmin();
+
+      // There is deliberately no `documents` subcollection rule here, nor under
+      // parties or carriers. docs/schema-guide.md describes one, but it was
+      // never built: attachments are Firebase Storage files, and the order
+      // holds the path to each in bolStoragePath / invoiceStoragePath /
+      // podStoragePath / driverLicenseStoragePath. Rules once existed for the
+      // subcollection anyway and granted every signed-in user read and write on
+      // it — an open door on an empty room. Do not re-add them for a
+      // collection nothing writes to.
+      //
+      // Note that restricting an order here does NOT restrict its files:
+      // storage.rules cannot read Firestore, so the bucket is gated only on the
+      // ttlAccess claim. Closing that gap means serving files through a route
+      // that checks canSeeOrder() first.
+
+      // The ownership history, read through GET /api/orders/{id}/owners, which
+      // checks the caller against the parent order first.
+      //
+      // Closed to the client SDK outright rather than gated on orderVisible():
+      // inside this match `resource.data` is the event, not the order, so the
+      // visibility helpers would test the wrong document — and because an event
+      // carries no ownership fields at all, they would fall through to their
+      // "nobody owns this" branch and hand every history to everyone. Route it;
+      // do not try to express it here.
+      match /ownerEvents/{eventId} {
+        allow read, write: if false; // Admin SDK only
       }
     }
 

@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { Check, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { listTeams, createTeam, updateTeam, deleteTeam } from '@/lib/teams';
 import { listUserProfiles } from '@/lib/userProfiles';
+import { listAllowedUsers } from '@/lib/allowedUsers';
 import type { Team } from '@/types/team';
 import type { UserProfile } from '@/types/userProfile';
+import type { AllowedUser } from '@/types/allowedUser';
 
 /**
  * Admin management of teams — the reporting structure.
@@ -23,6 +25,7 @@ import type { UserProfile } from '@/types/userProfile';
 export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) => void }) {
   const [teams, setTeams]       = useState<Team[]>([]);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [people, setPeople]     = useState<AllowedUser[]>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');
   const [busy, setBusy]         = useState('');
@@ -40,12 +43,19 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
       // Profiles are needed for the lead picker, and only people who have
       // actually signed in have one — which is the right constraint here: a
       // team cannot report to an invite nobody has accepted yet.
-      const [rows, people] = await Promise.all([listTeams(), listUserProfiles()]);
+      // The allowlist is everyone; profiles are only those who have signed in.
+      // Both are needed: the member count has to include a new hire who has
+      // been put on a team but has not logged in yet, while the lead picker
+      // deliberately offers only signed-in people.
+      const [rows, signedIn, allowed] = await Promise.all([
+        listTeams(), listUserProfiles(), listAllowedUsers(),
+      ]);
       setTeams(rows);
       setProfiles(
-        people.sort((a, b) =>
+        signedIn.sort((a, b) =>
           (a.displayName || a.email).localeCompare(b.displayName || b.email)),
       );
+      setPeople(allowed);
       // The people list needs the same rows to render its team picker, so it
       // is handed them here rather than fetching the collection a second time.
       onChange?.(rows);
@@ -64,8 +74,13 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
     return p ? (p.displayName || p.email) : null;
   };
 
-  /** How many people report through this team, counted off the profiles. */
-  const memberCount = (teamId: string) => profiles.filter((p) => p.teamId === teamId).length;
+  /**
+   * How many people report through this team, counted off the allowlist rather
+   * than off profiles — somebody assigned to a team before their first sign-in
+   * is already a member of it, and counting profiles would show the team as
+   * empty right when it is being set up.
+   */
+  const memberCount = (teamId: string) => people.filter((p) => p.teamId === teamId).length;
 
   async function handleCreate() {
     if (!newName.trim()) return;

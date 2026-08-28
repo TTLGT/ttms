@@ -306,7 +306,40 @@ export interface Order {
   agreedRate: number;
   brokerFee: number;
   carrierPay: number;
+  /**
+   * The owning rep as BATS recorded it. Kept as free text for reference and
+   * for the ownership timeline; it grants nothing on its own. A name the
+   * import could not match to anyone stays here until an admin or dispatcher
+   * assigns a real owner.
+   */
   assignedTo: string;
+  /**
+   * Owners of this order. Unlike a party, an order with no owner at all is
+   * NOT shared reference data — it is visible only to admin, dispatch and
+   * finance. Orders are the commercial record of who is working a load, so the
+   * safe default is closed rather than open. See canSeeOrder().
+   */
+  assignedToUids: string[];
+  /** Owning work groups; every member sees the order. */
+  assignedToGroupIds: string[];
+  /**
+   * Owners who exist on the allowlist but have never signed in — see the same
+   * field on Party for why ownership has to be held by email until a uid
+   * exists to convert it to.
+   */
+  assignedToEmails: string[];
+  /**
+   * Owners of this order's client, mirrored from the party.
+   *
+   * Owning a client grants access to all of its orders, and security rules
+   * cannot express that: rules cannot run a query, and a get() on the client
+   * party for every order would blow Firestore's 20-document-access limit on
+   * any list. So the client's owners are denormalized here and kept in step by
+   * syncClientOwners() whenever the party's ownership changes. Do not read
+   * these as the order's own owners — they are a cache of someone else's.
+   */
+  clientOwnerUids: string[];
+  clientOwnerGroupIds: string[];
   sourceName: string;
   notes: string;
   deliveredAt: Timestamp | null;

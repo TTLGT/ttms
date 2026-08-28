@@ -3,14 +3,11 @@ import {
   doc,
   addDoc,
   updateDoc,
-  getDocs,
-  getDoc,
-  query,
-  orderBy,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 import type { Order, OrderStatus } from '@/types/order';
+import type { OwnerEvent } from '@/types/ownerEvent';
 
 const COL = 'orders';
 
@@ -32,16 +29,78 @@ export async function createOrder(
   return ref.id;
 }
 
+/**
+ * Reads go through /api/orders rather than straight to Firestore.
+ *
+ * Orders are owned records: a broker sees the ones assigned to them, the ones
+ * their work groups own, and the ones belonging to clients they own. That
+ * union cannot be expressed as a single client-SDK query the rules would
+ * approve, so the filtering is done server-side with the Admin SDK and the
+ * browser is simply never sent the rest.
+ *
+ * Every order-reading page in the app goes through these two functions, so
+ * they are the one place that had to change.
+ */
+async function authHeaders(): Promise<HeadersInit> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not signed in');
+  return { 'Authorization': `Bearer ${await user.getIdToken()}` };
+}
+
+async function unwrap<T>(res: Response): Promise<T> {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
+  return data as T;
+}
+
 export async function getOrder(orderId: string): Promise<Order | null> {
-  const snap = await getDoc(doc(db, COL, orderId));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as Order;
+  const res = await fetch(`/api/orders/${orderId}`, { headers: await authHeaders() });
+  // A 403 means the order exists but is not the caller's. Callers here treat a
+  // missing order as "not found" and render the same empty state, which is the
+  // right outcome for both.
+  if (res.status === 404 || res.status === 403) return null;
+  const { order } = await unwrap<{ order: Order }>(res);
+  return order;
 }
 
 export async function listOrders(): Promise<Order[]> {
-  const q = query(collection(db, COL), orderBy('createdAt', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
+  const res = await fetch('/api/orders', { headers: await authHeaders() });
+  const { orders } = await unwrap<{ orders: Order[] }>(res);
+  return orders;
+}
+
+// ── Ownership ────────────────────────────────────────────────────────────────
+
+/** See the same type in src/lib/parties.ts — owners to add or remove. */
+export interface OwnerChange {
+  uids?: string[];
+  groupIds?: string[];
+  emails?: string[];
+}
+
+async function ownersRequest<T>(method: string, url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method,
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body),
+  });
+  return unwrap<T>(res);
+}
+
+/** Admins and dispatchers only; the server is the authority on that. */
+export async function addOrderOwners(orderId: string, owners: OwnerChange) {
+  return ownersRequest<{ owners: unknown }>('POST', `/api/orders/${orderId}/owners`, owners);
+}
+
+export async function removeOrderOwners(orderId: string, owners: OwnerChange) {
+  return ownersRequest<{ owners: unknown }>('DELETE', `/api/orders/${orderId}/owners`, owners);
+}
+
+/** Every owner this order has ever had, newest first. */
+export async function listOrderOwnerEvents(orderId: string): Promise<OwnerEvent[]> {
+  const res = await fetch(`/api/orders/${orderId}/owners`, { headers: await authHeaders() });
+  const { events } = await unwrap<{ events: OwnerEvent[] }>(res);
+  return events ?? [];
 }
 
 export async function updateOrderStatus(
@@ -63,4 +122,16 @@ export async function updateOrder(
     ...data,
     updatedAt: serverTimestamp(),
   });
+
+  // Moving an order to a different client invalidates its copy of that client's
+  // owners, which is what the rules read to decide who may see the order. The
+  // browser is deliberately not allowed to write those fields, so the server
+  // recomputes them. Without this, changing the client would leave the previous
+  // client's owners able to see the order and the new one's unable to.
+  if (data.clientId !== undefined) {
+    await fetch(`/api/orders/${orderId}/client-owners`, {
+      method:  'POST',
+      headers: await authHeaders(),
+    }).catch(() => {});
+  }
 }

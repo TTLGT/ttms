@@ -41,7 +41,11 @@
  * shape, PRESERVE list, or party logic in either file, change it in both.
  *
  * Specifically mirrored below: PRESERVE, RECONCILE/reconcileStatus, STATUS_RANK,
- * toNameKey + SUFFIX_CANON, partyDocId, registerParty, flushParties.
+ * toNameKey + SUFFIX_CANON, partyDocId, registerParty, flushParties, and the
+ * whole owner-resolution block (src/lib/ownerResolution.ts) plus the opening
+ * ownership-history entry (src/lib/ownership.ts). Ownership is the one that
+ * bites hardest if it drifts: an importer that does not write assignedToUids
+ * leaves every record it touches visible only to admin, dispatch and finance.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -240,6 +244,12 @@ const PRESERVE = {
     'shipperSignedAt', 'shipperSignerName', 'shipperSignerIp',
     'clientSignedAt',  'clientSignerName',  'clientSignerIp',
     'partyApprovals',
+    // Ownership is assigned on creation and maintained in the TMS afterwards.
+    // A refreshed export still carries the original BATS rep name, so without
+    // this a re-import would hand every reassigned load back to whoever used to
+    // own it. clientOwnerUids/clientOwnerGroupIds are deliberately absent: they
+    // mirror the client party and must move when the client changes hands.
+    'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
   ],
   carriers: [
     'insuranceExpiration', 'insuranceProvider', 'insurancePolicyNumber',
@@ -398,6 +408,242 @@ async function batchWrite(records, collectionName, getId) {
   return { written, skipped, created, updated, protectedDocs, total: records.length };
 }
 
+// -- Owner resolution ---------------------------------------------------------
+// Mirror of src/lib/ownerResolution.ts. BATS records the owning rep as a name,
+// never as an account; this turns that name into user ids, work group ids, or --
+// for somebody who exists but has never signed in -- an email to hold the
+// assignment under until first sign-in mints a uid.
+//
+// Matching runs against `allowedUsers`, which holds everyone, NOT against
+// `users`, which holds only people who have signed in at least once. Existing
+// is the test, not having logged in. Work groups own records; teams do not, and
+// are deliberately absent here.
+
+function normalizeOwnerName(value) {
+  return String(value == null ? '' : value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+const NO_OWNER = { uids: [], groupIds: [], emails: [], unresolved: true, ambiguous: false };
+
+function addOwnerLabel(map, label, person) {
+  const key = normalizeOwnerName(label);
+  if (!key) return;
+  const list = map.get(key) || [];
+  // One person can reach the same key by several labels; they must still count
+  // as one candidate or everybody would look ambiguous against themselves.
+  if (!list.some((p) => p.email === person.email)) list.push(person);
+  map.set(key, list);
+}
+
+async function loadOwnerDirectory(overrides) {
+  const [groupSnap, allowSnap, userSnap] = await Promise.all([
+    db.collection('workGroups').get(),
+    db.collection('allowedUsers').get(),
+    db.collection('users').get(),
+  ]);
+
+  const groups = new Map();
+  groupSnap.forEach((doc) => {
+    const key = normalizeOwnerName(doc.data().name);
+    if (key) groups.set(key, doc.id);
+  });
+
+  const byEmail = new Map();
+  const people = new Map();
+
+  allowSnap.forEach((doc) => {
+    const d = doc.data();
+    const email = String(d.email || doc.id).trim().toLowerCase();
+    if (!email) return;
+    const person = { email, uid: d.uid || null };
+    byEmail.set(email, person);
+    addOwnerLabel(people, [d.firstName, d.lastName].filter(Boolean).join(' '), person);
+    addOwnerLabel(people, d.displayName || '', person);
+    addOwnerLabel(people, email.split('@')[0], person);
+  });
+
+  userSnap.forEach((doc) => {
+    const d = doc.data();
+    const email = String(d.email || '').trim().toLowerCase();
+    if (!email) return;
+    let person = byEmail.get(email);
+    if (!person) {
+      // A bootstrap admin can hold a profile without an allowlist entry.
+      person = { email, uid: doc.id };
+      byEmail.set(email, person);
+      addOwnerLabel(people, email.split('@')[0], person);
+    }
+    person.uid = doc.id;
+    addOwnerLabel(people, d.displayName || '', person);
+  });
+
+  return { groups, people, byEmail, overrides: overrides || new Map() };
+}
+
+function forPerson(person) {
+  return person.uid
+    ? { uids: [person.uid], groupIds: [], emails: [], unresolved: false, ambiguous: false }
+    : { uids: [], groupIds: [], emails: [person.email], unresolved: false, ambiguous: false };
+}
+
+function resolveSegment(dir, name) {
+  const key = normalizeOwnerName(name);
+  if (!key) return NO_OWNER;
+
+  const groupId = dir.groups.get(key);
+  if (groupId) {
+    return { uids: [], groupIds: [groupId], emails: [], unresolved: false, ambiguous: false };
+  }
+
+  const hits = dir.people.get(key) || [];
+  if (hits.length === 1) return forPerson(hits[0]);
+  if (hits.length > 1) return Object.assign({}, NO_OWNER, { ambiguous: true });
+  return NO_OWNER;
+}
+
+/**
+ * "Gabe/Axel" is two owners, not an unmatchable name. Every part must resolve:
+ * a partial match is treated as no match, because assigning half the owners
+ * would quietly drop the other half.
+ */
+function resolveOwner(dir, rawName) {
+  const name = String(rawName == null ? '' : rawName).trim();
+  if (!name) return NO_OWNER;
+
+  const override = dir.overrides.get(normalizeOwnerName(name));
+  if (override) {
+    if (override.toLowerCase().startsWith('group:')) {
+      const groupId = dir.groups.get(normalizeOwnerName(override.slice(6)));
+      return groupId
+        ? { uids: [], groupIds: [groupId], emails: [], unresolved: false, ambiguous: false }
+        : NO_OWNER;
+    }
+    const person = dir.byEmail.get(String(override).trim().toLowerCase());
+    return person ? forPerson(person) : NO_OWNER;
+  }
+
+  const parts = name.split('/').map((x) => x.trim()).filter(Boolean);
+  if (!parts.length) return NO_OWNER;
+
+  const uids = [], groupIds = [], emails = [];
+  for (const part of parts) {
+    const hit = resolveSegment(dir, part);
+    if (hit.unresolved) return Object.assign({}, NO_OWNER, { ambiguous: hit.ambiguous });
+    uids.push.apply(uids, hit.uids);
+    groupIds.push.apply(groupIds, hit.groupIds);
+    emails.push.apply(emails, hit.emails);
+  }
+
+  return {
+    uids: [...new Set(uids)],
+    groupIds: [...new Set(groupIds)],
+    emails: [...new Set(emails)],
+    unresolved: false,
+    ambiguous: false,
+  };
+}
+
+function hasOwner(r) {
+  return r.uids.length > 0 || r.groupIds.length > 0 || r.emails.length > 0;
+}
+
+/** Accumulates the match report printed at the end of each file. */
+function newTally() {
+  return { assigned: 0, ambiguous: 0, misses: new Map() };
+}
+
+function tallyOwner(tally, name, resolved) {
+  if (hasOwner(resolved)) { tally.assigned++; return; }
+  if (!String(name || '').trim()) return;
+  if (resolved.ambiguous) { tally.ambiguous++; return; }
+  tally.misses.set(name, (tally.misses.get(name) || 0) + 1);
+}
+
+function reportTally(tally, label) {
+  const unresolved = [...tally.misses.values()].reduce((a, b) => a + b, 0);
+  console.log('      owners: ' + tally.assigned + ' assigned, ' + tally.ambiguous +
+    ' ambiguous (skipped), ' + unresolved + ' left as text');
+  if (tally.misses.size) {
+    const top = [...tally.misses.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20);
+    console.log('      no match for these ' + label + ' names (kept as text, ' +
+      'visible to admin/dispatch/finance only):');
+    for (const [name, n] of top) console.log('        ' + String(n).padStart(5) + '  ' + name);
+  }
+}
+
+/** Display names for every uid and group id the opening entries will mention. */
+async function ownerLabelMap(opened) {
+  const uids = new Set(), groupIds = new Set();
+  for (const rec of opened) {
+    if (!rec.owners) continue;
+    for (const u of rec.owners.uids) uids.add(u);
+    for (const g of rec.owners.groupIds) groupIds.add(g);
+  }
+  const labels = new Map();
+  const refs = [
+    ...[...uids].map((u) => db.collection('users').doc(u)),
+    ...[...groupIds].map((g) => db.collection('workGroups').doc(g)),
+  ];
+  if (!refs.length) return labels;
+  const docs = await db.getAll.apply(db, refs);
+  for (const doc of docs) {
+    const d = doc.data();
+    if (!d) continue;
+    if (uids.has(doc.id)) labels.set('user:' + doc.id, d.displayName || d.email || doc.id);
+    else labels.set('group:' + doc.id, d.name || doc.id);
+  }
+  return labels;
+}
+
+function openingEvents(rec, labels) {
+  const o = rec.owners;
+  if (!o || !hasOwner(o)) {
+    return [{ action: 'added', targetType: 'text', targetId: '', targetLabel: String(rec.name).trim() }];
+  }
+  return [
+    ...o.uids.map((id) => ({
+      action: 'added', targetType: 'user', targetId: id, targetLabel: labels.get('user:' + id) || id,
+    })),
+    ...o.groupIds.map((id) => ({
+      action: 'added', targetType: 'group', targetId: id, targetLabel: labels.get('group:' + id) || id,
+    })),
+    ...o.emails.map((id) => ({
+      action: 'added', targetType: 'email', targetId: id, targetLabel: id,
+    })),
+  ];
+}
+
+/**
+ * The opening ownership-history entry, written for every record the import
+ * creates -- matched or not. An unmatched BATS name is a real historical owner,
+ * recorded as a `text` target that grants nothing, so the timeline starts where
+ * the data did rather than at the first manual edit. A fixed document id keeps
+ * it idempotent across re-runs.
+ */
+async function writeOpeningHistory(collectionName, opened, now) {
+  const withNames = opened.filter((o) => String(o.name || '').trim());
+  if (!withNames.length || DRY_RUN) return;
+
+  const labels = await ownerLabelMap(withNames);
+
+  const CHUNK = 200;
+  for (let i = 0; i < withNames.length; i += CHUNK) {
+    const batch = db.batch();
+    for (const rec of withNames.slice(i, i + CHUNK)) {
+      const col = db.collection(collectionName).doc(rec.id).collection('ownerEvents');
+      openingEvents(rec, labels).forEach((event, n) => {
+        batch.set(col.doc('bats-origin-' + n), Object.assign({}, event, {
+          actorUid:  'bats-import',
+          actorName: 'BATS import',
+          actorIp:   null,
+          at:        now,
+        }));
+      });
+    }
+    await batch.commit();
+  }
+}
+
 // ── Party registry ───────────────────────────────────────────────────────────
 // Clients, shippers and consignees are all parties. The same company can show
 // up as a customer row and as a pickup facility on an order, so every name is
@@ -427,6 +673,7 @@ function registerParty(reg, name, role, extra = {}) {
       defaultOrigin: null,
       defaultDest: null,
       assignedToName: '',
+      owners: null,
     };
     reg.set(key, draft);
   }
@@ -439,6 +686,7 @@ function registerParty(reg, name, role, extra = {}) {
   draft.defaultOrigin  ||= extra.defaultOrigin  || null;
   draft.defaultDest    ||= extra.defaultDest    || null;
   draft.assignedToName ||= extra.assignedToName || '';
+  draft.owners         ||= extra.owners         || null;
   return draft.id;
 }
 
@@ -455,8 +703,8 @@ async function flushParties(reg, now) {
   // refreshed the data.
   const existing = new Map();
   const snap = await db.collection('parties')
-    .select('roles', 'assignedToUids', 'assignedToGroupIds', 'assignedToName',
-            'contactName', 'contacts', 'notes')
+    .select('roles', 'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
+            'assignedToName', 'contactName', 'contacts', 'notes')
     .get();
   snap.forEach((doc) => {
     const v = doc.data();
@@ -464,6 +712,7 @@ async function flushParties(reg, now) {
       roles:              v.roles              || [],
       assignedToUids:     v.assignedToUids     || [],
       assignedToGroupIds: v.assignedToGroupIds || [],
+      assignedToEmails:   v.assignedToEmails   || [],
       assignedToName:     v.assignedToName     || '',
       contactName:        v.contactName        || '',
       contacts:           v.contacts           || [],
@@ -471,9 +720,26 @@ async function flushParties(reg, now) {
     });
   });
 
+  // Final ownership per party, so the orders that reference them can mirror it.
+  const ownership = new Map();
+  // New parties only -- an existing one keeps the history it already has.
+  const opened = [];
+
   const records = [...reg.values()].map((d) => {
     const prior  = existing.get(d.id);
     const merged = new Set([...((prior && prior.roles) || []), ...d.roles]);
+
+    // A name the importer resolved becomes real ownership; one it could not
+    // stays as text. The two are exclusive -- keeping both would leave two
+    // answers to "who owns this" with nothing saying which wins.
+    const resolved = d.owners && hasOwner(d.owners) ? d.owners : null;
+    const uids     = prior ? prior.assignedToUids     : (resolved ? resolved.uids : []);
+    const groupIds = prior ? prior.assignedToGroupIds : (resolved ? resolved.groupIds : []);
+    const emails   = prior ? prior.assignedToEmails   : (resolved ? resolved.emails : []);
+
+    ownership.set(d.id, { uids, groupIds });
+    if (!prior) opened.push({ id: d.id, name: d.assignedToName, owners: d.owners });
+
     return {
       _docId:        d.id,
       batsId:        d.batsId,
@@ -489,18 +755,23 @@ async function flushParties(reg, now) {
       contactName:    prior ? prior.contactName    : '',
       contacts:       prior ? prior.contacts       : [],
       notes:          prior ? prior.notes          : '',
-      assignedToUids: prior ? prior.assignedToUids : [],
-      assignedToName: prior ? prior.assignedToName : d.assignedToName,
+      assignedToUids: uids,
+      assignedToName: prior ? prior.assignedToName : (resolved ? '' : d.assignedToName),
       // Must always be written: listVisibleParties finds unowned records with
       // `where('assignedToGroupIds', '==', [])`, which never matches a document
-      // where the field is absent.
-      assignedToGroupIds: prior ? prior.assignedToGroupIds : [],
+      // where the field is absent. The same is true of assignedToEmails, which
+      // joined that query when ownership-by-email was added.
+      assignedToGroupIds: groupIds,
+      assignedToEmails:   emails,
       createdAt: now,
       updatedAt: now,
     };
   });
 
-  return batchWrite(records, 'parties', (r) => r._docId);
+  const result = await batchWrite(records, 'parties', (r) => r._docId);
+  await writeOpeningHistory('parties', opened, now);
+  result.ownership = ownership;
+  return result;
 }
 
 // ── Find CSV files ────────────────────────────────────────────────────────────
@@ -590,19 +861,26 @@ async function importCustomers() {
 
   // Customers are clients in TMS terms; seed them into the shared party list so
   // orders can link to the same record a shipper or consignee would use.
+  const dir   = await loadOwnerDirectory();
+  const tally = newTally();
   const reg = new Map();
   for (const c of records) {
+    const owners = resolveOwner(dir, c.assignedTo);
+    tallyOwner(tally, c.assignedTo, owners);
     registerParty(reg, c.company || c.name, 'client', {
       batsId:  c.batsId,
       phone:   c.phone,
       email:   c.email,
       address: { street: c.address, city: c.city, state: c.state, zip: c.zip, country: c.country },
-      // BATS names the owning rep; this makes the party private to them rather
-      // than open to everyone. Ignored if the party already exists.
+      // BATS names the owning rep. Resolved here into real owners so the party
+      // lands assigned rather than merely private; a name matching nobody falls
+      // back to the text. Both are ignored if the party already exists.
       assignedToName: c.assignedTo,
+      owners,
     });
   }
   await flushParties(reg, now);
+  reportTally(tally, 'customer');
 
   await batchWrite(records, 'customers', (c) => `bats-${c.batsId}`);
 }
@@ -619,6 +897,10 @@ async function importOrders() {
   const seen = new Map();  // batsId → record (for deduplication)
   const reg  = new Map();
   const now  = Timestamp.now();
+  // Read the directory once for the whole run, not per row: a BATS file is tens
+  // of thousands of rows against a few dozen people.
+  const dir   = await loadOwnerDirectory();
+  const tally = newTally();
 
   for (const filepath of files) {
     const rows = loadCSV(filepath);
@@ -637,9 +919,19 @@ async function importOrders() {
       const origin     = parseOrderLocation(str(r[12]));
       const dest       = parseOrderLocation(str(r[13]));
 
+      // Column 19 is the rep who owns this load. It owns the client too: the
+      // order file is often where a customer first appears, and until this was
+      // passed through, any client seen only here landed with no owner at all --
+      // which reads as unowned, meaning visible to every signed-in user.
+      const ownerName = str(r[19]);
+      const owners    = resolveOwner(dir, ownerName);
+      tallyOwner(tally, ownerName, owners);
+
       const clientId = registerParty(reg, clientName, 'client', {
         phone: str(r[9]),
         email: str(r[10]),
+        assignedToName: ownerName,
+        owners,
       });
       const shipperId = registerParty(reg, origin.facility, 'shipper', {
         phone:         origin.phone,
@@ -690,7 +982,15 @@ async function importOrders() {
         agreedRate,
         carrierPay,
         brokerFee,
-        assignedTo:               str(r[19]),
+        assignedTo:               ownerName,
+        // Resolved owners for the order itself, independent of the client's.
+        // An order can be worked by someone who does not own the customer.
+        assignedToUids:           owners.uids,
+        assignedToGroupIds:       owners.groupIds,
+        assignedToEmails:         owners.emails,
+        // Filled in below, once flushParties reports where the client landed.
+        clientOwnerUids:          [],
+        clientOwnerGroupIds:      [],
         sourceName:               str(r[20]),
         notes:                    '',
         carrierSignedAt:          null,
@@ -713,12 +1013,41 @@ async function importOrders() {
   console.log(`  ${records.length} unique orders after dedup`);
 
   // Parties must land before the orders that reference them.
-  await flushParties(reg, now);
+  const partyResult = await flushParties(reg, now);
+  const ownership   = partyResult.ownership || new Map();
+
+  // Mirror each client's final ownership onto its orders. Done after the flush
+  // because the client may have been created by this very run, or may have been
+  // owned by someone in the TMS for months -- either way it is the stored state,
+  // not the CSV, that decides. Rules cannot query for this, which is why it is
+  // denormalized onto every order.
+  for (const o of records) {
+    const owners = ownership.get(o.clientId);
+    o.clientOwnerUids     = owners ? owners.uids     : [];
+    o.clientOwnerGroupIds = owners ? owners.groupIds : [];
+  }
+
+  // Which orders are new has to be settled before batchWrite runs, so the
+  // opening history goes only to records that did not already exist.
+  const existingIds = new Set((await db.collection('orders').select().get()).docs.map((d) => d.id));
+  const opened = records
+    .filter((o) => !existingIds.has(`bats-${o.batsId}`))
+    .map((o) => ({
+      id:     `bats-${o.batsId}`,
+      name:   o.assignedTo,
+      owners: {
+        uids:     o.assignedToUids,
+        groupIds: o.assignedToGroupIds,
+        emails:   o.assignedToEmails,
+      },
+    }));
 
   const missingShipper   = records.filter((o) => !o.shipperId).length;
   const missingConsignee = records.filter((o) => !o.consigneeId).length;
 
   await batchWrite(records, 'orders', (o) => `bats-${o.batsId}`);
+  await writeOpeningHistory('orders', opened, now);
+  reportTally(tally, 'order');
 
   console.log(
     `      ${records.length - missingShipper}/${records.length} orders got a shipper from Origin, ` +

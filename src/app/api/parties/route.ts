@@ -78,6 +78,10 @@ export async function POST(req: NextRequest) {
       assignedToUids: [caller.uid],
       assignedToName: '',
       assignedToGroupIds: [],
+      // Written even though it is empty: listVisibleParties finds unowned
+      // records with `where('assignedToEmails', '==', [])`, and that never
+      // matches a document where the field is absent.
+      assignedToEmails: [],
       notes:          String(body.notes ?? '').trim(),
       createdAt:      FieldValue.serverTimestamp(),
       updatedAt:      FieldValue.serverTimestamp(),

@@ -154,6 +154,35 @@ export default function BatsImportPanel() {
                   </span>
                 </div>
                 {r.notes && <p className="text-xs text-gray-500 mt-1">{r.notes}</p>}
+
+                {/*
+                  Who the BATS owner names were matched to. Shown because an
+                  admin has to be able to check the assignment before trusting
+                  it — a silently mis-assigned book of business would be very
+                  hard to notice afterwards.
+                */}
+                {r.owners && (r.owners.assigned + r.owners.ambiguous + r.owners.unresolved) > 0 && (
+                  <div className="mt-2 pt-2 border-t border-gray-200">
+                    <p className="text-xs text-gray-600">
+                      Owners: <span className="font-medium">{r.owners.assigned} assigned</span>
+                      {r.owners.ambiguous > 0 && ` · ${r.owners.ambiguous} ambiguous (skipped)`}
+                      {r.owners.unresolved > 0 && ` · ${r.owners.unresolved} left as text`}
+                    </p>
+                    {r.owners.unresolvedNames.length > 0 && (
+                      <>
+                        <p className="text-xs text-gray-500 mt-1">
+                          No match for these names. Their records keep the name for reference and
+                          stay visible only to admin, dispatch and finance until someone is
+                          assigned. Invite the person, or create a work group with that name, then
+                          re-run the import.
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1 break-words">
+                          {r.owners.unresolvedNames.join(', ')}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>

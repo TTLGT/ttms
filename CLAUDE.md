@@ -127,6 +127,15 @@ Changing one without the other creates a silent security hole:
 | `BOOTSTRAP_ADMIN_EMAILS` | `isBootstrapAdmin()` |
 | `canSeeAllParties()` | `canSeeAllParties()` |
 | `canSeeDirectory()` | `isHr()` + the `allowedUsers` read rule |
+| `canSeeParty()` | `partyVisible()` |
+| `canSeeOrder()` | `orderVisible()` |
+
+The owner matcher is duplicated three ways for the same reason — plain node
+scripts cannot import TypeScript either:
+
+| `src/lib/ownerResolution.ts` | mirrored in |
+|---|---|
+| `resolveOwner()` + `loadOwnerDirectory()` | `scripts/import-bats.js`, `scripts/resolve-party-owners.js` |
 
 Both carry "keep in sync" comments. **After editing either, deploy the rules
 (below) — otherwise only half the change is live.**
@@ -181,6 +190,33 @@ reference data.
 shipper_signed → in_transit → delivered → completed`, with `cancelled` a
 terminal side-exit deliberately absent from `STATUS_RANK`. `parentOrderId` set
 means a suborder — its own carrier, dates and BOL.
+
+**Orders are owned records, and closed by default.** Two independent routes in:
+the order's own `assignedToUids` / `assignedToGroupIds`, and the owners of its
+client, mirrored onto the order as `clientOwnerUids` / `clientOwnerGroupIds`.
+That mirror exists because rules cannot query — a `get()` on the client party
+per order would exceed the 20-document-access limit on any list — so
+`syncClientOwners()` refreshes it whenever a client changes hands. An order
+with **no** owner is visible only to admin/dispatch/finance; this is
+deliberately stricter than a party, where unowned means shared reference data.
+
+Reads go through `/api/orders`, never the client SDK: the union of "mine, my
+groups', my clients'" cannot be expressed as one client-side query the rules
+would approve. `listOrders()` / `getOrder()` in `src/lib/orders.ts` are the
+single choke point every order-reading page uses.
+
+Ownership changes only through `/api/{orders,parties}/{id}/owners`, which is
+**admin and dispatcher only** and writes an `ownerEvents` subcollection entry in
+the same batch. Every owner a record has ever had is kept, including the
+original BATS name as a `text` target that grants nothing. Ownership fields are
+closed to client writes in the rules — before that, any broker could claim any
+unowned client and lock everyone else out, untraceably.
+
+Someone who exists on the allowlist but has never signed in can still be
+assigned records and added to work groups: there is no uid yet, so the
+assignment is held in `assignedToEmails` / `memberEmails` and converted by
+`claimPendingAssignments()` at first sign-in. Those fields must be part of every
+"is this unowned?" test — miss one and the record reads as public.
 
 > `docs/schema-guide.md` still documents a top-level `shippers` collection.
 > That was replaced by `parties` in commit `660d057`. `src/types/party.ts` and

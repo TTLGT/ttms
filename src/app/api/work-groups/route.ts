@@ -39,6 +39,14 @@ export async function POST(req: NextRequest) {
     const memberUids: string[] = Array.isArray(body.memberUids)
       ? uniqueUids(body.memberUids)
       : [];
+    // Members who exist but have never signed in. They have no uid yet, so the
+    // group holds their email until /api/auth/session converts it on their
+    // first sign-in. Without this a group could not be built out ahead of a
+    // new hire's start date.
+    const memberEmails: string[] = Array.isArray(body.memberEmails)
+      ? Array.from(new Set((body.memberEmails as unknown[])
+          .map((e) => String(e).trim().toLowerCase()).filter(Boolean)))
+      : [];
 
     const existing = await adminDb.collection(COL).where('name', '==', name).limit(1).get();
     if (!existing.empty) {
@@ -50,6 +58,7 @@ export async function POST(req: NextRequest) {
       tx.set(ref, {
         name,
         memberUids,
+        memberEmails,
         notes:     String(body.notes ?? '').trim(),
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
@@ -63,7 +72,7 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    return NextResponse.json({ id: ref.id, name, memberUids }, { status: 201 });
+    return NextResponse.json({ id: ref.id, name, memberUids, memberEmails }, { status: 201 });
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

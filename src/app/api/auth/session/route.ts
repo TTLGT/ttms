@@ -6,6 +6,7 @@ import {
   isBootstrapAdmin,
   normalizeEmail,
 } from '@/lib/accessControl';
+import { claimPendingAssignments } from '@/lib/pendingClaims';
 
 /**
  * Called by AuthContext immediately after Firebase sign-in.
@@ -95,6 +96,22 @@ export async function POST(req: NextRequest) {
     // `suspended: true` on its profile, which the rules would still honour.
     suspended: false,
   };
+
+  // An admin can assign clients, orders and work groups to someone before they
+  // have ever signed in, which has to be recorded against their email because
+  // no uid exists yet. This is where those become real. It runs before the
+  // profile is written so the group membership rules test is already correct
+  // on the first page load, and only on a first sign-in — `uid` on the
+  // allowlist entry is what marks an invite as still pending.
+  const firstSignIn = allowSnap.exists && !entry.uid;
+  if (firstSignIn) {
+    await claimPendingAssignments(email, uid).catch((e) => {
+      // A failed claim must not block sign-in: the person still belongs here,
+      // and the assignments can be recovered by re-running the resolver. Losing
+      // access entirely over it would be the worse failure.
+      console.error('[session] claiming pending assignments failed', email, e);
+    });
+  }
 
   const profileRef = adminDb.collection(USERS_COLLECTION).doc(uid);
   const profileExists = (await profileRef.get()).exists;

@@ -503,6 +503,16 @@ export default function OrderDetailPage() {
         vehicles:           order.vehicles || '',
         transportType:      order.transportType || '',
         assignedTo:         '',
+        // A suborder is part of the same load, so it inherits the parent's
+        // owners rather than starting closed. The splitter is added too — they
+        // may be dispatch acting on someone else's order, and would otherwise
+        // lose sight of the suborder the moment they created it.
+        assignedToUids:     [...new Set([...(order.assignedToUids ?? []), user.uid])],
+        assignedToGroupIds: order.assignedToGroupIds ?? [],
+        assignedToEmails:   order.assignedToEmails ?? [],
+        // Same client as the parent, so the same mirrored client owners.
+        clientOwnerUids:     order.clientOwnerUids     ?? [],
+        clientOwnerGroupIds: order.clientOwnerGroupIds ?? [],
         sourceName:         '',
         dispatchedAt:       null,
         pickedUpAt:         null,

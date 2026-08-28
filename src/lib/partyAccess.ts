@@ -46,6 +46,7 @@ export interface VisibleParty {
   assignedToUids: string[];
   assignedToName: string;
   assignedToGroupIds: string[];
+  assignedToEmails: string[];
   notes: string;
 }
 
@@ -64,6 +65,7 @@ export function toVisibleParty(id: string, d: FirebaseFirestore.DocumentData): V
     assignedToUids:     d.assignedToUids     ?? [],
     assignedToName:     d.assignedToName     ?? '',
     assignedToGroupIds: d.assignedToGroupIds ?? [],
+    assignedToEmails:   d.assignedToEmails   ?? [],
     notes:              d.notes              ?? '',
   };
 }
@@ -85,8 +87,13 @@ export async function listVisibleParties(caller: Caller): Promise<VisibleParty[]
 
   const [mine, unowned, viaGroup, granted] = await Promise.all([
     col.where('assignedToUids', 'array-contains', caller.uid).get(),
+    // Every ownership field has to be empty for a party to count as unowned.
+    // assignedToEmails joined this list when ownership-by-email was added: a
+    // party held for someone who has not signed in yet is owned, and matching
+    // it here would have published it to the whole company.
     col.where('assignedToUids', '==', [])
        .where('assignedToGroupIds', '==', [])
+       .where('assignedToEmails', '==', [])
        .where('assignedToName', '==', '')
        .get(),
     // `array-contains-any` caps at 30 values, which is far more work groups

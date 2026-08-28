@@ -2,7 +2,10 @@
 
 > **Storage strategy:** Firestore for structured data and metadata.
 > Firebase Storage for binary files (PDFs, images).
-> All Storage references are stored as a `storagePath` string inside a Firestore `documents` subcollection so you always know where the file lives.
+> Each Storage reference is a `storagePath` string **on the record itself** —
+> `bolStoragePath`, `invoiceStoragePath`, `podStoragePath` and
+> `driverLicenseStoragePath` on an order. The `documents` subcollection
+> described further down was designed but never built; see the note there.
 
 ---
 
@@ -229,9 +232,22 @@ agreements/{agreementId}
 
 ---
 
-## Subcollection: `documents` (shared pattern)
+## Subcollection: `documents` (shared pattern) — NOT IMPLEMENTED
 
-Used under `orders/{orderId}/documents` and `carriers/{carrierId}/documents`.
+> ⚠️ **This was designed and never built.** Nothing in the app reads or writes
+> it, and no such document exists in Firestore. Attachments are Storage files
+> whose paths sit directly on the order (`bolStoragePath`, `invoiceStoragePath`,
+> `podStoragePath`, `driverLicenseStoragePath`).
+>
+> `firestore.rules` carried rules for this subcollection under `orders`,
+> `parties`, `shippers` and `carriers` until they were removed — they granted
+> every signed-in user read and write on a collection that has never held
+> anything. If you build this for real, write the rules deliberately rather
+> than reinstating those.
+>
+> The shape below is kept as a record of the intended design.
+
+Intended for `orders/{orderId}/documents` and `carriers/{carrierId}/documents`.
 
 ```
 documents/{documentId}
@@ -281,6 +297,61 @@ documents/{documentId}
 | orders     | `status` ASC + `pickupDate` ASC                    | Dispatch board                   |
 | agreements | `orderId` ASC + `type` ASC                         | Agreement status per order       |
 | carriers   | `insuranceExpiration` ASC                          | Expiry alert dashboard           |
+| parties    | `assignedToUids` + `assignedToGroupIds` + `assignedToEmails` + `assignedToName` (all ASC, equality) | The "unowned" query in `listVisibleParties` |
+
+The order-visibility queries in `listVisibleOrders` are single-field
+`array-contains` / `array-contains-any` on `assignedToUids`,
+`assignedToGroupIds`, `clientOwnerUids` and `clientOwnerGroupIds`. Those are
+served by automatic single-field indexes and need nothing composite — the
+results are merged and sorted in memory precisely so that each query can stay
+single-field. `clientId` (equality, for `syncClientOwners`) is likewise
+automatic.
+
+There is no `firestore.indexes.json` in this repo. A missing-index error in the
+console links straight to a one-click creator.
+
+---
+
+## Ownership
+
+`parties` and `orders` are both owned records. Ownership is what decides who
+can see them, so it is never writable from the browser — see
+`/api/{orders,parties}/{id}/owners`, which is limited to admins and dispatchers.
+
+| Field | On | Meaning |
+|---|---|---|
+| `assignedToUids` | both | Owners who have signed in |
+| `assignedToGroupIds` | both | Owning work groups (teams do **not** own anything) |
+| `assignedToEmails` | both | Owners who exist on the allowlist but have never signed in; converted to a uid at first sign-in |
+| `assignedToName` | parties | The BATS rep name, when it matched nobody. Grants nothing |
+| `assignedTo` | orders | The same, for orders |
+| `clientOwnerUids` | orders | Mirror of the client party's owners — rules cannot query for it |
+| `clientOwnerGroupIds` | orders | Mirror of the client party's owning groups |
+
+An **unowned party** (every ownership field empty) is shared reference data
+anyone may use. An **unowned order** is visible only to admin, dispatch and
+finance — deliberately stricter, because an order is a live load with rates on
+it. Both tests must check *all* the ownership fields, `assignedToEmails`
+included, or a record held for a not-yet-signed-in rep reads as public.
+
+### `ownerEvents` subcollection
+
+`orders/{id}/ownerEvents` and `parties/{id}/ownerEvents` keep every owner a
+record has ever had:
+
+```
+{ action: 'added' | 'removed' | 'changed',
+  targetType: 'user' | 'group' | 'email' | 'text',
+  targetId, targetLabel,        // label captured at write time
+  actorUid, actorName, actorIp, // 'bats-import' for the opening entry
+  at }
+```
+
+Closed to the client SDK entirely — read it through
+`GET /api/{orders,parties}/{id}/owners`, which checks the caller against the
+parent record first. A subcollection rather than an array field so the log
+cannot be rewritten by a document update, and so a record changing hands for
+years cannot grow its parent without bound.
 
 ---
 

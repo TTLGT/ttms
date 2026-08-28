@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { getParty, updateParty, tagPartyRole } from '@/lib/parties';
+import { getParty, updateParty, tagPartyRole, addPartyOwners, removePartyOwners } from '@/lib/parties';
 import { listOrders } from '@/lib/orders';
 import { listUserProfiles } from '@/lib/userProfiles';
 import { listWorkGroups } from '@/lib/workGroups';
@@ -71,7 +71,10 @@ function rolesOnOrder(order: Order, partyId: string): PartyRole[] {
 export default function PartyDetailPage() {
   const params  = useParams();
   const partyId = params.partyId as string;
-  const { isAdmin } = useAuth();
+  const { isAdmin, isDispatcher } = useAuth();
+  // Ownership is admins and dispatchers; everything else on this form is open
+  // to anyone who can already see the record.
+  const canAssign = isAdmin || isDispatcher;
 
   const [party, setParty]     = useState<Party | null>(null);
   const [orders, setOrders]   = useState<Order[]>([]);
@@ -103,14 +106,14 @@ export default function PartyDetailPage() {
         setOrders(all.filter((o) => rolesOnOrder(o, partyId).length > 0));
         // Group names are needed for the ownership summary even for non-admins.
         setGroups(await listWorkGroups().catch(() => []));
-        if (isAdmin) setProfiles(await listUserProfiles());
+        if (canAssign) setProfiles(await listUserProfiles());
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Failed to load');
       } finally {
         setLoading(false);
       }
     })();
-  }, [partyId, isAdmin]);
+  }, [partyId, canAssign]);
 
   function startEditing() {
     if (!party) return;
@@ -127,6 +130,39 @@ export default function PartyDetailPage() {
     setEditing(true);
   }
 
+  /**
+   * Sends only what changed. Returns the fields to fold back into local state,
+   * or nothing when the caller cannot assign owners or nothing moved.
+   */
+  async function saveOwnerChanges(): Promise<Partial<Party>> {
+    if (!canAssign || !party) return {};
+
+    const wasUids   = party.assignedToUids ?? [];
+    const wasGroups = party.assignedToGroupIds ?? [];
+
+    const added = {
+      uids:     assignedUids.filter((u) => !wasUids.includes(u)),
+      groupIds: assignedGroups.filter((g) => !wasGroups.includes(g)),
+    };
+    const removed = {
+      uids:     wasUids.filter((u) => !assignedUids.includes(u)),
+      groupIds: wasGroups.filter((g) => !assignedGroups.includes(g)),
+    };
+
+    if (added.uids.length || added.groupIds.length)     await addPartyOwners(partyId, added);
+    if (removed.uids.length || removed.groupIds.length) await removePartyOwners(partyId, removed);
+    if (!added.uids.length && !added.groupIds.length
+      && !removed.uids.length && !removed.groupIds.length) return {};
+
+    return {
+      assignedToUids:     assignedUids,
+      assignedToGroupIds: assignedGroups,
+      // The server clears the BATS text once a real owner lands, since the two
+      // are alternative answers to the same question.
+      assignedToName:     assignedUids.length || assignedGroups.length ? '' : party.assignedToName,
+    };
+  }
+
   async function handleSave() {
     setSaving(true);
     setError('');
@@ -139,12 +175,18 @@ export default function PartyDetailPage() {
         address,
         defaultOrigin: hasAny(defaultOrigin) ? defaultOrigin : null,
         defaultDest:   hasAny(defaultDest)   ? defaultDest   : null,
-        assignedToUids: assignedUids,
-        assignedToGroupIds: assignedGroups,
         notes,
       };
       await updateParty(partyId, patch);
-      setParty((prev) => (prev ? { ...prev, ...patch } : prev));
+
+      // Ownership travels its own road: /api/parties/{id}/owners, which is
+      // limited to admins and dispatchers, records who changed what, and
+      // pushes the new owners out to every order of this client. It is sent as
+      // a diff rather than a replacement so the history reads as the additions
+      // and removals that actually happened.
+      const ownerPatch = await saveOwnerChanges();
+
+      setParty((prev) => (prev ? { ...prev, ...patch, ...ownerPatch } : prev));
       setEditing(false);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to save');
@@ -257,7 +299,7 @@ export default function PartyDetailPage() {
           <AddressFields label="Default pickup (used when this party is the shipper)" value={defaultOrigin} onChange={setOrigin} />
           <AddressFields label="Default delivery (used when this party is the consignee)" value={defaultDest} onChange={setDest} />
 
-          {isAdmin && (
+          {canAssign && (
             <div className="space-y-4">
               {profiles.length > 0 && (
                 <div>

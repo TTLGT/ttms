@@ -60,6 +60,12 @@ export const SITES_COLLECTION = 'sites';
  */
 export const TEAMS_COLLECTION = 'teams';
 /**
+ * The access boundary, as opposed to the org chart above. A work group can own
+ * parties and orders; membership is mirrored onto `users/{uid}.groupIds`,
+ * which is what the rules actually test.
+ */
+export const WORK_GROUPS_COLLECTION = 'workGroups';
+/**
  * Append-only record of revoked access. Written by the DELETE in
  * /api/admin/users and read only through the Admin SDK — see RemovedUser.
  */
@@ -135,6 +141,7 @@ export function canSeeParty(
     assignedToUids?: string[];
     assignedToName?: string;
     assignedToGroupIds?: string[];
+    assignedToEmails?: string[];
   },
   uid: string,
   profile: RoleFlags | null | undefined,
@@ -148,9 +155,52 @@ export function canSeeParty(
   const mine   = profile?.groupIds ?? [];
   if (groups.some((g) => mine.includes(g))) return true;
 
+  // `assignedToEmails` has to be part of the unowned test even though it can
+  // never grant access here: a party owned by an invited-but-never-signed-in
+  // rep carries only that field, and leaving it out would read as "nobody owns
+  // this" and publish their book of business to everyone until they logged in.
   return owners.length === 0
     && groups.length === 0
+    && (party.assignedToEmails ?? []).length === 0
     && !(party.assignedToName ?? '').trim();
+}
+
+/**
+ * Whether `uid` may see and edit an order.
+ *
+ * Deliberately stricter than canSeeParty: an order nobody owns is visible only
+ * to admin, dispatch and finance, where an unowned *party* is shared reference
+ * data anyone may use. The asymmetry is intentional. A party with no owner is
+ * usually just a facility nobody has claimed — harmless to share — whereas an
+ * order is the commercial record of a live load, with rates on it, so the safe
+ * default is closed. A BATS order whose rep name never resolved therefore sits
+ * with the privileged roles until someone assigns it, rather than becoming
+ * visible to the whole company.
+ *
+ * Keep in sync with orderVisible() in firestore.rules.
+ */
+export function canSeeOrder(
+  order: {
+    assignedToUids?: string[];
+    assignedToGroupIds?: string[];
+    clientOwnerUids?: string[];
+    clientOwnerGroupIds?: string[];
+  },
+  uid: string,
+  profile: RoleFlags | null | undefined,
+): boolean {
+  if (canSeeAllParties(profile)) return true;
+
+  const mine = profile?.groupIds ?? [];
+
+  // Two independent routes in: owning the order, or owning its client. The
+  // second is why clientOwner* is mirrored onto the order at all — see the
+  // field comments in src/types/order.ts.
+  if ((order.assignedToUids ?? []).includes(uid)) return true;
+  if ((order.clientOwnerUids ?? []).includes(uid)) return true;
+
+  const groups = [...(order.assignedToGroupIds ?? []), ...(order.clientOwnerGroupIds ?? [])];
+  return groups.some((g) => mine.includes(g));
 }
 
 /** Who may decide an access request: any current owner, or any admin. */

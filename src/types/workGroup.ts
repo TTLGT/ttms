@@ -16,6 +16,17 @@ export interface WorkGroup {
   id: string;
   name: string;
   memberUids: string[];
+  /**
+   * Members who are on the allowlist but have never signed in, held by email
+   * because there is no uid to list until they first authenticate.
+   *
+   * An admin has to be able to build out a group before the people in it have
+   * logged in — otherwise a new hire cannot be set up until their first day.
+   * /api/auth/session drains the matching entry into `memberUids` and mirrors
+   * the group onto the new profile's `groupIds` in the same pass, so the
+   * mirror rules depend on is correct from their very first page load.
+   */
+  memberEmails: string[];
   notes: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;

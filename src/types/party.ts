@@ -61,6 +61,18 @@ export interface Party {
    * party, which is how team-owned records work without naming each person.
    */
   assignedToGroupIds: string[];
+  /**
+   * Owners who exist on the allowlist but have never signed in, held by email
+   * because `users/{uid}` — and therefore a uid to point at — only comes into
+   * being at first sign-in. This is a real, final assignment, not a pending
+   * one: /api/auth/session converts the entry to `assignedToUids` the first
+   * time the person authenticates.
+   *
+   * Ownership by email grants nothing until then, which is harmless — the
+   * person cannot sign in to look at anything either. What it must NOT do is
+   * make the record read as unowned, hence its place in isUnowned() below.
+   */
+  assignedToEmails: string[];
   notes: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -70,12 +82,20 @@ export const BLANK_CONTACT: Contact = { name: '', email: '', phone: '', role: ''
 
 export const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
 
-/** True when nobody owns this party, so anyone may use and claim it. */
+/**
+ * True when nobody owns this party, so anyone may use and claim it.
+ *
+ * Every ownership field has to be checked, not just the uid list: a party owned
+ * by an invited-but-never-signed-in rep carries only `assignedToEmails`, and
+ * omitting it here would publish that person's book of business to everyone
+ * until they first logged in.
+ */
 export function isUnowned(
-  p: Pick<Party, 'assignedToUids' | 'assignedToName' | 'assignedToGroupIds'>,
+  p: Pick<Party, 'assignedToUids' | 'assignedToName' | 'assignedToGroupIds' | 'assignedToEmails'>,
 ): boolean {
   return (p.assignedToUids ?? []).length === 0
     && (p.assignedToGroupIds ?? []).length === 0
+    && (p.assignedToEmails ?? []).length === 0
     && !(p.assignedToName ?? '').trim();
 }
 

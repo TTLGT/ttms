@@ -22,18 +22,28 @@ export async function listWorkGroups(): Promise<WorkGroup[]> {
   return groups;
 }
 
-export async function createWorkGroup(name: string, memberUids: string[], notes = '') {
+/**
+ * `memberEmails` names people who are on the allowlist but have never signed
+ * in, and so have no uid to be listed under yet. They become real members at
+ * their first sign-in.
+ */
+export async function createWorkGroup(
+  name: string,
+  memberUids: string[],
+  notes = '',
+  memberEmails: string[] = [],
+) {
   const res = await fetch('/api/work-groups', {
     method:  'POST',
     headers: await authHeaders(),
-    body:    JSON.stringify({ name, memberUids, notes }),
+    body:    JSON.stringify({ name, memberUids, memberEmails, notes }),
   });
   return unwrap<{ id: string }>(res);
 }
 
 export async function updateWorkGroup(
   groupId: string,
-  patch: { name?: string; memberUids?: string[]; notes?: string },
+  patch: { name?: string; memberUids?: string[]; memberEmails?: string[]; notes?: string },
 ) {
   const res = await fetch(`/api/work-groups/${groupId}`, {
     method:  'PATCH',
@@ -48,5 +58,5 @@ export async function deleteWorkGroup(groupId: string) {
     method:  'DELETE',
     headers: await authHeaders(),
   });
-  return unwrap<{ deleted: string; detachedParties: number }>(res);
+  return unwrap<{ deleted: string; detachedParties: number; detachedOrders?: number }>(res);
 }

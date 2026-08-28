@@ -10,6 +10,7 @@ import {
 import { db, auth } from './firebase';
 import { toNameKey, partyDisplayName, BLANK_ADDRESS } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
+import type { OwnerEvent } from '@/types/ownerEvent';
 import type { AccessRequest } from '@/types/accessRequest';
 
 const COL = 'parties';
@@ -108,6 +109,37 @@ export async function recordPartyApproval(orderId: string, partyId: string, role
   return apiPost(`/api/orders/${orderId}/party-approvals`, { partyId, role });
 }
 
+// ── Ownership ────────────────────────────────────────────────────────────────
+
+/**
+ * Owners to add or remove. All three lists are optional; `emails` names people
+ * who exist on the allowlist but have never signed in.
+ */
+export interface OwnerChange {
+  uids?: string[];
+  groupIds?: string[];
+  emails?: string[];
+}
+
+/**
+ * Ownership moves only through this route, and only for admins and
+ * dispatchers. Reassigning a client also refreshes every one of its orders,
+ * which is why the response reports how many were touched — a client with a
+ * long history can be a large write.
+ */
+export async function addPartyOwners(partyId: string, owners: OwnerChange) {
+  return apiPost<{ ordersTouched: number }>(`/api/parties/${partyId}/owners`, owners);
+}
+
+export async function removePartyOwners(partyId: string, owners: OwnerChange) {
+  return apiSend<{ ordersTouched: number }>('DELETE', `/api/parties/${partyId}/owners`, owners);
+}
+
+export async function listPartyOwnerEvents(partyId: string): Promise<OwnerEvent[]> {
+  const { events } = await apiGet<{ events: OwnerEvent[] }>(`/api/parties/${partyId}/owners`);
+  return events ?? [];
+}
+
 // ── API plumbing ─────────────────────────────────────────────────────────────
 
 async function authHeaders(): Promise<HeadersInit> {
@@ -125,8 +157,12 @@ async function apiGet<T>(url: string): Promise<T> {
 }
 
 async function apiPost<T>(url: string, body: unknown): Promise<T> {
+  return apiSend<T>('POST', url, body);
+}
+
+async function apiSend<T>(method: string, url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
-    method:  'POST',
+    method,
     headers: await authHeaders(),
     body:    JSON.stringify(body),
   });
@@ -139,11 +175,25 @@ async function unwrap<T>(res: Response): Promise<T> {
   return data as T;
 }
 
+/**
+ * Fields no client write may touch. Ownership decides who can see a record, so
+ * letting the browser set it meant any user who could see a party could take
+ * it — and because an unowned party is visible to everyone, that was every
+ * unclaimed client in the system, with nothing recording who did it.
+ *
+ * Ownership now moves only through /api/parties/{id}/owners, which is limited
+ * to admins and dispatchers and writes the history entry in the same batch.
+ * The rules enforce this too; stripping the fields here keeps an honest caller
+ * from writing a patch the rules would simply reject.
+ */
+const OWNERSHIP_FIELDS = ['assignedToUids', 'assignedToGroupIds', 'assignedToEmails', 'assignedToName'] as const;
+
 export async function updateParty(
   partyId: string,
   data: Partial<Omit<Party, 'id' | 'createdAt'>>,
 ): Promise<void> {
   const patch: Record<string, unknown> = { ...data, updatedAt: serverTimestamp() };
+  for (const field of OWNERSHIP_FIELDS) delete patch[field];
   if (data.companyName !== undefined || data.contactName !== undefined) {
     const current = await getParty(partyId);
     const companyName = (data.companyName ?? current?.companyName ?? '').trim();

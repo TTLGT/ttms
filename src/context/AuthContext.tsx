@@ -27,6 +27,12 @@ interface AuthContextValue {
    * control just because both roles can open the same page.
    */
   isHr: boolean;
+  /**
+   * Dispatch. Surfaced because ownership of orders and clients is theirs to
+   * change alongside admins — see /api/orders/[orderId]/owners — and the UI
+   * has to know whether to offer the control at all.
+   */
+  isDispatcher: boolean;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
@@ -129,9 +135,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = profile?.isAdmin ?? false;
   const isHr    = profile?.isHr ?? false;
+  const isDispatcher = profile?.isDispatcher ?? false;
 
   return (
-    <AuthContext.Provider value={{ user, profile, isAdmin, isHr, loading, signInWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, profile, isAdmin, isHr, isDispatcher, loading, signInWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );
