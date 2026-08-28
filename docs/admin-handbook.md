@@ -271,12 +271,20 @@ they are allowed to open.
    rest can be added later.
    - **Phone numbers tidy themselves up.** Type a US number any way you like —
      `4699354100`, `(469) 935-4100`, `+1 469-935-4100` — and it is saved as
-     **+(469) 935-4100**. A Guatemala number, with or without the 502, is saved
-     as **+(502) 4874-0227**. You will see the field change as you tab out of it.
+     **+(469) 935-4100**. You will see the field change as you tab out of it.
+   - **Other phone** is for someone's number in their home country. Pick the
+     country from the dropdown beside the box, then type the number: Guatemala
+     saves as **+(502) 4874-0227** and Mexico as **+(52) 55 1234-5678**. Change
+     the country and the number already in the box is re-read for the new one.
+     Each person has one of these — pick the country that applies to them.
    - A number with the wrong number of digits is **not saved** — the box turns
-     amber and says so, and the person is still added without it. US numbers
-     need 10 digits, Guatemala numbers 8. A desk extension goes in the
-     **Extension** box, not on the end of the number.
+     amber and says so, and the person is still added without it. US and
+     Mexican numbers need 10 digits, Guatemalan ones 8. A desk extension goes
+     in the **Extension** box, not on the end of the number.
+   - Because a Mexican number is 10 digits like a US one, nothing can tell
+     those two apart on its own. The box you type it in is what says which
+     country it is, so put a Mexican number in **Other phone**, not in
+     **Work phone (US)**.
    - These fields are only available when there is **one** address in the box.
      A name and a birthday belong to one person, so with several addresses
      pasted in they grey out. Use the Spreadsheet mode to give details to
@@ -304,15 +312,15 @@ The new person appears in the **People With Access** list below, marked
 ### Filling in their details
 
 Click the **pencil** icon on someone's row to record who they are: first and
-last name, a photo, their site, their team, work phone, Guatemala phone, desk
+last name, a photo, their site, their team, work phone, other phone, desk
 extension, **full legal name**, **personal email**, **start date** and
 **date of birth**.
 
 Phone numbers are reformatted here the same way they are on the Add People
-panel — to **+(469) 935-4100** and **+(502) 4874-0227** — and one with the wrong
-number of digits is saved blank rather than as typed, with a message saying so.
-This is the one place that clears a field on purpose, so check the amber note
-under a phone box before saving.
+panel, and **Other phone** has the same country dropdown beside it. One with
+the wrong number of digits is saved blank rather than as typed, with a message
+saying so. This is the one place that clears a field on purpose, so check the
+amber note under a phone box before saving.
 
 > **Full legal name, date of birth and personal email are seen by Admins and HR
 > only.** They are stored against the access list, which nobody else can read —
@@ -453,7 +461,8 @@ typing each person in.
    | First name, Last name | The name the office uses. |
    | **Full legal name** | The payroll name, if it differs. Admin and HR only. Leave blank when it is just their first and last name. |
    | Personal email | Any address. Admin and HR only. |
-   | Work phone (US), Guatemala phone | Typed however you like — `4699354100`, `(469) 935-4100` and `+1 469-935-4100` all save as `+(469) 935-4100`. US needs 10 digits, Guatemala 8. |
+   | Work phone (US) | Typed however you like — `4699354100`, `(469) 935-4100` and `+1 469-935-4100` all save as `+(469) 935-4100`. Needs 10 digits. |
+   | Guatemala phone, Mexico phone | The person's home-country number. A spreadsheet has no dropdown, so there is a column per country and the **heading** is what says which country the digits are. Fill in the one that applies and leave the other blank — a row with something in both is refused, because a person has one of these, not two. Guatemala needs 8 digits, Mexico 10. |
    | Extension | Typed however you like. Keep it out of the phone columns — a number with an extension stuck on the end has too many digits and will be left out. |
    | Site | The site's **name**, spelled as it appears under Sites. Write `None` to clear it. |
    | **Team** | The team's **name**, spelled as it appears under Teams. Write `None` to clear it. |

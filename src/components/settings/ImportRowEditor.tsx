@@ -30,13 +30,17 @@ import type { Team } from '@/types/team';
 /** The columns, in the order they read on a person rather than in file order. */
 const FIELD_ORDER: ColumnKey[] = [
   'email', 'firstName', 'lastName', 'legalName', 'personalEmail',
-  'phone', 'phoneGt', 'extension', 'site', 'team',
+  'phone', 'phoneGt', 'phoneMx', 'extension', 'site', 'team',
   'startDate', 'dateOfBirth', 'roles',
 ];
 
+// This edits the *file*, which has a column per country — so both country
+// columns are offered here, and the check that follows is what refuses a row
+// with something in each. See the phone handling in lib/userImport.
 const PHONE_REGION: Partial<Record<ColumnKey, PhoneRegion>> = {
   phone: 'US',
   phoneGt: 'GT',
+  phoneMx: 'MX',
 };
 
 /**

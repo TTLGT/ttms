@@ -10,10 +10,15 @@ import {
   parseEmailList,
 } from '@/lib/accessControl';
 import {
+  DEFAULT_OTHER_REGION,
+  OTHER_PHONE_LABEL,
+  OTHER_PHONE_REGIONS,
   PHONE_EXAMPLE,
   PHONE_LABEL,
+  PHONE_REGION_NAME,
   normalizePhone,
   phoneHint,
+  type OtherPhoneRegion,
   type PhoneRegion,
 } from '@/lib/phone';
 import type { AllowedUserRole, InviteResult } from '@/types/allowedUser';
@@ -46,8 +51,12 @@ const NO_ROLES = { isAdmin: false, isDispatcher: false, isFinance: false, isHr: 
 
 const EMPTY_DETAILS: NewPersonDetails = {
   firstName: '', lastName: '', legalName: '', personalEmail: '',
-  phone: '', phoneGt: '', extension: '', dateOfBirth: '', startDate: '',
+  phone: '', phoneOther: '', phoneOtherRegion: DEFAULT_OTHER_REGION,
+  extension: '', dateOfBirth: '', startDate: '',
 };
+
+/** The fields on the details block that hold plain typed text. */
+type TextDetail = Exclude<keyof NewPersonDetails, 'phoneOtherRegion'>;
 
 type Mode = 'type' | 'spreadsheet';
 
@@ -119,7 +128,7 @@ export default function AddPeoplePanel({
   // offered when the box holds exactly one.
   const single = parsed.length === 1;
 
-  const setField = (key: keyof NewPersonDetails) => (value: string) =>
+  const setField = (key: TextDetail) => (value: string) =>
     setDetails((d) => ({ ...d, [key]: value }));
 
   /**
@@ -131,10 +140,22 @@ export default function AddPeoplePanel({
    * but blanking the box here would take away the digits they need in order to
    * fix it. The hint under the field is what says it will not be kept.
    */
-  const tidyPhone = (key: 'phone' | 'phoneGt', region: PhoneRegion) => () =>
+  const tidyPhone = (key: 'phone' | 'phoneOther', region: PhoneRegion) => () =>
     setDetails((d) => {
       const { value, rejected } = normalizePhone(d[key], region);
       return rejected ? d : { ...d, [key]: value };
+    });
+
+  /**
+   * Changing the country re-reads the digits already in the box under the new
+   * country's rules, rather than leaving a Guatemala-formatted number sitting
+   * under a Mexico label. One that will not fit — eight digits switched to
+   * Mexico — is left exactly as typed, and the hint says it will not be kept.
+   */
+  const setOtherRegion = (region: OtherPhoneRegion) =>
+    setDetails((d) => {
+      const { value, rejected } = normalizePhone(d.phoneOther, region);
+      return { ...d, phoneOtherRegion: region, phoneOther: rejected ? d.phoneOther : value };
     });
 
   async function handleSubmit(e: React.FormEvent) {
@@ -291,15 +312,34 @@ export default function AddPeoplePanel({
                 placeholder={PHONE_EXAMPLE.US}
                 disabled={!single}
               />
-              <Field
-                label={PHONE_LABEL.GT}
-                value={details.phoneGt}
-                onChange={setField('phoneGt')}
-                onBlur={tidyPhone('phoneGt', 'GT')}
-                hint={phoneHint(details.phoneGt, 'GT')}
-                placeholder={PHONE_EXAMPLE.GT}
-                disabled={!single}
-              />
+              <label className="text-xs text-gray-500">
+                {OTHER_PHONE_LABEL}
+                <div className="mt-1 flex gap-2">
+                  <select
+                    value={details.phoneOtherRegion}
+                    onChange={(e) => setOtherRegion(e.target.value as OtherPhoneRegion)}
+                    disabled={!single}
+                    className="w-32 shrink-0 rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {OTHER_PHONE_REGIONS.map((r) => (
+                      <option key={r} value={r}>{PHONE_REGION_NAME[r]}</option>
+                    ))}
+                  </select>
+                  <input
+                    value={details.phoneOther}
+                    onChange={(e) => setField('phoneOther')(e.target.value)}
+                    onBlur={tidyPhone('phoneOther', details.phoneOtherRegion)}
+                    placeholder={PHONE_EXAMPLE[details.phoneOtherRegion]}
+                    disabled={!single}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                  />
+                </div>
+                {phoneHint(details.phoneOther, details.phoneOtherRegion) && (
+                  <span className="mt-1 block text-[11px] text-amber-700">
+                    {phoneHint(details.phoneOther, details.phoneOtherRegion)}
+                  </span>
+                )}
+              </label>
               <Field label="Extension" value={details.extension} onChange={setField('extension')} placeholder="e.g. 204" disabled={!single} />
               <Field label="Start date" type="date" value={details.startDate} onChange={setField('startDate')} disabled={!single} />
               <Field label="Date of birth" type="date" value={details.dateOfBirth} onChange={setField('dateOfBirth')} disabled={!single} />

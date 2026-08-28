@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { ChevronDown, ChevronRight, Download, History } from 'lucide-react';
 import { listRemovedUsers } from '@/lib/allowedUsers';
 import { downloadCsv, toCsv } from '@/lib/csv';
+import { PHONE_LABEL, otherPhone } from '@/lib/phone';
 import { formatCalendarDate } from '@/types/allowedUser';
 import { removedUserName, removedUserRoles } from '@/types/removedUser';
 import type { RemovedUser } from '@/types/removedUser';
@@ -86,21 +87,26 @@ export default function RemovedPeoplePanel({
     if (!users) return;
 
     const header = [
-      'Name', 'Full legal name', 'Email', 'Personal email', 'Work phone (US)',
-      'Guatemala phone', 'Extension', 'Site', 'Team', 'Date of birth', 'Start date',
+      'Name', 'Full legal name', 'Email', 'Personal email', PHONE_LABEL.US,
+      PHONE_LABEL.GT, PHONE_LABEL.MX, 'Extension', 'Site', 'Team',
+      'Date of birth', 'Start date',
       'Roles held',
       'Was suspended', 'Added', 'Added by', 'Last sign-in', 'Removed', 'Removed by',
     ];
 
     const rows = users.map((u) => {
       const roles = removedUserRoles(u);
+      // A column per country, matching the main export — the archive is read
+      // back the same way, by a person looking for one number.
+      const other = otherPhone(u);
       return [
         removedUserName(u),
         u.legalName ?? '',
         u.email,
         u.personalEmail ?? '',
         u.phone ?? '',
-        u.phoneGt ?? '',
+        other.region === 'GT' ? other.value : '',
+        other.region === 'MX' ? other.value : '',
         u.extension ?? '',
         siteName(u.siteId) ?? '',
         teamName(u.teamId) ?? '',
@@ -213,7 +219,9 @@ export default function RemovedPeoplePanel({
                               teamName(u.teamId) ? `Team ${teamName(u.teamId)}` : null,
                               u.extension ? `ext. ${u.extension}` : null,
                               u.phone ? `US ${u.phone}` : null,
-                              u.phoneGt ? `GT ${u.phoneGt}` : null,
+                              otherPhone(u).value
+                                ? `${otherPhone(u).region} ${otherPhone(u).value}`
+                                : null,
                             ].filter(Boolean).join(' · ')}
                           </p>
 

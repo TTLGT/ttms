@@ -229,10 +229,15 @@ export default function SpreadsheetImport({
     // The phones are written in the shape they are stored in, because that is
     // what an export of the list looks like. Anything the right length is
     // accepted and rewritten to match — see lib/phone.ts.
+    //
+    // The Mexico cell is deliberately empty. A person has one home-country
+    // number, and a row that fills both country columns is refused — so the
+    // example has to show one filled and the other blank, or it would teach
+    // exactly the shape the importer turns down.
     const example = [
       `new.person@${ALLOWED_EMAIL_DOMAIN}`, 'Maria', 'Ruiz',
       'Maria del Carmen Ruiz Gómez', 'maria.ruiz@example.com',
-      PHONE_EXAMPLE.US, PHONE_EXAMPLE.GT, '204', 'Houston Office', 'Top Brokers',
+      PHONE_EXAMPLE.US, PHONE_EXAMPLE.GT, '', '204', 'Houston Office', 'Top Brokers',
       '1990-03-04', '2024-01-15', 'Dispatcher, Finance',
     ];
     downloadCsv('ttms-people-template.csv', toCsv([TEMPLATE_HEADERS, example]));

@@ -15,7 +15,14 @@ import {
   TEAMS_COLLECTION,
 } from '@/lib/accessControl';
 import { normalizeCalendarDate } from '@/types/allowedUser';
-import { PHONE_LABEL, normalizePhone } from '@/lib/phone';
+import {
+  DEFAULT_OTHER_REGION,
+  PHONE_LABEL,
+  isOtherPhoneRegion,
+  normalizePhone,
+  otherPhone,
+  type OtherPhoneRegion,
+} from '@/lib/phone';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -85,9 +92,13 @@ async function invite(
       displayName:   '',
       personalEmail: '',
       legalName:     '',
-      phone:         '',
-      phoneGt:       '',
-      extension:     '',
+      phone:            '',
+      phoneOther:       '',
+      phoneOtherRegion: DEFAULT_OTHER_REGION,
+      // Written blank on a new entry too, so every document has the same shape
+      // and `otherPhone()` never has to tell "never set" from "cleared".
+      phoneGt:          '',
+      extension:        '',
       dateOfBirth:   '',
       startDate:     '',
       photoPath:     null,
@@ -207,21 +218,41 @@ function text(value: unknown, max: number): string {
  * back in the response so the admin is told which number to re-enter now,
  * instead of discovering the field empty a week later. No length cap: what
  * comes out of `normalizePhone` is either a fixed-width number or ''.
+ *
+ * The second number's country comes from the request, but only as one of the
+ * two the picker offers — anything else falls back to the default rather than
+ * being stored. A hand-built request must not be able to put an arbitrary
+ * string where the rest of the app expects a region.
+ *
+ * `phoneGt` is written blank alongside, always. It is where this number used
+ * to live, and leaving a stale value there would mean a record holding two
+ * different answers, with the old one reappearing the moment the new field
+ * was cleared. See `otherPhone()` in lib/phone.ts.
  */
 function phones(d: Record<string, unknown>): {
   phone: string;
+  phoneOther: string;
+  phoneOtherRegion: OtherPhoneRegion;
   phoneGt: string;
   skippedPhones: string[];
 } {
-  const us = normalizePhone(d.phone, 'US');
-  const gt = normalizePhone(d.phoneGt, 'GT');
+  const region = isOtherPhoneRegion(d.phoneOtherRegion)
+    ? d.phoneOtherRegion
+    : DEFAULT_OTHER_REGION;
+
+  const us    = normalizePhone(d.phone, 'US');
+  const other = normalizePhone(d.phoneOther, region);
 
   return {
-    phone:   us.value,
-    phoneGt: gt.value,
+    phone:            us.value,
+    phoneOther:       other.value,
+    phoneOtherRegion: region,
+    phoneGt:          '',
     skippedPhones: [
       ...(us.rejected ? [PHONE_LABEL.US] : []),
-      ...(gt.rejected ? [PHONE_LABEL.GT] : []),
+      // Named by country, not as "Other phone": the admin needs to know which
+      // number to re-enter, and the country is the half that identifies it.
+      ...(other.rejected ? [PHONE_LABEL[region]] : []),
     ],
   };
 }
@@ -243,7 +274,7 @@ function newPersonDetails(value: unknown): {
 
   const firstName = text(d.firstName, 60);
   const lastName  = text(d.lastName, 60);
-  const { phone, phoneGt, skippedPhones } = phones(d);
+  const { phone, phoneOther, phoneOtherRegion, phoneGt, skippedPhones } = phones(d);
 
   const details = {
     firstName,
@@ -255,6 +286,8 @@ function newPersonDetails(value: unknown): {
     // routinely four or five parts.
     legalName:     text(d.legalName, 160),
     phone,
+    phoneOther,
+    phoneOtherRegion,
     phoneGt,
     extension:     text(d.extension, 12),
     dateOfBirth:   normalizeCalendarDate(d.dateOfBirth),
@@ -301,7 +334,7 @@ async function updateDetails(email: string, details: Record<string, unknown>) {
   // editor warns about it under the field before this is ever sent, and the
   // response below names it again — this is the deliberate place to clear a
   // field, so silently keeping the old value would be the wrong call here.
-  const { phone, phoneGt, skippedPhones } = phones(details);
+  const { phone, phoneOther, phoneOtherRegion, phoneGt, skippedPhones } = phones(details);
 
   const patch = {
     firstName,
@@ -310,6 +343,8 @@ async function updateDetails(email: string, details: Record<string, unknown>) {
     // the profile keeps working without having to join them itself.
     displayName: [firstName, lastName].filter(Boolean).join(' '),
     phone,
+    phoneOther,
+    phoneOtherRegion,
     phoneGt,
     extension:   text(details.extension, 12),
     siteId,
@@ -494,6 +529,8 @@ async function archiveRemoval(
   email: string,
   caller: Guard,
 ) {
+  const archivedOther = otherPhone(entry);
+
   await adminDb.collection(REMOVED_USERS_COLLECTION).add({
     email,
     firstName:     entry.firstName ?? '',
@@ -502,7 +539,11 @@ async function archiveRemoval(
     personalEmail: entry.personalEmail ?? '',
     legalName:     entry.legalName ?? '',
     phone:         entry.phone ?? '',
-    phoneGt:       entry.phoneGt ?? '',
+    // Read through the helper so an entry still holding the old `phoneGt` is
+    // archived with its number, not with a blank where the number was.
+    phoneOther:       archivedOther.value,
+    phoneOtherRegion: archivedOther.region,
+    phoneGt:          '',
     extension:     entry.extension ?? '',
     dateOfBirth:   entry.dateOfBirth ?? '',
     startDate:     entry.startDate ?? '',

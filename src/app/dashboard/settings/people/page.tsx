@@ -14,10 +14,18 @@ import {
 } from '@/lib/allowedUsers';
 import { isBootstrapAdmin, isBroker, normalizeEmail } from '@/lib/accessControl';
 import {
+  DEFAULT_OTHER_REGION,
+  OTHER_PHONE_LABEL,
+  OTHER_PHONE_REGIONS,
+  PHONE_COUNTRY_CODE,
   PHONE_EXAMPLE,
   PHONE_LABEL,
+  PHONE_NATIONAL_LENGTH,
+  PHONE_REGION_NAME,
   normalizePhone,
+  otherPhone,
   phoneHint,
+  type OtherPhoneRegion,
   type PhoneRegion,
 } from '@/lib/phone';
 import { listSites } from '@/lib/sites';
@@ -53,7 +61,7 @@ type StatusFilter = 'all' | 'active' | 'pending' | 'suspended';
 /** 'broker' means "no elevated role" — the default everyone starts with. */
 type RoleFilter   = 'all' | AllowedUserRole | 'broker';
 type SortField =
-  | 'firstName' | 'lastName' | 'email' | 'phone' | 'phoneGt' | 'extension'
+  | 'firstName' | 'lastName' | 'email' | 'phone' | 'phoneOther' | 'extension'
   | 'startDate' | 'dateOfBirth' | 'added';
 type SortDir   = 'asc' | 'desc';
 
@@ -62,7 +70,7 @@ const SORT_FIELDS: { key: SortField; label: string }[] = [
   { key: 'lastName',  label: 'Last name' },
   { key: 'email',     label: 'Email' },
   { key: 'phone',     label: 'Work phone (US)' },
-  { key: 'phoneGt',   label: 'Guatemala phone' },
+  { key: 'phoneOther', label: OTHER_PHONE_LABEL },
   { key: 'extension', label: 'Extension' },
   { key: 'startDate', label: 'Start date' },
   { key: 'dateOfBirth', label: 'Date of birth' },
@@ -76,7 +84,7 @@ function directionLabel(field: SortField, dir: SortDir): string {
   // The earliest birthday belongs to the oldest person, which is the way round
   // anyone sorting by it is actually thinking.
   if (field === 'dateOfBirth') return dir === 'asc' ? 'Oldest first' : 'Youngest first';
-  if (field === 'phone' || field === 'phoneGt' || field === 'extension') {
+  if (field === 'phone' || field === 'phoneOther' || field === 'extension') {
     return dir === 'asc' ? 'Low → High' : 'High → Low';
   }
   return dir === 'asc' ? 'A → Z' : 'Z → A';
@@ -91,13 +99,18 @@ const digitsOnly = (value: string | null | undefined) => (value ?? '').replace(/
  * that have not been touched since still hold whatever was typed at the time —
  * (555) 123-4567, 555.123.4567, +1 555 123 4567 — and those have to sort in
  * with the rest rather than in a block of their own. The country code is
- * dropped for the same reason: +1 for the US line, +502 for the Guatemala one.
+ * dropped for the same reason: +1 on the US line, +502 or +52 on the other.
+ *
+ * Sorting the second column mixes countries, and that is the honest result:
+ * it is one column holding one number each, so it orders by the number and
+ * lets the country ride along.
  */
-function phoneKey(value: string | null | undefined, countryCode: '1' | '502'): string {
+function phoneKey(value: string | null | undefined, region: PhoneRegion): string {
   const d = digitsOnly(value);
-  const national = countryCode === '1' ? 10 : 8;
-  return d.length === national + countryCode.length && d.startsWith(countryCode)
-    ? d.slice(countryCode.length)
+  const code = PHONE_COUNTRY_CODE[region];
+  const national = PHONE_NATIONAL_LENGTH[region];
+  return d.length === national + code.length && d.startsWith(code)
+    ? d.slice(code.length)
     : d;
 }
 
@@ -120,8 +133,11 @@ function extensionKey(p: AllowedUser): string {
  */
 function sortText(p: AllowedUser, field: SortField): string {
   if (field === 'email')     return p.email.toLowerCase();
-  if (field === 'phone')     return phoneKey(p.phone, '1');
-  if (field === 'phoneGt')   return phoneKey(p.phoneGt, '502');
+  if (field === 'phone')     return phoneKey(p.phone, 'US');
+  if (field === 'phoneOther') {
+    const { value, region } = otherPhone(p);
+    return phoneKey(value, region);
+  }
   if (field === 'extension') return extensionKey(p);
   // Stored as YYYY-MM-DD precisely so plain text order is date order; a blank
   // one falls through to the same "unknown, so put it last" rule as the rest.
@@ -219,7 +235,8 @@ export default function SettingsPeoplePage() {
 
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft]     = useState({
-    firstName: '', lastName: '', legalName: '', personalEmail: '', phone: '', phoneGt: '',
+    firstName: '', lastName: '', legalName: '', personalEmail: '', phone: '',
+    phoneOther: '', phoneOtherRegion: DEFAULT_OTHER_REGION as OtherPhoneRegion,
     extension: '', dateOfBirth: '', startDate: '', siteId: '', teamId: '',
   });
   /**
@@ -235,10 +252,22 @@ export default function SettingsPeoplePage() {
    * it can be corrected, and the hint under the field says it will not be kept.
    * See lib/phone.ts.
    */
-  const tidyPhone = (key: 'phone' | 'phoneGt', region: PhoneRegion) => () =>
+  const tidyPhone = (key: 'phone' | 'phoneOther', region: PhoneRegion) => () =>
     setDraft((d) => {
       const { value, rejected } = normalizePhone(d[key], region);
       return rejected ? d : { ...d, [key]: value };
+    });
+
+  /**
+   * Changing the country re-reads the digits already in the box under the new
+   * country's rules — the same as the add form does. A number that will not
+   * fit the new country is left exactly as typed, and the hint underneath is
+   * what says it will not be kept.
+   */
+  const setOtherRegion = (region: OtherPhoneRegion) =>
+    setDraft((d) => {
+      const { value, rejected } = normalizePhone(d.phoneOther, region);
+      return { ...d, phoneOtherRegion: region, phoneOther: rejected ? d.phoneOther : value };
     });
 
   /**
@@ -312,13 +341,17 @@ export default function SettingsPeoplePage() {
     // edited in Excel and uploaded again — see COLUMNS in lib/userImportColumns.
     const header = [
       'First name', 'Last name', 'Full legal name', 'Email', 'Personal email',
-      'Work phone (US)', 'Guatemala phone', 'Extension', 'Site', 'Team',
+      PHONE_LABEL.US, PHONE_LABEL.GT, PHONE_LABEL.MX, 'Extension', 'Site', 'Team',
       'Date of birth', 'Start date',
       'Roles', 'Status', 'Added', 'Added by', 'Last sign-in',
     ];
 
     const rows = visiblePeople.map((p) => {
       const roles = ROLE_CHIPS.filter(({ field }) => p[field]).map(({ label }) => label);
+      // One field on the person, one column per country in the file: the number
+      // is written under its own country's heading and the other cell is left
+      // blank, which is the shape the importer reads back.
+      const other = otherPhone(p);
       return [
         p.firstName ?? '',
         p.lastName ?? '',
@@ -326,7 +359,8 @@ export default function SettingsPeoplePage() {
         p.email,
         p.personalEmail ?? '',
         p.phone ?? '',
-        p.phoneGt ?? '',
+        other.region === 'GT' ? other.value : '',
+        other.region === 'MX' ? other.value : '',
         p.extension ?? '',
         siteName(p.siteId) ?? '',
         // By name, not id — the importer matches teams by name, so an export
@@ -363,8 +397,9 @@ export default function SettingsPeoplePage() {
       ...name,
       legalName:     person.legalName ?? '',
       personalEmail: person.personalEmail ?? '',
-      phone:         person.phone ?? '',
-      phoneGt:       person.phoneGt ?? '',
+      phone:            person.phone ?? '',
+      phoneOther:       otherPhone(person).value,
+      phoneOtherRegion: otherPhone(person).region,
       extension:     person.extension ?? '',
       dateOfBirth:   person.dateOfBirth ?? '',
       startDate:     person.startDate ?? '',
@@ -399,8 +434,12 @@ export default function SettingsPeoplePage() {
       // digits in the row would show a number that is not on the record.
       const saved = {
         ...details,
-        phone:   normalizePhone(details.phone, 'US').value,
-        phoneGt: normalizePhone(details.phoneGt, 'GT').value,
+        phone:      normalizePhone(details.phone, 'US').value,
+        phoneOther: normalizePhone(details.phoneOther, details.phoneOtherRegion).value,
+        // Blanked on the row as well as on the record: the server clears the
+        // old field on every write, and a stale value left here would show
+        // through `otherPhone()` until the page was reloaded.
+        phoneGt:    '',
       };
       setPeople((prev) =>
         prev.map((p) => (p.email === person.email ? { ...p, ...saved, displayName } : p)),
@@ -813,8 +852,10 @@ They will be signed out immediately and cannot sign in until you restore them. T
                         </p>
                       )}
 
-                      {p.phoneGt && (
-                        <p className="text-xs text-gray-500 truncate">GT {p.phoneGt}</p>
+                      {otherPhone(p).value && (
+                        <p className="text-xs text-gray-500 truncate">
+                          {otherPhone(p).region} {otherPhone(p).value}
+                        </p>
                       )}
 
                       {/* Start date earns a line because it answers "how long
@@ -1056,17 +1097,28 @@ They will be signed out immediately and cannot sign in until you restore them. T
                             )}
                           </label>
                           <label className="text-xs text-gray-500">
-                            {PHONE_LABEL.GT}
-                            <input
-                              value={draft.phoneGt}
-                              onChange={(e) => setDraft((d) => ({ ...d, phoneGt: e.target.value }))}
-                              onBlur={tidyPhone('phoneGt', 'GT')}
-                              placeholder={PHONE_EXAMPLE.GT}
-                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                            />
-                            {phoneHint(draft.phoneGt, 'GT') && (
+                            {OTHER_PHONE_LABEL}
+                            <div className="mt-1 flex gap-2">
+                              <select
+                                value={draft.phoneOtherRegion}
+                                onChange={(e) => setOtherRegion(e.target.value as OtherPhoneRegion)}
+                                className="w-32 shrink-0 rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                              >
+                                {OTHER_PHONE_REGIONS.map((r) => (
+                                  <option key={r} value={r}>{PHONE_REGION_NAME[r]}</option>
+                                ))}
+                              </select>
+                              <input
+                                value={draft.phoneOther}
+                                onChange={(e) => setDraft((d) => ({ ...d, phoneOther: e.target.value }))}
+                                onBlur={tidyPhone('phoneOther', draft.phoneOtherRegion)}
+                                placeholder={PHONE_EXAMPLE[draft.phoneOtherRegion]}
+                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                              />
+                            </div>
+                            {phoneHint(draft.phoneOther, draft.phoneOtherRegion) && (
                               <span className="mt-1 block text-[11px] text-amber-700">
-                                {phoneHint(draft.phoneGt, 'GT')}
+                                {phoneHint(draft.phoneOther, draft.phoneOtherRegion)}
                               </span>
                             )}
                           </label>

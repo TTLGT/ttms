@@ -11,7 +11,7 @@ import { headerKey } from './csv';
 
 export type ColumnKey =
   | 'email' | 'firstName' | 'lastName' | 'legalName' | 'personalEmail'
-  | 'phone' | 'phoneGt' | 'extension' | 'site' | 'team'
+  | 'phone' | 'phoneGt' | 'phoneMx' | 'extension' | 'site' | 'team'
   | 'dateOfBirth' | 'startDate' | 'roles';
 
 /**
@@ -32,7 +32,13 @@ export const COLUMNS: { key: ColumnKey; label: string; aliases: string[] }[] = [
   { key: 'legalName',     label: 'Full legal name', aliases: ['legal name', 'name on payroll', 'payroll name', 'legal full name', 'name as on id', 'full legal name'] },
   { key: 'personalEmail', label: 'Personal email',  aliases: ['private email', 'personal email address', 'home email'] },
   { key: 'phone',         label: 'Work phone (US)', aliases: ['work phone', 'us phone', 'phone', 'phone us', 'mobile', 'cell'] },
+  // One column per country, even though the two write to the same field on the
+  // person (see lib/phone.ts). A spreadsheet has no room for a country picker,
+  // and the heading is what says which country the digits are — which matters
+  // most for Mexico, whose numbers are the same length as US ones. A row that
+  // fills both is refused rather than guessed at.
   { key: 'phoneGt',       label: 'Guatemala phone', aliases: ['gt phone', 'phone gt', 'guatemala', 'phone guatemala'] },
+  { key: 'phoneMx',       label: 'Mexico phone',    aliases: ['mx phone', 'phone mx', 'mexico', 'phone mexico', 'mexican phone'] },
   { key: 'extension',     label: 'Extension',       aliases: ['ext', 'desk extension'] },
   { key: 'site',          label: 'Site',            aliases: ['office', 'location'] },
   // Not aliased to "group" — that reads as a work group, which is a different

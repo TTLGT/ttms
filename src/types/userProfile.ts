@@ -1,4 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
+import type { OtherPhoneRegion } from '@/lib/phone';
 
 export interface UserProfile {
   uid: string;
@@ -21,6 +22,10 @@ export interface UserProfile {
   /** Contact details, mirrored from the allowlist entry on every sign-in. */
   /** US work number. */
   phone?: string;
+  /** The second number and its country — see AllowedUser.phoneOther. */
+  phoneOther?: string;
+  phoneOtherRegion?: OtherPhoneRegion;
+  /** Legacy, still mirrored so clearing it propagates. Read via otherPhone(). */
   phoneGt?: string;
   extension?: string;
   siteId?: string | null;

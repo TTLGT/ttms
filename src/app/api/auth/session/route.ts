@@ -7,6 +7,7 @@ import {
   normalizeEmail,
 } from '@/lib/accessControl';
 import { claimPendingAssignments } from '@/lib/pendingClaims';
+import { otherPhone } from '@/lib/phone';
 
 /**
  * Called by AuthContext immediately after Firebase sign-in.
@@ -75,6 +76,8 @@ export async function POST(req: NextRequest) {
   // for the next sign-in to overwrite it.
   const enteredName = [entry.firstName, entry.lastName].filter(Boolean).join(' ').trim();
 
+  const mirroredOther = otherPhone(entry);
+
   const profile = {
     uid,
     email,
@@ -82,7 +85,13 @@ export async function POST(req: NextRequest) {
     lastName:    entry.lastName ?? '',
     displayName: enteredName || entry.displayName || decoded.name || '',
     phone:       entry.phone ?? '',
-    phoneGt:     entry.phoneGt ?? '',
+    // Through the helper, so someone whose allowlist entry still holds the old
+    // `phoneGt` gets their number mirrored rather than a blank. The legacy
+    // field is mirrored as '' for the same reason it is cleared on write: two
+    // places holding the number is one place too many.
+    phoneOther:       mirroredOther.value,
+    phoneOtherRegion: mirroredOther.region,
+    phoneGt:          '',
     extension:   entry.extension ?? '',
     siteId:      entry.siteId ?? null,
     // Mirrored so the app can show who someone reports to without reading the

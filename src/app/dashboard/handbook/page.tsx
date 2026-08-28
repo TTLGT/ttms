@@ -434,10 +434,20 @@ const CHAPTERS: Chapter[] = [
           </li>
           <li>
             Phone numbers tidy themselves up as you tab out of the box: type a US number any way
-            you like and it is saved as <Mono>{PHONE_EXAMPLE.US}</Mono>, a Guatemala one as{' '}
-            <Mono>{PHONE_EXAMPLE.GT}</Mono>. One with the wrong count of digits turns the box
-            amber and is <strong>not saved</strong> — US needs 10 digits, Guatemala 8, and a desk
-            extension belongs in the Extension box rather than on the end of the number.
+            you like and it is saved as <Mono>{PHONE_EXAMPLE.US}</Mono>.
+          </li>
+          <li>
+            <strong>Other phone</strong> is their number in their home country. Pick the country
+            from the dropdown beside the box — Guatemala saves as{' '}
+            <Mono>{PHONE_EXAMPLE.GT}</Mono>, Mexico as <Mono>{PHONE_EXAMPLE.MX}</Mono>. Each
+            person has one of these, so pick the country that applies to them.
+          </li>
+          <li>
+            A number with the wrong count of digits turns the box amber and is{' '}
+            <strong>not saved</strong> — US and Mexican numbers need 10 digits, Guatemalan ones 8,
+            and a desk extension belongs in the Extension box rather than on the end of the
+            number. A Mexican number is the same length as a US one, so nothing can tell them
+            apart on its own: the box you type it in is what says which country it is.
           </li>
           <li>
             Pick their <strong>Site</strong> and <strong>Roles</strong>, then click{' '}
@@ -516,7 +526,7 @@ const CHAPTERS: Chapter[] = [
         <h3 className="pt-2 text-sm font-semibold text-gray-900">Changing their details later</h3>
         <p>
           The <strong>pencil</strong> icon on someone&rsquo;s row edits who they are: name, photo,
-          site, work phone, Guatemala phone, extension, personal email, start date and date of
+          site, work phone, other phone, extension, personal email, start date and date of
           birth. It is also the only place that can <strong>clear</strong> a field — for a whole
           list at once, use the spreadsheet below.
         </p>
@@ -569,7 +579,8 @@ const CHAPTERS: Chapter[] = [
             <Row cells={[<strong key="e">Email</strong>, <>Required, and what identifies the person. Must end in <Mono>@{ALLOWED_EMAIL_DOMAIN}</Mono>.</>]} />
             <Row cells={['First name, Last name', 'As you want them shown.']} />
             <Row cells={['Personal email', 'Any address. Admin-only.']} />
-            <Row cells={['Work phone (US), Guatemala phone', <>Typed however you like — all of <Mono key="a">4699354100</Mono>, <Mono>(469) 935-4100</Mono> and <Mono>+1 469-935-4100</Mono> save as <Mono>{PHONE_EXAMPLE.US}</Mono>. US needs 10 digits, Guatemala 8.</>]} />
+            <Row cells={['Work phone (US)', <>Typed however you like — all of <Mono key="a">4699354100</Mono>, <Mono>(469) 935-4100</Mono> and <Mono>+1 469-935-4100</Mono> save as <Mono>{PHONE_EXAMPLE.US}</Mono>. Needs 10 digits.</>]} />
+            <Row cells={['Guatemala phone, Mexico phone', <>Their home-country number. A spreadsheet has no dropdown, so there is a column per country and the <strong key="h">heading</strong> is what says which country the digits are. Fill in the one that applies and leave the other blank — a row with both is refused. Guatemala needs 8 digits, Mexico 10.</>]} />
             <Row cells={['Extension', <>Typed however you like. Keep it out of the phone columns — a number with an extension on the end has too many digits and is left out.</>]} />
             <Row cells={['Site', <>The site&rsquo;s <strong key="n">name</strong>, as it appears under Sites. Write <Mono>None</Mono> to clear it.</>]} />
             <Row cells={['Date of birth, Start date', <>Best as <Mono>1990-03-04</Mono>. <Mono>3/4/2020</Mono> and <Mono>Mar 4, 2020</Mono> also work.</>]} />

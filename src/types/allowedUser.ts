@@ -1,4 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
+import type { OtherPhoneRegion } from '@/lib/phone';
 
 /**
  * An entry in the sign-in allowlist, stored at `allowedUsers/{normalizedEmail}`.
@@ -27,7 +28,23 @@ export interface AllowedUser {
    * and renaming it would only buy a migration.
    */
   phone?: string;
-  /** Guatemala number, for the people who have one as well as the US line. */
+  /**
+   * The second number, for the people who have one as well as the US line —
+   * a Guatemala or Mexico line. One field, with `phoneOtherRegion` saying
+   * which country it is: see lib/phone.ts for why it is not a field per
+   * country, and why the country cannot be inferred from the digits.
+   */
+  phoneOther?: string;
+  /** 'GT' or 'MX'. Meaningless when `phoneOther` is blank. */
+  phoneOtherRegion?: OtherPhoneRegion;
+  /**
+   * Where the second number lived when Guatemala was the only option.
+   *
+   * Still read — through `otherPhone()` in lib/phone.ts, never directly — so
+   * entries nobody has re-saved keep showing their number without a database
+   * migration having to run first. Every write clears it. Do not read this
+   * field on its own; `otherPhone()` is the one place that knows both shapes.
+   */
   phoneGt?: string;
   /** Desk extension, kept apart from `phone` so it stays dialable on its own. */
   extension?: string;
@@ -122,7 +139,9 @@ export interface AllowedUserDetails {
   legalName: string;
   personalEmail: string;
   phone: string;
-  phoneGt: string;
+  /** The second number as typed; the region below says which country it is. */
+  phoneOther: string;
+  phoneOtherRegion: OtherPhoneRegion;
   extension: string;
   /** Both `YYYY-MM-DD`, or '' for not recorded. */
   dateOfBirth: string;

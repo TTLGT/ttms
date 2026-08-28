@@ -11,7 +11,14 @@ import {
   normalizeEmail,
 } from './accessControl';
 import { isCalendarDate } from '@/types/allowedUser';
-import { normalizePhone, phoneSkipMessage, type PhoneRegion } from './phone';
+import {
+  DEFAULT_OTHER_REGION,
+  PHONE_LABEL,
+  normalizePhone,
+  otherPhone,
+  phoneSkipMessage,
+  type OtherPhoneRegion,
+} from './phone';
 import {
   COLUMN_LABELS as LABELS,
   IGNORED_COLUMNS,
@@ -244,7 +251,11 @@ function parseRolesCell(raw: string): Roles | 'unrecognised' {
  * information, and the app shows it next to their name.
  */
 const MIRRORED_FIELDS = [
-  'firstName', 'lastName', 'displayName', 'phone', 'phoneGt', 'extension',
+  'firstName', 'lastName', 'displayName',
+  // `phoneGt` is mirrored even though nothing writes a value to it any more:
+  // it is written blank whenever the second number changes, and that blanking
+  // has to reach `users/{uid}` too or the old number would linger there.
+  'phone', 'phoneOther', 'phoneOtherRegion', 'phoneGt', 'extension',
   'siteId', 'teamId',
   'isAdmin', 'isDispatcher', 'isFinance', 'isHr',
 ] as const;
@@ -472,22 +483,58 @@ function planRow(
   // has a number, a bad cell leaves the good number alone. That is rule 1 —
   // the spreadsheet is a source of updates, not a replacement for the record.
   let phonesSkipped = 0;
-  const phoneFields: [ColumnKey, string, PhoneRegion][] = [
-    ['phone', 'phone', 'US'], ['phoneGt', 'phoneGt', 'GT'],
-  ];
-  for (const [column, field, region] of phoneFields) {
-    const raw = cell(row, column);
-    if (!raw) continue;
 
+  const rawUs = cell(row, 'phone');
+  if (rawUs) {
+    const { value, rejected } = normalizePhone(rawUs, 'US');
+    if (rejected) {
+      phonesSkipped++;
+      const message = phoneSkipMessage(rawUs, 'US', Boolean(existing?.phone));
+      notes.push(message);
+      problems.push({ column: 'phone', message });
+    } else {
+      set('phone', LABELS.phone, value);
+    }
+  }
+
+  // The second number is one field on the person and one column per country in
+  // the file, so the heading is what says which country the digits are. A row
+  // that fills both country columns is describing one field two ways, and
+  // there is no honest way to pick a winner — neither is taken, and the row is
+  // still applied, exactly as an unreadable number is.
+  const otherColumns: [ColumnKey, OtherPhoneRegion][] = [
+    ['phoneGt', 'GT'], ['phoneMx', 'MX'],
+  ];
+  const filledOther = otherColumns.filter(([column]) => cell(row, column));
+
+  if (filledOther.length > 1) {
+    phonesSkipped++;
+    const message =
+      'This row has a Guatemala number and a Mexico number. A person has one '
+      + 'second number, so neither was saved — leave the column that does not '
+      + 'apply blank.';
+    notes.push(message);
+    for (const [column] of filledOther) problems.push({ column, message });
+  } else if (filledOther.length === 1) {
+    const [column, region] = filledOther[0];
+    const raw = cell(row, column);
     const { value, rejected } = normalizePhone(raw, region);
     if (rejected) {
       phonesSkipped++;
-      const message = phoneSkipMessage(raw, region, Boolean(existing?.[field]));
+      const kept = Boolean(existing && otherPhone(existing).value);
+      const message = phoneSkipMessage(raw, region, kept);
       notes.push(message);
       problems.push({ column, message });
-      continue;
+    } else {
+      set('phoneOther', PHONE_LABEL[region], value);
+      // Written whenever the number is, never on its own: a region with no
+      // number behind it says nothing, and reporting it as a change would put
+      // "Guatemala phone" in the summary for a row that only moved a birthday.
+      if (patch.phoneOther !== undefined) patch.phoneOtherRegion = region;
+      // Clear where this number used to live, in the same write. Not reported
+      // as a change: to the admin this is one number, not two fields.
+      if (existing?.phoneGt) patch.phoneGt = '';
     }
-    set(field, LABELS[column], value);
   }
 
   // displayName is stored rather than derived, so it has to be recomputed from
@@ -650,9 +697,11 @@ async function applyPlan(plan: Plan, actor: Actor): Promise<void> {
       displayName:   '',
       personalEmail: '',
       legalName:     '',
-      phone:         '',
-      phoneGt:       '',
-      extension:     '',
+      phone:            '',
+      phoneOther:       '',
+      phoneOtherRegion: DEFAULT_OTHER_REGION,
+      phoneGt:          '',
+      extension:        '',
       dateOfBirth:   '',
       startDate:     '',
       photoPath:     null,

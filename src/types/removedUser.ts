@@ -1,3 +1,5 @@
+import type { OtherPhoneRegion } from '@/lib/phone';
+
 /**
  * A record of someone whose access was revoked, written to `removedUsers` at
  * the moment the allowlist entry is deleted.
@@ -35,6 +37,10 @@ export interface RemovedUser {
   /** Payroll name as of removal — see AllowedUser.legalName. */
   legalName?: string;
   phone?: string;
+  /** The second number and its country — see AllowedUser.phoneOther. */
+  phoneOther?: string;
+  phoneOtherRegion?: OtherPhoneRegion;
+  /** Legacy, on archives written before the field moved. Read via otherPhone(). */
   phoneGt?: string;
   extension?: string;
   dateOfBirth?: string;

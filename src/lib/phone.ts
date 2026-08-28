@@ -1,5 +1,5 @@
 /**
- * One canonical shape for the two phone numbers a person can have.
+ * One canonical shape for the phone numbers a person can have.
  *
  * Numbers used to be stored exactly as they were typed, which meant the same
  * line could sit in the directory three ways — `4699354100`, `(469) 935-4100`,
@@ -16,13 +16,40 @@
  * would be worse than a wrong one it let through, because the admin can see a
  * wrong number and fix it, and cannot see a number that was silently dropped.
  *
- * Both regions are deliberately kept to the shapes below and nothing else. If
- * a third country is ever added, add it to REGIONS and to the format switch —
- * do not start guessing the region from the digits, because a Guatemala number
- * typed into the US column is a mistake worth surfacing, not one to absorb.
+ * The region is always told to this file, never guessed from the digits. That
+ * was already deliberate — a Guatemala number typed into the US column is a
+ * mistake worth surfacing, not one to absorb — and Mexico makes it structural:
+ * Mexican and US numbers are **both ten digits**, so no amount of inspecting
+ * the digits could tell those two apart. The field a number was typed into is
+ * the only thing that says which country it is.
+ *
+ * If a fourth country is ever added, add it to REGIONS, to the format switch,
+ * and — if it is a second number rather than a work line — to
+ * OTHER_PHONE_REGIONS. Nothing else needs to know.
  */
 
-export type PhoneRegion = 'US' | 'GT';
+export type PhoneRegion = 'US' | 'GT' | 'MX';
+
+/**
+ * The countries the *second* number can be in.
+ *
+ * A person has a US work line, stored on its own, and at most one other
+ * number — their home-country line. That second number is one field with the
+ * country recorded beside it (`phoneOther` + `phoneOtherRegion`) rather than
+ * one field per country: a field per country would grow with every hire from
+ * somewhere new, and would leave everyone else with a row of empty boxes.
+ */
+export type OtherPhoneRegion = 'GT' | 'MX';
+
+/** The order the picker offers them in. */
+export const OTHER_PHONE_REGIONS: OtherPhoneRegion[] = ['GT', 'MX'];
+
+/**
+ * What the picker starts on for someone who has no second number yet.
+ * Guatemala only because it is the one the company has most of; it carries no
+ * other meaning, and a blank number is stored blank whatever this says.
+ */
+export const DEFAULT_OTHER_REGION: OtherPhoneRegion = 'GT';
 
 const REGIONS: Record<PhoneRegion, {
   /** Country calling code, without the `+`. */
@@ -34,6 +61,7 @@ const REGIONS: Record<PhoneRegion, {
 }> = {
   US: { code: '1',   nationalLength: 10, label: 'a 10-digit US number' },
   GT: { code: '502', nationalLength: 8,  label: 'an 8-digit Guatemala number' },
+  MX: { code: '52',  nationalLength: 10, label: 'a 10-digit Mexico number' },
 };
 
 export interface PhoneResult {
@@ -50,20 +78,48 @@ export interface PhoneResult {
 }
 
 /**
- * `+(469) 935-4100` for the US, `+(502) 4874-0227` for Guatemala.
+ * `+(469) 935-4100` for the US, `+(502) 4874-0227` for Guatemala,
+ * `+(52) 55 1234-5678` for Mexico.
  *
- * The two are not the same pattern and that is intentional: the US form puts
- * the *area* code in the brackets and drops the `1` entirely, the Guatemala
- * form puts the *country* code in them. This is the shape the office asked
- * for. Changing it here changes it everywhere, but it will not retroactively
+ * The US form is not the same pattern as the other two, and that is
+ * intentional: it puts the *area* code in the brackets and drops the `1`
+ * entirely, where the international forms put the *country* code in them.
+ * This is the shape the office asked for.
+ *
+ * Mexican grouping is presentation only, but it is not uniform: four area
+ * codes are two digits and every other one is three, so a flat 3-3-4 split
+ * would print a Mexico City number as `551 234-5678` — visibly wrong to the
+ * person whose number it is. The four are listed below and nothing else needs
+ * to know about them; the digits stored are the same either way.
+ *
+ * Changing any of this changes it everywhere, but it will not retroactively
  * restyle numbers already in Firestore — those take the next save or a
  * re-import of the exported list.
  */
+
+/**
+ * The Mexican area codes that are two digits rather than three: Mexico City
+ * (55 and 56), Guadalajara (33) and Monterrey (81). This is the whole list —
+ * it is fixed by the national numbering plan, not a sample.
+ */
+const MX_TWO_DIGIT_AREAS = ['55', '56', '33', '81'];
+
 function format(national: string, region: PhoneRegion): string {
-  if (region === 'US') {
-    return `+(${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}`;
+  switch (region) {
+    case 'US':
+      return `+(${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}`;
+    case 'MX': {
+      // `55 1234 5678` behind a two-digit area code, `998 123 4567` behind a
+      // three-digit one — the eight or seven digits left over are split the
+      // way they are written locally, not into fixed-width groups.
+      const area = MX_TWO_DIGIT_AREAS.includes(national.slice(0, 2)) ? 2 : 3;
+      const mid  = area === 2 ? 4 : 3;
+      return `+(52) ${national.slice(0, area)} ${national.slice(area, area + mid)}`
+        + `-${national.slice(area + mid)}`;
+    }
+    case 'GT':
+      return `+(502) ${national.slice(0, 4)}-${national.slice(4)}`;
   }
-  return `+(${REGIONS.GT.code}) ${national.slice(0, 4)}-${national.slice(4)}`;
 }
 
 /**
@@ -100,17 +156,84 @@ export function normalizePhone(value: unknown, region: PhoneRegion): PhoneResult
   return { value: format(digits, region), rejected: false, raw };
 }
 
-/** The label the forms, the importer and the handbook all use for each field. */
+/** The label the spreadsheet columns, the importer and the handbook all use. */
 export const PHONE_LABEL: Record<PhoneRegion, string> = {
   US: 'Work phone (US)',
   GT: 'Guatemala phone',
+  MX: 'Mexico phone',
+};
+
+/**
+ * What the second number's box is called on the forms, where the country sits
+ * in a picker beside it rather than in the label. The per-country labels above
+ * are still what the spreadsheet columns and the importer's messages use — a
+ * file has one column per country, so there the country *is* the heading.
+ */
+export const OTHER_PHONE_LABEL = 'Other phone';
+
+/** The country names the picker shows. */
+export const PHONE_REGION_NAME: Record<PhoneRegion, string> = {
+  US: 'United States',
+  GT: 'Guatemala',
+  MX: 'Mexico',
 };
 
 /** An example of the accepted shape, for placeholders and error messages. */
 export const PHONE_EXAMPLE: Record<PhoneRegion, string> = {
   US: '+(469) 935-4100',
   GT: '+(502) 4874-0227',
+  MX: '+(52) 55 1234-5678',
 };
+
+/** The country code a region's stored numbers carry, without the `+`. */
+export const PHONE_COUNTRY_CODE: Record<PhoneRegion, string> = {
+  US: '1',
+  GT: '502',
+  MX: '52',
+};
+
+/** How many digits a region's number has once its country code is off. */
+export const PHONE_NATIONAL_LENGTH: Record<PhoneRegion, number> = {
+  US: 10,
+  GT: 8,
+  MX: 10,
+};
+
+/** Narrow an unknown — a Firestore field, a request body — to a real region. */
+export function isOtherPhoneRegion(value: unknown): value is OtherPhoneRegion {
+  return value === 'GT' || value === 'MX';
+}
+
+/**
+ * The second number and the country it belongs to, read off any record that
+ * carries one — an allowlist entry, a profile, a removed-user archive.
+ *
+ * Everything that reads that number goes through here because of `phoneGt`,
+ * the field it used to live in when Guatemala was the only option. Entries
+ * saved since hold `phoneOther` + `phoneOtherRegion`; entries nobody has
+ * touched still hold the old field, and reading both is why the change needed
+ * no database migration in order to be correct.
+ * `scripts/migrate-phone-other.js` moves the stragglers across when someone is
+ * ready to run it — this reads either shape before that and after it.
+ *
+ * Every write clears `phoneGt` in the same operation, so a record never holds
+ * two answers and a number that was deliberately emptied cannot be brought
+ * back by the old field.
+ */
+export function otherPhone(record: {
+  phoneOther?: string | null;
+  phoneOtherRegion?: string | null;
+  phoneGt?: string | null;
+}): { value: string; region: OtherPhoneRegion } {
+  const current = (record.phoneOther ?? '').trim();
+  const legacy  = (record.phoneGt ?? '').trim();
+  return {
+    value: current || legacy,
+    // A legacy number has no region field and needs none: Guatemala was the
+    // only country that field could hold.
+    region: isOtherPhoneRegion(record.phoneOtherRegion) ? record.phoneOtherRegion : 'GT',
+  };
+}
 
 /**
  * The one-line warning to show under a field while it holds something that
