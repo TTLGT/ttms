@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { listOrders } from '@/lib/orders';
 import type { Order, OrderStatus } from '@/types/order';
+import { orderDisplayNumber } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
 import ResizableTh from '@/components/table/ResizableTh';
 import { useColumnWidths, type ColumnWidths } from '@/lib/useColumnWidths';
@@ -179,7 +180,7 @@ export default function OrdersPage() {
                     column reveals more of it; short fixed values truncate.
                   */}
                   <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700 break-words">
-                    {order.orderNumber}
+                    {orderDisplayNumber(order)}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-800 break-words">{order.clientName || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 break-words">{order.shipperName || '—'}</td>

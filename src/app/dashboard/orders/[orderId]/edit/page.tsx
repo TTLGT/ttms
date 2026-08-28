@@ -13,7 +13,7 @@ import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
-import { commoditySummary, orderCommodityItems, totalPieces, totalWeightLb } from '@/types/order';
+import { commoditySummary, orderCommodityItems, totalPieces, totalWeightLb, orderDisplayNumber } from '@/types/order';
 import type { Order, Address, CommodityItem } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import LeadSourceField from '@/components/orders/LeadSourceField';
@@ -211,10 +211,10 @@ export default function EditOrderPage() {
     <div className="p-8 max-w-7xl">
       <div className="mb-6">
         <Link href={`/dashboard/orders/${orderId}`} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-2">
-          ← Back to {order.orderNumber}
+          ← Back to {orderDisplayNumber(order)}
         </Link>
         <h1 className="text-2xl font-bold text-gray-900">Edit Order</h1>
-        <p className="text-sm text-gray-500 mt-0.5 font-mono">{order.orderNumber}</p>
+        <p className="text-sm text-gray-500 mt-0.5 font-mono">{orderDisplayNumber(order)}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_20rem] gap-6 items-start">

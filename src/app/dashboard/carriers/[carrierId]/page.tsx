@@ -9,6 +9,7 @@ import PersonNameFields from '@/components/PersonNameFields';
 import { listOrders } from '@/lib/orders';
 import type { Carrier } from '@/types/carrier';
 import type { Order } from '@/types/order';
+import { orderDisplayNumber } from '@/types/order';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
 import StatusBadge from '@/components/orders/StatusBadge';
 
@@ -444,7 +445,7 @@ export default function CarrierDetailPage() {
                 <tbody className="divide-y divide-gray-100">
                   {orders.map((o) => (
                     <tr key={o.id} className="hover:bg-gray-50 transition">
-                      <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700">{o.orderNumber}</td>
+                      <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700">{orderDisplayNumber(o)}</td>
                       <td className="px-4 py-3 text-sm text-gray-700">{o.shipperName || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {o.origin?.city}, {o.origin?.state} → {o.destination?.city}, {o.destination?.state}

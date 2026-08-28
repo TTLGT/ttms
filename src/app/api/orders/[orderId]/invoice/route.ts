@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, adminStorage, requirePermission, requireCompanyUser, AdminAuthError } from '@/lib/firebase-admin';
 import { generateInvoiceBuffer } from '@/lib/invoice-pdf';
 import type { InvoiceData } from '@/lib/invoice-pdf';
+import { orderDisplayNumber } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -35,7 +36,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const order = orderSnap.data()!;
 
   const data: InvoiceData = {
-    invoiceNumber:     order.orderNumber          ?? '',
+    // The number the load is known by, which for a BATS-era order is its BATS
+    // id — see orderDisplayNumber(). A document must carry what the carrier
+    // and the client already have on file for this load.
+    invoiceNumber:     orderDisplayNumber(order),
     invoiceDate:       new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     clientName:       order.clientName    ?? '',
     consigneeName:    order.consigneeName ?? '',

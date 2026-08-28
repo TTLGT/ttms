@@ -20,7 +20,7 @@ import type { Carrier } from '@/types/carrier';
 import type { OrderAlert } from '@/lib/alerts';
 import type { LucideIcon } from 'lucide-react';
 import { getInsuranceStatus } from '@/types/carrier';
-import { STATUS_LABEL } from '@/types/order';
+import { STATUS_LABEL, orderDisplayNumber } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
 import AlertPanel from '@/components/orders/AlertPanel';
 
@@ -77,7 +77,7 @@ function orderToItem(o: Order, badge?: string): TooltipItem {
   const route = [from, to].filter(Boolean).join(' → ');
   return {
     id: o.id,
-    label: o.orderNumber,
+    label: orderDisplayNumber(o),
     sub: [route, o.shipperName].filter(Boolean).join(' • '),
     badge,
     href: `/dashboard/orders/${o.id}`,
@@ -479,7 +479,7 @@ export default function DashboardPage() {
               <tbody className="divide-y divide-gray-100">
                 {recentOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50 transition">
-                    <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700">{order.orderNumber}</td>
+                    <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700">{orderDisplayNumber(order)}</td>
                     <td className="px-4 py-3 text-sm text-gray-800">{order.shipperName || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
                       {order.origin?.city}, {order.origin?.state}

@@ -11,18 +11,34 @@ import type { OwnerEvent } from '@/types/ownerEvent';
 
 const COL = 'orders';
 
-function generateOrderNumber(): string {
-  const year = new Date().getFullYear();
-  const rand = String(Math.floor(1000 + Math.random() * 9000));
-  return `TTL-${year}-${rand}`;
+/**
+ * Draws the next number in the sequence. See src/lib/orderNumber.ts for the
+ * format and why the counter lives server-side.
+ *
+ * The number used to be four random digits generated here. With 9,000 of them
+ * and no check for one already in use, two loads sharing a number was a matter
+ * of a few hundred orders, and nothing about the number said which came first.
+ */
+async function nextOrderNumber(): Promise<string> {
+  const res = await fetch('/api/orders/number', {
+    method: 'POST',
+    headers: await authHeaders(),
+  });
+  const { orderNumber } = await unwrap<{ orderNumber: string }>(res);
+  return orderNumber;
 }
 
 export async function createOrder(
   data: Omit<Order, 'id' | 'orderNumber' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
+  // Drawn first, and the save is abandoned if it fails. An order written
+  // without a number, or with a guessed one, would be worse than no order:
+  // the number is the load's identity on every document that leaves here.
+  const orderNumber = await nextOrderNumber();
+
   const ref = await addDoc(collection(db, COL), {
     ...data,
-    orderNumber: generateOrderNumber(),
+    orderNumber,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

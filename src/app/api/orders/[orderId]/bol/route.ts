@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, adminStorage, requirePermission, requireCompanyUser, AdminAuthError } from '@/lib/firebase-admin';
 import { generateBolBuffer } from '@/lib/bol-pdf';
 import type { BolData } from '@/lib/bol-pdf';
-import { formatDimensions, itemWeightLb, orderCommodityItems } from '@/types/order';
+import { formatDimensions, itemWeightLb, orderCommodityItems, orderDisplayNumber } from '@/types/order';
 import type { Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -54,7 +54,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   ]);
 
   const data: BolData = {
-    orderNumber:      order.orderNumber        ?? '',
+    // The number the load is known by, which for a BATS-era order is its BATS
+    // id — see orderDisplayNumber(). A document must carry what the carrier
+    // and the client already have on file for this load.
+    orderNumber:      orderDisplayNumber(order),
     clientName:       order.clientName         ?? '',
     shipperName:      order.shipperName        ?? '',
     shipperPhone,

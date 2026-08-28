@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { listOrders } from '@/lib/orders';
 import { DownloadLink } from '@/components/orders/DocumentUpload';
 import type { Order } from '@/types/order';
+import { orderDisplayNumber, orderAltNumber } from '@/types/order';
 
 type DocType = 'bol' | 'invoice' | 'pod' | 'driver_license';
 type FilterType = 'all' | DocType;
@@ -12,6 +13,7 @@ type FilterType = 'all' | DocType;
 interface DocRow {
   orderId: string;
   orderNumber: string;
+  altNumber: string | null;
   shipperName: string;
   docType: DocType;
   storagePath: string;
@@ -41,7 +43,15 @@ const DOWNLOAD_LABEL: Record<DocType, string> = {
 function buildRows(orders: Order[]): DocRow[] {
   const rows: DocRow[] = [];
   for (const o of orders) {
-    const base = { orderId: o.id, orderNumber: o.orderNumber, shipperName: o.shipperName };
+    // Both numbers go into the row so the search box finds a load by either
+    // one. Staff still search BATS ids out of habit, and a TTMS number is what
+    // a newer document is filed under.
+    const base = {
+      orderId:     o.id,
+      orderNumber: orderDisplayNumber(o),
+      altNumber:   orderAltNumber(o),
+      shipperName: o.shipperName,
+    };
     if (o.bolStoragePath)            rows.push({ ...base, docType: 'bol',            storagePath: o.bolStoragePath });
     if (o.invoiceStoragePath)        rows.push({ ...base, docType: 'invoice',        storagePath: o.invoiceStoragePath });
     if (o.podStoragePath)            rows.push({ ...base, docType: 'pod',            storagePath: o.podStoragePath });
@@ -75,7 +85,9 @@ export default function DocumentsPage() {
     if (filter !== 'all' && r.docType !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
-      return r.orderNumber.toLowerCase().includes(q) || r.shipperName.toLowerCase().includes(q);
+      return r.orderNumber.toLowerCase().includes(q)
+        || (r.altNumber ?? '').toLowerCase().includes(q)
+        || r.shipperName.toLowerCase().includes(q);
     }
     return true;
   });

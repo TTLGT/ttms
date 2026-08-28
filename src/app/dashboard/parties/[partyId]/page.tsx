@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { partyDisplayName, PARTY_ROLES, ROLE_LABEL, BLANK_ADDRESS } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
 import type { Address, Order } from '@/types/order';
+import { orderDisplayNumber } from '@/types/order';
 import type { UserProfile } from '@/types/userProfile';
 import type { WorkGroup } from '@/types/workGroup';
 import StatusBadge from '@/components/orders/StatusBadge';
@@ -449,7 +450,7 @@ export default function PartyDetailPage() {
             <tbody className="divide-y divide-gray-100">
               {orders.map((o) => (
                 <tr key={o.id} className="hover:bg-gray-50 transition">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{o.orderNumber}</td>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{orderDisplayNumber(o)}</td>
                   <td className="px-4 py-3">
                     <span className="flex gap-1">
                       {rolesOnOrder(o, partyId).map((r) => (

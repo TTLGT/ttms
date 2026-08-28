@@ -336,6 +336,10 @@ const PRESERVE = {
     // own it. clientOwnerUids/clientOwnerGroupIds are deliberately absent: they
     // mirror the client party and must move when the client changes hands.
     'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
+    // orderNumber is deliberately NOT here. PRESERVE forces the stored value
+    // unconditionally, which would pin a historical order to the BATS id it
+    // arrived with and make retroactive numbering impossible. It needs the
+    // conditional treatment in RECONCILE instead.
   ],
   carriers: [
     'insuranceExpiration', 'insuranceProvider', 'insurancePolicyNumber',
@@ -405,11 +409,31 @@ function preferExisting(prior, incoming) {
 }
 
 /** Fields needing a comparison rather than a straight "existing value wins". */
+/**
+ * An order number, once issued, is permanent.
+ *
+ * A stored number that came from the sequence wins over anything an import
+ * computes -- it is printed on rate confirmations, BOLs and invoices that have
+ * left the building, and a load the carrier calls TTL26000042 must not become
+ * something else here. A stored number that is *not* from the sequence is a
+ * BATS id or a pre-sequence random number, and gives way to the real one that
+ * assignOrderNumbers() worked out; that is what makes historical orders
+ * numberable at all.
+ */
+function keepIssuedNumber(prior, incoming) {
+  if (typeof prior === 'string' && parseOrderNumber(prior)) return prior;
+  return incoming || prior || null;
+}
+
 const RECONCILE = {
   orders: {
     status:        reconcileStatus,
     parentOrderId: preferExisting,
     sourceId:      preferExisting,
+    orderNumber:   keepIssuedNumber,
+    // Whatever the order was called first is what is worth keeping, so an
+    // existing value always wins over one this run worked out.
+    previousOrderNumber: preferExisting,
   },
 };
 
@@ -1010,6 +1034,99 @@ async function importCustomers() {
 //   Created,CustomerName,CustomerPhone,CustomerEmail,Vehicles,Origin,Destination,
 //   FirstAvailablePickup,TransportType,TotalTariff,TotalCarrierFee,TotalBrokerFee,
 //   AssignedTo,SourceName,Dispatched,PickedUp,Delivered,AssignedPickup,AssignedDelivery
+const SEQ_DIGITS = 6;
+
+/**
+ * The order-number format.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ⚠️  KEEP IN SYNC with src/lib/orderNumber.ts and the mirror in
+ * scripts/backfill-order-numbers.js. A plain node script cannot import
+ * TypeScript, so the format lives in three places on purpose.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+function formatOrderNumber(year, seq) {
+  return 'TTL' + (year - 2000) + String(seq).padStart(SEQ_DIGITS, '0');
+}
+
+function parseOrderNumber(value) {
+  const m = /^TTL(\d+)(\d{6})$/.exec(String(value == null ? '' : value));
+  if (!m) return null;
+  return { year: 2000 + Number(m[1]), seq: Number(m[2]) };
+}
+
+/**
+ * Reserves a block of consecutive numbers in one transaction.
+ *
+ * One transaction per order would mean thousands of sequential round trips
+ * against a single counter document -- past what Firestore sustains on one
+ * document, and slow enough to time a big import out. Moving the counter by
+ * the whole batch costs the same as moving it by one.
+ */
+async function reserveOrderNumbers(year, count) {
+  const ref = db.collection('counters').doc('orderNumber-' + year);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const last = snap.exists ? Number(snap.data().last) : 0;
+    const from = (Number.isFinite(last) ? last : 0) + 1;
+    tx.set(ref, { year, last: from + count - 1, updatedAt: Timestamp.now() }, { merge: true });
+    return from;
+  });
+}
+
+/**
+ * Gives every order in the run its TTMS order number.
+ *
+ * An order already carrying a sequence number keeps it, always. A number goes
+ * onto paperwork the moment the rate confirmation is sent, so reissuing one
+ * would mean the load in the TMS and the load in the carrier's file no longer
+ * agree. That check is what makes the import safe to re-run.
+ *
+ * Everything else -- a genuinely new row, or a historical order still carrying
+ * its BATS id -- is numbered in creation order within its own year, so the
+ * numbers reflect the sequence the loads were actually booked in rather than
+ * the order the CSV happens to list them. `createdAt` is the BATS order date
+ * (column 7), which is why this can be done at all.
+ *
+ * BATS ids break the ties. Many exported rows carry a date with no time, so a
+ * busy day arrives as a block of identical timestamps; the BATS id is itself
+ * sequential, so it puts that block back into the order the loads were taken.
+ */
+async function assignOrderNumbers(records, existingNumbers) {
+  const needing = [];
+
+  for (const rec of records) {
+    const stored = existingNumbers.get(`bats-${rec.batsId}`);
+    if (stored && parseOrderNumber(stored)) {
+      rec.orderNumber = stored;
+    } else {
+      // The old number is kept so a load stays findable by what staff called
+      // it for the last decade. Set only on the first numbering.
+      if (stored) rec.previousOrderNumber = stored;
+      needing.push(rec);
+    }
+  }
+  if (needing.length === 0) return;
+
+  const byYear = new Map();
+  for (const rec of needing) {
+    const year = rec.createdAt.toDate().getFullYear();
+    const group = byYear.get(year) || [];
+    group.push(rec);
+    byYear.set(year, group);
+  }
+
+  for (const [year, group] of [...byYear.entries()].sort((a, b) => a[0] - b[0])) {
+    group.sort((a, b) => {
+      const at = a.createdAt.toMillis(), bt = b.createdAt.toMillis();
+      if (at !== bt) return at - bt;
+      return Number(a.batsId) - Number(b.batsId);
+    });
+    const from = await reserveOrderNumbers(year, group.length);
+    group.forEach((rec, i) => { rec.orderNumber = formatOrderNumber(year, from + i); });
+  }
+}
+
 async function importOrders() {
   const files = findCSV('orders-export');
   console.log(`\nOrders: ${files.length} file(s)`);
@@ -1076,7 +1193,9 @@ async function importOrders() {
 
       seen.set(batsId, {
         batsId,
-        orderNumber:              batsId,
+        // orderNumber is not set from the CSV. BATS's id is kept in `batsId`,
+        // and the order gets a TTMS sequence number from assignOrderNumbers()
+        // below, once the whole run can be put in date order.
         status:                   mapOrderStatus(str(r[5])),
         clientId,
         clientName,
@@ -1167,8 +1286,17 @@ async function importOrders() {
   }
 
   // Which orders are new has to be settled before batchWrite runs, so the
-  // opening history goes only to records that did not already exist.
-  const existingIds = new Set((await db.collection('orders').select().get()).docs.map((d) => d.id));
+  // opening history goes only to records that did not already exist. The
+  // stored order number is read in the same pass -- see assignOrderNumbers().
+  const existingNumbers = new Map();
+  const existingIds     = new Set();
+  (await db.collection('orders').select('orderNumber').get()).docs.forEach((d) => {
+    existingIds.add(d.id);
+    const n = d.get('orderNumber');
+    if (typeof n === 'string' && n) existingNumbers.set(d.id, n);
+  });
+
+  await assignOrderNumbers(records, existingNumbers);
   const opened = records
     .filter((o) => !existingIds.has(`bats-${o.batsId}`))
     .map((o) => ({

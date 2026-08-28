@@ -1,4 +1,5 @@
 import { Timestamp } from 'firebase-admin/firestore';
+import { formatOrderNumber, parseOrderNumber, reserveOrderNumbers } from './orderNumber';
 import { createHash } from 'crypto';
 import { adminDb } from './firebase-admin';
 import { parseCsv } from './csv';
@@ -285,6 +286,10 @@ const PRESERVE: Record<ImportCollection, string[]> = {
     // absent: they are a mirror of the client party and must be free to move
     // when the client changes hands.
     'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
+    // orderNumber is deliberately NOT here. PRESERVE forces the stored value
+    // unconditionally, which would pin a historical order to the BATS id it
+    // arrived with and make retroactive numbering impossible. It needs the
+    // conditional treatment in RECONCILE instead.
   ],
   carriers: [
     'insuranceExpiration', 'insuranceProvider', 'insurancePolicyNumber',
@@ -334,12 +339,32 @@ function preferExisting(prior: unknown, incoming: unknown): unknown {
   return prior || incoming || null;
 }
 
+/**
+ * An order number, once issued, is permanent.
+ *
+ * A stored number that came from the sequence wins over anything an import
+ * computes — it is printed on rate confirmations, BOLs and invoices that have
+ * left the building, and a load the carrier calls TTL26000042 must not become
+ * something else here. A stored number that is *not* from the sequence is a
+ * BATS id or a pre-sequence random number, and gives way to the real one that
+ * assignOrderNumbers() worked out; that is what makes historical orders
+ * numberable at all.
+ */
+function keepIssuedNumber(prior: unknown, incoming: unknown): unknown {
+  if (typeof prior === 'string' && parseOrderNumber(prior)) return prior;
+  return incoming || prior || null;
+}
+
 /** Fields needing a comparison rather than a straight "existing value wins". */
 const RECONCILE: Partial<Record<ImportCollection, Record<string, (p: unknown, i: unknown) => unknown>>> = {
   orders: {
     status:        reconcileStatus,
     parentOrderId: preferExisting,
     sourceId:      preferExisting,
+    orderNumber:   keepIssuedNumber,
+    // Whatever the order was called first is what is worth keeping, so an
+    // existing value always wins over one this run worked out.
+    previousOrderNumber: preferExisting,
   },
 };
 
@@ -759,6 +784,70 @@ export async function importCustomersCSV(text: string): Promise<ImportResult> {
   return { ...result, owners: tally.report() };
 }
 
+/**
+ * Gives every order in the run its TTMS order number.
+ *
+ * An order already carrying a sequence number keeps it, always. A number goes
+ * onto paperwork the moment the rate confirmation is sent, so reissuing one
+ * would mean the load in the TMS and the load in the carrier's file no longer
+ * agree. That check is what makes the import safe to re-run.
+ *
+ * Everything else — a genuinely new row, or a historical order still carrying
+ * its BATS id — is numbered in creation order within its own year, so the
+ * numbers reflect the sequence the loads were actually booked in rather than
+ * the order the CSV happens to list them. `createdAt` is the BATS order date
+ * (column 7), which is why this can be done at all.
+ *
+ * BATS ids break the ties. Many exported rows carry a date with no time, so a
+ * busy day arrives as a block of identical timestamps; the BATS id is itself
+ * sequential, so it puts that block back into the order the loads were taken.
+ */
+async function assignOrderNumbers(
+  records: Record<string, unknown>[],
+  existingNumbers: Map<string, string>,
+): Promise<void> {
+  const needing: Record<string, unknown>[] = [];
+
+  for (const rec of records) {
+    const stored = existingNumbers.get(`bats-${rec.batsId}`);
+    if (stored && parseOrderNumber(stored)) {
+      rec.orderNumber = stored;
+    } else {
+      // The BATS id is kept so it stays findable by the number staff used for
+      // the last decade. Set only on the first numbering, never overwritten.
+      if (stored) rec.previousOrderNumber = stored;
+      needing.push(rec);
+    }
+  }
+  if (needing.length === 0) return;
+
+  const byYear = new Map<number, Record<string, unknown>[]>();
+  for (const rec of needing) {
+    const created = rec.createdAt as Timestamp;
+    const year = created.toDate().getFullYear();
+    const group = byYear.get(year) ?? [];
+    group.push(rec);
+    byYear.set(year, group);
+  }
+
+  for (const [year, group] of [...byYear.entries()].sort((a, b) => a[0] - b[0])) {
+    group.sort(byCreationOrder);
+    // One reservation for the whole year rather than one per order: the
+    // counter is a single document, and thousands of sequential transactions
+    // against it would outrun what Firestore sustains on one.
+    const from = await reserveOrderNumbers(year, group.length);
+    group.forEach((rec, i) => { rec.orderNumber = formatOrderNumber(year, from + i); });
+  }
+}
+
+/** Oldest first, with the BATS id settling same-day ties. */
+function byCreationOrder(a: Record<string, unknown>, b: Record<string, unknown>): number {
+  const at = (a.createdAt as Timestamp).toMillis();
+  const bt = (b.createdAt as Timestamp).toMillis();
+  if (at !== bt) return at - bt;
+  return Number(a.batsId) - Number(b.batsId);
+}
+
 // ── Orders ──────────────────────────────────────────────────────────────────
 // Cols: Id,IsDuplicate,DuplicateId,OrderType,MasterOrderId,Status,SecondaryStatus,
 //   Created,CustomerName,CustomerPhone,CustomerEmail,Vehicles,Origin,Destination,
@@ -825,7 +914,9 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
 
       seen.set(batsId, {
         batsId,
-        orderNumber:               batsId,
+        // orderNumber is not set from the CSV. BATS's id is kept in `batsId`,
+        // and the order gets a TTMS sequence number from assignOrderNumbers()
+        // below, once the whole run can be put in date order.
         status:                    mapOrderStatus(str(r[5])),
         clientId,
         clientName,
@@ -916,10 +1007,18 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
   }
 
   // Which orders are new has to be settled before batchWrite runs, so the
-  // opening history goes only to records that did not already exist.
-  const existingIds = new Set(
-    (await adminDb.collection('orders').select().get()).docs.map((d) => d.id),
-  );
+  // opening history goes only to records that did not already exist. The
+  // stored order number is read in the same pass — see assignOrderNumbers().
+  const existingNumbers = new Map<string, string>();
+  const existingIds     = new Set<string>();
+  (await adminDb.collection('orders').select('orderNumber').get()).docs.forEach((d) => {
+    existingIds.add(d.id);
+    const n = d.get('orderNumber');
+    if (typeof n === 'string' && n) existingNumbers.set(d.id, n);
+  });
+
+  await assignOrderNumbers(records, existingNumbers);
+
   const opened = records
     .filter((o) => !existingIds.has(`bats-${o.batsId}`))
     .map((o) => ({

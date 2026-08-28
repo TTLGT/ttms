@@ -19,6 +19,8 @@ import {
   isRoutableAddress,
   laneMilesCaption,
   laneMilesLabel,
+  orderDisplayNumber,
+  orderAltNumber,
 } from '@/types/order';
 import { fetchLaneDistance } from '@/lib/routeDistanceClient';
 import StatusBadge from '@/components/orders/StatusBadge';
@@ -92,7 +94,7 @@ function lastDriverForCarrier(
     driverName:  prev.driverName ?? '',
     driverPhone: prev.driverPhone ?? '',
     driverLicenseStoragePath: prev.driverLicenseStoragePath ?? null,
-    sourceOrderNumber: prev.orderNumber ?? '',
+    sourceOrderNumber: orderDisplayNumber(prev),
   };
 }
 
@@ -592,7 +594,7 @@ export default function OrderDetailPage() {
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl font-bold text-gray-900 font-mono">{order.orderNumber}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 font-mono">{orderDisplayNumber(order)}</h1>
             <StatusBadge status={order.status} />
             {order.parentOrderId && (
               <Link href={`/dashboard/orders/${order.parentOrderId}`} className="text-xs text-gray-400 hover:text-brand-600">
@@ -601,6 +603,15 @@ export default function OrderDetailPage() {
             )}
           </div>
           <p className="text-sm text-gray-500">{order.clientName || order.shipperName} — {order.commodity}</p>
+          {/* The load's other number, under the one it is known by. A BATS
+              load leads with its BATS id and carries its TTMS number here; a
+              TTMS load that predates the sequence carries the random number it
+              used to have. See orderDisplayNumber(). */}
+          {orderAltNumber(order) && (
+            <p className="text-xs text-gray-400 mt-1 font-mono">
+              {order.batsId ? 'TTMS ' : 'previously '}{orderAltNumber(order)}
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           <Link href={`/dashboard/orders/${orderId}/edit`}
@@ -1146,7 +1157,7 @@ export default function OrderDetailPage() {
                 <tbody className="divide-y divide-gray-100">
                   {suborders.map((sub) => (
                     <tr key={sub.id} className="hover:bg-gray-50 transition">
-                      <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700">{sub.orderNumber}</td>
+                      <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700">{orderDisplayNumber(sub)}</td>
                       <td className="px-4 py-3"><StatusBadge status={sub.status} /></td>
                       <td className="px-4 py-3 text-sm text-gray-600">{sub.carrierName || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{formatDate(sub.pickupDate as { toDate: () => Date } | null)}</td>

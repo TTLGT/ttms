@@ -3,7 +3,7 @@ import { adminDb, requirePermission, AdminAuthError } from '@/lib/firebase-admin
 import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
 import { randomBytes } from 'crypto';
-import { dimensionsSummary, orderCommodityItems } from '@/types/order';
+import { dimensionsSummary, orderCommodityItems, orderDisplayNumber } from '@/types/order';
 import type { Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -77,7 +77,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     usedAt:       null,
     signerName:   null,
     signerIp:     null,
-    orderNumber:  order.orderNumber,
+    // What the carrier and client already have on file for this load — a
+    // BATS-era order goes out under its BATS id. See orderDisplayNumber().
+    orderNumber:  orderDisplayNumber(order),
     commodity:    order.commodity   || '',
     weight:       order.weight      || 0,
     pieces:       order.pieces      || 0,
@@ -100,11 +102,11 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   await resend.emails.send({
     from:    `TTL Dispatch <${process.env.RESEND_FROM_EMAIL ?? 'noreply@totaltransportlogistics.us'}>`,
     to:      contact.email,
-    subject: `Load Confirmation — ${order.orderNumber}`,
+    subject: `Load Confirmation — ${orderDisplayNumber(order)}`,
     html:    buildEmailHtml({
       shipperName:  shipper.companyName || shipper.contactName,
       contactName:  contact.name || shipper.companyName,
-      orderNumber:  order.orderNumber,
+      orderNumber:  orderDisplayNumber(order),
       originStr,
       destinationStr,
       commodity:    order.commodity || '—',

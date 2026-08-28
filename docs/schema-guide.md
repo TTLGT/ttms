@@ -77,7 +77,8 @@ Top-level freight order. A single client request. May be split into one or more 
 ```
 orders/{orderId}
   id              : string
-  orderNumber     : string          // human-readable, e.g. "TTL-2026-0042"
+  orderNumber     : string          // human-readable, sequential — see below, e.g. "TTL26000042"
+  previousOrderNumber : string | null  // what it was called before numbering: BATS id, or "TTL-2026-4821"
   shipperId       : string          // → shippers/{shipperId}
   parentOrderId   : string | null   // null = primary order; set = suborder
   status          : OrderStatus
@@ -104,6 +105,92 @@ orders/{orderId}
   createdAt       : Timestamp
   updatedAt       : Timestamp
 ```
+
+### `orderNumber`
+
+`TTL`, the year counted from 2000, then a six-digit sequence, zero-padded:
+`TTL26000042`. The sequence restarts at 1 each January.
+
+Because the year comes first and the sequence is a fixed width, sorting the
+numbers as plain text puts them in creation order, across a year boundary
+included — so a list can be ordered by order number with no extra field and no
+parsing. Nothing in the code takes the number apart; treat it as opaque
+outside `src/lib/orderNumber.ts`.
+
+The `TTL` prefix earns its place on the carrier's side, where the number sits
+among PO numbers, pro numbers and load numbers from every other broker they
+haul for. It also keeps the value text rather than digits, so a spreadsheet
+cannot reformat it into `2,026,000,042`.
+
+The year is counted from 2000 rather than written out — 2026 is `26`. In 2100
+it becomes `100` and the number grows a character rather than wrapping back to
+`00` and colliding with 2000; the first load of 2100 is `TTL100000001`.
+
+That century roll is the one place the plain-text sort gives out, since `100`
+sorts ahead of `26` on the first character. Orders within a century still sort
+correctly among themselves, and `createdAt` is on every order for a true
+chronological sort.
+
+The sequence lives in `counters/orderNumber-{year}` (`{ year, last, updatedAt }`)
+and is advanced by a Firestore transaction in `/api/orders/number`. It has to
+be a stored counter rather than "one past the highest number so far": that
+query is one two brokers pressing Save in the same second can both answer with
+the same value. The counter is **closed to the client SDK** — a client that
+could write it could wind it back and put a number already printed on a rate
+confirmation onto a second load.
+
+A number is spent when it is drawn, so a save that fails afterwards leaves a
+**gap in the sequence**. That is deliberate: reissuing the number would let two
+loads carry one number across rate confirmations, BOLs and invoices, and gaps
+cost nothing since the numbers still sort.
+
+#### Imported and historical orders
+
+Every order carries a sequence number, including the ones from BATS. Imported
+orders used to put the BATS id in `orderNumber`; they now get a real sequence
+number like any other, and the BATS id stays where it always was, in `batsId`.
+
+`assignOrderNumbers()` in the import numbers each run **in creation order
+within each year**, using `createdAt` — which for a BATS order is the BATS
+order date (CSV column 7), not the day it was imported. Same-day ties are
+broken by BATS id, which is itself sequential, because many exported rows carry
+a date with no time.
+
+Orders **already in Firestore** are numbered by
+`scripts/backfill-order-numbers.js` (`--dry-run` first), which applies the same
+rule across the whole collection at once. That is a separate pass rather than
+part of the import because an import only sees the rows in one CSV: importing
+2024 after 2023 would otherwise hand the older loads the higher numbers.
+
+Two rules make all of this safe to re-run:
+
+- **An issued number is never reissued.** Anything already matching the
+  sequence format is left alone, by the import and the backfill alike. The
+  number is on rate confirmations, BOLs and invoices that have left the
+  building.
+- `orderNumber` and `previousOrderNumber` are in the import's `PRESERVE` list,
+  so a refresh cannot overwrite them.
+
+Whatever an order was called before is kept in `previousOrderNumber` — a BATS
+id, or one of the old random `TTL-2026-4821` numbers, which have no other home.
+
+#### Which number a load is shown under
+
+Having a sequence number is not the same as leading with it. **A BATS-era load
+still goes by its BATS id** — on its header, in every list, and on the BOL,
+invoice and rate confirmation that go out under it. The company worked those
+loads under that number for years: it is what a carrier has in their file, what
+a client puts on a remittance, and what a broker types into a search. A load
+booked in TTMS leads with its sequence number.
+
+`orderDisplayNumber()` in `src/types/order.ts` is that rule, and every screen
+and document goes through it rather than reading `orderNumber` directly.
+`orderAltNumber()` gives the load's other number, shown underneath — never
+instead. The documents search matches on either, because staff search by both.
+
+So two conventions run side by side, permanently. That is a split along a line
+that already exists — the old system and this one — and it settles itself as
+BATS-era loads close out.
 
 ### `laneMiles` and `laneMilesSource`
 

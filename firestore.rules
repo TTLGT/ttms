@@ -379,6 +379,16 @@ service cloud.firestore {
       allow read, write: if false; // Admin SDK only — never touched by the client
     }
 
+    // The order-number sequence, one document per year, advanced only by the
+    // transaction in /api/orders/number through the Admin SDK. Closed to the
+    // client outright: a client that could write the counter could wind it back
+    // and put a number already printed on a rate confirmation onto a second
+    // load. (An unmatched collection is denied anyway — this is here so the
+    // reason is written down next to the rule.)
+    match /counters/{counterId} {
+      allow read, write: if false; // Admin SDK only
+    }
+
     // Stored Google Routes mileage, so a lane is only ever billed once, plus
     // the log of admin-forced rechecks. Written only by /api/route-distance and
     // /api/route-distance/refresh through the Admin SDK. A client that could

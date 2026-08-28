@@ -176,6 +176,48 @@ export function dimensionsSummary(items: CommodityItem[]): string {
 }
 
 /** An address flattened into something Google Maps can geocode. */
+/**
+ * The number a load is known by — on its header, in every list, and on the
+ * BOL, invoice and rate confirmation that go out under it.
+ *
+ * A load that came from BATS keeps leading with its BATS id. The company
+ * worked those loads under that number for years: it is what a carrier has in
+ * their file, what a client puts on a remittance, and what a broker types into
+ * a search. Handing an eight-year-old load a brand-new number would be
+ * technically tidier and practically worse.
+ *
+ * Loads booked in TTMS lead with their sequence number. So the two
+ * conventions run side by side and the split is permanent — but it is a split
+ * along a line that already exists, between the old system and this one, and
+ * it settles itself as BATS-era loads close out.
+ *
+ * Every screen and document goes through this function rather than reading
+ * `orderNumber` directly, so that rule lives in one place.
+ */
+export function orderDisplayNumber(
+  // Loose rather than Pick<Order, …> because the document routes work from a
+  // raw Firestore snapshot, and a helper every outbound BOL and invoice goes
+  // through should not need a cast at each call site.
+  order: { orderNumber?: string | null; batsId?: string | null },
+): string {
+  return order.batsId || order.orderNumber || '';
+}
+
+/**
+ * The load's other number, shown under the display number — never instead of
+ * it. Null when the order only ever had one.
+ *
+ * For a BATS load that is the TTMS sequence number; for a TTMS load that has
+ * one, the pre-sequence number it used to carry.
+ */
+export function orderAltNumber(
+  order: { orderNumber?: string | null; batsId?: string | null; previousOrderNumber?: string | null },
+): string | null {
+  if (order.batsId) return order.orderNumber || null;
+  const prev = order.previousOrderNumber;
+  return prev && prev !== order.orderNumber ? prev : null;
+}
+
 export function addressToQuery(a: Address | null | undefined): string {
   if (!a) return '';
   return [a.street, a.city, a.state, a.zip].map((v) => (v ?? '').trim()).filter(Boolean).join(', ');
@@ -243,6 +285,16 @@ export interface Order {
   id: string;
   batsId: string | null;
   orderNumber: string;
+  /**
+   * What this order was called before it was given a sequence number, on the
+   * records that predate one — a BATS id, or one of the old random
+   * `TTL-2026-4821` numbers.
+   *
+   * Kept because the previous number is on paperwork already in the world, and
+   * because staff spent years looking loads up by it. Optional: an order
+   * created after the sequence went in has never had another number.
+   */
+  previousOrderNumber?: string | null;
   /** Contracting/paying party — signs the transport agreement. */
   clientId: string;
   clientName: string;
