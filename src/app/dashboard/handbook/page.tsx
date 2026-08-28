@@ -414,13 +414,14 @@ const CHAPTERS: Chapter[] = [
         <Callout tone="info" title="By design">
           <p>
             Signing in with Google grants nothing on its own. Someone can only get in once their
-            address has been added under <strong>Settings → Add People</strong>.
+            address has been added under <strong>Settings → People → Add People</strong>.
           </p>
         </Callout>
         <ol className="list-decimal space-y-1 pl-5">
           <li>
-            Go to <strong>Settings</strong> → <strong>Add People</strong>. Leave the mode switch
-            in the top right on <strong>Type it in</strong>.
+            Go to <strong>Settings</strong> → the <strong>People</strong> tab →{' '}
+            <strong>Add People</strong>. Leave the mode switch in the top right on{' '}
+            <strong>Type it in</strong>.
           </li>
           <li>
             Type their address. It must end in <Mono>@{ALLOWED_EMAIL_DOMAIN}</Mono> — anything
@@ -499,7 +500,7 @@ const CHAPTERS: Chapter[] = [
         <h3 className="pt-2 text-sm font-semibold text-gray-900">The removal log</h3>
         <p>
           Removing someone deletes their entry, so they vanish from the list.{' '}
-          <strong>Settings → Removed People</strong> is the record that they were ever here —
+          <strong>Settings → People → Removed People</strong> is the record that they were ever here —
           click it open for everyone who has been removed, when, and <strong>which admin did
           it</strong>, with the name, phones, site, roles, start date and personal email they had
           at the time. It exports to CSV like the main list, and nothing in TTMS can edit or
@@ -543,8 +544,9 @@ const CHAPTERS: Chapter[] = [
       <>
         <p>
           Setting TTMS up for the whole company, or matching it to an updated HR list, is a
-          spreadsheet job rather than a typing job. Go to <strong>Settings</strong> →{' '}
-          <strong>Add People</strong>, and switch it to <strong>Spreadsheet</strong>.
+          spreadsheet job rather than a typing job. Go to <strong>Settings</strong> → the{' '}
+          <strong>People</strong> tab → <strong>Add People</strong>, and switch it to{' '}
+          <strong>Spreadsheet</strong>.
         </p>
         <ol className="list-decimal space-y-1 pl-5">
           <li>
@@ -633,7 +635,7 @@ const CHAPTERS: Chapter[] = [
   {
     id: 'imports',
     title: 'Importing data from BATS',
-    subtitle: 'Drag-and-drop, in Settings — no commands needed',
+    subtitle: 'Drag-and-drop, in Settings → Data — no commands needed',
     body: (
       <>
         <ol className="list-decimal space-y-1 pl-5">
@@ -642,7 +644,7 @@ const CHAPTERS: Chapter[] = [
             <Mono>carriers-export-….csv</Mono>, <Mono>customers-export-….csv</Mono> and{' '}
             <Mono>orders-export-….csv</Mono>
           </li>
-          <li>Go to <strong>Settings</strong> → <strong>BATS Data Import</strong>.</li>
+          <li>Go to <strong>Settings</strong> → the <strong>Data</strong> tab, which holds <strong>BATS Data Import</strong>.</li>
           <li>Drag each file into its matching box. Several order files at once is fine.</li>
           <li>Click <strong>Run Import</strong>.</li>
         </ol>
@@ -656,9 +658,9 @@ const CHAPTERS: Chapter[] = [
           </p>
         </Callout>
         <p>
-          Also on Settings: <strong>Sites</strong> (company locations) and{' '}
-          <strong>Work Groups</strong> (teams that share client records). Both are simple
-          add-and-name lists.
+          Also in Settings, on the <strong>Organization</strong> tab: <strong>Sites</strong>{' '}
+          (company locations) and <strong>Work Groups</strong> (teams that share client
+          records). Both are simple add-and-name lists.
         </p>
       </>
     ),
@@ -700,7 +702,7 @@ const CHAPTERS: Chapter[] = [
           <Row cells={[
             'Someone signs in and is instantly signed back out',
             'Their email is not on the access list.',
-            'Add them under Settings → Add People.',
+            'Add them under Settings → People → Add People.',
           ]} />
           <Row cells={[
             <>&ldquo;Missing or insufficient permissions&rdquo;</>,

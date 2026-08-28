@@ -236,7 +236,31 @@ described in this section is absent for them.
 > Signing in with Google grants nothing on its own. A person can only get in
 > once their email address has been added here. This is deliberate.
 
-1. In the left-hand menu click **Settings**.
+### How Settings is laid out
+
+Settings is split across five tabs along the top, so you are never scrolling
+through the whole system to reach one thing.
+
+| Tab | What is on it |
+|---|---|
+| **Overview** | Every panel on one screen, each showing what it is currently set to. A map, not a page you change things on. |
+| **People** | Add People · People With Access · Removed People |
+| **Organization** | Sites · Teams · Work Groups |
+| **Operations** | Lane Distance · Lead Sources |
+| **Data** | BATS Data Import |
+
+Each tab is its own web address, so you can bookmark one or send someone a link
+straight to it, and the browser's Back button works the way you expect.
+
+**If you cannot remember which tab something is on, use the search box in the
+top right.** Type what you are after — `miles`, `office`, or a person's name —
+and it takes you there. Searching a person's name jumps to their row in the
+directory.
+
+HR sees only the People tab, with no tabs shown at all — there is nothing else
+they are allowed to open.
+
+1. In the left-hand menu click **Settings**, then open the **People** tab.
 2. Find the panel headed **Add People**. It has two modes, in the top right:
    **Type it in** (what follows) and **Spreadsheet** (section 7).
 3. Type their email address into the box.
@@ -325,7 +349,7 @@ next time they load a page.
 ### The removal log
 
 Removing someone deletes their entry, so the list below stops showing them
-entirely. **Settings → Removed People** is the record that they were ever here:
+entirely. **Settings → People → Removed People** is the record that they were ever here:
 click it open to see everyone who has been removed, when, and **which admin did
 it** — along with the name, full legal name, phones, site, team, roles, start
 date and personal email they had at the time.
@@ -355,8 +379,9 @@ you have filtered the list, you get the filtered version.
 
 ## 6a. Sites, Teams and Work Groups
 
-Three panels near the bottom of Settings group people in three different ways.
-They are easy to mix up, so here is the difference in one table.
+The **Organization** tab of Settings holds three panels that group people in
+three different ways. They are easy to mix up, so here is the difference in one
+table.
 
 | Panel | Answers | Changes what they can see? |
 |---|---|---|
@@ -377,7 +402,7 @@ whole point of them.
 
 ### Setting up teams
 
-**Settings → Teams**.
+**Settings → Organization → Teams**.
 
 1. Type the team name — for example `GT`, `Top Brokers`, `Hibrid`, `Staff`.
 2. Pick the **lead** from the dropdown: the person everyone on that team reports
@@ -412,7 +437,7 @@ When you are setting up TTMS for the whole company — or your HR list has been
 updated and you want TTMS to match — do it with a spreadsheet instead of
 typing each person in.
 
-**Settings → Add People**, then switch the mode in the top right to
+**Settings → People → Add People**, then switch the mode in the top right to
 **Spreadsheet**.
 
 1. Click **Template** to download a CSV with the right column headings and one
@@ -502,7 +527,7 @@ The old BATS CRM data can be pulled in through the browser. **No commands needed
 1. Export the data from BATS as CSV files. You should end up with files named
    like `carriers-export-....csv`, `customers-export-....csv` and
    `orders-export-....csv`.
-2. In TTMS, go to **Settings** and scroll to **BATS Data Import**.
+2. In TTMS, go to **Settings → Data**, which holds **BATS Data Import**.
 3. There are three drop boxes — **Carriers**, **Customers** and **Orders**.
    Drag each file into its matching box. You can drop **several** order files at once.
 4. Click **Run Import**.
@@ -513,8 +538,9 @@ The old BATS CRM data can be pulled in through the browser. **No commands needed
 > hasn't changed, so running a fresh export next week only writes what is
 > genuinely new. You will not create duplicates.
 
-Also on the Settings page: **Sites** (your company locations) and **Work
-Groups** (teams that share client records). Both are simple add-and-name lists.
+Also in Settings, on the **Organization** tab: **Sites** (your company
+locations) and **Work Groups** (teams that share client records). Both are
+simple add-and-name lists.
 
 ---
 
@@ -646,7 +672,8 @@ src/
 │  │  ├─ orders/ carriers/ parties/ approvals/ documents/
 │  │  ├─ clients|shippers|consignees/   Party views by role
 │  │  ├─ analytics/              Admin only
-│  │  └─ settings/               Access, sites, groups, BATS import (admin only)
+│  │  └─ settings/               Tabbed: Overview, People, Organization,
+│  │                          Operations, Data (admin only; HR sees People)
 │  ├─ sign/[token]/              PUBLIC e-signature page — no auth
 │  └─ api/                       Server routes
 ├─ components/                   Reusable UI, grouped by feature
@@ -672,7 +699,7 @@ src/
 ## Access control
 
 Signing in with Google grants nothing. An admin must create an
-`allowedUsers/{email}` document via **Settings → Add People**.
+`allowedUsers/{email}` document via **Settings → People → Add People**.
 
 On every sign-in: `AuthContext` posts the ID token to `POST /api/auth/session`,
 which verifies it, requires an `allowedUsers` entry, provisions `users/{uid}`
@@ -800,7 +827,7 @@ node scripts/resolve-party-owners.js --map "Nery Mendez=nery@ttl.us"
 ```
 
 `migrate-parties.js` and `seed-allowed-users.js` are historical one-time
-migrations. The BATS import also has a drag-and-drop UI at **Settings → BATS
+migrations. The BATS import also has a drag-and-drop UI at **Settings → Data → BATS
 Data Import**, which is what non-technical staff should use.
 
 ## Data model
@@ -855,7 +882,7 @@ Remote branches `feat/invite-only-access`, `feat/user-directory` and
 ### Lane distance
 
 Every order can show the distance between its pickup and delivery addresses.
-An admin chooses how in **Settings → Lane Distance**, and the choice applies to
+An admin chooses how in **Settings → Operations → Lane Distance**, and the choice applies to
 everyone:
 
 | Option | What it does | Cost |
@@ -971,7 +998,7 @@ Until #2 is done, assume every local change is live.
 | Symptom | Cause / fix |
 |---|---|
 | *"Missing or insufficient permissions"* | Repo rules aren't deployed. `node scripts/deploy-rules.js`. |
-| Signed in, immediately signed back out | No `allowedUsers` entry. Add via Settings → Add People, or use a bootstrap admin. |
+| Signed in, immediately signed back out | No `allowedUsers` entry. Add via Settings → People → Add People, or use a bootstrap admin. |
 | Everyone locked out | Sign in as `it@totaltransportlogistics.us`. If a rules deploy caused it, `rollback-rules.js --list` then `--to <rulesetId>`. |
 | Signing links point at localhost | `NEXT_PUBLIC_APP_URL` wrong for that environment. |
 | No email at all | `RESEND_API_KEY` missing, or sending domain lost verification. Resend init is deliberately lazy, so it fails at send time, not build time. |
