@@ -19,6 +19,10 @@ import type { OtherPhoneRegion } from './phone';
  *
  * How much of a person is shown is decided here rather than in the page, so
  * there is one place to look when asking what the directory gives away.
+ * Everyone gets the name, the company address, the US work line, the
+ * extension, the office and the team; the second number is the one contact
+ * field held back for admin and HR, because it is usually someone's personal
+ * mobile in their home country rather than a desk they sit at.
  *
  * Be clear about what that narrowing is and is not. It is a decision about
  * what is *useful* to show a broker, **not a security boundary**. Every field
@@ -37,13 +41,19 @@ export interface DirectoryPerson {
   /** The US work line. Everyone sees this one. */
   phone?: string;
   extension?: string;
-  /** Second number, office and team: only filled in for admin and HR. */
+  /**
+   * Where the person sits and who they report through. Shown to everyone:
+   * knowing which office to walk to, or which team a load belongs with, is
+   * ordinary working information and answers half the questions the phone
+   * book gets asked.
+   */
+  siteId?: string | null;
+  teamId?: string | null;
+  /** The second number: only filled in for admin and HR. */
   phoneOther?: string;
   phoneOtherRegion?: OtherPhoneRegion;
   /** Legacy home for the second number — read through `otherPhone()`. */
   phoneGt?: string;
-  siteId?: string | null;
-  teamId?: string | null;
   /** True for someone on the allowlist who has never signed in. */
   pending: boolean;
   /** Only ever true in the admin/HR view; suspended people are filtered out
@@ -59,6 +69,8 @@ function common(p: {
   lastName?: string;
   phone?: string;
   extension?: string;
+  siteId?: string | null;
+  teamId?: string | null;
   photoPath?: string | null;
 }): DirectoryPerson {
   const joined = [p.firstName, p.lastName].filter(Boolean).join(' ').trim();
@@ -70,6 +82,8 @@ function common(p: {
     photoPath:   p.photoPath ?? null,
     phone:       p.phone,
     extension:   p.extension,
+    siteId:      p.siteId ?? null,
+    teamId:      p.teamId ?? null,
     pending:     false,
     suspended:   false,
   };
@@ -86,8 +100,6 @@ export async function listDirectory(
         phoneOther:       p.phoneOther,
         phoneOtherRegion: p.phoneOtherRegion,
         phoneGt:          p.phoneGt,
-        siteId:           p.siteId ?? null,
-        teamId:           p.teamId ?? null,
         // No uid means the invite is out but nobody has signed in against it.
         pending:          !p.uid,
         suspended:        p.suspended === true,

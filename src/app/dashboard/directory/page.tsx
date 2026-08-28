@@ -27,9 +27,9 @@ import type { Team } from '@/types/team';
  * only. This page answers one question, "how do I reach this colleague", and
  * so it is a read-only list with no controls on it at all.
  *
- * What each person is shown is decided in lib/directory.ts, not here. A broker
- * gets the name, the company address, the US work line and the extension; the
- * second number, the office and the team are filled in only for admin and HR.
+ * What each person is shown is decided in lib/directory.ts, not here. Everyone
+ * gets the name, the company address, the US work line, the extension, the
+ * office and the team; the second number is filled in only for admin and HR.
  * Read the note at the top of that file before widening it — the narrowing is
  * an editorial decision, not an enforced boundary.
  */
@@ -102,14 +102,14 @@ export default function DirectoryPage() {
     return () => { live = false; };
   }, [profile]);
 
-  // Only fetched for the people who are shown an office and a team — there is
-  // nothing to label the other cards with. Both endpoints are open to any
-  // signed-in user, so this is about what the page shows, not what it may read.
+  // Every card carries an office and a team, so everyone needs the names to
+  // label them with. Both endpoints are open to any signed-in user — they are
+  // reference data that grants nothing, which is exactly why a phone book may
+  // show them.
   useEffect(() => {
-    if (!full) return;
     void listSites().then(setSites).catch(() => {});
     void listTeams().then(setTeams).catch(() => {});
-  }, [full]);
+  }, []);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -131,12 +131,12 @@ export default function DirectoryPage() {
           <p className="text-sm text-gray-500 mt-0.5">
             {full
               ? 'Everyone at Total Transport Logistics, including anyone set up but not yet signed in.'
-              : 'Everyone at Total Transport Logistics — their company email, work number and extension.'}
+              : 'Everyone at Total Transport Logistics — where they sit and how to reach them.'}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          {full && sites.length > 0 && (
+          {sites.length > 0 && (
             <select
               value={siteFilter}
               onChange={(e) => setSiteFilter(e.target.value)}
@@ -279,7 +279,7 @@ export default function DirectoryPage() {
             <Link href="/dashboard/settings/people" className="text-brand-700 underline">
               Settings → People
             </Link>
-            . Everyone else sees only the name, company email, work number and extension.
+            . Everyone else sees the same cards without the second phone number.
           </>
         ) : (
           <>Something here wrong or missing? Ask an admin to update it in Settings.</>

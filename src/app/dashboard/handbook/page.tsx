@@ -548,10 +548,10 @@ const CHAPTERS: Chapter[] = [
         <p>
           <strong>Directory</strong> in the left-hand menu is the company phone book, and{' '}
           <strong>everyone</strong> can open it — it is the one people page that is not part of
-          Settings. A broker sees each colleague&rsquo;s name, company email, US work phone and
-          extension, and can click either one to write or dial. Admins and HR see the same cards
-          with the second phone number, the office and the team filled in as well, plus anyone
-          who has been set up but has never signed in.
+          Settings. A broker sees each colleague&rsquo;s name, company email, US work phone,
+          extension, office and team, and can click the address or the number to write or dial.
+          Admins and HR see the same cards with the second phone number filled in as well, plus
+          anyone who has been set up but has never signed in.
         </p>
         <p>
           Nothing on it can be changed there. It is drawn from the details on{' '}

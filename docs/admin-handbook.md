@@ -392,11 +392,13 @@ you have filtered the list, you get the filtered version.
 
 | Who is looking | What they see on each person |
 |---|---|
-| Anyone signed in | Name, photo, company email, US work phone, extension |
-| Admin and HR | The above, plus the second phone number, the office and the team — and anyone who has been set up but has never signed in |
+| Anyone signed in | Name, photo, company email, US work phone, extension, office and team |
+| Admin and HR | The above, plus the second phone number — and anyone who has been set up but has never signed in |
 
 The email address and the phone numbers are clickable: one opens a new email,
-the other dials, which is the whole reason the page exists.
+the other dials, which is the whole reason the page exists. The box at the top
+right searches names, addresses, numbers, extensions, offices and teams all at
+once, and the dropdown beside it narrows the page to one office.
 
 Two things it deliberately does **not** show anyone: date of birth, personal
 email, full legal name and start date are never on it, and neither is anyone
