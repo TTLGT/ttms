@@ -173,11 +173,6 @@ export function splitName(name: string | null | undefined): { firstName: string;
 
 // ── Calendar dates ────────────────────────────────────────────────────────────
 
-const MONTHS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
-
 /**
  * Whether `value` is a real `YYYY-MM-DD` date and not merely shaped like one.
  * Round-tripping through Date catches 2025-02-30 and 2025-13-01, which a
@@ -198,21 +193,9 @@ export function normalizeCalendarDate(value: unknown): string {
   return isCalendarDate(v) ? v : '';
 }
 
-/**
- * Format `YYYY-MM-DD` for display, e.g. "Mar 4, 1990".
- *
- * The parts are read off the string rather than handed to `new Date(value)`,
- * which parses a bare date as UTC midnight and then renders it in local time —
- * showing every date a day early for anyone in the Americas, this office
- * included.
- */
-export function formatCalendarDate(value: string | null | undefined): string {
-  const v = (value ?? '').trim();
-  if (!isCalendarDate(v)) return '';
-
-  const [year, month, day] = v.split('-');
-  return `${MONTHS[Number(month) - 1]} ${Number(day)}, ${year}`;
-}
+// Displaying a date lives in `src/lib/dateFormat.ts`, not here: the format is
+// a company-wide setting, so every date on screen has to come out of one
+// formatter that knows what the setting says.
 
 /**
  * Years elapsed since `value`, or null if it is not a date. Used for the

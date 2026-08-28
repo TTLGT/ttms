@@ -246,7 +246,7 @@ through the whole system to reach one thing.
 | **Overview** | Every panel on one screen, each showing what it is currently set to. A map, not a page you change things on. |
 | **People** | Add People · People With Access · Removed People |
 | **Organization** | Sites · Teams · Work Groups |
-| **Operations** | Lane Distance · Lead Sources |
+| **Operations** | Date Format · Lane Distance · Lead Sources |
 | **Data** | BATS Data Import |
 
 Each tab is its own web address, so you can bookmark one or send someone a link
@@ -887,6 +887,39 @@ Then open a PR against `main`.
 
 Remote branches `feat/invite-only-access`, `feat/user-directory` and
 `party-model-and-ownership` are merged into `main` and are history.
+
+### Date format
+
+How dates are written on screen is one company-wide choice, in **Settings →
+Operations → Date Format**. The options, all showing the same day — the 4th of
+March 2020:
+
+| Option | Looks like |
+|---|---|
+| **Day, month name, year** *(default)* | 4-Mar-2020 |
+| **MM/DD/YYYY** | 03/04/2020 |
+| **DD/MM/YYYY** | 04/03/2020 |
+
+It applies to every date TTMS shows you: pickup and delivery dates, insurance
+expiry, start dates, birthdays, the "created" and "last updated" lines. Changing
+it changes what everyone sees the next time their page loads — it does not touch
+any stored data, so switching back and forth is safe.
+
+Two deliberate exceptions:
+
+- **Documents keep the month spelled out.** Bills of lading, invoices, carrier
+  agreements and the page a carrier signs always say "March 4, 2020". They leave
+  the company, they are the record of the shipment, and 03/04/2020 is two
+  different days depending on who is reading it.
+- **Date boxes are your computer's, not ours.** The little calendar that opens
+  when you click a date field comes from your web browser and follows your own
+  Windows setting. This choice cannot change it.
+
+The default is the spelled-out month for a reason: staff here enter dates from
+both the US and Latin America, where 03/04 means two different days. If
+everyone reading TTMS shares one convention, either slash format is fine.
+
+---
 
 ### Lane distance
 

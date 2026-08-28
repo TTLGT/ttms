@@ -8,6 +8,7 @@ import { orderDisplayNumber } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
 import ResizableTh from '@/components/table/ResizableTh';
 import { useColumnWidths, type ColumnWidths } from '@/lib/useColumnWidths';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 
 const FILTER_TABS: { label: string; value: OrderStatus | 'all' }[] = [
   { label: 'All',            value: 'all' },
@@ -43,17 +44,15 @@ const DEFAULT_WIDTHS: ColumnWidths = Object.fromEntries(COLUMNS.map((c) => [c.ke
 
 const WIDTH_STORAGE_KEY = 'ttms.columnWidths.orders';
 
-function formatDate(ts: { toDate?: () => Date } | null): string {
-  if (!ts || typeof ts.toDate !== 'function') return '—';
-  return ts.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
 function formatCurrency(n: number): string {
   if (!n) return '—';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 }
 
 export default function OrdersPage() {
+  // Dates are written the way the company setting says — see Settings →
+  // Operations → Date Format.
+  const { formatDate } = useDateFormatters();
   const [orders, setOrders]   = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');

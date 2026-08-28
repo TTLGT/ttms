@@ -13,6 +13,7 @@ import { listTeams } from '@/lib/teams';
 import { listWorkGroups } from '@/lib/workGroups';
 import { listLeadSources } from '@/lib/leadSources';
 import { getAppSettingsOrDefaults } from '@/lib/appSettings';
+import { formatCalendarDate } from '@/lib/dateFormat';
 import type { LaneDistanceMode } from '@/types/appSettings';
 import {
   SETTINGS_SECTIONS,
@@ -55,6 +56,13 @@ const LANE_MODE_LABEL: Record<LaneDistanceMode, string> = {
   routes:   'Google Routes — billed',
 };
 
+/**
+ * The 4th of March, shown in whichever format is set — the same sample the
+ * Date Format panel uses. A day that is also a valid month number is the point:
+ * it shows which way round the setting is, which "25/11/2000" could not.
+ */
+const DATE_SAMPLE = '2020-03-04';
+
 /** What each card shows on its right. Absent means the card carries no value. */
 type Values = Partial<Record<string, string>>;
 
@@ -84,8 +92,8 @@ export default function SettingsOverviewPage() {
       listTeams().then((r) => r.length).catch(() => null),
       listWorkGroups().then((r) => r.length).catch(() => null),
       listLeadSources().then((r) => r.length).catch(() => null),
-      getAppSettingsOrDefaults().then((r) => r.settings.laneDistanceMode),
-    ]).then(([people, sites, teams, groups, sources, laneMode]) => {
+      getAppSettingsOrDefaults().then((r) => r.settings),
+    ]).then(([people, sites, teams, groups, sources, settings]) => {
       if (!live) return;
       const count = (n: number | null, one: string, many: string) =>
         // A failed read shows nothing rather than a zero, which would read as
@@ -97,7 +105,8 @@ export default function SettingsOverviewPage() {
         'teams':         count(teams,   'team',   'teams'),
         'work-groups':   count(groups,  'group',  'groups'),
         'lead-sources':  count(sources, 'source', 'sources'),
-        'lane-distance': LANE_MODE_LABEL[laneMode],
+        'lane-distance': LANE_MODE_LABEL[settings.laneDistanceMode],
+        'date-format':   formatCalendarDate(DATE_SAMPLE, settings.dateFormat),
       });
       setLoading(false);
     });

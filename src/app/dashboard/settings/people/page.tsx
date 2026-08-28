@@ -32,8 +32,10 @@ import { listSites } from '@/lib/sites';
 import { listTeams } from '@/lib/teams';
 import { useAuth } from '@/context/AuthContext';
 import {
-  accessStatus, formatCalendarDate, fullName, splitName, yearsSince,
+  accessStatus, fullName, splitName, yearsSince,
 } from '@/types/allowedUser';
+import { useDateFormatters } from '@/lib/useDateFormatters';
+import type { DateLike } from '@/lib/dateFormat';
 import type { AllowedUser, AllowedUserRole } from '@/types/allowedUser';
 import { toCsv, csvDate, downloadCsv } from '@/lib/csv';
 import type { Site } from '@/types/site';
@@ -156,13 +158,6 @@ function millis(ts: { toDate?: () => Date } | null | undefined): number | null {
   return ts && typeof ts.toDate === 'function' ? ts.toDate().getTime() : null;
 }
 
-function formatWhen(ts: { toDate?: () => Date } | null | undefined): string {
-  const ms = millis(ts);
-  if (ms === null) return 'date unknown';
-  return new Date(ms).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
-  });
-}
 type TileTone     = 'gray' | 'green' | 'amber' | 'red';
 
 const TILE_TONE: Record<TileTone, string> = {
@@ -213,6 +208,12 @@ function CountTile({
 
 export default function SettingsPeoplePage() {
   const { user, isAdmin }       = useAuth();
+  // Start dates and birthdays follow the company setting — Settings →
+  // Operations → Date Format.
+  const { formatCalendarDate, formatDateTime } = useDateFormatters();
+  // "Added" is a fact about the record rather than about the person, so a
+  // missing one says so in words instead of showing a dash.
+  const formatWhen = (ts: DateLike) => formatDateTime(ts, 'date unknown');
   const [people, setPeople]     = useState<AllowedUser[]>([]);
   const [loading, setLoading]   = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);

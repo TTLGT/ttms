@@ -19,6 +19,7 @@ import LeadSourceField from '@/components/orders/LeadSourceField';
 import { canEditSource } from '@/lib/accessControl';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -54,11 +55,6 @@ function AddressFields({ label, value, onChange }: {
   );
 }
 
-function formatDate(ts: { toDate?: () => Date } | null | undefined): string {
-  if (!ts || typeof ts.toDate !== 'function') return '—';
-  return ts.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
 function formatCurrency(n: number | undefined): string {
   if (!n) return '—';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
@@ -74,6 +70,9 @@ function rolesOnOrder(order: Order, partyId: string): PartyRole[] {
 }
 
 export default function PartyDetailPage() {
+  // Dates are written the way the company setting says — see Settings →
+  // Operations → Date Format.
+  const { formatDate } = useDateFormatters();
   const params  = useParams();
   const partyId = params.partyId as string;
   const { user, profile, isAdmin, isDispatcher } = useAuth();

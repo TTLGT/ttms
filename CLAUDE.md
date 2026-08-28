@@ -231,6 +231,7 @@ assignment is held in `assignedToEmails` / `memberEmails` and converted by
 
 - **Comments explain why, not what.** This codebase is unusually well commented on non-obvious decisions, and that is the main reason it is handoverable. Match that density. When you make a non-obvious call, leave the reasoning.
 - Data access belongs in `src/lib/`, never inline in a page component.
+- **Every date shown on screen goes through `src/lib/dateFormat.ts`** — in a component, via `useDateFormatters()`. The format is a company-wide setting (`appSettings/general.dateFormat`, Settings → Operations → Date Format), so a page that formats its own dates silently ignores the setting. That is exactly what the old per-page `formatDate` copies did. The PDFs, the agreement emails and the public `sign/[token]` page deliberately stay on the spelled-out "March 4, 2020": they leave the company, and a slashed date is two different days depending on the reader.
 - Types in `src/types/`, one file per domain object, with domain helpers (`toNameKey`, `partyDisplayName`, `isUnowned`, `isBroker`) beside them.
 - Tailwind only; brand colors are `brand-*` tokens in `tailwind.config.ts`. Rajdhani is the display face for TTMS branding, Inter for body.
 - `lucide-react` for icons. No emoji in UI chrome.

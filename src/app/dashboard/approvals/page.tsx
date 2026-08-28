@@ -5,15 +5,9 @@ import { listAccessRequests, decideAccessRequest } from '@/lib/parties';
 import { useAuth } from '@/context/AuthContext';
 import { ROLE_LABEL } from '@/types/party';
 import type { AccessRequest } from '@/types/accessRequest';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 
 type Box = 'incoming' | 'outgoing';
-
-function formatWhen(ts: { toDate?: () => Date } | null | undefined): string {
-  if (!ts || typeof ts.toDate !== 'function') return '—';
-  return ts.toDate().toLocaleString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
-  });
-}
 
 const STATUS_STYLE: Record<string, string> = {
   pending:  'bg-amber-50 text-amber-700',
@@ -23,6 +17,8 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 export default function ApprovalsPage() {
+  // Requests are read as a timeline, so these keep the time after the date.
+  const { formatDateTime: formatWhen } = useDateFormatters();
   const { user, isAdmin } = useAuth();
   const [box, setBox]         = useState<Box>('incoming');
   const [requests, setReqs]   = useState<AccessRequest[]>([]);

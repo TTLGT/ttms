@@ -1,6 +1,6 @@
 import { auth } from './firebase';
 import { DEFAULT_APP_SETTINGS } from '@/types/appSettings';
-import type { AppSettings, LaneDistanceMode } from '@/types/appSettings';
+import type { AppSettings, DateFormat, LaneDistanceMode } from '@/types/appSettings';
 
 /**
  * Client access to the company-wide settings document.
@@ -58,13 +58,22 @@ export async function getAppSettingsOrDefaults(): Promise<AppSettingsResponse> {
 }
 
 export async function saveLaneDistanceMode(mode: LaneDistanceMode): Promise<void> {
+  await saveSetting({ laneDistanceMode: mode });
+}
+
+export async function saveDateFormat(format: DateFormat): Promise<void> {
+  await saveSetting({ dateFormat: format });
+}
+
+/** Send one changed setting. Anything not named keeps its stored value. */
+async function saveSetting(patch: Partial<AppSettings>): Promise<void> {
   const res = await fetch('/api/app-settings', {
     method: 'PUT',
     headers: await authHeaders(),
-    body: JSON.stringify({ laneDistanceMode: mode }),
+    body: JSON.stringify(patch),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Failed to save the setting');
-  // The next reader must see the new mode, not the one from before the change.
+  // The next reader must see the new value, not the one from before the change.
   cached = null;
 }

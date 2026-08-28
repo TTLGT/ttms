@@ -23,6 +23,7 @@ import { getInsuranceStatus } from '@/types/carrier';
 import { STATUS_LABEL, orderDisplayNumber } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
 import AlertPanel from '@/components/orders/AlertPanel';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 
 const PENDING_PICKUP_STATUSES = new Set(['booked', 'carrier_assigned', 'carrier_signed', 'shipper_signed']);
 
@@ -40,11 +41,6 @@ function isThisMonth(ts: TS): boolean {
   const d = (ts as any).toDate() as Date;
   const now = new Date();
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-}
-
-function formatDate(ts: TS): string {
-  if (!ts || typeof (ts as any).toDate !== 'function') return '—';
-  return (ts as any).toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function formatCurrency(n: number): string {
@@ -176,6 +172,9 @@ function StatCardGrid({ cards, loading }: { cards: StatCard[]; loading: boolean 
 }
 
 export default function DashboardPage() {
+  // Dates are written the way the company setting says — see Settings →
+  // Operations → Date Format.
+  const { formatDate } = useDateFormatters();
   const { user, isAdmin } = useAuth();
   const firstName = user?.displayName?.split(' ')[0] ?? 'there';
 

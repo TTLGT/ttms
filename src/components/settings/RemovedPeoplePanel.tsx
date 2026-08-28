@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, Download, History } from 'lucide-react';
 import { listRemovedUsers } from '@/lib/allowedUsers';
 import { downloadCsv, toCsv } from '@/lib/csv';
 import { PHONE_LABEL, otherPhone } from '@/lib/phone';
-import { formatCalendarDate } from '@/types/allowedUser';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 import { removedUserName, removedUserRoles } from '@/types/removedUser';
 import type { RemovedUser } from '@/types/removedUser';
 import type { Site } from '@/types/site';
@@ -19,16 +19,6 @@ import type { Team } from '@/types/team';
  * one they need in front of them. Leaving it shut also keeps a page that
  * already reads two collections from reading a third on every visit.
  */
-
-/** `null` when the row predates the field or the write never landed. */
-function formatWhen(iso: string | null): string {
-  if (!iso) return 'date unknown';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return 'date unknown';
-  return d.toLocaleString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
-  });
-}
 
 /** `YYYY-MM-DD HH:mm` for the CSV, which Excel parses as a real datetime. */
 function csvWhen(iso: string | null): string {
@@ -47,6 +37,10 @@ export default function RemovedPeoplePanel({
   sites: Site[];
   teams: Team[];
 }) {
+  const { formatCalendarDate, formatDateTime } = useDateFormatters();
+  /** `null` when the row predates the field or the write never landed. */
+  const formatWhen = (iso: string | null) => formatDateTime(iso, 'date unknown');
+
   const [open, setOpen]           = useState(false);
   const [users, setUsers]         = useState<RemovedUser[] | null>(null);
   const [truncated, setTruncated] = useState(false);

@@ -140,6 +140,7 @@ const pad = (n: number) => String(n).padStart(2, '0');
  *
  * Accepted: `2020-03-04`, `2020/03/04`, `3/4/2020` (US order — this is a US
  * brokerage and the files come out of en-US Excel), `Mar 4, 2020`, `4 Mar 2020`,
+ * `4-Mar-2020` (the format the People list shows and the HR sheets are kept in),
  * and any of those with a time after them, which is how Excel hands back a
  * cell it decided was a datetime.
  *
@@ -173,8 +174,9 @@ function parseDateCell(raw: string): string | null {
     return month ? build(+monthFirst[3], month, +monthFirst[2]) : null;
   }
 
-  // "4 Mar 2020"
-  const dayFirst = value.match(/^(\d{1,2})\s+([a-z]{3,9})\.?,?\s+(\d{4})$/i);
+  // "4 Mar 2020" and "25-Nov-2000". The hyphenated day-month-year form is
+  // what the HR spreadsheets are kept in, so it has to read straight back in.
+  const dayFirst = value.match(/^(\d{1,2})[\s\-/.]\s*([a-z]{3,9})\.?,?[\s\-/.]\s*(\d{4})$/i);
   if (dayFirst) {
     const month = MONTH_NAMES[dayFirst[2].slice(0, 3).toLowerCase()];
     return month ? build(+dayFirst[3], month, +dayFirst[1]) : null;
@@ -554,7 +556,7 @@ function planRow(
     if (!parsed) {
       return reject(
         'invalid',
-        `${LABELS[key]} “${raw}” was not understood. Write it as YYYY-MM-DD (for example 1990-03-04).`,
+        `${LABELS[key]} “${raw}” was not understood. Write it as 4-Mar-1990 or 1990-03-04.`,
         key,
       );
     }

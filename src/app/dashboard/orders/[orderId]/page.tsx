@@ -31,6 +31,7 @@ import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload
 import { useAuth } from '@/context/AuthContext';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 
 // Sentinel value for the dropdown's "add a new carrier" row. Not a document id,
 // so it can never collide with a real carrier.
@@ -40,11 +41,6 @@ const PIPELINE: OrderStatus[] = [
   'quote', 'booked', 'carrier_assigned', 'carrier_signed',
   'shipper_signed', 'in_transit', 'delivered', 'completed',
 ];
-
-function formatDate(ts: { toDate?: () => Date } | null | undefined): string {
-  if (!ts || typeof ts.toDate !== 'function') return '—';
-  return ts.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
 
 /**
  * Label for the parent-order link.
@@ -108,6 +104,9 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 }
 
 export default function OrderDetailPage() {
+  // Dates are written the way the company setting says — see Settings →
+  // Operations → Date Format.
+  const { formatDate } = useDateFormatters();
   const params   = useParams();
   const orderId  = params.orderId as string;
   const router   = useRouter();

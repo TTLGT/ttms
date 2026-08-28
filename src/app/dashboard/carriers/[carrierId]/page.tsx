@@ -12,11 +12,7 @@ import type { Order } from '@/types/order';
 import { orderDisplayNumber } from '@/types/order';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
 import StatusBadge from '@/components/orders/StatusBadge';
-
-function formatDate(ts: { toDate?: () => Date } | null | undefined): string {
-  if (!ts || typeof ts.toDate !== 'function') return '—';
-  return ts.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
+import { useDateFormatters } from '@/lib/useDateFormatters';
 
 function toDateInput(ts: { toDate?: () => Date } | null | undefined): string {
   if (!ts || typeof ts.toDate !== 'function') return '';
@@ -32,6 +28,9 @@ function formatCurrency(n: number | undefined): string {
 const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
 export default function CarrierDetailPage() {
+  // Dates are written the way the company setting says — see Settings →
+  // Operations → Date Format.
+  const { formatDate } = useDateFormatters();
   const params    = useParams();
   const carrierId = params.carrierId as string;
 

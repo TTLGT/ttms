@@ -5,13 +5,12 @@ import Link from 'next/link';
 import { listCarriers } from '@/lib/carriers';
 import type { Carrier } from '@/types/carrier';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
-
-function formatDate(ts: { toDate?: () => Date } | null | undefined): string {
-  if (!ts || typeof ts.toDate !== 'function') return '—';
-  return ts.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
+import { useDateFormatters } from '@/lib/useDateFormatters';
 
 export default function CarriersPage() {
+  // Dates are written the way the company setting says — see Settings →
+  // Operations → Date Format.
+  const { formatDate } = useDateFormatters();
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');

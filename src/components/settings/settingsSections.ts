@@ -99,6 +99,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     adminOnly: true,
   },
   {
+    id: 'date-format',
+    label: 'Date Format',
+    tab: 'operations',
+    blurb: 'How dates are written on screen — 4-Mar-2020, 03/04/2020 or 04/03/2020.',
+    keywords: 'date dates format day month year mm dd yyyy american european order birthday',
+    adminOnly: true,
+  },
+  {
     id: 'lead-sources',
     label: 'Lead Sources',
     tab: 'operations',
