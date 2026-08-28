@@ -44,6 +44,7 @@ import AddPeoplePanel from '@/components/settings/AddPeoplePanel';
 import RemovedPeoplePanel from '@/components/settings/RemovedPeoplePanel';
 import { personAnchorId } from '@/components/settings/settingsSections';
 import { AvatarUploader, UserAvatar } from '@/components/settings/UserAvatar';
+import DateField from '@/components/DateField';
 
 /**
  * The elevated roles. Broker is not among them: it is the default everyone
@@ -1142,23 +1143,21 @@ They will be signed out immediately and cannot sign in until you restore them. T
                               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
                             />
                           </label>
-                          {/* type="date" so the value is always a real
-                              YYYY-MM-DD and there is nothing to parse. */}
+                          {/* DateField holds a real YYYY-MM-DD whatever was
+                              typed, so what is saved still needs no parsing. */}
                           <label className="text-xs text-gray-500">
                             Start date
-                            <input
-                              type="date"
+                            <DateField
                               value={draft.startDate}
-                              onChange={(e) => setDraft((d) => ({ ...d, startDate: e.target.value }))}
+                              onChange={(v) => setDraft((d) => ({ ...d, startDate: v }))}
                               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
                             />
                           </label>
                           <label className="text-xs text-gray-500">
                             Date of birth
-                            <input
-                              type="date"
+                            <DateField
                               value={draft.dateOfBirth}
-                              onChange={(e) => setDraft((d) => ({ ...d, dateOfBirth: e.target.value }))}
+                              onChange={(v) => setDraft((d) => ({ ...d, dateOfBirth: v }))}
                               className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
                             />
                           </label>

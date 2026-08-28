@@ -25,6 +25,7 @@ import type { AllowedUserRole, InviteResult } from '@/types/allowedUser';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
 import SpreadsheetImport from './SpreadsheetImport';
+import DateField from '@/components/DateField';
 
 /**
  * The one place in Settings that adds people, with two ways to do it.
@@ -79,18 +80,27 @@ function Field({
   type?: string;
   disabled: boolean;
 }) {
+  const inputCls =
+    'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed';
+
   return (
     <label className="text-xs text-gray-500">
       {label}
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-        placeholder={placeholder}
-        disabled={disabled}
-        className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
-      />
+      {/* Dates get the company's own box rather than the browser's — see
+          DateField. Everything else is a plain input. */}
+      {type === 'date' ? (
+        <DateField value={value} onChange={onChange} disabled={disabled} className={inputCls} />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={inputCls}
+        />
+      )}
       {hint && <span className="mt-1 block text-[11px] text-amber-700">{hint}</span>}
     </label>
   );

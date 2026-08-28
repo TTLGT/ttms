@@ -116,3 +116,80 @@ export function formatDateTime(
   const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   return `${render(d.getFullYear(), d.getMonth() + 1, d.getDate(), format)}, ${time}`;
 }
+
+// ── Reading a date somebody typed ─────────────────────────────────────────────
+
+const MONTH_NUMBERS: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
+  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+export type ParsedDateInput =
+  | { ok: true; iso: string }
+  | { ok: false; reason: 'empty' | 'unreadable' | 'ambiguous' };
+
+/**
+ * Read what someone typed into a date box.
+ *
+ * `format` settles the one question a typed date cannot answer for itself:
+ * whether "3/4/2020" is the 4th of March or the 3rd of April. Under either
+ * slash setting the company has already said which, so it is taken at its
+ * word. Under `d-mmm-yyyy` nobody has said, so a numeric date is accepted only
+ * where it cannot be read two ways — 25/11 has no second reading, 3/4 does,
+ * and guessing at that one would write a wrong birthday that looks perfectly
+ * fine on screen.
+ *
+ * Two-digit years are refused outright, as they are in the spreadsheet
+ * importer: '55' is 1955 for a birthday and 2055 for nothing at all.
+ */
+export function parseDateInput(text: string, format: DateFormat): ParsedDateInput {
+  const value = (text ?? '').trim();
+  if (!value) return { ok: false, reason: 'empty' };
+
+  const bad = (reason: 'unreadable' | 'ambiguous') => ({ ok: false as const, reason });
+  const built = (y: number, m: number, d: number): ParsedDateInput => {
+    const iso = `${y}-${pad(m)}-${pad(d)}`;
+    // Catches the 31st of February and anything else shaped right but not real.
+    return isCalendarDate(iso) ? { ok: true, iso } : bad('unreadable');
+  };
+
+  // What a date box holds internally, and what the calendar button produces.
+  const iso = value.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (iso) return built(+iso[1], +iso[2], +iso[3]);
+
+  // "4-Mar-2020", "4 Mar 2020", "4/March/2020"
+  const dayFirst = value.match(/^(\d{1,2})[\s\-/.]\s*([a-z]{3,9})\.?,?[\s\-/.]\s*(\d{4})$/i);
+  if (dayFirst) {
+    const month = MONTH_NUMBERS[dayFirst[2].slice(0, 3).toLowerCase()];
+    return month ? built(+dayFirst[3], month, +dayFirst[1]) : bad('unreadable');
+  }
+
+  // "Mar 4, 2020", "March 4 2020"
+  const monthFirst = value.match(/^([a-z]{3,9})\.?[\s\-/.]\s*(\d{1,2}),?[\s\-/.]\s*(\d{4})$/i);
+  if (monthFirst) {
+    const month = MONTH_NUMBERS[monthFirst[1].slice(0, 3).toLowerCase()];
+    return month ? built(+monthFirst[3], month, +monthFirst[2]) : bad('unreadable');
+  }
+
+  const numeric = value.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (numeric) {
+    const first = +numeric[1];
+    const second = +numeric[2];
+    const year = +numeric[3];
+
+    if (format === 'mm/dd/yyyy') return first > 12 ? bad('unreadable') : built(year, first, second);
+    if (format === 'dd/mm/yyyy') return second > 12 ? bad('unreadable') : built(year, second, first);
+
+    // No stated order. Take it only where there is one possible reading.
+    if (first > 12 && second <= 12) return built(year, second, first);
+    if (second > 12 && first <= 12) return built(year, first, second);
+    return bad('ambiguous');
+  }
+
+  return bad('unreadable');
+}
+
+/** An example in the company's format, for placeholders and error messages. */
+export function dateInputExample(format: DateFormat): string {
+  return formatCalendarDate('2020-03-04', format);
+}

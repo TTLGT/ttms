@@ -13,6 +13,7 @@ import { orderDisplayNumber } from '@/types/order';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
 import StatusBadge from '@/components/orders/StatusBadge';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import DateField from '@/components/DateField';
 
 function toDateInput(ts: { toDate?: () => Date } | null | undefined): string {
   if (!ts || typeof ts.toDate !== 'function') return '';
@@ -397,7 +398,7 @@ export default function CarrierDetailPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Expiration Date</label>
-                  <input type="date" value={insExpiry} onChange={(e) => setInsExpiry(e.target.value)} className={inputCls} />
+                  <DateField value={insExpiry} onChange={setInsExpiry} className={inputCls} />
                 </div>
                 <div className="flex items-end">
                   <label className="flex items-center gap-2 cursor-pointer mb-2">

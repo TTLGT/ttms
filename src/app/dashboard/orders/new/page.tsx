@@ -18,6 +18,7 @@ import { blankCommodityItem, commoditySummary, totalPieces, totalWeightLb } from
 import type { Address, CommodityItem } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import LeadSourceField from '@/components/orders/LeadSourceField';
+import DateField from '@/components/DateField';
 
 const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
 
@@ -272,18 +273,18 @@ function NewOrderForm() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">First Available Pickup</label>
-                <input type="date" value={firstAvailable} onChange={(e) => setFirstAvailable(e.target.value)}
+                <DateField value={firstAvailable} onChange={setFirstAvailable}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
                 <p className="text-xs text-gray-500 mt-1">Earliest the client says the freight can be collected.</p>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Pickup Date</label>
-                <input type="date" value={pickupDate} onChange={(e) => setPickupDate(e.target.value)}
+                <DateField value={pickupDate} onChange={setPickupDate}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Delivery Date</label>
-                <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)}
+                <DateField value={deliveryDate} onChange={setDeliveryDate}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
               </div>
               {/* Whoever writes an order is put on it as an owner, so the

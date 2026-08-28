@@ -905,15 +905,24 @@ expiry, start dates, birthdays, the "created" and "last updated" lines. Changing
 it changes what everyone sees the next time their page loads — it does not touch
 any stored data, so switching back and forth is safe.
 
-Two deliberate exceptions:
+One deliberate exception:
 
 - **Documents keep the month spelled out.** Bills of lading, invoices, carrier
   agreements and the page a carrier signs always say "March 4, 2020". They leave
   the company, they are the record of the shipment, and 03/04/2020 is two
   different days depending on who is reading it.
-- **Date boxes are your computer's, not ours.** The little calendar that opens
-  when you click a date field comes from your web browser and follows your own
-  Windows setting. This choice cannot change it.
+Typing a date follows the setting as well. Every date box shows and accepts the
+chosen format, and the calendar button at its right still opens the usual picker
+if you would rather click than type. Two things the box will not do:
+
+- **It will not guess.** With the spelled-out month set, typing `3/4/2020` gets
+  you "That could be two different days" rather than a silent choice between the
+  4th of March and the 3rd of April. Type `4-Mar-2020`, or use the calendar.
+  Under MM/DD/YYYY or DD/MM/YYYY the order is already settled, so `3/4/2020` is
+  taken at its word.
+- **It will not keep a date it could not read.** Nothing is stored until what
+  you typed is a real date, so a half-finished or mistyped one cannot be saved
+  as though you meant it.
 
 The default is the spelled-out month for a reason: staff here enter dates from
 both the US and Latin America, where 03/04 means two different days. If

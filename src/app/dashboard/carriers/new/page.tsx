@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
 import { createCarrier } from '@/lib/carriers';
 import PersonNameFields from '@/components/PersonNameFields';
+import DateField from '@/components/DateField';
 
 export default function NewCarrierPage() {
   const router = useRouter();
@@ -129,7 +130,7 @@ export default function NewCarrierPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Expiration Date</label>
-              <input type="date" value={insuranceExpiration} onChange={(e) => setInsExpiry(e.target.value)}
+              <DateField value={insuranceExpiration} onChange={setInsExpiry}
                 className={inputCls} />
             </div>
           </div>

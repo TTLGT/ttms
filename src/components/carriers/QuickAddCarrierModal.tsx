@@ -5,6 +5,7 @@ import { Timestamp } from 'firebase/firestore';
 import { createCarrier } from '@/lib/carriers';
 import type { Carrier } from '@/types/carrier';
 import PersonNameFields from '@/components/PersonNameFields';
+import DateField from '@/components/DateField';
 
 /**
  * Quick-add carrier, used from the carrier dropdown on an order.
@@ -123,7 +124,7 @@ export default function QuickAddCarrierModal({
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Insurance Expiration</label>
-              <input type="date" value={insuranceExpiration} onChange={(e) => setInsExpiry(e.target.value)}
+              <DateField value={insuranceExpiration} onChange={setInsExpiry}
                 className={inputCls} />
             </div>
           </div>

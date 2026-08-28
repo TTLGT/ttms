@@ -123,8 +123,10 @@ export default function DateFormatPanel() {
           as the record of a shipment, where a slashed date can be read as two different days.
         </p>
         <p>
-          Boxes where you pick a date are unaffected: the little calendar comes from your web
-          browser, which uses your computer&rsquo;s own setting rather than this one.
+          Typing a date follows this too — every date box in TTMS shows and accepts the format
+          chosen here, and the calendar button beside it still opens the usual picker for clicking.
+          A box that cannot read what was typed, or that could read it as two different days, says
+          so rather than guessing.
         </p>
       </div>
 

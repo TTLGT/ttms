@@ -10,6 +10,7 @@ import {
 import type { ImportProblem } from '@/lib/userImport';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
+import DateField from '@/components/DateField';
 
 /**
  * Fix one row of an import without going back to Excel.
@@ -195,18 +196,17 @@ export default function ImportRowEditor({
           }
 
           if (key === 'dateOfBirth' || key === 'startDate') {
-            // A date box can only hold YYYY-MM-DD, so a cell the importer could
-            // not read shows empty here. That is the point: the box cannot
-            // produce another unreadable date, and the message under it still
-            // quotes what the file said.
+            // A date box only ever holds YYYY-MM-DD, so a cell the importer
+            // could not read shows empty here. That is the point: the box
+            // cannot produce another unreadable date, and the message under it
+            // still quotes what the file said.
             const iso = /^\d{4}-\d{2}-\d{2}$/.test(values[key]) ? values[key] : '';
             return (
               <label key={key} className="text-xs text-gray-500">
                 {label}
-                <input
-                  type="date"
+                <DateField
                   value={iso}
-                  onChange={(e) => onChange(key, e.target.value)}
+                  onChange={(v) => onChange(key, v)}
                   className={`${inputClass} ${borderFor(problem)}`}
                 />
                 {problem && <p className="mt-1 text-[11px] text-amber-700">{problem}</p>}
