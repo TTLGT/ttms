@@ -575,18 +575,28 @@ export async function DELETE(req: NextRequest) {
 
   await ref.delete();
 
-  if (uid) {
-    // A team pointing at a profile that no longer exists would render a blank
-    // lead with no way to tell it from "nobody named yet". Clearing it says the
-    // true thing: this team needs a new lead. Suspension deliberately does not
-    // do this — a suspended lead is still the lead they come back to.
-    const led = await adminDb.collection(TEAMS_COLLECTION).where('leadUid', '==', uid).get();
-    if (!led.empty) {
-      const batch = adminDb.batch();
-      for (const doc of led.docs) batch.update(doc.ref, { leadUid: null });
-      await batch.commit().catch(() => {});
-    }
+  // A team pointing at someone who is no longer on the system would render a
+  // blank lead with no way to tell it from "nobody named yet". Clearing it says
+  // the true thing: this team needs a new lead. Suspension deliberately does
+  // not do this — a suspended lead is still the lead they come back to.
+  //
+  // Both shapes have to be cleared, and the pending one runs even when there is
+  // no uid: a lead who never signed in is held by email alone, and that is
+  // exactly the person most likely to be removed before their first day.
+  const led = await Promise.all([
+    adminDb.collection(TEAMS_COLLECTION).where('leadEmail', '==', email).get(),
+    uid
+      ? adminDb.collection(TEAMS_COLLECTION).where('leadUid', '==', uid).get()
+      : null,
+  ]);
+  const ledDocs = led.flatMap((snap) => snap?.docs ?? []);
+  if (ledDocs.length) {
+    const batch = adminDb.batch();
+    for (const doc of ledDocs) batch.update(doc.ref, { leadUid: null, leadEmail: null });
+    await batch.commit().catch(() => {});
+  }
 
+  if (uid) {
     await adminDb.collection(USERS_COLLECTION).doc(uid).delete().catch(() => {});
     // Kill the session now rather than waiting for the ID token to expire.
     await adminAuth.setCustomUserClaims(uid, { ttlAccess: false }).catch(() => {});

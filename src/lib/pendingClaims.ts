@@ -2,9 +2,9 @@
  * Turning assignments held by email into assignments held by uid.
  *
  * An admin has to be able to set someone up before their first day: assign
- * them clients, put them on a work group, hand them orders. None of that can
- * name a uid, because a Firebase uid does not exist until the person first
- * authenticates with Google. So those assignments are recorded against the
+ * them clients, put them on a work group, hand them orders, put them in charge
+ * of a team. None of that can name a uid, because a Firebase uid does not exist
+ * until the person first authenticates with Google. So those assignments are recorded against the
  * person's email and drained here, at the moment they sign in for the first
  * time.
  *
@@ -16,12 +16,14 @@
 
 import { Timestamp } from 'firebase-admin/firestore';
 import { FieldValue, adminDb } from './firebase-admin';
-import { WORK_GROUPS_COLLECTION, USERS_COLLECTION } from './accessControl';
+import { TEAMS_COLLECTION, WORK_GROUPS_COLLECTION, USERS_COLLECTION } from './accessControl';
 import { syncClientOwners } from './ownership';
 
 export interface ClaimResult {
   /** Work groups this person was waiting to join. */
   groupIds: string[];
+  /** Teams that were already reporting to this person by email. */
+  teamIds: string[];
   parties: number;
   orders: number;
 }
@@ -29,25 +31,28 @@ export interface ClaimResult {
 /**
  * Claim everything held for `email` on behalf of `uid`.
  *
- * Safe to run more than once: each step is driven by an `array-contains` query
- * on the email, and the email is removed as it is claimed, so a second pass
- * simply finds nothing.
+ * Safe to run more than once: every step is driven by a query on the email
+ * itself, and the email is cleared as it is claimed, so a second pass simply
+ * finds nothing.
  */
 export async function claimPendingAssignments(email: string, uid: string): Promise<ClaimResult> {
   const now = Timestamp.now();
-  const result: ClaimResult = { groupIds: [], parties: 0, orders: 0 };
+  const result: ClaimResult = { groupIds: [], teamIds: [], parties: 0, orders: 0 };
   if (!email || !uid) return result;
 
-  const [groups, parties, orders] = await Promise.all([
+  const [groups, teams, parties, orders] = await Promise.all([
     adminDb.collection(WORK_GROUPS_COLLECTION).where('memberEmails', 'array-contains', email).get(),
+    // Equality rather than array-contains: a team has exactly one lead.
+    adminDb.collection(TEAMS_COLLECTION).where('leadEmail', '==', email).get(),
     adminDb.collection('parties').where('assignedToEmails', 'array-contains', email).get(),
     adminDb.collection('orders').where('assignedToEmails', 'array-contains', email).get(),
   ]);
 
   result.groupIds = groups.docs.map((d) => d.id);
+  result.teamIds  = teams.docs.map((d) => d.id);
   result.parties  = parties.size;
   result.orders   = orders.size;
-  if (groups.size + parties.size + orders.size === 0) return result;
+  if (groups.size + teams.size + parties.size + orders.size === 0) return result;
 
   /** One pending update, collected first so the whole lot can be chunked. */
   const updates: { ref: FirebaseFirestore.DocumentReference; data: Record<string, unknown> }[] = [];
@@ -60,6 +65,17 @@ export async function claimPendingAssignments(email: string, uid: string): Promi
         memberEmails: ((doc.data().memberEmails ?? []) as string[]).filter((e) => e !== email),
         updatedAt:    now,
       },
+    });
+  }
+
+  // A team named this person as its lead before they had a uid. Moving the
+  // address into `leadUid` now means nothing that renders a lead has to know
+  // the pending shape existed — and it cannot go stale if they later change
+  // their email.
+  for (const doc of teams.docs) {
+    updates.push({
+      ref:  doc.ref,
+      data: { leadUid: uid, leadEmail: null, updatedAt: now },
     });
   }
 

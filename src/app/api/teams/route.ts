@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError, requireAdmin } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
-import { TEAMS_COLLECTION, USERS_COLLECTION } from '@/lib/accessControl';
+import { TEAMS_COLLECTION } from '@/lib/accessControl';
+import { resolveLead } from '@/lib/teamLead';
 
 /**
  * Teams — the reporting structure. See src/types/team.ts for why these are
@@ -26,17 +27,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/**
- * The lead has to be someone who exists, or the team would display a name it
- * cannot resolve. Checked here rather than trusted from the picker, which can
- * be stale by the time it is submitted.
- */
-async function validLead(value: unknown): Promise<string | null | 'missing'> {
-  if (typeof value !== 'string' || !value) return null;
-  const snap = await adminDb.collection(USERS_COLLECTION).doc(value).get();
-  return snap.exists ? value : 'missing';
-}
-
 /** Creates a team. Names are unique so the picker can never show two alike. */
 export async function POST(req: NextRequest) {
   try {
@@ -51,15 +41,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'A team with that name already exists.' }, { status: 409 });
     }
 
-    const leadUid = await validLead(body.leadUid);
-    if (leadUid === 'missing') {
+    const lead = await resolveLead(body.lead);
+    if (lead === 'missing') {
       return NextResponse.json({ error: 'That person is no longer on the system.' }, { status: 400 });
     }
 
     const ref = adminDb.collection(TEAMS_COLLECTION).doc();
     await ref.set({
       name,
-      leadUid,
+      ...lead,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: caller.email ?? caller.uid,
       updatedAt: FieldValue.serverTimestamp(),

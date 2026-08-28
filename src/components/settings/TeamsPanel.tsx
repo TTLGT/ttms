@@ -5,6 +5,8 @@ import { Check, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { listTeams, createTeam, updateTeam, deleteTeam } from '@/lib/teams';
 import { listUserProfiles } from '@/lib/userProfiles';
 import { listAllowedUsers } from '@/lib/allowedUsers';
+import { findTeamLead } from '@/types/team';
+import { accessStatus, fullName } from '@/types/allowedUser';
 import type { Team } from '@/types/team';
 import type { UserProfile } from '@/types/userProfile';
 import type { AllowedUser } from '@/types/allowedUser';
@@ -40,21 +42,17 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
   const load = useCallback(async () => {
     setError('');
     try {
-      // Profiles are needed for the lead picker, and only people who have
-      // actually signed in have one — which is the right constraint here: a
-      // team cannot report to an invite nobody has accepted yet.
       // The allowlist is everyone; profiles are only those who have signed in.
-      // Both are needed: the member count has to include a new hire who has
-      // been put on a team but has not logged in yet, while the lead picker
-      // deliberately offers only signed-in people.
+      // The allowlist drives both the member count and the lead picker, because
+      // a new hire who has been put on a team — or put in charge of one — before
+      // their first sign-in is already on it. Profiles are still loaded for the
+      // name Google reported, which is all there is to show for somebody an
+      // admin never typed a name for.
       const [rows, signedIn, allowed] = await Promise.all([
         listTeams(), listUserProfiles(), listAllowedUsers(),
       ]);
       setTeams(rows);
-      setProfiles(
-        signedIn.sort((a, b) =>
-          (a.displayName || a.email).localeCompare(b.displayName || b.email)),
-      );
+      setProfiles(signedIn);
       setPeople(allowed);
       // The people list needs the same rows to render its team picker, so it
       // is handed them here rather than fetching the collection a second time.
@@ -68,11 +66,18 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
 
   useEffect(() => { void load(); }, [load]);
 
-  const leadName = (uid: string | null | undefined) => {
-    if (!uid) return null;
-    const p = profiles.find((x) => x.uid === uid);
-    return p ? (p.displayName || p.email) : null;
-  };
+  /**
+   * What to call someone. An admin-entered name wins over the one Google
+   * reported, the same way it does at sign-in; the address is the last resort,
+   * and the only thing there is for a pending invite nobody has named yet.
+   */
+  const personName = (p: AllowedUser) =>
+    fullName(p) || profiles.find((x) => x.uid === p.uid)?.displayName || p.email;
+
+  /** Everyone who can be picked as a lead, by name rather than by email. */
+  const pickable = [...people].sort((a, b) => personName(a).localeCompare(personName(b)));
+
+  const lead = (team: Team) => findTeamLead(team, people);
 
   /**
    * How many people report through this team, counted off the allowlist rather
@@ -103,7 +108,7 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
     setBusy(teamId);
     setError('');
     try {
-      await updateTeam(teamId, { name: draftName.trim(), leadUid: draftLead || null });
+      await updateTeam(teamId, { name: draftName.trim(), lead: draftLead || null });
       setEditing(null);
       await load();
     } catch (e) {
@@ -134,20 +139,35 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
     }
   }
 
-  /** The lead picker, shared by the create row and the edit row. */
+  /**
+   * The lead picker, shared by the create row and the edit row.
+   *
+   * Keyed on email rather than uid because a pending invite has no uid yet, and
+   * a team's lead is often exactly that person — the manager being hired to run
+   * it. The API stores whichever of the two it can; see `src/types/team.ts`.
+   * Who has signed in is still shown, so naming a lead who cannot open TTMS yet
+   * is a choice rather than a surprise.
+   */
   function LeadSelect({
     value, onChange: onPick, className,
   }: {
     value: string;
-    onChange: (uid: string) => void;
+    onChange: (email: string) => void;
     className: string;
   }) {
     return (
       <select value={value} onChange={(e) => onPick(e.target.value)} className={className}>
         <option value="">No lead yet</option>
-        {profiles.map((p) => (
-          <option key={p.uid} value={p.uid}>{p.displayName || p.email}</option>
-        ))}
+        {pickable.map((p) => {
+          const status = accessStatus(p);
+          return (
+            <option key={p.email} value={p.email}>
+              {personName(p)}
+              {status === 'pending' ? ' — has not signed in yet' : ''}
+              {status === 'suspended' ? ' — suspended' : ''}
+            </option>
+          );
+        })}
       </select>
     );
   }
@@ -239,9 +259,18 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-gray-900">{team.name}</p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          {leadName(team.leadUid)
-                            ? `Reports to ${leadName(team.leadUid)}`
-                            : 'No lead yet'}
+                          {(() => {
+                            const person = lead(team);
+                            if (!person) return 'No lead yet';
+                            // Worth saying out loud: a lead who has not signed
+                            // in cannot yet see the team they are named on, and
+                            // an admin who set this up weeks ago will want to
+                            // know that is still true.
+                            const waiting = accessStatus(person) === 'pending';
+                            return `Reports to ${personName(person)}${
+                              waiting ? ' (has not signed in yet)' : ''
+                            }`;
+                          })()}
                           {' · '}
                           {members === 0
                             ? 'nobody on it yet'
@@ -253,7 +282,7 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
                           onClick={() => {
                             setEditing(team.id);
                             setDraftName(team.name);
-                            setDraftLead(team.leadUid ?? '');
+                            setDraftLead(lead(team)?.email ?? '');
                           }}
                           title="Edit team"
                           className="p-2 rounded-lg border border-gray-200 text-gray-400 hover:bg-white hover:text-gray-600 transition"

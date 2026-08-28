@@ -382,9 +382,12 @@ whole point of them.
 1. Type the team name — for example `GT`, `Top Brokers`, `Hibrid`, `Staff`.
 2. Pick the **lead** from the dropdown: the person everyone on that team reports
    to. You can leave it as *No lead yet* and set it later.
-   - Only people who have **already signed in at least once** appear in this
-     list. Someone still showing as *Pending* cannot be made a lead until they
-     log in.
+   - Everyone on the People With Access list can be picked, including someone
+     who has not logged in yet — the dropdown says *has not signed in yet*
+     beside their name, and so does the team's row until they do. This is on
+     purpose: a new manager is usually named before their first day. They
+     cannot see anything in TTMS until they sign in, and being a team's lead
+     does not change that.
 3. Click **Add team**.
 
 Each team's row shows who it reports to and how many people are on it. The

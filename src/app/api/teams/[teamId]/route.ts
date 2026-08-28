@@ -5,6 +5,7 @@ import {
   TEAMS_COLLECTION,
   USERS_COLLECTION,
 } from '@/lib/accessControl';
+import { resolveLead } from '@/lib/teamLead';
 
 /** Renames a team or changes who it reports to. */
 export async function PATCH(
@@ -37,18 +38,15 @@ export async function PATCH(
 
     // `null` clears the lead, which is a real thing to want between one lead
     // leaving and the next being named — so it is distinguished from the key
-    // being absent, which means "leave the lead alone".
-    if ('leadUid' in body) {
-      const value = body.leadUid;
-      if (value === null || value === '') {
-        patch.leadUid = null;
-      } else if (typeof value === 'string') {
-        const lead = await adminDb.collection(USERS_COLLECTION).doc(value).get();
-        if (!lead.exists) {
-          return NextResponse.json({ error: 'That person is no longer on the system.' }, { status: 400 });
-        }
-        patch.leadUid = value;
+    // being absent, which means "leave the lead alone". Either way both fields
+    // are written together: leaving a stale `leadEmail` behind after naming a
+    // signed-in lead would give the team two answers to "who runs this".
+    if ('lead' in body) {
+      const lead = await resolveLead(body.lead);
+      if (lead === 'missing') {
+        return NextResponse.json({ error: 'That person is no longer on the system.' }, { status: 400 });
       }
+      Object.assign(patch, lead);
     }
 
     await ref.update(patch);

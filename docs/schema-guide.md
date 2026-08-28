@@ -440,12 +440,19 @@ Access list, both **non-access-bearing**.
 | Collection | Answers | Stored on the person as |
 |---|---|---|
 | `sites` | Where they sit — an office, terminal or yard. `{ name, address }` | `siteId` |
-| `teams` | Who they report to. `{ name, leadUid }` — everyone on a team reports to its lead. | `teamId` |
+| `teams` | Who they report to. `{ name, leadUid, leadEmail }` — everyone on a team reports to its lead. | `teamId` |
 
 Both are mirrored onto `users/{uid}` and both are cleared from every allowlist
 entry and profile when the parent document is deleted (see the `DELETE` in
-`/api/sites/[siteId]` and `/api/teams/[teamId]`). A team's `leadUid` is also
-cleared when that person is removed from the system.
+`/api/sites/[siteId]` and `/api/teams/[teamId]`). A team's lead is also cleared
+when that person is removed from the system.
+
+A lead is held as `leadUid` once they have signed in, and as `leadEmail` until
+then — never both. `leadEmail` is drained into `leadUid` by
+`claimPendingAssignments()` at first sign-in, the same way `memberEmails` is on
+a work group, so an org chart can be built before the people in it have logged
+in. Anything reading a lead should go through `findTeamLead()` in
+`src/types/team.ts` rather than matching on one field.
 
 **Teams are not work groups.** A team is an org chart; a `workGroups` document
 is an access boundary that shares clients, shippers and consignees between its

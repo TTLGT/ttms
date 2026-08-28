@@ -33,16 +33,22 @@ export async function listTeams(): Promise<Team[]> {
   return teams;
 }
 
-export async function createTeam(name: string, leadUid: string | null = null) {
+/**
+ * `lead` is the lead's **email**, not their uid: it is the one identifier
+ * everybody on the allowlist has, so a team can be pointed at someone who has
+ * not signed in yet. The API decides whether that lands in `leadUid` or waits
+ * in `leadEmail` — see `resolveLead` in `src/lib/teamLead.ts`.
+ */
+export async function createTeam(name: string, lead: string | null = null) {
   const res = await fetch('/api/teams', {
     method:  'POST',
     headers: await authHeaders(),
-    body:    JSON.stringify({ name, leadUid }),
+    body:    JSON.stringify({ name, lead }),
   });
   return unwrap<{ id: string }>(res);
 }
 
-export async function updateTeam(teamId: string, patch: { name?: string; leadUid?: string | null }) {
+export async function updateTeam(teamId: string, patch: { name?: string; lead?: string | null }) {
   const res = await fetch(`/api/teams/${teamId}`, {
     method:  'PATCH',
     headers: await authHeaders(),

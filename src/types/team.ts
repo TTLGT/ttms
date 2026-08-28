@@ -1,4 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
+import { normalizeEmail } from '@/lib/accessControl';
 
 /**
  * A reporting unit — GT, Top Brokers, Hibrid, Staff.
@@ -23,12 +24,46 @@ export interface Team {
   name: string;
   /**
    * The `users/{uid}` of the person this team reports to, or null when nobody
-   * has been named. A uid rather than an email so a lead who changes address
-   * keeps the link, and so the picker can only offer someone who has actually
-   * signed in and therefore has a profile to point at.
+   * has been named — or when the named lead has not signed in yet and is being
+   * held in `leadEmail` below. A uid rather than an email wherever one exists,
+   * so a lead who changes address keeps the link.
    */
   leadUid: string | null;
+  /**
+   * The lead's email, used only while that person has never signed in and so
+   * has no uid to point at.
+   *
+   * A team lead is very often the new hire the team is being built around, and
+   * making the org chart wait for their first Google sign-in meant a whole
+   * team read as leaderless during setup. This is the same holding pattern
+   * work groups use for `memberEmails`: `claimPendingAssignments()` moves the
+   * address into `leadUid` at that first sign-in, so nothing downstream ever
+   * has to match on both.
+   *
+   * At most one of the two is ever set. Absent on teams written before this
+   * existed; treat as null.
+   */
+  leadEmail?: string | null;
   createdAt: Timestamp | null;
   createdBy: string;
   updatedAt: Timestamp | null;
+}
+
+/**
+ * The person a team reports to, found in a list of allowlist entries — whether
+ * they are recorded by uid or, before their first sign-in, by email.
+ *
+ * Callers pass the list they already have rather than this reaching for one,
+ * because every screen that shows a lead is showing other people beside them
+ * and has loaded the allowlist anyway.
+ */
+export function findTeamLead<T extends { email: string; uid: string | null }>(
+  team: Pick<Team, 'leadUid' | 'leadEmail'>,
+  people: T[],
+): T | null {
+  if (team.leadUid) return people.find((p) => p.uid === team.leadUid) ?? null;
+
+  const email = normalizeEmail(team.leadEmail);
+  if (!email) return null;
+  return people.find((p) => normalizeEmail(p.email) === email) ?? null;
 }
