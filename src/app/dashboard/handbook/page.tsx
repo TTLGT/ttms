@@ -537,11 +537,27 @@ const CHAPTERS: Chapter[] = [
         </p>
         <Callout tone="info" title="Admin-only fields">
           <p>
-            <strong>Date of birth</strong> and <strong>personal email</strong> are kept on the
-            access list, which only Admins can read. They are never copied onto the profile the
-            rest of the company can see. Name, phones, site and start date are visible to everyone.
+            <strong>Full legal name</strong>, <strong>date of birth</strong>,{' '}
+            <strong>personal email</strong> and <strong>start date</strong> are kept on the access
+            list, which only Admins and HR can read. They are never copied onto the profile the
+            rest of the company can see. Name, phones, extension, site and team are.
           </p>
         </Callout>
+
+        <h3 className="pt-2 text-sm font-semibold text-gray-900">The Directory</h3>
+        <p>
+          <strong>Directory</strong> in the left-hand menu is the company phone book, and{' '}
+          <strong>everyone</strong> can open it — it is the one people page that is not part of
+          Settings. A broker sees each colleague&rsquo;s name, company email, US work phone and
+          extension, and can click either one to write or dial. Admins and HR see the same cards
+          with the second phone number, the office and the team filled in as well, plus anyone
+          who has been set up but has never signed in.
+        </p>
+        <p>
+          Nothing on it can be changed there. It is drawn from the details on{' '}
+          <strong>Settings → People</strong>, so fixing a wrong extension is done on that page and
+          shows up in the Directory straight away.
+        </p>
       </>
     ),
   },

@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Truck,
   Building2,
+  Contact,
   PackageCheck,
   ShieldCheck,
   Users,
@@ -37,6 +38,9 @@ const NAV_ITEMS: {
   { href: '/dashboard/consignees', label: 'Consignees', Icon: PackageCheck,  adminOnly: false },
   { href: '/dashboard/approvals', label: 'Approvals', Icon: ShieldCheck,      adminOnly: false },
   { href: '/dashboard/documents', label: 'Documents', Icon: Folder,          adminOnly: false },
+  // Open to everyone: it is the company phone book, not the access list.
+  // What each person is shown depends on their role — see src/lib/directory.ts.
+  { href: '/dashboard/directory', label: 'Directory', Icon: Contact,         adminOnly: false },
   { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart2,       adminOnly: true  },
   // Also open to HR, who read the people directory there and nothing else —
   // the page itself renders read-only for them. Analytics and Handbook stay

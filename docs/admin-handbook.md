@@ -385,6 +385,30 @@ you have filtered the list, you get the filtered version.
 
 ---
 
+## 6b. The Directory — the one people page everyone can open
+
+**Directory** in the left-hand menu is the company phone book. Unlike Settings,
+**every single person who can sign in to TTMS can open it**, brokers included.
+
+| Who is looking | What they see on each person |
+|---|---|
+| Anyone signed in | Name, photo, company email, US work phone, extension |
+| Admin and HR | The above, plus the second phone number, the office and the team — and anyone who has been set up but has never signed in |
+
+The email address and the phone numbers are clickable: one opens a new email,
+the other dials, which is the whole reason the page exists.
+
+Two things it deliberately does **not** show anyone: date of birth, personal
+email, full legal name and start date are never on it, and neither is anyone
+whose access has been suspended — except for Admins and HR, who see them marked
+as suspended because doing something about it is their job.
+
+**Nothing on the Directory can be edited there.** It reads the details from
+**Settings → People**, so a wrong extension is corrected on that page and is
+right in the Directory immediately.
+
+---
+
 ## 6a. Sites, Teams and Work Groups
 
 The **Organization** tab of Settings holds three panels that group people in
