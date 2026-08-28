@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowDown, ArrowUp, Ban, Check, Download, Pencil, RotateCcw, Trash2, X,
+  ArrowDown, ArrowUp, Ban, Building2, CalendarDays, Check, Download, Pencil,
+  Phone, RotateCcw, Smartphone, Trash2, UsersRound, X,
 } from 'lucide-react';
 import {
   listAllowedUsers,
@@ -36,7 +37,7 @@ import {
 } from '@/types/allowedUser';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import type { DateLike } from '@/lib/dateFormat';
-import type { AllowedUser, AllowedUserRole } from '@/types/allowedUser';
+import type { AccessStatus, AllowedUser, AllowedUserRole } from '@/types/allowedUser';
 import { toCsv, csvDate, downloadCsv } from '@/lib/csv';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
@@ -45,6 +46,7 @@ import RemovedPeoplePanel from '@/components/settings/RemovedPeoplePanel';
 import { personAnchorId } from '@/components/settings/settingsSections';
 import { AvatarUploader, UserAvatar } from '@/components/settings/UserAvatar';
 import DateField from '@/components/DateField';
+import Fact from '@/components/people/Fact';
 
 /**
  * The elevated roles. Broker is not among them: it is the default everyone
@@ -205,6 +207,39 @@ function CountTile({
       </span>
     </button>
   );
+}
+
+const STATUS_CHIP: Record<AccessStatus, { label: string; className: string }> = {
+  active:    { label: 'Active',    className: 'bg-green-50 text-green-700 border-green-200' },
+  pending:   { label: 'Pending',   className: 'bg-amber-50 text-amber-700 border-amber-200' },
+  suspended: { label: 'Suspended', className: 'bg-red-50 text-red-700 border-red-200' },
+};
+
+/**
+ * The three states as a chip in the card's corner rather than a line of text
+ * under the name — it is one word, and giving it a whole row was part of what
+ * made the list so tall.
+ */
+function StatusChip({ status }: { status: AccessStatus }) {
+  const { label, className } = STATUS_CHIP[status];
+  return (
+    <span
+      className={`flex-shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${className}`}
+      title={status === 'pending' ? 'Added, but has never signed in' : undefined}
+    >
+      {label}
+    </span>
+  );
+}
+
+/**
+ * What someone is allowed to do, in words. Broker is the absence of the rest,
+ * so it is spelled out rather than left as an empty row — same rule the CSV
+ * export follows.
+ */
+function roleLabels(p: AllowedUser): string[] {
+  const held = ROLE_CHIPS.filter(({ field }) => p[field]).map(({ label }) => label);
+  return held.length > 0 ? held : ['Broker'];
 }
 
 export default function SettingsPeoplePage() {
@@ -604,8 +639,11 @@ They will be signed out immediately and cannot sign in until you restore them. T
         </div>
       )}
 
+      {/* The list below takes the full width of the tab; these two are a form
+          and a collapsed archive, and a form field stretched across the whole
+          screen is harder to fill in, not easier. */}
       {canEdit && (
-        <div id="add-people" className="scroll-mt-44">
+        <div id="add-people" className="scroll-mt-44 max-w-4xl">
           <AddPeoplePanel sites={sites} teams={teams} onChanged={load} />
         </div>
       )}
@@ -793,34 +831,44 @@ They will be signed out immediately and cannot sign in until you restore them. T
             </button>
           </div>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          /* Two abreast once there is room. This was one full-width row per
+             person down a narrow column, which made two dozen people a long
+             scroll for no reason — half the width of every row was empty. */
+          <ul className="grid items-start gap-3 rounded-b-xl bg-gray-50 p-4 xl:grid-cols-2">
             {visiblePeople.map((p) => {
               const isSelf      = normalizeEmail(p.email) === myEmail;
               const isProtected = isBootstrapAdmin(p.email);
               const status      = accessStatus(p);
               const suspended   = status === 'suspended';
+              const other       = otherPhone(p);
+              const site        = siteName(p.siteId);
+              const team        = teamName(p.teamId);
 
               return (
                 /* The id is what the search box jumps to when someone looks a
-                   person up by name; `target:` rings the row on arrival so it
-                   is obvious which one of two dozen was meant. */
+                   person up by name; `target:` rings the card on arrival so it
+                   is obvious which one of two dozen was meant.
+
+                   Editing takes the whole width: the form is a three-column
+                   grid, and folding it into half a screen would put the long
+                   scroll straight back. */
                 <li
                   key={p.email}
                   id={personAnchorId(p.email)}
-                  className={`scroll-mt-44 target:ring-2 target:ring-inset target:ring-brand-400 ${
-                    suspended ? 'bg-red-50/40' : ''
-                  }`}
+                  className={`scroll-mt-44 rounded-xl border p-4 transition target:ring-2 target:ring-brand-400 ${
+                    editing === p.email ? 'border-brand-300 xl:col-span-2' : 'border-gray-200'
+                  } ${suspended ? 'bg-red-50/50' : 'bg-white'}`}
                 >
-                  <div className="flex items-center justify-between px-6 py-4 gap-4">
-                    <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex items-start gap-3">
                     <UserAvatar
                       photoPath={p.photoPath}
                       fallback={(fullName(p) || p.email).charAt(0).toUpperCase()}
                       muted={suspended}
+                      size={40}
                     />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p
-                        className={`text-sm font-medium truncate ${
+                        className={`truncate text-sm font-medium ${
                           suspended ? 'text-gray-500' : 'text-gray-900'
                         }`}
                       >
@@ -829,43 +877,55 @@ They will be signed out immediately and cannot sign in until you restore them. T
                       </p>
 
                       {/* Only worth a line of its own once a name is displacing
-                          it from the line above. */}
+                          it from the line above. `break-all` because an address
+                          is the one thing on the card that cannot wrap at a
+                          space, and cutting it would hide the domain. */}
                       {fullName(p) && (
-                        <p className="text-xs text-gray-500 truncate">{p.email}</p>
+                        <p className="break-all text-xs text-gray-500">{p.email}</p>
                       )}
+                    </div>
 
-                      {/* The US number carries the extension and site with it;
-                          crowding the GT number onto the same line pushed those
-                          two past the truncation point. */}
-                      {(p.phone || p.extension || p.siteId || p.teamId) && (
-                        <p className="text-xs text-gray-500 truncate">
+                    <StatusChip status={status} />
+                  </div>
+
+                  {/* The facts, one per line, none of them truncated. They used
+                      to be joined into a single line that was cut off at the
+                      edge of the row — which in practice meant the office name,
+                      because it sat last. A card one line taller is a much
+                      smaller problem than a fact that is not there at all. */}
+                  {(p.phone || p.extension || other.value || site || team || p.startDate) && (
+                    <div className="mt-3 grid grid-cols-[14px_1fr] items-start gap-x-2 gap-y-1">
+                      {(p.phone || p.extension) && (
+                        <Fact Icon={Phone}>
                           {[
                             // Labelled, because two bare numbers on adjacent
                             // lines give no clue which to dial from where.
                             p.phone ? `US ${p.phone}` : null,
                             p.extension ? `ext. ${p.extension}` : null,
-                            siteName(p.siteId),
-                            // Prefixed so a team called "Staff" cannot be read
-                            // as another site sitting next to the real one.
-                            teamName(p.teamId) ? `Team ${teamName(p.teamId)}` : null,
                           ]
                             .filter(Boolean)
                             .join(' · ')}
-                        </p>
+                        </Fact>
                       )}
 
-                      {otherPhone(p).value && (
-                        <p className="text-xs text-gray-500 truncate">
-                          {otherPhone(p).region} {otherPhone(p).value}
-                        </p>
+                      {other.value && (
+                        <Fact Icon={Smartphone}>
+                          {other.region} {other.value}
+                        </Fact>
                       )}
+
+                      {site && <Fact Icon={Building2}>{site}</Fact>}
+
+                      {/* Prefixed so a team called "Staff" cannot be read as
+                          another office sitting next to the real one. */}
+                      {team && <Fact Icon={UsersRound}>Team {team}</Fact>}
 
                       {/* Start date earns a line because it answers "how long
                           has this person been here" at a glance. Date of birth
                           does not — it stays in the editor, where it is not on
                           screen every time someone opens Settings. */}
                       {p.startDate && (
-                        <p className="text-xs text-gray-500 truncate">
+                        <Fact Icon={CalendarDays}>
                           Started {formatCalendarDate(p.startDate)}
                           {(() => {
                             const years = yearsSince(p.startDate);
@@ -873,153 +933,160 @@ They will be signed out immediately and cannot sign in until you restore them. T
                               ? ` · ${years} year${years === 1 ? '' : 's'}`
                               : '';
                           })()}
-                        </p>
+                        </Fact>
                       )}
-
-                      <p className="text-xs text-gray-500">
-                        {status === 'suspended' ? (
-                          <span className="text-red-600 font-medium">Suspended</span>
-                        ) : status === 'pending' ? (
-                          <span className="text-amber-600">Pending first sign-in</span>
-                        ) : (
-                          <span className="text-green-600">Active</span>
-                        )}
-                        {isProtected && (
-                          <span className="ml-2 text-gray-400">· Protected account</span>
-                        )}
-                      </p>
-
-                      <p className="text-[11px] text-gray-400 mt-0.5">
-                        Added {formatWhen(p.invitedAt)}
-                        {p.invitedBy ? ` by ${p.invitedBy}` : ''}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Every control in here writes. HR reads this page, so the
-                      whole cluster is absent for them rather than disabled —
-                      a row of greyed buttons would only invite a support call
-                      asking why none of them work. */}
-                  {canEdit && (
-                  <div className="flex items-center gap-2 flex-wrap justify-end">
-                    {(() => {
-                      const active = isBroker(p);
-                      // Demoting means dropping admin, which these two accounts
-                      // are never allowed to do.
-                      const locked = (isSelf && p.isAdmin) || (isProtected && p.isAdmin);
-                      const working = busy === `${p.email}:broker`;
-                      return (
-                        <button
-                          onClick={() => handleMakeBroker(p)}
-                          disabled={active || locked || working}
-                          title={
-                            locked
-                              ? 'This admin role cannot be removed'
-                              : active
-                              ? 'The default role — their own clients and loads'
-                              : 'Remove the other roles and leave them a broker'
-                          }
-                          className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
-                            locked
-                              ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                              : active && suspended
-                              ? 'border-gray-200 bg-gray-100 text-gray-500'
-                              : active
-                              ? 'border-brand-200 bg-brand-50 text-brand-700 cursor-default'
-                              : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-                          }`}
-                        >
-                          {working ? '…' : 'Broker'}
-                        </button>
-                      );
-                    })()}
-
-                    {ROLE_CHIPS.map(({ field, label }) => {
-                      const active   = !!p[field];
-                      // Roles stay editable while suspended — they are what the
-                      // person comes back to — but read as inactive.
-                      const locked   = field === 'isAdmin' && (isSelf || isProtected);
-                      const working  = busy === `${p.email}:${field}`;
-                      return (
-                        <button
-                          key={field}
-                          onClick={() => handleToggle(p, field)}
-                          disabled={locked || working}
-                          title={locked ? 'This admin role cannot be removed' : undefined}
-                          className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
-                            locked
-                              ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                              : active && suspended
-                              ? 'border-gray-200 bg-gray-100 text-gray-500'
-                              : active
-                              ? 'border-brand-200 bg-brand-50 text-brand-700'
-                              : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-                          }`}
-                        >
-                          {working ? '…' : label}
-                        </button>
-                      );
-                    })}
-
-                    <button
-                      onClick={() => (editing === p.email ? setEditing(null) : startEditing(p))}
-                      title="Edit name, phone, extension and site"
-                      className={`p-2 rounded-lg border transition ${
-                        editing === p.email
-                          ? 'border-brand-300 bg-brand-50 text-brand-700'
-                          : 'border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600'
-                      }`}
-                    >
-                      {editing === p.email ? <X size={14} /> : <Pencil size={14} />}
-                    </button>
-
-                    <button
-                      onClick={() => handleSuspend(p)}
-                      disabled={isSelf || isProtected || busy === `${p.email}:suspend`}
-                      title={
-                        isSelf
-                          ? 'You cannot suspend your own access'
-                          : isProtected
-                          ? 'Protected accounts cannot be suspended'
-                          : suspended
-                          ? 'Restore access'
-                          : 'Suspend access temporarily'
-                      }
-                      className={`p-2 rounded-lg border transition ${
-                        isSelf || isProtected
-                          ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                          : suspended
-                          ? 'border-green-200 text-green-600 hover:bg-green-50'
-                          : 'border-gray-200 text-gray-400 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200'
-                      }`}
-                    >
-                      {suspended ? <RotateCcw size={14} /> : <Ban size={14} />}
-                    </button>
-
-                    <button
-                      onClick={() => handleRevoke(p)}
-                      disabled={isSelf || isProtected || busy === `${p.email}:revoke`}
-                      title={
-                        isSelf
-                          ? 'You cannot remove your own access'
-                          : isProtected
-                          ? 'Protected accounts cannot be removed here'
-                          : 'Remove access'
-                      }
-                      className={`p-2 rounded-lg border transition ${
-                        isSelf || isProtected
-                          ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                          : 'border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
-                      }`}
-                    >
-                      <Trash2 size={14} />
-                    </button>
                     </div>
                   )}
+
+                  {/* Every control below writes. HR reads this page, so they get
+                      the roles as plain chips instead — what someone is allowed
+                      to do is the first thing anyone reads a directory entry
+                      for, and a row of greyed-out buttons would only invite a
+                      support call asking why none of them work. */}
+                  <div className="mt-3 border-t border-gray-100 pt-3">
+                    {canEdit ? (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {(() => {
+                          const active = isBroker(p);
+                          // Demoting means dropping admin, which these two
+                          // accounts are never allowed to do.
+                          const locked = (isSelf && p.isAdmin) || (isProtected && p.isAdmin);
+                          const working = busy === `${p.email}:broker`;
+                          return (
+                            <button
+                              onClick={() => handleMakeBroker(p)}
+                              disabled={active || locked || working}
+                              title={
+                                locked
+                                  ? 'This admin role cannot be removed'
+                                  : active
+                                  ? 'The default role — their own clients and loads'
+                                  : 'Remove the other roles and leave them a broker'
+                              }
+                              className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
+                                locked
+                                  ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                                  : active && suspended
+                                  ? 'border-gray-200 bg-gray-100 text-gray-500'
+                                  : active
+                                  ? 'border-brand-200 bg-brand-50 text-brand-700 cursor-default'
+                                  : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                              }`}
+                            >
+                              {working ? '…' : 'Broker'}
+                            </button>
+                          );
+                        })()}
+
+                        {ROLE_CHIPS.map(({ field, label }) => {
+                          const active   = !!p[field];
+                          // Roles stay editable while suspended — they are what
+                          // the person comes back to — but read as inactive.
+                          const locked   = field === 'isAdmin' && (isSelf || isProtected);
+                          const working  = busy === `${p.email}:${field}`;
+                          return (
+                            <button
+                              key={field}
+                              onClick={() => handleToggle(p, field)}
+                              disabled={locked || working}
+                              title={locked ? 'This admin role cannot be removed' : undefined}
+                              className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
+                                locked
+                                  ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                                  : active && suspended
+                                  ? 'border-gray-200 bg-gray-100 text-gray-500'
+                                  : active
+                                  ? 'border-brand-200 bg-brand-50 text-brand-700'
+                                  : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                              }`}
+                            >
+                              {working ? '…' : label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {roleLabels(p).map((label) => (
+                          <span
+                            key={label}
+                            className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600"
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="mt-2 flex items-end justify-between gap-3">
+                      <p className="min-w-0 text-[11px] text-gray-400">
+                        Added {formatWhen(p.invitedAt)}
+                        {p.invitedBy ? ` by ${p.invitedBy}` : ''}
+                        {isProtected && <span className="block">Protected account</span>}
+                      </p>
+
+                      {canEdit && (
+                        <div className="flex flex-shrink-0 items-center gap-1.5">
+                          <button
+                            onClick={() => (editing === p.email ? setEditing(null) : startEditing(p))}
+                            title="Edit name, phone, extension and site"
+                            className={`rounded-lg border p-1.5 transition ${
+                              editing === p.email
+                                ? 'border-brand-300 bg-brand-50 text-brand-700'
+                                : 'border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+                            }`}
+                          >
+                            {editing === p.email ? <X size={14} /> : <Pencil size={14} />}
+                          </button>
+
+                          <button
+                            onClick={() => handleSuspend(p)}
+                            disabled={isSelf || isProtected || busy === `${p.email}:suspend`}
+                            title={
+                              isSelf
+                                ? 'You cannot suspend your own access'
+                                : isProtected
+                                ? 'Protected accounts cannot be suspended'
+                                : suspended
+                                ? 'Restore access'
+                                : 'Suspend access temporarily'
+                            }
+                            className={`rounded-lg border p-1.5 transition ${
+                              isSelf || isProtected
+                                ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                                : suspended
+                                ? 'border-green-200 text-green-600 hover:bg-green-50'
+                                : 'border-gray-200 text-gray-400 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200'
+                            }`}
+                          >
+                            {suspended ? <RotateCcw size={14} /> : <Ban size={14} />}
+                          </button>
+
+                          <button
+                            onClick={() => handleRevoke(p)}
+                            disabled={isSelf || isProtected || busy === `${p.email}:revoke`}
+                            title={
+                              isSelf
+                                ? 'You cannot remove your own access'
+                                : isProtected
+                                ? 'Protected accounts cannot be removed here'
+                                : 'Remove access'
+                            }
+                            className={`rounded-lg border p-1.5 transition ${
+                              isSelf || isProtected
+                                ? 'border-gray-200 text-gray-300 cursor-not-allowed'
+                                : 'border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
+                            }`}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {canEdit && editing === p.email && (
-                    <div className="px-6 pb-4 pt-1">
+                    <div className="mt-3">
                       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                         <div className="pb-4 mb-4 border-b border-gray-200">
                           <AvatarUploader
@@ -1029,7 +1096,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
                           />
                         </div>
 
-                        <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                           <label className="text-xs text-gray-500">
                             First name
                             <input
@@ -1212,7 +1279,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
           have left, so it stays admin-only — HR reads the live directory
           above and nothing else. */}
       {canEdit && (
-        <div id="removed-people" className="scroll-mt-44">
+        <div id="removed-people" className="scroll-mt-44 max-w-4xl">
           <RemovedPeoplePanel sites={sites} teams={teams} />
         </div>
       )}

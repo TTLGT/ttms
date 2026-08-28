@@ -52,8 +52,16 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
   const tabs = SETTINGS_TABS.filter((t) => isAdmin || !t.adminOnly);
 
+  /**
+   * People is the one tab that is a list of many records rather than a stack
+   * of settings panels, so it gets the whole screen and lays its people out
+   * two abreast. The other four stay narrow on purpose: a form field stretched
+   * across 1600px is harder to read, not easier.
+   */
+  const wide = pathname.startsWith('/dashboard/settings/people');
+
   return (
-    <div className="p-8 max-w-3xl">
+    <div className={`p-8 ${wide ? 'max-w-[1600px]' : 'max-w-3xl'}`}>
       {/* Sticky so the tabs stay reachable while a long tab — People, mostly —
           is scrolled. `top-0` refers to <main>, which is the scroll container;
           the background is opaque so rows do not show through it. */}
