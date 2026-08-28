@@ -58,10 +58,24 @@ const REGIONS: Record<PhoneRegion, {
   nationalLength: number;
   /** What to call it when telling an admin why theirs was not accepted. */
   label: string;
+  /**
+   * Prefixes that used to sit between the country code and the number and no
+   * longer do. See the note above `normalizePhone` for why they still arrive.
+   */
+  legacyPrefixes?: string[];
 }> = {
   US: { code: '1',   nationalLength: 10, label: 'a 10-digit US number' },
   GT: { code: '502', nationalLength: 8,  label: 'an 8-digit Guatemala number' },
-  MX: { code: '52',  nationalLength: 10, label: 'a 10-digit Mexico number' },
+  MX: {
+    code: '52', nationalLength: 10, label: 'a 10-digit Mexico number',
+    // Until 2019 a Mexican mobile was dialled as +52 **1** and the number from
+    // abroad, or 044/045 and the number from inside Mexico. Those prefixes were
+    // abolished, but they are still sitting in every contact card and call log
+    // saved before then — which is exactly where a number gets copied from. The
+    // digits after them are the number we want, so they are dropped rather than
+    // counted.
+    legacyPrefixes: ['1', '044', '045'],
+  },
 };
 
 export interface PhoneResult {
@@ -131,6 +145,14 @@ function format(national: string, region: PhoneRegion): string {
  * before the count is taken, so `(469) 935-4100` and `469.935.4100` are the
  * same input.
  *
+ * A region's obsolete dialling prefixes are dropped too, on their own or behind
+ * the country code, so Mexico's `+52 1 442 755 9621` and `044 442 755 9621`
+ * both come out as the same ten digits as `442 755 9621`. Only a prefix that
+ * leaves exactly the right number of digits behind is taken off, so this cannot
+ * eat the front of a real number: `1 442 755 9621` is eleven digits and loses
+ * its `1`, while a genuine ten-digit number starting `1` is already the right
+ * length and is left alone.
+ *
  * A trailing extension (`935-4100 x12`) is *not* stripped: it would push the
  * count over and be rejected, which is the right outcome. Extensions have
  * their own field, and quietly discarding the `12` would store a number that
@@ -140,16 +162,29 @@ export function normalizePhone(value: unknown, region: PhoneRegion): PhoneResult
   const raw = typeof value === 'string' ? value.trim() : '';
   if (!raw) return { value: '', rejected: false, raw: '' };
 
-  const { code, nationalLength } = REGIONS[region];
+  const { code, nationalLength, legacyPrefixes = [] } = REGIONS[region];
 
   let digits = raw.replace(/\D/g, '');
   // `00` is how the rest of the world writes `+`, and it turns up on numbers
   // copied out of a phone's call log.
   if (digits.startsWith('00')) digits = digits.slice(2);
-  // Drop the country code only when what is left is the right length — so a
-  // US number that happens to start with 1 is not shortened into nonsense.
-  if (digits.length === code.length + nationalLength && digits.startsWith(code)) {
-    digits = digits.slice(code.length);
+
+  // Everything that can sit in front of the number: the country code, an
+  // obsolete prefix, or both together. Longest first, so `521` is tried before
+  // the `1` that is also the front of it.
+  const prefixes = [
+    ...legacyPrefixes.map((p) => code + p),
+    code,
+    ...legacyPrefixes,
+  ].sort((a, b) => b.length - a.length);
+
+  // Strip one only when what is left is exactly the right length — so a US
+  // number that happens to start with 1 is not shortened into nonsense.
+  for (const prefix of prefixes) {
+    if (digits.length === prefix.length + nationalLength && digits.startsWith(prefix)) {
+      digits = digits.slice(prefix.length);
+      break;
+    }
   }
 
   if (digits.length !== nationalLength) return { value: '', rejected: true, raw };
