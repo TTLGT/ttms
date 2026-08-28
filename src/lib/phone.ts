@@ -292,3 +292,22 @@ export function phoneSkipMessage(raw: string, region: PhoneRegion, kept: boolean
     : 'so it was left blank';
   return `${PHONE_LABEL[region]} “${raw}” is not ${REGIONS[region].label}, ${tail}.`;
 }
+
+/**
+ * A number the browser can actually dial.
+ *
+ * What is stored is the readable form — `+(469) 935-4100` — so the digits are
+ * pulled back out and the country code put on the front, which is the only
+ * shape a phone app takes reliably. The prefix test is safe in both
+ * directions: a ten-digit US number never starts with 1, and a national
+ * Guatemalan or Mexican number that happens to start with its own country
+ * code still comes out the right length.
+ *
+ * Lives here rather than beside one of the directory views because both of
+ * them dial the same numbers, and a second copy could drift.
+ */
+export function telHref(value: string, region: PhoneRegion): string {
+  const digits = value.replace(/\D/g, '');
+  const code   = PHONE_COUNTRY_CODE[region];
+  return `tel:+${digits.startsWith(code) ? digits : code + digits}`;
+}

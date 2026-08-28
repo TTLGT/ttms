@@ -20,18 +20,27 @@ import type { OtherPhoneRegion } from './phone';
  * How much of a person is shown is decided here rather than in the page, so
  * there is one place to look when asking what the directory gives away.
  * Everyone gets the name, the company address, the US work line, the
- * extension, the office and the team; the second number is the one contact
- * field held back for admin and HR, because it is usually someone's personal
- * mobile in their home country rather than a desk they sit at.
+ * extension, the office and the team. Admin and HR get five things beyond
+ * that, and **the two halves of that list are not the same kind of secret**:
  *
- * Be clear about what that narrowing is and is not. It is a decision about
- * what is *useful* to show a broker, **not a security boundary**. Every field
- * on `users/{uid}` is readable by any signed-in user under the Firestore
- * rules, and always has been. The real boundary is what gets mirrored onto
- * that document at all — MIRRORED_FIELDS in lib/userImport.ts — and legal
- * name, date of birth, personal email and start date are deliberately not in
- * it. If something must genuinely be kept from brokers, keep it off the
- * profile; hiding it here would only keep it off the screen.
+ * - The **second phone number** is on `users/{uid}` like the rest of the
+ *   contact fields, so every signed-in user can already read it. Holding it
+ *   back here is an editorial decision about what is useful to show a broker —
+ *   it is usually someone's personal mobile in their home country rather than
+ *   a desk they sit at — and **not a security boundary**. Anyone determined to
+ *   read it can.
+ * - **Legal name, personal email, date of birth and start date** are a real
+ *   boundary, and it is enforced two layers down rather than here. They are
+ *   never mirrored onto `users/{uid}` — see MIRRORED_FIELDS in
+ *   lib/userImport.ts — so they exist only on `allowedUsers`, which the rules
+ *   open to admin and HR alone. The narrow branch below is built from profiles
+ *   that simply do not carry these fields, which is why a mistake in a view
+ *   cannot leak them: there is nothing there to render.
+ *
+ * That difference is the thing to keep hold of when this list changes. Adding
+ * a field to the admin/HR half is safe **only** while that field stays off
+ * `users/{uid}`. If something must genuinely be kept from brokers, keep it off
+ * the profile; hiding it here would only keep it off the screen.
  */
 
 export interface DirectoryPerson {
@@ -54,6 +63,16 @@ export interface DirectoryPerson {
   phoneOtherRegion?: OtherPhoneRegion;
   /** Legacy home for the second number — read through `otherPhone()`. */
   phoneGt?: string;
+  /**
+   * The four admin/HR-only fields, filled in from the allowlist and absent
+   * from every other viewer's copy — not blanked, never fetched. See the note
+   * above: these are the ones kept off `users/{uid}` on purpose, and they must
+   * stay off it.
+   */
+  legalName?: string;
+  personalEmail?: string;
+  dateOfBirth?: string;
+  startDate?: string;
   /** True for someone on the allowlist who has never signed in. */
   pending: boolean;
   /** Only ever true in the admin/HR view; suspended people are filtered out
@@ -100,6 +119,10 @@ export async function listDirectory(
         phoneOther:       p.phoneOther,
         phoneOtherRegion: p.phoneOtherRegion,
         phoneGt:          p.phoneGt,
+        legalName:        p.legalName,
+        personalEmail:    p.personalEmail,
+        dateOfBirth:      p.dateOfBirth,
+        startDate:        p.startDate,
         // No uid means the invite is out but nobody has signed in against it.
         pending:          !p.uid,
         suspended:        p.suspended === true,

@@ -1,20 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import {
-  AtSign, Building2, Hash, Phone, Search, Smartphone, UsersRound, X,
-} from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { LayoutGrid, List, Search, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { canSeeDirectory } from '@/lib/accessControl';
 import { listDirectory, type DirectoryPerson } from '@/lib/directory';
 import { listSites } from '@/lib/sites';
 import { listTeams } from '@/lib/teams';
-import {
-  PHONE_COUNTRY_CODE, otherPhone, type PhoneRegion,
-} from '@/lib/phone';
-import { UserAvatar } from '@/components/settings/UserAvatar';
-import Fact from '@/components/people/Fact';
+import { otherPhone } from '@/lib/phone';
+import DirectoryCards from '@/components/people/DirectoryCards';
+import DirectoryTable from '@/components/people/DirectoryTable';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
 
@@ -25,30 +22,25 @@ import type { Team } from '@/types/team';
  * Settings → People: that page is the access list — who is allowed in, what
  * they may do, and the payroll details behind them — and stays admin and HR
  * only. This page answers one question, "how do I reach this colleague", and
- * so it is a read-only list with no controls on it at all.
+ * so it is read-only, with no controls on it beyond searching, filtering and
+ * choosing how to look at it.
  *
  * What each person is shown is decided in lib/directory.ts, not here. Everyone
  * gets the name, the company address, the US work line, the extension, the
- * office and the team; the second number is filled in only for admin and HR.
- * Read the note at the top of that file before widening it — the narrowing is
- * an editorial decision, not an enforced boundary.
+ * office and the team; admin and HR also get the second number and the four
+ * payroll fields. Read the note at the top of that file before widening
+ * either list — the two halves are kept private in different ways, and only
+ * one of them is a real boundary.
+ *
+ * Two views, the same people: cards for looking someone up, a list for
+ * scanning a whole office. Both live in components/people and take the same
+ * props, so everything below is about *which* people to show, never how.
  */
 
-/**
- * A number the browser can actually dial.
- *
- * What is stored is the readable form — `+(469) 935-4100` — so the digits are
- * pulled back out and the country code put on the front, which is the only
- * shape a phone app takes reliably. The prefix test is safe in both
- * directions: a ten-digit US number never starts with 1, and a national
- * Guatemalan or Mexican number that happens to start with its own country
- * code still comes out the right length.
- */
-function telHref(value: string, region: PhoneRegion): string {
-  const digits = value.replace(/\D/g, '');
-  const code   = PHONE_COUNTRY_CODE[region];
-  return `tel:+${digits.startsWith(code) ? digits : code + digits}`;
-}
+type View = 'cards' | 'list';
+
+/** No office or no team, as it travels in the URL. An id can never be this. */
+const UNASSIGNED = 'none';
 
 /** Everything about a person that typing into the search box should match. */
 function haystack(p: DirectoryPerson, site: string | null, team: string | null): string {
@@ -60,15 +52,26 @@ function haystack(p: DirectoryPerson, site: string | null, team: string | null):
     otherPhone(p).value,
     site,
     team,
+    // Blank for everyone but admin and HR, who are also the only people who
+    // would think to search for a payroll name or a private address.
+    p.legalName,
+    p.personalEmail,
   ]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
 }
 
-export default function DirectoryPage() {
+/** Does this person survive the office (or team) filter that is switched on? */
+function matches(id: string | null | undefined, filter: string): boolean {
+  if (filter === 'all') return true;
+  if (filter === UNASSIGNED) return !id;
+  return id === filter;
+}
+
+function Directory() {
   const { profile } = useAuth();
-  // Admin and HR get the fuller card. Same test the data layer applies, asked
+  // Admin and HR get the fuller view. Same test the data layer applies, asked
   // here only to decide what the page says about itself.
   const full = canSeeDirectory(profile);
 
@@ -78,7 +81,49 @@ export default function DirectoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
   const [query, setQuery]     = useState('');
-  const [siteFilter, setSiteFilter] = useState('all');
+
+  /**
+   * The view and both filters live in the address bar rather than in component
+   * state, so they survive a refresh and so "the Dallas list" is something one
+   * person can paste to another. An unrecognised value falls back to the
+   * default rather than showing nothing.
+   *
+   * The search box is deliberately *not* in there. It changes on every
+   * keystroke, and a history entry per letter typed is no use to anybody.
+   */
+  const router       = useRouter();
+  const pathname     = usePathname();
+  const searchParams = useSearchParams();
+
+  const view: View  = searchParams.get('view') === 'list' ? 'list' : 'cards';
+  const siteFilter  = searchParams.get('site') ?? 'all';
+  const teamFilter  = searchParams.get('team') ?? 'all';
+
+  const setParam = useCallback((key: string, value: string, fallback: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    // The default is left out of the URL entirely, so a bare
+    // /dashboard/directory keeps meaning exactly what it means today.
+    if (value === fallback) params.delete(key);
+    else params.set(key, value);
+
+    const qs = params.toString();
+    // `replace`, not `push`: changing how one page is filtered is not a step
+    // Back should have to walk through, one per click.
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [router, pathname, searchParams]);
+
+  const setView = (next: View) => setParam('view', next, 'cards');
+
+  /**
+   * Clicking an office or a team in the list filters down to it, and clicking
+   * the one already filtered on clears it — so the same cell is both the way
+   * in and the way back out. The dropdowns show what happened either way,
+   * which is what keeps a click from being a filter nobody can find again.
+   */
+  const filterSite = (id: string) =>
+    setParam('site', siteFilter === id ? 'all' : (id || UNASSIGNED), 'all');
+  const filterTeam = (id: string) =>
+    setParam('team', teamFilter === id ? 'all' : (id || UNASSIGNED), 'all');
 
   const siteName = (id: string | null | undefined) =>
     sites.find((s) => s.id === id)?.name ?? null;
@@ -102,8 +147,8 @@ export default function DirectoryPage() {
     return () => { live = false; };
   }, [profile]);
 
-  // Every card carries an office and a team, so everyone needs the names to
-  // label them with. Both endpoints are open to any signed-in user — they are
+  // Both views carry an office and a team, so both need the names to label
+  // them with. Both endpoints are open to any signed-in user — they are
   // reference data that grants nothing, which is exactly why a phone book may
   // show them.
   useEffect(() => {
@@ -114,14 +159,15 @@ export default function DirectoryPage() {
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return people.filter((p) => {
-      if (siteFilter !== 'all' && (p.siteId ?? '') !== siteFilter) return false;
+      if (!matches(p.siteId, siteFilter)) return false;
+      if (!matches(p.teamId, teamFilter)) return false;
       if (!q) return true;
       return haystack(p, siteName(p.siteId), teamName(p.teamId)).includes(q);
     });
     // `sites` and `teams` are in the deps because siteName/teamName read them —
-    // the two lists arrive after the people do, and the office a card is
+    // the two lists arrive after the people do, and the office a row is
     // filtered on has to be searchable the moment its name is known.
-  }, [people, query, siteFilter, sites, teams]);
+  }, [people, query, siteFilter, teamFilter, sites, teams]);
 
   return (
     <div className="p-8 max-w-[1600px]">
@@ -135,11 +181,35 @@ export default function DirectoryPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Two buttons rather than a dropdown: there are only ever two, and
+              which one is on has to be readable without opening anything. */}
+          <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5">
+            {([
+              { id: 'cards', Icon: LayoutGrid, label: 'Cards' },
+              { id: 'list',  Icon: List,       label: 'List'  },
+            ] as const).map(({ id, Icon, label }) => (
+              <button
+                key={id}
+                onClick={() => setView(id)}
+                title={`${label} view`}
+                aria-pressed={view === id}
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm transition ${
+                  view === id
+                    ? 'bg-brand-50 font-medium text-brand-700'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                }`}
+              >
+                <Icon size={15} />
+                {label}
+              </button>
+            ))}
+          </div>
+
           {sites.length > 0 && (
             <select
               value={siteFilter}
-              onChange={(e) => setSiteFilter(e.target.value)}
+              onChange={(e) => setParam('site', e.target.value, 'all')}
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
             >
               <option value="all">Every office</option>
@@ -147,7 +217,24 @@ export default function DirectoryPage() {
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
               {/* Somebody has to be findable before they are assigned to one. */}
-              <option value="">No office set</option>
+              <option value={UNASSIGNED}>No office set</option>
+            </select>
+          )}
+
+          {/* The team filter exists because the list view can set it by
+              clicking, and a filter you can switch on has to be one you can
+              see and switch off. */}
+          {teams.length > 0 && (
+            <select
+              value={teamFilter}
+              onChange={(e) => setParam('team', e.target.value, 'all')}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
+            >
+              <option value="all">Every team</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+              <option value={UNASSIGNED}>No team set</option>
             </select>
           )}
 
@@ -198,78 +285,21 @@ export default function DirectoryPage() {
             <div className="mt-3 rounded-xl border border-gray-200 bg-white py-16 text-center text-sm text-gray-400">
               Nobody matches that.
             </div>
+          ) : view === 'list' ? (
+            <DirectoryTable
+              people={visible}
+              siteName={siteName}
+              teamName={teamName}
+              full={full}
+              siteFilter={siteFilter}
+              teamFilter={teamFilter}
+              onFilterSite={filterSite}
+              onFilterTeam={filterTeam}
+            />
           ) : (
-            /* Three abreast on a wide screen. A phone book is read by scanning
-               it, so the cards are small and fixed in shape rather than one
-               long column of rows. */
-            <ul className="mt-3 grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {visible.map((p) => {
-                const other = otherPhone(p);
-                const site  = siteName(p.siteId);
-                const team  = teamName(p.teamId);
-
-                return (
-                  <li
-                    key={p.email}
-                    className={`rounded-xl border p-4 ${
-                      p.suspended ? 'border-red-200 bg-red-50/50' : 'border-gray-200 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <UserAvatar
-                        photoPath={p.photoPath}
-                        fallback={p.displayName.charAt(0).toUpperCase()}
-                        muted={p.suspended}
-                        size={64}
-                        expandable
-                        name={p.displayName}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-gray-900">
-                          {p.displayName}
-                        </p>
-                        {/* The status of an account is not directory
-                            information — it only appears for the two roles
-                            whose job it is to do something about it. */}
-                        {full && (p.pending || p.suspended) && (
-                          <p
-                            className={`text-[11px] font-medium ${
-                              p.suspended ? 'text-red-600' : 'text-amber-600'
-                            }`}
-                          >
-                            {p.suspended ? 'Suspended' : 'Not signed in yet'}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-[14px_1fr] items-start gap-x-2 gap-y-1">
-                      <Fact Icon={AtSign} href={`mailto:${p.email}`}>{p.email}</Fact>
-
-                      {/* Dialable, because half the reason to open a directory
-                          is to call the person in it. */}
-                      {p.phone && (
-                        <Fact Icon={Phone} href={telHref(p.phone, 'US')}>{p.phone}</Fact>
-                      )}
-
-                      {p.extension && <Fact Icon={Hash}>ext. {p.extension}</Fact>}
-
-                      {other.value && (
-                        <Fact Icon={Smartphone} href={telHref(other.value, other.region)}>
-                          {other.region} {other.value}
-                        </Fact>
-                      )}
-
-                      {site && <Fact Icon={Building2}>{site}</Fact>}
-
-                      {/* Prefixed so a team called "Staff" cannot be read as
-                          another office sitting next to the real one. */}
-                      {team && <Fact Icon={UsersRound}>Team {team}</Fact>}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <DirectoryCards
+              people={visible} siteName={siteName} teamName={teamName} full={full}
+            />
           )}
         </>
       )}
@@ -281,12 +311,29 @@ export default function DirectoryPage() {
             <Link href="/dashboard/settings/people" className="text-brand-700 underline">
               Settings → People
             </Link>
-            . Everyone else sees the same cards without the second phone number.
+            . Legal names, personal addresses and dates are shown to admins and HR
+            only — everyone else also sees no second phone number.
           </>
         ) : (
           <>Something here wrong or missing? Ask an admin to update it in Settings.</>
         )}
       </p>
     </div>
+  );
+}
+
+export default function DirectoryPage() {
+  // Suspense is required because Directory reads the view and the filters out
+  // of useSearchParams(), which suspends on the server render.
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-20">
+          <div className="h-7 w-7 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
+        </div>
+      }
+    >
+      <Directory />
+    </Suspense>
   );
 }
