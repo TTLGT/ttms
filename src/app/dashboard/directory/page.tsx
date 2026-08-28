@@ -220,7 +220,9 @@ export default function DirectoryPage() {
                         photoPath={p.photoPath}
                         fallback={p.displayName.charAt(0).toUpperCase()}
                         muted={p.suspended}
-                        size={40}
+                        size={64}
+                        expandable
+                        name={p.displayName}
                       />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-gray-900">

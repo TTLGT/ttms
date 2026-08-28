@@ -864,7 +864,9 @@ They will be signed out immediately and cannot sign in until you restore them. T
                       photoPath={p.photoPath}
                       fallback={(fullName(p) || p.email).charAt(0).toUpperCase()}
                       muted={suspended}
-                      size={40}
+                      size={48}
+                      expandable
+                      name={fullName(p) || p.email}
                     />
                     <div className="min-w-0 flex-1">
                       <p

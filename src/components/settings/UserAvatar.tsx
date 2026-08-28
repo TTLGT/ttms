@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import { X } from 'lucide-react';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 
@@ -50,23 +51,86 @@ function usePhotoUrl(photoPath: string | null | undefined): string | null {
   return url;
 }
 
+/**
+ * The photo at full size, over the page.
+ *
+ * A directory circle is big enough to recognise someone and too small to see
+ * them, which is the whole reason this exists. Closes on Escape, on the
+ * backdrop and on the button — three ways out, because a picture covering the
+ * screen with no visible exit is alarming.
+ */
+function PhotoLightbox({
+  url,
+  name,
+  onClose,
+}: {
+  url: string;
+  name: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={name ? `Photo of ${name}` : 'Photo'}
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
+    >
+      {/* The click that closes belongs to the backdrop alone — clicking the
+          photo itself must not dismiss the thing you just opened. */}
+      <div className="relative" onClick={(e) => e.stopPropagation()}>
+        <Image
+          src={url}
+          alt={name}
+          width={720}
+          height={720}
+          unoptimized
+          className="h-auto max-h-[80vh] w-auto max-w-full rounded-xl object-contain shadow-2xl"
+        />
+        {name && <p className="mt-3 text-center text-sm text-white">{name}</p>}
+        <button
+          type="button"
+          onClick={onClose}
+          title="Close"
+          className="absolute -right-3 -top-3 rounded-full bg-white p-1.5 text-gray-500 shadow-lg transition hover:text-gray-900"
+        >
+          <X size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** The circle at the head of each row: the photo, or the initial as before. */
 export function UserAvatar({
   photoPath,
   fallback,
   muted,
   size = 36,
+  expandable,
+  name,
 }: {
   photoPath: string | null | undefined;
   /** Shown when there is no photo — the first letter of the name or email. */
   fallback: string;
   muted?: boolean;
   size?: number;
+  /** Click the circle to see the photo full size. */
+  expandable?: boolean;
+  /** Captions the enlarged photo, and names it for a screen reader. */
+  name?: string;
 }) {
   const url = usePhotoUrl(photoPath);
+  const [open, setOpen] = useState(false);
 
   if (url) {
-    return (
+    const circle = (
       <Image
         src={url}
         alt=""
@@ -77,12 +141,35 @@ export function UserAvatar({
         style={{ width: size, height: size }}
       />
     );
+
+    // Only a real photo is worth enlarging. An initial is the same initial at
+    // any size, so that circle stays a plain, unclickable one.
+    if (!expandable) return circle;
+
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          title={name ? `See ${name}'s photo full size` : 'See the photo full size'}
+          className="flex-shrink-0 cursor-zoom-in rounded-full focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2"
+        >
+          {circle}
+        </button>
+        {open && (
+          <PhotoLightbox url={url} name={name ?? ''} onClose={() => setOpen(false)} />
+        )}
+      </>
+    );
   }
 
   return (
     <div
-      style={{ width: size, height: size }}
-      className={`rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0 ${
+      // The initial is sized off the circle rather than fixed, so the same
+      // component reads right at 36px in a settings row and at 64px on a
+      // directory card. A fixed `text-sm` left a large circle looking empty.
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}
+      className={`rounded-full flex items-center justify-center font-semibold flex-shrink-0 ${
         muted ? 'bg-gray-200 text-gray-400' : 'bg-brand-100 text-brand-700'
       }`}
     >
