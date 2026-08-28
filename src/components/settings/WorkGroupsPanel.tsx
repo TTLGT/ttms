@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Check, Pencil, X } from 'lucide-react';
 import { listWorkGroups, createWorkGroup, updateWorkGroup, deleteWorkGroup } from '@/lib/workGroups';
 import { listAllowedUsers } from '@/lib/allowedUsers';
 import { accessStatus } from '@/types/allowedUser';
@@ -29,6 +30,11 @@ export default function WorkGroupsPanel() {
 
   const [newName, setNewName]    = useState('');
   const [editing, setEditing]    = useState<string | null>(null);
+  /** Renaming is its own mode, separate from editing membership: the two rows
+      would fight for the same space, and an admin fixing a typo in a name has
+      no business being shown a member list. */
+  const [renaming, setRenaming]  = useState<string | null>(null);
+  const [draftName, setDraftName] = useState('');
   /** Draft membership is keyed by email — the one id a person has before they sign in. */
   const [draftMembers, setDraft] = useState<string[]>([]);
 
@@ -80,6 +86,26 @@ export default function WorkGroupsPanel() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create the group');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  /**
+   * Renames a group. Only the label changes — the group's id is what every
+   * party, order and profile points at, so records stay exactly where they
+   * were and nobody's access moves.
+   */
+  async function handleRename(groupId: string) {
+    if (!draftName.trim()) return;
+    setBusy(groupId);
+    setError('');
+    try {
+      await updateWorkGroup(groupId, { name: draftName.trim() });
+      setRenaming(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to rename the group');
     } finally {
       setBusy('');
     }
@@ -170,12 +196,52 @@ export default function WorkGroupsPanel() {
           <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
             {groups.map((g) => (
               <li key={g.id} className="px-4 py-3 bg-gray-50">
+                {renaming === g.id ? (
+                  <div className="flex gap-2 items-center">
+                    <input
+                      value={draftName}
+                      onChange={(e) => setDraftName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void handleRename(g.id);
+                        if (e.key === 'Escape') setRenaming(null);
+                      }}
+                      autoFocus
+                      className="flex-1 min-w-40 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+                    />
+                    <button
+                      onClick={() => handleRename(g.id)}
+                      disabled={busy === g.id || !draftName.trim()}
+                      title="Save name"
+                      className="p-2 rounded-lg border border-green-200 text-green-600 hover:bg-green-50 transition disabled:opacity-50"
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      onClick={() => setRenaming(null)}
+                      title="Cancel"
+                      className="p-2 rounded-lg border border-gray-200 text-gray-400 hover:bg-white transition"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900">{g.name}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{summaryFor(g)}</p>
                   </div>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-2 shrink-0 items-center">
+                    <button
+                      onClick={() => {
+                        setRenaming(g.id);
+                        setDraftName(g.name);
+                        setEditing(null);
+                      }}
+                      title="Rename group"
+                      className="p-2 rounded-lg border border-gray-300 text-gray-400 hover:bg-white hover:text-gray-600 transition"
+                    >
+                      <Pencil size={14} />
+                    </button>
                     <button
                       onClick={() => {
                         setEditing(editing === g.id ? null : g.id);
@@ -194,6 +260,7 @@ export default function WorkGroupsPanel() {
                     </button>
                   </div>
                 </div>
+                )}
 
                 {editing === g.id && (
                   <div className="mt-3 pt-3 border-t border-gray-200">

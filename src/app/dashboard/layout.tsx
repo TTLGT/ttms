@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -48,7 +48,17 @@ const NAV_ITEMS: {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, logout, isAdmin, isHr } = useAuth();
   const router                                   = useRouter();
+  const pathname                                 = usePathname();
   const [pendingApprovals, setPending]     = useState(0);
+
+  /**
+   * Which nav item to light up. Dashboard is matched exactly — every other
+   * page lives under /dashboard, so a prefix test would leave it lit
+   * everywhere. The rest match their own subtree, so an order's detail page
+   * keeps Orders highlighted.
+   */
+  const isCurrent = (href: string) =>
+    href === '/dashboard' ? pathname === href : pathname.startsWith(href);
 
   // A request that nobody notices blocks the requester's order, so the count
   // sits in the nav rather than only on the Approvals screen.
@@ -101,11 +111,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 min-h-0 overflow-y-auto sidebar-scroll px-3 py-4 space-y-1">
           {NAV_ITEMS.filter(
             (item) => !item.adminOnly || isAdmin || (item.alsoHr === true && isHr),
-          ).map(({ href, label, Icon }) => (
+          ).map(({ href, label, Icon }) => {
+            const current = isCurrent(href);
+            return (
             <Link
               key={href}
               href={href}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-brand-700 hover:text-white transition"
+              aria-current={current ? 'page' : undefined}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
+                current
+                  ? 'bg-brand-700 text-white'
+                  : 'text-blue-100 hover:bg-brand-700 hover:text-white'
+              }`}
             >
               <Icon size={16} className="flex-shrink-0" />
               <span className="flex-1">{label}</span>
@@ -115,7 +132,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </span>
               )}
             </Link>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="flex-shrink-0 px-4 py-4 border-t border-brand-700">
