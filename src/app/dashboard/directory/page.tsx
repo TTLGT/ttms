@@ -10,6 +10,10 @@ import { listDirectory, type DirectoryPerson } from '@/lib/directory';
 import { listSites } from '@/lib/sites';
 import { listTeams } from '@/lib/teams';
 import { otherPhone } from '@/lib/phone';
+import {
+  sortDirectory, isSortKey, isSortDir, DEFAULT_SORT_KEY, DEFAULT_SORT_DIR,
+  type SortKey,
+} from '@/lib/directorySort';
 import DirectoryCards from '@/components/people/DirectoryCards';
 import DirectoryTable from '@/components/people/DirectoryTable';
 import type { Site } from '@/types/site';
@@ -22,8 +26,8 @@ import type { Team } from '@/types/team';
  * Settings → People: that page is the access list — who is allowed in, what
  * they may do, and the payroll details behind them — and stays admin and HR
  * only. This page answers one question, "how do I reach this colleague", and
- * so it is read-only, with no controls on it beyond searching, filtering and
- * choosing how to look at it.
+ * so it is read-only, with no controls on it beyond searching, filtering,
+ * ordering and choosing how to look at it.
  *
  * What each person is shown is decided in lib/directory.ts, not here. Everyone
  * gets the name, the company address, the US work line, the extension, the
@@ -34,7 +38,8 @@ import type { Team } from '@/types/team';
  *
  * Two views, the same people: cards for looking someone up, a list for
  * scanning a whole office. Both live in components/people and take the same
- * props, so everything below is about *which* people to show, never how.
+ * props, so everything below is about *which* people to show and in what
+ * order, never how they are drawn.
  */
 
 type View = 'cards' | 'list';
@@ -99,12 +104,23 @@ function Directory() {
   const siteFilter  = searchParams.get('site') ?? 'all';
   const teamFilter  = searchParams.get('team') ?? 'all';
 
-  const setParam = useCallback((key: string, value: string, fallback: string) => {
+  // Anything unrecognised in the URL falls back to name order rather than
+  // showing the list in no order at all.
+  const sortParam = searchParams.get('sort');
+  const dirParam  = searchParams.get('dir');
+  const sortKey   = isSortKey(sortParam) ? sortParam : DEFAULT_SORT_KEY;
+  const sortDir   = isSortDir(dirParam)  ? dirParam  : DEFAULT_SORT_DIR;
+
+  /** Several parameters at once, because picking a column also sets its
+   *  direction and two `replace` calls would race each other. */
+  const setParams = useCallback((updates: [string, string, string][]) => {
     const params = new URLSearchParams(searchParams.toString());
-    // The default is left out of the URL entirely, so a bare
-    // /dashboard/directory keeps meaning exactly what it means today.
-    if (value === fallback) params.delete(key);
-    else params.set(key, value);
+    for (const [key, value, fallback] of updates) {
+      // The default is left out of the URL entirely, so a bare
+      // /dashboard/directory keeps meaning exactly what it means today.
+      if (value === fallback) params.delete(key);
+      else params.set(key, value);
+    }
 
     const qs = params.toString();
     // `replace`, not `push`: changing how one page is filtered is not a step
@@ -112,7 +128,25 @@ function Directory() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [router, pathname, searchParams]);
 
+  const setParam = useCallback(
+    (key: string, value: string, fallback: string) => setParams([[key, value, fallback]]),
+    [setParams],
+  );
+
   const setView = (next: View) => setParam('view', next, 'cards');
+
+  /**
+   * Clicking a column heading. A column that is already the one in use flips
+   * direction; any other column starts ascending — A–Z, or lowest first —
+   * because a click on a new heading should give the answer to "who comes
+   * first", not to whatever the last column happened to be doing.
+   */
+  const sortBy = (key: SortKey) =>
+    setParams(
+      key === sortKey
+        ? [['dir', sortDir === 'asc' ? 'desc' : 'asc', DEFAULT_SORT_DIR]]
+        : [['sort', key, DEFAULT_SORT_KEY], ['dir', 'asc', DEFAULT_SORT_DIR]],
+    );
 
   /**
    * Clicking an office or a team in the list filters down to it, and clicking
@@ -168,6 +202,18 @@ function Directory() {
     // the two lists arrive after the people do, and the office a row is
     // filtered on has to be searchable the moment its name is known.
   }, [people, query, siteFilter, teamFilter, sites, teams]);
+
+  /**
+   * The order is the list view's, so it is applied only there. A card has no
+   * columns, and re-ordering the cards by an extension nobody can see on them
+   * would look like the page had shuffled itself.
+   */
+  const rows = useMemo(
+    () => (view === 'list' ? sortDirectory(visible, sortKey, sortDir, { siteName, teamName }) : visible),
+    // Same reason as above for `sites` and `teams`: sorting by office cannot
+    // happen until the office names have arrived.
+    [visible, view, sortKey, sortDir, sites, teams],
+  );
 
   return (
     <div className="p-8 max-w-[1600px]">
@@ -287,7 +333,7 @@ function Directory() {
             </div>
           ) : view === 'list' ? (
             <DirectoryTable
-              people={visible}
+              people={rows}
               siteName={siteName}
               teamName={teamName}
               full={full}
@@ -295,6 +341,9 @@ function Directory() {
               teamFilter={teamFilter}
               onFilterSite={filterSite}
               onFilterTeam={filterTeam}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={sortBy}
             />
           ) : (
             <DirectoryCards

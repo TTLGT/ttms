@@ -1,7 +1,9 @@
 'use client';
 
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import { otherPhone, telHref } from '@/lib/phone';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import type { SortKey } from '@/lib/directorySort';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import type { DirectoryTableProps } from '@/components/people/directoryView';
 
@@ -15,7 +17,41 @@ import type { DirectoryTableProps } from '@/components/people/directoryView';
  *
  * The photo stays, at thumbnail size, because it is still what makes a row
  * recognisable at a glance — and it is still clickable to see properly.
+ *
+ * Every column heading sorts by that column, which the cards cannot offer
+ * either. The rows arrive already sorted — see lib/directorySort.ts; this file
+ * draws the arrow and reports the click.
  */
+
+/**
+ * The columns, in order, each tied to what clicking its heading sorts by.
+ *
+ * Label and sort key live in the same object so a column cannot end up sorting
+ * by its neighbour: adding a column here without deciding what it sorts by is
+ * a type error rather than a surprise on screen. The ordering itself is in
+ * lib/directorySort.ts — this file only says which column was clicked.
+ */
+interface Column {
+  label: string;
+  key: SortKey;
+}
+
+const BASE_COLUMNS: Column[] = [
+  { label: 'Name',       key: 'name' },
+  { label: 'Office',     key: 'site' },
+  { label: 'Team',       key: 'team' },
+  { label: 'Ext.',       key: 'extension' },
+  { label: 'Work phone', key: 'phone' },
+];
+
+/** Admin and HR only, matching the cells further down. */
+const FULL_COLUMNS: Column[] = [
+  { label: 'Other phone',   key: 'other' },
+  { label: 'Start date',    key: 'startDate' },
+  { label: 'Date of birth', key: 'dateOfBirth' },
+];
+
+const EMAIL_COLUMN: Column = { label: 'Email', key: 'email' };
 
 /** An empty cell reads as a blank, not as a broken one. */
 function Blank() {
@@ -53,8 +89,52 @@ function FilterCell({
   );
 }
 
+/**
+ * A heading that sorts the list by its own column.
+ *
+ * The arrow only shows on the column actually in use, plus a faint one under
+ * the pointer, so the header row stays a header row rather than nine arrows —
+ * but every heading is a real button, so it is obvious there is something to
+ * click once you are anywhere near one.
+ */
+function SortHeader({
+  column, active, dir, onSort,
+}: {
+  column: Column;
+  active: boolean;
+  dir: 'asc' | 'desc';
+  onSort: (key: SortKey) => void;
+}) {
+  const Arrow = active && dir === 'desc' ? ArrowDown : ArrowUp;
+
+  return (
+    <th
+      scope="col"
+      // Read out by screen readers, and the only thing that says which way
+      // round the list is without seeing the arrow.
+      aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className="whitespace-nowrap p-0 text-left"
+    >
+      <button
+        onClick={() => onSort(column.key)}
+        title={active ? 'Click to reverse the order' : `Sort by ${column.label.toLowerCase()}`}
+        className={`group flex w-full items-center gap-1 px-4 py-3 text-xs font-semibold uppercase tracking-wide transition hover:bg-gray-100 ${
+          active ? 'text-brand-700' : 'text-gray-500 hover:text-gray-700'
+        }`}
+      >
+        {column.label}
+        <Arrow
+          size={12}
+          className={active ? '' : 'opacity-0 transition-opacity group-hover:opacity-40'}
+        />
+      </button>
+    </th>
+  );
+}
+
 export default function DirectoryTable({
   people, siteName, teamName, full, siteFilter, teamFilter, onFilterSite, onFilterTeam,
+  sortKey, sortDir, onSort,
 }: DirectoryTableProps) {
   // Dates are shown in whatever format the company has set, like every other
   // date in the app — never a format this file picks for itself.
@@ -65,11 +145,7 @@ export default function DirectoryTable({
   // else. Legal name and personal email are not columns of their own: they sit
   // under the name and the address they belong with, which keeps the table
   // narrow enough to read.
-  const headings = [
-    'Name', 'Office', 'Team', 'Ext.', 'Work phone',
-    ...(full ? ['Other phone', 'Start date', 'Date of birth'] : []),
-    'Email',
-  ];
+  const columns = [...BASE_COLUMNS, ...(full ? FULL_COLUMNS : []), EMAIL_COLUMN];
 
   return (
     /* The table is wider than a laptop screen once the admin columns are on
@@ -78,13 +154,14 @@ export default function DirectoryTable({
       <table className="min-w-full divide-y divide-gray-100">
         <thead className="bg-gray-50">
           <tr>
-            {headings.map((h) => (
-              <th
-                key={h}
-                className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
-              >
-                {h}
-              </th>
+            {columns.map((c) => (
+              <SortHeader
+                key={c.key}
+                column={c}
+                active={sortKey === c.key}
+                dir={sortDir}
+                onSort={onSort}
+              />
             ))}
           </tr>
         </thead>

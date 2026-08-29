@@ -1,4 +1,5 @@
 import type { DirectoryPerson } from '@/lib/directory';
+import type { SortDir, SortKey } from '@/lib/directorySort';
 
 /**
  * What both directory views are handed.
@@ -45,4 +46,15 @@ export interface DirectoryTableProps extends DirectoryViewProps {
    *  that means — clicking the office already filtered on clears it. */
   onFilterSite: (id: string) => void;
   onFilterTeam: (id: string) => void;
+  /**
+   * Which column the list is ordered by, and which way round. The rows arrive
+   * already in that order — the table draws the arrow and reports the click,
+   * and never sorts anything itself, so the count above the table and the
+   * order inside it always describe the same list.
+   */
+  sortKey: SortKey;
+  sortDir: SortDir;
+  /** Called with the column whose heading was clicked. Clicking the column
+   *  already sorted on reverses it; any other column starts ascending. */
+  onSort: (key: SortKey) => void;
 }
