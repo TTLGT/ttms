@@ -11,6 +11,7 @@ import type { Carrier } from '@/types/carrier';
 import type { Order } from '@/types/order';
 import { orderDisplayNumber } from '@/types/order';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
+import CopyLinkButton from '@/components/CopyLinkButton';
 import StatusBadge from '@/components/orders/StatusBadge';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import DateField from '@/components/DateField';
@@ -183,10 +184,13 @@ export default function CarrierDetailPage() {
           </p>
         </div>
         {!editing ? (
-          <button onClick={() => setEditing(true)}
-            className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
-            Edit
-          </button>
+          <div className="flex items-center gap-2">
+            <CopyLinkButton />
+            <button onClick={() => setEditing(true)}
+              className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+              Edit
+            </button>
+          </div>
         ) : (
           <div className="flex gap-2">
             <button onClick={cancelEdit}

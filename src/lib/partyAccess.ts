@@ -145,18 +145,55 @@ export async function findApproval(uid: string, partyId: string) {
   return snap.empty ? null : snap.docs[0];
 }
 
-/** Loads a party only if the caller is entitled to it; 403s rather than 404s. */
-export async function getVisibleParty(caller: Caller, partyId: string): Promise<VisibleParty> {
+/**
+ * The three answers a party id can produce, kept apart.
+ *
+ * `getVisibleParty` collapses "gone" and "not yours" into a thrown error, which
+ * is right for a route that only ever serves the record. A page reached by a
+ * link a colleague pasted needs to tell the two apart: "this client was
+ * deleted" and "this is Maria's client, ask her" send the reader somewhere
+ * completely different, and rendering "not found" for both sent them nowhere.
+ */
+export type PartyAccess =
+  | { status: 'ok'; party: VisibleParty }
+  | { status: 'missing' }
+  | { status: 'denied'; ownerName: string };
+
+export async function readParty(caller: Caller, partyId: string): Promise<PartyAccess> {
   const snap = await adminDb.collection('parties').doc(partyId).get();
-  if (!snap.exists) throw new AdminAuthError('Party not found', 404);
+  if (!snap.exists) return { status: 'missing' };
+
   const data = snap.data()!;
-  if (!canSeeParty(data, caller.uid, caller.profile)) {
-    // An approved request stands in for ownership until it is consumed.
-    if (!(await findApproval(caller.uid, partyId))) {
-      throw new AdminAuthError('You do not have access to this record', 403);
-    }
+  if (canSeeParty(data, caller.uid, caller.profile)) {
+    return { status: 'ok', party: toVisibleParty(snap.id, data) };
   }
-  return toVisibleParty(snap.id, data);
+  // An approved request stands in for ownership until it is consumed.
+  if (await findApproval(caller.uid, partyId)) {
+    return { status: 'ok', party: toVisibleParty(snap.id, data) };
+  }
+
+  return {
+    status:    'denied',
+    ownerName: await ownerLabel(
+      data.assignedToUids ?? [],
+      data.assignedToName ?? '',
+      data.assignedToGroupIds ?? [],
+      data.assignedToEmails ?? [],
+    ),
+  };
+}
+
+/**
+ * Loads a party only if the caller is entitled to it; 403s rather than 404s.
+ * The throwing face of `readParty`, for routes that only ever serve the record.
+ */
+export async function getVisibleParty(caller: Caller, partyId: string): Promise<VisibleParty> {
+  const access = await readParty(caller, partyId);
+  if (access.status === 'missing') throw new AdminAuthError('Party not found', 404);
+  if (access.status === 'denied') {
+    throw new AdminAuthError('You do not have access to this record', 403);
+  }
+  return access.party;
 }
 
 /** Display name for an owner uid, for the collision warning and the inbox. */
@@ -164,6 +201,7 @@ export async function ownerLabel(
   assignedToUids: string[],
   assignedToName: string,
   assignedToGroupIds: string[] = [],
+  assignedToEmails: string[] = [],
 ): Promise<string> {
   const uid = assignedToUids?.[0];
   if (uid) {
@@ -179,6 +217,12 @@ export async function ownerLabel(
     const d = snap.data();
     if (d?.name) return d.name;
   }
+  // Held for somebody invited who has never signed in: there is no profile to
+  // name, and the whole point of the label is telling the reader who to go ask,
+  // so the address they were invited at beats "another user".
+  const email = assignedToEmails?.[0];
+  if (email) return email;
+
   return assignedToName.trim() || 'another user';
 }
 

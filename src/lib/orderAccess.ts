@@ -13,6 +13,7 @@
 
 import { adminDb, AdminAuthError } from './firebase-admin';
 import { canSeeAllParties, canSeeOrder } from './accessControl';
+import { ownerLabel } from './partyAccess';
 import type { Caller } from './partyAccess';
 
 const COL = 'orders';
@@ -67,19 +68,71 @@ function toMillis(value: unknown): number {
   return typeof ts?.toMillis === 'function' ? ts.toMillis() : 0;
 }
 
-/** Loads one order only if the caller is entitled to it; 403s rather than 404s. */
+/**
+ * The three answers an order id can produce, kept apart — the sibling of
+ * `PartyAccess`, and there for the same reason. A broker sent an order link by
+ * a colleague used to land on "Order not found", which is untrue and tells them
+ * nothing to do next; "this is Maria's load" tells them who to ask.
+ */
+export type OrderAccess =
+  | { status: 'ok'; order: Record<string, unknown> }
+  | { status: 'missing' }
+  | { status: 'denied'; ownerName: string };
+
+export async function readOrder(caller: Caller, orderId: string): Promise<OrderAccess> {
+  const snap = await adminDb.collection(COL).doc(orderId).get();
+  if (!snap.exists) return { status: 'missing' };
+
+  const data = snap.data()!;
+  if (canSeeOrder(data, caller.uid, caller.profile)) {
+    return { status: 'ok', order: { id: snap.id, ...data } };
+  }
+  return { status: 'denied', ownerName: await orderOwnerLabel(data) };
+}
+
+/**
+ * Who to go and ask about an order.
+ *
+ * The order's own owner is named first and its client's owner only as a
+ * fallback, because those are two different conversations: the broker running
+ * the load can answer about the load, while the client's owner is merely the
+ * reason the order is visible to them at all.
+ *
+ * An order with neither is not unowned-and-shared the way a party would be —
+ * canSeeOrder() keeps it to admin, dispatch and finance — so the empty string
+ * here means "ask an administrator", not "nobody owns this".
+ */
+export async function orderOwnerLabel(order: FirebaseFirestore.DocumentData): Promise<string> {
+  const own = await ownerLabel(
+    order.assignedToUids ?? [],
+    '',
+    order.assignedToGroupIds ?? [],
+    order.assignedToEmails ?? [],
+  );
+  if (own !== 'another user') return own;
+
+  const viaClient = await ownerLabel(
+    order.clientOwnerUids ?? [],
+    '',
+    order.clientOwnerGroupIds ?? [],
+  );
+  return viaClient === 'another user' ? '' : viaClient;
+}
+
+/**
+ * Loads one order only if the caller is entitled to it; 403s rather than 404s.
+ * The throwing face of `readOrder`.
+ */
 export async function getVisibleOrder(
   caller: Caller,
   orderId: string,
 ): Promise<Record<string, unknown>> {
-  const snap = await adminDb.collection(COL).doc(orderId).get();
-  if (!snap.exists) throw new AdminAuthError('Order not found', 404);
-
-  const data = snap.data()!;
-  if (!canSeeOrder(data, caller.uid, caller.profile)) {
+  const access = await readOrder(caller, orderId);
+  if (access.status === 'missing') throw new AdminAuthError('Order not found', 404);
+  if (access.status === 'denied') {
     // 403 rather than 404 on purpose: the order exists, and telling the caller
     // so is not a leak when they already had to name its id to get here.
     throw new AdminAuthError('You do not have access to this order', 403);
   }
-  return { id: snap.id, ...data };
+  return access.order;
 }

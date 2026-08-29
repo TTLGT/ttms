@@ -54,6 +54,9 @@ export async function POST(req: NextRequest) {
       partyId:     doc.id,
       nameKey:     key,
       typedName:   name.slice(0, 120),
+      // Distinguishes fishing for a name from opening a link a colleague sent;
+      // /api/parties/{partyId} writes the same log with via: 'link'.
+      via:         'name',
       byUid:       caller.uid,
       byName:      caller.displayName,
       at:          FieldValue.serverTimestamp(),

@@ -5,6 +5,8 @@ import { useRouter, useParams } from 'next/navigation';
 import { ExternalLink, Map, Plus, RefreshCw, Route } from 'lucide-react';
 import Link from 'next/link';
 import { getOrder, updateOrderStatus, updateOrder, listOrders, createOrder } from '@/lib/orders';
+import NoAccessPanel from '@/components/access/NoAccessPanel';
+import CopyLinkButton from '@/components/CopyLinkButton';
 import { listCarriers } from '@/lib/carriers';
 import type { Order, OrderStatus } from '@/types/order';
 import type { Carrier } from '@/types/carrier';
@@ -116,6 +118,10 @@ export default function OrderDetailPage() {
   const [milesNote, setMilesNote]             = useState('');
 
   const [order, setOrder]           = useState<Order | null>(null);
+  // Why the order could not be opened, when it could not. Kept apart from
+  // `order` being null so the page can name the owner instead of claiming the
+  // load does not exist — see NoAccessPanel.
+  const [noAccess, setNoAccess]     = useState<{ status: 'missing' | 'denied'; ownerName: string } | null>(null);
   // Loaded so the order can show its source's current name. Only the id is
   // stored on the order, so a source an admin renames reads correctly here
   // without any order being rewritten.
@@ -170,12 +176,18 @@ export default function OrderDetailPage() {
     async function load() {
       setLoading(true);
       try {
-        const [o, cs, all, srcs] = await Promise.all([
+        const [access, cs, all, srcs] = await Promise.all([
           getOrder(orderId),
           listCarriers(),
           listOrders(),
           listLeadSources(),
         ]);
+        const o = access.status === 'ok' ? access.order : null;
+        setNoAccess(
+          access.status === 'ok'
+            ? null
+            : { status: access.status, ownerName: access.status === 'denied' ? access.ownerName : '' },
+        );
         setOrder(o);
         setLeadSources(srcs);
         setCarriers(cs.filter((c) => c.isActive));
@@ -573,10 +585,13 @@ export default function OrderDetailPage() {
   );
 
   if (!order) return (
-    <div className="p-8">
-      <p className="text-gray-500">Order not found.</p>
-      <Link href="/dashboard/orders" className="text-sm text-brand-600 hover:underline mt-2 block">← Back to Orders</Link>
-    </div>
+    <NoAccessPanel
+      kind="order"
+      status={noAccess?.status ?? 'missing'}
+      ownerName={noAccess?.ownerName}
+      backHref="/dashboard/orders"
+      backLabel="Back to Orders"
+    />
   );
 
   const nextStatus  = STATUS_NEXT[order.status];
@@ -613,6 +628,7 @@ export default function OrderDetailPage() {
           )}
         </div>
         <div className="flex gap-2">
+          <CopyLinkButton />
           <Link href={`/dashboard/orders/${orderId}/edit`}
             className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
             Edit

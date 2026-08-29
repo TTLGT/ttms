@@ -69,14 +69,27 @@ async function unwrap<T>(res: Response): Promise<T> {
   return data as T;
 }
 
-export async function getOrder(orderId: string): Promise<Order | null> {
+/**
+ * What an order id meant for this user. See `OrderAccess` in orderAccess.ts for
+ * why the three cases are kept apart rather than collapsed into `Order | null`.
+ */
+export type OrderAccess =
+  | { status: 'ok'; order: Order }
+  | { status: 'missing' }
+  | { status: 'denied'; ownerName: string };
+
+export async function getOrder(orderId: string): Promise<OrderAccess> {
   const res = await fetch(`/api/orders/${orderId}`, { headers: await authHeaders() });
-  // A 403 means the order exists but is not the caller's. Callers here treat a
-  // missing order as "not found" and render the same empty state, which is the
-  // right outcome for both.
-  if (res.status === 404 || res.status === 403) return null;
+
+  if (res.status === 404) return { status: 'missing' };
+  if (res.status === 403) {
+    // The route names the owner precisely so the page can point somewhere.
+    const body = await res.json().catch(() => ({}));
+    return { status: 'denied', ownerName: String(body.ownerName ?? '') };
+  }
+
   const { order } = await unwrap<{ order: Order }>(res);
-  return order;
+  return { status: 'ok', order };
 }
 
 export async function listOrders(): Promise<Order[]> {

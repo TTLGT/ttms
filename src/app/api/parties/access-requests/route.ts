@@ -49,31 +49,65 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** Ask the owner of a party for permission to use it on one order. */
+/**
+ * Ask the owner of a party for permission to use it.
+ *
+ * Two ways in, and the difference is where the caller got the record from.
+ *
+ * By `name` — the original path, raised from the order form when somebody types
+ * a client that turns out to belong to another rep. The name is all the caller
+ * has, because /api/parties/resolve deliberately withholds the id.
+ *
+ * By `partyId` — raised from the party page when a colleague sends a link to a
+ * record the reader cannot open. Accepting an id here does not widen anything:
+ * the request still has to be approved by the owner, and an id on its own has
+ * never been the thing that grants access.
+ *
+ * Approval is the same grant either way. Worth knowing when reading the inbox:
+ * it lends visibility until it is spent on an order, so approving a request
+ * raised from a link also authorizes one use of that party on an order.
+ */
 export async function POST(req: NextRequest) {
   try {
     const caller = await requireCaller(req);
     const body   = await req.json().catch(() => ({}));
 
-    // Raised by name, not id: the caller was never given the id of a record
-    // they cannot see, so the lookup has to happen here.
-    const name   = String(body.name ?? '').trim();
-    const role   = String(body.role ?? '') as PartyRole;
-    const reason = String(body.reason ?? '').trim().slice(0, 500);
+    const name        = String(body.name ?? '').trim();
+    const requestedId = String(body.partyId ?? '').trim();
+    const reason      = String(body.reason ?? '').trim().slice(0, 500);
 
-    const key = toNameKey(name);
-    if (!key)                        return bad('A name is required.');
-    if (!PARTY_ROLES.includes(role)) return bad('A valid role is required.');
+    let snap;
+    if (requestedId) {
+      const doc = await adminDb.collection('parties').doc(requestedId).get();
+      if (!doc.exists) return bad('That record no longer exists.', 404);
+      snap = doc;
+    } else {
+      const key = toNameKey(name);
+      if (!key) return bad('A name is required.');
+      const found = await adminDb.collection('parties')
+        .where('nameKey', '==', key)
+        .limit(1)
+        .get();
+      if (found.empty) return bad('That record no longer exists.', 404);
+      snap = found.docs[0];
+    }
 
-    const found = await adminDb.collection('parties')
-      .where('nameKey', '==', key)
-      .limit(1)
-      .get();
-    if (found.empty) return bad('That record no longer exists.', 404);
-
-    const snap    = found.docs[0];
     const partyId = snap.id;
-    const party   = snap.data();
+    const party   = snap.data()!;
+
+    // The name path always states the role, because the caller is filling a
+    // named slot on an order. A link carries no such context, so the role falls
+    // back to what the record already is — it is stored for the audit trail and
+    // for the inbox to read, and never consulted when deciding the request.
+    const asked = String(body.role ?? '') as PartyRole;
+    const role: PartyRole = PARTY_ROLES.includes(asked)
+      ? asked
+      : requestedId
+        ? (((party.roles ?? []) as PartyRole[]).find((r) => r === 'client')
+            ?? ((party.roles ?? []) as PartyRole[])[0]
+            ?? 'client')
+        : asked;
+    if (!PARTY_ROLES.includes(role)) return bad('A valid role is required.');
 
     // Nothing to approve if the caller can already use it.
     if (canSeeParty(party, caller.uid, caller.profile)) {
@@ -105,11 +139,15 @@ export async function POST(req: NextRequest) {
       requestedByName:  caller.displayName,
       requestedByEmail: caller.email ?? '',
       reason,
+      // Where the request came from, so the inbox can say "wants to open" for a
+      // link rather than "wants to use", which is only true of the order form.
+      via:              requestedId ? 'link' : 'name',
       ownerUids,
       ownerName:        await ownerLabel(
         party.assignedToUids ?? [],
         party.assignedToName ?? '',
         party.assignedToGroupIds ?? [],
+        party.assignedToEmails ?? [],
       ),
       status:           'pending',
       decidedByUid:     null,

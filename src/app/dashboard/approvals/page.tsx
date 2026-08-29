@@ -112,7 +112,14 @@ export default function ApprovalsPage() {
 
                   <p className="text-sm text-gray-600 mt-1.5">
                     {box === 'incoming' ? (
-                      <><strong>{r.requestedByName}</strong> wants to use this record</>
+                      // A request raised from the order form is asking to put
+                      // this party on a load; one raised from a shared link is
+                      // asking to read the record at all. Saying "use" for both
+                      // overstated what the second person was after.
+                      <>
+                        <strong>{r.requestedByName}</strong>
+                        {r.via === 'link' ? ' wants to open this record' : ' wants to use this record'}
+                      </>
                     ) : (
                       <>Owned by <strong>{r.ownerName}</strong></>
                     )}

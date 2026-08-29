@@ -3,7 +3,6 @@ import {
   doc,
   addDoc,
   updateDoc,
-  getDoc,
   arrayUnion,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -46,10 +45,32 @@ export class PartyOwnedError extends Error {
   }
 }
 
-export async function getParty(partyId: string): Promise<Party | null> {
-  const snap = await getDoc(doc(db, COL, partyId));
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as Party;
+/**
+ * What a party id meant for this user. See `PartyAccess` in partyAccess.ts for
+ * why "gone" and "not yours" are kept apart rather than both reading as null.
+ */
+export type PartyAccess =
+  | { status: 'ok'; party: Party }
+  | { status: 'missing' }
+  | { status: 'denied'; ownerName: string };
+
+/**
+ * Reads through the API rather than the client SDK, for the same reason
+ * listParties does: ownership is a security boundary, and it is decided
+ * server-side. A denied read used to surface as a bare permission error the
+ * page turned into "Party not found" — untrue, and it named nobody to go ask.
+ */
+export async function getParty(partyId: string): Promise<PartyAccess> {
+  const res = await fetch(`/api/parties/${partyId}`, { headers: await authHeaders() });
+
+  if (res.status === 404) return { status: 'missing' };
+  if (res.status === 403) {
+    const body = await res.json().catch(() => ({}));
+    return { status: 'denied', ownerName: String(body.ownerName ?? '') };
+  }
+
+  const { party } = await unwrap<{ party: Party }>(res);
+  return { status: 'ok', party };
 }
 
 /**
@@ -87,6 +108,18 @@ export async function requestPartyAccess(
   reason: string,
 ): Promise<{ id: string; status: string }> {
   return apiPost('/api/parties/access-requests', { name, role, reason });
+}
+
+/**
+ * Asks for access to a party the caller reached by link, where there is an id
+ * but no order and so no role to fill. The server derives the role from the
+ * record; see the route for why that is only ever an audit-trail detail.
+ */
+export async function requestPartyAccessById(
+  partyId: string,
+  reason: string,
+): Promise<{ id: string; status: string }> {
+  return apiPost('/api/parties/access-requests', { partyId, reason });
 }
 
 export async function listAccessRequests(box: 'incoming' | 'outgoing') {
@@ -195,7 +228,12 @@ export async function updateParty(
   const patch: Record<string, unknown> = { ...data, updatedAt: serverTimestamp() };
   for (const field of OWNERSHIP_FIELDS) delete patch[field];
   if (data.companyName !== undefined || data.contactName !== undefined) {
-    const current = await getParty(partyId);
+    // Only half a rename may be sent, and nameKey is derived from both fields,
+    // so the other half is read back first. An unreadable record here means the
+    // update is about to be rejected anyway; falling back to the empty string
+    // keeps that as the rules' decision rather than throwing on the way.
+    const access = await getParty(partyId);
+    const current = access.status === 'ok' ? access.party : null;
     const companyName = (data.companyName ?? current?.companyName ?? '').trim();
     const contactName = (data.contactName ?? current?.contactName ?? '').trim();
     patch.nameKey = toNameKey(companyName || contactName);
@@ -236,8 +274,8 @@ export async function findOrCreateParty(
 
   const id = await createParty({ companyName: trimmed, roles: [role] });
   const created = await getParty(id);
-  if (!created) throw new Error('Party was created but could not be read back');
-  return { party: created };
+  if (created.status !== 'ok') throw new Error('Party was created but could not be read back');
+  return { party: created.party };
 }
 
 // ── Search ranking ───────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { getParty, updateParty, tagPartyRole, addPartyOwners, removePartyOwners } from '@/lib/parties';
+import { getParty, updateParty, tagPartyRole, addPartyOwners, removePartyOwners, requestPartyAccessById } from '@/lib/parties';
 import { listOrders } from '@/lib/orders';
 import { listUserProfiles } from '@/lib/userProfiles';
 import { listWorkGroups } from '@/lib/workGroups';
@@ -15,6 +15,8 @@ import { orderDisplayNumber } from '@/types/order';
 import type { UserProfile } from '@/types/userProfile';
 import type { WorkGroup } from '@/types/workGroup';
 import StatusBadge from '@/components/orders/StatusBadge';
+import NoAccessPanel from '@/components/access/NoAccessPanel';
+import CopyLinkButton from '@/components/CopyLinkButton';
 import LeadSourceField from '@/components/orders/LeadSourceField';
 import { canEditSource } from '@/lib/accessControl';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
@@ -86,6 +88,9 @@ export default function PartyDetailPage() {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [groups, setGroups]     = useState<WorkGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  // Why the record could not be opened. A denied read used to arrive as a bare
+  // permission error and get rendered as "Party not found", which named nobody.
+  const [noAccess, setNoAccess] = useState<{ status: 'missing' | 'denied'; ownerName: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
@@ -112,7 +117,15 @@ export default function PartyDetailPage() {
   useEffect(() => {
     (async () => {
       try {
-        const p = await getParty(partyId);
+        const access = await getParty(partyId);
+        if (access.status !== 'ok') {
+          setNoAccess({
+            status:    access.status,
+            ownerName: access.status === 'denied' ? access.ownerName : '',
+          });
+          return;
+        }
+        const p = access.party;
         setParty(p);
         setLeadSources(await listLeadSources().catch(() => []));
         const all = await listOrders();
@@ -226,10 +239,20 @@ export default function PartyDetailPage() {
   );
 
   if (!party) return (
-    <div className="p-8">
-      <p className="text-gray-500">Party not found.</p>
-      <Link href="/dashboard/clients" className="text-sm text-brand-600 hover:underline mt-2 block">← Back to Clients</Link>
-    </div>
+    <NoAccessPanel
+      kind="client"
+      status={noAccess?.status ?? 'missing'}
+      ownerName={noAccess?.ownerName}
+      backHref="/dashboard/clients"
+      backLabel="Back to Clients"
+      // Only offered on a denial: there is nobody to ask about a record that
+      // has been deleted.
+      onRequest={
+        noAccess?.status === 'denied'
+          ? async (reason) => { await requestPartyAccessById(partyId, reason); }
+          : undefined
+      }
+    />
   );
 
   const roles      = party.roles ?? [];
@@ -256,6 +279,7 @@ export default function PartyDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <CopyLinkButton />
           <Link
             href={`/dashboard/orders/new?clientId=${partyId}`}
             className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 transition"

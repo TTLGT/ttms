@@ -24,6 +24,13 @@ export interface AccessRequest {
   /** Why the requester needs it — shown to the owner in the inbox. */
   reason: string;
 
+  /**
+   * How the request was raised: `name` from the order form, `link` from a party
+   * page a colleague sent. Requests written before this field existed carry
+   * neither and are read as `name`, which is what they all were.
+   */
+  via?: 'name' | 'link';
+
   /** Owners at the time of the request; any one of them may approve. */
   ownerUids: string[];
   /** Owner as BATS recorded it, when no TMS account exists yet. */

@@ -103,8 +103,20 @@ export default function EditOrderPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [o, ss] = await Promise.all([getOrder(orderId), listParties()]);
-        if (!o) { setError('Order not found'); return; }
+        const [access, ss] = await Promise.all([getOrder(orderId), listParties()]);
+        if (access.status !== 'ok') {
+          // "Order not found" covered both cases and was wrong about the one
+          // that actually happens — the load exists and belongs to somebody.
+          setError(
+            access.status === 'missing'
+              ? 'This order no longer exists.'
+              : access.ownerName
+                ? `This order belongs to ${access.ownerName}. Ask them to add you to it.`
+                : 'You do not have access to this order.',
+          );
+          return;
+        }
+        const o = access.order;
         setOrder(o);
         setParties(ss);
         setClient({    id: o.clientId    ?? '', name: o.clientName    ?? '' });
