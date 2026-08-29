@@ -4,6 +4,19 @@ import { Timestamp } from 'firebase-admin/firestore';
 
 type RouteContext = { params: Promise<{ token: string }> };
 
+/**
+ * Carries the HTTP status out of the transaction callback.
+ *
+ * The validity checks have to happen inside the transaction to mean anything,
+ * but the callback can only signal failure by throwing — so the status the
+ * carrier should see rides along on the error.
+ */
+class SignError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+  }
+}
+
 export async function POST(req: NextRequest, { params }: RouteContext) {
   const { token } = await params;
 
@@ -12,56 +25,81 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: 'Signer name is required' }, { status: 400 });
   }
 
-  const tokenRef  = adminDb.collection('signing_tokens').doc(token);
-  const tokenSnap = await tokenRef.get();
-
-  if (!tokenSnap.exists) {
-    return NextResponse.json({ error: 'Invalid or expired signing link' }, { status: 404 });
-  }
-
-  const data = tokenSnap.data()!;
-
-  if (data.usedAt) {
-    return NextResponse.json({ error: 'This document has already been signed' }, { status: 409 });
-  }
-
-  if (data.expiresAt.toDate() < new Date()) {
-    return NextResponse.json({ error: 'This signing link has expired' }, { status: 410 });
-  }
-
   const ip =
     req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
     req.headers.get('x-real-ip') ??
     'unknown';
 
-  const now = Timestamp.now();
+  // Computed once, outside the transaction: Firestore may run the callback
+  // again if the token document is contended, and the signature should record
+  // when the carrier submitted rather than which retry happened to win.
+  const now    = Timestamp.now();
+  const signer = signerName.trim();
 
-  const isShipper = data.type === 'shipper_agreement';
+  const tokenRef = adminDb.collection('signing_tokens').doc(token);
 
-  const orderUpdate = isShipper
-    ? {
-        status:             'shipper_signed',
-        shipperSignedAt:    now,
-        shipperSignerName:  signerName.trim(),
-        shipperSignerIp:    ip,
-        updatedAt:          FieldValue.serverTimestamp(),
+  try {
+    /**
+     * One transaction, for two separate reasons.
+     *
+     * The single-use check is only worth something if nothing can slip between
+     * reading `usedAt` and setting it. Read-then-write as two round trips let
+     * two submissions of the same link both see "unsigned" and both write, and
+     * the second silently overwrote the first — two people signed, one name
+     * survived, neither was told. The form's disabled button does not cover
+     * this: it is per-browser, and the link can be forwarded or posted directly.
+     *
+     * It also makes burning the link and advancing the order atomic. As two
+     * independent writes, the token could be marked used while the order update
+     * failed — leaving a carrier who signed, an order that says they did not,
+     * and a link that refuses to work a second time.
+     */
+    await adminDb.runTransaction(async (tx) => {
+      const snap = await tx.get(tokenRef);
+      if (!snap.exists) {
+        throw new SignError('Invalid or expired signing link', 404);
       }
-    : {
-        status:            'carrier_signed',
-        carrierSignedAt:   now,
-        carrierSignerName: signerName.trim(),
-        carrierSignerIp:   ip,
-        updatedAt:         FieldValue.serverTimestamp(),
-      };
 
-  await Promise.all([
-    tokenRef.update({
-      usedAt:     now,
-      signerName: signerName.trim(),
-      signerIp:   ip,
-    }),
-    adminDb.collection('orders').doc(data.orderId).update(orderUpdate),
-  ]);
+      const data = snap.data()!;
+
+      if (data.usedAt) {
+        throw new SignError('This document has already been signed', 409);
+      }
+      if (data.expiresAt.toDate() < new Date()) {
+        throw new SignError('This signing link has expired', 410);
+      }
+
+      const isShipper = data.type === 'shipper_agreement';
+
+      const orderUpdate = isShipper
+        ? {
+            status:             'shipper_signed',
+            shipperSignedAt:    now,
+            shipperSignerName:  signer,
+            shipperSignerIp:    ip,
+            updatedAt:          FieldValue.serverTimestamp(),
+          }
+        : {
+            status:            'carrier_signed',
+            carrierSignedAt:   now,
+            carrierSignerName: signer,
+            carrierSignerIp:   ip,
+            updatedAt:         FieldValue.serverTimestamp(),
+          };
+
+      tx.update(tokenRef, {
+        usedAt:     now,
+        signerName: signer,
+        signerIp:   ip,
+      });
+      tx.update(adminDb.collection('orders').doc(data.orderId), orderUpdate);
+    });
+  } catch (e) {
+    if (e instanceof SignError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    throw e;
+  }
 
   return NextResponse.json({ success: true });
 }
