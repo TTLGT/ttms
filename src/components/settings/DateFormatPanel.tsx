@@ -71,7 +71,7 @@ export default function DateFormatPanel() {
   }
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+    <section className="bg-white rounded-xl border border-gray-200 p-6">
       <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Date Format</h2>
       <p className="text-sm text-gray-500 mt-1 mb-4">
         How dates are written everywhere in TTMS — pickup and delivery dates, insurance expiry,

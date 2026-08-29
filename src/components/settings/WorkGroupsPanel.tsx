@@ -155,7 +155,7 @@ export default function WorkGroupsPanel() {
   }
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 mt-6">
+    <section className="bg-white rounded-xl border border-gray-200">
       <div className="px-6 py-4 border-b border-gray-100">
         <h2 className="text-sm font-semibold text-gray-900">Work Groups</h2>
         <p className="text-xs text-gray-500 mt-0.5">

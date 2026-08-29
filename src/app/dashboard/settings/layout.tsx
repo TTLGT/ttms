@@ -53,12 +53,17 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   const tabs = SETTINGS_TABS.filter((t) => isAdmin || !t.adminOnly);
 
   /**
-   * People is the one tab that is a list of many records rather than a stack
-   * of settings panels, so it gets the whole screen and lays its people out
-   * two abreast. The other four stay narrow on purpose: a form field stretched
-   * across 1600px is harder to read, not easier.
+   * Every tab but Data gets the whole screen, because every one of them lays
+   * itself out in two columns — People its people, and Overview, Organization
+   * and Operations their panels. Two columns of this width come out at about
+   * the width the single narrow column had, so nothing on those tabs got
+   * smaller; there is just half as far to scroll.
+   *
+   * Data stays narrow because it is one import panel with nothing to sit
+   * beside it, and a form field stretched across 1600px is harder to read,
+   * not easier. Any new tab that is a single stack of panels belongs here too.
    */
-  const wide = pathname.startsWith('/dashboard/settings/people');
+  const wide = !pathname.startsWith('/dashboard/settings/data');
 
   return (
     <div className={`p-8 ${wide ? 'max-w-[1600px]' : 'max-w-3xl'}`}>

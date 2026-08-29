@@ -43,11 +43,26 @@ const ICONS: Record<string, React.ComponentType<{ size?: number; className?: str
   'bats-import':   Database,
 };
 
-const GROUPS: { tab: SettingsSection['tab']; heading: string }[] = [
-  { tab: 'people',       heading: 'People' },
-  { tab: 'organization', heading: 'Organization' },
-  { tab: 'operations',   heading: 'Operations' },
-  { tab: 'data',         heading: 'Data' },
+/**
+ * The four groups, laid out in two columns so the whole of Settings fits on
+ * one screen instead of scrolling. Down the first column, then down the
+ * second — the same order as the tab bar, so the eye follows the same path it
+ * did when these were stacked.
+ *
+ * The cards inside a group stay two abreast and the same size as before: the
+ * layout widens the page to suit, so half the height costs nothing in width.
+ * Split so the columns come out even — four rows of cards on the left, three
+ * on the right.
+ */
+const COLUMNS: { tab: SettingsSection['tab']; heading: string }[][] = [
+  [
+    { tab: 'people',       heading: 'People' },
+    { tab: 'organization', heading: 'Organization' },
+  ],
+  [
+    { tab: 'operations',   heading: 'Operations' },
+    { tab: 'data',         heading: 'Data' },
+  ],
 ];
 
 const LANE_MODE_LABEL: Record<LaneDistanceMode, string> = {
@@ -117,51 +132,59 @@ export default function SettingsOverviewPage() {
   if (!isAdmin) return null;
 
   return (
-    <div className="space-y-8">
-      {GROUPS.map(({ tab, heading }) => {
-        const sections = SETTINGS_SECTIONS.filter((s) => s.tab === tab);
-        if (sections.length === 0) return null;
+    /* Two real columns rather than a two-across grid of groups: a grid row is
+       as tall as the tallest group in it, which would leave a hole under the
+       shorter one. Below xl the columns would be too narrow for two cards
+       abreast, so it falls back to the single stack it was before. */
+    <div className="grid items-start gap-8 xl:grid-cols-2">
+      {COLUMNS.map((column, columnIndex) => (
+        <div key={columnIndex} className="space-y-8">
+          {column.map(({ tab, heading }) => {
+            const sections = SETTINGS_SECTIONS.filter((s) => s.tab === tab);
+            if (sections.length === 0) return null;
 
-        return (
-          <section key={tab}>
-            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-              {heading}
-            </h2>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {sections.map((section) => {
-                const Icon = ICONS[section.id] ?? Users;
-                const value = values[section.id];
-                return (
-                  <Link
-                    key={section.id}
-                    href={sectionHref(section)}
-                    className="group flex flex-col rounded-xl border border-gray-200 bg-white p-4 transition hover:border-brand-300 hover:shadow-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Icon size={15} className="flex-shrink-0 text-gray-400" />
-                      <span className="text-sm font-semibold text-gray-900">{section.label}</span>
-                      <ChevronRight
-                        size={14}
-                        className="ml-auto flex-shrink-0 text-gray-300 transition group-hover:text-brand-500"
-                      />
-                    </div>
-                    <p className="mt-1.5 text-xs leading-relaxed text-gray-500">{section.blurb}</p>
-                    {value ? (
-                      <p className="mt-2 text-xs font-semibold text-brand-700">{value}</p>
-                    ) : (
-                      /* Holds the line's height whether or not this card has a
-                         value, so cards in a row stay the same size. */
-                      <p className="mt-2 text-xs font-semibold text-gray-300">
-                        {loading ? '·' : ' '}
-                      </p>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
+            return (
+              <section key={tab}>
+                <h2 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                  {heading}
+                </h2>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {sections.map((section) => {
+                    const Icon = ICONS[section.id] ?? Users;
+                    const value = values[section.id];
+                    return (
+                      <Link
+                        key={section.id}
+                        href={sectionHref(section)}
+                        className="group flex flex-col rounded-xl border border-gray-200 bg-white p-4 transition hover:border-brand-300 hover:shadow-sm"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Icon size={15} className="flex-shrink-0 text-gray-400" />
+                          <span className="text-sm font-semibold text-gray-900">{section.label}</span>
+                          <ChevronRight
+                            size={14}
+                            className="ml-auto flex-shrink-0 text-gray-300 transition group-hover:text-brand-500"
+                          />
+                        </div>
+                        <p className="mt-1.5 text-xs leading-relaxed text-gray-500">{section.blurb}</p>
+                        {value ? (
+                          <p className="mt-2 text-xs font-semibold text-brand-700">{value}</p>
+                        ) : (
+                          /* Holds the line's height whether or not this card has a
+                             value, so cards in a row stay the same size. */
+                          <p className="mt-2 text-xs font-semibold text-gray-300">
+                            {loading ? '·' : ' '}
+                          </p>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 }
