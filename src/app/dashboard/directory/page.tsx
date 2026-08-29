@@ -14,6 +14,10 @@ import {
   sortDirectory, isSortKey, isSortDir, DEFAULT_SORT_KEY, DEFAULT_SORT_DIR,
   type SortKey,
 } from '@/lib/directorySort';
+import {
+  visibleColumns, pickableColumns, parseHiddenColumns, serializeHiddenColumns,
+} from '@/lib/directoryColumns';
+import ColumnPicker from '@/components/people/ColumnPicker';
 import DirectoryCards from '@/components/people/DirectoryCards';
 import DirectoryTable from '@/components/people/DirectoryTable';
 import type { Site } from '@/types/site';
@@ -111,6 +115,30 @@ function Directory() {
   const sortKey   = isSortKey(sortParam) ? sortParam : DEFAULT_SORT_KEY;
   const sortDir   = isSortDir(dirParam)  ? dirParam  : DEFAULT_SORT_DIR;
 
+  /**
+   * Which columns the list draws: the ones this viewer may see, minus the ones
+   * they have switched off. Both halves live in lib/directoryColumns.ts — the
+   * URL carries the *hidden* ones, so a plain /dashboard/directory is still
+   * the whole table.
+   */
+  const hidden  = parseHiddenColumns(searchParams.get('hide'));
+  const columns = visibleColumns(full, hidden);
+
+  /**
+   * The order the list is actually in, which is the requested one only while
+   * its column is on screen.
+   *
+   * A sort by a column nobody can see is a list in an order with nothing to
+   * explain it — no heading, no arrow, just rows that look shuffled. That can
+   * arrive two ways: switching off the column being sorted on, or opening a
+   * link someone else built. Falling back to name here covers both, and
+   * because it is worked out on the way past rather than written to the URL,
+   * switching the column back on restores the order it had.
+   */
+  const sortShown = columns.some((c) => c.key === sortKey);
+  const orderKey  = sortShown ? sortKey : DEFAULT_SORT_KEY;
+  const orderDir  = sortShown ? sortDir : DEFAULT_SORT_DIR;
+
   /** Several parameters at once, because picking a column also sets its
    *  direction and two `replace` calls would race each other. */
   const setParams = useCallback((updates: [string, string, string][]) => {
@@ -143,8 +171,11 @@ function Directory() {
    */
   const sortBy = (key: SortKey) =>
     setParams(
-      key === sortKey
-        ? [['dir', sortDir === 'asc' ? 'desc' : 'asc', DEFAULT_SORT_DIR]]
+      // Against the order on screen rather than the one in the URL, so that
+      // clicking the heading with the arrow under it always reverses that
+      // arrow — see the fallback above.
+      key === orderKey
+        ? [['dir', orderDir === 'asc' ? 'desc' : 'asc', DEFAULT_SORT_DIR]]
         : [['sort', key, DEFAULT_SORT_KEY], ['dir', 'asc', DEFAULT_SORT_DIR]],
     );
 
@@ -158,6 +189,22 @@ function Directory() {
     setParam('site', siteFilter === id ? 'all' : (id || UNASSIGNED), 'all');
   const filterTeam = (id: string) =>
     setParam('team', teamFilter === id ? 'all' : (id || UNASSIGNED), 'all');
+
+  /**
+   * Switching one column off or back on, and putting them all back.
+   *
+   * The whole set travels as one parameter, so it is rewritten from scratch
+   * each time rather than toggled in place — and an empty set is the default,
+   * which `setParam` leaves out of the address bar entirely.
+   */
+  const toggleColumn = (key: SortKey) => {
+    const next = new Set(hidden);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setParam('hide', serializeHiddenColumns(next), '');
+  };
+
+  const showAllColumns = () => setParam('hide', '', '');
 
   const siteName = (id: string | null | undefined) =>
     sites.find((s) => s.id === id)?.name ?? null;
@@ -209,10 +256,10 @@ function Directory() {
    * would look like the page had shuffled itself.
    */
   const rows = useMemo(
-    () => (view === 'list' ? sortDirectory(visible, sortKey, sortDir, { siteName, teamName }) : visible),
+    () => (view === 'list' ? sortDirectory(visible, orderKey, orderDir, { siteName, teamName }) : visible),
     // Same reason as above for `sites` and `teams`: sorting by office cannot
     // happen until the office names have arrived.
-    [visible, view, sortKey, sortDir, sites, teams],
+    [visible, view, orderKey, orderDir, sites, teams],
   );
 
   return (
@@ -251,6 +298,18 @@ function Directory() {
               </button>
             ))}
           </div>
+
+          {/* Only over the list: the cards have no columns to choose
+              between, and a control that did nothing where it stood would be
+              worse than not having one. */}
+          {view === 'list' && (
+            <ColumnPicker
+              columns={pickableColumns(full)}
+              hidden={hidden}
+              onToggle={toggleColumn}
+              onShowAll={showAllColumns}
+            />
+          )}
 
           {sites.length > 0 && (
             <select
@@ -337,12 +396,13 @@ function Directory() {
               siteName={siteName}
               teamName={teamName}
               full={full}
+              columns={columns}
               siteFilter={siteFilter}
               teamFilter={teamFilter}
               onFilterSite={filterSite}
               onFilterTeam={filterTeam}
-              sortKey={sortKey}
-              sortDir={sortDir}
+              sortKey={orderKey}
+              sortDir={orderDir}
               onSort={sortBy}
             />
           ) : (

@@ -400,6 +400,21 @@ the other dials, which is the whole reason the page exists. The box at the top
 right searches names, addresses, numbers, extensions, offices and teams all at
 once, and the dropdown beside it narrows the page to one office.
 
+The two buttons at the top left of the controls switch between **Cards** and
+**List**. Cards are for looking someone up when you are not sure how their name
+is spelled — the photo is the quickest way to recognise a colleague. The list is
+for running an eye down a whole office: one line per person, and clicking any
+column heading sorts the list by that column (clicking the same heading again
+reverses it).
+
+On the list there is also a **Columns** button. It switches individual columns
+off, which matters because the full table is wider than most laptop screens — if
+you are only after extensions, turn the rest off and everything fits without
+scrolling sideways. The button says how many columns are currently off, and
+*Show every column* puts them all back. The view, the filters, the sorting and
+the columns all live in the web address, so refreshing the page keeps them and a
+link pasted to a colleague opens exactly the same view.
+
 Two things it deliberately does **not** show anyone: date of birth, personal
 email, full legal name and start date are never on it, and neither is anyone
 whose access has been suspended — except for Admins and HR, who see them marked

@@ -1,9 +1,11 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { otherPhone, telHref } from '@/lib/phone';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import type { SortKey } from '@/lib/directorySort';
+import type { DirectoryColumn } from '@/lib/directoryColumns';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import type { DirectoryTableProps } from '@/components/people/directoryView';
 
@@ -21,37 +23,13 @@ import type { DirectoryTableProps } from '@/components/people/directoryView';
  * Every column heading sorts by that column, which the cards cannot offer
  * either. The rows arrive already sorted — see lib/directorySort.ts; this file
  * draws the arrow and reports the click.
- */
-
-/**
- * The columns, in order, each tied to what clicking its heading sorts by.
  *
- * Label and sort key live in the same object so a column cannot end up sorting
- * by its neighbour: adding a column here without deciding what it sorts by is
- * a type error rather than a surprise on screen. The ordering itself is in
- * lib/directorySort.ts — this file only says which column was clicked.
+ * **Which columns exist is not decided here.** The page hands over the list —
+ * narrowed to what the viewer may see, then to what they have switched on in
+ * the picker — and everything below draws exactly that. See
+ * lib/directoryColumns.ts. Each row builds a cell for every column key, so a
+ * heading can never end up over the wrong values, or over none at all.
  */
-interface Column {
-  label: string;
-  key: SortKey;
-}
-
-const BASE_COLUMNS: Column[] = [
-  { label: 'Name',       key: 'name' },
-  { label: 'Office',     key: 'site' },
-  { label: 'Team',       key: 'team' },
-  { label: 'Ext.',       key: 'extension' },
-  { label: 'Work phone', key: 'phone' },
-];
-
-/** Admin and HR only, matching the cells further down. */
-const FULL_COLUMNS: Column[] = [
-  { label: 'Other phone',   key: 'other' },
-  { label: 'Start date',    key: 'startDate' },
-  { label: 'Date of birth', key: 'dateOfBirth' },
-];
-
-const EMAIL_COLUMN: Column = { label: 'Email', key: 'email' };
 
 /** An empty cell reads as a blank, not as a broken one. */
 function Blank() {
@@ -100,7 +78,7 @@ function FilterCell({
 function SortHeader({
   column, active, dir, onSort,
 }: {
-  column: Column;
+  column: DirectoryColumn;
   active: boolean;
   dir: 'asc' | 'desc';
   onSort: (key: SortKey) => void;
@@ -133,23 +111,18 @@ function SortHeader({
 }
 
 export default function DirectoryTable({
-  people, siteName, teamName, full, siteFilter, teamFilter, onFilterSite, onFilterTeam,
+  people, siteName, teamName, full, columns,
+  siteFilter, teamFilter, onFilterSite, onFilterTeam,
   sortKey, sortDir, onSort,
 }: DirectoryTableProps) {
   // Dates are shown in whatever format the company has set, like every other
   // date in the app — never a format this file picks for itself.
   const { formatCalendarDate } = useDateFormatters();
 
-  // The second number and the payroll dates are admin and HR only, so those
-  // columns come and go with the view rather than standing empty for everyone
-  // else. Legal name and personal email are not columns of their own: they sit
-  // under the name and the address they belong with, which keeps the table
-  // narrow enough to read.
-  const columns = [...BASE_COLUMNS, ...(full ? FULL_COLUMNS : []), EMAIL_COLUMN];
-
   return (
-    /* The table is wider than a laptop screen once the admin columns are on
-       it, so it scrolls inside its own box — the page itself never does. */
+    /* The table can still be wider than a laptop screen with every admin
+       column switched on, so it scrolls inside its own box — the page itself
+       never does. Switching columns off in the picker is the other way out. */
     <div className="mt-3 overflow-x-auto rounded-xl border border-gray-200 bg-white">
       <table className="min-w-full divide-y divide-gray-100">
         <thead className="bg-gray-50">
@@ -177,12 +150,23 @@ export default function DirectoryTable({
                 ? p.legalName.trim()
                 : '';
 
-            return (
-              <tr
-                key={p.email}
-                className={p.suspended ? 'bg-red-50/50' : 'transition hover:bg-gray-50'}
-              >
-                <td className="px-4 py-2.5">
+            /**
+             * One cell per column key, whichever columns are on screen.
+             *
+             * Keyed by the column rather than written out as a row, so a
+             * column without a cell is a type error. The alternative — a
+             * header row and a body row that each decide for themselves what
+             * to draw — held together only while nothing could be switched
+             * off, and would slide apart by one the first time anything was.
+             *
+             * The payroll cells are built for every viewer and drawn for
+             * nobody but admin and HR: those fields are simply absent from an
+             * ordinary viewer's copy of a person, and their columns are absent
+             * from `columns`.
+             */
+            const cells: Record<SortKey, ReactNode> = {
+              name: (
+                <td key="name" className="px-4 py-2.5">
                   <div className="flex items-center gap-2.5">
                     <UserAvatar
                       photoPath={p.photoPath}
@@ -214,30 +198,38 @@ export default function DirectoryTable({
                     </div>
                   </div>
                 </td>
+              ),
 
-                <td className="px-4 py-2.5 text-sm">
+              site: (
+                <td key="site" className="px-4 py-2.5 text-sm">
                   <FilterCell
                     label={site}
                     active={siteFilter === p.siteId}
                     onClick={() => onFilterSite(p.siteId ?? '')}
                   />
                 </td>
+              ),
 
-                {/* Unprefixed here, unlike on a card: the column heading
-                    already says these are teams. */}
-                <td className="px-4 py-2.5 text-sm">
+              // Unprefixed here, unlike on a card: the column heading already
+              // says these are teams.
+              team: (
+                <td key="team" className="px-4 py-2.5 text-sm">
                   <FilterCell
                     label={team}
                     active={teamFilter === p.teamId}
                     onClick={() => onFilterTeam(p.teamId ?? '')}
                   />
                 </td>
+              ),
 
-                <td className="whitespace-nowrap px-4 py-2.5 text-sm text-gray-600">
+              extension: (
+                <td key="extension" className="whitespace-nowrap px-4 py-2.5 text-sm text-gray-600">
                   {p.extension || <Blank />}
                 </td>
+              ),
 
-                <td className="whitespace-nowrap px-4 py-2.5 text-sm">
+              phone: (
+                <td key="phone" className="whitespace-nowrap px-4 py-2.5 text-sm">
                   {p.phone ? (
                     <a
                       href={telHref(p.phone, 'US')}
@@ -249,33 +241,37 @@ export default function DirectoryTable({
                     <Blank />
                   )}
                 </td>
+              ),
 
-                {full && (
-                  <>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm">
-                      {other.value ? (
-                        <a
-                          href={telHref(other.value, other.region)}
-                          className="text-gray-600 hover:text-brand-700 hover:underline"
-                        >
-                          {other.region} {other.value}
-                        </a>
-                      ) : (
-                        <Blank />
-                      )}
-                    </td>
+              other: (
+                <td key="other" className="whitespace-nowrap px-4 py-2.5 text-sm">
+                  {other.value ? (
+                    <a
+                      href={telHref(other.value, other.region)}
+                      className="text-gray-600 hover:text-brand-700 hover:underline"
+                    >
+                      {other.region} {other.value}
+                    </a>
+                  ) : (
+                    <Blank />
+                  )}
+                </td>
+              ),
 
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-gray-600">
-                      {formatCalendarDate(p.startDate) || <Blank />}
-                    </td>
+              startDate: (
+                <td key="startDate" className="whitespace-nowrap px-4 py-2.5 text-sm text-gray-600">
+                  {formatCalendarDate(p.startDate) || <Blank />}
+                </td>
+              ),
 
-                    <td className="whitespace-nowrap px-4 py-2.5 text-sm text-gray-600">
-                      {formatCalendarDate(p.dateOfBirth) || <Blank />}
-                    </td>
-                  </>
-                )}
+              dateOfBirth: (
+                <td key="dateOfBirth" className="whitespace-nowrap px-4 py-2.5 text-sm text-gray-600">
+                  {formatCalendarDate(p.dateOfBirth) || <Blank />}
+                </td>
+              ),
 
-                <td className="px-4 py-2.5 text-sm">
+              email: (
+                <td key="email" className="px-4 py-2.5 text-sm">
                   <a
                     href={`mailto:${p.email}`}
                     className="text-gray-600 hover:text-brand-700 hover:underline"
@@ -297,6 +293,15 @@ export default function DirectoryTable({
                     </div>
                   )}
                 </td>
+              ),
+            };
+
+            return (
+              <tr
+                key={p.email}
+                className={p.suspended ? 'bg-red-50/50' : 'transition hover:bg-gray-50'}
+              >
+                {columns.map((c) => cells[c.key])}
               </tr>
             );
           })}
