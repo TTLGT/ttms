@@ -65,6 +65,14 @@ const NO_ROLES = { isAdmin: false, isDispatcher: false, isFinance: false, isHr: 
 type StatusFilter = 'all' | 'active' | 'pending' | 'suspended';
 /** 'broker' means "no elevated role" — the default everyone starts with. */
 type RoleFilter   = 'all' | AllowedUserRole | 'broker';
+/**
+ * Site and team filters hold an id, so they need a value for "nobody has set
+ * one" that an id can never collide with. Same sentinel the directory uses,
+ * for the same reason: somebody has to be findable before they are assigned
+ * to an office.
+ */
+const UNASSIGNED  = 'none';
+type PlaceFilter  = 'all' | typeof UNASSIGNED | string;
 type SortField =
   | 'firstName' | 'lastName' | 'email' | 'phone' | 'phoneOther' | 'extension'
   | 'startDate' | 'dateOfBirth' | 'added';
@@ -237,6 +245,23 @@ function StatusChip({ status }: { status: AccessStatus }) {
  * so it is spelled out rather than left as an empty row — same rule the CSV
  * export follows.
  */
+/** Does this person survive the office (or team) filter that is switched on? */
+function inPlace(id: string | null | undefined, filter: PlaceFilter): boolean {
+  if (filter === 'all')        return true;
+  if (filter === UNASSIGNED)   return !id;
+  return id === filter;
+}
+
+/** How many people sit under each id, for the tile counts. */
+function tally(people: AllowedUser[], key: (p: AllowedUser) => string | null | undefined) {
+  const counts: Record<string, number> = {};
+  for (const p of people) {
+    const id = key(p);
+    if (id) counts[id] = (counts[id] ?? 0) + 1;
+  }
+  return counts;
+}
+
 function roleLabels(p: AllowedUser): string[] {
   const held = ROLE_CHIPS.filter(({ field }) => p[field]).map(({ label }) => label);
   return held.length > 0 ? held : ['Broker'];
@@ -258,6 +283,8 @@ export default function SettingsPeoplePage() {
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [roleFilter, setRoleFilter]     = useState<RoleFilter>('all');
+  const [siteFilter, setSiteFilter]     = useState<PlaceFilter>('all');
+  const [teamFilter, setTeamFilter]     = useState<PlaceFilter>('all');
   const [sortField, setSortField]       = useState<SortField>('firstName');
   const [sortDir, setSortDir]           = useState<SortDir>('asc');
 
@@ -581,12 +608,20 @@ They will be signed out immediately and cannot sign in until you restore them. T
       isHr:         people.filter((p) => p.isHr).length,
       broker:       people.filter(isBroker).length,
       multiRole:    people.filter((p) => roleCount(p) > 1).length,
+      // Counted by id rather than by name: two sites can be renamed to the
+      // same thing, and a person points at the id either way.
+      bySite:       tally(people, (p) => p.siteId),
+      byTeam:       tally(people, (p) => p.teamId),
+      noSite:       people.filter((p) => !p.siteId).length,
+      noTeam:       people.filter((p) => !p.teamId).length,
     };
   }, [people]);
 
   const visiblePeople = useMemo(() => {
     const rows = people.filter((p) => {
       if (statusFilter !== 'all' && accessStatus(p) !== statusFilter) return false;
+      if (!inPlace(p.siteId, siteFilter)) return false;
+      if (!inPlace(p.teamId, teamFilter)) return false;
       if (roleFilter === 'broker') return isBroker(p);
       if (roleFilter !== 'all')    return !!p[roleFilter];
       return true;
@@ -616,13 +651,17 @@ They will be signed out immediately and cannot sign in until you restore them. T
       // — keep a stable order rather than whatever the filter pass produced.
       return (at.localeCompare(bt) || a.email.localeCompare(b.email)) * flip;
     });
-  }, [people, statusFilter, roleFilter, sortField, sortDir]);
+  }, [people, statusFilter, roleFilter, siteFilter, teamFilter, sortField, sortDir]);
 
-  const filtered = statusFilter !== 'all' || roleFilter !== 'all';
+  const filtered =
+    statusFilter !== 'all' || roleFilter !== 'all' ||
+    siteFilter !== 'all'   || teamFilter !== 'all';
 
   function clearFilters() {
     setStatusFilter('all');
     setRoleFilter('all');
+    setSiteFilter('all');
+    setTeamFilter('all');
   }
 
   return (
@@ -745,6 +784,75 @@ They will be signed out immediately and cannot sign in until you restore them. T
                 />
               ))}
             </div>
+
+            {/* Sites and teams are set up on the Organization tab, so these two
+                rows only appear once there is something to filter by. The
+                "No office" tile is only offered when somebody is actually
+                missing one — otherwise it is a tile that can only ever empty
+                the list. */}
+            {sites.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 w-24 flex-shrink-0">
+                  Site
+                </span>
+                <CountTile
+                  label="Everywhere"
+                  count={counts.all}
+                  active={siteFilter === 'all'}
+                  onClick={() => setSiteFilter('all')}
+                />
+                {sites.map((site) => (
+                  <CountTile
+                    key={site.id}
+                    label={site.name}
+                    count={counts.bySite[site.id] ?? 0}
+                    active={siteFilter === site.id}
+                    onClick={() => setSiteFilter(site.id)}
+                  />
+                ))}
+                {counts.noSite > 0 && (
+                  <CountTile
+                    label="No office set"
+                    count={counts.noSite}
+                    tone="amber"
+                    active={siteFilter === UNASSIGNED}
+                    onClick={() => setSiteFilter(UNASSIGNED)}
+                  />
+                )}
+              </div>
+            )}
+
+            {teams.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 w-24 flex-shrink-0">
+                  Team
+                </span>
+                <CountTile
+                  label="Every team"
+                  count={counts.all}
+                  active={teamFilter === 'all'}
+                  onClick={() => setTeamFilter('all')}
+                />
+                {teams.map((team) => (
+                  <CountTile
+                    key={team.id}
+                    label={team.name}
+                    count={counts.byTeam[team.id] ?? 0}
+                    active={teamFilter === team.id}
+                    onClick={() => setTeamFilter(team.id)}
+                  />
+                ))}
+                {counts.noTeam > 0 && (
+                  <CountTile
+                    label="No team set"
+                    count={counts.noTeam}
+                    tone="amber"
+                    active={teamFilter === UNASSIGNED}
+                    onClick={() => setTeamFilter(UNASSIGNED)}
+                  />
+                )}
+              </div>
+            )}
 
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <p className="text-xs text-gray-500">
