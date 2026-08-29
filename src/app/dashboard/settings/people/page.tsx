@@ -42,6 +42,7 @@ import { toCsv, csvDate, downloadCsv } from '@/lib/csv';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
 import AddPeoplePanel from '@/components/settings/AddPeoplePanel';
+import CollapsibleSection from '@/components/settings/CollapsibleSection';
 import RemovedPeoplePanel from '@/components/settings/RemovedPeoplePanel';
 import { personAnchorId } from '@/components/settings/settingsSections';
 import { AvatarUploader, UserAvatar } from '@/components/settings/UserAvatar';
@@ -678,50 +679,53 @@ They will be signed out immediately and cannot sign in until you restore them. T
         </div>
       )}
 
-      {/* The list below takes the full width of the tab; these two are a form
-          and a collapsed archive, and a form field stretched across the whole
-          screen is harder to fill in, not easier. */}
-      {canEdit && (
-        <div id="add-people" className="scroll-mt-44 max-w-4xl">
-          <AddPeoplePanel sites={sites} teams={teams} onChanged={load} />
-        </div>
-      )}
+      {/* All three sections run to the same edge, and each folds shut. This
+          one used to be capped narrower, on the rule that a form field
+          stretched across the whole screen is harder to fill in than an easy
+          one — right while it was a single column, but it lays itself out in
+          columns now, so the width buys more fields side by side rather than
+          wider ones. */}
+      {canEdit && <AddPeoplePanel sites={sites} teams={teams} onChanged={load} />}
 
-      <section id="people-list" className="scroll-mt-44 bg-white rounded-xl border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-gray-900">People With Access</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {canEdit ? (
-                  <>
-                    Everyone is a Broker by default — their own clients and loads, and nothing they
-                    do not own. Admins can see all records and manage access, dispatchers can send
-                    carrier/shipper agreements, finance can generate BOLs and invoices, and HR can
-                    read this directory and nothing else. Click a role to toggle it, or Broker to
-                    take the others away. Suspending blocks sign-in but keeps the roles, so access
-                    can be restored; removing deletes the entry outright.
-                  </>
-                ) : (
-                  <>
-                    Everyone who can sign in to TTMS, with the details on file for them — including
-                    full legal name, date of birth and personal email, which nobody outside this
-                    page can see. Use Export CSV to take the list into Excel. Changing any of it
-                    is an admin job.
-                  </>
-                )}
-              </p>
-            </div>
-            <div className="text-right flex-shrink-0">
-              <p className="text-2xl font-bold text-gray-900 leading-none tabular-nums">
-                {counts.all}
-              </p>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mt-1">
-                {counts.all === 1 ? 'Person' : 'People'}
-              </p>
-            </div>
+      {/* Open unless the reader has folded it away: this list is the reason
+          the tab exists, and the other two are things you go looking for.
+          `anchorPrefix` because search results link at one person's row inside
+          it — the section has to open before that row can be scrolled to. */}
+      <CollapsibleSection
+        id="people-list"
+        title="People With Access"
+        defaultOpen
+        anchorPrefix="person-"
+        description={
+          canEdit ? (
+            <>
+              Everyone is a Broker by default — their own clients and loads, and nothing they
+              do not own. Admins can see all records and manage access, dispatchers can send
+              carrier/shipper agreements, finance can generate BOLs and invoices, and HR can
+              read this directory and nothing else. Click a role to toggle it, or Broker to
+              take the others away. Suspending blocks sign-in but keeps the roles, so access
+              can be restored; removing deletes the entry outright.
+            </>
+          ) : (
+            <>
+              Everyone who can sign in to TTMS, with the details on file for them — including
+              full legal name, date of birth and personal email, which nobody outside this
+              page can see. Use Export CSV to take the list into Excel. Changing any of it
+              is an admin job.
+            </>
+          )
+        }
+        aside={
+          <div className="text-right">
+            <p className="text-2xl font-bold text-gray-900 leading-none tabular-nums">
+              {counts.all}
+            </p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mt-1">
+              {counts.all === 1 ? 'Person' : 'People'}
+            </p>
           </div>
-        </div>
+        }
+      >
 
         {!loading && !loadFailed && people.length > 0 && (
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col gap-3">
@@ -1383,16 +1387,12 @@ They will be signed out immediately and cannot sign in until you restore them. T
             })}
           </ul>
         )}
-      </section>
+      </CollapsibleSection>
 
       {/* The archive holds date of birth and personal email for people who
           have left, so it stays admin-only — HR reads the live directory
           above and nothing else. */}
-      {canEdit && (
-        <div id="removed-people" className="scroll-mt-44 max-w-4xl">
-          <RemovedPeoplePanel sites={sites} teams={teams} />
-        </div>
-      )}
+      {canEdit && <RemovedPeoplePanel sites={sites} teams={teams} />}
     </div>
   );
 }

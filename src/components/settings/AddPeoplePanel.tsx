@@ -24,6 +24,7 @@ import {
 import type { AllowedUserRole, InviteResult } from '@/types/allowedUser';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
+import CollapsibleSection from './CollapsibleSection';
 import SpreadsheetImport from './SpreadsheetImport';
 import DateField from '@/components/DateField';
 
@@ -205,87 +206,165 @@ export default function AddPeoplePanel({
   const addedCount = results.filter((r) => r.status === 'added').length;
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 mb-6">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-gray-900">Add People</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Only people on this list can sign in. Addresses must end in{' '}
-              <span className="font-medium text-gray-600">@{ALLOWED_EMAIL_DOMAIN}</span>. They can
-              sign in as soon as you add them, and appear below as “Pending” until they do.
-            </p>
-          </div>
-
-          {/* Two ways in, one section — see the note at the top of this file. */}
-          <div className="flex rounded-lg border border-gray-200 p-0.5 flex-shrink-0">
-            {MODES.map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setMode(id)}
-                aria-pressed={mode === id}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                  mode === id
-                    ? 'bg-brand-50 text-brand-700'
-                    : 'text-gray-500 hover:bg-gray-50'
-                }`}
-              >
-                <Icon size={13} />
-                {label}
-              </button>
-            ))}
-          </div>
+    <CollapsibleSection
+      id="add-people"
+      title="Add People"
+      Icon={UserPlus}
+      className="mb-6"
+      description={
+        <>
+          Only people on this list can sign in. Addresses must end in{' '}
+          <span className="font-medium text-gray-600">@{ALLOWED_EMAIL_DOMAIN}</span>. They can
+          sign in as soon as you add them, and appear below as “Pending” until they do.
+        </>
+      }
+      /* Two ways in, one section — see the note at the top of this file. The
+         switch is in the header rather than the body so it is visible before
+         the section is opened: which of the two you want is usually the reason
+         you are opening it. */
+      aside={
+        <div className="flex rounded-lg border border-gray-200 p-0.5">
+          {MODES.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setMode(id)}
+              aria-pressed={mode === id}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                mode === id
+                  ? 'bg-brand-50 text-brand-700'
+                  : 'text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              <Icon size={13} />
+              {label}
+            </button>
+          ))}
         </div>
-      </div>
-
+      }
+    >
       {mode === 'spreadsheet' ? (
         <SpreadsheetImport sites={sites} teams={teams} onImported={onChanged} />
       ) : (
-        <form onSubmit={handleSubmit} className="px-6 py-4 flex flex-col gap-3">
-          <label className="text-xs text-gray-500">
-            Email address{parsed.length > 1 ? 'es' : ''}
-            <textarea
-              value={emails}
-              onChange={(e) => setEmails(e.target.value)}
-              rows={parsed.length > 1 ? 5 : 2}
-              spellCheck={false}
-              placeholder={`name@${ALLOWED_EMAIL_DOMAIN}`}
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-            />
-          </label>
+        <form
+          onSubmit={handleSubmit}
+          className="px-6 py-4 grid items-start gap-x-6 gap-y-4 lg:grid-cols-[20rem_minmax(0,1fr)]"
+        >
+          {/* Two columns from lg up. The split is the one this panel is built
+              around: on the left the addresses and the few settings that stay
+              true however many there are, on the right the details that only
+              mean anything for one person. Narrower than that they stack in
+              the same order, which is how this form used to read. */}
+          <div className="flex flex-col gap-3">
+            <label className="text-xs text-gray-500">
+              Email address{parsed.length > 1 ? 'es' : ''}
+              <textarea
+                value={emails}
+                onChange={(e) => setEmails(e.target.value)}
+                rows={parsed.length > 1 ? 8 : 3}
+                spellCheck={false}
+                placeholder={`name@${ALLOWED_EMAIL_DOMAIN}`}
+                className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+              />
+            </label>
 
-          <p className="text-xs text-gray-500 -mt-1">
-            {parsed.length === 0
-              ? `One address to add someone with their full details, or several — one per line — to add a batch.`
-              : parsed.length === 1
-              ? 'Fill in as much as you know below. You can add the rest later.'
-              : `${parsed.length} addresses · details are per-person, so only the site, team and roles below apply to all of them.`}
+            <p className="text-xs text-gray-500 -mt-1">
+              {parsed.length === 0
+                ? `One address to add someone with their full details, or several — one per line — to add a batch.`
+                : parsed.length === 1
+                ? 'Fill in as much as you know beside this. You can add the rest later.'
+                : `${parsed.length} addresses · details are per-person, so only the site, team and roles below apply to all of them.`}
+              {offDomain.length > 0 && (
+                <span className="ml-2 text-amber-600">
+                  · {offDomain.length} outside @{ALLOWED_EMAIL_DOMAIN}
+                </span>
+              )}
+            </p>
+
             {offDomain.length > 0 && (
-              <span className="ml-2 text-amber-600">
-                · {offDomain.length} outside @{ALLOWED_EMAIL_DOMAIN}
-              </span>
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      {offDomain.length === 1 ? 'This address' : 'These addresses'} will be skipped —
+                      check for a mistyped domain:
+                    </p>
+                    <ul className="mt-1 font-mono break-all">
+                      {offDomain.map((e) => (
+                        <li key={e}>{e}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
             )}
-          </p>
 
-          {offDomain.length > 0 && (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-              <div className="flex items-start gap-2">
-                <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
-                <div className="min-w-0">
-                  <p className="font-medium">
-                    {offDomain.length === 1 ? 'This address' : 'These addresses'} will be skipped —
-                    check for a mistyped domain:
-                  </p>
-                  <ul className="mt-1 font-mono break-all">
-                    {offDomain.map((e) => (
-                      <li key={e}>{e}</li>
-                    ))}
-                  </ul>
+            {/* Site, team and roles sit under the addresses, and outside the
+                details fieldset, because they are the things that stay true
+                however many addresses are in the box. */}
+            <div className="flex flex-col gap-2 border-t border-gray-100 pt-3">
+              <label className="text-xs text-gray-500">
+                Site
+                <select
+                  value={siteId}
+                  onChange={(e) => setSiteId(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-2 text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                >
+                  <option value="">No site</option>
+                  {sites.map((site) => (
+                    <option key={site.id} value={site.id}>{site.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-xs text-gray-500">
+                Team
+                <select
+                  value={teamId}
+                  onChange={(e) => setTeamId(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-2 text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                >
+                  <option value="">No team</option>
+                  {teams.map((team) => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="text-xs text-gray-500">
+                Roles
+                <div className="mt-1 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRoles(NO_ROLES)}
+                    title="The default — their own clients and loads, nothing else"
+                    className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+                      isBroker(roles)
+                        ? 'border-brand-200 bg-brand-50 text-brand-700'
+                        : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    Broker
+                  </button>
+                  {ROLE_CHIPS.map(({ field, label }) => (
+                    <button
+                      key={field}
+                      type="button"
+                      onClick={() => setRoles((r) => ({ ...r, [field]: !r[field] }))}
+                      className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
+                        roles[field]
+                          ? 'border-brand-200 bg-brand-50 text-brand-700'
+                          : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
-          )}
+          </div>
 
           {/* Greyed rather than hidden when several addresses are in the box:
               an admin who typed a name and then pasted four more addresses
@@ -304,11 +383,15 @@ export default function AddPeoplePanel({
               <p className="text-xs text-gray-400 mb-3">
                 {parsed.length > 1
                   ? 'A name and a birthday belong to one person, so these are off for a batch. Add the people first, then fill each one in with the pencil icon below — or use the Spreadsheet mode to do it all at once.'
-                  : 'Enter one address above to fill these in while you add them.'}
+                  : 'Enter one address to fill these in while you add them.'}
               </p>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            {/* Three across on a wide screen rather than two very wide boxes:
+                nothing here is longer than a name or a phone number, so past a
+                point the extra width is only making the box bigger than the
+                thing that goes in it. */}
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <Field label="First name" value={details.firstName} onChange={setField('firstName')} placeholder="First" disabled={!single} />
               <Field label="Last name" value={details.lastName} onChange={setField('lastName')} placeholder="Last" disabled={!single} />
               <Field label="Full legal name" value={details.legalName} onChange={setField('legalName')} placeholder="As it appears on payroll" disabled={!single} />
@@ -329,7 +412,7 @@ export default function AddPeoplePanel({
                     value={details.phoneOtherRegion}
                     onChange={(e) => setOtherRegion(e.target.value as OtherPhoneRegion)}
                     disabled={!single}
-                    className="w-32 shrink-0 rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    className="w-28 shrink-0 rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                   >
                     {OTHER_PHONE_REGIONS.map((r) => (
                       <option key={r} value={r}>{PHONE_REGION_NAME[r]}</option>
@@ -341,7 +424,7 @@ export default function AddPeoplePanel({
                     onBlur={tidyPhone('phoneOther', details.phoneOtherRegion)}
                     placeholder={PHONE_EXAMPLE[details.phoneOtherRegion]}
                     disabled={!single}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    className="w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                   />
                 </div>
                 {phoneHint(details.phoneOther, details.phoneOtherRegion) && (
@@ -362,140 +445,84 @@ export default function AddPeoplePanel({
             </p>
           </fieldset>
 
-          {/* Site, team and roles sit outside that fieldset because they are the
-              things that stay true however many addresses are in the box. */}
-          <div className="flex items-center justify-end gap-2 flex-wrap">
-            <label className="flex items-center gap-1.5 text-xs text-gray-500">
-              Site:
-              <select
-                value={siteId}
-                onChange={(e) => setSiteId(e.target.value)}
-                className="rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
-              >
-                <option value="">No site</option>
-                {sites.map((site) => (
-                  <option key={site.id} value={site.id}>{site.name}</option>
-                ))}
-              </select>
-            </label>
+          {/* The button and everything the submit reports back run under both
+              columns: they are about the whole form, not one side of it. */}
+          <div className="flex flex-col gap-3 lg:col-span-2">
+            {error && (
+              <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-600">
+                {error}
+              </div>
+            )}
 
-            <label className="flex items-center gap-1.5 text-xs text-gray-500">
-              Team:
-              <select
-                value={teamId}
-                onChange={(e) => setTeamId(e.target.value)}
-                className="rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
-              >
-                <option value="">No team</option>
-                {teams.map((team) => (
-                  <option key={team.id} value={team.id}>{team.name}</option>
-                ))}
-              </select>
-            </label>
-
-            <span className="text-xs text-gray-500 ml-1">Roles:</span>
-            <button
-              type="button"
-              onClick={() => setRoles(NO_ROLES)}
-              title="The default — their own clients and loads, nothing else"
-              className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
-                isBroker(roles)
-                  ? 'border-brand-200 bg-brand-50 text-brand-700'
-                  : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-              }`}
-            >
-              Broker
-            </button>
-            {ROLE_CHIPS.map(({ field, label }) => (
+            <div>
               <button
-                key={field}
-                type="button"
-                onClick={() => setRoles((r) => ({ ...r, [field]: !r[field] }))}
-                className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
-                  roles[field]
-                    ? 'border-brand-200 bg-brand-50 text-brand-700'
-                    : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-                }`}
+                type="submit"
+                disabled={busy || parsed.length === 0}
+                className="flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {label}
+                <UserPlus size={15} />
+                {busy
+                  ? 'Adding…'
+                  : parsed.length > 1
+                  ? `Add ${parsed.length} People`
+                  : 'Add Person'}
               </button>
-            ))}
-          </div>
-
-          {error && (
-            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-600">
-              {error}
             </div>
-          )}
 
-          <div>
-            <button
-              type="submit"
-              disabled={busy || parsed.length === 0}
-              className="flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <UserPlus size={15} />
-              {busy
-                ? 'Adding…'
-                : parsed.length > 1
-                ? `Add ${parsed.length} People`
-                : 'Add Person'}
-            </button>
-          </div>
-
-          {/* Separate from the per-address rows below: the address was added,
-              and this is the one part of the form that did not come with it. */}
-          {skippedPhones.length > 0 && (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-              <div className="flex items-start gap-2">
-                <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
-                <p>
-                  Saved without {skippedPhones.join(' or ')} — the number was not the right
-                  length, so it was left blank. Add it with the pencil icon below.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {results.length > 0 && (
-            <div className="rounded-lg border border-gray-200 divide-y divide-gray-100">
-              <div className="px-3 py-2 text-xs font-medium text-gray-600 bg-gray-50 rounded-t-lg">
-                Added {addedCount} of {results.length}
-              </div>
-              {results.map((r) => (
-                <div key={r.email} className="flex items-start gap-2 px-3 py-2 text-xs">
-                  {r.status === 'added' ? (
-                    <Check size={13} className="mt-0.5 text-green-600 flex-shrink-0" />
-                  ) : (
-                    <AlertCircle
-                      size={13}
-                      className={`mt-0.5 flex-shrink-0 ${
-                        r.status === 'exists' ? 'text-gray-400' : 'text-amber-600'
-                      }`}
-                    />
-                  )}
-                  <span className="font-mono text-gray-700 truncate">{r.email}</span>
-                  <span
-                    className={`ml-auto flex-shrink-0 ${
-                      r.status === 'added'
-                        ? 'text-green-600'
-                        : r.status === 'exists'
-                        ? 'text-gray-500'
-                        : 'text-amber-700'
-                    }`}
-                  >
-                    {/* Someone already on the list is the one case the
-                        spreadsheet handles better, so say so. */}
-                    {r.status === 'exists'
-                      ? 'Already has access — use Spreadsheet mode to update them.'
-                      : r.message}
-                  </span>
+            {/* Separate from the per-address rows below: the address was added,
+                and this is the one part of the form that did not come with it. */}
+            {skippedPhones.length > 0 && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+                  <p>
+                    Saved without {skippedPhones.join(' or ')} — the number was not the right
+                    length, so it was left blank. Add it with the pencil icon below.
+                  </p>
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
+
+            {results.length > 0 && (
+              <div className="rounded-lg border border-gray-200 divide-y divide-gray-100">
+                <div className="px-3 py-2 text-xs font-medium text-gray-600 bg-gray-50 rounded-t-lg">
+                  Added {addedCount} of {results.length}
+                </div>
+                {results.map((r) => (
+                  <div key={r.email} className="flex items-start gap-2 px-3 py-2 text-xs">
+                    {r.status === 'added' ? (
+                      <Check size={13} className="mt-0.5 text-green-600 flex-shrink-0" />
+                    ) : (
+                      <AlertCircle
+                        size={13}
+                        className={`mt-0.5 flex-shrink-0 ${
+                          r.status === 'exists' ? 'text-gray-400' : 'text-amber-600'
+                        }`}
+                      />
+                    )}
+                    <span className="font-mono text-gray-700 truncate">{r.email}</span>
+                    <span
+                      className={`ml-auto flex-shrink-0 ${
+                        r.status === 'added'
+                          ? 'text-green-600'
+                          : r.status === 'exists'
+                          ? 'text-gray-500'
+                          : 'text-amber-700'
+                      }`}
+                    >
+                      {/* Someone already on the list is the one case the
+                          spreadsheet handles better, so say so. */}
+                      {r.status === 'exists'
+                        ? 'Already has access — use Spreadsheet mode to update them.'
+                        : r.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </form>
       )}
-    </section>
+    </CollapsibleSection>
   );
 }

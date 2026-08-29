@@ -140,16 +140,29 @@ export function personAnchorId(email: string): string {
 }
 
 /**
+ * Announced just before a jump, so a collapsed section holding the target can
+ * open itself. Listened for by CollapsibleSection.
+ *
+ * An event rather than a call, because the two things that jump — the layout
+ * and the search box — have no handle on the sections, and a jump within the
+ * tab you are already on is a pushState, which fires no hashchange for them to
+ * hear instead.
+ */
+export const REVEAL_ANCHOR_EVENT = 'ttms:reveal-anchor';
+
+/**
  * Scroll to an id, waiting for it to exist.
  *
  * Every panel fetches its own rows, so the element a hash points at is
  * usually not in the DOM on the frame the navigation lands — the browser's
  * own hash scrolling gives up before then and does nothing. Retries for about
  * two seconds, which covers a slow list without hanging around if the id is
- * simply not on the page.
+ * simply not on the page. A section opening in response to the event above
+ * lands well inside that window.
  */
 export function scrollToAnchor(id: string): () => void {
   if (!id) return () => {};
+  window.dispatchEvent(new CustomEvent(REVEAL_ANCHOR_EVENT, { detail: id }));
   let frames = 0;
   let raf = 0;
   const tick = () => {
