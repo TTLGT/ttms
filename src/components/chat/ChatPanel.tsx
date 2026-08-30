@@ -8,6 +8,7 @@ import ConversationList from './ConversationList';
 import MessageThread from './MessageThread';
 import NewConversationDialog from './NewConversationDialog';
 import RoomSettingsDialog from './RoomSettingsDialog';
+import ThreadList from './ThreadList';
 import ThreadPanel from './ThreadPanel';
 import {
   COMPANY_CONVERSATION_ID,
@@ -32,6 +33,11 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
 
   const [newOpen, setNewOpen]           = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Which list the left column is showing. Local rather than in ChatContext:
+  // the page and the popup are two different places to be looking, and having
+  // one flip the other to a list the reader did not ask for is worse than
+  // letting each remember its own.
+  const [showThreads, setShowThreads]   = useState(false);
 
   const myUid  = user?.uid ?? '';
   const active = conversations.find((c) => c.id === activeId) ?? null;
@@ -97,8 +103,10 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
               <MessageThread conversation={active} />
             </div>
           </>
+        ) : showThreads ? (
+          <ThreadList onBack={() => setShowThreads(false)} />
         ) : (
-          <ConversationList onNew={() => setNewOpen(true)} />
+          <ConversationList onNew={() => setNewOpen(true)} onShowThreads={() => setShowThreads(true)} />
         )}
 
         {newOpen && <NewConversationDialog onClose={() => setNewOpen(false)} />}
@@ -112,7 +120,11 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex h-full min-h-0">
       <div className="w-72 flex-shrink-0 border-r border-gray-200 bg-white">
-        <ConversationList onNew={() => setNewOpen(true)} />
+        {showThreads ? (
+          <ThreadList onBack={() => setShowThreads(false)} />
+        ) : (
+          <ConversationList onNew={() => setNewOpen(true)} onShowThreads={() => setShowThreads(true)} />
+        )}
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">

@@ -52,6 +52,29 @@ export const MESSAGES_COLLECTION      = 'messages';
 export const REPLIES_COLLECTION       = 'replies';
 /** One document per user holding what they have read. See ChatReads. */
 export const CHAT_READS_COLLECTION    = 'chatReads';
+/**
+ * Every thread one person is in, at `chatThreads/{uid}/threads/{rootMessageId}`.
+ *
+ * A written-down answer to a question no query can ask. "Threads I am in" spans
+ * every room, and the only place membership of a thread is recorded is on the
+ * messages themselves — so finding it would mean a collection-group query over
+ * every message in the company, which the rules cannot gate (a collection-group
+ * rule has no way to work out which conversation a document belongs to), or one
+ * listener per room, which is the cost ChatContext exists to avoid.
+ *
+ * So the list is maintained as it happens: whoever writes a reply writes a row
+ * into the list of each person that reply is for. It is the same trick this
+ * codebase already uses for `lastMessage`, `mentionedAt` and `clientOwnerUids`
+ * — when the query cannot be expressed, write the answer down.
+ *
+ * **A document per thread rather than a map on one document per user**, which
+ * matters twice. A map would grow without bound towards Firestore's 1 MiB
+ * limit and need pruning. And it would mean a colleague replying to you had to
+ * be allowed to write your whole list — where this way the rules let them write
+ * exactly one row of it, so the worst a member can do is put one wrong line in
+ * somebody's list rather than empty it.
+ */
+export const CHAT_THREADS_COLLECTION  = 'chatThreads';
 
 /** Longest message we accept. Enforced in the UI and again in the rules. */
 export const MAX_MESSAGE_LENGTH = 4000;
@@ -167,6 +190,44 @@ export interface ThreadPing {
    * survive somebody glancing at the room without opening the thread, so it is
    * measured against the thread's own read mark like everything else here.
    */
+  mention: boolean;
+}
+
+/**
+ * One row of somebody's thread list — a thread they are in, and enough to draw
+ * it without reading the message it hangs under or the room it is in.
+ *
+ * Everything here is copied at write time for the usual reason: the list has to
+ * render in one read. It goes stale in the ways a copy does — renaming a room
+ * does not rewrite the rows that name it, and correcting the message a thread
+ * hangs under does not rewrite `rootText`. Nothing is decided from any of it.
+ * It is a line of text and a timestamp, and opening the thread shows the truth.
+ */
+export interface ThreadEntry {
+  /** The message the thread hangs under. Also this document's id. */
+  rootId: string;
+  /**
+   * Which room to open before opening the thread.
+   *
+   * The room's *name* is deliberately not copied here. A direct thread is
+   * titled from whoever else is in it, so its name is different for each of
+   * the two people and there is no one value to store. The list resolves it
+   * from the conversations it is already watching — which also means a thread
+   * in a room somebody has since been removed from simply stops appearing,
+   * rather than lingering as a row naming a room they can no longer open.
+   */
+  conversationId: string;
+  /** The opening of the message being replied under — the row's title. */
+  rootText: string;
+  /** Whose message the thread hangs under, so a row can read "your message". */
+  rootSenderUid: string;
+  /** When the newest reply landed. What the list is ordered by. */
+  lastReplyAt: Timestamp;
+  lastReplyByUid: string;
+  lastReplyByName: string;
+  /** The opening of that reply, for the preview line. */
+  lastReplyText: string;
+  /** Whether that reply named the reader with an @. Drives the amber mark. */
   mention: boolean;
 }
 

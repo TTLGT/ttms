@@ -682,5 +682,61 @@ service cloud.firestore {
     match /chatReads/{uid} {
       allow read, write: if isAllowedUser() && request.auth.uid == uid;
     }
+
+    // Every thread one person is in, kept as one document per thread at
+    // chatThreads/{uid}/threads/{rootMessageId}.
+    //
+    // Keep in sync with CHAT_THREADS_COLLECTION in src/types/conversation.ts,
+    // which explains why the list is written down rather than queried for.
+    //
+    // This is the one place in this file where somebody writes into a document
+    // that belongs to another person, and it is deliberate: the row is put
+    // there by whoever wrote the reply, because they are the only one present
+    // at the moment it becomes true. So the write is bounded rather than
+    // trusted — a row must name the writer as the author of the reply it
+    // describes, and must name a room the writer is actually in. The worst a
+    // member can manage is one wrong line in a colleague's list, which that
+    // colleague can delete.
+    //
+    // A document each rather than a map on one document per person is what
+    // makes that bound possible at all: a map would have to be written whole,
+    // so allowing a reply would mean allowing the replier to overwrite the
+    // entire list.
+    match /chatThreads/{uid}/threads/{rootId} {
+      // Nobody reads anybody else's list. Unlike the row-writing rule below,
+      // there is no reason to soften this: the list is only ever rendered for
+      // the person it belongs to.
+      allow read: if isAllowedUser() && request.auth.uid == uid;
+
+      allow create, update: if
+        // The room named in the row, not the row's owner — see the note in
+        // ThreadEntry. Somebody who has since been removed from a room can
+        // still be sitting in the root message's replyUids, and refusing to
+        // write their row would fail the whole reply batch rather than the one
+        // row. Their list drops the thread at render instead, because the name
+        // of a room they cannot open no longer resolves.
+        inConversation(conversationData(request.resource.data.conversationId))
+        // No writing a row that puts somebody else's name on your reply.
+        && request.resource.data.lastReplyByUid == request.auth.uid
+        // Server time, so a row cannot be backdated to bury itself or
+        // postdated to pin itself to the top of a colleague's list for good.
+        && request.resource.data.lastReplyAt == request.time
+        && request.resource.data.rootId == rootId
+        && request.resource.data.conversationId is string
+        && request.resource.data.rootSenderUid is string
+        && request.resource.data.lastReplyByName is string
+        && request.resource.data.mention is bool
+        // Both are previews trimmed to 120 at the write. Capped again here so
+        // a row cannot be used to park four thousand characters in somebody
+        // else's list.
+        && request.resource.data.rootText is string
+        && request.resource.data.rootText.size() <= 120
+        && request.resource.data.lastReplyText is string
+        && request.resource.data.lastReplyText.size() <= 120;
+
+      // Only the owner clears a row, and only their own. A reply that puts the
+      // thread back is the intended behaviour, not a bug — see dismissThread.
+      allow delete: if isAllowedUser() && request.auth.uid == uid;
+    }
   }
 }

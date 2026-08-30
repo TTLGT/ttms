@@ -22,6 +22,7 @@ import {
   unreadMentionIds,
   unreadThreadIds,
   watchConversations,
+  watchMyThreads,
   watchReads,
 } from '@/lib/chat';
 import {
@@ -39,6 +40,7 @@ import {
   reactionGlyph,
   type Conversation,
   type MessageQuote,
+  type ThreadEntry,
 } from '@/types/conversation';
 import type { UserProfile } from '@/types/userProfile';
 
@@ -110,6 +112,15 @@ interface ChatContextValue {
   /** The subset holding a thread that has been answered for this user. */
   threadIds: string[];
   /**
+   * Every thread this user is in, across every room, newest reply first.
+   *
+   * Read from its own small collection rather than worked out from the rooms —
+   * see CHAT_THREADS_COLLECTION for why that question cannot be asked as a
+   * query. Rows naming a room the user can no longer open are dropped where
+   * the list is drawn, not here, because this has no opinion about rooms.
+   */
+  myThreads: ThreadEntry[];
+  /**
    * Each conversation's read mark, in millis. Exposed so a thread can show the
    * "new messages" line where the reader actually left off.
    */
@@ -170,6 +181,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [notifyPrefs, setPrefs]           = useState<NotifyPrefs>(DEFAULT_NOTIFY_PREFS);
   const [pendingReply, setPendingReply]   = useState<PendingReply | null>(null);
   const [focusMessageId, setFocusMessageId] = useState<string | null>(null);
+  const [myThreads, setMyThreads]         = useState<ThreadEntry[]>([]);
 
   // Read in an effect, not in useState: the server renders this too and has no
   // localStorage, so reading during the first render would make the server and
@@ -229,6 +241,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       .then((rows) => { if (live) setPeople(rows); })
       .catch(() => {});
     return () => { live = false; };
+  }, [uid]);
+
+  // Its own listener rather than a branch of the conversations one: this reads
+  // a different collection, and a thread row arriving is unrelated to a room
+  // changing. A failure here is deliberately quiet — the threads list is a
+  // shortcut to conversations that are all still reachable in their rooms, so
+  // losing it is not worth the banner that a broken room list earns.
+  useEffect(() => {
+    if (!uid) return;
+    return watchMyThreads(uid, setMyThreads, 50, () => setMyThreads([]));
   }, [uid]);
 
   const byUid = useMemo(() => {
@@ -563,6 +585,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       conversations, people, nameOf, profileOf, unreadIds, mentionIds, threadIds,
+      myThreads,
       unreadCounts, unreadBadge, lastReadAt, threadReadAt,
       activeId, setActiveId, popupOpen, setPopupOpen, markRead,
       openThread, setOpenThread, markThreadSeen,
@@ -571,6 +594,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }),
     [
       conversations, people, nameOf, profileOf, unreadIds, mentionIds, threadIds,
+      myThreads,
       unreadCounts, unreadBadge, lastReadAt, threadReadAt,
       activeId, popupOpen, markRead, openThread, markThreadSeen,
       pendingReply, focusMessageId,

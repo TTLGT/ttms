@@ -50,6 +50,27 @@ export function clock(m: Pick<ChatMessage, 'createdAt'>): string {
 }
 
 /**
+ * When something happened, for a list rather than a thread.
+ *
+ * A list row has one line to spare, so today collapses to a clock, yesterday
+ * to a word, and anything older to the company date format. dayLabel says the
+ * same things but takes a message and never shows a time, because a day
+ * divider that carried one would be claiming to divide the day at 2:14pm.
+ */
+export function whenLabel(ms: number, formatDate: (v: Date) => string): string {
+  if (!ms) return '';
+  const when      = new Date(ms);
+  const day       = when.toDateString();
+  const today     = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+  if (day === today) {
+    return when.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  }
+  if (day === yesterday) return 'Yesterday';
+  return formatDate(when);
+}
+
+/**
  * Whether two messages in a row should be drawn as one run — one name, one
  * avatar, one tail.
  *

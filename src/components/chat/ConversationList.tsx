@@ -3,6 +3,7 @@
 import { AtSign, Hash, MessagesSquare, Plus, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
+import { millis } from '@/lib/chat';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import NotifyMenu from './NotifyMenu';
 import { conversationTitle, otherMemberUid, type Conversation } from '@/types/conversation';
@@ -13,13 +14,24 @@ import { conversationTitle, otherMemberUid, type Conversation } from '@/types/co
  * Shared by the full page and the popup, so it takes no layout of its own
  * beyond filling whatever it is put in.
  */
-export default function ConversationList({ onNew }: { onNew: () => void }) {
+export default function ConversationList({
+  onNew, onShowThreads,
+}: {
+  onNew: () => void;
+  onShowThreads: () => void;
+}) {
   const { user } = useAuth();
   const {
     conversations, unreadIds, mentionIds, threadIds, unreadCounts, activeId, setActiveId,
-    nameOf, profileOf, loading,
+    nameOf, profileOf, loading, myThreads, threadReadAt,
   } = useChat();
   const myUid = user?.uid ?? '';
+
+  // Whether the threads list is worth opening, in one dot. Counted across
+  // every room, which is the thing the per-room thread marks below cannot say.
+  const threadsWaiting = myThreads.some(
+    (t) => millis(t.lastReplyAt) > (threadReadAt[t.rootId] ?? 0),
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -28,6 +40,20 @@ export default function ConversationList({ onNew }: { onNew: () => void }) {
           Conversations
         </span>
         <div className="flex items-center gap-0.5">
+          {/* Threads are answers addressed to you, which is a different
+              question from which room is busy — so its own way in, rather than
+              a filter over the list below. */}
+          <button
+            type="button"
+            onClick={onShowThreads}
+            title="Threads you are in"
+            className="relative rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+          >
+            <MessagesSquare size={16} />
+            {threadsWaiting && (
+              <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand-500" />
+            )}
+          </button>
           <NotifyMenu />
           <button
             type="button"

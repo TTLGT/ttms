@@ -4,6 +4,7 @@ import {
   arrayRemove,
   arrayUnion,
   collection,
+  deleteDoc,
   doc,
   getCountFromServer,
   increment,
@@ -21,6 +22,7 @@ import {
 import { auth, db } from './firebase';
 import {
   CHAT_READS_COLLECTION,
+  CHAT_THREADS_COLLECTION,
   COMPANY_CONVERSATION_ID,
   CONVERSATIONS_COLLECTION,
   MAX_MESSAGE_LENGTH,
@@ -33,6 +35,7 @@ import {
   type ChatReads,
   type Conversation,
   type MessageQuote,
+  type ThreadEntry,
 } from '@/types/conversation';
 
 /**
@@ -66,6 +69,11 @@ function messagesCol(conversationId: string) {
 /** Thread replies, beside the messages rather than under them — see the type. */
 function repliesCol(conversationId: string) {
   return collection(db, CONVERSATIONS_COLLECTION, conversationId, REPLIES_COLLECTION);
+}
+
+/** One person's list of the threads they are in. See CHAT_THREADS_COLLECTION. */
+function myThreadsCol(uid: string) {
+  return collection(db, CHAT_THREADS_COLLECTION, uid, 'threads');
 }
 
 /**
@@ -397,6 +405,39 @@ export async function sendThreadReply(
     { merge: true },
   );
 
+  /*
+   * A row in the thread list of everybody this thread now belongs to — the
+   * followers, and the person writing, who is plainly in it too.
+   *
+   * One document each rather than one shared list, so a colleague replying to
+   * you writes exactly one row of your list and can neither empty it nor grow
+   * it without bound. `merge` because the row for a thread already in somebody's
+   * list is an update to it, not a second copy.
+   *
+   * The room's name is not copied: a direct thread is called something
+   * different by each of the two people in it, and the list resolves it from
+   * the conversations it is already watching. See ThreadEntry.
+   */
+  const entry = {
+    rootId:          root.id,
+    conversationId,
+    rootText:        (root.text || '').slice(0, 120),
+    rootSenderUid:   root.senderUid,
+    lastReplyAt:     serverTimestamp(),
+    lastReplyByUid:  sender.uid,
+    lastReplyByName: sender.displayName,
+    lastReplyText:   (body || attachments[0]?.name || '').slice(0, 120),
+  };
+  for (const uid of [...followers, sender.uid]) {
+    batch.set(
+      doc(myThreadsCol(uid), root.id),
+      // Only ever true for somebody the reply actually named. The writer's own
+      // row is never a mention of themselves.
+      { ...entry, mention: uid !== sender.uid && mentions.includes(uid) },
+      { merge: true },
+    );
+  }
+
   await batch.commit();
 }
 
@@ -569,6 +610,43 @@ export async function markConversationRead(uid: string, conversationId: string):
     { uid, lastReadAt: { [conversationId]: Date.now() } },
     { merge: true },
   );
+}
+
+/**
+ * Every thread this user is in, kept live, newest reply first.
+ *
+ * One listener over one small collection, which is the whole reason the list is
+ * written down rather than worked out — see CHAT_THREADS_COLLECTION. The order
+ * is a plain single-field sort, so unlike reading a thread this needs no
+ * composite index.
+ *
+ * Capped, because a list nobody scrolls past the top of does not need to load
+ * two years of side conversations. Anything older is still reachable from the
+ * message it hangs under, in the room.
+ */
+export function watchMyThreads(
+  uid: string,
+  onChange: (threads: ThreadEntry[]) => void,
+  max = 50,
+  onError?: (err: Error) => void,
+): Unsubscribe {
+  return onSnapshot(
+    query(myThreadsCol(uid), orderBy('lastReplyAt', 'desc'), limitTo(max)),
+    (snap) => onChange(snap.docs.map((d) => ({ ...d.data(), rootId: d.id }) as ThreadEntry)),
+    (err) => onError?.(err),
+  );
+}
+
+/**
+ * Takes one thread off this user's list.
+ *
+ * Not "leave the thread" — a later reply that names them, or answers their
+ * message, puts it straight back, which is right: the list is a record of the
+ * threads they are in, not a subscription they can decline. This is for a row
+ * somebody is finished with, and the rules let only its owner do it.
+ */
+export async function dismissThread(uid: string, rootId: string): Promise<void> {
+  await deleteDoc(doc(myThreadsCol(uid), rootId));
 }
 
 /**
