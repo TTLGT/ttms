@@ -492,12 +492,16 @@ service cloud.firestore {
         allow create: if inConversation(conversationData(conversationId))
           && request.resource.data.senderUid == request.auth.uid
           && request.resource.data.text is string
-          && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 4000
+          // A photo on its own is a message. Only an empty box with nothing
+          // attached to it is not, which is what this pair enforces.
+          && (request.resource.data.text.size() > 0
+              || request.resource.data.get('attachments', []).size() > 0)
           && request.resource.data.senderName is string
           && request.resource.data.createdAt == request.time
           // Defaulted, so a message written without the field still passes.
-          && request.resource.data.get('mentions', []) is list;
+          && request.resource.data.get('mentions', []) is list
+          && request.resource.data.get('attachments', []) is list;
 
         // Taking a message back, or correcting it — the sender only, either way.
         //
@@ -510,21 +514,41 @@ service cloud.firestore {
         //
         // An already-deleted message stays deleted: text that has been taken
         // back must not be able to reappear.
-        allow update: if isAllowedUser()
-          && resource.data.senderUid == request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['text', 'deletedAt', 'editedAt'])
-          && (
-            // Taking it back.
-            (request.resource.data.text == ''
-             && request.resource.data.deletedAt == request.time)
-            // Correcting it.
-            || (resource.data.get('deletedAt', null) == null
-                && request.resource.data.text is string
-                && request.resource.data.text.size() > 0
-                && request.resource.data.text.size() <= 4000
-                && request.resource.data.editedAt == request.time
-                && request.resource.data.get('deletedAt', null) == null)
+        allow update: if
+          // Reacting — anybody in the conversation, on anybody's message.
+          // That is the whole point: a thumbs-up you are not allowed to leave
+          // on someone else's message is not a reaction.
+          //
+          // `reactions` is checked for type and for being the only thing that
+          // moved. Rules cannot walk a map of arrays, so this does not prove
+          // that the caller only added their own uid — among trusted staff the
+          // worst case is a colleague's name appearing under a thumbs-up they
+          // did not leave, and the check that matters, that no message text can
+          // be touched down this branch, is the hasOnly.
+          (
+            inConversation(conversationData(conversationId))
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['reactions'])
+            && request.resource.data.reactions is map
+          )
+          // Correcting or taking back — the sender alone.
+          || (
+            isAllowedUser()
+            && resource.data.senderUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['text', 'deletedAt', 'editedAt'])
+            && (
+              // Taking it back.
+              (request.resource.data.text == ''
+               && request.resource.data.deletedAt == request.time)
+              // Correcting it.
+              || (resource.data.get('deletedAt', null) == null
+                  && request.resource.data.text is string
+                  && request.resource.data.text.size() > 0
+                  && request.resource.data.text.size() <= 4000
+                  && request.resource.data.editedAt == request.time
+                  && request.resource.data.get('deletedAt', null) == null)
+            )
           );
 
         // The emptied document stays, so the thread does not reshuffle around

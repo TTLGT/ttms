@@ -110,6 +110,55 @@ export interface ChatMessage {
   mentions?: string[];
   /** The message this one is answering, quoted above it. */
   replyTo?: MessageQuote | null;
+  /** Photos and files sent with it. A message may be nothing but these. */
+  attachments?: Attachment[];
+  /** Who reacted with what, as `{ [reactionKey]: uid[] }`. */
+  reactions?: Record<string, string[]>;
+}
+
+/**
+ * A photo or file sent in a conversation.
+ *
+ * The **storage path** is kept, never the download URL, which is the same rule
+ * the rest of this app follows for uploads: a download URL carries a token that
+ * can be regenerated, so a stored one eventually stops working. The path is
+ * resolved to a URL at render time and cached — see lib/useStorageUrl.ts.
+ */
+export interface Attachment {
+  path: string;
+  name: string;
+  contentType: string;
+  size: number;
+  /** Drawn inline rather than as a row with a paperclip. */
+  isImage: boolean;
+}
+
+/** Biggest file we accept. Enforced in the browser — see the note in chatUploads. */
+export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+/**
+ * The reactions people can leave, as a fixed set.
+ *
+ * A fixed palette rather than a full emoji picker, for two reasons. The whole
+ * point of a reaction is that it is faster than typing "ok" — a picker with
+ * three thousand faces in it is not faster than typing "ok". And the keys are
+ * plain ASCII, which keeps them usable as Firestore field paths; an emoji as a
+ * field name needs quoting every time it is written.
+ *
+ * These are the six a freight desk actually needs. Resist adding a seventh
+ * without one being taken away.
+ */
+export const REACTIONS: { key: string; glyph: string; label: string }[] = [
+  { key: 'up',       glyph: '👍', label: 'Got it' },
+  { key: 'done',     glyph: '✅', label: 'Done' },
+  { key: 'question', glyph: '❓', label: 'Question' },
+  { key: 'eyes',     glyph: '👀', label: 'Looking' },
+  { key: 'thanks',   glyph: '🙏', label: 'Thanks' },
+  { key: 'heart',    glyph: '❤️', label: 'Love it' },
+];
+
+export function reactionGlyph(key: string): string {
+  return REACTIONS.find((r) => r.key === key)?.glyph ?? key;
 }
 
 /**
@@ -256,39 +305,3 @@ export function findMentions(text: string, candidates: MentionCandidate[]): stri
   return found;
 }
 
-/** One run of message text, flagged if it is a mention so it can be styled. */
-export interface TextRun {
-  text: string;
-  /** The uid this run names, or null for ordinary text. */
-  mentionUid: string | null;
-}
-
-/**
- * Splits message text into plain runs and mention runs, for rendering.
- *
- * Only the names actually recorded in `mentions` are highlighted. Someone
- * writing "email it to @carrier" has not named a colleague, and colouring it
- * as though they had would teach people to distrust the highlight.
- */
-export function splitOnMentions(text: string, named: MentionCandidate[]): TextRun[] {
-  if (named.length === 0) return [{ text, mentionUid: null }];
-
-  const byLength = [...named].sort((a, b) => b.displayName.length - a.displayName.length);
-  const pattern = new RegExp(
-    `@(?:${byLength.map((c) => escapeForRegex(c.displayName)).join('|')})\\b`,
-    'gi',
-  );
-
-  const runs: TextRun[] = [];
-  let cursor = 0;
-  for (const match of text.matchAll(pattern)) {
-    const at = match.index ?? 0;
-    if (at > cursor) runs.push({ text: text.slice(cursor, at), mentionUid: null });
-    const name = match[0].slice(1).toLowerCase();
-    const who  = byLength.find((c) => c.displayName.toLowerCase() === name);
-    runs.push({ text: match[0], mentionUid: who?.uid ?? null });
-    cursor = at + match[0].length;
-  }
-  if (cursor < text.length) runs.push({ text: text.slice(cursor), mentionUid: null });
-  return runs;
-}

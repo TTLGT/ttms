@@ -89,6 +89,13 @@ interface ChatContextValue {
   /** A quote waiting for its destination thread to open. See PendingReply. */
   pendingReply: PendingReply | null;
   setPendingReply: (reply: PendingReply | null) => void;
+  /**
+   * A message to scroll to and ring once its thread is open, set by following
+   * a link to one message. Claimed and cleared by the thread, like a pending
+   * reply — the conversation has to switch before anything can scroll.
+   */
+  focusMessageId: string | null;
+  setFocusMessageId: (messageId: string | null) => void;
   /** Desktop notification and sound settings, per browser. */
   notifyPrefs: NotifyPrefs;
   setNotifyPrefs: (prefs: NotifyPrefs) => void;
@@ -113,6 +120,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading]             = useState(true);
   const [notifyPrefs, setPrefs]           = useState<NotifyPrefs>(DEFAULT_NOTIFY_PREFS);
   const [pendingReply, setPendingReply]   = useState<PendingReply | null>(null);
+  const [focusMessageId, setFocusMessageId] = useState<string | null>(null);
 
   // Read in an effect, not in useState: the server renders this too and has no
   // localStorage, so reading during the first render would make the server and
@@ -282,12 +290,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     () => ({
       conversations, people, nameOf, profileOf, unreadIds, mentionIds, lastReadAt,
       activeId, setActiveId, popupOpen, setPopupOpen, markRead,
-      pendingReply, setPendingReply, notifyPrefs, setNotifyPrefs, error, loading,
+      pendingReply, setPendingReply, focusMessageId, setFocusMessageId,
+      notifyPrefs, setNotifyPrefs, error, loading,
     }),
     [
       conversations, people, nameOf, profileOf, unreadIds, mentionIds, lastReadAt,
-      activeId, popupOpen, markRead, pendingReply, notifyPrefs, setNotifyPrefs,
-      error, loading,
+      activeId, popupOpen, markRead, pendingReply, focusMessageId,
+      notifyPrefs, setNotifyPrefs, error, loading,
     ],
   );
 

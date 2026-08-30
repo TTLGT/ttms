@@ -2,17 +2,16 @@
 
 import { useState } from 'react';
 import { Link2, Check } from 'lucide-react';
+import { copyToClipboard } from '@/lib/clipboard';
 
 /**
  * Copies the address of the page you are on, so a record can be handed to a
  * colleague without selecting the URL bar.
  *
- * The clipboard API is only available in a secure context — https, or
- * localhost. Staff reach this app over plain http on the office network, where
- * `navigator.clipboard` is simply undefined, so there are two fallbacks: the
- * old execCommand path, and failing that the URL itself in a selected box for
- * the reader to copy by hand. A button that silently did nothing on half the
- * desks would be worse than no button.
+ * The copying itself lives in lib/clipboard.ts, which carries the fallbacks
+ * this app needs on a plain-http office network. When even those fail, the URL
+ * is shown here in a selected box for the reader to copy by hand — a button
+ * that silently did nothing on half the desks would be worse than no button.
  */
 export default function CopyLinkButton({ label = 'Copy link' }: { label?: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'manual'>('idle');
@@ -21,19 +20,7 @@ export default function CopyLinkButton({ label = 'Copy link' }: { label?: string
   async function copy() {
     const href = window.location.href;
     setUrl(href);
-
-    if (navigator.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(href);
-        done();
-        return;
-      } catch {
-        // Permission refused or a non-secure context that still exposed the
-        // object. Fall through rather than reporting success.
-      }
-    }
-
-    if (legacyCopy(href)) { done(); return; }
+    if (await copyToClipboard(href)) { done(); return; }
     setState('manual');
   }
 
@@ -68,23 +55,4 @@ export default function CopyLinkButton({ label = 'Copy link' }: { label?: string
       )}
     </div>
   );
-}
-
-/** Pre-clipboard-API copy. Returns whether it actually worked. */
-function legacyCopy(text: string): boolean {
-  try {
-    const el = document.createElement('textarea');
-    el.value = text;
-    // Kept on screen but out of view: a display:none element cannot be selected,
-    // which is the usual reason this trick fails.
-    el.style.position = 'fixed';
-    el.style.top = '-1000px';
-    document.body.appendChild(el);
-    el.select();
-    const ok = document.execCommand('copy');
-    document.body.removeChild(el);
-    return ok;
-  } catch {
-    return false;
-  }
 }

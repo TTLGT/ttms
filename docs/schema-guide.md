@@ -652,6 +652,8 @@ load, and so the unread badge has a timestamp to compare against.
 | `editedAt` | Timestamp \| null | Set when the sender corrects the wording |
 | `mentions` | string[] | Uids named with an @ in this message |
 | `replyTo` | `MessageQuote \| null` | The message this one answers, quoted above it |
+| `attachments` | `Attachment[]` | Photos and files. A message may be nothing but these |
+| `reactions` | `{ [key]: uid[] }` | Who reacted with what. Keys are ASCII — see REACTIONS |
 
 A message can be corrected or taken back by its sender, and by nobody else. An
 edit always stamps `editedAt`, and the thread shows "(edited)" beside it — the
@@ -660,6 +662,36 @@ original objection was that a message somebody has acted on should not
 message that has been taken back is emptied rather than deleted, so the thread
 does not reshuffle around a hole, and it cannot then be edited back into
 existence.
+
+Attachments keep the **storage path**, never the download URL — a download URL
+carries a token that can be regenerated, so a stored one goes stale. Paths are
+`chat/{conversationId}/{uuid}-{name}` and are resolved at render time through
+`lib/useStorageUrl.ts`, which caches per session.
+
+**What protects an attachment, and what does not.** Storage rules cannot read
+Firestore, so they cannot ask whether the fetcher is in the room. The bucket is
+gated on the `ttlAccess` claim and nothing finer, so *any signed-in TTMS user who
+knows a file's exact path can fetch it, private room or not*. Two things stand
+between that and a leak: the path is only written on the message document, which
+Firestore does gate on membership, and every path carries a random id so it
+cannot be guessed or walked. This is the same posture the BOLs, invoices and
+driver's licences have had since long before chat, so it adds no new class of
+exposure — but it is weaker than the Firestore side. The fix, if it is ever
+wanted, is to serve attachments through an API route that checks membership with
+the Admin SDK and returns a short-lived signed URL. The 25 MB cap is enforced in
+the browser only, for the same reason: tightening the blanket bucket rule would
+touch every other upload in the app.
+
+Reaction keys are plain ASCII (`up`, `done`, `question`, `eyes`, `thanks`,
+`heart`) rather than emoji, because an emoji as a Firestore field name needs
+quoting on every path it appears in. Writes use `arrayUnion`/`arrayRemove` on a
+dotted path so that several people reacting at once do not overwrite each other.
+The rules let **any member** update `reactions` on **anybody's** message — that
+is the point of a reaction — and check only that nothing else moved. Rules cannot
+walk a map of arrays, so they do not prove the caller only added their own uid;
+among trusted staff the worst case is a name appearing under a thumbs-up they did
+not leave, and the check that matters is that no message text can be touched
+down that branch.
 
 `replyTo` carries a **copy** of the quoted message rather than only its id.
 Three reasons point the same way: a reply carried privately out of a room quotes

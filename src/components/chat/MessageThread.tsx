@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, CornerUpLeft, Lock, Pencil, Send, Trash2, X } from 'lucide-react';
+import {
+  Check, ChevronDown, CornerUpLeft, Link2, Lock, Paperclip, Pencil, Send, Trash2, X,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -11,20 +13,42 @@ import {
   millis,
   openDirectConversation,
   sendMessage,
+  toggleReaction,
   watchMessages,
 } from '@/lib/chat';
+import { discardAttachment, readableSize, uploadAttachment } from '@/lib/chatUploads';
+import { copyToClipboard } from '@/lib/clipboard';
+import { formatMessage } from '@/lib/messageFormat';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import PersonCard from './PersonCard';
 import MessageActions, { type MessageAction } from './MessageActions';
+import MessageAttachments from './MessageAttachments';
+import ReactionBar from './ReactionBar';
 import {
+  MAX_ATTACHMENT_BYTES,
   MAX_MESSAGE_LENGTH,
   findMentions,
-  splitOnMentions,
+  type Attachment,
   type ChatMessage,
   type Conversation,
   type MentionCandidate,
   type MessageQuote,
 } from '@/types/conversation';
+
+/** How many messages a thread loads at a time. */
+const PAGE_SIZE = 200;
+
+/** A file uploading, or uploaded and waiting for the message it belongs to. */
+interface PendingFile {
+  /** Local id — the storage path does not exist until the upload finishes. */
+  id: string;
+  name: string;
+  size: number;
+  percent: number;
+  attachment: Attachment | null;
+  error?: string;
+  cancel: () => void;
+}
 
 /**
  * One conversation, live.
@@ -39,6 +63,7 @@ export default function MessageThread({ conversation }: { conversation: Conversa
   const { user, profile } = useAuth();
   const {
     nameOf, profileOf, people, lastReadAt, setActiveId, pendingReply, setPendingReply,
+    focusMessageId, setFocusMessageId,
   } = useChat();
   const { formatDate } = useDateFormatters();
 
@@ -68,6 +93,32 @@ export default function MessageThread({ conversation }: { conversation: Conversa
   /** The bubble whose arrow was clicked, and where that arrow is on screen. */
   const [actionsFor, setActionsFor] = useState<{ messageId: string; anchor: DOMRect } | null>(null);
 
+  /**
+   * How far back this thread is loaded.
+   *
+   * Raised when the reader reaches the top rather than loaded all at once: a
+   * room a year old holds tens of thousands of messages, and every one of them
+   * is a read that gets billed whether or not anybody scrolls to it.
+   */
+  const [windowState, setWindowState] = useState({ id: conversationId, size: PAGE_SIZE });
+  const [older, setOlder] = useState<'idle' | 'loading' | 'end'>('idle');
+
+  // Reset during render rather than in an effect. An effect would let the
+  // listener subscribe once at the old, larger size for the new conversation
+  // before shrinking back — several hundred document reads, billed, for
+  // messages thrown away a frame later.
+  if (windowState.id !== conversationId) {
+    setWindowState({ id: conversationId, size: PAGE_SIZE });
+  }
+  const windowSize = windowState.id === conversationId ? windowState.size : PAGE_SIZE;
+  const setWindowSize = (next: (was: number) => number) =>
+    setWindowState((was) => ({ id: was.id, size: next(was.size) }));
+
+  /** Files already uploaded and waiting to go with the next message. */
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const filePicker = useRef<HTMLInputElement>(null);
+
   const scroller = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const myUid    = user?.uid ?? '';
@@ -79,12 +130,19 @@ export default function MessageThread({ conversation }: { conversation: Conversa
     setMessages([]);
     const stop = watchMessages(
       conversationId,
-      (rows) => { setMessages(rows); setLoading(false); },
-      200,
+      (rows) => {
+        setMessages(rows);
+        setLoading(false);
+        // Fewer came back than were asked for, so this is the whole history and
+        // there is nothing above to go and fetch.
+        setOlder(rows.length < windowSize ? 'end' : 'idle');
+      },
+      windowSize,
       () => { setError('These messages could not be loaded.'); setLoading(false); },
     );
     return stop;
-  }, [conversationId]);
+  }, [conversationId, windowSize]);
+
 
   /* ------------------------------------------------------ new-messages line */
 
@@ -118,15 +176,34 @@ export default function MessageThread({ conversation }: { conversation: Conversa
   // reading yesterday must not be yanked to the bottom because a message
   // arrived; someone at the bottom expects to follow along.
   const atBottom = useRef(true);
+
+  /**
+   * Where the thread was standing when older messages were asked for.
+   *
+   * Older messages arrive above what is on screen, so the content the reader
+   * was looking at slides down by however tall the new batch is. Without
+   * putting the scroll back, reaching the top would fling them into the middle
+   * of last month.
+   */
+  const restoreFrom = useRef<{ height: number; top: number } | null>(null);
+
   const onScroll = useCallback(() => {
     const el = scroller.current;
     if (!el) return;
     atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+
+    // Near the top, with more behind it: fetch the next page back.
+    if (el.scrollTop < 120 && older === 'idle' && !loading) {
+      restoreFrom.current = { height: el.scrollHeight, top: el.scrollTop };
+      setOlder('loading');
+      setWindowSize((was) => was + PAGE_SIZE);
+    }
+
     // Both hang off a fixed point on the screen and cannot follow the thing
     // they belong to. Closing beats letting them drift away from their anchor.
     setCard(null);
     setActionsFor(null);
-  }, []);
+  }, [older, loading]);
 
   const openedAt = useRef('');
   useEffect(() => {
@@ -149,6 +226,15 @@ export default function MessageThread({ conversation }: { conversation: Conversa
         el.scrollTop = el.scrollHeight;
         atBottom.current = true;
       }
+      return;
+    }
+
+    // A page of older messages just landed. Put the reader back on the line
+    // they were reading, which is now that much further down.
+    const restore = restoreFrom.current;
+    if (restore) {
+      restoreFrom.current = null;
+      el.scrollTop = el.scrollHeight - restore.height + restore.top;
       return;
     }
 
@@ -227,6 +313,12 @@ export default function MessageThread({ conversation }: { conversation: Conversa
       // Replying works on anyone's message, your own included — quoting
       // yourself is how you pick a thread back up after the room has moved on.
       { key: 'reply', label: 'Reply', Icon: CornerUpLeft, onSelect: () => startReply(m) },
+      {
+        key: 'link',
+        label: copiedId === m.id ? 'Link copied' : 'Copy link to message',
+        Icon: Link2,
+        onSelect: () => void copyMessageLink(m.id),
+      },
     ];
 
     // Only from a room, and only on someone else's message: a private reply is
@@ -258,6 +350,73 @@ export default function MessageThread({ conversation }: { conversation: Conversa
     return actions;
   }
 
+  /* ----------------------------------------------------------- attachments */
+
+  /**
+   * Starts uploading whatever was dropped, pasted or picked.
+   *
+   * Files go up as soon as they are chosen rather than when Send is pressed, so
+   * that a 12 MB photo of a BOL is already in the bucket by the time the caption
+   * is typed. The message itself carries only the finished records.
+   */
+  const attachFiles = useCallback((files: File[]) => {
+    if (files.length === 0) return;
+    setError('');
+
+    for (const file of files) {
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        setError(`${file.name} is larger than 25 MB. Send it as a link instead.`);
+        continue;
+      }
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const { promise, handle } = uploadAttachment(conversationId, file, (percent) => {
+        setPendingFiles((was) => was.map((f) => (f.id === id ? { ...f, percent } : f)));
+      });
+
+      setPendingFiles((was) => [...was, {
+        id, name: file.name, size: file.size, percent: 0, attachment: null,
+        cancel: handle.cancel,
+      }]);
+
+      void promise
+        .then((attachment) => {
+          setPendingFiles((was) =>
+            was.map((f) => (f.id === id ? { ...f, attachment, percent: 100 } : f)));
+        })
+        .catch((e: Error) => {
+          setPendingFiles((was) =>
+            was.map((f) => (f.id === id ? { ...f, error: e.message || 'Upload failed' } : f)));
+        });
+    }
+  }, [conversationId]);
+
+  /** Drops a file from the tray, and from the bucket if it already got there. */
+  const removePending = useCallback((id: string) => {
+    setPendingFiles((was) => {
+      const going = was.find((f) => f.id === id);
+      going?.cancel();
+      // Nothing points at it yet, and nothing ever will — an abandoned upload
+      // left behind is a file no screen in this app can reach.
+      if (going?.attachment) void discardAttachment(going.attachment.path);
+      return was.filter((f) => f.id !== id);
+    });
+  }, []);
+
+  /** A copyable address for one message. */
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copyMessageLink = useCallback(async (messageId: string) => {
+    const url = `${window.location.origin}/dashboard/chat?c=${conversationId}&m=${messageId}`;
+    const ok  = await copyToClipboard(url);
+    if (ok) {
+      setCopiedId(messageId);
+      window.setTimeout(() => setCopiedId((was) => (was === messageId ? null : was)), 2000);
+    } else {
+      // The clipboard is unavailable on plain http, which is how most of the
+      // office reaches this. Showing the address beats a button that lies.
+      setError(url);
+    }
+  }, [conversationId]);
+
   /** Scrolls to the message a quote came from, and rings it briefly. */
   const jumpTo = useCallback((messageId: string) => {
     const el = scroller.current?.querySelector<HTMLElement>(`[data-message="${messageId}"]`);
@@ -266,6 +425,17 @@ export default function MessageThread({ conversation }: { conversation: Conversa
     setFlashId(messageId);
     window.setTimeout(() => setFlashId((was) => (was === messageId ? null : was)), 1600);
   }, []);
+
+  // A link to one message lands here once the conversation has switched and the
+  // thread has drawn. Claimed and cleared, so coming back later does not jump
+  // again. A message older than the loaded window simply is not found — the
+  // conversation still opens, which is most of what the link was for.
+  useEffect(() => {
+    if (!focusMessageId || loading) return;
+    if (!messages.some((m) => m.id === focusMessageId)) return;
+    jumpTo(focusMessageId);
+    setFocusMessageId(null);
+  }, [focusMessageId, loading, messages, jumpTo, setFocusMessageId]);
 
   /* ------------------------------------------------------------- mentions */
 
@@ -328,7 +498,14 @@ export default function MessageThread({ conversation }: { conversation: Conversa
 
   async function handleSend() {
     const text = draft.trim();
-    if (!text || !user || sending) return;
+    const ready = pendingFiles.filter((f) => f.attachment).map((f) => f.attachment!);
+    // A photo on its own is a message; an empty box with nothing on it is not.
+    if ((!text && ready.length === 0) || !user || sending) return;
+    // Still uploading. Sending now would drop the file the caption is about.
+    if (pendingFiles.some((f) => !f.attachment && !f.error)) {
+      setError('Wait for the upload to finish.');
+      return;
+    }
     setSending(true);
     setError('');
     // Cleared before the write, not after: the message is going to appear in
@@ -338,6 +515,7 @@ export default function MessageThread({ conversation }: { conversation: Conversa
     setMentionQuery(null);
     const quote = replyingTo;
     setReplyingTo(null);
+    setPendingFiles([]);
     try {
       await sendMessage(
         conversationId,
@@ -348,12 +526,15 @@ export default function MessageThread({ conversation }: { conversation: Conversa
         },
         findMentions(text, candidates),
         quote,
+        ready,
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'That message did not send.');
       setDraft(text);
-      // Put the quote back with the text, or the retry loses what it answered.
+      // Everything goes back with the text, or the retry loses what it answered
+      // and the files it was carrying.
       setReplyingTo(quote);
+      setPendingFiles(pendingFiles);
     } finally {
       setSending(false);
     }
@@ -383,6 +564,15 @@ export default function MessageThread({ conversation }: { conversation: Conversa
         className="flex-1 min-h-0 overflow-y-auto bg-gray-50 px-4 py-4 space-y-1.5"
       >
         {loading && <p className="text-sm text-gray-400">Loading…</p>}
+
+        {!loading && older === 'loading' && (
+          <p className="py-2 text-center text-xs text-gray-400">Loading earlier messages…</p>
+        )}
+        {!loading && older === 'end' && messages.length > 0 && (
+          <p className="py-2 text-center text-[11px] text-gray-400">
+            This is the beginning of the conversation.
+          </p>
+        )}
 
         {!loading && messages.length === 0 && (
           <p className="text-sm text-gray-400">
@@ -534,22 +724,28 @@ export default function MessageThread({ conversation }: { conversation: Conversa
                     </div>
                   ) : (
                     <>
-                      <p
-                        className={`whitespace-pre-wrap break-words text-sm ${
-                          m.deletedAt ? 'italic text-gray-400' : ''
-                        }`}
-                      >
-                        {m.deletedAt
-                          ? 'Message deleted'
-                          : (
-                            <MessageText
-                              message={m}
-                              myUid={myUid}
-                              nameOf={nameOf}
-                              onOpenPerson={(uid, anchor) => setCard({ uid, anchor })}
-                            />
-                          )}
-                      </p>
+                      {!m.deletedAt && m.attachments && m.attachments.length > 0 && (
+                        <MessageAttachments attachments={m.attachments} />
+                      )}
+
+                      {(m.text || m.deletedAt) && (
+                        <p
+                          className={`whitespace-pre-wrap break-words text-sm ${
+                            m.deletedAt ? 'italic text-gray-400' : ''
+                          }`}
+                        >
+                          {m.deletedAt
+                            ? 'Message deleted'
+                            : (
+                              <MessageText
+                                message={m}
+                                myUid={myUid}
+                                nameOf={nameOf}
+                                onOpenPerson={(uid, anchor) => setCard({ uid, anchor })}
+                              />
+                            )}
+                        </p>
+                      )}
 
                       {/* The clock sits inside the bubble, under the text,
                           which is where a chat has trained everyone to look
@@ -558,6 +754,17 @@ export default function MessageThread({ conversation }: { conversation: Conversa
                         {m.editedAt && !m.deletedAt && <span>edited</span>}
                         <span>{clock(m)}</span>
                       </p>
+
+                      {!m.deletedAt && (
+                        <ReactionBar
+                          reactions={m.reactions}
+                          myUid={myUid}
+                          onToggle={(key, add) =>
+                            void toggleReaction(conversationId, m.id, key, myUid, add)
+                              .catch(() => setError('That reaction did not save.'))
+                          }
+                        />
+                      )}
 
                       {/* One arrow on the bubble, opening a named menu. The row
                           of bare icons this replaced sat at the far right of
@@ -599,7 +806,27 @@ export default function MessageThread({ conversation }: { conversation: Conversa
         })}
       </div>
 
-      <div className="relative flex-shrink-0 border-t border-gray-200 bg-white px-4 py-3">
+      <div
+        className="relative flex-shrink-0 border-t border-gray-200 bg-white px-4 py-3"
+        // Dropping anywhere over the composer counts. Aiming at a small target
+        // while dragging a file is a nuisance nobody needs.
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={(e) => {
+          // Only when the pointer has actually left the footer, not when it
+          // crosses onto a child element inside it.
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          attachFiles(Array.from(e.dataTransfer.files));
+        }}
+      >
+        {dragging && (
+          <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-lg border-2 border-dashed border-brand-400 bg-brand-50/90">
+            <span className="text-sm font-medium text-brand-700">Drop to attach</span>
+          </div>
+        )}
         {menuOpen && (
           <div className="absolute bottom-full left-4 right-4 mb-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
             {mentionMatches.map((c, i) => (
@@ -628,6 +855,37 @@ export default function MessageThread({ conversation }: { conversation: Conversa
 
         {error && <p className="mb-2 text-xs text-red-500">{error}</p>}
 
+        {pendingFiles.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {pendingFiles.map((f) => (
+              <div
+                key={f.id}
+                className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-xs ${
+                  f.error ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'
+                }`}
+              >
+                <Paperclip size={12} className="flex-shrink-0 text-gray-400" />
+                <span className="max-w-[10rem] truncate font-medium text-gray-700">{f.name}</span>
+                <span className="text-[10px] text-gray-400">
+                  {f.error
+                    ? f.error
+                    : f.attachment
+                      ? readableSize(f.size)
+                      : `${f.percent}%`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removePending(f.id)}
+                  title="Remove this file"
+                  className="rounded p-0.5 text-gray-400 transition hover:bg-gray-200 hover:text-gray-700"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {replyingTo && (
           <div className="mb-2 flex items-start gap-2 rounded-lg border-l-2 border-brand-400 bg-gray-50 py-1.5 pl-2.5 pr-1.5">
             <div className="min-w-0 flex-1">
@@ -655,8 +913,37 @@ export default function MessageThread({ conversation }: { conversation: Conversa
         )}
 
         <div className="flex items-end gap-2">
+          <input
+            ref={filePicker}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              attachFiles(Array.from(e.target.files ?? []));
+              // Cleared so choosing the same file twice in a row still fires.
+              e.target.value = '';
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => filePicker.current?.click()}
+            title="Attach a photo or file"
+            className="flex-shrink-0 rounded-lg p-2.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+          >
+            <Paperclip size={16} />
+          </button>
+
           <textarea
             ref={composer}
+            // A screenshot pasted straight in is how a rate sheet usually
+            // arrives. Only when the clipboard actually holds files — pasting
+            // text has to stay ordinary pasting.
+            onPaste={(e) => {
+              const files = Array.from(e.clipboardData.files);
+              if (files.length === 0) return;
+              e.preventDefault();
+              attachFiles(files);
+            }}
             value={draft}
             onChange={(e) => {
               setDraft(e.target.value.slice(0, MAX_MESSAGE_LENGTH));
@@ -693,13 +980,13 @@ export default function MessageThread({ conversation }: { conversation: Conversa
               }
             }}
             rows={1}
-            placeholder="Write a message…  @ to name someone"
+            placeholder="Write a message…  @ to name someone, *bold*, _italic_"
             className="max-h-32 min-h-[38px] flex-1 resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
           />
           <button
             type="button"
             onClick={() => void handleSend()}
-            disabled={!draft.trim() || sending}
+            disabled={(!draft.trim() && pendingFiles.length === 0) || sending}
             title="Send"
             className="flex-shrink-0 rounded-lg bg-brand-500 p-2.5 text-white transition hover:bg-brand-600 disabled:opacity-40"
           >
@@ -787,33 +1074,71 @@ function MessageText({
   onOpenPerson: (uid: string, anchor: DOMRect) => void;
 }) {
   const named = (message.mentions ?? []).map((uid) => ({ uid, displayName: nameOf(uid) }));
-  if (named.length === 0) return <>{message.text}</>;
 
   return (
     <>
-      {splitOnMentions(message.text, named).map((run, i) =>
-        run.mentionUid === null ? (
-          <span key={i}>{run.text}</span>
-        ) : (
-          <button
+      {formatMessage(message.text, named).map((run, i) => {
+        if (run.mentionUid) {
+          return (
+            <button
+              key={i}
+              type="button"
+              title={`About ${run.text.slice(1)}`}
+              onClick={(e) => onOpenPerson(run.mentionUid!, e.currentTarget.getBoundingClientRect())}
+              // A background only for your own name. A tinted pill behind every
+              // mention fights the bubble it sits in — and on your own bubble,
+              // which is already tinted, it disappears entirely. Colour and
+              // weight are enough to mark somebody else's name.
+              className={`rounded font-semibold transition hover:underline ${
+                run.mentionUid === myUid
+                  ? 'bg-amber-200 px-1 text-amber-900 hover:bg-amber-300'
+                  : 'text-brand-700 hover:text-brand-800'
+              }`}
+            >
+              {run.text}
+            </button>
+          );
+        }
+
+        if (run.href) {
+          return (
+            <a
+              key={i}
+              href={run.href}
+              target="_blank"
+              // noreferrer as well as noopener: these are addresses somebody
+              // pasted into a chat, and none of them need to be told where the
+              // click came from.
+              rel="noopener noreferrer"
+              className="font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800"
+            >
+              {run.text}
+            </a>
+          );
+        }
+
+        if (run.mark === 'code') {
+          return (
+            <code key={i} className="rounded bg-black/[0.07] px-1 font-mono text-[0.85em]">
+              {run.text}
+            </code>
+          );
+        }
+
+        return (
+          <span
             key={i}
-            type="button"
-            title={`About ${run.text.slice(1)}`}
-            onClick={(e) => onOpenPerson(run.mentionUid!, e.currentTarget.getBoundingClientRect())}
-            // A background only for your own name. A tinted pill behind every
-            // mention fights the bubble it sits in — and on your own bubble,
-            // which is already tinted, it disappears entirely. Colour and
-            // weight are enough to mark somebody else's name.
-            className={`rounded font-semibold transition hover:underline ${
-              run.mentionUid === myUid
-                ? 'bg-amber-200 px-1 text-amber-900 hover:bg-amber-300'
-                : 'text-brand-700 hover:text-brand-800'
-            }`}
+            className={
+              run.mark === 'bold'   ? 'font-semibold'
+              : run.mark === 'italic' ? 'italic'
+              : run.mark === 'strike' ? 'line-through opacity-70'
+              : undefined
+            }
           >
             {run.text}
-          </button>
-        ),
-      )}
+          </span>
+        );
+      })}
     </>
   );
 }

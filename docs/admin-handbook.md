@@ -519,6 +519,65 @@ still in the conversation, the quote follows it — delete the original and the
 quote turns into "Message deleted". But a quote you carried into a private
 thread keeps the words, because the original lives in a room the copy has left.
 
+### Reacting instead of replying
+
+Hover a message and a small face-with-a-plus appears under it. Click it and pick
+one of six: 👍 Got it, ✅ Done, ❓ Question, 👀 Looking, 🙏 Thanks, ❤️ Love it.
+
+Reactions exist so that "ok" does not have to be a message. Twelve people
+acknowledging a dispatch note is twelve lines of noise in a room, or one small
+count under the note itself. Hovering a count lists who reacted, which answers
+the question actually worth asking: *who has seen this?*
+
+Click your own reaction again to take it back. There is no full emoji picker on
+purpose — hunting through three thousand faces is slower than typing "ok", which
+would defeat the point.
+
+### Sending photos and files
+
+Three ways, whichever suits:
+
+- **Drag** the file onto the message box
+- **Paste** it — a screenshot copied with the Snipping Tool goes straight in
+- Click the **paperclip** beside the box
+
+Photos appear in the conversation at a readable size; click one to see it full
+screen. Anything else — a PDF rate confirmation, a spreadsheet — appears as a row
+you click to open. You can add a caption or send the file on its own. Files start
+uploading as soon as you choose them, so a large BOL photo is usually ready by
+the time you have finished typing. The **x** on a file removes it before sending.
+
+The limit is **25 MB** per file. Anything bigger should go by email or a link.
+
+> **Worth knowing:** a file sent in a private room is protected by the room, not
+> by the file itself. Someone who has the exact web address of an attachment
+> could open it even if they are not in that room. Addresses are never shown
+> outside the conversation and cannot be guessed, so this is not a practical
+> risk — but it is the same as the BOLs and licences already in TTMS, and it is
+> the honest answer if anyone asks whether an attachment is truly private.
+
+### Formatting a message
+
+The same marks as WhatsApp, so there is nothing new to learn:
+
+| Type this | To get |
+|---|---|
+| `*load 41207*` | **load 41207** |
+| `_urgent_` | *urgent* |
+| `~cancelled~` | ~~cancelled~~ |
+| `` `MC 123456` `` | `MC 123456` in plain type |
+
+Web addresses turn into links on their own — you do not have to do anything.
+
+### Older messages, and linking to one
+
+A conversation opens with its most recent messages. **Scroll to the top and the
+next batch loads by itself**, keeping your place, until you reach the beginning.
+
+To point somebody at one particular message, open its arrow menu and choose
+**Copy link to message**. Pasting that link into another conversation, or an
+email, opens TTMS on that conversation with the message highlighted.
+
 ### Being told a message arrived
 
 The bell at the top of the conversation list controls how this computer lets you

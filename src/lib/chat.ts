@@ -1,6 +1,8 @@
 'use client';
 
 import {
+  arrayRemove,
+  arrayUnion,
   collection,
   doc,
   limit as limitTo,
@@ -20,6 +22,7 @@ import {
   CONVERSATIONS_COLLECTION,
   MAX_MESSAGE_LENGTH,
   MESSAGES_COLLECTION,
+  type Attachment,
   type ChatMessage,
   type Conversation,
   type MessageQuote,
@@ -160,9 +163,12 @@ export async function sendMessage(
   sender: { uid: string; displayName: string },
   mentions: string[] = [],
   replyTo: MessageQuote | null = null,
+  attachments: Attachment[] = [],
 ): Promise<void> {
   const body = text.trim();
-  if (!body) return;
+  // A photo on its own is a message. Only an empty box with nothing attached
+  // to it is not.
+  if (!body && attachments.length === 0) return;
   if (body.length > MAX_MESSAGE_LENGTH) {
     throw new Error(`A message can be at most ${MAX_MESSAGE_LENGTH} characters.`);
   }
@@ -178,6 +184,8 @@ export async function sendMessage(
     deletedAt:  null,
     editedAt:   null,
     mentions,
+    attachments,
+    reactions: {},
     // Firestore rejects `undefined` outright, so every optional field on the
     // quote is written as an explicit null rather than left off.
     replyTo: replyTo
@@ -194,7 +202,9 @@ export async function sendMessage(
 
   const conversationPatch: Record<string, unknown> = {
     lastMessage: {
-      text:       body,
+      // A photo with no caption still needs a preview line, or the conversation
+      // list shows an empty row and reads as broken.
+      text:       body || attachments[0]?.name || '',
       senderUid:  sender.uid,
       senderName: sender.displayName,
       at:         serverTimestamp(),
@@ -280,6 +290,32 @@ export async function deleteMessage(
       'lastMessage.text': '',
     });
   }
+  await batch.commit();
+}
+
+/**
+ * Adds or removes your reaction to a message.
+ *
+ * Written as a dotted path with arrayUnion/arrayRemove rather than by reading
+ * the map and putting it back: five people reacting to the same message at the
+ * same moment is entirely normal, and a read-then-write would lose four of
+ * them.
+ *
+ * Reaction keys are plain ASCII — see REACTIONS in types/conversation.ts. An
+ * emoji as a Firestore field name would need quoting on every path it appears
+ * in, and would be one bad escape away from writing to the wrong field.
+ */
+export async function toggleReaction(
+  conversationId: string,
+  messageId: string,
+  reactionKey: string,
+  uid: string,
+  add: boolean,
+): Promise<void> {
+  const batch = writeBatch(db);
+  batch.update(doc(messagesCol(conversationId), messageId), {
+    [`reactions.${reactionKey}`]: add ? arrayUnion(uid) : arrayRemove(uid),
+  });
   await batch.commit();
 }
 
