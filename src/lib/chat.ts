@@ -310,6 +310,27 @@ export async function sendMessage(
 }
 
 /**
+ * What a thread is called where the message itself is not on screen — a row in
+ * somebody's thread list, or a notification.
+ *
+ * A message may be nothing but an attachment, so the file name is the title in
+ * that case. Without it the thread under a photo or a spreadsheet is stored
+ * with an empty title, and every reader of that empty string has to guess what
+ * it means — the list read it as a deleted message, which is the one thing it
+ * definitely was not.
+ *
+ * A root that really was deleted says so, because a thread outlives the message
+ * it hangs under and an empty title would otherwise be indistinguishable from a
+ * file nobody named.
+ */
+function rootLabel(
+  root: Pick<ChatMessage, 'text' | 'attachments' | 'deletedAt'>,
+): string {
+  if (root.deletedAt) return 'Message deleted';
+  return (root.text || root.attachments?.[0]?.name || '').slice(0, 120);
+}
+
+/**
  * Answers a message in its own thread.
  *
  * The one write in chat that deliberately leaves the room alone. `updatedAt`
@@ -334,7 +355,7 @@ export async function sendMessage(
  */
 export async function sendThreadReply(
   conversationId: string,
-  root: Pick<ChatMessage, 'id' | 'text' | 'senderUid' | 'replyUids'>,
+  root: Pick<ChatMessage, 'id' | 'text' | 'senderUid' | 'replyUids' | 'attachments' | 'deletedAt'>,
   text: string,
   sender: { uid: string; displayName: string },
   mentions: string[] = [],
@@ -389,7 +410,7 @@ export async function sendThreadReply(
         // every member of the room reads, and it only has to fill one line of
         // a desktop notification.
         text:     (body || attachments[0]?.name || '').slice(0, 120),
-        rootText: (root.text || '').slice(0, 120),
+        rootText: rootLabel(root),
         mention:  mentions.includes(uid),
       };
     }
@@ -421,7 +442,7 @@ export async function sendThreadReply(
   const entry = {
     rootId:          root.id,
     conversationId,
-    rootText:        (root.text || '').slice(0, 120),
+    rootText:        rootLabel(root),
     rootSenderUid:   root.senderUid,
     lastReplyAt:     serverTimestamp(),
     lastReplyByUid:  sender.uid,

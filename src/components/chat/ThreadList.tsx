@@ -106,7 +106,11 @@ export default function ThreadList({ onBack }: { onBack: () => void }) {
               >
                 <p className="flex items-baseline gap-1.5">
                   <span className={`truncate text-sm ${unread ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}`}>
-                    {entry.rootText || 'Message deleted'}
+                    {/* A blank title means a row written before rootLabel
+                        existed — an attachment-only message stored as ''. It
+                        rewrites itself on the next reply. Never say 'deleted'
+                        here: rootLabel says that itself when it is true. */}
+                    {entry.rootText || 'Message'}
                   </span>
                 </p>
                 <p className="truncate text-xs text-gray-500">
