@@ -130,6 +130,7 @@ Changing one without the other creates a silent security hole:
 | `canSeeParty()` | `partyVisible()` |
 | `canSeeOrder()` | `orderVisible()` |
 | `canEditSource()` | `canEditSource()` |
+| `isConversationMember()` in `src/types/conversation.ts` | `inConversation()` |
 
 The owner matcher is duplicated three ways for the same reason — plain node
 scripts cannot import TypeScript either:
@@ -209,6 +210,17 @@ Reads go through `/api/orders`, never the client SDK: the union of "mine, my
 groups', my clients'" cannot be expressed as one client-side query the rules
 would approve. `listOrders()` / `getOrder()` in `src/lib/orders.ts` are the
 single choke point every order-reading page uses.
+
+**Chat is the one deliberate exception to that.** `src/lib/chat.ts` reads
+Firestore live from the browser over `onSnapshot`, and messages are written
+straight from the client under the rules. That is safe here and is not safe for
+orders because "conversations I am a member of" is a single `array-contains`
+query the rules can check exactly, whereas the order union cannot be expressed
+as one query at all. Creating a conversation and changing who is in it still go
+through `/api/chat/conversations`. Chat crosses none of the ownership
+boundaries: everyone on the allowlist is staff, and staff can talk to staff.
+Nothing else in the app should copy the live-read pattern without the same
+argument.
 
 Ownership changes only through `/api/{orders,parties}/{id}/owners`, which is
 **admin and dispatcher only** and writes an `ownerEvents` subcollection entry in

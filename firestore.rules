@@ -402,5 +402,112 @@ service cloud.firestore {
         allow read, write: if false; // Admin SDK only
       }
     }
+
+    // ---------------------------------------------------------------- chat
+    //
+    // Staff chat. Unlike everything above it, this is read live from the
+    // browser rather than through an API route — see the note at the top of
+    // src/lib/chat.ts for why that is safe here and is not for orders.
+    //
+    // Keep in sync with isConversationMember() in src/types/conversation.ts.
+
+    // Is the caller in this conversation? The company room is the one everyone
+    // is in, and carries no membership list to test — checking `kind` is what
+    // grants it. Anything else is decided by the membership array, which only
+    // /api/chat/conversations can write.
+    function inConversation(convData) {
+      return isAllowedUser() && (
+        convData.kind == 'company'
+        || request.auth.uid in convData.get('memberUids', [])
+      );
+    }
+
+    function conversationData(convId) {
+      return get(/databases/$(database)/documents/conversations/$(convId)).data;
+    }
+
+    match /conversations/{conversationId} {
+      // `resource` is null when the document does not exist, and dereferencing
+      // it there would deny the read rather than report it missing. That matters
+      // for exactly one document: the company room is created on demand, and the
+      // listener watching for it would otherwise report a permissions failure —
+      // and be believed — on any database where nobody has opened chat yet.
+      // Allowing the read of a document that is not there gives away nothing.
+      allow read: if isAllowedUser() && (resource == null || inConversation(resource.data));
+
+      // Brought into existence only by /api/chat/conversations, which verifies
+      // every uid before it goes into a membership array. A client-side create
+      // would let anyone write themselves a room naming whoever they liked.
+      allow create, delete: if false;
+
+      // The one client write allowed on a conversation: the preview line and
+      // ordering stamp that a new message carries with it. It is written in
+      // the same batch as the message (see sendMessage), because a message
+      // that lands without moving its conversation up the list is a message
+      // nobody is told about — and a second round trip through the server to
+      // do it would show as a visible lag on every send.
+      //
+      // Everything that decides *access* — kind, memberUids — is excluded by
+      // hasOnly, so this cannot be turned into a way into someone's room. The
+      // sender is pinned to the caller so a preview cannot be put into another
+      // person's mouth, and `updatedAt` to the server clock so nobody can pin
+      // their own room to the top of everyone's list with a future date.
+      //
+      // `lastMessage.at` is only checked for type. It is a preview stamp, and
+      // the one thing it feeds — the unread badge — already ignores your own
+      // messages, which is all this rule lets you write.
+      allow update: if inConversation(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['lastMessage', 'updatedAt'])
+        && request.resource.data.lastMessage.senderUid == request.auth.uid
+        && request.resource.data.lastMessage.text is string
+        && request.resource.data.lastMessage.text.size() <= 4000
+        && request.resource.data.lastMessage.at is timestamp
+        && request.resource.data.updatedAt == request.time;
+
+      // Subcollections are not covered by the parent match, so messages need
+      // their own rule. Membership is re-read from the parent conversation —
+      // rules cannot see it any other way, and Firestore caches the get()
+      // across the documents of one query, so it costs one lookup, not one
+      // per message.
+      match /messages/{messageId} {
+        allow read: if inConversation(conversationData(conversationId));
+
+        // Sending. Pinned to the caller and to the server clock for the same
+        // reasons as the preview above: nobody speaks in somebody else's name,
+        // and nobody writes a message into last week.
+        allow create: if inConversation(conversationData(conversationId))
+          && request.resource.data.senderUid == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 4000
+          && request.resource.data.senderName is string
+          && request.resource.data.createdAt == request.time;
+
+        // Taking a message back — the sender only, and only by emptying it.
+        // Editing text in place is deliberately not possible: a message
+        // somebody has already acted on must not be able to change into
+        // something else after the fact.
+        allow update: if isAllowedUser()
+          && resource.data.senderUid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['text', 'deletedAt'])
+          && request.resource.data.text == ''
+          && request.resource.data.deletedAt == request.time;
+
+        // The emptied document stays, so the thread does not reshuffle around
+        // a hole underneath people who have already read it.
+        allow delete: if false;
+      }
+    }
+
+    // What each person has read, one document per user, keyed by their uid.
+    //
+    // Self-service by design: it says nothing about access, only about which
+    // conversations still show a badge for you. The uid in the path is what
+    // stops one person clearing — or planting — another person's unread marks.
+    match /chatReads/{uid} {
+      allow read, write: if isAllowedUser() && request.auth.uid == uid;
+    }
   }
 }

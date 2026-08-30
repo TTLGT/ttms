@@ -10,6 +10,7 @@ import {
   Truck,
   Building2,
   Contact,
+  MessageCircle,
   PackageCheck,
   ShieldCheck,
   Users,
@@ -20,6 +21,8 @@ import {
   LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { ChatProvider, useChat } from '@/context/ChatContext';
+import ChatPopup from '@/components/chat/ChatPopup';
 import { listAccessRequests } from '@/lib/parties';
 
 const NAV_ITEMS: {
@@ -41,6 +44,10 @@ const NAV_ITEMS: {
   // Open to everyone: it is the company phone book, not the access list.
   // What each person is shown depends on their role — see src/lib/directory.ts.
   { href: '/dashboard/directory', label: 'Directory', Icon: Contact,         adminOnly: false },
+  // Next to the Directory on purpose: that page is who your colleagues are,
+  // this one is talking to them. Open to everyone — chat crosses none of the
+  // ownership boundaries the record pages are gated by.
+  { href: '/dashboard/chat',      label: 'Chat',      Icon: MessageCircle,   adminOnly: false },
   { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart2,       adminOnly: true  },
   // Also open to HR, who read the people directory there and nothing else —
   // the page itself renders read-only for them. Analytics and Handbook stay
@@ -50,10 +57,49 @@ const NAV_ITEMS: {
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading, logout, isAdmin, isHr } = useAuth();
-  const router                                   = useRouter();
-  const pathname                                 = usePathname();
-  const [pendingApprovals, setPending]     = useState(0);
+  const { user, loading } = useAuth();
+  const router            = useRouter();
+
+  // The shell is exactly the viewport, so the window itself has no business
+  // scrolling here. See .app-shell-locked in globals.css for what makes it try.
+  useEffect(() => {
+    document.documentElement.classList.add('app-shell-locked');
+    return () => document.documentElement.classList.remove('app-shell-locked');
+  }, []);
+
+  useEffect(() => {
+    if (!loading && !user) router.replace('/login');
+  }, [user, loading, router]);
+
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Below the auth gate, never above it: the chat listeners must not attach for
+  // an account that has not been through the allowlist check.
+  return (
+    <ChatProvider>
+      <DashboardShell>{children}</DashboardShell>
+    </ChatProvider>
+  );
+}
+
+/**
+ * The sidebar and the page beside it.
+ *
+ * Split out from the gate above so that it sits inside ChatProvider — the
+ * unread badge in the nav reads the same conversations the chat panel does,
+ * rather than opening a second set of listeners to count the same thing.
+ */
+function DashboardShell({ children }: { children: React.ReactNode }) {
+  const { user, logout, isAdmin, isHr } = useAuth();
+  const pathname                        = usePathname();
+  const { unreadIds }                   = useChat();
+  const [pendingApprovals, setPending]  = useState(0);
 
   /**
    * Which nav item to light up. Dashboard is matched exactly — every other
@@ -75,24 +121,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => { cancelled = true; };
   }, [user]);
 
-  // The shell is exactly the viewport, so the window itself has no business
-  // scrolling here. See .app-shell-locked in globals.css for what makes it try.
-  useEffect(() => {
-    document.documentElement.classList.add('app-shell-locked');
-    return () => document.documentElement.classList.remove('app-shell-locked');
-  }, []);
-
-  useEffect(() => {
-    if (!loading && !user) router.replace('/login');
-  }, [user, loading, router]);
-
-  if (loading || !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  /** The number on a nav item, or 0 for the items that never carry one. */
+  const badgeFor = (href: string) => {
+    if (href === '/dashboard/approvals') return pendingApprovals;
+    // Conversations with something new in them, not messages: counting unread
+    // messages would mean reading every one of them to add them up.
+    if (href === '/dashboard/chat')      return unreadIds.length;
+    return 0;
+  };
 
   return (
     /* h-screen + overflow-hidden, not min-h-screen: the shell is exactly the
@@ -117,6 +153,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             (item) => !item.adminOnly || isAdmin || (item.alsoHr === true && isHr),
           ).map(({ href, label, Icon }) => {
             const current = isCurrent(href);
+            const badge   = badgeFor(href);
             return (
             <Link
               key={href}
@@ -130,9 +167,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               <Icon size={16} className="flex-shrink-0" />
               <span className="flex-1">{label}</span>
-              {href === '/dashboard/approvals' && pendingApprovals > 0 && (
+              {badge > 0 && (
                 <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-brand-900 text-[10px] font-bold">
-                  {pendingApprovals}
+                  {badge}
                 </span>
               )}
             </Link>
@@ -142,13 +179,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <div className="flex-shrink-0 px-4 py-4 border-t border-brand-700">
           <div className="flex items-center gap-3 mb-3">
-            {user.photoURL && (
+            {user?.photoURL && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={user.photoURL} alt="avatar" className="w-8 h-8 rounded-full" />
             )}
             <div className="overflow-hidden">
-              <p className="text-sm font-medium text-white truncate">{user.displayName}</p>
-              <p className="text-xs text-blue-300 truncate">{user.email}</p>
+              <p className="text-sm font-medium text-white truncate">{user?.displayName}</p>
+              <p className="text-xs text-blue-300 truncate">{user?.email}</p>
             </div>
           </div>
           <button
@@ -163,6 +200,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main className="flex-1 overflow-y-auto bg-gray-50">
         {children}
       </main>
+
+      {/* Over every page but the chat page itself, so a quick word does not
+          cost you the order you were in the middle of. */}
+      <ChatPopup />
     </div>
   );
 }

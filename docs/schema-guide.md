@@ -599,3 +599,82 @@ evidence behind "this campaign brought in these loads".
 - `allowedUsers` and `users` are never writable from the client — all changes go through the Admin SDK, so nobody can self-promote to admin.
 - `agreements` documents may be written by unauthenticated signers **only** via a secure Cloud Function that validates a one-time token — never directly from the client SDK.
 - Storage rules cannot read Firestore, so they gate on the `ttlAccess` custom claim that `/api/auth/session` stamps at sign-in.
+
+---
+
+## Collections: `conversations`, `chatReads` (staff chat)
+
+Chat between employees. It sits outside the ownership model entirely: everyone
+on the allowlist is staff, so everyone can talk to everyone. Nothing here is
+gated on `assignedToUids`, work groups or roles.
+
+`src/types/conversation.ts` is the current truth for these shapes.
+
+### `conversations/{conversationId}`
+
+| Field | Type | Notes |
+|---|---|---|
+| `kind` | `'company' \| 'direct' \| 'group'` | See below |
+| `name` | string | Group rooms only; `''` for direct threads |
+| `memberUids` | string[] | Empty on the company room — see below |
+| `createdBy` | string | uid, or `'system'` for the company room |
+| `createdAt` / `updatedAt` | Timestamp | `updatedAt` is bumped by each message and is what the list is ordered by |
+| `lastMessage` | `{ text, senderUid, senderName, at } \| null` | Denormalized preview |
+
+Three shapes, one document type:
+
+- **`company`** — the single room everyone is in, at the fixed document id
+  `company`. Its `memberUids` is deliberately empty: listing every employee
+  would have to be rewritten on every hire, and the rules grant this room on
+  `kind` instead. It is created on demand by `GET /api/chat/conversations`,
+  because there is no deployment step in this project that could run a
+  migration.
+- **`direct`** — two people, at the deterministic id `dm_<uidA>_<uidB>` with
+  the uids sorted. Derived rather than random so two colleagues who open each
+  other simultaneously land on one thread instead of two half-threads.
+- **`group`** — a named room with an explicit membership. Any member may
+  rename it, change who is in it, or leave.
+
+`lastMessage` is a preview line and nothing is decided from it. It exists so a
+list of a dozen conversations does not cost a dozen extra queries per page
+load, and so the unread badge has a timestamp to compare against.
+
+### `conversations/{conversationId}/messages/{messageId}`
+
+| Field | Type | Notes |
+|---|---|---|
+| `text` | string | Max 4000 chars, enforced in the UI and again in the rules |
+| `senderUid` | string | Pinned to the caller by the rules |
+| `senderName` | string | Copied at send time, so an old message keeps the name that was on it |
+| `createdAt` | Timestamp | Pinned to `request.time` by the rules |
+| `deletedAt` | Timestamp \| null | Set when the sender takes it back |
+
+Messages cannot be edited, only emptied by their sender — a message somebody has
+already acted on must not be able to become something else afterwards. The
+emptied document stays so the thread does not reshuffle around a hole.
+
+### `chatReads/{uid}`
+
+`{ uid, lastReadAt: { [conversationId]: millis } }`. One document per user
+rather than a marker per conversation: the unread badge needs every
+conversation's state at once, and a live listener on one document costs a
+fraction of one per room. It is the only chat document a user writes about
+themselves, and it says nothing about access — only which conversations still
+show a dot.
+
+### Why chat reads live from the client, when orders do not
+
+Orders go through `/api/orders` because "mine, my groups', my clients'" cannot
+be written as one query the rules would approve. Chat has no such problem:
+"conversations I am a member of" is a single `array-contains` query and the
+rules check exactly that. Reads and message sends therefore go direct over
+`onSnapshot` — a round trip per message would lose the live updates that are
+the point of a chat.
+
+Creating a conversation and changing who is in it still go through
+`/api/chat/conversations`, like every other structural write in this codebase.
+Those decide who can see what.
+
+**No composite indexes are required.** The conversation query uses
+`array-contains` alone and is sorted in memory; messages order by `createdAt`
+within one subcollection. Both are covered by automatic single-field indexes.

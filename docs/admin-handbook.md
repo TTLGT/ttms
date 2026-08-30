@@ -426,6 +426,49 @@ right in the Directory immediately.
 
 ---
 
+## 6c. Chat — talking to each other inside TTMS
+
+**Chat** in the left-hand menu is a messaging page for staff. Everyone who can
+sign in to TTMS can use it, and everyone can message everyone — there is no
+setting to configure and nobody to grant access to. If they are on the access
+list, they are reachable.
+
+There are three kinds of conversation:
+
+| Kind | Who is in it | How it starts |
+|---|---|---|
+| **Everyone** | Every person who can sign in | Already there; nobody has to be added |
+| **One person** | Just the two of you | The **+** button, then **One person** |
+| **A room** | Whoever you pick | The **+** button, then **A room**, name it and tick the people |
+
+Anyone in a room can rename it, add or remove people, or leave it — rooms are
+shared working spaces, not something one person owns. Taking somebody out of a
+room stops them seeing it from that moment on; what they already wrote stays in
+it.
+
+You can also chat without leaving the page you are on. The blue speech-bubble
+button in the bottom right corner of every screen opens the same conversations
+in a small panel over your work, which is what you want when the question is
+about the order already in front of you. The arrow at the top of that panel
+opens the full page if you need more room.
+
+A number beside **Chat** in the menu, or on the bubble, is how many
+conversations have something in them you have not read yet. Opening one clears
+its mark.
+
+Three things worth knowing:
+
+- **Messages only arrive while TTMS is open.** There are no email alerts and no
+  phone notifications. If someone has closed TTMS for the day, they will see
+  your message when they open it again.
+- **You can delete your own messages, but not edit them.** A deleted message
+  leaves a "Message deleted" line where it was, so a conversation other people
+  have already read does not quietly change shape.
+- **A person has to have signed in at least once** before they can be messaged.
+  Being on the access list is not enough on its own.
+
+---
+
 ## 6a. Sites, Teams and Work Groups
 
 The **Organization** tab of Settings holds three panels that group people in
