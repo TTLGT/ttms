@@ -16,7 +16,7 @@ import { conversationTitle, otherMemberUid, type Conversation } from '@/types/co
 export default function ConversationList({ onNew }: { onNew: () => void }) {
   const { user } = useAuth();
   const {
-    conversations, unreadIds, mentionIds, activeId, setActiveId, nameOf, profileOf, loading,
+    conversations, unreadIds, mentionIds, unreadCounts, activeId, setActiveId, nameOf, profileOf, loading,
   } = useChat();
   const myUid = user?.uid ?? '';
 
@@ -51,6 +51,7 @@ export default function ConversationList({ onNew }: { onNew: () => void }) {
         {conversations.map((c) => {
           const unread    = unreadIds.includes(c.id);
           const mentioned = mentionIds.includes(c.id);
+          const waiting   = unreadCounts[c.id] ?? 0;
           const title     = conversationTitle(c, myUid, nameOf);
           const other     = otherMemberUid(c, myUid);
 
@@ -72,21 +73,34 @@ export default function ConversationList({ onNew }: { onNew: () => void }) {
                 <p className="truncate text-xs text-gray-500">{preview(c, myUid)}</p>
               </div>
 
-              {/* Being named outranks everything else unread, so it gets a mark
-                  of its own rather than the same dot as twenty routine
-                  messages — that is the entire point of a mention. */}
+              {/* Being named outranks everything else unread, so it keeps a
+                  mark of its own — amber and an @ — rather than looking like
+                  twenty routine messages. That is the entire point of a
+                  mention; the number rides along inside it. */}
               {mentioned ? (
                 <span
                   title="You were mentioned"
-                  className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-amber-400 text-brand-900"
+                  className="flex h-5 flex-shrink-0 items-center gap-0.5 rounded-full bg-amber-400 px-1.5 text-[11px] font-bold text-brand-900"
                 >
                   <AtSign size={11} strokeWidth={3} />
+                  {waiting > 0 && <span className="tabular-nums">{badgeCount(waiting)}</span>}
                 </span>
               ) : (
-                /* A dot, not a count. Counting unread messages would mean
-                   reading every message in every conversation to add them up —
-                   the badge would cost more than the chat. */
-                unread && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-brand-500" />
+                unread && (
+                  waiting > 0 ? (
+                    <span
+                      title={`${waiting} unread`}
+                      className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-brand-500 px-1.5 text-[11px] font-bold tabular-nums text-white"
+                    >
+                      {badgeCount(waiting)}
+                    </span>
+                  ) : (
+                    /* The count is a separate lookup and lands a moment after
+                       the message does. A dot in the meantime, because a badge
+                       that appears empty first reads as a glitch. */
+                    <span className="h-2 w-2 flex-shrink-0 rounded-full bg-brand-500" />
+                  )
+                )
               )}
             </button>
           );
@@ -122,4 +136,13 @@ function preview(c: Conversation, myUid: string): string {
   const who = last.senderUid === myUid ? 'You' : last.senderName.split(' ')[0];
   const body = last.text || 'Message deleted';
   return c.kind === 'direct' && last.senderUid !== myUid ? body : `${who}: ${body}`;
+}
+
+/**
+ * Past 99 the exact number stops being information — "a lot, go and look" is
+ * the whole message — and a four-digit badge would push the conversation name
+ * out of a 288px column.
+ */
+function badgeCount(n: number): string {
+  return n > 99 ? '99+' : String(n);
 }

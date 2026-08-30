@@ -13,6 +13,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthContext';
 import {
+  countUnreadMessages,
   ensureChatReady,
   markConversationRead,
   millis,
@@ -31,7 +32,12 @@ import {
   type NotifyPrefs,
 } from '@/lib/chatNotify';
 import { listUserProfiles } from '@/lib/userProfiles';
-import { conversationTitle, type Conversation, type MessageQuote } from '@/types/conversation';
+import {
+  conversationTitle,
+  reactionGlyph,
+  type Conversation,
+  type MessageQuote,
+} from '@/types/conversation';
 import type { UserProfile } from '@/types/userProfile';
 
 /**
@@ -73,6 +79,18 @@ interface ChatContextValue {
   unreadIds: string[];
   /** The subset of those where this user was named with an @. */
   mentionIds: string[];
+  /**
+   * The badge text for chat as a whole — '', '7' or '@7' — for the nav item
+   * and the popup bubble, which must never disagree with each other.
+   */
+  unreadBadge: string;
+  /**
+   * How many messages are waiting in each unread conversation, by id. Only
+   * unread conversations appear, and a conversation whose count has not come
+   * back yet is simply absent — a badge should fall back to a plain mark
+   * rather than flash a zero.
+   */
+  unreadCounts: Record<string, number>;
   /**
    * Each conversation's read mark, in millis. Exposed so a thread can show the
    * "new messages" line where the reader actually left off.
@@ -202,6 +220,65 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [conversations, lastReadAt, uid],
   );
 
+  /**
+   * The counts behind the badges, refreshed only when they can have changed.
+   *
+   * Keyed on each unread conversation, its newest message and the reader's own
+   * read mark: anything else moving in the snapshot — somebody reacting, a
+   * conversation being renamed, a typo corrected — must not spend a count.
+   * Conversations already read are not counted at all, since their answer is
+   * zero by definition.
+   */
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+
+  const countTargets = useMemo(
+    () => conversations
+      .filter((c) => unreadIds.includes(c.id))
+      .map((c) => ({ id: c.id, since: lastReadAt[c.id] ?? 0, at: millis(c.lastMessage?.at) })),
+    [conversations, unreadIds, lastReadAt],
+  );
+  // Held in a ref so the effect can depend on the signature alone. Depending on
+  // the array itself would re-count on every snapshot, because a new array is a
+  // new object even when it describes exactly the same unread conversations.
+  const targetsRef = useRef(countTargets);
+  targetsRef.current = countTargets;
+  const countKey = countTargets.map((t) => `${t.id}:${t.since}:${t.at}`).join('|');
+
+  useEffect(() => {
+    const targets = targetsRef.current;
+    if (targets.length === 0) { setUnreadCounts({}); return; }
+
+    let live = true;
+    void Promise.all(
+      targets.map(async (t) => [t.id, await countUnreadMessages(t.id, t.since).catch(() => 0)] as const),
+    ).then((rows) => {
+      // A count that failed comes back 0 and is dropped, which leaves the badge
+      // as a plain mark. An unread conversation showing "0" would be worse than
+      // one showing no number at all.
+      if (live) setUnreadCounts(Object.fromEntries(rows.filter(([, n]) => n > 0)));
+    });
+
+    return () => { live = false; };
+  }, [countKey]);
+
+  /**
+   * One badge string for every "you have chat waiting" mark in the app.
+   *
+   * Messages, not conversations, so it agrees with the numbers on the
+   * conversations themselves — two badges counting different things is how
+   * somebody ends up opening chat to find four messages behind a badge that
+   * said two. Until the counts land it falls back to the number of
+   * conversations, which is never larger and is right within a second. The @
+   * says one of them named you by name, which is worth interrupting yourself
+   * for in a way that three routine ones are not.
+   */
+  const unreadBadge = useMemo(() => {
+    if (unreadIds.length === 0) return '';
+    const waiting = Object.values(unreadCounts).reduce((sum, n) => sum + n, 0);
+    const text = waiting > 99 ? '99+' : String(waiting > 0 ? waiting : unreadIds.length);
+    return mentionIds.length > 0 ? `@${text}` : text;
+  }, [unreadIds, mentionIds, unreadCounts]);
+
   const markRead = useCallback(
     (conversationId: string) => {
       if (!uid) return;
@@ -231,6 +308,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
    * the first morning.
    */
   const announced = useRef<Map<string, number> | null>(null);
+
+  /** The same, for reactions left on this user's own messages. */
+  const announcedPings = useRef<Map<string, number> | null>(null);
 
   // Held in a ref so the effect below can read the current preferences and the
   // current conversation without re-running — and re-announcing — each time
@@ -278,23 +358,87 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [conversations, uid, router]);
 
-  // The count in front of the browser tab title, so a glance at the tab strip
-  // is enough. Cleared on unmount or the title keeps a stale count on a page
-  // that no longer has chat on it.
+  /**
+   * Somebody reacted to something you said.
+   *
+   * Its own pass rather than a branch of the one above, because it answers a
+   * different question — the loop above asks "has this conversation had a new
+   * message", this one asks "has anything of mine been reacted to" — and
+   * because the two are independent: a reaction and a message can land in the
+   * same snapshot and both deserve to be announced.
+   *
+   * Quiet by design compared with a message: it never marks the conversation
+   * unread and never bolds it in the list. A thumbs-up is an acknowledgement,
+   * not something waiting for you to do anything about.
+   */
   useEffect(() => {
-    setUnreadTitle(unreadIds.length);
+    if (!uid) return;
+
+    // Seeded silently on the first snapshot, for the same reason as messages:
+    // otherwise opening TTMS would replay every reaction anyone has ever left.
+    if (announcedPings.current === null) {
+      announcedPings.current = new Map(
+        conversations.map((c) => [c.id, millis(c.reactionPings?.[uid]?.at)]),
+      );
+      return;
+    }
+
+    const seen = announcedPings.current;
+    for (const c of conversations) {
+      const ping = c.reactionPings?.[uid];
+      const at   = millis(ping?.at);
+      const previous = seen.get(c.id) ?? 0;
+      seen.set(c.id, at);
+
+      if (!ping || at <= previous) continue;
+      // Reacting to your own message writes no ping at all, so this only
+      // catches the pass where a slot is rewritten by its own owner.
+      if (ping.byUid === latest.current.uid) continue;
+      // Already on screen — the reaction appeared under the message as they
+      // watched, and a notification for it would be telling them twice.
+      if (c.id === latest.current.activeId && document.visibilityState === 'visible') continue;
+
+      const where = conversationTitle(c, uid, latest.current.nameOf);
+      if (latest.current.notifyPrefs.desktop) {
+        showMessageNotification({
+          title: `${ping.byName} reacted ${reactionGlyph(ping.key)}`,
+          // Your own words back at you, which is the fastest way to know which
+          // message this is about without opening anything.
+          body:  ping.text ? `“${ping.text}” · ${where}` : where,
+          // A tag of its own, so a reaction does not replace the notification
+          // for an unread message in the same conversation.
+          tag:   `${c.id}:reaction`,
+          onClick: () => {
+            setActiveId(c.id);
+            setFocusMessageId(ping.messageId);
+            router.push('/dashboard/chat');
+          },
+        });
+      }
+      if (latest.current.notifyPrefs.sound) playChime();
+    }
+  }, [conversations, uid, router]);
+
+  // The count in front of the browser tab title, so a glance at the tab strip
+  // is enough. Messages, like every other badge — the tab saying (2) beside a
+  // nav item saying 5 is the kind of small contradiction that makes people
+  // stop trusting both. Cleared on unmount or the title keeps a stale count on
+  // a page that no longer has chat on it.
+  const titleCount = Object.values(unreadCounts).reduce((sum, n) => sum + n, 0) || unreadIds.length;
+  useEffect(() => {
+    setUnreadTitle(titleCount);
     return () => setUnreadTitle(0);
-  }, [unreadIds.length]);
+  }, [titleCount]);
 
   const value = useMemo(
     () => ({
-      conversations, people, nameOf, profileOf, unreadIds, mentionIds, lastReadAt,
+      conversations, people, nameOf, profileOf, unreadIds, mentionIds, unreadCounts, unreadBadge, lastReadAt,
       activeId, setActiveId, popupOpen, setPopupOpen, markRead,
       pendingReply, setPendingReply, focusMessageId, setFocusMessageId,
       notifyPrefs, setNotifyPrefs, error, loading,
     }),
     [
-      conversations, people, nameOf, profileOf, unreadIds, mentionIds, lastReadAt,
+      conversations, people, nameOf, profileOf, unreadIds, mentionIds, unreadCounts, unreadBadge, lastReadAt,
       activeId, popupOpen, markRead, pendingReply, focusMessageId,
       notifyPrefs, setNotifyPrefs, error, loading,
     ],

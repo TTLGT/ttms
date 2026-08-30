@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { SmilePlus } from 'lucide-react';
 import { useChat } from '@/context/ChatContext';
 import { REACTIONS, reactionGlyph } from '@/types/conversation';
@@ -25,7 +25,10 @@ export default function ReactionBar({
   onToggle: (key: string, add: boolean) => void;
 }) {
   const { nameOf } = useChat();
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  // The anchor rect, not a boolean: the picker hangs off the viewport, so
+  // opening it means recording where the button was at that moment.
+  const [pickerAt, setPickerAt] = useState<DOMRect | null>(null);
 
   // Empty keys are left behind by arrayRemove taking out the last person, so
   // the map holds `{ up: [] }` rather than dropping the key. Filtered here
@@ -59,39 +62,111 @@ export default function ReactionBar({
 
       <div className="relative">
         <button
+          ref={trigger}
           type="button"
-          onClick={() => setPickerOpen((was) => !was)}
+          onClick={() =>
+            setPickerAt((was) => (was ? null : trigger.current?.getBoundingClientRect() ?? null))
+          }
           title="React to this"
           className="flex items-center rounded-full p-1 text-gray-400 opacity-0 transition hover:bg-black/[0.06] hover:text-gray-700 focus-visible:opacity-100 group-hover:opacity-100"
         >
           <SmilePlus size={13} />
         </button>
 
-        {pickerOpen && (
+        {pickerAt && (
           <>
             {/* A full-screen catcher rather than a document listener: the
                 picker is small and short-lived, and this closes it on the
-                first click anywhere without racing the button's own handler. */}
-            <div className="fixed inset-0 z-30" onClick={() => setPickerOpen(false)} />
-            <div className="absolute bottom-full left-0 z-40 mb-1 flex gap-0.5 rounded-full border border-gray-200 bg-white px-1.5 py-1 shadow-xl">
-              {REACTIONS.map(({ key, glyph, label }) => (
-                <button
-                  key={key}
-                  type="button"
-                  title={label}
-                  onClick={() => {
-                    onToggle(key, !(reactions?.[key] ?? []).includes(myUid));
-                    setPickerOpen(false);
-                  }}
-                  className="rounded-full px-1 py-0.5 text-base leading-none transition hover:scale-125"
-                >
-                  {glyph}
-                </button>
-              ))}
-            </div>
+                first click anywhere without racing the button's own handler.
+                It also stops the thread scrolling out from under a picker that
+                is pinned to the viewport. */}
+            <div className="fixed inset-0 z-30" onClick={() => setPickerAt(null)} />
+            <Picker
+              anchor={pickerAt}
+              onPick={(key) => {
+                onToggle(key, !(reactions?.[key] ?? []).includes(myUid));
+                setPickerAt(null);
+              }}
+              onClose={() => setPickerAt(null)}
+            />
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The palette itself, positioned against the viewport rather than against the
+ * button — the same reason MessageActions and PersonCard do it. The message
+ * list scrolls and clips, and the popup chat clips harder still, so a picker
+ * anchored inside the thread is cut off the moment it opens near an edge.
+ */
+function Picker({
+  anchor,
+  onPick,
+  onClose,
+}: {
+  anchor: DOMRect;
+  onPick: (key: string) => void;
+  onClose: () => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<{ left: number; top: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const margin = 8;
+
+    // Measured rather than assumed: the palette's width is however wide six
+    // glyphs render, which is not the same number in every browser.
+    let left = Math.min(anchor.left, window.innerWidth - el.offsetWidth - margin);
+    left = Math.max(margin, left);
+
+    // Above the button by preference, so it does not cover the message you are
+    // reacting to; below it when the message sits at the top of the thread.
+    let top = anchor.top - el.offsetHeight - 6;
+    if (top < margin) {
+      top = Math.min(anchor.bottom + 6, window.innerHeight - el.offsetHeight - margin);
+    }
+
+    setPlacement({ left, top });
+  }, [anchor]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onClose);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onClose);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={box}
+      style={{
+        left: placement?.left ?? anchor.left,
+        top:  placement?.top ?? anchor.top,
+        // Hidden for the one frame between mounting and being measured, so it
+        // does not flash in the wrong place first.
+        visibility: placement ? 'visible' : 'hidden',
+      }}
+      className="fixed z-40 flex gap-0.5 rounded-full border border-gray-200 bg-white px-1.5 py-1 shadow-xl"
+    >
+      {REACTIONS.map(({ key, glyph, label }) => (
+        <button
+          key={key}
+          type="button"
+          title={label}
+          onClick={() => onPick(key)}
+          className="rounded-full px-1 py-0.5 text-base leading-none transition hover:scale-125"
+        >
+          {glyph}
+        </button>
+      ))}
     </div>
   );
 }

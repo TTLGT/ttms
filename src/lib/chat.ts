@@ -5,12 +5,14 @@ import {
   arrayUnion,
   collection,
   doc,
+  getCountFromServer,
   limit as limitTo,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
+  Timestamp,
   where,
   writeBatch,
   type Unsubscribe,
@@ -307,15 +309,38 @@ export async function deleteMessage(
  */
 export async function toggleReaction(
   conversationId: string,
-  messageId: string,
+  message: { id: string; senderUid: string; text: string },
   reactionKey: string,
-  uid: string,
+  reactor: { uid: string; displayName: string },
   add: boolean,
 ): Promise<void> {
   const batch = writeBatch(db);
-  batch.update(doc(messagesCol(conversationId), messageId), {
-    [`reactions.${reactionKey}`]: add ? arrayUnion(uid) : arrayRemove(uid),
+  batch.update(doc(messagesCol(conversationId), message.id), {
+    [`reactions.${reactionKey}`]: add ? arrayUnion(reactor.uid) : arrayRemove(reactor.uid),
   });
+
+  // A mark on the conversation so the person whose message it is can be told,
+  // written in the same batch as the reaction itself — see ReactionPing. Only
+  // when adding: taking a thumbs-up back is not news, and notifying somebody
+  // that a colleague changed their mind would be worse than saying nothing.
+  // Never for your own message either, which is the commonest reaction of all
+  // and the one nobody needs telling about.
+  if (add && message.senderUid !== reactor.uid) {
+    batch.update(doc(db, CONVERSATIONS_COLLECTION, conversationId), {
+      [`reactionPings.${message.senderUid}`]: {
+        at:        serverTimestamp(),
+        byUid:     reactor.uid,
+        byName:    reactor.displayName,
+        key:       reactionKey,
+        messageId: message.id,
+        // Trimmed here rather than at render: this is a copy on a document
+        // every member reads, and it only ever has to fill one line of a
+        // desktop notification.
+        text:      message.text.slice(0, 120),
+      },
+    });
+  }
+
   await batch.commit();
 }
 
@@ -385,6 +410,29 @@ export function unreadMentionIds(
   return conversations
     .filter((c) => millis(c.mentionedAt?.[myUid]) > (lastReadAt[c.id] ?? 0))
     .map((c) => c.id);
+}
+
+/**
+ * How many messages have arrived in one conversation since `since`.
+ *
+ * A count aggregation, not a read of the messages themselves: Firestore bills
+ * this as one document read per thousand it counts, so a badge saying "12"
+ * costs the same as one saying "1" and the same as the dot it replaces. Adding
+ * the messages up by fetching them — the reason this list carried a plain dot
+ * before — would have cost a read per unread message, on every conversation,
+ * every time anybody said anything.
+ *
+ * It cannot also exclude the reader's own messages: a second inequality on
+ * senderUid would need its own composite index. It does not need to. A
+ * conversation only counts as unread when somebody else spoke last, and
+ * opening one to speak in it marks it read on the way in, so there is nothing
+ * of your own inside the window being counted.
+ */
+export async function countUnreadMessages(conversationId: string, since: number): Promise<number> {
+  const snap = await getCountFromServer(
+    query(messagesCol(conversationId), where('createdAt', '>', Timestamp.fromMillis(since))),
+  );
+  return snap.data().count;
 }
 
 /** Timestamp to millis, tolerating the instant before the server stamp lands. */

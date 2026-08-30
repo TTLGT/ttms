@@ -20,7 +20,7 @@ import ChatPanel from './ChatPanel';
  */
 export default function ChatPopup() {
   const pathname = usePathname();
-  const { popupOpen, setPopupOpen, unreadIds, mentionIds } = useChat();
+  const { popupOpen, setPopupOpen, unreadBadge } = useChat();
 
   if (pathname.startsWith('/dashboard/chat')) return null;
 
@@ -33,11 +33,11 @@ export default function ChatPopup() {
         className="fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-brand-500 text-white shadow-lg transition hover:bg-brand-600"
       >
         <MessageCircle size={20} />
-        {unreadIds.length > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-white bg-amber-400 px-1 text-[10px] font-bold text-brand-900">
-            {/* The @ says one of them named you, which is worth interrupting
-                yourself for in a way that three routine messages are not. */}
-            {mentionIds.length > 0 ? `@${unreadIds.length}` : unreadIds.length}
+        {unreadBadge && (
+          /* Messages waiting, and the @ if one of them named you — the same
+             string the nav item shows, built once in ChatContext. */
+          <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-white bg-amber-400 px-1 text-[10px] font-bold tabular-nums text-brand-900">
+            {unreadBadge}
           </span>
         )}
       </button>

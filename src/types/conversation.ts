@@ -69,6 +69,33 @@ export interface Conversation {
    * unread is.
    */
   mentionedAt?: Record<string, Timestamp>;
+  /**
+   * The last reaction somebody left on each person's own messages here, as
+   * `{ [messageOwnerUid]: ReactionPing }`.
+   *
+   * It sits on the conversation for one reason: a reaction is written onto the
+   * message document, and nobody has a listener on the messages of a
+   * conversation they are not looking at. Without a copy up here, the only
+   * person who could ever be told about a thumbs-up is the one already staring
+   * at it. The conversation list is watched all day, so a mark here reaches
+   * whoever it is for.
+   *
+   * One slot per person, overwritten each time: this drives a notification the
+   * moment it lands, not a list to be read back later.
+   */
+  reactionPings?: Record<string, ReactionPing>;
+}
+
+/** Who reacted, with what, to which of your messages — enough for a notification. */
+export interface ReactionPing {
+  at: Timestamp;
+  byUid: string;
+  byName: string;
+  /** The palette key, not the glyph — see REACTIONS and reactionGlyph. */
+  key: string;
+  messageId: string;
+  /** The opening of the message reacted to, so the notification says which one. */
+  text: string;
 }
 
 export interface LastMessage {

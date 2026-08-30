@@ -466,17 +466,37 @@ service cloud.firestore {
       // a member could do by writing a colleague's key is make an @ mark
       // appear or not appear for them. A stricter rule here would be more
       // machinery to get wrong, on a live database, guarding nothing.
-      allow update: if inConversation(resource.data)
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['lastMessage', 'updatedAt', 'mentionedAt'])
-        && request.resource.data.lastMessage.senderUid == request.auth.uid
-        && request.resource.data.lastMessage.text is string
-        && request.resource.data.lastMessage.text.size() <= 4000
-        && request.resource.data.lastMessage.at is timestamp
-        && (request.resource.data.updatedAt == request.time
-            || request.resource.data.updatedAt == resource.data.updatedAt)
-        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['mentionedAt'])
-            || request.resource.data.mentionedAt is map);
+      //
+      // `reactionPings` is the second branch below, and is the only client
+      // write here that carries no message with it. It is checked for type and
+      // for being the only thing that moved, on the same reasoning as
+      // `mentionedAt` and as the reactions themselves: it decides nothing, it
+      // grants nothing, and the worst a member could do with it is make a
+      // notification appear for a colleague who is already in the room with
+      // them. Rules cannot read a map keyed by a uid they do not know, so
+      // pinning the writer inside it is not something this could check anyway.
+      allow update: if inConversation(resource.data) && (
+        (
+          request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['lastMessage', 'updatedAt', 'mentionedAt'])
+          && request.resource.data.lastMessage.senderUid == request.auth.uid
+          && request.resource.data.lastMessage.text is string
+          && request.resource.data.lastMessage.text.size() <= 4000
+          && request.resource.data.lastMessage.at is timestamp
+          && (request.resource.data.updatedAt == request.time
+              || request.resource.data.updatedAt == resource.data.updatedAt)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['mentionedAt'])
+              || request.resource.data.mentionedAt is map)
+        )
+        // Reacting to somebody's message. `updatedAt` is deliberately not in
+        // this list: a thumbs-up is not new activity, and letting it move the
+        // stamp would shove a finished conversation back to the top of
+        // everybody's list.
+        || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactionPings'])
+          && request.resource.data.reactionPings is map
+        )
+      );
 
       // Subcollections are not covered by the parent match, so messages need
       // their own rule. Membership is re-read from the parent conversation —

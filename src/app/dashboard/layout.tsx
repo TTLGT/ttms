@@ -98,7 +98,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, logout, isAdmin, isHr } = useAuth();
   const pathname                        = usePathname();
-  const { unreadIds, mentionIds }       = useChat();
+  const { unreadBadge }                 = useChat();
   const [pendingApprovals, setPending]  = useState(0);
 
   /**
@@ -126,14 +126,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     if (href === '/dashboard/approvals') {
       return pendingApprovals > 0 ? String(pendingApprovals) : '';
     }
-    if (href === '/dashboard/chat') {
-      if (unreadIds.length === 0) return '';
-      // Conversations with something new in them, not messages: counting unread
-      // messages would mean reading every one of them to add them up. The @
-      // marks that one of those conversations named you by name, which is worth
-      // walking back to your desk for in a way that three routine ones are not.
-      return mentionIds.length > 0 ? `@${unreadIds.length}` : String(unreadIds.length);
-    }
+    // Messages waiting, built once in ChatContext so this and the popup bubble
+    // cannot end up showing different numbers for the same thing.
+    if (href === '/dashboard/chat') return unreadBadge;
     return '';
   };
 

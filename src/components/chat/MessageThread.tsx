@@ -760,7 +760,17 @@ export default function MessageThread({ conversation }: { conversation: Conversa
                           reactions={m.reactions}
                           myUid={myUid}
                           onToggle={(key, add) =>
-                            void toggleReaction(conversationId, m.id, key, myUid, add)
+                            void toggleReaction(
+                              conversationId,
+                              { id: m.id, senderUid: m.senderUid, text: m.text },
+                              key,
+                              {
+                                uid: myUid,
+                                displayName:
+                                  profile?.displayName || user?.displayName || user?.email || 'Someone',
+                              },
+                              add,
+                            )
                               .catch(() => setError('That reaction did not save.'))
                           }
                         />

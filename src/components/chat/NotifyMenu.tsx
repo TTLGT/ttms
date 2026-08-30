@@ -64,7 +64,11 @@ export default function NotifyMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1 w-72 rounded-lg border border-gray-200 bg-white p-3 shadow-xl">
+        /* w-60, not w-72: the conversation column is itself 288px wide, and the
+           dashboard <main> is overflow-y-auto — which clips horizontally too —
+           so anything wider than the gap between this button and the column's
+           left edge is cut off under the sidebar rather than spilling over it. */
+        <div className="absolute right-0 top-full z-30 mt-1 w-60 rounded-lg border border-gray-200 bg-white p-3 shadow-xl">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
             When a message arrives
           </p>
