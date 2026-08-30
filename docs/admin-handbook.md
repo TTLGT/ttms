@@ -456,14 +456,96 @@ A number beside **Chat** in the menu, or on the bubble, is how many
 conversations have something in them you have not read yet. Opening one clears
 its mark.
 
-Three things worth knowing:
+### Naming someone with @
 
-- **Messages only arrive while TTMS is open.** There are no email alerts and no
-  phone notifications. If someone has closed TTMS for the day, they will see
-  your message when they open it again.
-- **You can delete your own messages, but not edit them.** A deleted message
-  leaves a "Message deleted" line where it was, so a conversation other people
-  have already read does not quietly change shape.
+Type **@** in the message box and a list of people appears. Pick a name and it
+goes into the message. The person you named gets an amber **@** beside that
+conversation instead of the ordinary blue dot, so a question meant for them does
+not get buried under twenty other messages.
+
+You can only name people who are actually in the conversation. In the Everyone
+room that is the whole company.
+
+**Click any name in a message** and a small card appears with that person's
+photo, company email, work number and extension, their office and their team.
+The email address and the number are clickable — one opens a new email, the
+other dials. At the bottom is a **Message** button that opens a direct
+conversation with them, which is usually why you clicked the name in the first
+place.
+
+The card shows exactly what the Directory shows everyone and nothing more. The
+second phone number, which the Directory keeps to Admin and HR, is not on it.
+
+### How a conversation looks
+
+Messages sit in bubbles, like WhatsApp. **Yours are on the right in blue, other
+people's on the left in white**, with their photo beside the first one. When the
+same person sends several messages in a row they stack together under one photo,
+and only the first has the little pointed corner.
+
+In a room, the sender's name sits at the top of their bubble. In a direct
+message it does not — there are only two of you, and which side the bubble is on
+already says who wrote it. The time is inside the bubble, bottom right.
+
+### Replying to a message
+
+Hover over any message and **a small arrow appears in the top right corner of
+the bubble**. Click it and a menu opens next to that message, listing what you
+can do by name:
+
+| | What it does | Appears on |
+|---|---|---|
+| **Reply** | Quotes the message above yours | Anyone's, including your own |
+| **Reply privately** | Answers in a direct thread instead | Anyone's but your own, and only in a room |
+| **Edit** | Change the wording | Only your own |
+| **Delete** | Take it back | Only your own |
+
+Clicking anywhere outside the menu closes it.
+
+**Reply** puts the message you are answering in a bar above the box. Send, and
+your message appears with the quote attached, so a room where three
+conversations are running at once still makes sense. Clicking a quote jumps to
+the original and highlights it for a second. The **x** on the bar drops the
+quote if you change your mind.
+
+**Reply privately** is for when the answer does not belong in the room — a
+correction, a rate, anything you would rather not say in front of twelve people.
+It opens your direct thread with whoever wrote the message and brings the quote
+with you, labelled with the room it came from, so they know what you are
+answering. It always goes to the person who wrote that message and nobody else.
+
+One thing to know: **a quote keeps a copy of what was said.** If the original is
+still in the conversation, the quote follows it — delete the original and the
+quote turns into "Message deleted". But a quote you carried into a private
+thread keeps the words, because the original lives in a room the copy has left.
+
+### Being told a message arrived
+
+The bell at the top of the conversation list controls how this computer lets you
+know. There are three ways, and they work together:
+
+| | What it does | Setup |
+|---|---|---|
+| **Tab title** | A count appears in front of "TTMS" in the browser tab | Always on |
+| **Desktop notification** | A box pops up in the corner of your screen | Click the bell, then **Allow notifications**, and say yes to the browser |
+| **Sound** | A short chime | Click the bell and switch it on — it is off to start with |
+
+The bell settings belong to the computer you are sitting at, not to your
+account. Turning the sound off at a shared desk does not turn it off at home.
+
+When you come back to a conversation you have been away from, a red **New
+messages** line marks where you left off, and TTMS opens the conversation at
+that line rather than at the bottom.
+
+### Three things worth knowing
+
+- **All of this needs TTMS open in a tab.** There are still no email alerts and
+  no phone notifications. If someone has closed TTMS for the day, they will see
+  your message when they open it again — that needs TTMS to be properly
+  deployed, which has not happened yet.
+- **You can edit and delete your own messages.** An edited message is marked
+  **(edited)** so nobody is left arguing with a version that quietly changed.
+  A deleted one leaves a "Message deleted" line where it was.
 - **A person has to have signed in at least once** before they can be messaged.
   Being on the access list is not enough on its own.
 

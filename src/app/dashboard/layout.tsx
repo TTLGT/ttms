@@ -98,7 +98,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, logout, isAdmin, isHr } = useAuth();
   const pathname                        = usePathname();
-  const { unreadIds }                   = useChat();
+  const { unreadIds, mentionIds }       = useChat();
   const [pendingApprovals, setPending]  = useState(0);
 
   /**
@@ -121,13 +121,20 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, [user]);
 
-  /** The number on a nav item, or 0 for the items that never carry one. */
+  /** The badge on a nav item, or '' for the items that never carry one. */
   const badgeFor = (href: string) => {
-    if (href === '/dashboard/approvals') return pendingApprovals;
-    // Conversations with something new in them, not messages: counting unread
-    // messages would mean reading every one of them to add them up.
-    if (href === '/dashboard/chat')      return unreadIds.length;
-    return 0;
+    if (href === '/dashboard/approvals') {
+      return pendingApprovals > 0 ? String(pendingApprovals) : '';
+    }
+    if (href === '/dashboard/chat') {
+      if (unreadIds.length === 0) return '';
+      // Conversations with something new in them, not messages: counting unread
+      // messages would mean reading every one of them to add them up. The @
+      // marks that one of those conversations named you by name, which is worth
+      // walking back to your desk for in a way that three routine ones are not.
+      return mentionIds.length > 0 ? `@${unreadIds.length}` : String(unreadIds.length);
+    }
+    return '';
   };
 
   return (
@@ -167,7 +174,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             >
               <Icon size={16} className="flex-shrink-0" />
               <span className="flex-1">{label}</span>
-              {badge > 0 && (
+              {badge !== '' && (
                 <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-brand-900 text-[10px] font-bold">
                   {badge}
                 </span>

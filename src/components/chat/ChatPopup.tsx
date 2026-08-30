@@ -20,7 +20,7 @@ import ChatPanel from './ChatPanel';
  */
 export default function ChatPopup() {
   const pathname = usePathname();
-  const { popupOpen, setPopupOpen, unreadIds } = useChat();
+  const { popupOpen, setPopupOpen, unreadIds, mentionIds } = useChat();
 
   if (pathname.startsWith('/dashboard/chat')) return null;
 
@@ -35,7 +35,9 @@ export default function ChatPopup() {
         <MessageCircle size={20} />
         {unreadIds.length > 0 && (
           <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-white bg-amber-400 px-1 text-[10px] font-bold text-brand-900">
-            {unreadIds.length}
+            {/* The @ says one of them named you, which is worth interrupting
+                yourself for in a way that three routine messages are not. */}
+            {mentionIds.length > 0 ? `@${unreadIds.length}` : unreadIds.length}
           </span>
         )}
       </button>

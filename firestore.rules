@@ -450,20 +450,33 @@ service cloud.firestore {
       // Everything that decides *access* — kind, memberUids — is excluded by
       // hasOnly, so this cannot be turned into a way into someone's room. The
       // sender is pinned to the caller so a preview cannot be put into another
-      // person's mouth, and `updatedAt` to the server clock so nobody can pin
-      // their own room to the top of everyone's list with a future date.
+      // person's mouth.
+      //
+      // `updatedAt` may be left exactly as it was or set to now, and nothing
+      // else. Now, because a new message is new activity; unchanged, because
+      // correcting a typo in the last message rewrites the preview and must
+      // not shove a quiet conversation to the top of everyone's list.
       //
       // `lastMessage.at` is only checked for type. It is a preview stamp, and
       // the one thing it feeds — the unread badge — already ignores your own
       // messages, which is all this rule lets you write.
+      //
+      // `mentionedAt` is checked for type and nothing more. It drives a badge
+      // on the reader's own screen and grants no access to anything; the worst
+      // a member could do by writing a colleague's key is make an @ mark
+      // appear or not appear for them. A stricter rule here would be more
+      // machinery to get wrong, on a live database, guarding nothing.
       allow update: if inConversation(resource.data)
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['lastMessage', 'updatedAt'])
+             .hasOnly(['lastMessage', 'updatedAt', 'mentionedAt'])
         && request.resource.data.lastMessage.senderUid == request.auth.uid
         && request.resource.data.lastMessage.text is string
         && request.resource.data.lastMessage.text.size() <= 4000
         && request.resource.data.lastMessage.at is timestamp
-        && request.resource.data.updatedAt == request.time;
+        && (request.resource.data.updatedAt == request.time
+            || request.resource.data.updatedAt == resource.data.updatedAt)
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['mentionedAt'])
+            || request.resource.data.mentionedAt is map);
 
       // Subcollections are not covered by the parent match, so messages need
       // their own rule. Membership is re-read from the parent conversation —
@@ -482,18 +495,37 @@ service cloud.firestore {
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 4000
           && request.resource.data.senderName is string
-          && request.resource.data.createdAt == request.time;
+          && request.resource.data.createdAt == request.time
+          // Defaulted, so a message written without the field still passes.
+          && request.resource.data.get('mentions', []) is list;
 
-        // Taking a message back — the sender only, and only by emptying it.
-        // Editing text in place is deliberately not possible: a message
-        // somebody has already acted on must not be able to change into
-        // something else after the fact.
+        // Taking a message back, or correcting it — the sender only, either way.
+        //
+        // An edit is allowed but always leaves a mark: `editedAt` is pinned to
+        // the server clock, and the thread shows "(edited)" beside it. That is
+        // the honest version of the original rule here, which refused edits
+        // outright on the grounds that a message somebody has acted on should
+        // not silently become something else. Silently is the part that
+        // mattered, and the mark is what removes it.
+        //
+        // An already-deleted message stays deleted: text that has been taken
+        // back must not be able to reappear.
         allow update: if isAllowedUser()
           && resource.data.senderUid == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['text', 'deletedAt'])
-          && request.resource.data.text == ''
-          && request.resource.data.deletedAt == request.time;
+               .hasOnly(['text', 'deletedAt', 'editedAt'])
+          && (
+            // Taking it back.
+            (request.resource.data.text == ''
+             && request.resource.data.deletedAt == request.time)
+            // Correcting it.
+            || (resource.data.get('deletedAt', null) == null
+                && request.resource.data.text is string
+                && request.resource.data.text.size() > 0
+                && request.resource.data.text.size() <= 4000
+                && request.resource.data.editedAt == request.time
+                && request.resource.data.get('deletedAt', null) == null)
+          );
 
         // The emptied document stays, so the thread does not reshuffle around
         // a hole underneath people who have already read it.

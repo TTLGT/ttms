@@ -1,9 +1,10 @@
 'use client';
 
-import { Hash, Plus, Users } from 'lucide-react';
+import { AtSign, Hash, Plus, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { UserAvatar } from '@/components/settings/UserAvatar';
+import NotifyMenu from './NotifyMenu';
 import { conversationTitle, otherMemberUid, type Conversation } from '@/types/conversation';
 
 /**
@@ -14,7 +15,9 @@ import { conversationTitle, otherMemberUid, type Conversation } from '@/types/co
  */
 export default function ConversationList({ onNew }: { onNew: () => void }) {
   const { user } = useAuth();
-  const { conversations, unreadIds, activeId, setActiveId, nameOf, profileOf, loading } = useChat();
+  const {
+    conversations, unreadIds, mentionIds, activeId, setActiveId, nameOf, profileOf, loading,
+  } = useChat();
   const myUid = user?.uid ?? '';
 
   return (
@@ -23,14 +26,17 @@ export default function ConversationList({ onNew }: { onNew: () => void }) {
         <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
           Conversations
         </span>
-        <button
-          type="button"
-          onClick={onNew}
-          title="Start a conversation"
-          className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-        >
-          <Plus size={16} />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <NotifyMenu />
+          <button
+            type="button"
+            onClick={onNew}
+            title="Start a conversation"
+            className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+          >
+            <Plus size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
@@ -43,9 +49,10 @@ export default function ConversationList({ onNew }: { onNew: () => void }) {
         )}
 
         {conversations.map((c) => {
-          const unread = unreadIds.includes(c.id);
-          const title  = conversationTitle(c, myUid, nameOf);
-          const other  = otherMemberUid(c, myUid);
+          const unread    = unreadIds.includes(c.id);
+          const mentioned = mentionIds.includes(c.id);
+          const title     = conversationTitle(c, myUid, nameOf);
+          const other     = otherMemberUid(c, myUid);
 
           return (
             <button
@@ -65,10 +72,22 @@ export default function ConversationList({ onNew }: { onNew: () => void }) {
                 <p className="truncate text-xs text-gray-500">{preview(c, myUid)}</p>
               </div>
 
-              {/* A dot, not a count. Counting unread messages would mean
-                  reading every message in every conversation to add them up —
-                  the badge would cost more than the chat. */}
-              {unread && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-brand-500" />}
+              {/* Being named outranks everything else unread, so it gets a mark
+                  of its own rather than the same dot as twenty routine
+                  messages — that is the entire point of a mention. */}
+              {mentioned ? (
+                <span
+                  title="You were mentioned"
+                  className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-amber-400 text-brand-900"
+                >
+                  <AtSign size={11} strokeWidth={3} />
+                </span>
+              ) : (
+                /* A dot, not a count. Counting unread messages would mean
+                   reading every message in every conversation to add them up —
+                   the badge would cost more than the chat. */
+                unread && <span className="h-2 w-2 flex-shrink-0 rounded-full bg-brand-500" />
+              )}
             </button>
           );
         })}

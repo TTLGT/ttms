@@ -81,3 +81,37 @@ html.app-shell-locked body {
   height: 100%;
   overflow: hidden;
 }
+
+/*
+ * The pointed corner on a chat bubble.
+ *
+ * Only the first message in a run from one sender gets a tail. Repeating it on
+ * every line of a fast exchange draws a saw blade down the side of the column,
+ * which is why WhatsApp does the same thing.
+ *
+ * `background: inherit` is what makes one pair of classes serve both bubble
+ * colours: the tail takes whatever the bubble beside it is painted, so adding a
+ * third bubble style later needs no new CSS here. Drawn with clip-path rather
+ * than the old four-border triangle trick because the shape stays a plain
+ * rectangle in the box model — nothing to nudge back into place when the
+ * padding changes.
+ */
+.bubble-tail {
+  position: relative;
+}
+.bubble-tail::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 9px;
+  height: 14px;
+  background: inherit;
+}
+.bubble-tail-left::before {
+  left: -8px;
+  clip-path: polygon(100% 0, 100% 100%, 0 0);
+}
+.bubble-tail-right::before {
+  right: -8px;
+  clip-path: polygon(0 0, 0 100%, 100% 0);
+}

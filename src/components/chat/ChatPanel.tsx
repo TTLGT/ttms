@@ -74,7 +74,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
               onSettings={() => setSettingsOpen(true)}
             />
             <div className="min-h-0 flex-1">
-              <MessageThread conversationId={active.id} />
+              <MessageThread conversation={active} />
             </div>
           </>
         ) : (
@@ -105,7 +105,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
               onSettings={() => setSettingsOpen(true)}
             />
             <div className="min-h-0 flex-1">
-              <MessageThread conversationId={active.id} />
+              <MessageThread conversation={active} />
             </div>
           </>
         ) : (

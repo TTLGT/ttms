@@ -9,7 +9,6 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  updateDoc,
   where,
   writeBatch,
   type Unsubscribe,
@@ -23,6 +22,7 @@ import {
   MESSAGES_COLLECTION,
   type ChatMessage,
   type Conversation,
+  type MessageQuote,
 } from '@/types/conversation';
 
 /**
@@ -158,6 +158,8 @@ export async function sendMessage(
   conversationId: string,
   text: string,
   sender: { uid: string; displayName: string },
+  mentions: string[] = [],
+  replyTo: MessageQuote | null = null,
 ): Promise<void> {
   const body = text.trim();
   if (!body) return;
@@ -174,8 +176,23 @@ export async function sendMessage(
     senderName: sender.displayName,
     createdAt:  serverTimestamp(),
     deletedAt:  null,
+    editedAt:   null,
+    mentions,
+    // Firestore rejects `undefined` outright, so every optional field on the
+    // quote is written as an explicit null rather than left off.
+    replyTo: replyTo
+      ? {
+          messageId:            replyTo.messageId,
+          text:                 replyTo.text,
+          senderUid:            replyTo.senderUid,
+          senderName:           replyTo.senderName,
+          fromConversationId:   replyTo.fromConversationId ?? null,
+          fromConversationName: replyTo.fromConversationName ?? null,
+        }
+      : null,
   });
-  batch.update(doc(db, CONVERSATIONS_COLLECTION, conversationId), {
+
+  const conversationPatch: Record<string, unknown> = {
     lastMessage: {
       text:       body,
       senderUid:  sender.uid,
@@ -183,7 +200,57 @@ export async function sendMessage(
       at:         serverTimestamp(),
     },
     updatedAt: serverTimestamp(),
+  };
+  // Written as dotted paths so each person's mark is set without rewriting the
+  // whole map — two people mentioning different colleagues at the same moment
+  // would otherwise overwrite each other's.
+  for (const uid of mentions) {
+    // Naming yourself is not a mention. It happens when someone reads their
+    // own name off the screen while typing, and badging them for it is noise.
+    if (uid === sender.uid) continue;
+    conversationPatch[`mentionedAt.${uid}`] = serverTimestamp();
+  }
+  batch.update(doc(db, CONVERSATIONS_COLLECTION, conversationId), conversationPatch);
+
+  await batch.commit();
+}
+
+/**
+ * Corrects the wording of a message already sent.
+ *
+ * The thread marks it "(edited)" afterwards — the correction is allowed, and
+ * the fact that it happened stays visible to whoever read the first version.
+ *
+ * Mentions are deliberately not re-resolved here. Adding an @ by editing a
+ * message somebody has already scrolled past would badge them for something
+ * that appears, from their side, to have been on screen all along. If you need
+ * to pull someone in, send a new message.
+ */
+export async function editMessage(
+  conversationId: string,
+  messageId: string,
+  text: string,
+  options: { isLastMessage: boolean },
+): Promise<void> {
+  const body = text.trim();
+  if (!body) throw new Error('An edited message cannot be empty. Delete it instead.');
+  if (body.length > MAX_MESSAGE_LENGTH) {
+    throw new Error(`A message can be at most ${MAX_MESSAGE_LENGTH} characters.`);
+  }
+
+  const batch = writeBatch(db);
+  batch.update(doc(messagesCol(conversationId), messageId), {
+    text:     body,
+    editedAt: serverTimestamp(),
   });
+  // Only the preview text, and only when this *is* the preview. `updatedAt` is
+  // left alone on purpose: fixing a typo is not new activity, and bumping it
+  // would shove the conversation to the top of everyone's list for nothing.
+  if (options.isLastMessage) {
+    batch.update(doc(db, CONVERSATIONS_COLLECTION, conversationId), {
+      'lastMessage.text': body,
+    });
+  }
 
   await batch.commit();
 }
@@ -196,11 +263,24 @@ export async function sendMessage(
  * and would make a thread two people had already read change shape underneath
  * them. The rules let only the sender do this.
  */
-export async function deleteMessage(conversationId: string, messageId: string): Promise<void> {
-  await updateDoc(doc(messagesCol(conversationId), messageId), {
+export async function deleteMessage(
+  conversationId: string,
+  messageId: string,
+  options: { isLastMessage: boolean } = { isLastMessage: false },
+): Promise<void> {
+  const batch = writeBatch(db);
+  batch.update(doc(messagesCol(conversationId), messageId), {
     text:      '',
     deletedAt: serverTimestamp(),
   });
+  // Otherwise the conversation list goes on quoting text the thread no longer
+  // shows — the one place a deleted message would still be readable.
+  if (options.isLastMessage) {
+    batch.update(doc(db, CONVERSATIONS_COLLECTION, conversationId), {
+      'lastMessage.text': '',
+    });
+  }
+  await batch.commit();
 }
 
 /* ------------------------------------------------------------------ reads */
@@ -251,6 +331,23 @@ export function unreadConversationIds(
       if (!last || last.senderUid === myUid) return false;
       return millis(last.at) > (lastReadAt[c.id] ?? 0);
     })
+    .map((c) => c.id);
+}
+
+/**
+ * Which conversations have named this user with an @ since they last read.
+ *
+ * Kept separate from ordinary unread rather than folded into it: the point of
+ * a mention is that it outranks the twenty other things also unread, so it has
+ * to be countable on its own.
+ */
+export function unreadMentionIds(
+  conversations: Conversation[],
+  lastReadAt: Record<string, number>,
+  myUid: string,
+): string[] {
+  return conversations
+    .filter((c) => millis(c.mentionedAt?.[myUid]) > (lastReadAt[c.id] ?? 0))
     .map((c) => c.id);
 }
 

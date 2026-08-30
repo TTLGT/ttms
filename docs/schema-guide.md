@@ -620,6 +620,7 @@ gated on `assignedToUids`, work groups or roles.
 | `createdBy` | string | uid, or `'system'` for the company room |
 | `createdAt` / `updatedAt` | Timestamp | `updatedAt` is bumped by each message and is what the list is ordered by |
 | `lastMessage` | `{ text, senderUid, senderName, at } \| null` | Denormalized preview |
+| `mentionedAt` | `{ [uid]: Timestamp }` | When each person was last named with an @ here |
 
 Three shapes, one document type:
 
@@ -648,10 +649,43 @@ load, and so the unread badge has a timestamp to compare against.
 | `senderName` | string | Copied at send time, so an old message keeps the name that was on it |
 | `createdAt` | Timestamp | Pinned to `request.time` by the rules |
 | `deletedAt` | Timestamp \| null | Set when the sender takes it back |
+| `editedAt` | Timestamp \| null | Set when the sender corrects the wording |
+| `mentions` | string[] | Uids named with an @ in this message |
+| `replyTo` | `MessageQuote \| null` | The message this one answers, quoted above it |
 
-Messages cannot be edited, only emptied by their sender — a message somebody has
-already acted on must not be able to become something else afterwards. The
-emptied document stays so the thread does not reshuffle around a hole.
+A message can be corrected or taken back by its sender, and by nobody else. An
+edit always stamps `editedAt`, and the thread shows "(edited)" beside it — the
+original objection was that a message somebody has acted on should not
+*silently* become something else, and the mark is what removes the silently. A
+message that has been taken back is emptied rather than deleted, so the thread
+does not reshuffle around a hole, and it cannot then be edited back into
+existence.
+
+`replyTo` carries a **copy** of the quoted message rather than only its id.
+Three reasons point the same way: a reply carried privately out of a room quotes
+something the reader may have no permission to fetch; drawing twenty replies
+would otherwise cost twenty extra reads; and the copy preserves what was
+actually being answered. Where the original is still inside the loaded window of
+the same conversation, the thread renders the live version instead — so deleting
+a message does blank its quotes there. A quote that travelled into a direct
+thread keeps its copy, because the original is in a room it has left.
+
+`replyTo.fromConversationName` only appears on a private reply, and carrying it
+across leaks nothing: a private reply can only be addressed to the person who
+wrote the quoted message, and they were in that room by definition.
+
+The rules do not validate `replyTo`. The message `create` rule does not restrict
+extra fields, and the quote grants no access to anything — adding a check would
+mean another production rules deploy for no security gain.
+
+`mentionedAt` lives on the conversation rather than being read off the last
+message, because a mention has to survive being talked over: someone asks you a
+question, four more lines follow, and the @ mark must still be there when you
+look. It is only ever bumped, never cleared — whether you have read past it is
+decided by comparing it against your own read mark, exactly like ordinary
+unread. The rules check it for type and nothing more: it drives a badge on the
+reader's own screen, grants no access, and a stricter rule would be more
+machinery to get wrong on a live database for no gain.
 
 ### `chatReads/{uid}`
 
