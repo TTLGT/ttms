@@ -496,6 +496,21 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactionPings'])
           && request.resource.data.reactionPings is map
         )
+        // Answering in a thread. `updatedAt` and `lastMessage` are both absent
+        // from this list on purpose, and that absence is the whole feature: a
+        // thread reply must not move the room up everybody's list or rewrite
+        // the preview line, because the people it is for are told by this mark
+        // and the people it is not for should never learn it happened.
+        //
+        // Checked for type and for being the only thing that moved, on the
+        // same reasoning as `mentionedAt` and `reactionPings`: it decides
+        // nothing and grants nothing, and rules cannot look inside a map keyed
+        // by uids they do not know, so pinning the writer inside it is not
+        // something this could check anyway.
+        || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['threadPings'])
+          && request.resource.data.threadPings is map
+        )
       );
 
       // Subcollections are not covered by the parent match, so messages need
@@ -551,6 +566,28 @@ service cloud.firestore {
                  .hasOnly(['reactions'])
             && request.resource.data.reactions is map
           )
+          // The counters a thread reply carries with it, written in the same
+          // batch as the reply itself. Anybody in the conversation may move
+          // them, not only the message's own sender: the whole point is that
+          // other people answer your message, and a count only its sender
+          // could write is a count that never moves.
+          //
+          // `text` is not in the list, so nothing down this branch can touch
+          // what the message says — which is the check that matters. The worst
+          // a member could do with it is claim a thread has more replies in it
+          // than it has, in a room they are already in.
+          //
+          // Nothing here proves a reply was actually written. Rules cannot see
+          // the other writes in a batch, and a count that is one too high is
+          // not worth machinery that could get a real reply refused.
+          || (
+            inConversation(conversationData(conversationId))
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['replyCount', 'lastReplyAt', 'replyUids'])
+            && request.resource.data.replyCount is number
+            && request.resource.data.lastReplyAt == request.time
+            && request.resource.data.replyUids is list
+          )
           // Correcting or taking back — the sender alone.
           || (
             isAllowedUser()
@@ -573,6 +610,66 @@ service cloud.firestore {
 
         // The emptied document stays, so the thread does not reshuffle around
         // a hole underneath people who have already read it.
+        allow delete: if false;
+      }
+
+      // Thread replies, in a collection beside the messages rather than under
+      // them — see REPLIES_COLLECTION in src/types/conversation.ts for why.
+      //
+      // Everything here mirrors /messages above, deliberately: a reply is the
+      // same object said in a narrower place, and the moment the two rule sets
+      // drift a reply becomes something you can do things to that you cannot
+      // do to a message. Membership of the room is the only gate, because a
+      // thread is not a smaller room — anyone who can read the message can
+      // read what was said under it.
+      match /replies/{replyId} {
+        allow read: if inConversation(conversationData(conversationId));
+
+        allow create: if inConversation(conversationData(conversationId))
+          && request.resource.data.senderUid == request.auth.uid
+          // The message this hangs under. Its existence is not checked: that
+          // would be a second document read on every reply to prove something
+          // the writer had to have on screen to reply to at all, and a reply
+          // pointing at nothing shows up nowhere.
+          && request.resource.data.rootId is string
+          && request.resource.data.rootId.size() > 0
+          && request.resource.data.text is string
+          && request.resource.data.text.size() <= 4000
+          && (request.resource.data.text.size() > 0
+              || request.resource.data.get('attachments', []).size() > 0)
+          && request.resource.data.senderName is string
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.get('mentions', []) is list
+          && request.resource.data.get('attachments', []) is list;
+
+        allow update: if
+          // Reacting — anybody in the conversation, on anybody's reply.
+          (
+            inConversation(conversationData(conversationId))
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['reactions'])
+            && request.resource.data.reactions is map
+          )
+          // Correcting or taking back — the sender alone. `rootId` is not in
+          // the list, so a reply cannot be moved into a different thread after
+          // the fact and turn up under a message nobody expected it under.
+          || (
+            isAllowedUser()
+            && resource.data.senderUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['text', 'deletedAt', 'editedAt'])
+            && (
+              (request.resource.data.text == ''
+               && request.resource.data.deletedAt == request.time)
+              || (resource.data.get('deletedAt', null) == null
+                  && request.resource.data.text is string
+                  && request.resource.data.text.size() > 0
+                  && request.resource.data.text.size() <= 4000
+                  && request.resource.data.editedAt == request.time
+                  && request.resource.data.get('deletedAt', null) == null)
+            )
+          );
+
         allow delete: if false;
       }
     }

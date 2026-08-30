@@ -8,6 +8,7 @@ import ConversationList from './ConversationList';
 import MessageThread from './MessageThread';
 import NewConversationDialog from './NewConversationDialog';
 import RoomSettingsDialog from './RoomSettingsDialog';
+import ThreadPanel from './ThreadPanel';
 import {
   COMPANY_CONVERSATION_ID,
   conversationTitle,
@@ -25,13 +26,23 @@ import {
  */
 export default function ChatPanel({ compact = false }: { compact?: boolean }) {
   const { user } = useAuth();
-  const { conversations, activeId, setActiveId, nameOf, error, loading } = useChat();
+  const {
+    conversations, activeId, setActiveId, nameOf, error, loading, openThread, setOpenThread,
+  } = useChat();
 
   const [newOpen, setNewOpen]           = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const myUid  = user?.uid ?? '';
   const active = conversations.find((c) => c.id === activeId) ?? null;
+
+  // Guarded against the conversation rather than trusted on its own: the
+  // provider clears a thread when its room closes, but this renders in the
+  // frame before that effect runs, and a thread panel reading out of a room
+  // that is no longer on screen is a permissions error waiting to happen.
+  const thread = openThread && active && openThread.conversationId === active.id
+    ? openThread
+    : null;
 
   // Open on the company room the first time, so chat is never an empty screen
   // with nothing to click. Only when nothing is selected — this must not drag
@@ -64,7 +75,16 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
   if (compact) {
     return (
       <div className="flex h-full min-h-0 flex-col">
-        {active ? (
+        {/* One thing at a time here too: an open thread replaces the room
+            rather than sitting beside it, and closing it comes straight back.
+            Its own header carries the way out. */}
+        {active && thread ? (
+          <ThreadPanel
+            conversation={active}
+            rootId={thread.rootId}
+            onClose={() => setOpenThread(null)}
+          />
+        ) : active ? (
           <>
             <Header
               conversation={active}
@@ -95,7 +115,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
         <ConversationList onNew={() => setNewOpen(true)} />
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col bg-white">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
         {active ? (
           <>
             <Header
@@ -114,6 +134,20 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
           </div>
         )}
       </div>
+
+      {/* A column beside the room, not over it. The reason a thread exists is
+          that the room carries on without it, and a panel covering the room
+          would take that away at the moment it is most wanted — somebody
+          answering one question while watching for the next. */}
+      {active && thread && (
+        <div className="w-[360px] flex-shrink-0 border-l border-gray-200 xl:w-[420px]">
+          <ThreadPanel
+            conversation={active}
+            rootId={thread.rootId}
+            onClose={() => setOpenThread(null)}
+          />
+        </div>
+      )}
 
       {newOpen && <NewConversationDialog onClose={() => setNewOpen(false)} />}
       {settingsOpen && active?.kind === 'group' && (

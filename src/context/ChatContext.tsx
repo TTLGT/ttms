@@ -16,9 +16,11 @@ import {
   countUnreadMessages,
   ensureChatReady,
   markConversationRead,
+  markThreadRead,
   millis,
   unreadConversationIds,
   unreadMentionIds,
+  unreadThreadIds,
   watchConversations,
   watchReads,
 } from '@/lib/chat';
@@ -51,6 +53,20 @@ import type { UserProfile } from '@/types/userProfile';
 export interface PendingReply {
   conversationId: string;
   quote: MessageQuote;
+}
+
+/**
+ * The thread on screen, if one is open.
+ *
+ * The conversation is carried with the message id because a thread outlives
+ * the room it was opened from being scrolled: the panel has to be able to say
+ * which conversation to read replies out of without asking what is currently
+ * selected, and closing a room must close its thread rather than leave the
+ * panel pointed at a message in a room nobody is looking at.
+ */
+export interface OpenThread {
+  conversationId: string;
+  rootId: string;
 }
 
 /**
@@ -91,11 +107,24 @@ interface ChatContextValue {
    * rather than flash a zero.
    */
   unreadCounts: Record<string, number>;
+  /** The subset holding a thread that has been answered for this user. */
+  threadIds: string[];
   /**
    * Each conversation's read mark, in millis. Exposed so a thread can show the
    * "new messages" line where the reader actually left off.
    */
   lastReadAt: Record<string, number>;
+  /**
+   * Each thread's read mark, keyed by the message it hangs under. Its own mark
+   * rather than the room's, so an answer survives a glance at the room — see
+   * ChatReads.
+   */
+  threadReadAt: Record<string, number>;
+  /** The thread on screen, in both views at once. Null when none is open. */
+  openThread: OpenThread | null;
+  setOpenThread: (thread: OpenThread | null) => void;
+  /** Clears the mark on one thread. Safe to call repeatedly. */
+  markThreadSeen: (rootId: string) => void;
   /** Which conversation both views are showing. */
   activeId: string | null;
   setActiveId: (id: string | null) => void;
@@ -132,7 +161,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [people, setPeople]               = useState<UserProfile[]>([]);
   const [lastReadAt, setLastReadAt]       = useState<Record<string, number>>({});
+  const [threadReadAt, setThreadReadAt]   = useState<Record<string, number>>({});
   const [activeId, setActiveId]           = useState<string | null>(null);
+  const [openThread, setOpenThread]       = useState<OpenThread | null>(null);
   const [popupOpen, setPopupOpen]         = useState(false);
   const [error, setError]                 = useState('');
   const [loading, setLoading]             = useState(true);
@@ -172,7 +203,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           (rows) => { setConversations(rows); setLoading(false); },
           (err)  => { setError(chatError(err)); setLoading(false); },
         );
-        stopReads = watchReads(uid, setLastReadAt, () => {
+        stopReads = watchReads(uid, (marks) => {
+          setLastReadAt(marks.lastReadAt);
+          setThreadReadAt(marks.threadReadAt);
+        }, () => {
           // Read marks failing is not worth an error banner — the worst of it
           // is a badge that will not clear.
         });
@@ -218,6 +252,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const mentionIds = useMemo(
     () => (uid ? unreadMentionIds(conversations, lastReadAt, uid) : []),
     [conversations, lastReadAt, uid],
+  );
+
+  const threadIds = useMemo(
+    () => (uid ? unreadThreadIds(conversations, threadReadAt, uid) : []),
+    [conversations, threadReadAt, uid],
   );
 
   /**
@@ -290,12 +329,27 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [uid],
   );
 
+  const markThreadSeen = useCallback(
+    (rootId: string) => {
+      if (!uid) return;
+      void markThreadRead(uid, rootId).catch(() => {});
+    },
+    [uid],
+  );
+
   // Reading a conversation clears it as you watch, without a second click.
   useEffect(() => {
     if (!activeId) return;
     if (!unreadIds.includes(activeId)) return;
     markRead(activeId);
   }, [activeId, unreadIds, markRead]);
+
+  // A thread belongs to the room it was opened from. Switching rooms — or
+  // being removed from one — has to take the panel with it, or the reader is
+  // left answering inside a conversation they are no longer looking at.
+  useEffect(() => {
+    if (openThread && openThread.conversationId !== activeId) setOpenThread(null);
+  }, [activeId, openThread]);
 
   /* ------------------------------------------------------- notifications */
 
@@ -312,11 +366,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   /** The same, for reactions left on this user's own messages. */
   const announcedPings = useRef<Map<string, number> | null>(null);
 
+  /** The same, for replies in threads this user is in. */
+  const announcedThreads = useRef<Map<string, number> | null>(null);
+
   // Held in a ref so the effect below can read the current preferences and the
   // current conversation without re-running — and re-announcing — each time
   // either of them changes.
-  const latest = useRef({ notifyPrefs, activeId, uid, nameOf });
-  latest.current = { notifyPrefs, activeId, uid, nameOf };
+  const latest = useRef({ notifyPrefs, activeId, uid, nameOf, openThread });
+  latest.current = { notifyPrefs, activeId, uid, nameOf, openThread };
 
   useEffect(() => {
     if (!uid) return;
@@ -410,7 +467,80 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           tag:   `${c.id}:reaction`,
           onClick: () => {
             setActiveId(c.id);
-            setFocusMessageId(ping.messageId);
+            // A reaction on a thread reply opens the thread. Jumping to the
+            // reply in the room would find nothing — it was never in the room.
+            if (ping.rootId) setOpenThread({ conversationId: c.id, rootId: ping.rootId });
+            else setFocusMessageId(ping.messageId);
+            router.push('/dashboard/chat');
+          },
+        });
+      }
+      if (latest.current.notifyPrefs.sound) playChime();
+    }
+  }, [conversations, uid, router]);
+
+  /**
+   * Somebody answered in a thread you are in.
+   *
+   * A third pass rather than a branch of either above, for the same reason
+   * they are separate from each other: it asks a different question, and a
+   * message, a reaction and a thread reply can all land in the same snapshot
+   * and all three deserve to be announced.
+   *
+   * A thread reply is the one kind of new message that never bolds its room,
+   * never counts towards the badge, and never moves the room up the list. This
+   * is the whole of how anybody who is not looking at the thread finds out —
+   * that, and the reply count under the message, which everyone in the room
+   * can see.
+   */
+  useEffect(() => {
+    if (!uid) return;
+
+    // Seeded silently on the first snapshot, for the same reason as the other
+    // two: otherwise opening TTMS replays every thread reply ever written.
+    if (announcedThreads.current === null) {
+      announcedThreads.current = new Map(
+        conversations.map((c) => [c.id, millis(c.threadPings?.[uid]?.at)]),
+      );
+      return;
+    }
+
+    const seen = announcedThreads.current;
+    for (const c of conversations) {
+      const ping = c.threadPings?.[uid];
+      const at   = millis(ping?.at);
+      const previous = seen.get(c.id) ?? 0;
+      seen.set(c.id, at);
+
+      if (!ping || at <= previous) continue;
+      // Your own reply marks the thread read as it is sent, so this only
+      // catches a slot rewritten by its own owner.
+      if (ping.byUid === latest.current.uid) continue;
+      // Already open, and being watched. Announcing a reply that appeared
+      // under their eyes is how people learn to ignore notifications.
+      if (
+        latest.current.openThread?.rootId === ping.rootId
+        && document.visibilityState === 'visible'
+      ) continue;
+
+      const where = conversationTitle(c, uid, latest.current.nameOf);
+      if (latest.current.notifyPrefs.desktop) {
+        showMessageNotification({
+          // Named as a reply, not as a message, because it is not in the room
+          // and looking for it there is the first thing somebody would do.
+          title: ping.mention
+            ? `${ping.byName} mentioned you in a thread · ${where}`
+            : `${ping.byName} replied in a thread · ${where}`,
+          // The message being replied under, so it says which thread, then the
+          // reply itself. In that order: which conversation this is about is
+          // the thing that decides whether to go and look.
+          body: ping.rootText ? `On “${ping.rootText}”: ${ping.text}` : ping.text,
+          // Its own tag, so a thread reply does not replace the notification
+          // for an unread message in the same room.
+          tag: `${c.id}:thread`,
+          onClick: () => {
+            setActiveId(c.id);
+            setOpenThread({ conversationId: c.id, rootId: ping.rootId });
             router.push('/dashboard/chat');
           },
         });
@@ -432,14 +562,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      conversations, people, nameOf, profileOf, unreadIds, mentionIds, unreadCounts, unreadBadge, lastReadAt,
+      conversations, people, nameOf, profileOf, unreadIds, mentionIds, threadIds,
+      unreadCounts, unreadBadge, lastReadAt, threadReadAt,
       activeId, setActiveId, popupOpen, setPopupOpen, markRead,
+      openThread, setOpenThread, markThreadSeen,
       pendingReply, setPendingReply, focusMessageId, setFocusMessageId,
       notifyPrefs, setNotifyPrefs, error, loading,
     }),
     [
-      conversations, people, nameOf, profileOf, unreadIds, mentionIds, unreadCounts, unreadBadge, lastReadAt,
-      activeId, popupOpen, markRead, pendingReply, focusMessageId,
+      conversations, people, nameOf, profileOf, unreadIds, mentionIds, threadIds,
+      unreadCounts, unreadBadge, lastReadAt, threadReadAt,
+      activeId, popupOpen, markRead, openThread, markThreadSeen,
+      pendingReply, focusMessageId,
       notifyPrefs, setNotifyPrefs, error, loading,
     ],
   );

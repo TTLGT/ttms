@@ -1,6 +1,6 @@
 'use client';
 
-import { AtSign, Hash, Plus, Users } from 'lucide-react';
+import { AtSign, Hash, MessagesSquare, Plus, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { UserAvatar } from '@/components/settings/UserAvatar';
@@ -16,7 +16,8 @@ import { conversationTitle, otherMemberUid, type Conversation } from '@/types/co
 export default function ConversationList({ onNew }: { onNew: () => void }) {
   const { user } = useAuth();
   const {
-    conversations, unreadIds, mentionIds, unreadCounts, activeId, setActiveId, nameOf, profileOf, loading,
+    conversations, unreadIds, mentionIds, threadIds, unreadCounts, activeId, setActiveId,
+    nameOf, profileOf, loading,
   } = useChat();
   const myUid = user?.uid ?? '';
 
@@ -51,6 +52,7 @@ export default function ConversationList({ onNew }: { onNew: () => void }) {
         {conversations.map((c) => {
           const unread    = unreadIds.includes(c.id);
           const mentioned = mentionIds.includes(c.id);
+          const answered  = threadIds.includes(c.id);
           const waiting   = unreadCounts[c.id] ?? 0;
           const title     = conversationTitle(c, myUid, nameOf);
           const other     = otherMemberUid(c, myUid);
@@ -72,6 +74,24 @@ export default function ConversationList({ onNew }: { onNew: () => void }) {
                 </p>
                 <p className="truncate text-xs text-gray-500">{preview(c, myUid)}</p>
               </div>
+
+              {/* A thread you are in has been answered. Its own mark, beside
+                  the ordinary one rather than folded into it, because the two
+                  are cleared by different things: this one stays until the
+                  thread itself is opened, and glancing at the room will not
+                  take it away. Amber when the reply named you. */}
+              {answered && (
+                <span
+                  title="A thread you are in has a new reply"
+                  className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
+                    c.threadPings?.[myUid]?.mention
+                      ? 'bg-amber-400 text-brand-900'
+                      : 'bg-brand-100 text-brand-700'
+                  }`}
+                >
+                  <MessagesSquare size={11} strokeWidth={2.5} />
+                </span>
+              )}
 
               {/* Being named outranks everything else unread, so it keeps a
                   mark of its own — amber and an @ — rather than looking like

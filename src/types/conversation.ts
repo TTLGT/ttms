@@ -26,6 +26,30 @@ export const COMPANY_CONVERSATION_ID = 'company';
 
 export const CONVERSATIONS_COLLECTION = 'conversations';
 export const MESSAGES_COLLECTION      = 'messages';
+/**
+ * Thread replies, in a collection of their own beside the messages rather than
+ * mixed in with them.
+ *
+ * Three things pushed it here rather than onto the messages themselves as a
+ * `rootId` field:
+ *
+ *  - A room already full of messages has no such field on any of them, and a
+ *    Firestore equality query skips documents that are missing the field
+ *    entirely. Filtering the room by `rootId == null` would have hidden every
+ *    message written before threads existed, on a live database, with no way
+ *    to test it first.
+ *  - A thread that runs to forty replies would otherwise eat the room's
+ *    loading window, so opening the room would show forty replies and three
+ *    messages.
+ *  - The unread count is a Firestore aggregation over the messages collection.
+ *    Replies landing in it would be counted as if they were said in the room.
+ *
+ * It is a subcollection of the *conversation*, not of the message, so that one
+ * query can reach every reply in a room. That is what will let a search find
+ * something said inside a thread; a subcollection hanging off each message
+ * could only ever be searched one thread at a time.
+ */
+export const REPLIES_COLLECTION       = 'replies';
 /** One document per user holding what they have read. See ChatReads. */
 export const CHAT_READS_COLLECTION    = 'chatReads';
 
@@ -84,6 +108,19 @@ export interface Conversation {
    * moment it lands, not a list to be read back later.
    */
   reactionPings?: Record<string, ReactionPing>;
+  /**
+   * The last thread reply aimed at each person here, as `{ [uid]: ThreadPing }`.
+   *
+   * Here for the same reason as `reactionPings`: a reply is written into the
+   * replies collection, and nobody holds a listener on the replies of a thread
+   * they do not have open. Without a mark up here the only person who could
+   * learn of an answer is the one already reading it.
+   *
+   * It is written for the people the reply is *for* — see threadFollowers —
+   * and not for the room. That is the whole bargain of a thread: four people
+   * arguing about one load do not interrupt the twenty who are not in it.
+   */
+  threadPings?: Record<string, ThreadPing>;
 }
 
 /** Who reacted, with what, to which of your messages — enough for a notification. */
@@ -94,8 +131,43 @@ export interface ReactionPing {
   /** The palette key, not the glyph — see REACTIONS and reactionGlyph. */
   key: string;
   messageId: string;
+  /**
+   * Set when the message reacted to was a thread reply, naming the thread it
+   * sits in. Following the notification has to open that thread — the reply is
+   * not in the room, so jumping to it in the room would find nothing.
+   */
+  rootId?: string | null;
   /** The opening of the message reacted to, so the notification says which one. */
   text: string;
+}
+
+/**
+ * A reply in a thread, aimed at one person — enough for a notification and for
+ * the mark in the conversation list.
+ *
+ * `rootId` rather than the reply's own id, because what somebody wants when
+ * they click this is the thread, opened, not one line of it.
+ */
+export interface ThreadPing {
+  at: Timestamp;
+  byUid: string;
+  byName: string;
+  /** The message the thread hangs under — what to open. */
+  rootId: string;
+  /** The opening of the reply itself. */
+  text: string;
+  /** The opening of the message being replied under, so it says which thread. */
+  rootText: string;
+  /**
+   * Whether this reply named the reader with an @, rather than merely landing
+   * in a thread they are in.
+   *
+   * It rides on the ping instead of on the conversation's `mentionedAt`, which
+   * is cleared by reading the *room*. An @ written inside a thread has to
+   * survive somebody glancing at the room without opening the thread, so it is
+   * measured against the thread's own read mark like everything else here.
+   */
+  mention: boolean;
 }
 
 export interface LastMessage {
@@ -141,6 +213,36 @@ export interface ChatMessage {
   attachments?: Attachment[];
   /** Who reacted with what, as `{ [reactionKey]: uid[] }`. */
   reactions?: Record<string, string[]>;
+
+  /* ------------------------------------------------------------- threads */
+
+  /**
+   * Replies only: the message in the room this one hangs under.
+   *
+   * Its presence is what tells a reply from a message — they are the same
+   * shape otherwise, deliberately, so a reply can be edited, deleted, quoted,
+   * reacted to and read exactly like anything else said in the room.
+   */
+  rootId?: string;
+  /**
+   * Root messages only. How many replies are under this one, kept as a running
+   * count rather than worked out by asking.
+   *
+   * The room draws a "3 replies" line under a message from this, and a room
+   * showing two hundred messages would otherwise mean two hundred count
+   * queries on open — for a number that is nearly always zero.
+   */
+  replyCount?: number;
+  /** When the newest reply landed. What "unread thread" is decided against. */
+  lastReplyAt?: Timestamp | null;
+  /**
+   * Everyone who has replied here.
+   *
+   * Kept so the *next* reply knows who to tell without reading the thread
+   * first — see threadFollowers. It is also what draws the faces beside the
+   * reply count, which is how somebody decides whether a thread is theirs.
+   */
+  replyUids?: string[];
 }
 
 /**
@@ -238,6 +340,20 @@ export interface MessageQuote {
 export interface ChatReads {
   uid: string;
   lastReadAt: Record<string, number>;
+  /**
+   * The same, per thread, as `{ [rootMessageId]: millis }`.
+   *
+   * A thread needs a mark of its own rather than riding on the room's. Opening
+   * a room marks the room read, and if that also cleared the threads in it,
+   * every answer written under a message you had scrolled past would be lost
+   * the moment you glanced at the room — which is precisely the thing a thread
+   * exists to keep hold of.
+   *
+   * Only threads somebody has actually opened appear here. An absent key reads
+   * as "never opened", which is the right default: the first reply to your
+   * message should be unread.
+   */
+  threadReadAt?: Record<string, number>;
 }
 
 /**
@@ -278,6 +394,79 @@ export function conversationTitle(
 /** Can this user see this conversation? Keep in sync with firestore.rules. */
 export function isConversationMember(c: Conversation, uid: string): boolean {
   return c.kind === 'company' || c.memberUids.includes(uid);
+}
+
+/* ---------------------------------------------------------------- threads */
+
+/**
+ * How many replies a thread loads. Threads are short by nature — a thread that
+ * has run past this is a conversation that wanted a room.
+ */
+export const THREAD_PAGE_SIZE = 200;
+
+/**
+ * Who a new reply should reach.
+ *
+ * A thread is quiet on purpose: it does not bump the room, does not mark the
+ * room unread, and does not appear in anybody's list unless it is *for* them.
+ * So "for them" has to be defined, and this is it — the three ways somebody is
+ * demonstrably in a conversation they cannot see from the room:
+ *
+ *  - they wrote the message being replied under;
+ *  - they have already replied in it;
+ *  - they were named with an @ in the reply itself.
+ *
+ * The person writing the reply is never in the result. Telling somebody about
+ * their own reply is the fastest way to teach them to ignore the mark.
+ *
+ * Anybody else in the room learns about the thread the ordinary way: the reply
+ * count under the message, which everyone can see.
+ */
+export function threadFollowers(
+  root: Pick<ChatMessage, 'senderUid' | 'replyUids'>,
+  replyMentions: string[],
+  replierUid: string,
+): string[] {
+  const all = new Set<string>([root.senderUid, ...(root.replyUids ?? []), ...replyMentions]);
+  all.delete(replierUid);
+  return [...all];
+}
+
+/**
+ * Has this thread been answered since the reader last opened it?
+ *
+ * Two halves, and the second one matters more than it looks. A thread is only
+ * unread for somebody it is *for* — the same test threadFollowers applies when
+ * a reply is written. Without it, every thread in a room would show a mark to
+ * everyone who had never opened it, which on the company room means every
+ * thread anybody has ever started marking itself unread for forty people who
+ * are not in it. That is the noise threads exist to remove.
+ *
+ * `pingedRootId` is how somebody first pulled into a thread by an @ counts as
+ * being in it: they have not replied and did not write the message, so the
+ * mark left for them on the conversation is the only evidence there is.
+ *
+ * Measured against `threadReadAt` rather than the room's read mark, so an
+ * answer survives the reader glancing at the room. A reply of your own marks
+ * the thread read as it is sent (see sendThreadReply), which is what keeps
+ * your own answer from coming back at you as something unread.
+ */
+export function isThreadUnread(
+  root: Pick<ChatMessage, 'id' | 'replyCount' | 'lastReplyAt' | 'senderUid' | 'replyUids'>,
+  myUid: string,
+  threadReadAt: Record<string, number>,
+  pingedRootId?: string | null,
+): boolean {
+  if (!root.replyCount) return false;
+
+  const follows = root.senderUid === myUid
+    || (root.replyUids ?? []).includes(myUid)
+    || pingedRootId === root.id;
+  if (!follows) return false;
+
+  const at   = root.lastReplyAt as { toMillis?: () => number } | null | undefined;
+  const last = typeof at?.toMillis === 'function' ? at.toMillis() : 0;
+  return last > (threadReadAt[root.id] ?? 0);
 }
 
 /* --------------------------------------------------------------- mentions */

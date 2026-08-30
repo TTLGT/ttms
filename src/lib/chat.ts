@@ -6,6 +6,7 @@ import {
   collection,
   doc,
   getCountFromServer,
+  increment,
   limit as limitTo,
   onSnapshot,
   orderBy,
@@ -24,8 +25,12 @@ import {
   CONVERSATIONS_COLLECTION,
   MAX_MESSAGE_LENGTH,
   MESSAGES_COLLECTION,
+  REPLIES_COLLECTION,
+  THREAD_PAGE_SIZE,
+  threadFollowers,
   type Attachment,
   type ChatMessage,
+  type ChatReads,
   type Conversation,
   type MessageQuote,
 } from '@/types/conversation';
@@ -56,6 +61,23 @@ function conversationsCol() {
 
 function messagesCol(conversationId: string) {
   return collection(db, CONVERSATIONS_COLLECTION, conversationId, MESSAGES_COLLECTION);
+}
+
+/** Thread replies, beside the messages rather than under them — see the type. */
+function repliesCol(conversationId: string) {
+  return collection(db, CONVERSATIONS_COLLECTION, conversationId, REPLIES_COLLECTION);
+}
+
+/**
+ * One message, wherever it lives.
+ *
+ * A reply is the same shape as a message and can be edited, deleted and
+ * reacted to in exactly the same ways, so everything that acts on one takes
+ * this instead of hard-coding the collection. The single flag is the whole
+ * difference between the two.
+ */
+function messageRef(conversationId: string, messageId: string, isReply = false) {
+  return doc(isReply ? repliesCol(conversationId) : messagesCol(conversationId), messageId);
 }
 
 async function authHeaders(): Promise<HeadersInit> {
@@ -150,6 +172,58 @@ export function watchMessages(
   );
 }
 
+/**
+ * The replies under one message, oldest first.
+ *
+ * Capped like the room is, and for the same reason, though it should never
+ * bind: a thread that has run past two hundred replies stopped being a thread
+ * some time ago. The newest are the ones kept, so a thread that long still
+ * opens on the part being argued about.
+ */
+export function watchReplies(
+  conversationId: string,
+  rootId: string,
+  onChange: (replies: ChatMessage[]) => void,
+  max = THREAD_PAGE_SIZE,
+  onError?: (err: Error) => void,
+): Unsubscribe {
+  return onSnapshot(
+    query(
+      repliesCol(conversationId),
+      where('rootId', '==', rootId),
+      orderBy('createdAt', 'desc'),
+      limitTo(max),
+    ),
+    (snap) => {
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ChatMessage);
+      onChange(rows.reverse());
+    },
+    (err) => onError?.(err),
+  );
+}
+
+/**
+ * One message in the room, kept live, so an open thread can show the message it
+ * hangs under as it stands now.
+ *
+ * The thread panel cannot rely on the room's copy: the panel outlives a scroll
+ * that pushes the root out of the loaded window, and a message edited or taken
+ * back while its thread is open must say so at the top of the thread rather
+ * than go on showing what it used to say.
+ */
+export function watchMessage(
+  conversationId: string,
+  messageId: string,
+  onChange: (message: ChatMessage | null) => void,
+  onError?: (err: Error) => void,
+): Unsubscribe {
+  return onSnapshot(
+    doc(messagesCol(conversationId), messageId),
+    (snap) => onChange(snap.exists() ? ({ id: snap.id, ...snap.data() } as ChatMessage) : null),
+    (err) => onError?.(err),
+  );
+}
+
 /* ---------------------------------------------------------------- writing */
 
 /**
@@ -176,9 +250,9 @@ export async function sendMessage(
   }
 
   const batch      = writeBatch(db);
-  const messageRef = doc(messagesCol(conversationId));
+  const newMessage = doc(messagesCol(conversationId));
 
-  batch.set(messageRef, {
+  batch.set(newMessage, {
     text:       body,
     senderUid:  sender.uid,
     senderName: sender.displayName,
@@ -228,6 +302,105 @@ export async function sendMessage(
 }
 
 /**
+ * Answers a message in its own thread.
+ *
+ * The one write in chat that deliberately leaves the room alone. `updatedAt`
+ * is untouched, `lastMessage` is untouched, and nothing here marks the room
+ * unread — a thread that shoved the whole room to the top of everybody's list
+ * on every reply would be a thread in name only.
+ *
+ * What it does instead, in the same batch:
+ *
+ *  - writes the reply;
+ *  - moves the counters on the message it hangs under, which is what draws the
+ *    "3 replies" line every member of the room can see;
+ *  - leaves a mark on the conversation for the people the reply is actually
+ *    for — see threadFollowers — which is how anyone not staring at the thread
+ *    finds out it was answered;
+ *  - marks the thread read for the person writing it, so their own reply does
+ *    not come back at them as something unread.
+ *
+ * One batch rather than several writes for the same reason as sendMessage: a
+ * reply that landed without its counters is a reply nobody can see is there,
+ * and the room would go on saying "2 replies" over a thread holding three.
+ */
+export async function sendThreadReply(
+  conversationId: string,
+  root: Pick<ChatMessage, 'id' | 'text' | 'senderUid' | 'replyUids'>,
+  text: string,
+  sender: { uid: string; displayName: string },
+  mentions: string[] = [],
+  attachments: Attachment[] = [],
+): Promise<void> {
+  const body = text.trim();
+  if (!body && attachments.length === 0) return;
+  if (body.length > MAX_MESSAGE_LENGTH) {
+    throw new Error(`A reply can be at most ${MAX_MESSAGE_LENGTH} characters.`);
+  }
+
+  const batch = writeBatch(db);
+
+  batch.set(doc(repliesCol(conversationId)), {
+    rootId:     root.id,
+    text:       body,
+    senderUid:  sender.uid,
+    senderName: sender.displayName,
+    createdAt:  serverTimestamp(),
+    deletedAt:  null,
+    editedAt:   null,
+    mentions,
+    attachments,
+    reactions: {},
+  });
+
+  // `increment` rather than a read and a put back: two people answering the
+  // same message in the same second is the ordinary case in a thread, and a
+  // read-then-write would lose one of them and leave the count short for good.
+  //
+  // Nothing ever decrements it. A reply that is taken back leaves a tombstone
+  // in the thread exactly as a message does, so the count still matches what
+  // the thread shows.
+  batch.update(doc(messagesCol(conversationId), root.id), {
+    replyCount:  increment(1),
+    lastReplyAt: serverTimestamp(),
+    replyUids:   arrayUnion(sender.uid),
+  });
+
+  // Dotted paths, one per person, so two threads answered at the same moment
+  // in the same room do not overwrite each other's marks.
+  const followers = threadFollowers(root, mentions, sender.uid);
+  if (followers.length > 0) {
+    const patch: Record<string, unknown> = {};
+    for (const uid of followers) {
+      patch[`threadPings.${uid}`] = {
+        at:      serverTimestamp(),
+        byUid:   sender.uid,
+        byName:  sender.displayName,
+        rootId:  root.id,
+        // Trimmed at the write rather than at render: this sits on a document
+        // every member of the room reads, and it only has to fill one line of
+        // a desktop notification.
+        text:     (body || attachments[0]?.name || '').slice(0, 120),
+        rootText: (root.text || '').slice(0, 120),
+        mention:  mentions.includes(uid),
+      };
+    }
+    batch.update(doc(db, CONVERSATIONS_COLLECTION, conversationId), patch);
+  }
+
+  // Your own reply is not news to you. Written here rather than left to the
+  // thread panel, because the panel marks the thread read on open and this
+  // reply arrives after that.
+  batch.set(
+    doc(db, CHAT_READS_COLLECTION, sender.uid),
+    { uid: sender.uid, threadReadAt: { [root.id]: Date.now() } },
+    { merge: true },
+  );
+
+  await batch.commit();
+}
+
+/**
  * Corrects the wording of a message already sent.
  *
  * The thread marks it "(edited)" afterwards — the correction is allowed, and
@@ -242,7 +415,7 @@ export async function editMessage(
   conversationId: string,
   messageId: string,
   text: string,
-  options: { isLastMessage: boolean },
+  options: { isLastMessage: boolean; isReply?: boolean },
 ): Promise<void> {
   const body = text.trim();
   if (!body) throw new Error('An edited message cannot be empty. Delete it instead.');
@@ -251,7 +424,7 @@ export async function editMessage(
   }
 
   const batch = writeBatch(db);
-  batch.update(doc(messagesCol(conversationId), messageId), {
+  batch.update(messageRef(conversationId, messageId, options.isReply), {
     text:     body,
     editedAt: serverTimestamp(),
   });
@@ -278,13 +451,17 @@ export async function editMessage(
 export async function deleteMessage(
   conversationId: string,
   messageId: string,
-  options: { isLastMessage: boolean } = { isLastMessage: false },
+  options: { isLastMessage: boolean; isReply?: boolean } = { isLastMessage: false },
 ): Promise<void> {
   const batch = writeBatch(db);
-  batch.update(doc(messagesCol(conversationId), messageId), {
+  batch.update(messageRef(conversationId, messageId, options.isReply), {
     text:      '',
     deletedAt: serverTimestamp(),
   });
+  // A reply taken back leaves the count on the message alone. The tombstone is
+  // still in the thread, so a count that dropped would disagree with what the
+  // thread actually shows — and a message whose thread has been emptied out
+  // still has a thread worth opening.
   // Otherwise the conversation list goes on quoting text the thread no longer
   // shows — the one place a deleted message would still be readable.
   if (options.isLastMessage) {
@@ -309,13 +486,16 @@ export async function deleteMessage(
  */
 export async function toggleReaction(
   conversationId: string,
-  message: { id: string; senderUid: string; text: string },
+  // `rootId` is set only on a thread reply, and is the only thing that tells
+  // the two apart — both for which collection to write to and for where a
+  // notification about it has to land.
+  message: { id: string; senderUid: string; text: string; rootId?: string | null },
   reactionKey: string,
   reactor: { uid: string; displayName: string },
   add: boolean,
 ): Promise<void> {
   const batch = writeBatch(db);
-  batch.update(doc(messagesCol(conversationId), message.id), {
+  batch.update(messageRef(conversationId, message.id, Boolean(message.rootId)), {
     [`reactions.${reactionKey}`]: add ? arrayUnion(reactor.uid) : arrayRemove(reactor.uid),
   });
 
@@ -333,6 +513,10 @@ export async function toggleReaction(
         byName:    reactor.displayName,
         key:       reactionKey,
         messageId: message.id,
+        // Carried so that following the notification opens the thread the
+        // reply is in. Jumping to it in the room would find nothing — it was
+        // never in the room.
+        rootId:    message.rootId ?? null,
         // Trimmed here rather than at render: this is a copy on a document
         // every member reads, and it only ever has to fill one line of a
         // desktop notification.
@@ -346,15 +530,27 @@ export async function toggleReaction(
 
 /* ------------------------------------------------------------------ reads */
 
-/** What this user has read, kept live, as `{ [conversationId]: millis }`. */
+/**
+ * What this user has read, kept live — rooms and threads both.
+ *
+ * Two marks out of one document and one listener. A thread's mark cannot ride
+ * on its room's: opening a room would otherwise clear every thread inside it,
+ * including the ones the reader never opened. See ChatReads.
+ */
 export function watchReads(
   uid: string,
-  onChange: (lastReadAt: Record<string, number>) => void,
+  onChange: (marks: { lastReadAt: Record<string, number>; threadReadAt: Record<string, number> }) => void,
   onError?: (err: Error) => void,
 ): Unsubscribe {
   return onSnapshot(
     doc(db, CHAT_READS_COLLECTION, uid),
-    (snap) => onChange((snap.data()?.lastReadAt as Record<string, number>) ?? {}),
+    (snap) => {
+      const data = snap.data() as Partial<ChatReads> | undefined;
+      onChange({
+        lastReadAt:   data?.lastReadAt   ?? {},
+        threadReadAt: data?.threadReadAt ?? {},
+      });
+    },
     (err) => onError?.(err),
   );
 }
@@ -371,6 +567,23 @@ export async function markConversationRead(uid: string, conversationId: string):
   await setDoc(
     doc(db, CHAT_READS_COLLECTION, uid),
     { uid, lastReadAt: { [conversationId]: Date.now() } },
+    { merge: true },
+  );
+}
+
+/**
+ * Marks one thread read up to now.
+ *
+ * Keyed on the message the thread hangs under, not on the room, so it survives
+ * the room being read. The browser's clock, for the same reason as
+ * markConversationRead: a serverTimestamp cannot be written into a map under a
+ * key like this, and the cost of a skewed clock is a mark that clears a second
+ * early.
+ */
+export async function markThreadRead(uid: string, rootId: string): Promise<void> {
+  await setDoc(
+    doc(db, CHAT_READS_COLLECTION, uid),
+    { uid, threadReadAt: { [rootId]: Date.now() } },
     { merge: true },
   );
 }
@@ -409,6 +622,34 @@ export function unreadMentionIds(
 ): string[] {
   return conversations
     .filter((c) => millis(c.mentionedAt?.[myUid]) > (lastReadAt[c.id] ?? 0))
+    .map((c) => c.id);
+}
+
+/**
+ * Which conversations hold a thread that has been answered for this user.
+ *
+ * Measured against the *thread's* read mark rather than the room's, which is
+ * what makes it survive somebody glancing at the room without opening the
+ * thread. The ping carries the thread it belongs to, so this needs nothing
+ * from the messages themselves — the conversation list is the only thing
+ * watched all day, and that is where the mark has to be readable from.
+ *
+ * One slot per person, so a conversation with two answered threads in it shows
+ * one mark, naming the newer. That is the honest limit of a single slot, and
+ * it is the same bargain reactionPings makes: this drives an interruption at
+ * the moment it lands, not a list to be worked through.
+ */
+export function unreadThreadIds(
+  conversations: Conversation[],
+  threadReadAt: Record<string, number>,
+  myUid: string,
+): string[] {
+  return conversations
+    .filter((c) => {
+      const ping = c.threadPings?.[myUid];
+      if (!ping) return false;
+      return millis(ping.at) > (threadReadAt[ping.rootId] ?? 0);
+    })
     .map((c) => c.id);
 }
 

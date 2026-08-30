@@ -385,6 +385,7 @@ documents/{documentId}
 | agreements | `orderId` ASC + `type` ASC                         | Agreement status per order       |
 | carriers   | `insuranceExpiration` ASC                          | Expiry alert dashboard           |
 | parties    | `assignedToUids` + `assignedToGroupIds` + `assignedToEmails` + `assignedToName` (all ASC, equality) | The "unowned" query in `listVisibleParties` |
+| replies (collection id, any conversation) | `rootId` ASC + `createdAt` DESC | The replies under one message — see the chat section |
 
 The order-visibility queries in `listVisibleOrders` are single-field
 `array-contains` / `array-contains-any` on `assignedToUids`,
@@ -602,7 +603,7 @@ evidence behind "this campaign brought in these loads".
 
 ---
 
-## Collections: `conversations`, `chatReads` (staff chat)
+## Collections: `conversations`, `conversations/*/replies`, `chatReads` (staff chat)
 
 Chat between employees. It sits outside the ownership model entirely: everyone
 on the allowlist is staff, so everyone can talk to everyone. Nothing here is
@@ -621,6 +622,8 @@ gated on `assignedToUids`, work groups or roles.
 | `createdAt` / `updatedAt` | Timestamp | `updatedAt` is bumped by each message and is what the list is ordered by |
 | `lastMessage` | `{ text, senderUid, senderName, at } \| null` | Denormalized preview |
 | `mentionedAt` | `{ [uid]: Timestamp }` | When each person was last named with an @ here |
+| `reactionPings` | `{ [uid]: ReactionPing }` | The last reaction on each person's own messages here |
+| `threadPings` | `{ [uid]: ThreadPing }` | The last thread reply aimed at each person — see Threads below |
 
 Three shapes, one document type:
 
@@ -721,12 +724,19 @@ machinery to get wrong on a live database for no gain.
 
 ### `chatReads/{uid}`
 
-`{ uid, lastReadAt: { [conversationId]: millis } }`. One document per user
-rather than a marker per conversation: the unread badge needs every
-conversation's state at once, and a live listener on one document costs a
-fraction of one per room. It is the only chat document a user writes about
-themselves, and it says nothing about access — only which conversations still
-show a dot.
+`{ uid, lastReadAt: { [conversationId]: millis }, threadReadAt: { [rootMessageId]: millis } }`.
+One document per user rather than a marker per conversation: the unread badge
+needs every conversation's state at once, and a live listener on one document
+costs a fraction of one per room. It is the only chat document a user writes
+about themselves, and it says nothing about access — only which conversations
+still show a dot.
+
+`threadReadAt` is keyed on the message a thread hangs under, not on the room,
+and that separation is the point. Opening a room marks the room read; if that
+also cleared the threads inside it, every answer written under a message you had
+scrolled past would vanish the moment you glanced at the room — which is the one
+thing a thread exists to hold on to. An absent key reads as "never opened", so
+the first reply to your message is unread.
 
 ### Why chat reads live from the client, when orders do not
 
@@ -741,6 +751,62 @@ Creating a conversation and changing who is in it still go through
 `/api/chat/conversations`, like every other structural write in this codebase.
 Those decide who can see what.
 
-**No composite indexes are required.** The conversation query uses
-`array-contains` alone and is sorted in memory; messages order by `createdAt`
-within one subcollection. Both are covered by automatic single-field indexes.
+**One composite index is required, and only since threads.** The conversation
+query uses `array-contains` alone and is sorted in memory, and messages order by
+`createdAt` within one subcollection — both covered by automatic single-field
+indexes. Reading a thread is the exception: `rootId` equality plus an order on
+`createdAt` is two fields, so it needs `rootId ASC + createdAt DESC` on the
+`replies` collection id. Until it exists, opening a thread shows a message
+saying so, and the browser console carries a one-click link to create it.
+
+### Threads
+
+A reply lives in `conversations/{conversationId}/replies/{replyId}` — a
+collection beside the messages, not under them, and not a `rootId` field on the
+messages themselves. Three reasons, all pointing the same way:
+
+- Every message written before threads existed has no such field, and a
+  Firestore equality query skips documents missing the field entirely. Filtering
+  the room by `rootId == null` would have hidden the entire history, on a live
+  database, with no way to test it first.
+- A forty-reply thread would otherwise eat the room's 200-message loading
+  window.
+- The unread count is a `count()` aggregation over `messages`. Replies landing
+  in it would be counted as things said in the room.
+
+Under the conversation rather than under the message so that one query can reach
+every reply in a room — which is what will let search find something said inside
+a thread.
+
+A reply is the same shape as a message plus `rootId`, and can be edited, deleted
+and reacted to in the same ways. It carries no `replyTo`: there is no thread
+inside a thread.
+
+The message a thread hangs under carries the counters, written in the same batch
+as the reply:
+
+| Field | Type | Notes |
+|---|---|---|
+| `replyCount` | number | `increment(1)`, never decremented — a deleted reply leaves a tombstone the thread still shows |
+| `lastReplyAt` | Timestamp | What "unread thread" is measured against |
+| `replyUids` | string[] | Everyone who has replied; draws the faces, and tells the next reply who to notify |
+
+The rules let **anyone in the conversation** move those three and nothing else.
+The point of a thread is that other people answer your message, so a counter only
+the sender could write is a counter that never moves. `text` is outside that
+`hasOnly`, which is the check that matters.
+
+**A thread reply deliberately touches neither `updatedAt` nor `lastMessage`.**
+It does not move the room up anybody's list, does not rewrite the preview line,
+and does not mark the room unread. Instead it writes `threadPings.{uid}` on the
+conversation for the people the reply is *for*: whoever wrote the message,
+whoever has already replied, and anyone named with an @ in the reply itself
+(`threadFollowers` in `src/types/conversation.ts`). Everyone else in the room
+learns about it only from the reply count under the message, which is exactly the
+bargain a thread makes.
+
+`threadPings` mirrors `reactionPings`: one slot per person, overwritten, driving
+an interruption at the moment it lands rather than a list to be read back. It is
+needed for the same reason — nobody holds a listener on the replies of a thread
+they do not have open, so without a mark on the conversation the only person who
+could learn of an answer is the one already reading it.
