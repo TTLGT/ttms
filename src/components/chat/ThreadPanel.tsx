@@ -34,8 +34,13 @@ import {
  * two different fields, which Firestore will not serve without one. It is also
  * the first thing anybody will hit after this ships, on a database where no
  * such index exists yet, so it is worth naming rather than reporting as a
- * generic failure. Firestore puts a one-click link to create it in the browser
- * console, which is the fastest way through.
+ * generic failure.
+ *
+ * The raw error carries Firestore's one-click link to create the index, and
+ * the caller logs it deliberately — see the listener below. Passing an error
+ * callback to onSnapshot is what stops Firestore logging it itself, so without
+ * that line this message would send an admin to look for a link in a console
+ * that never received one.
  */
 function repliesError(err: Error): string {
   if (/index/i.test(err.message)) {
@@ -118,7 +123,13 @@ export default function ThreadPanel({
       rootId,
       (rows) => { setReplies(rows); setLoading(false); },
       undefined,
-      (err) => { setError(repliesError(err)); setLoading(false); },
+      (err) => {
+        // Logged, not swallowed: the message shown to the reader names the
+        // missing index, but only this carries the link that creates it.
+        console.error(err);
+        setError(repliesError(err));
+        setLoading(false);
+      },
     );
   }, [conversationId, rootId]);
 
