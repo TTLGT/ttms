@@ -7,6 +7,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import type { SortKey } from '@/lib/directorySort';
 import type { DirectoryColumn } from '@/lib/directoryColumns';
 import { UserAvatar } from '@/components/settings/UserAvatar';
+import MessagePersonButton from '@/components/chat/MessagePersonButton';
 import type { DirectoryTableProps } from '@/components/people/directoryView';
 
 /**
@@ -177,8 +178,18 @@ export default function DirectoryTable({
                       name={p.displayName}
                     />
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-gray-900">
-                        {p.displayName}
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-medium text-gray-900">
+                          {p.displayName}
+                        </span>
+                        {/* Put on the name rather than in a column of its own:
+                            the columns are configurable and this is an action,
+                            not a field — there is nothing to sort or filter on.
+                            Hidden until the row is hovered so it does not
+                            compete with the names when scanning an office. */}
+                        <span className="opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
+                          <MessagePersonButton uid={p.uid} name={p.displayName} label="" iconSize={13} />
+                        </span>
                       </div>
                       {legal && (
                         <div className="truncate text-[11px] text-gray-500">{legal}</div>
@@ -299,7 +310,9 @@ export default function DirectoryTable({
             return (
               <tr
                 key={p.email}
-                className={p.suspended ? 'bg-red-50/50' : 'transition hover:bg-gray-50'}
+                // `group` so the message button on the name can reveal itself
+                // on hover — see the name cell above.
+                className={`group ${p.suspended ? 'bg-red-50/50' : 'transition hover:bg-gray-50'}`}
               >
                 {columns.map((c) => cells[c.key])}
               </tr>

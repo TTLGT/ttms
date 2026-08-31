@@ -1,14 +1,16 @@
 'use client';
 
 import {
-  AtSign, Building2, CalendarDays, Cake, Hash, Mail, Phone, Smartphone, UsersRound,
+  AtSign, Building2, CalendarDays, Cake, Hash, Mail, MessageSquare, Phone, Smartphone, UsersRound,
 } from 'lucide-react';
 import { otherPhone, telHref } from '@/lib/phone';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { yearsSince } from '@/types/allowedUser';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import Fact from '@/components/people/Fact';
+import MessagePersonButton from '@/components/chat/MessagePersonButton';
 import type { DirectoryViewProps } from '@/components/people/directoryView';
+import { useAuth } from '@/context/AuthContext';
 
 /**
  * The directory as cards — the browsing view.
@@ -24,6 +26,10 @@ export default function DirectoryCards({
 }: DirectoryViewProps) {
   // Dates follow the company setting, like every other date in the app.
   const { formatCalendarDate } = useDateFormatters();
+  // Own card, and cards for people who have never signed in, get no message
+  // link. Tested here as well as inside the button because Fact draws the icon
+  // — a button that rendered nothing would leave the icon behind on its own.
+  const { user } = useAuth();
 
   return (
     <ul className="mt-3 grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
@@ -81,6 +87,20 @@ export default function DirectoryCards({
 
             <div className="mt-3 grid grid-cols-[14px_1fr] items-start gap-x-2 gap-y-1">
               <Fact Icon={AtSign} href={`mailto:${p.email}`}>{p.email}</Fact>
+
+              {/* The in-house way to reach them, beside the email and the desk
+                  number. */}
+              {p.uid && p.uid !== user?.uid && (
+              <Fact Icon={MessageSquare}>
+                <MessagePersonButton
+                  uid={p.uid}
+                  name={p.displayName}
+                  label="Send a message"
+                  className="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 hover:underline disabled:opacity-50"
+                  iconSize={0}
+                />
+              </Fact>
+              )}
 
               {/* Dialable, because half the reason to open a directory is to
                   call the person in it. */}

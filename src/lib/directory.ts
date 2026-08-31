@@ -45,6 +45,13 @@ import type { OtherPhoneRegion } from './phone';
 
 export interface DirectoryPerson {
   email: string;
+  /**
+   * Null for somebody invited who has never signed in — there is no account
+   * to open a conversation with yet. Carried so the directory can offer a
+   * message alongside the phone number; it is the same id chat already puts on
+   * every message, so it discloses nothing new.
+   */
+  uid?: string | null;
   displayName: string;
   photoPath?: string | null;
   /** The US work line. Everyone sees this one. */
@@ -83,6 +90,7 @@ export interface DirectoryPerson {
 /** Whoever the viewer is, this much of a person is shown. */
 function common(p: {
   email: string;
+  uid?: string | null;
   displayName?: string;
   firstName?: string;
   lastName?: string;
@@ -95,6 +103,7 @@ function common(p: {
   const joined = [p.firstName, p.lastName].filter(Boolean).join(' ').trim();
   return {
     email:       p.email,
+    uid:         p.uid ?? null,
     // Falls back to the address so a person set up before anyone typed their
     // name still appears, rather than showing as a blank card.
     displayName: joined || (p.displayName ?? '').trim() || p.email,
