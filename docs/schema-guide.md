@@ -407,11 +407,38 @@ page boundary and be served twice or skipped.
 | orders   | `parentOrderId` ASC + `status` ASC + `createdAt` DESC | The orders list with a status tab selected |
 | orders   | `parentOrderId` ASC + `status` ASC + `deliveredAt` DESC | Dashboard "delivered today" |
 | orders   | `parentOrderId` ASC + `status` ASC + `updatedAt` DESC | Dashboard "stale quotes" |
+| orders   | `parentOrderId` ASC + `searchTerms` ARRAY + `createdAt` DESC | The Orders search box |
+| orders   | `parentOrderId` ASC + `status` ASC + `searchTerms` ARRAY + `createdAt` DESC | Searching within a status tab |
 | orders   | `shipperId` ASC + `createdAt` DESC | A party's orders, as shipper |
 
 Anything not listed is single-field and automatic: the status-tab `count()`s,
 carrier DOT/MC search, the carrier `count()`s, the analytics pickup-date range,
 and the `array-contains` queries behind the broker visibility union.
+
+### How the Orders search box works
+
+Firestore has no substring search — no `LIKE '%morris%'` — so each order stores
+`searchTerms`, an array of every prefix of every word in its number, party
+names, lane and commodity (`orderSearchTerms` in `src/types/order.ts`, mirrored
+in `scripts/backfill-order-search-terms.js`). A search is then one
+`array-contains` lookup, which stays flat as the collection grows.
+
+Consequences worth knowing:
+
+- **Prefixes only.** "morr" finds Morris; "orris" does not. Storing every
+  substring would square the array for a case nobody types.
+- **Only the first typed word reaches the query.** `array-contains-any` is an
+  OR, so "palm beach" through it would return everything matching *either* —
+  wider than what was asked, not narrower. The remaining words are applied to
+  the returned page, which means a page can come back shorter than its limit
+  while more results exist. The Load more button stays until the cursor runs
+  out.
+- `searchTerms` is left out of the list projection and only fetched when a
+  second word has to be checked against it, then stripped before the rows are
+  sent. It is ~62 fragments per order and nothing displays it.
+- **Anything that writes an order must refresh it.** `createOrder` computes it
+  directly; `updateOrder` posts to `/api/orders/{id}/search-terms`, which
+  rereads the saved order because a patch is only part of one.
 
 **Adding an index is about adding a new *way of asking*, not a bigger
 collection.** These sixteen serve the app at any size; a new filter or a new

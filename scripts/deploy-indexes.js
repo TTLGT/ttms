@@ -123,7 +123,12 @@ async function existingIndexes() {
 }
 
 function describe(ix) {
-  return ix.fields.map((f) => `${f.fieldPath} ${f.order === 'DESCENDING' ? 'desc' : 'asc'}`).join(', ');
+  return ix.fields.map((f) => {
+    // An array field is indexed for containment, not sorted — printing it as
+    // "asc" alongside the sorted ones reads as a direction it does not have.
+    if (f.arrayConfig) return `${f.fieldPath} [array]`;
+    return `${f.fieldPath} ${f.order === 'DESCENDING' ? 'desc' : 'asc'}`;
+  }).join(', ');
 }
 
 async function main() {

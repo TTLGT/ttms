@@ -70,6 +70,15 @@ export default function OrdersPage() {
   const [error, setError]     = useState('');
   const [filter, setFilter]   = useState<OrderStatus | 'all'>('all');
   const [counts, setCounts]   = useState<Record<string, number> | null>(null);
+  const [search, setSearch]   = useState('');
+  // What the list is actually showing, as opposed to what is in the box — see
+  // the debounce below, which keeps typing from becoming one query per letter.
+  const [applied, setApplied] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setApplied(search.trim()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const columnWidths = useColumnWidths(WIDTH_STORAGE_KEY, DEFAULT_WIDTHS);
   const tableWidth = COLUMNS.reduce((sum, c) => sum + (columnWidths.widths[c.key] ?? c.width), 0);
@@ -91,6 +100,7 @@ export default function OrdersPage() {
         cursor: after,
         fields: 'list',
         status: filter === 'all' ? undefined : filter,
+        search: applied || undefined,
         // Suborders belong under their parent, never in the top-level list.
         // Filtered by the server now, so a page of fifty is fifty rows the
         // list will actually show.
@@ -105,7 +115,7 @@ export default function OrdersPage() {
     } finally {
       if (mine === requestId.current) { setLoading(false); setLoadingMore(false); }
     }
-  }, [filter]);
+  }, [filter, applied]);
 
   // Re-runs when the tab changes, which resets to the first page of that status.
   useEffect(() => { setOrders([]); setCursor(null); void loadPage(null); }, [loadPage]);
@@ -136,6 +146,23 @@ export default function OrdersPage() {
         >
           + New Order
         </Link>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search by order number, customer, city, or commodity…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-96 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+        />
+        {applied && !loading && (
+          <span className="ml-3 text-xs text-gray-400">
+            {visible.length}{cursor ? '+' : ''} matching
+            {filter !== 'all' && ' in this tab'}
+          </span>
+        )}
       </div>
 
       {/* Filter tabs */}
@@ -180,10 +207,33 @@ export default function OrdersPage() {
         <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600">{error}</div>
       ) : visible.length === 0 ? (
         <div className="text-center py-20">
-          <p className="text-gray-400 text-sm">No orders found.</p>
-          <Link href="/dashboard/orders/new" className="mt-3 inline-block text-sm text-brand-600 hover:underline">
-            Create your first order →
-          </Link>
+          {applied ? (
+            <>
+              <p className="text-gray-400 text-sm">
+                No orders match “{applied}”{filter !== 'all' && ' in this tab'}.
+              </p>
+              {/*
+                Worth saying, because the tab is a filter the reader may have
+                forgotten is on — and searching a tab that happens to be empty
+                looks exactly like a search that found nothing anywhere.
+              */}
+              {filter !== 'all' && (
+                <button
+                  onClick={() => setFilter('all')}
+                  className="mt-3 text-sm text-brand-600 hover:underline"
+                >
+                  Search every status instead →
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-gray-400 text-sm">No orders found.</p>
+              <Link href="/dashboard/orders/new" className="mt-3 inline-block text-sm text-brand-600 hover:underline">
+                Create your first order →
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">

@@ -438,6 +438,12 @@ export interface Order {
   clientSignerName: string | null;
   clientSignerIp: string | null;
   createdBy: string;
+  /**
+   * Fragments this order can be found by — see orderSearchTerms. Derived on
+   * save from the number, the party names, the lane and the commodity; never
+   * edited by hand and never shown.
+   */
+  searchTerms?: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -460,6 +466,103 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
  * per entry, so adding a status here costs a query, not a list to remember.
  */
 export const ORDER_STATUSES = Object.keys(STATUS_LABEL) as OrderStatus[];
+
+// ── Search ───────────────────────────────────────────────────────────────────
+
+/** Shortest fragment worth storing. One letter would match most of the book. */
+const MIN_TERM = 2;
+/**
+ * Longest fragment stored. Somebody who has typed twelve characters has already
+ * narrowed it to a handful; the rest of the word adds entries and finds nothing
+ * new, because the query matches a *stored fragment* exactly.
+ */
+const MAX_TERM = 12;
+/** A guard against one absurd commodity description bloating a document. */
+const MAX_TERMS = 400;
+
+/**
+ * The fields a person searches an order by.
+ *
+ * `shipperName` carries the customer on every imported order — BATS put the
+ * CustomerName there — which is why it matters more than `clientName`, a field
+ * that is empty on all but one order until the party migration runs.
+ */
+function searchableValues(order: Record<string, unknown>): string[] {
+  const address = (a: unknown) => {
+    const v = a as { city?: string; state?: string } | null | undefined;
+    return [v?.city ?? '', v?.state ?? ''];
+  };
+  return [
+    String(order.orderNumber ?? ''),
+    String(order.batsId ?? ''),
+    String(order.previousOrderNumber ?? ''),
+    String(order.shipperName ?? ''),
+    String(order.clientName ?? ''),
+    String(order.consigneeName ?? ''),
+    String(order.carrierName ?? ''),
+    String(order.commodity ?? ''),
+    ...address(order.origin),
+    ...address(order.destination),
+  ];
+}
+
+/** Lowercased words, punctuation dropped. "Palm Beach, FL" → ["palm","beach","fl"]. */
+export function searchWords(text: string): string[] {
+  return (text ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+/**
+ * Every fragment an order should be findable by.
+ *
+ * Firestore cannot search for text inside a field — there is no equivalent of
+ * `LIKE '%morris%'`, and the only reason the carriers list could once do it was
+ * that it had already downloaded all eleven thousand of them. So the fragments
+ * are worked out on save and stored, and the query becomes `array-contains`,
+ * which is a single indexed lookup however large the collection grows.
+ *
+ * Every prefix of every word is stored, so typing "morr" finds "Morris" — which
+ * is what a search box is expected to do. Prefixes only: "orris" will not find
+ * it. Storing every *substring* would square the size of this array for a case
+ * nobody actually types.
+ *
+ * A word is indexed under its own prefixes, so multi-word values are found by
+ * any of their words: "Palm Beach" answers to "palm" and to "beach".
+ */
+export function orderSearchTerms(order: Record<string, unknown>): string[] {
+  const terms = new Set<string>();
+
+  for (const value of searchableValues(order)) {
+    for (const word of searchWords(value)) {
+      const limit = Math.min(word.length, MAX_TERM);
+      // A word shorter than MIN_TERM is still worth storing whole — a two-letter
+      // state code is exactly what somebody types to find a lane.
+      for (let n = Math.min(MIN_TERM, word.length); n <= limit; n++) {
+        terms.add(word.slice(0, n));
+      }
+      if (terms.size > MAX_TERMS) break;
+    }
+  }
+
+  return [...terms].slice(0, MAX_TERMS);
+}
+
+/**
+ * What to look up for a typed query.
+ *
+ * Only the first word is matched. `array-contains-any` would let several words
+ * be tried at once but treats them as OR, so "palm beach" would return every
+ * load touching either — wider than what was typed, not narrower. The remaining
+ * words are filtered from the returned page instead; see the orders list.
+ */
+export function orderSearchTerm(query: string): string {
+  const word = searchWords(query)[0] ?? '';
+  return word.slice(0, MAX_TERM);
+}
 
 /**
  * How far along the lifecycle each status sits. Used to reconcile an imported

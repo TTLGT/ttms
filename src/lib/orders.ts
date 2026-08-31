@@ -7,6 +7,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import type { Order, OrderStatus } from '@/types/order';
+import { orderSearchTerms } from '@/types/order';
 import type { OwnerEvent } from '@/types/ownerEvent';
 import type { DashboardSummary } from './orderSummary';
 
@@ -40,6 +41,10 @@ export async function createOrder(
   const ref = await addDoc(collection(db, COL), {
     ...data,
     orderNumber,
+    // Computed here because this is the one place holding the whole order.
+    // An order saved without these exists but cannot be found by the search
+    // box — see orderSearchTerms in src/types/order.ts.
+    searchTerms: orderSearchTerms({ ...data, orderNumber }),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -98,6 +103,8 @@ export interface OrderQuery {
   limit?: number;
   cursor?: string | null;
   status?: OrderStatus;
+  /** Free text from the search box. */
+  search?: string;
   carrierId?: string;
   /** One filter per role — the role lives on the order, not on the party. */
   clientId?: string;
@@ -124,6 +131,7 @@ function orderQueryString(q: OrderQuery): string {
   if (q.limit)      p.set('limit', String(q.limit));
   if (q.cursor)     p.set('cursor', q.cursor);
   if (q.status)     p.set('status', q.status);
+  if (q.search)     p.set('search', q.search);
   if (q.carrierId)  p.set('carrierId', q.carrierId);
   if (q.clientId)     p.set('clientId', q.clientId);
   if (q.shipperId)    p.set('shipperId', q.shipperId);
@@ -266,6 +274,19 @@ export async function updateOrderStatus(
   });
 }
 
+/**
+ * The fields orderSearchTerms reads. Listed here so a patch that cannot affect
+ * search does not cost a round trip — most saves are a status change.
+ *
+ * ⚠️  KEEP IN SYNC with searchableValues() in src/types/order.ts. Miss a field
+ * and renaming through it leaves the order findable only under its old value.
+ */
+const SEARCHABLE_FIELDS = [
+  'orderNumber', 'batsId', 'previousOrderNumber',
+  'shipperName', 'clientName', 'consigneeName', 'carrierName',
+  'commodity', 'origin', 'destination',
+] as const;
+
 export async function updateOrder(
   orderId: string,
   data: Partial<Omit<Order, 'id' | 'createdAt'>>
@@ -274,6 +295,18 @@ export async function updateOrder(
     ...data,
     updatedAt: serverTimestamp(),
   });
+
+  // A change to any field the search box looks at makes the stored fragments
+  // wrong, and this patch is only part of an order — the fragments come from
+  // all of those fields together, so the server rereads the saved record and
+  // recomputes them. Fire-and-forget, like the client-owner refresh below: the
+  // save has already succeeded and must not be undone by a derived field.
+  if (SEARCHABLE_FIELDS.some((f) => f in data)) {
+    fetch(`/api/orders/${orderId}/search-terms`, {
+      method:  'POST',
+      headers: await authHeaders(),
+    }).catch(() => {});
+  }
 
   // Moving an order to a different client invalidates its copy of that client's
   // owners, which is what the rules read to decide who may see the order. The

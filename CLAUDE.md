@@ -148,6 +148,16 @@ scripts cannot import TypeScript either:
 |---|---|
 | `carrierNameKey()` | `scripts/import-bats.js`, `scripts/backfill-carrier-name-keys.js` |
 
+| `src/types/order.ts` | mirrored in |
+|---|---|
+| `orderSearchTerms()` + `searchWords()` | `scripts/backfill-order-search-terms.js` |
+| `searchableValues()` | `SEARCHABLE_FIELDS` in `src/lib/orders.ts` |
+
+`orderSearchTerms` is what the Orders search box looks up. **Anything that
+writes an order must refresh it** — `createOrder` computes it inline,
+`updateOrder` posts to `/api/orders/{id}/search-terms`. An order saved without
+it exists but cannot be found by searching, and nothing fails loudly.
+
 `carrierNameKey` is what the carriers list searches on. **Anything that writes a
 carrier must write `nameKey` alongside `companyName`** — `createCarrier`,
 `updateCarrier` and both BATS importers do. A carrier saved without one exists

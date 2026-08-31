@@ -14,6 +14,7 @@
 import { adminDb, AdminAuthError } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { canSeeAllParties, canSeeOrder } from './accessControl';
+import { orderSearchTerm, searchWords } from '@/types/order';
 import { ownerLabel } from './partyAccess';
 import type { Caller } from './partyAccess';
 
@@ -75,6 +76,11 @@ export interface OrderQuery {
    */
   hasDocument?: DocumentField;
   /**
+   * What somebody typed into the search box. Matched against the fragments
+   * stored on each order — see orderSearchTerms in src/types/order.ts.
+   */
+  search?: string;
+  /**
    * Earliest pickup date to include, as epoch milliseconds. Bounds the
    * analytics history to the range actually being charted.
    */
@@ -128,6 +134,11 @@ export async function listVisibleOrdersPage(
     // no file, and an inequality also excludes documents missing it entirely,
     // which is what "has an attachment" should mean.
     if (query.hasDocument)          q = q.where(query.hasDocument, '!=', null);
+    // One term, because array-contains-any is an OR: searching "palm beach"
+    // through it would return every load touching either word. The first word
+    // narrows in the query and the rest are applied to the result below.
+    const term = query.search ? orderSearchTerm(query.search) : '';
+    if (term)                       q = q.where('searchTerms', 'array-contains', term);
     if (query.parentOrderId != null) {
       // A suborder's parent is stored as null, not an empty string, so the
       // "top level only" case has to ask for null rather than ''.
@@ -159,7 +170,13 @@ export async function listVisibleOrdersPage(
     // a createdAt (a BATS import gave a whole day the same timestamp) would
     // otherwise page inconsistently, dropping or repeating rows at the seam.
     q = q.orderBy('createdAt', 'desc').orderBy('__name__', 'desc');
-    if (projection) q = q.select(...projection);
+    if (projection) {
+      // searchTerms is normally left out — it is a few hundred fragments per
+      // order and nothing renders it. It is only fetched when a second typed
+      // word has to be checked against it, which narrowBySearch does here.
+      const needsTerms = searchWords(query.search ?? '').length > 1;
+      q = q.select(...projection, ...(needsTerms ? ['searchTerms'] : []));
+    }
 
     const after = decodeCursor(query.cursor);
     if (after) q = q.startAfter(after.createdAt, col.doc(after.id));
@@ -169,7 +186,12 @@ export async function listVisibleOrdersPage(
     if (query.limit) q = q.limit(query.limit + 1);
 
     const snap = await q.get();
-    return toPage(snap.docs.map((d) => ({ id: d.id, ...d.data() })), query.limit);
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const hits = narrowBySearch(rows, query.search, term);
+    // Stripped again on the way out: it was fetched to filter with, and it is
+    // several hundred fragments per order that no screen displays.
+    if (projection) for (const o of hits) delete o.searchTerms;
+    return toPage(hits, query.limit);
   }
 
   const all = await unionForCaller(caller);
@@ -271,6 +293,39 @@ async function unionForCaller(caller: Caller): Promise<Record<string, unknown>[]
   return [...byId.values()].sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
 }
 
+/**
+ * Applies the words the query could not.
+ *
+ * Only one fragment goes to Firestore, so "palm beach" comes back as every load
+ * matching "palm". The rest are checked here against the same stored fragments,
+ * which keeps the meaning of a multi-word search as narrowing rather than
+ * widening.
+ *
+ * This filters a page after it was counted, so a page can come back shorter
+ * than the limit while more results still exist. That is the honest trade for
+ * multi-word search without an index per combination of words, and the list
+ * keeps its Load more button while a cursor remains.
+ */
+function narrowBySearch(
+  rows: Record<string, unknown>[],
+  search: string | undefined,
+  usedTerm: string,
+): Record<string, unknown>[] {
+  const rest = searchWords(search ?? '').slice(1);
+  if (!usedTerm || rest.length === 0) return rows;
+  return rows.filter((o) => {
+    const terms = new Set((o.searchTerms as string[] | undefined) ?? []);
+    return rest.every((w) => terms.has(w.slice(0, 12)));
+  });
+}
+
+/** Whole-query match for the union path, which has the orders in memory. */
+function matchesSearch(order: Record<string, unknown>, search: string): boolean {
+  const terms = new Set((order.searchTerms as string[] | undefined) ?? []);
+  const words = searchWords(search);
+  return words.length === 0 || words.every((w) => terms.has(w.slice(0, 12)));
+}
+
 /** The in-memory equivalent of the where() clauses the privileged path pushes down. */
 function matchesFilters(order: Record<string, unknown>, query: OrderQuery): boolean {
   if (query.status && order.status !== query.status) return false;
@@ -279,6 +334,7 @@ function matchesFilters(order: Record<string, unknown>, query: OrderQuery): bool
   if (query.shipperId && order.shipperId !== query.shipperId) return false;
   if (query.consigneeId && order.consigneeId !== query.consigneeId) return false;
   if (query.hasDocument && !order[query.hasDocument]) return false;
+  if (query.search && !matchesSearch(order, query.search)) return false;
   if (query.pickupFrom && toMillis(order.pickupDate) < query.pickupFrom) return false;
   if (query.parentOrderId != null) {
     const want = query.parentOrderId || null;

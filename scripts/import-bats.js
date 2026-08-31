@@ -292,6 +292,49 @@ const SUFFIX_CANON = [
  * it can decide whether two names are the same company, which is the wrong job
  * here. This one only has to match what somebody has typed so far.
  */
+/**
+ * Mirror of orderSearchTerms() in src/types/order.ts.
+ *
+ * KEEP IN SYNC, and with scripts/backfill-order-search-terms.js. A plain node
+ * script cannot import TypeScript, so this rule lives in three places. If they
+ * disagree, an order imported here stops matching the search the app builds and
+ * nothing fails loudly — the order simply is not found.
+ */
+const SEARCH_MIN_TERM = 2;
+const SEARCH_MAX_TERM = 12;
+const SEARCH_MAX_TERMS = 400;
+
+function searchWords(text) {
+  return (text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function orderSearchTerms(o) {
+  const addr = (a) => [(a && a.city) || '', (a && a.state) || ''];
+  const values = [
+    o.orderNumber || '', o.batsId || '', o.previousOrderNumber || '',
+    o.shipperName || '', o.clientName || '', o.consigneeName || '',
+    o.carrierName || '', o.commodity || '',
+    ...addr(o.origin), ...addr(o.destination),
+  ].map(String);
+
+  const terms = new Set();
+  for (const value of values) {
+    for (const word of searchWords(value)) {
+      const limit = Math.min(word.length, SEARCH_MAX_TERM);
+      for (let n = Math.min(SEARCH_MIN_TERM, word.length); n <= limit; n++) {
+        terms.add(word.slice(0, n));
+      }
+      if (terms.size > SEARCH_MAX_TERMS) break;
+    }
+  }
+  return [...terms].slice(0, SEARCH_MAX_TERMS);
+}
+
 function carrierNameKey(raw) {
   return (raw || '')
     .toLowerCase()
@@ -1319,6 +1362,12 @@ async function importOrders() {
   });
 
   await assignOrderNumbers(records, existingNumbers);
+
+  // Built here rather than with the rest of the record, because the fragments
+  // include the order number and that is only settled by the line above. An
+  // imported order without them lists and opens perfectly well but cannot be
+  // found by the search box — the same trap carriers fell into with nameKey.
+  for (const o of records) o.searchTerms = orderSearchTerms(o);
   const opened = records
     .filter((o) => !existingIds.has(`bats-${o.batsId}`))
     .map((o) => ({

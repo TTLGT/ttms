@@ -4,7 +4,7 @@ import { createHash } from 'crypto';
 import { adminDb } from './firebase-admin';
 import { parseCsv } from './csv';
 import { toNameKey } from '@/types/party';
-import { STATUS_RANK } from '@/types/order';
+import { STATUS_RANK, orderSearchTerms } from '@/types/order';
 import { carrierNameKey } from '@/types/carrier';
 import { loadOwnerDirectory, resolveOwner, hasOwner } from './ownerResolution';
 import { leadSourceDocId, toSourceKey } from '@/types/leadSource';
@@ -1025,6 +1025,12 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
   });
 
   await assignOrderNumbers(records, existingNumbers);
+
+  // Built here rather than with the rest of the record, because the fragments
+  // include the order number and that is only settled by the line above. An
+  // imported order without them lists and opens perfectly well but cannot be
+  // found by the search box — the same trap carriers fell into with nameKey.
+  for (const o of records) o.searchTerms = orderSearchTerms(o);
 
   const opened = records
     .filter((o) => !existingIds.has(`bats-${o.batsId}`))

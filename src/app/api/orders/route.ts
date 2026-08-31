@@ -28,6 +28,7 @@ import { ORDER_STATUSES } from '@/types/order';
  *   ?limit=50&fields=list   one page, trimmed to the columns a list renders
  *   ?cursor=…               the next page, from the previous response's cursor
  *   ?status=booked          one status
+ *   ?search=morris          orders findable by that text — see orderSearchTerms
  *   ?carrierId= / ?clientId= / ?parentOrderId=   the orders belonging to one record
  *   ?counts=1               orders per status, instead of the orders themselves
  *
@@ -55,6 +56,7 @@ export async function GET(req: NextRequest) {
       limit,
       cursor:        p.get('cursor'),
       status:        p.get('status')    ?? undefined,
+      search:        p.get('search')    ?? undefined,
       carrierId:     p.get('carrierId') ?? undefined,
       clientId:      p.get('clientId')     ?? undefined,
       shipperId:     p.get('shipperId')    ?? undefined,
