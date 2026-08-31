@@ -11,6 +11,7 @@ import {
   DEFAULT_GRANT_HOURS, GRANT_DURATIONS, grantDisplayStatus, isGrantLive,
 } from '@/types/orderAccessRequest';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { useApprovals } from '@/context/ApprovalsContext';
 
 type Box = 'incoming' | 'outgoing';
 
@@ -34,13 +35,29 @@ const STATUS_STYLE: Record<string, string> = {
   revoked:  'bg-gray-100 text-gray-600',
 };
 
-const millis = (ts: { toMillis?: () => number } | null | undefined): number =>
-  typeof ts?.toMillis === 'function' ? ts.toMillis() : 0;
+/**
+ * Sort key for the merged queue.
+ *
+ * A Timestamp that came back over JSON has no toMillis(), so reading only that
+ * gave every row a key of 0 and left the "newest first" sort doing nothing.
+ * Same blind spot dateFormat.toDate() had.
+ */
+const millis = (ts: unknown): number => {
+  const t = ts as { toMillis?: () => number; _seconds?: number; seconds?: number } | null;
+  if (!t) return 0;
+  if (typeof t.toMillis === 'function') return t.toMillis();
+  if (typeof t._seconds === 'number')   return t._seconds * 1000;
+  if (typeof t.seconds  === 'number')   return t.seconds  * 1000;
+  return 0;
+};
 
 export default function ApprovalsPage() {
   // Requests are read as a timeline, so these keep the time after the date.
   const { formatDateTime: formatWhen } = useDateFormatters();
   const { user, isAdmin, isDispatcher } = useAuth();
+  // The nav badge counts the same queue, so deciding one here has to re-count
+  // there — otherwise the number sits stale until the next full page load.
+  const { refresh: refreshBadges } = useApprovals();
   const [box, setBox]         = useState<Box>('incoming');
   const [rows, setRows]       = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,6 +130,7 @@ export default function ApprovalsPage() {
         });
       }
       await load(box);
+      refreshBadges();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to record the decision');
     } finally {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -22,8 +22,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { ChatProvider, useChat } from '@/context/ChatContext';
+import { ApprovalsProvider, useApprovals } from '@/context/ApprovalsContext';
 import ChatPopup from '@/components/chat/ChatPopup';
-import { listAccessRequests } from '@/lib/parties';
 
 const NAV_ITEMS: {
   href: string;
@@ -83,7 +83,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // an account that has not been through the allowlist check.
   return (
     <ChatProvider>
-      <DashboardShell>{children}</DashboardShell>
+      <ApprovalsProvider>
+        <DashboardShell>{children}</DashboardShell>
+      </ApprovalsProvider>
     </ChatProvider>
   );
 }
@@ -99,7 +101,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, logout, isAdmin, isHr } = useAuth();
   const pathname                        = usePathname();
   const { unreadBadge }                 = useChat();
-  const [pendingApprovals, setPending]  = useState(0);
+  const { incoming, outgoing }          = useApprovals();
 
   /**
    * Which nav item to light up. Dashboard is matched exactly — every other
@@ -110,26 +112,31 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const isCurrent = (href: string) =>
     href === '/dashboard' ? pathname === href : pathname.startsWith(href);
 
-  // A request that nobody notices blocks the requester's order, so the count
-  // sits in the nav rather than only on the Approvals screen.
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    listAccessRequests('incoming')
-      .then((rs) => { if (!cancelled) setPending(rs.filter((r) => r.status === 'pending').length); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [user]);
-
-  /** The badge on a nav item, or '' for the items that never carry one. */
-  const badgeFor = (href: string) => {
+  /**
+   * The badges on a nav item. Most carry none; Approvals can carry two.
+   *
+   * Red is work waiting on you — a request you have to decide, which is
+   * blocking whoever raised it. Amber is you waiting on somebody else: worth
+   * knowing, nothing to do about it. Two colours rather than one number
+   * because those are different pieces of news, and summing them would tell
+   * you neither.
+   *
+   * Counted in ApprovalsContext, so this and the Approvals screen cannot end
+   * up disagreeing about the same queue.
+   */
+  const badgesFor = (href: string): { key: string; text: string; className: string }[] => {
     if (href === '/dashboard/approvals') {
-      return pendingApprovals > 0 ? String(pendingApprovals) : '';
+      return [
+        incoming > 0 && { key: 'in',  text: String(incoming), className: 'bg-red-500 text-white' },
+        outgoing > 0 && { key: 'out', text: String(outgoing), className: 'bg-amber-400 text-brand-900' },
+      ].filter(Boolean) as { key: string; text: string; className: string }[];
     }
     // Messages waiting, built once in ChatContext so this and the popup bubble
     // cannot end up showing different numbers for the same thing.
-    if (href === '/dashboard/chat') return unreadBadge;
-    return '';
+    if (href === '/dashboard/chat' && unreadBadge !== '') {
+      return [{ key: 'chat', text: unreadBadge, className: 'bg-amber-400 text-brand-900' }];
+    }
+    return [];
   };
 
   return (
@@ -155,7 +162,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             (item) => !item.adminOnly || isAdmin || (item.alsoHr === true && isHr),
           ).map(({ href, label, Icon }) => {
             const current = isCurrent(href);
-            const badge   = badgeFor(href);
+            const badges  = badgesFor(href);
             return (
             <Link
               key={href}
@@ -169,11 +176,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             >
               <Icon size={16} className="flex-shrink-0" />
               <span className="flex-1">{label}</span>
-              {badge !== '' && (
-                <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-brand-900 text-[10px] font-bold">
-                  {badge}
+              {badges.map((b) => (
+                <span
+                  key={b.key}
+                  title={b.key === 'in'
+                    ? 'Waiting on you'
+                    : b.key === 'out' ? 'Your requests, still undecided' : undefined}
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${b.className}`}
+                >
+                  {b.text}
                 </span>
-              )}
+              ))}
             </Link>
             );
           })}
