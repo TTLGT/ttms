@@ -8,6 +8,7 @@ import {
 import { auth, db } from './firebase';
 import type { Order, OrderStatus } from '@/types/order';
 import { orderSearchTerms } from '@/types/order';
+import type { LicenseDocumentRow, OrderDocumentKind } from '@/types/orderDocument';
 import type { OwnerEvent } from '@/types/ownerEvent';
 import type { ActiveClient, DashboardSummary } from './orderSummary';
 
@@ -83,6 +84,47 @@ export type OrderAccess =
   | { status: 'ok'; order: Order }
   | { status: 'missing' }
   | { status: 'denied'; ownerName: string };
+
+/**
+ * A short-lived link to one of an order's documents.
+ *
+ * The BOL, invoice and POD prefixes in the bucket are closed to the client
+ * SDK, because Storage rules cannot read Firestore and so cannot ask who owns
+ * an order — see src/types/orderDocument.ts. getDownloadURL() on those paths
+ * fails by design; this is the way in.
+ *
+ * Returns null when there is no such document, or when the caller may not see
+ * the order. Every caller is a "View" button that has nothing else to show, so
+ * distinguishing the two would only put an error where a missing link says the
+ * same thing.
+ */
+export async function orderDocumentUrl(
+  orderId: string,
+  kind: OrderDocumentKind,
+): Promise<string | null> {
+  const res = await fetch(
+    `/api/orders/${orderId}/document?type=${kind}`,
+    { headers: await authHeaders() },
+  );
+  if (!res.ok) return null;
+  const { url } = await res.json().catch(() => ({ url: null }));
+  return typeof url === 'string' ? url : null;
+}
+
+/**
+ * Every driver's licence in the company, for the Documents screen.
+ *
+ * Separate from listOrdersPage because it is deliberately not filtered to the
+ * loads this user owns — licences are open to all staff, and one you cannot
+ * find is one you cannot use. The rows come back already redacted: a load you
+ * have no access to arrives with its shipper stripped and its owner named
+ * instead. See /api/documents/licenses.
+ */
+export async function listLicenseDocuments(): Promise<LicenseDocumentRow[]> {
+  const res = await fetch('/api/documents/licenses', { headers: await authHeaders() });
+  const { rows } = await unwrap<{ rows: LicenseDocumentRow[] }>(res);
+  return rows;
+}
 
 export async function getOrder(orderId: string): Promise<OrderAccess> {
   const res = await fetch(`/api/orders/${orderId}`, { headers: await authHeaders() });

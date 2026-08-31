@@ -218,6 +218,33 @@ export function orderAltNumber(
   return prev && prev !== order.orderNumber ? prev : null;
 }
 
+/**
+ * Enough to go and ask somebody about a load you cannot open.
+ *
+ * The Documents screen lists every driver's licence in the company, including
+ * the ones on loads the reader has no access to — a licence is checked at
+ * pickup and delivery by people who are not the broker on the load. Those rows
+ * withhold the shipper and name the owner instead, so the reader has somewhere
+ * to go rather than a row they cannot act on.
+ *
+ * `phone` is the US work number. It is already on `users/{uid}`, which every
+ * signed-in user can read, so naming it here exposes nothing new — see
+ * MIRRORED_FIELDS in src/lib/userImport.ts. The payroll fields on the
+ * allowlist entry are a different matter and must not follow it here.
+ */
+export interface OwnerContact {
+  /**
+   * null when the load is owned by a work group, by somebody invited who has
+   * never signed in, or by nobody at all. There is no one account to message
+   * in any of those cases, so the row shows the name without a chat link.
+   */
+  uid: string | null;
+  /** A person, a work group, or '' meaning "ask an administrator". */
+  name: string;
+  phone: string | null;
+  extension: string | null;
+}
+
 export function addressToQuery(a: Address | null | undefined): string {
   if (!a) return '';
   return [a.street, a.city, a.state, a.zip].map((v) => (v ?? '').trim()).filter(Boolean).join(', ');

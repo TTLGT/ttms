@@ -15,6 +15,7 @@ import { adminDb, AdminAuthError } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { canSeeAllParties, canSeeOrder } from './accessControl';
 import { orderSearchTerm, searchWords } from '@/types/order';
+import type { OwnerContact } from '@/types/order';
 import { ownerLabel } from './partyAccess';
 import type { Caller } from './partyAccess';
 
@@ -439,6 +440,100 @@ export async function orderOwnerLabel(order: FirebaseFirestore.DocumentData): Pr
     order.clientOwnerGroupIds ?? [],
   );
   return viaClient === 'another user' ? '' : viaClient;
+}
+
+/**
+ * Who to go and ask about each of these orders, resolved in a handful of reads.
+ *
+ * The Documents screen can show hundreds of licence rows belonging to loads the
+ * reader cannot open, and each one needs a name, a uid to message and a phone
+ * number. Done per row that is three lookups apiece; this collects the distinct
+ * owners first and fetches each one once.
+ *
+ * Precedence follows orderOwnerLabel() deliberately — the order's own owner
+ * before the client's — because they are two different conversations. The
+ * broker running the load can answer about the load; the client's owner is
+ * merely the reason it is theirs at all.
+ */
+export async function resolveOwnerContacts(
+  orders: { id: string; data: FirebaseFirestore.DocumentData }[],
+): Promise<Map<string, OwnerContact>> {
+  type Target =
+    | { kind: 'uid'; id: string }
+    | { kind: 'group'; id: string }
+    | { kind: 'email'; value: string }
+    | null;
+
+  const targetFor = (o: FirebaseFirestore.DocumentData): Target => {
+    const uid = (o.assignedToUids ?? [])[0];
+    if (uid) return { kind: 'uid', id: uid };
+    const group = (o.assignedToGroupIds ?? [])[0];
+    if (group) return { kind: 'group', id: group };
+    const email = (o.assignedToEmails ?? [])[0];
+    if (email) return { kind: 'email', value: email };
+    // Falls through to the client's owner for the same reason the order
+    // carries clientOwner* at all: owning the client is the second way in.
+    const viaUid = (o.clientOwnerUids ?? [])[0];
+    if (viaUid) return { kind: 'uid', id: viaUid };
+    const viaGroup = (o.clientOwnerGroupIds ?? [])[0];
+    if (viaGroup) return { kind: 'group', id: viaGroup };
+    return null;
+  };
+
+  const targets = new Map<string, Target>();
+  for (const o of orders) targets.set(o.id, targetFor(o.data));
+
+  const uids   = [...new Set([...targets.values()].filter((t) => t?.kind === 'uid').map((t) => (t as { id: string }).id))];
+  const groups = [...new Set([...targets.values()].filter((t) => t?.kind === 'group').map((t) => (t as { id: string }).id))];
+
+  // getAll rejects an empty argument list, so neither read is attempted when
+  // nothing of that kind is owed.
+  const [userDocs, groupDocs] = await Promise.all([
+    uids.length   ? adminDb.getAll(...uids.map((u) => adminDb.collection('users').doc(u)))         : Promise.resolve([]),
+    groups.length ? adminDb.getAll(...groups.map((g) => adminDb.collection('workGroups').doc(g)))  : Promise.resolve([]),
+  ]);
+
+  const userById  = new Map(userDocs.map((d) => [d.id, d.data()]));
+  const groupById = new Map(groupDocs.map((d) => [d.id, d.data()]));
+
+  const out = new Map<string, OwnerContact>();
+  for (const [orderId, target] of targets) {
+    if (!target) {
+      // Not "unowned and therefore everyone's" — canSeeOrder keeps an ownerless
+      // order to admin, dispatch and finance, so the reader is being pointed at
+      // them rather than at nobody.
+      out.set(orderId, { uid: null, name: '', phone: null, extension: null });
+      continue;
+    }
+    if (target.kind === 'uid') {
+      const d = userById.get(target.id);
+      out.set(orderId, {
+        uid:       d ? target.id : null,
+        name:      (d?.displayName as string) || (d?.email as string) || '',
+        // Only the US work number. `phoneOther` is somebody's Guatemala or
+        // Mexico line and is not what a colleague chasing a licence should dial.
+        phone:     (d?.phone as string) || null,
+        extension: (d?.extension as string) || null,
+      });
+      continue;
+    }
+    if (target.kind === 'group') {
+      // A group is named but cannot be messaged: a direct thread needs one
+      // account on the other end. "Talk to Gabe's Team" is still the honest
+      // answer — see ownerLabel().
+      out.set(orderId, {
+        uid: null,
+        name: (groupById.get(target.id)?.name as string) || '',
+        phone: null,
+        extension: null,
+      });
+      continue;
+    }
+    // Invited, never signed in. There is no profile to name or message, so the
+    // address they were invited at is the most useful thing there is.
+    out.set(orderId, { uid: null, name: target.value, phone: null, extension: null });
+  }
+  return out;
 }
 
 /**

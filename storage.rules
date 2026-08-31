@@ -4,13 +4,35 @@ rules_version = '2';
 //
 // Storage rules cannot read Firestore, so they cannot check the `allowedUsers`
 // collection directly. Instead /api/auth/session stamps a `ttlAccess` custom
-// claim on the account at sign-in, and that claim is what gates this bucket
-// (driver's licenses, BOLs, invoices, PODs, carrier/shipper documents).
+// claim on the account at sign-in, and that claim is what gates this bucket.
 //
 // Revoking someone in Settings clears the claim, revokes their refresh tokens
 // and disables the account, so they cannot mint a new token. Their current ID
 // token stays valid until it expires (max one hour) — Firestore cuts off
 // immediately, Storage lags by that window.
+//
+// ## Why the order paperwork is write-only here
+//
+// The same limit — rules cannot read Firestore — means these rules cannot ask
+// who owns an order, so they cannot tell the broker running a load apart from
+// any other signed-in account. A BOL, an invoice and a POD carry the rate, the
+// client and the margin, and orders are owned records; a flat "any staff
+// account may read anything" rule handed the whole company's commercial record
+// to anyone who could name a path.
+//
+// So those three prefixes are closed to the client SDK entirely and reached
+// only through GET /api/orders/{id}/document, which applies canSeeOrder() with
+// the Admin SDK and returns a short-lived signed URL. Keep them closed: adding
+// `read` back here silently reopens the hole, and nothing in the app would
+// fail to tell you.
+//
+// Writes stay open to any staff account, because uploading a POD happens in
+// the browser and narrowing it would need the same Firestore lookup a read
+// cannot do. That is unchanged from before and is the lesser exposure: it
+// costs someone the path of a file they would still not be able to read back.
+//
+// Driver's licences are deliberately readable by every staff account — see
+// needsOrderAccess() in src/types/orderDocument.ts for why that one differs.
 service firebase.storage {
   match /b/{bucket}/o {
     function isAllowedUser() {
@@ -18,8 +40,26 @@ service firebase.storage {
         && request.auth.token.ttlAccess == true;
     }
 
-    match /{allPaths=**} {
-      allow read, write: if isAllowedUser();
-    }
+    // Order paperwork. Written from the browser, read only via the API route.
+    match /bols/{allPaths=**}     { allow write: if isAllowedUser(); }
+    match /invoices/{allPaths=**} { allow write: if isAllowedUser(); }
+    match /pods/{allPaths=**}     { allow write: if isAllowedUser(); }
+
+    // Checked at pickup, at delivery and by whoever is covering the phones —
+    // not only by the load's owner. Open to the allowlist, on purpose.
+    match /driver-licenses/{allPaths=**} { allow read, write: if isAllowedUser(); }
+
+    // Chat attachments and profile photos. Both are already gated by what
+    // points at them: an attachment path is only written on a message document,
+    // which Firestore gates on room membership, and every path carries a random
+    // id so it cannot be walked. See the note at the top of src/lib/chatUploads.ts.
+    match /chat/{allPaths=**}    { allow read, write: if isAllowedUser(); }
+    match /avatars/{allPaths=**} { allow read, write: if isAllowedUser(); }
+
+    // Everything else is denied by default. That is deliberate rather than an
+    // oversight: a new upload path has to be added here to work at all, which
+    // is the point at which somebody has to decide who may read it. There is
+    // no catch-all any more — restoring one would grant blanket reads to every
+    // prefix above it that is meant to be closed.
   }
 }

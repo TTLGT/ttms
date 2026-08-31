@@ -5,7 +5,8 @@ import { useRouter, useParams } from 'next/navigation';
 import { ExternalLink, Map, Plus, RefreshCw, Route } from 'lucide-react';
 import Link from 'next/link';
 import {
-  announceOrderEvent, getOrder, updateOrderStatus, updateOrder, listOrdersPage, createOrder,
+  announceOrderEvent, getOrder, orderDocumentUrl, updateOrderStatus, updateOrder, listOrdersPage,
+  createOrder,
 } from '@/lib/orders';
 import NoAccessPanel from '@/components/access/NoAccessPanel';
 import CopyLinkButton from '@/components/CopyLinkButton';
@@ -210,18 +211,18 @@ export default function OrderDetailPage() {
           setInvoicePath(o.invoiceStoragePath ?? null);
           setPodPath(o.podStoragePath ?? null);
         }
+        // Both links come from /api/orders/{id}/document, which re-checks who
+        // may see this order before signing a URL. The generation routes hand
+        // back a URL of their own, but only to the finance and admin accounts
+        // allowed to press the button.
         if (o?.bolStoragePath && user) {
-          user.getIdToken()
-            .then((idToken) => fetch(`/api/orders/${orderId}/bol`, { headers: { Authorization: `Bearer ${idToken}` } }))
-            .then((r) => r.json())
-            .then((b) => { if (b.url) setBolUrl(b.url); })
+          orderDocumentUrl(orderId, 'bol')
+            .then((u) => { if (u) setBolUrl(u); })
             .catch(() => {});
         }
         if (o?.invoiceStoragePath && user) {
-          user.getIdToken()
-            .then((idToken) => fetch(`/api/orders/${orderId}/invoice`, { headers: { Authorization: `Bearer ${idToken}` } }))
-            .then((r) => r.json())
-            .then((b) => { if (b.url) setInvoiceUrl(b.url); })
+          orderDocumentUrl(orderId, 'invoice')
+            .then((u) => { if (u) setInvoiceUrl(u); })
             .catch(() => {});
         }
       } catch (e: unknown) {
@@ -496,8 +497,11 @@ export default function OrderDetailPage() {
   }
 
   async function handlePodUploaded(path: string | null) {
-    setPodPath(path);
+    // Saved before the View link appears. The link asks the server for the
+    // file by order id, so it has nothing to resolve until the path is on the
+    // order — showing it any earlier would offer a download that 404s.
     await updateOrder(orderId, { podStoragePath: path }).catch(() => {});
+    setPodPath(path);
     if (order) setOrder({ ...order, podStoragePath: path });
     void announceOrderEvent(orderId, 'pod');
   }
@@ -1168,7 +1172,7 @@ export default function OrderDetailPage() {
                 </td>
                 <td className="px-6 py-4">
                   {order.driverLicenseStoragePath
-                    ? <DownloadLink storagePath={order.driverLicenseStoragePath} label="View License" />
+                    ? <DownloadLink orderId={orderId} docType="license" label="View License" />
                     : <span className="text-xs text-gray-400">—</span>}
                 </td>
               </tr>

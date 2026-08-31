@@ -1038,6 +1038,14 @@ release — far faster than editing rules under pressure.
 Storage rules cannot read Firestore, so they gate on the `ttlAccess` custom
 claim stamped at sign-in — hence the revocation lag.
 
+That same limit is why the rules cannot tell one staff account from another.
+Bills of lading, invoices and proofs of delivery are therefore **not readable
+from the browser at all**: the app fetches them through a server route that
+first checks whether you are entitled to the order — its owners, the owners of
+its client, and admin, dispatch and finance. Driver's licences are the
+exception and are readable by anyone on the allowlist, because they get checked
+at pickup and delivery by people who are not the broker on the load.
+
 ## Maintenance scripts
 
 All plain Node, all read `.env.local` themselves, all writers support

@@ -1,8 +1,10 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytesResumable, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
+import { orderDocumentUrl } from '@/lib/orders';
+import type { OrderDocumentKind } from '@/types/orderDocument';
 
 type DocType = 'invoice' | 'pod';
 
@@ -49,7 +51,7 @@ export default function DocumentUpload({ orderId, docType, existingPath, onUploa
   if (existingPath && progress === null) {
     return (
       <div className="flex items-center gap-3">
-        <DownloadLink storagePath={existingPath} label={cfg.viewLabel} />
+        <DownloadLink orderId={orderId} docType={docType} label={cfg.viewLabel} />
         {!readOnly && (
           <>
             <button type="button" onClick={() => inputRef.current?.click()}
@@ -92,18 +94,34 @@ export default function DocumentUpload({ orderId, docType, existingPath, onUploa
   );
 }
 
-export function DownloadLink({ storagePath, label }: { storagePath: string; label: string }) {
+/**
+ * Opens one of an order's documents.
+ *
+ * Asks the server for the link rather than resolving the path in the browser:
+ * the BOL, invoice and POD prefixes are closed to the client SDK so that order
+ * ownership can be checked somewhere it is able to be — see
+ * src/types/orderDocument.ts. The order id is what identifies the file, not a
+ * path, so a caller cannot name an object it was never shown.
+ */
+export function DownloadLink(
+  { orderId, docType, label }: { orderId: string; docType: OrderDocumentKind; label: string },
+) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   async function open() {
     setLoading(true);
-    try {
-      const u = await getDownloadURL(ref(storage, storagePath));
-      setUrl(u);
-      window.open(u, '_blank');
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
+    setFailed(false);
+    const u = await orderDocumentUrl(orderId, docType).catch(() => null);
+    setLoading(false);
+    if (!u) { setFailed(true); return; }
+    setUrl(u);
+    window.open(u, '_blank');
+  }
+
+  if (failed) {
+    return <span className="text-xs text-gray-400">Unavailable</span>;
   }
 
   return (

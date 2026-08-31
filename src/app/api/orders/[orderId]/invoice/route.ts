@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, adminStorage, requirePermission, requireCompanyUser, AdminAuthError } from '@/lib/firebase-admin';
+import { adminDb, adminStorage, requirePermission, AdminAuthError } from '@/lib/firebase-admin';
 import { documentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { generateInvoiceBuffer } from '@/lib/invoice-pdf';
 import type { InvoiceData } from '@/lib/invoice-pdf';
@@ -12,6 +12,11 @@ const fmtDate = (ts: { toDate?: () => Date } | null | undefined): string => {
   return ts.toDate().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 };
 
+/**
+ * Handed straight back to whoever asked for the generation. Reading an
+ * *existing* invoice goes through /api/orders/{id}/document instead, which
+ * checks order ownership — this route is finance-and-admin only.
+ */
 async function getSignedUrl(filePath: string): Promise<string> {
   const [url] = await adminStorage.bucket().file(filePath).getSignedUrl({
     action: 'read',
@@ -79,26 +84,4 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   const url = await getSignedUrl(filePath);
   return NextResponse.json({ url, path: filePath });
-}
-
-export async function GET(req: NextRequest, { params }: RouteContext) {
-  try {
-    await requireCompanyUser(req);
-  } catch (e) {
-    if (e instanceof AdminAuthError) {
-      return NextResponse.json({ error: e.message }, { status: e.status });
-    }
-    throw e;
-  }
-
-  const { orderId } = await params;
-
-  const orderSnap = await adminDb.collection('orders').doc(orderId).get();
-  if (!orderSnap.exists) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-
-  const order = orderSnap.data()!;
-  if (!order.invoiceStoragePath) return NextResponse.json({ error: 'No invoice generated yet' }, { status: 404 });
-
-  const url = await getSignedUrl(order.invoiceStoragePath as string);
-  return NextResponse.json({ url, path: order.invoiceStoragePath });
 }

@@ -236,6 +236,21 @@ Storage rules cannot read Firestore, so they gate on the `ttlAccess` custom
 claim set at sign-in — which is why revoked access lags in Storage for up to an
 hour. That's expected, not a bug to fix.
 
+The same limit means the rules cannot ask who owns an order, so **`bols/`,
+`invoices/` and `pods/` are write-only in `storage.rules`** and read only
+through `GET /api/orders/{id}/document`, which applies `canSeeOrder()` with the
+Admin SDK and signs a two-hour URL. Adding `read` back to those prefixes
+reopens the hole silently — nothing in the app would fail. `driver-licenses/`
+is deliberately readable by any allowlisted account; `needsOrderAccess()` in
+`src/types/orderDocument.ts` is where that split is decided.
+
+Because licences are open to everyone, `GET /api/documents/licenses` lists them
+across the whole company — **the one listing that deliberately reaches past
+`canSeeOrder()`**. It redacts instead of filtering: a row for a load the caller
+cannot see carries the order number, the licence and the owner's contact, and
+no shipper, client, rate or dates. Its `SELECTED_FIELDS` is the guard; adding
+to it is how the load leaks out beside the licence.
+
 ### Data model
 
 `parties` is the central record. The same party can be the client on one order,

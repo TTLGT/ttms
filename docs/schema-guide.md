@@ -676,6 +676,8 @@ evidence behind "this campaign brought in these loads".
 - `allowedUsers` and `users` are never writable from the client — all changes go through the Admin SDK, so nobody can self-promote to admin.
 - `agreements` documents may be written by unauthenticated signers **only** via a secure Cloud Function that validates a one-time token — never directly from the client SDK.
 - Storage rules cannot read Firestore, so they gate on the `ttlAccess` custom claim that `/api/auth/session` stamps at sign-in.
+- Because of that, the rules cannot tell one staff account from another. Order paperwork — `bols/`, `invoices/`, `pods/` — is therefore **write-only** in `storage.rules` and read only through `GET /api/orders/{id}/document`, which applies `canSeeOrder()` with the Admin SDK and returns a signed URL good for two hours. `driver-licenses/` stays readable to any allowlisted account on purpose: a licence is checked at pickup and delivery by people who are not on the load.
+- Because licences are open to everyone, `GET /api/documents/licenses` lists them company-wide — the one listing that deliberately reaches past `canSeeOrder()`. Rows for loads the caller cannot see carry the order number, the licence and the owner's name, chat uid and US work number, and **no shipper, client, rate or dates**. It is the only route that redacts rather than filters, so widening its field list is a decision, not a tidy-up.
 
 ---
 
@@ -792,11 +794,15 @@ gated on the `ttlAccess` claim and nothing finer, so *any signed-in TTMS user wh
 knows a file's exact path can fetch it, private room or not*. Two things stand
 between that and a leak: the path is only written on the message document, which
 Firestore does gate on membership, and every path carries a random id so it
-cannot be guessed or walked. This is the same posture the BOLs, invoices and
-driver's licences have had since long before chat, so it adds no new class of
-exposure — but it is weaker than the Firestore side. The fix, if it is ever
-wanted, is to serve attachments through an API route that checks membership with
-the Admin SDK and returns a short-lived signed URL. The 25 MB cap is enforced in
+cannot be guessed or walked. The order paperwork used to sit on the
+same footing and no longer does — it is served through an API route that checks
+ownership first — but attachments were left alone deliberately: everyone on the
+allowlist is staff, and staff can talk to staff, so the unguessable path is
+doing real work here in a way it was not doing for a file named after an order
+id. It is still weaker than the Firestore side. The fix, if it is ever wanted,
+is the one the documents took: an API route that checks membership with the
+Admin SDK and returns a short-lived signed URL, plus a `chat/` prefix in
+`storage.rules` that no longer allows `read`. The 25 MB cap is enforced in
 the browser only, for the same reason: tightening the blanket bucket rule would
 touch every other upload in the app.
 

@@ -24,11 +24,18 @@ import { MAX_ATTACHMENT_BYTES, type Attachment } from '@/types/conversation';
  *  - Every path carries a random id, so it cannot be guessed or walked from a
  *    conversation id.
  *
- * That is the same posture the BOLs, invoices and driver's licences in this app
- * have had since long before chat existed, so this adds no new class of
- * exposure. It is still weaker than the Firestore side, and the fix, if it is
- * ever wanted, is to serve attachments through an API route that checks
- * membership with the Admin SDK and hands back a short-lived signed URL.
+ * The order paperwork used to sit on the same footing and no longer does: the
+ * BOL, invoice and POD prefixes are closed to the client SDK and served
+ * through /api/orders/{id}/document, which checks order ownership with the
+ * Admin SDK first. Attachments were left as they are because the two arguments
+ * are not the same — an order is an owned record whose rate and margin are the
+ * thing being protected, whereas everyone on the allowlist is staff and staff
+ * can talk to staff. The path being unguessable is doing real work here in a
+ * way it was not doing for a file named after an order id.
+ *
+ * If that ever stops being enough, the fix is the same one the documents took:
+ * an API route that checks membership and hands back a short-lived signed URL,
+ * and a `chat/` prefix in storage.rules that no longer allows read.
  *
  * The size cap below is enforced here and not in the rules, for the same reason
  * — tightening the blanket bucket rule would touch every other upload in the

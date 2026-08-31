@@ -2,44 +2,52 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { listOrdersPage } from '@/lib/orders';
+import { listLicenseDocuments, listOrdersPage } from '@/lib/orders';
 import { DownloadLink } from '@/components/orders/DocumentUpload';
+import OrderOwnerContact from '@/components/orders/OrderOwnerContact';
+import { DOCUMENT_LABEL, type OrderDocumentKind } from '@/types/orderDocument';
+import type { OwnerContact } from '@/types/order';
 import type { Order } from '@/types/order';
 import { orderDisplayNumber, orderAltNumber } from '@/types/order';
 
-type DocType = 'bol' | 'invoice' | 'pod' | 'driver_license';
+// The same four kinds the document route serves, so a row can ask for its
+// file by name rather than by a path the browser cannot use anyway.
+type DocType = OrderDocumentKind;
 type FilterType = 'all' | DocType;
 
 interface DocRow {
   orderId: string;
   orderNumber: string;
   altNumber: string | null;
-  shipperName: string;
   docType: DocType;
-  storagePath: string;
+  /**
+   * null on a licence belonging to a load this user cannot see. Licences are
+   * open to all staff but the loads behind them are not, so the shipper is
+   * withheld and `owner` names who to ask instead.
+   */
+  shipperName: string | null;
+  owner: OwnerContact | null;
 }
 
-const TYPE_LABEL: Record<DocType, string> = {
-  bol:            'Bill of Lading',
-  invoice:        'Invoice',
-  pod:            'Proof of Delivery',
-  driver_license: 'Driver License',
-};
-
 const TYPE_COLOR: Record<DocType, string> = {
-  bol:            'bg-blue-50 text-blue-700 border-blue-200',
-  invoice:        'bg-purple-50 text-purple-700 border-purple-200',
-  pod:            'bg-green-50 text-green-700 border-green-200',
-  driver_license: 'bg-gray-100 text-gray-600 border-gray-200',
+  bol:     'bg-blue-50 text-blue-700 border-blue-200',
+  invoice: 'bg-purple-50 text-purple-700 border-purple-200',
+  pod:     'bg-green-50 text-green-700 border-green-200',
+  license: 'bg-gray-100 text-gray-600 border-gray-200',
 };
 
 const DOWNLOAD_LABEL: Record<DocType, string> = {
-  bol:            'View BOL',
-  invoice:        'View Invoice',
-  pod:            'View POD',
-  driver_license: 'View License',
+  bol:     'View BOL',
+  invoice: 'View Invoice',
+  pod:     'View POD',
+  license: 'View License',
 };
 
+/**
+ * Rows for the three document kinds that follow the load's own visibility.
+ * Licences come from listLicenseDocuments() instead — they are listed company
+ * wide, so they cannot be derived from a list of orders this user can see.
+ */
 function buildRows(orders: Order[]): DocRow[] {
   const rows: DocRow[] = [];
   for (const o of orders) {
@@ -51,21 +59,21 @@ function buildRows(orders: Order[]): DocRow[] {
       orderNumber: orderDisplayNumber(o),
       altNumber:   orderAltNumber(o),
       shipperName: o.shipperName,
+      owner:       null,
     };
-    if (o.bolStoragePath)            rows.push({ ...base, docType: 'bol',            storagePath: o.bolStoragePath });
-    if (o.invoiceStoragePath)        rows.push({ ...base, docType: 'invoice',        storagePath: o.invoiceStoragePath });
-    if (o.podStoragePath)            rows.push({ ...base, docType: 'pod',            storagePath: o.podStoragePath });
-    if (o.driverLicenseStoragePath)  rows.push({ ...base, docType: 'driver_license', storagePath: o.driverLicenseStoragePath });
+    if (o.bolStoragePath)            rows.push({ ...base, docType: 'bol' });
+    if (o.invoiceStoragePath)        rows.push({ ...base, docType: 'invoice' });
+    if (o.podStoragePath)            rows.push({ ...base, docType: 'pod' });
   }
   return rows;
 }
 
 const FILTERS: { value: FilterType; label: string }[] = [
   { value: 'all',            label: 'All' },
-  { value: 'bol',            label: 'Bills of Lading' },
-  { value: 'invoice',        label: 'Invoices' },
-  { value: 'pod',            label: 'Proofs of Delivery' },
-  { value: 'driver_license', label: 'Driver Licenses' },
+  { value: 'bol',     label: 'Bills of Lading' },
+  { value: 'invoice', label: 'Invoices' },
+  { value: 'pod',     label: 'Proofs of Delivery' },
+  { value: 'license', label: 'Driver Licenses' },
 ];
 
 export default function DocumentsPage() {
@@ -76,24 +84,37 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     /*
-      Four queries, one per attachment kind, instead of reading every order and
+      One query per attachment kind, instead of reading every order and
       discarding the ones with nothing attached. An order carrying a file is
       very much the exception — this page used to pull ten thousand documents
       to render a handful of rows.
 
-      An order with both a BOL and an invoice comes back in two of the four
-      results and contributes a row to each, which is exactly right: the page
-      lists files, not orders.
+      An order with both a BOL and an invoice comes back in two of the results
+      and contributes a row to each, which is exactly right: the page lists
+      files, not orders.
+
+      Licences are the odd one out and are fetched on their own, because they
+      are the only kind not bounded by what this user may see.
     */
-    Promise.all(([
-      'bolStoragePath', 'invoiceStoragePath', 'podStoragePath', 'driverLicenseStoragePath',
-    ] as const).map((field) =>
-      listOrdersPage({ hasDocument: field }).then((p) => p.orders).catch(() => []),
-    ))
-      .then((results) => {
+    Promise.all([
+      Promise.all(([
+        'bolStoragePath', 'invoiceStoragePath', 'podStoragePath',
+      ] as const).map((field) =>
+        listOrdersPage({ hasDocument: field }).then((p) => p.orders).catch(() => []),
+      )),
+      // Licences are fetched separately and company-wide, not through the
+      // order list: they are readable by every staff account, so a broker has
+      // to be able to find one on a load that is not theirs. The rows arrive
+      // already redacted — see /api/documents/licenses.
+      listLicenseDocuments().catch(() => []),
+    ])
+      .then(([owned, licenses]) => {
         const byId = new Map<string, Order>();
-        for (const o of results.flat()) byId.set(o.id, o);
-        setRows(buildRows([...byId.values()]));
+        for (const o of owned.flat()) byId.set(o.id, o);
+        setRows([
+          ...buildRows([...byId.values()]),
+          ...licenses.map((l) => ({ ...l, docType: 'license' as const })),
+        ]);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -103,9 +124,12 @@ export default function DocumentsPage() {
     if (filter !== 'all' && r.docType !== filter) return false;
     if (search) {
       const q = search.toLowerCase();
+      // Owner name stands in for the shipper on a withheld row, so the box
+      // still finds something on every row it is showing.
       return r.orderNumber.toLowerCase().includes(q)
         || (r.altNumber ?? '').toLowerCase().includes(q)
-        || r.shipperName.toLowerCase().includes(q);
+        || (r.shipperName ?? '').toLowerCase().includes(q)
+        || (r.owner?.name ?? '').toLowerCase().includes(q);
     }
     return true;
   });
@@ -157,7 +181,7 @@ export default function DocumentsPage() {
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>
-                {['Order', 'Shipper', 'Document Type', 'Download'].map((h) => (
+                {['Order', 'Shipper / Owner', 'Document Type', 'Download'].map((h) => (
                   <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -171,14 +195,20 @@ export default function DocumentsPage() {
                       {row.orderNumber}
                     </Link>
                   </td>
-                  <td className="px-5 py-3 text-sm text-gray-600">{row.shipperName}</td>
+                  <td className="px-5 py-3 text-sm text-gray-600">
+                    {row.shipperName !== null
+                      ? row.shipperName
+                      : row.owner
+                        ? <OrderOwnerContact owner={row.owner} />
+                        : <span className="text-gray-400">—</span>}
+                  </td>
                   <td className="px-5 py-3">
                     <span className={`inline-flex items-center text-xs font-medium border rounded-full px-2.5 py-0.5 ${TYPE_COLOR[row.docType]}`}>
-                      {TYPE_LABEL[row.docType]}
+                      {DOCUMENT_LABEL[row.docType]}
                     </span>
                   </td>
                   <td className="px-5 py-3">
-                    <DownloadLink storagePath={row.storagePath} label={DOWNLOAD_LABEL[row.docType]} />
+                    <DownloadLink orderId={row.orderId} docType={row.docType} label={DOWNLOAD_LABEL[row.docType]} />
                   </td>
                 </tr>
               ))}
