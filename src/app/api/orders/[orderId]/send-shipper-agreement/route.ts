@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, requirePermission, AdminAuthError } from '@/lib/firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
+import { agreementSentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { randomBytes } from 'crypto';
 import { dimensionsSummary, orderCommodityItems, orderDisplayNumber } from '@/types/order';
 import type { Order } from '@/types/order';
@@ -116,6 +117,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       signUrl,
     }),
   });
+
+  await postOrderAlert(orderId, agreementSentAlert('shipper', contact.email)).catch(() => {});
 
   return NextResponse.json({ success: true, sentTo: contact.email });
 }

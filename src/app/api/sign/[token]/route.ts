@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, FieldValue } from '@/lib/firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
+import { postOrderAlert, signedAlert } from '@/lib/chatAlerts';
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -38,6 +39,19 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   const tokenRef = adminDb.collection('signing_tokens').doc(token);
 
+  /**
+   * What was signed, carried out of the transaction so the room can be told
+   * afterwards.
+   *
+   * Returned out of the callback rather than assigned into a variable from
+   * inside it, so it is only ever read from a transaction that committed. The
+   * chat write deliberately does not happen inside the transaction: Firestore
+   * may run that callback more than once under contention, which would post
+   * the alert twice, and a failure to write into a chat room must never roll
+   * back a signature that is a legal record.
+   */
+  let signed: { orderId: string; by: 'carrier' | 'shipper' } | null = null;
+
   try {
     /**
      * One transaction, for two separate reasons.
@@ -54,7 +68,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
      * failed — leaving a carrier who signed, an order that says they did not,
      * and a link that refuses to work a second time.
      */
-    await adminDb.runTransaction(async (tx) => {
+    signed = await adminDb.runTransaction(async (tx) => {
       const snap = await tx.get(tokenRef);
       if (!snap.exists) {
         throw new SignError('Invalid or expired signing link', 404);
@@ -93,12 +107,33 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         signerIp:   ip,
       });
       tx.update(adminDb.collection('orders').doc(data.orderId), orderUpdate);
+
+      return {
+        orderId: data.orderId as string,
+        by: (isShipper ? 'shipper' : 'carrier') as 'carrier' | 'shipper',
+      };
     });
   } catch (e) {
     if (e instanceof SignError) {
       return NextResponse.json({ error: e.message }, { status: e.status });
     }
     throw e;
+  }
+
+  /*
+   * The alert everybody actually wants.
+   *
+   * This is the one event in TTMS that happens with nobody signed in and
+   * nobody watching: a carrier opens a link from their phone at eleven at
+   * night and signs, and until somebody reloads the order in the morning the
+   * office has no way of knowing. A line in the room about that load is the
+   * whole answer, and it costs one write.
+   *
+   * After the transaction, and swallowed: the signature is recorded and the
+   * carrier is owed a success either way.
+   */
+  if (signed) {
+    await postOrderAlert(signed.orderId, signedAlert(signed.by, signer)).catch(() => {});
   }
 
   return NextResponse.json({ success: true });

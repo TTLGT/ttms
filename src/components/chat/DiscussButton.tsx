@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { MessagesSquare } from 'lucide-react';
 import { useChat } from '@/context/ChatContext';
 import { openRecordConversation } from '@/lib/chat';
@@ -30,8 +30,8 @@ export default function DiscussButton({
   recordType?: RecordKind;
   recordId: string;
 }) {
-  const router = useRouter();
-  const { setActiveId, conversations, unreadIds, mentionIds } = useChat();
+  const pathname = usePathname();
+  const { setActiveId, setPopupOpen, conversations, unreadIds, mentionIds } = useChat();
   const [busy, setBusy]   = useState(false);
   const [error, setError] = useState('');
 
@@ -47,10 +47,15 @@ export default function DiscussButton({
     setError('');
     try {
       const opened = await openRecordConversation(recordType, recordId);
-      // Both, in this order: the chat page opens on whatever is active, so
-      // setting it first means the room is already there when the page draws.
       setActiveId(opened);
-      router.push('/dashboard/chat');
+      // The floating panel, not the chat page. The whole reason for
+      // discussing a load from the load is that you do not have to leave it:
+      // navigating away would take the order off the screen at the exact
+      // moment somebody wants to read a date off it and type it to a
+      // colleague. The popup hides itself on the chat page, where setting the
+      // active room is all that is needed anyway.
+      if (!pathname.startsWith('/dashboard/chat')) setPopupOpen(true);
+      setBusy(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'That conversation could not be opened.');
       setBusy(false);

@@ -23,6 +23,7 @@ import ActionMenu, { type MenuAction } from './ActionMenu';
 import MessageBubble from './MessageBubble';
 import MessageComposer from './MessageComposer';
 import PinnedBar from './PinnedBar';
+import SystemMessage from './SystemMessage';
 import {
   isThreadUnread,
   type Attachment,
@@ -500,6 +501,9 @@ export default function MessageThread({ conversation }: { conversation: Conversa
                 </div>
               )}
 
+              {/* A line from TTMS rather than from a person: no bubble, no
+                  menu, nothing to react to. See SystemMessage. */}
+              {m.system ? <SystemMessage message={m} /> : (
               <MessageBubble
                 message={m}
                 grouped={grouped}
@@ -543,8 +547,9 @@ export default function MessageThread({ conversation }: { conversation: Conversa
                   onOpen: () => setOpenThread({ conversationId, rootId: m.id }),
                 }}
               />
+              )}
 
-              {actionsFor?.messageId === m.id && (
+              {!m.system && actionsFor?.messageId === m.id && (
                 <ActionMenu
                   anchor={actionsFor.anchor}
                   onClose={() => setActionsFor(null)}

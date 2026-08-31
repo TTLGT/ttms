@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, adminStorage, requirePermission, requireCompanyUser, AdminAuthError } from '@/lib/firebase-admin';
+import { documentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { generateInvoiceBuffer } from '@/lib/invoice-pdf';
 import type { InvoiceData } from '@/lib/invoice-pdf';
 import { orderDisplayNumber } from '@/types/order';
@@ -72,6 +73,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     invoiceStoragePath: filePath,
     updatedAt:          new Date(),
   });
+
+  // Best-effort, like the BOL: the invoice is generated either way.
+  await postOrderAlert(orderId, documentAlert('Invoice', true)).catch(() => {});
 
   const url = await getSignedUrl(filePath);
   return NextResponse.json({ url, path: filePath });

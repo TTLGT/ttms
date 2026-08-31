@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError, requireCompanyUser } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { readOrder } from '@/lib/orderAccess';
+import { openedAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { MAX_ROOM_NAME, validMembers } from '@/lib/chatServer';
 import { orderDisplayNumber } from '@/types/order';
 import {
@@ -182,6 +183,13 @@ export async function POST(req: NextRequest) {
             updatedAt:   FieldValue.serverTimestamp(),
             lastMessage: null,
           });
+
+          // Where the load stands, as the room's first line. A record room is
+          // the one kind that can be opened by somebody who was not part of
+          // whatever prompted it, so it starts by saying what it is about.
+          await postOrderAlert(recordId, openedAlert(access.order as {
+            status?: string; carrierName?: string; clientName?: string;
+          })).catch(() => {});
         } catch (e) {
           // 6 = ALREADY_EXISTS: two people pressed Discuss on the same load in
           // the same second. The loser joins the room the winner just made,

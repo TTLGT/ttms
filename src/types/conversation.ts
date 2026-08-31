@@ -95,6 +95,18 @@ export const CHAT_THREADS_COLLECTION  = 'chatThreads';
 /** Longest message we accept. Enforced in the UI and again in the rules. */
 export const MAX_MESSAGE_LENGTH = 4000;
 
+/**
+ * Who a message from TTMS itself is from.
+ *
+ * Not a uid and never one: Firebase uids are 28 characters of base64, so no
+ * account can ever hold this value. That is what makes it safe as a sender —
+ * the rules pin `senderUid` to the caller on every client write, so a browser
+ * cannot produce a message claiming to be this even if it tried. Only the
+ * Admin SDK can, which means only the server can. See src/lib/chatAlerts.ts.
+ */
+export const SYSTEM_SENDER_UID  = 'system';
+export const SYSTEM_SENDER_NAME = 'TTMS';
+
 export interface Conversation {
   id: string;
   kind: ConversationKind;
@@ -354,6 +366,18 @@ export interface ChatMessage {
    * read the first version can see it.
    */
   editedAt?: Timestamp | null;
+  /**
+   * Written by TTMS rather than by a person — "Carrier signed", "BOL added".
+   *
+   * Drawn as a line across the room rather than as a bubble, and inert: no
+   * reactions, no thread, no menu. An automated line that could be replied to
+   * under, reacted to and pinned would be pretending to be a colleague, and
+   * the thing that makes these readable at all is that they are visibly not
+   * one. Anything worth saying about an alert is said in the room under it.
+   *
+   * Only the server can write one — see SYSTEM_SENDER_UID.
+   */
+  system?: boolean;
   /** Uids named with an @ in this message. Drives the stronger unread mark. */
   mentions?: string[];
   /** The message this one is answering, quoted above it. */

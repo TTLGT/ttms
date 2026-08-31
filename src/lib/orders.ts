@@ -132,6 +132,30 @@ export async function listOrderOwnerEvents(orderId: string): Promise<OwnerEvent[
   return events ?? [];
 }
 
+/**
+ * Tells the room about this load that something changed on it.
+ *
+ * Fire-and-forget on purpose, and never awaited in a way that can fail a save:
+ * the change has already been written by the time this is called, and an alert
+ * that did not post must not turn a successful update into an error message.
+ *
+ * Only three events go through here — the ones the browser carries out against
+ * Firestore itself. Everything else that is worth announcing (the BOL, the
+ * invoice, both agreements, both signatures) already happens inside a server
+ * route, and each of those posts its own alert where the event actually
+ * occurs. The server decides the wording in every case; see the route.
+ */
+export async function announceOrderEvent(
+  orderId: string,
+  event: 'status' | 'carrier' | 'pod',
+): Promise<void> {
+  await fetch(`/api/orders/${orderId}/announce`, {
+    method:  'POST',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ event }),
+  }).catch(() => {});
+}
+
 export async function updateOrderStatus(
   orderId: string,
   status: OrderStatus

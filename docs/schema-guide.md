@@ -677,6 +677,25 @@ load, and so the unread badge has a timestamp to compare against.
 | `replyTo` | `MessageQuote \| null` | The message this one answers, quoted above it |
 | `attachments` | `Attachment[]` | Photos and files. A message may be nothing but these |
 | `reactions` | `{ [key]: uid[] }` | Who reacted with what. Keys are ASCII — see REACTIONS |
+| `system` | boolean | Written by TTMS, not by a person — see below |
+
+**System messages** carry `senderUid: 'system'`, `senderName: 'TTMS'` and
+`system: true`, and only the server can write one: the rules pin `senderUid` to
+the caller on every client write, and no Firebase uid is ever the string
+`system`. They are the alerts a load's own room posts — carrier signed, BOL
+added, status moved — written by `postOrderAlert()` in `src/lib/chatAlerts.ts`
+from the routes where each event actually happens. Alerts are only written into
+a record room that already exists: a room is created by somebody pressing
+Discuss, and posting into one nobody has opened would write a document per order
+into a conversation no one can read. The client draws them as a centred line
+rather than a bubble, with no menu, no reactions and no thread.
+
+The one browser-driven exception is `/api/orders/{orderId}/announce`, for the
+three events a browser carries out directly against Firestore — status, carrier,
+POD. **It takes an event name, never message text**: the server re-reads the
+order and writes what it finds. A route that posted caller-supplied text would
+let any member of staff make TTMS say anything, in a room people trust precisely
+because a person did not write it.
 
 A message can be corrected or taken back by its sender, and by nobody else. An
 edit always stamps `editedAt`, and the thread shows "(edited)" beside it — the

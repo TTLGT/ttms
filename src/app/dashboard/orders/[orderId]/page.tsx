@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ExternalLink, Map, Plus, RefreshCw, Route } from 'lucide-react';
 import Link from 'next/link';
-import { getOrder, updateOrderStatus, updateOrder, listOrders, createOrder } from '@/lib/orders';
+import {
+  announceOrderEvent, getOrder, updateOrderStatus, updateOrder, listOrders, createOrder,
+} from '@/lib/orders';
 import NoAccessPanel from '@/components/access/NoAccessPanel';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import DiscussButton from '@/components/chat/DiscussButton';
@@ -381,6 +383,9 @@ export default function OrderDetailPage() {
         driverLicenseStoragePath: driverLicensePath,
       });
       setAssigningCarrier(false);
+      // The carrier is the single most asked-about fact on a load, so it is
+      // the one worth the room hearing without anybody having to say it.
+      void announceOrderEvent(orderId, 'carrier');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to assign carrier');
     } finally {
@@ -477,6 +482,7 @@ export default function OrderDetailPage() {
     setPodPath(path);
     await updateOrder(orderId, { podStoragePath: path }).catch(() => {});
     if (order) setOrder({ ...order, podStoragePath: path });
+    void announceOrderEvent(orderId, 'pod');
   }
 
   async function handleAdvance() {
@@ -487,6 +493,9 @@ export default function OrderDetailPage() {
     try {
       await updateOrderStatus(orderId, next);
       setOrder({ ...order, status: next });
+      // After the write, never before it, and never awaited into the same
+      // try: the status is what matters and the announcement is a courtesy.
+      void announceOrderEvent(orderId, 'status');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to update status');
     } finally {

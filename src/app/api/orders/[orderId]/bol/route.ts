@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, adminStorage, requirePermission, requireCompanyUser, AdminAuthError } from '@/lib/firebase-admin';
+import { documentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { generateBolBuffer } from '@/lib/bol-pdf';
 import type { BolData } from '@/lib/bol-pdf';
 import { formatDimensions, itemWeightLb, orderCommodityItems, orderDisplayNumber } from '@/types/order';
@@ -108,6 +109,11 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     bolStoragePath: filePath,
     updatedAt:      new Date(),
   });
+
+  // The room about this load, if anybody has started one. Best-effort: the
+  // BOL exists and is about to be handed back, and a chat write that failed
+  // must not turn that into an error. See postOrderAlert.
+  await postOrderAlert(orderId, documentAlert('BOL', true)).catch(() => {});
 
   const url = await getSignedUrl(filePath);
   return NextResponse.json({ url, path: filePath });

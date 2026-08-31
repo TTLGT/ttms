@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, requirePermission, AdminAuthError } from '@/lib/firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
+import { agreementSentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { randomBytes } from 'crypto';
 import { dimensionsSummary, orderCommodityItems, orderDisplayNumber } from '@/types/order';
 import type { Order } from '@/types/order';
@@ -107,6 +108,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       signUrl,
     }),
   });
+
+  // Said in the room so that "has anybody sent the rate con yet" stops being
+  // a question. Best-effort: the email has already left.
+  await postOrderAlert(orderId, agreementSentAlert('carrier', carrier.email)).catch(() => {});
 
   return NextResponse.json({ success: true, sentTo: carrier.email });
 }

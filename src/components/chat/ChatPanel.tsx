@@ -61,12 +61,24 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
     if (company) setActiveId(company.id);
   }, [loading, activeId, compact, conversations, setActiveId]);
 
-  // A conversation you have just left, or been removed from, stops arriving in
-  // the list. Without this the thread would stay on screen showing whatever it
-  // had already loaded.
+  /**
+   * A conversation you have just left, or been removed from, stops arriving in
+   * the list. Without this the thread would stay on screen showing whatever it
+   * had already loaded.
+   *
+   * Given a moment before it acts, which matters for the opposite case: a room
+   * opened by Discuss, or a direct thread created by replying privately, is
+   * selected the instant the server says yes — and is not in the list until
+   * the snapshot listener catches up a fraction of a second later. Clearing on
+   * the first render that cannot find it would drop the reader back on the
+   * conversation list every time, and only on the rooms they had just asked
+   * for. The timer is cancelled by the snapshot that brings the room in.
+   */
   useEffect(() => {
     if (!activeId || loading) return;
-    if (!conversations.some((c) => c.id === activeId)) setActiveId(null);
+    if (conversations.some((c) => c.id === activeId)) return;
+    const timer = window.setTimeout(() => setActiveId(null), 4000);
+    return () => window.clearTimeout(timer);
   }, [activeId, conversations, loading, setActiveId]);
 
   if (error) {
