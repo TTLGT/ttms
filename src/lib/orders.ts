@@ -8,6 +8,7 @@ import {
 import { auth, db } from './firebase';
 import type { Order, OrderStatus } from '@/types/order';
 import type { OwnerEvent } from '@/types/ownerEvent';
+import type { DashboardSummary } from './orderSummary';
 
 const COL = 'orders';
 
@@ -92,9 +93,101 @@ export async function getOrder(orderId: string): Promise<OrderAccess> {
   return { status: 'ok', order };
 }
 
-export async function listOrders(): Promise<Order[]> {
-  const res = await fetch('/api/orders', { headers: await authHeaders() });
-  const { orders } = await unwrap<{ orders: Order[] }>(res);
+/** What a screen can ask for. See the route for the full parameter list. */
+export interface OrderQuery {
+  limit?: number;
+  cursor?: string | null;
+  status?: OrderStatus;
+  carrierId?: string;
+  /** One filter per role — the role lives on the order, not on the party. */
+  clientId?: string;
+  shipperId?: string;
+  consigneeId?: string;
+  /** '' asks for top-level orders only; an id asks for that order's suborders. */
+  parentOrderId?: string;
+  /** Only orders carrying this attachment. */
+  hasDocument?: 'bolStoragePath' | 'invoiceStoragePath' | 'podStoragePath' | 'driverLicenseStoragePath';
+  /** Earliest pickup date to include, as epoch milliseconds. */
+  pickupFrom?: number;
+  /** Trims each order to the fields that shape of screen reads. */
+  fields?: 'list' | 'analytics';
+}
+
+export interface OrderPage {
+  orders: Order[];
+  /** Feed back as `cursor` to get the next page. null means there is no next. */
+  cursor: string | null;
+}
+
+function orderQueryString(q: OrderQuery): string {
+  const p = new URLSearchParams();
+  if (q.limit)      p.set('limit', String(q.limit));
+  if (q.cursor)     p.set('cursor', q.cursor);
+  if (q.status)     p.set('status', q.status);
+  if (q.carrierId)  p.set('carrierId', q.carrierId);
+  if (q.clientId)     p.set('clientId', q.clientId);
+  if (q.shipperId)    p.set('shipperId', q.shipperId);
+  if (q.consigneeId)  p.set('consigneeId', q.consigneeId);
+  if (q.fields)       p.set('fields', q.fields);
+  if (q.hasDocument)  p.set('hasDocument', q.hasDocument);
+  if (q.pickupFrom)   p.set('pickupFrom', String(q.pickupFrom));
+  // Set even when empty — an empty value is a meaningful request.
+  if (q.parentOrderId !== undefined) p.set('parentOrderId', q.parentOrderId);
+  return p.toString();
+}
+
+/**
+ * One page of orders, newest first.
+ *
+ * This is what a list screen should use. `listOrders` below fetches the whole
+ * collection, which on ten thousand orders is a seventeen-second query and
+ * twelve megabytes before the browser draws a row.
+ */
+export async function listOrdersPage(query: OrderQuery = {}): Promise<OrderPage> {
+  const res = await fetch(`/api/orders?${orderQueryString(query)}`, { headers: await authHeaders() });
+  const page = await unwrap<{ orders: Order[]; cursor: string | null }>(res);
+  return { orders: page.orders ?? [], cursor: page.cursor ?? null };
+}
+
+/**
+ * Every number the dashboard's stat cards show, counted server-side.
+ *
+ * See lib/orderSummary.ts. The page used to work these out by downloading the
+ * whole order book and filtering it in the browser.
+ */
+export async function fetchDashboardSummary(): Promise<DashboardSummary> {
+  const res = await fetch('/api/orders/summary', { headers: await authHeaders() });
+  return unwrap<DashboardSummary>(res);
+}
+
+/**
+ * How many open loads each client has. Fetched apart from the summary because
+ * it is roughly eight times slower than everything else on the page combined —
+ * see lib/orderSummary.ts.
+ */
+export async function fetchActiveClientLoads(): Promise<Record<string, number>> {
+  const res = await fetch('/api/orders/summary?clients=1', { headers: await authHeaders() });
+  const { activeClientLoads } = await unwrap<{ activeClientLoads: Record<string, number> }>(res);
+  return activeClientLoads ?? {};
+}
+
+/** How many orders sit in each status, without fetching any of them. */
+export async function countOrdersByStatus(): Promise<Record<OrderStatus, number>> {
+  const res = await fetch('/api/orders?counts=1', { headers: await authHeaders() });
+  const { counts } = await unwrap<{ counts: Record<OrderStatus, number> }>(res);
+  return counts;
+}
+
+/**
+ * Every order the user may see.
+ *
+ * Reserved for screens that genuinely aggregate over the whole set — analytics
+ * charts margin by month and cannot do it from one page. If you only need to
+ * show a list, or the orders belonging to one carrier or client, use
+ * `listOrdersPage` with the matching filter instead.
+ */
+export async function listOrders(query: OrderQuery = {}): Promise<Order[]> {
+  const { orders } = await listOrdersPage({ ...query, limit: undefined });
   return orders;
 }
 

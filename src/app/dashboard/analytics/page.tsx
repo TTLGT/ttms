@@ -66,19 +66,38 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [range, setRange]     = useState(6);
 
-  useEffect(() => {
-    listOrders().then(setOrders).finally(() => setLoading(false));
-  }, []);
+  /*
+    Refetched when the range changes rather than filtered in the browser.
 
-  const filtered = useMemo(() => {
+    This page used to ask for every order in the company — twelve megabytes and
+    about seventeen seconds — and then throw away everything outside the chosen
+    window. Now the window is the query, and each order arrives as the seven
+    fields these charts actually read instead of the full record.
+
+    "All time" is still a large answer, and deliberately so: a margin-by-month
+    chart of the whole history is the one thing on this screen that genuinely
+    needs the whole history. It is simply no longer the default.
+  */
+  useEffect(() => {
+    let live = true;
+    setLoading(true);
     const cutoff = range === 0 ? null : subMonths(new Date(), range);
-    return orders.filter((o) => {
-      if (o.status !== 'delivered' && o.status !== 'completed') return false;
-      const d = toDate(o.pickupDate);
-      if (!d) return false;
-      return cutoff ? d >= cutoff : true;
-    });
-  }, [orders, range]);
+    listOrders({
+      fields:     'analytics',
+      pickupFrom: cutoff ? cutoff.getTime() : undefined,
+    })
+      .then((o) => { if (live) setOrders(o); })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  }, [range]);
+
+  const filtered = useMemo(
+    // The date bound is applied by the query; only the status test is left,
+    // and it stays here because "delivered or completed" is two equalities
+    // that would each need their own index alongside the range.
+    () => orders.filter((o) => o.status === 'delivered' || o.status === 'completed'),
+    [orders],
+  );
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const kpis = useMemo(() => {

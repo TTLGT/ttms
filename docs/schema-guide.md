@@ -374,26 +374,69 @@ documents/{documentId}
 
 ---
 
-## Firestore Index Recommendations
+## Firestore Indexes
+
+### Required — the paginated list screens do not work without these
+
+These live in **`firestore.indexes.json`** and are created by
+**`node scripts/deploy-indexes.js`** (`--dry-run` first, `--list` to check
+state). Like the rules, editing that file changes nothing until the script is
+run — and unlike a missing rule, a missing index is not a slow query but a
+failed one.
+
+Every one of these implicitly ends in `__name__`. That is not decoration: the
+cursor in `listVisibleOrdersPage` orders by `createdAt` **and** `__name__` so
+that two orders sharing a timestamp — which a BATS import produces by the
+hundred, because the export gives a whole day the same time — cannot straddle a
+page boundary and be served twice or skipped.
+
+| Collection | Fields to index (composite) | Use case |
+|------------|------------------------------|----------|
+| carriers | `isActive` ASC + `companyName` ASC | Browsing carriers with "show inactive" off |
+| carriers | `isActive` ASC + `nameKey` ASC | Carrier name search with "show inactive" off |
+| orders   | `carrierId` ASC + `createdAt` DESC | A carrier's loads; the driver prefill lookup |
+| orders   | `clientId` ASC + `createdAt` DESC | A party's orders, as client |
+| orders   | `consigneeId` ASC + `createdAt` DESC | A party's orders, as consignee |
+| orders   | `parentOrderId` ASC + `bolStoragePath` ASC | Documents: bills of lading |
+| orders   | `parentOrderId` ASC + `createdAt` DESC | The orders list; suborders; dashboard "booked today" and this month |
+| orders   | `parentOrderId` ASC + `deliveredAt` DESC | Dashboard "delivered this month" |
+| orders   | `parentOrderId` ASC + `driverLicenseStoragePath` ASC | Documents: driver licenses |
+| orders   | `parentOrderId` ASC + `invoiceStoragePath` ASC | Documents: invoices |
+| orders   | `parentOrderId` ASC + `podStoragePath` ASC | Documents: proofs of delivery |
+| orders   | `parentOrderId` ASC + `status` ASC | Dashboard active / pending / unsigned / missing-document counts |
+| orders   | `parentOrderId` ASC + `status` ASC + `createdAt` DESC | The orders list with a status tab selected |
+| orders   | `parentOrderId` ASC + `status` ASC + `deliveredAt` DESC | Dashboard "delivered today" |
+| orders   | `parentOrderId` ASC + `status` ASC + `updatedAt` DESC | Dashboard "stale quotes" |
+| orders   | `shipperId` ASC + `createdAt` DESC | A party's orders, as shipper |
+
+Anything not listed is single-field and automatic: the status-tab `count()`s,
+carrier DOT/MC search, the carrier `count()`s, the analytics pickup-date range,
+and the `array-contains` queries behind the broker visibility union.
+
+**Adding an index is about adding a new *way of asking*, not a bigger
+collection.** These sixteen serve the app at any size; a new filter or a new
+sort column is what would need a seventeenth.
+
+### Recommended — not currently required by any code path
 
 | Collection | Fields to index (composite)                        | Use case                         |
 |------------|----------------------------------------------------|----------------------------------|
-| orders     | `shipperId` ASC + `createdAt` DESC                 | Shipper order history            |
 | orders     | `carrierId` ASC + `status` ASC                     | Carrier load board               |
-| orders     | `parentOrderId` ASC + `createdAt` DESC             | Suborder list                    |
 | orders     | `status` ASC + `pickupDate` ASC                    | Dispatch board                   |
 | agreements | `orderId` ASC + `type` ASC                         | Agreement status per order       |
 | carriers   | `insuranceExpiration` ASC                          | Expiry alert dashboard           |
 | parties    | `assignedToUids` + `assignedToGroupIds` + `assignedToEmails` + `assignedToName` (all ASC, equality) | The "unowned" query in `listVisibleParties` |
 | replies (collection id, any conversation) | `rootId` ASC + `createdAt` DESC | The replies under one message — see the chat section |
 
-The order-visibility queries in `listVisibleOrders` are single-field
+The order-visibility union in `listVisibleOrdersPage` — the path taken by
+anyone who is not admin, dispatch or finance — is still single-field
 `array-contains` / `array-contains-any` on `assignedToUids`,
 `assignedToGroupIds`, `clientOwnerUids` and `clientOwnerGroupIds`. Those are
-served by automatic single-field indexes and need nothing composite — the
-results are merged and sorted in memory precisely so that each query can stay
-single-field. `clientId` (equality, for `syncClientOwners`) is likewise
-automatic.
+served by automatic indexes and need nothing composite, because that path
+merges, sorts and pages **in memory** rather than in the query. It does so
+deliberately: cursoring a four-way union would need an index per branch times
+every filter, and a broker's own loads are a small enough set that it is not
+worth it. See the comment on `listVisibleOrdersPage`.
 
 There is no `firestore.indexes.json` in this repo. A missing-index error in the
 console links straight to a one-click creator.

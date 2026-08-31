@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { listOrders } from '@/lib/orders';
+import { listOrdersPage, countOrdersByStatus } from '@/lib/orders';
 import type { Order, OrderStatus } from '@/types/order';
 import { orderDisplayNumber } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
@@ -44,6 +44,16 @@ const DEFAULT_WIDTHS: ColumnWidths = Object.fromEntries(COLUMNS.map((c) => [c.ke
 
 const WIDTH_STORAGE_KEY = 'ttms.columnWidths.orders';
 
+/**
+ * Rows per request.
+ *
+ * The list used to fetch the entire collection — ten thousand orders, twelve
+ * megabytes and seventeen seconds before a single row appeared, then ninety
+ * thousand table cells for the browser to lay out. Fifty comfortably overfills
+ * a screen, and the next fifty arrive in about a quarter of a second.
+ */
+const PAGE_SIZE = 50;
+
 function formatCurrency(n: number): string {
   if (!n) return '—';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
@@ -55,24 +65,62 @@ export default function OrdersPage() {
   const { formatDate } = useDateFormatters();
   const [orders, setOrders]   = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [cursor, setCursor]   = useState<string | null>(null);
   const [error, setError]     = useState('');
   const [filter, setFilter]   = useState<OrderStatus | 'all'>('all');
+  const [counts, setCounts]   = useState<Record<string, number> | null>(null);
 
   const columnWidths = useColumnWidths(WIDTH_STORAGE_KEY, DEFAULT_WIDTHS);
   const tableWidth = COLUMNS.reduce((sum, c) => sum + (columnWidths.widths[c.key] ?? c.width), 0);
 
+  /**
+   * Guards against a stale page landing after the user has changed tabs. Each
+   * load stamps the request it belongs to and discards its own result if the
+   * filter has moved on — otherwise a slow "All" response arrives after a fast
+   * "Quote" one and quietly fills the table with the wrong rows.
+   */
+  const requestId = useRef(0);
+
+  const loadPage = useCallback(async (after: string | null) => {
+    const mine = ++requestId.current;
+    if (after) setLoadingMore(true); else setLoading(true);
+    try {
+      const page = await listOrdersPage({
+        limit:  PAGE_SIZE,
+        cursor: after,
+        fields: 'list',
+        status: filter === 'all' ? undefined : filter,
+        // Suborders belong under their parent, never in the top-level list.
+        // Filtered by the server now, so a page of fifty is fifty rows the
+        // list will actually show.
+        parentOrderId: '',
+      });
+      if (mine !== requestId.current) return;
+      setOrders((prev) => (after ? [...prev, ...page.orders] : page.orders));
+      setCursor(page.cursor);
+      setError('');
+    } catch (e) {
+      if (mine === requestId.current) setError((e as Error).message);
+    } finally {
+      if (mine === requestId.current) { setLoading(false); setLoadingMore(false); }
+    }
+  }, [filter]);
+
+  // Re-runs when the tab changes, which resets to the first page of that status.
+  useEffect(() => { setOrders([]); setCursor(null); void loadPage(null); }, [loadPage]);
+
+  // The tab counts come from Firestore aggregations — about eleven document
+  // reads for the whole row, rather than the ten thousand it took to count
+  // them in the browser. Loaded once; they do not change as pages are added.
   useEffect(() => {
-    listOrders()
-      .then(setOrders)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    countOrdersByStatus().then(setCounts).catch(() => setCounts(null));
   }, []);
 
-  const primaryOrders = orders.filter((o) => o.parentOrderId === null || o.parentOrderId === undefined);
-
-  const visible = filter === 'all'
-    ? primaryOrders
-    : primaryOrders.filter((o) => o.status === filter);
+  const visible = orders;
+  const totalLabel = counts
+    ? Object.values(counts).reduce((a, b) => a + b, 0).toLocaleString()
+    : '…';
 
   return (
     <div className="p-8">
@@ -80,7 +128,7 @@ export default function OrdersPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{primaryOrders.length} total orders</p>
+          <p className="text-sm text-gray-500 mt-0.5">{totalLabel} total orders</p>
         </div>
         <Link
           href="/dashboard/orders/new"
@@ -103,9 +151,9 @@ export default function OrdersPage() {
             }`}
           >
             {tab.label}
-            {tab.value !== 'all' && (
+            {tab.value !== 'all' && counts && (
               <span className="ml-1.5 text-xs text-gray-400">
-                {primaryOrders.filter((o) => o.status === tab.value).length}
+                {counts[tab.value] ?? 0}
               </span>
             )}
           </button>
@@ -210,6 +258,31 @@ export default function OrdersPage() {
               ))}
             </tbody>
           </table>
+
+          {/*
+            A button rather than infinite scroll on purpose: this table is the
+            screen brokers scan for a load they half-remember, and a list that
+            grows under the scrollbar makes "somewhere near the bottom" a moving
+            target. The count says how far in they are, so the number they read
+            out to a colleague still means something.
+          */}
+          {cursor && (
+            <div className="flex flex-col items-center gap-1 border-t border-gray-100 py-4">
+              <button
+                onClick={() => void loadPage(cursor)}
+                disabled={loadingMore}
+                className="px-4 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50 rounded-lg transition disabled:opacity-50"
+              >
+                {loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} more`}
+              </button>
+              <p className="text-xs text-gray-400">
+                Showing {visible.length.toLocaleString()}
+                {counts && (filter === 'all'
+                  ? ` of ${totalLabel}`
+                  : ` of ${(counts[filter] ?? 0).toLocaleString()}`)}
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

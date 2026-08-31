@@ -282,6 +282,24 @@ const SUFFIX_CANON = [
   [/\b(llp|l l p)\b/g,        'llp'],
 ];
 
+/**
+ * Mirror of carrierNameKey() in src/types/carrier.ts.
+ *
+ * ⚠️  KEEP IN SYNC. A plain node script cannot import TypeScript. If the two
+ * disagree, a carrier imported here stops matching the search the app builds.
+ *
+ * Deliberately not toNameKey below: that one canonicalises company suffixes so
+ * it can decide whether two names are the same company, which is the wrong job
+ * here. This one only has to match what somebody has typed so far.
+ */
+function carrierNameKey(raw) {
+  return (raw || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 function toNameKey(raw) {
   let out = String(raw || '')
     .toLowerCase()
@@ -933,6 +951,10 @@ async function importCarriers() {
   const records = rows.map((r) => ({
     batsId:                str(r[0]),
     companyName:           str(r[1]),
+    // The carriers list searches on nameKey, so a carrier imported without one
+    // exists but cannot be found by name. Rewritten whenever the name is, or a
+    // renamed carrier stays findable only under its old name.
+    nameKey:               carrierNameKey(str(r[1])),
     mc:                    str(r[2]),
     isActive:              str(r[3]).toLowerCase() === 'active',
     phone:                 str(r[4]),

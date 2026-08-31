@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { ExternalLink, Map, Plus, RefreshCw, Route } from 'lucide-react';
 import Link from 'next/link';
 import {
-  announceOrderEvent, getOrder, updateOrderStatus, updateOrder, listOrders, createOrder,
+  announceOrderEvent, getOrder, updateOrderStatus, updateOrder, listOrdersPage, createOrder,
 } from '@/lib/orders';
 import NoAccessPanel from '@/components/access/NoAccessPanel';
 import CopyLinkButton from '@/components/CopyLinkButton';
@@ -79,16 +79,22 @@ interface DriverDetails {
  *
  * There is no drivers collection — a driver only exists as three fields on an
  * order — so "the driver we used last time" has to be read back out of order
- * history. `orders` arrives sorted by createdAt desc, so the first hit is the
+ * history. The page arrives sorted by createdAt desc, so the first hit is the
  * most recent one.
+ *
+ * Asks for that carrier's recent loads rather than scanning every order in the
+ * company — this used to read the whole collection, which is ten thousand
+ * documents to answer a question about one carrier. Twenty is enough: a carrier
+ * whose last twenty loads all went out with no driver recorded has nothing to
+ * prefill from anyway.
  */
-function lastDriverForCarrier(
-  orders: Order[],
+async function lastDriverForCarrier(
   carrierId: string,
   excludeOrderId: string
-): DriverDetails | null {
+): Promise<DriverDetails | null> {
+  const { orders } = await listOrdersPage({ carrierId, limit: 20 }).catch(() => ({ orders: [] as Order[] }));
   const prev = orders.find(
-    (o) => o.id !== excludeOrderId && o.carrierId === carrierId && !!o.driverName?.trim()
+    (o) => o.id !== excludeOrderId && !!o.driverName?.trim()
   );
   if (!prev) return null;
   return {
@@ -130,7 +136,6 @@ export default function OrderDetailPage() {
   // without any order being rewritten.
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   const [suborders, setSuborders]   = useState<Order[]>([]);
-  const [allOrders, setAllOrders]   = useState<Order[]>([]);
   const [carriers, setCarriers]     = useState<Carrier[]>([]);
   const [loading, setLoading]       = useState(true);
   const [advancing, setAdvancing]   = useState(false);
@@ -150,6 +155,9 @@ export default function OrderDetailPage() {
   // replace its own guess without overwriting anything the user typed.
   const [prefill, setPrefill] = useState<DriverDetails | null>(null);
   const [prefillSource, setPrefillSource] = useState('');
+  // Stamps each prefill lookup so a slow one for a carrier the user has since
+  // changed away from cannot overwrite a newer answer.
+  const prefillRequest = useRef(0);
 
   // carrier e-sign state
   const [sendingAgreement, setSendingAgreement] = useState(false);
@@ -179,10 +187,13 @@ export default function OrderDetailPage() {
     async function load() {
       setLoading(true);
       try {
-        const [access, cs, all, srcs] = await Promise.all([
+        const [access, cs, subs, srcs] = await Promise.all([
           getOrder(orderId),
           listCarriers(),
-          listOrders(),
+          // Just this order's suborders. Fetching every order in the company
+          // and filtering to the two or three underneath this one cost about
+          // seventeen seconds on a collection this size.
+          listOrdersPage({ parentOrderId: orderId }),
           listLeadSources(),
         ]);
         const o = access.status === 'ok' ? access.order : null;
@@ -195,8 +206,7 @@ export default function OrderDetailPage() {
         setLeadSources(srcs);
         setCarriers(cs.filter((c) => c.isActive));
         if (o) {
-          setAllOrders(all);
-          setSuborders(all.filter((x) => x.parentOrderId === orderId));
+          setSuborders(subs.orders);
           setInvoicePath(o.invoiceStoragePath ?? null);
           setPodPath(o.podStoragePath ?? null);
         }
@@ -321,9 +331,16 @@ export default function OrderDetailPage() {
     }
     const carrierId = e.target.value;
     setSelectedCarrierId(carrierId);
-    applyDriverPrefill(
-      carrierId ? lastDriverForCarrier(allOrders, carrierId, orderId) : null
-    );
+    if (!carrierId) {
+      applyDriverPrefill(null);
+      return;
+    }
+    // The lookup is a round trip now, so a fast second change must not be
+    // overwritten by a slow first one landing late.
+    const mine = ++prefillRequest.current;
+    void lastDriverForCarrier(carrierId, orderId).then((found) => {
+      if (mine === prefillRequest.current) applyDriverPrefill(found);
+    });
   }
 
   /**

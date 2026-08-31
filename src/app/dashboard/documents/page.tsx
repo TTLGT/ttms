@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { listOrders } from '@/lib/orders';
+import { listOrdersPage } from '@/lib/orders';
 import { DownloadLink } from '@/components/orders/DocumentUpload';
 import type { Order } from '@/types/order';
 import { orderDisplayNumber, orderAltNumber } from '@/types/order';
@@ -75,8 +75,26 @@ export default function DocumentsPage() {
   const [filter, setFilter]   = useState<FilterType>('all');
 
   useEffect(() => {
-    listOrders()
-      .then((orders) => setRows(buildRows(orders)))
+    /*
+      Four queries, one per attachment kind, instead of reading every order and
+      discarding the ones with nothing attached. An order carrying a file is
+      very much the exception — this page used to pull ten thousand documents
+      to render a handful of rows.
+
+      An order with both a BOL and an invoice comes back in two of the four
+      results and contributes a row to each, which is exactly right: the page
+      lists files, not orders.
+    */
+    Promise.all(([
+      'bolStoragePath', 'invoiceStoragePath', 'podStoragePath', 'driverLicenseStoragePath',
+    ] as const).map((field) =>
+      listOrdersPage({ hasDocument: field }).then((p) => p.orders).catch(() => []),
+    ))
+      .then((results) => {
+        const byId = new Map<string, Order>();
+        for (const o of results.flat()) byId.set(o.id, o);
+        setRows(buildRows([...byId.values()]));
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

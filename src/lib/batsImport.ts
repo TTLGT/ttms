@@ -5,6 +5,7 @@ import { adminDb } from './firebase-admin';
 import { parseCsv } from './csv';
 import { toNameKey } from '@/types/party';
 import { STATUS_RANK } from '@/types/order';
+import { carrierNameKey } from '@/types/carrier';
 import { loadOwnerDirectory, resolveOwner, hasOwner } from './ownerResolution';
 import { leadSourceDocId, toSourceKey } from '@/types/leadSource';
 import { labelOwners, ownerTargets, writeOwnerEvents } from './ownership';
@@ -689,6 +690,12 @@ export async function importCarriersCSV(text: string): Promise<ImportResult> {
   const records = rows.map((r) => ({
     batsId:                str(r[0]),
     companyName:            str(r[1]),
+    // Written on every import for the same reason createCarrier writes it: the
+    // carriers list searches on nameKey, so a carrier that arrives without one
+    // exists but cannot be found by name. It also has to be rewritten whenever
+    // the name is, or a renamed carrier stays searchable only under the name it
+    // used to have. See carrierNameKey in src/types/carrier.ts.
+    nameKey:                carrierNameKey(str(r[1])),
     mc:                     str(r[2]),
     isActive:               str(r[3]).toLowerCase() === 'active',
     phone:                  str(r[4]),

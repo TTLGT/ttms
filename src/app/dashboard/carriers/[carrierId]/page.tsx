@@ -93,8 +93,10 @@ export default function CarrierDetailPage() {
         const c = await getCarrier(carrierId);
         setCarrier(c);
         if (c) syncFields(c);
-        const all = await listOrders();
-        setOrders(all.filter((o) => o.carrierId === carrierId));
+        // Asked of the server rather than filtered here. Pulling every order
+        // in the company to show one carrier's loads took about seventeen
+        // seconds; this is a single indexed query.
+        setOrders(await listOrders({ carrierId }));
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Failed to load');
       } finally {

@@ -455,6 +455,13 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
 };
 
 /**
+ * Every status there is, derived from the labels rather than written out again
+ * so the two cannot drift. The order-count endpoint asks for one aggregation
+ * per entry, so adding a status here costs a query, not a list to remember.
+ */
+export const ORDER_STATUSES = Object.keys(STATUS_LABEL) as OrderStatus[];
+
+/**
  * How far along the lifecycle each status sits. Used to reconcile an imported
  * BATS status against the one the TMS already holds: the further-along of the
  * two wins, so a refresh can advance an order but never drag it backwards.

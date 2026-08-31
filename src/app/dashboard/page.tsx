@@ -9,7 +9,8 @@ import {
   FlagTriangleRight, UserPlus, ShieldAlert, Paperclip,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { listOrders } from '@/lib/orders';
+import { listOrdersPage, fetchDashboardSummary, fetchActiveClientLoads } from '@/lib/orders';
+import type { DashboardSummary } from '@/lib/orderSummary';
 import { listParties } from '@/lib/parties';
 import { listCarriers } from '@/lib/carriers';
 import { getAlerts } from '@/lib/alerts';
@@ -178,115 +179,132 @@ export default function DashboardPage() {
   const { user, isAdmin } = useAuth();
   const firstName = user?.displayName?.split(' ')[0] ?? 'there';
 
+  const [summary,  setSummary]  = useState<DashboardSummary | null>(null);
+  // Loaded on its own, after the rest — it is the one figure that reads every
+  // open order instead of counting them. null means "still coming".
+  const [clientLoads, setClientLoads] = useState<Record<string, number> | null>(null);
   const [orders,   setOrders]   = useState<Order[]>([]);
   const [clients,  setClients]  = useState<Party[]>([]);
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [alerts,   setAlerts]   = useState<OrderAlert[]>([]);
   const [loading,  setLoading]  = useState(true);
 
+  /*
+    The stat cards are counted by the database and arrive as numbers; `orders`
+    here is now only the Recent Orders table at the bottom, which shows thirty.
+
+    This page used to download every order in the company — ten thousand
+    documents, twelve megabytes, about seventeen seconds — purely so the browser
+    could run `filter` over the array twelve times. See lib/orderSummary.ts.
+  */
   useEffect(() => {
     Promise.all([
-      listOrders(),
+      fetchDashboardSummary(),
+      listOrdersPage({ limit: 30, fields: 'list', parentOrderId: '' }),
       // Visibility is applied server-side, so no uid filter is passed here.
       listParties({ role: 'client' }),
       listCarriers(),
-    ]).then(([allOrders, allClients, allCarriers]) => {
-      setOrders(allOrders);
+    ]).then(([sum, recent, allClients, allCarriers]) => {
+      setSummary(sum);
+      setOrders(recent.orders);
       setClients(allClients);
       setCarriers(allCarriers);
-      const alertOrders = isAdmin ? allOrders : allOrders.filter((o) => o.createdBy === user?.uid);
+      // Alerts are raised from the loads that still need attention, which is
+      // what the summary's samples already are — the full book is not needed
+      // and never was, since an alert about a load closed last year is noise.
+      const attention = [
+        ...sum.overdueInvoices.items, ...sum.unsignedOrders.items,
+        ...sum.staleQuotes.items, ...sum.documentsMissing.items,
+        ...sum.pendingPickup.items, ...sum.inTransit.items,
+      ] as unknown as Order[];
+      const byId = new Map(attention.map((o) => [o.id, o]));
+      const alertOrders = isAdmin
+        ? [...byId.values()]
+        : [...byId.values()].filter((o) => o.createdBy === user?.uid);
       setAlerts(getAlerts(alertOrders));
     }).finally(() => setLoading(false));
+
+    // Deliberately not awaited with the rest: it takes roughly eight times as
+    // long as every other card combined, and one slow card should not hold up
+    // eleven fast ones.
+    fetchActiveClientLoads().then(setClientLoads).catch(() => setClientLoads({}));
   }, []);
 
-  const primary = orders.filter((o) => o.parentOrderId === null || o.parentOrderId === undefined);
+  /*
+    Every figure below is a number the server counted, not a length the browser
+    worked out. `.items` on each is a sample for the hover list — at most
+    twenty-five — so a card's tooltip shows the most recent few and the card
+    itself shows the true total.
+  */
+  const s = summary;
+  const empty = { count: 0, items: [] as Record<string, unknown>[] };
+  const as = (rows: Record<string, unknown>[]) => rows as unknown as Order[];
 
-  // ── Primary stats ─────────────────────────────────────────────────────────
-  const activeOrders        = primary.filter((o) => o.status !== 'completed' && o.status !== 'cancelled');
-  const pendingPickupOrders = primary.filter((o) => PENDING_PICKUP_STATUSES.has(o.status));
-  const inTransitOrders     = primary.filter((o) => o.status === 'in_transit');
-  const deliveredToday      = primary.filter((o) => o.status === 'delivered' && isToday(o.deliveredAt as TS));
+  const activeOrders        = s?.activeOrders   ?? empty;
+  const pendingPickupOrders = s?.pendingPickup  ?? empty;
+  const inTransitOrders     = s?.inTransit      ?? empty;
+  const deliveredToday      = s?.deliveredToday ?? empty;
+  const bookedToday         = s?.bookedToday    ?? empty;
 
-  // ── This month ────────────────────────────────────────────────────────────
-  const thisMonth          = primary.filter((o) => isThisMonth(o.createdAt as TS));
-  const thisMonthActive    = thisMonth.filter((o) => o.status !== 'cancelled');
-  const cancelledThisMonth = thisMonth.filter((o) => o.status === 'cancelled');
-  const cancelRate         = thisMonth.length > 0
-    ? Math.round((cancelledThisMonth.length / thisMonth.length) * 100)
-    : 0;
+  const revenueThisMonth   = s?.thisMonth.revenue     ?? 0;
+  const totalTariff        = s?.thisMonth.totalTariff ?? 0;
+  const cancelRate         = s?.thisMonth.cancelRate  ?? 0;
+  const cancelledThisMonth = {
+    count: s?.thisMonth.cancelled ?? 0,
+    items: s?.thisMonth.cancelledItems ?? [],
+  };
+  const thisMonthActive = { count: s?.thisMonth.orders ?? 0, items: s?.thisMonth.items ?? [] };
 
-  const revenueThisMonth = thisMonthActive.reduce((sum, o) => sum + (o.agreedRate || 0), 0);
-  const totalTariff      = thisMonthActive.reduce((sum, o) => sum + (o.brokerFee   || 0), 0);
-  const bookedToday      = primary.filter((o) => isToday(o.createdAt as TS));
+  const deliveredThisMonth = s?.deliveredThisMonth ?? empty;
+  const overdueInvoices    = s?.overdueInvoices    ?? empty;
+  const unsignedOrders     = s?.unsignedOrders     ?? empty;
+  const staleQuotes        = s?.staleQuotes        ?? empty;
+  const documentsMissing   = s?.documentsMissing   ?? empty;
 
-  const deliveredThisMonth = primary.filter((o) =>
-    (o.status === 'delivered' || o.status === 'completed') && isThisMonth(o.deliveredAt as TS)
-  );
   const newClientsThisMonth = clients.filter((c) => isThisMonth(c.createdAt as TS));
 
-  // ── Action needed ─────────────────────────────────────────────────────────
-  const overdueInvoices = primary.filter((o) =>
-    (o.status === 'delivered' || o.status === 'completed') && !o.invoiceStoragePath
-  );
-
-  const unsignedOrders = primary.filter((o) =>
-    o.status !== 'quote' && o.status !== 'booked' && o.status !== 'cancelled' &&
-    (!o.carrierSignedAt || !o.shipperSignedAt)
-  );
-
-  const staleQuotes = primary.filter((o) => {
-    if (o.status !== 'quote') return false;
-    const updated = (o.updatedAt as any)?.toDate?.() as Date | undefined;
-    return updated ? Date.now() - updated.getTime() > 7 * 24 * 60 * 60 * 1000 : false;
-  });
-
-  const documentsMissing = primary.filter((o) => {
-    const needsBol = ['in_transit', 'delivered', 'completed'].includes(o.status) && !o.bolStoragePath;
-    const needsPod = ['delivered', 'completed'].includes(o.status) && !o.podStoragePath;
-    return needsBol || needsPod;
-  });
-
   const expiringCarriers = carriers.filter((c) => {
-    const s = getInsuranceStatus(c.insuranceExpiration);
-    return s === 'expiring_soon' || s === 'expired';
+    const st = getInsuranceStatus(c.insuranceExpiration);
+    return st === 'expiring_soon' || st === 'expired';
   });
 
-  // ── Clients ───────────────────────────────────────────────────────────────
-  const activeClientIds = new Set(activeOrders.map((o) => o.clientId).filter(Boolean));
-  const clientMap       = new Map(clients.map((c) => [c.id, c]));
+  // ── Clients ────────────────────────────────────────────────────────────
+  const activeClientLoads = clientLoads ?? {};
+  const activeClientIds   = new Set(Object.keys(activeClientLoads));
+  const clientMap         = new Map(clients.map((c) => [c.id, c]));
 
   // ── Card definitions ──────────────────────────────────────────────────────
   const PRIMARY_CARDS: StatCard[] = [
     {
       label: 'Active Orders',
-      value: activeOrders.length,
+      value: activeOrders.count,
       color: 'bg-blue-50 border-blue-200 text-blue-700',
       icon: PackageOpen, anim: 'animate-bounce', hoverAnim: 'animate-pop',
-      items: activeOrders.map((o) => orderToItem(o, STATUS_LABEL[o.status])),
+      items: as(activeOrders.items).map((o) => orderToItem(o, STATUS_LABEL[o.status])),
       emptyMsg: 'No active orders',
     },
     {
       label: 'Pending Pick-ups',
-      value: pendingPickupOrders.length,
+      value: pendingPickupOrders.count,
       color: 'bg-yellow-50 border-yellow-200 text-yellow-700',
       icon: Clock, anim: 'animate-spin [animation-duration:3s]', hoverAnim: 'animate-spin [animation-duration:0.8s]',
-      items: pendingPickupOrders.map((o) => orderToItem(o, formatDate(o.pickupDate as TS))),
+      items: as(pendingPickupOrders.items).map((o) => orderToItem(o, formatDate(o.pickupDate as TS))),
       emptyMsg: 'No pending pick-ups',
     },
     {
       label: 'In Transit',
-      value: inTransitOrders.length,
+      value: inTransitOrders.count,
       color: 'bg-purple-50 border-purple-200 text-purple-700',
       icon: Truck, anim: 'animate-truck-pass', truckPass: true,
-      items: inTransitOrders.map((o) => orderToItem(o, formatDate(o.pickupDate as TS))),
+      items: as(inTransitOrders.items).map((o) => orderToItem(o, formatDate(o.pickupDate as TS))),
       emptyMsg: 'No loads in transit',
     },
     {
       label: 'Delivered Today',
-      value: deliveredToday.length,
+      value: deliveredToday.count,
       color: 'bg-green-50 border-green-200 text-green-700',
       icon: PackageCheck, anim: '', hoverAnim: 'animate-bounce',
-      items: deliveredToday.map((o) => orderToItem(o, formatCurrency(o.agreedRate))),
+      items: as(deliveredToday.items).map((o) => orderToItem(o, formatCurrency(o.agreedRate))),
       emptyMsg: 'No deliveries today yet',
     },
   ];
@@ -297,7 +315,7 @@ export default function DashboardPage() {
       value: formatCurrency(revenueThisMonth),
       color: 'bg-emerald-50 border-emerald-200 text-emerald-700',
       icon: DollarSign, anim: '', hoverAnim: 'animate-bounce',
-      items: thisMonthActive.map((o) => orderToItem(o, formatCurrency(o.agreedRate))),
+      items: as(thisMonthActive.items).map((o) => orderToItem(o, formatCurrency(o.agreedRate))),
       emptyMsg: 'No revenue this month',
     },
     {
@@ -305,39 +323,39 @@ export default function DashboardPage() {
       value: formatCurrency(totalTariff),
       color: 'bg-teal-50 border-teal-200 text-teal-700',
       icon: TrendingUp, anim: '', hoverAnim: 'animate-pulse',
-      items: thisMonthActive.map((o) => orderToItem(o, formatCurrency(o.brokerFee))),
+      items: as(thisMonthActive.items).map((o) => orderToItem(o, formatCurrency(o.brokerFee))),
       emptyMsg: 'No tariff this month',
     },
     {
       label: 'Loads Booked Today',
-      value: bookedToday.length,
+      value: bookedToday.count,
       color: 'bg-sky-50 border-sky-200 text-sky-700',
       icon: FilePlus, anim: '', hoverAnim: 'animate-bounce',
-      items: bookedToday.map((o) => orderToItem(o, STATUS_LABEL[o.status])),
+      items: as(bookedToday.items).map((o) => orderToItem(o, STATUS_LABEL[o.status])),
       emptyMsg: 'No loads booked today',
     },
     {
       label: 'Cancelled This Month',
-      value: `${cancelledThisMonth.length} (${cancelRate}%)`,
+      value: `${cancelledThisMonth.count} (${cancelRate}%)`,
       color: 'bg-red-50 border-red-200 text-red-700',
       icon: XCircle, anim: '', hoverAnim: 'animate-spin [animation-duration:1.5s]',
-      items: cancelledThisMonth.map((o) => orderToItem(o, formatDate(o.updatedAt as TS))),
+      items: as(cancelledThisMonth.items).map((o) => orderToItem(o, formatDate(o.updatedAt as TS))),
       emptyMsg: 'No cancellations this month',
     },
     {
       label: 'Overdue Invoices',
-      value: overdueInvoices.length,
+      value: overdueInvoices.count,
       color: 'bg-orange-50 border-orange-200 text-orange-700',
-      icon: ReceiptText, anim: overdueInvoices.length > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-bounce',
-      items: overdueInvoices.map((o) => orderToItem(o, STATUS_LABEL[o.status])),
+      icon: ReceiptText, anim: overdueInvoices.count > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-bounce',
+      items: as(overdueInvoices.items).map((o) => orderToItem(o, STATUS_LABEL[o.status])),
       emptyMsg: 'All invoices uploaded',
     },
     {
       label: 'Unsigned Agreements',
-      value: unsignedOrders.length,
+      value: unsignedOrders.count,
       color: 'bg-amber-50 border-amber-200 text-amber-700',
-      icon: PenLine, anim: unsignedOrders.length > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-wiggle',
-      items: unsignedOrders.map((o) => {
+      icon: PenLine, anim: unsignedOrders.count > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-wiggle',
+      items: as(unsignedOrders.items).map((o) => {
         const missing: string[] = [];
         if (!o.carrierSignedAt) missing.push('Carrier');
         if (!o.shipperSignedAt) missing.push('Shipper');
@@ -347,10 +365,10 @@ export default function DashboardPage() {
     },
     {
       label: 'Stale Quotes',
-      value: staleQuotes.length,
+      value: staleQuotes.count,
       color: 'bg-lime-50 border-lime-200 text-lime-700',
       icon: Hourglass, anim: '', hoverAnim: 'animate-spin [animation-duration:2s]',
-      items: staleQuotes.map((o) => {
+      items: as(staleQuotes.items).map((o) => {
         const updated = (o.updatedAt as any)?.toDate?.() as Date | undefined;
         const days = updated ? Math.floor((Date.now() - updated.getTime()) / 86_400_000) : null;
         return orderToItem(o, days !== null ? `${days}d old` : undefined);
@@ -359,12 +377,14 @@ export default function DashboardPage() {
     },
     {
       label: 'Active Clients',
-      value: activeClientIds.size,
+      // Its own request is still in flight — say so rather than flash a
+      // confident zero that corrects itself a moment later.
+      value: clientLoads === null ? '…' : activeClientIds.size,
       color: 'bg-indigo-50 border-indigo-200 text-indigo-700',
       icon: Building2, anim: '', hoverAnim: 'animate-pulse',
       items: Array.from(activeClientIds).map((id) => {
         const client    = clientMap.get(id);
-        const loadCount = activeOrders.filter((o) => o.clientId === id).length;
+        const loadCount = activeClientLoads[id] ?? 0;
         return {
           id,
           label: client ? partyDisplayName(client) : id,
@@ -377,10 +397,10 @@ export default function DashboardPage() {
     },
     {
       label: 'Delivered This Month',
-      value: deliveredThisMonth.length,
+      value: deliveredThisMonth.count,
       color: 'bg-violet-50 border-violet-200 text-violet-700',
       icon: FlagTriangleRight, anim: '', hoverAnim: 'animate-bounce',
-      items: deliveredThisMonth.map((o) => orderToItem(o, formatDate(o.deliveredAt as TS))),
+      items: as(deliveredThisMonth.items).map((o) => orderToItem(o, formatDate(o.deliveredAt as TS))),
       emptyMsg: 'No deliveries this month yet',
     },
     {
@@ -417,10 +437,10 @@ export default function DashboardPage() {
     },
     {
       label: 'Documents Missing',
-      value: documentsMissing.length,
+      value: documentsMissing.count,
       color: 'bg-pink-50 border-pink-200 text-pink-700',
-      icon: Paperclip, anim: documentsMissing.length > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-wiggle',
-      items: documentsMissing.map((o) => {
+      icon: Paperclip, anim: documentsMissing.count > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-wiggle',
+      items: as(documentsMissing.items).map((o) => {
         const missing: string[] = [];
         if (['in_transit', 'delivered', 'completed'].includes(o.status) && !o.bolStoragePath) missing.push('BOL');
         if (['delivered', 'completed'].includes(o.status) && !o.podStoragePath) missing.push('POD');
@@ -430,7 +450,7 @@ export default function DashboardPage() {
     },
   ];
 
-  const recentOrders = primary.slice(0, 30);
+  const recentOrders = orders;
 
   return (
     <div className="p-8 max-w-6xl mx-auto">

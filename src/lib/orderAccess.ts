@@ -12,6 +12,7 @@
  */
 
 import { adminDb, AdminAuthError } from './firebase-admin';
+import { Timestamp } from 'firebase-admin/firestore';
 import { canSeeAllParties, canSeeOrder } from './accessControl';
 import { ownerLabel } from './partyAccess';
 import type { Caller } from './partyAccess';
@@ -19,22 +20,230 @@ import type { Caller } from './partyAccess';
 const COL = 'orders';
 
 /**
- * Every order the caller may see.
+ * The fields the list screens actually render.
  *
- * Privileged roles get the collection. Everyone else gets the union of four
- * targeted queries rather than a full scan: two for orders assigned to them
- * directly or to a work group they are in, and two for orders whose *client*
- * they own. Fetching everything and filtering in memory would work but would
- * read the entire collection on every dashboard load.
+ * Orders average about 1.2 KB each, and the list shows nine columns of that.
+ * Sending the whole document was costing roughly 12 MB on a collection of ten
+ * thousand — projecting to these fields cuts the payload to a bit over a third
+ * and roughly halves the time Firestore takes to serve it.
+ *
+ * `parentOrderId` is here despite never being displayed: the list hides
+ * suborders, and a row cannot be filtered out by a field it was not sent.
+ * `createdAt` likewise — it is the sort key and the paging cursor.
  */
-export async function listVisibleOrders(caller: Caller): Promise<Record<string, unknown>[]> {
+const LIST_FIELDS = [
+  'orderNumber', 'batsId', 'previousOrderNumber',
+  'clientName', 'shipperName', 'origin', 'destination',
+  'commodity', 'status', 'pickupDate', 'agreedRate',
+  'parentOrderId', 'createdAt',
+] as const;
+
+/**
+ * The fields the analytics charts read. A much narrower slice than the list —
+ * that page works over years of history rather than a page of fifty, so the
+ * per-order weight is what decides whether it is usable at all.
+ */
+const ANALYTICS_FIELDS = [
+  'status', 'pickupDate', 'agreedRate', 'carrierPay',
+  'clientId', 'clientName', 'transportType',
+] as const;
+
+/** What a caller may ask of the order list. */
+export interface OrderQuery {
+  /** Page size. Omitted means every visible order — see listVisibleOrders. */
+  limit?: number;
+  /** Opaque cursor from a previous page. */
+  cursor?: string | null;
+  status?: string;
+  carrierId?: string;
+  /**
+   * The three party roles are separate filters, not one, because the role
+   * lives on the order rather than on the party — the same company can be the
+   * client on one load and the consignee on another, and a screen showing
+   * "this party's orders" has to ask about each role it might have played.
+   */
+  clientId?: string;
+  shipperId?: string;
+  consigneeId?: string;
+  /** '' selects top-level orders; an id selects that order's suborders. */
+  parentOrderId?: string;
+  /**
+   * Only orders carrying this attachment. The Documents screen is a list of
+   * files, and the overwhelming majority of orders have none — asking for
+   * every order and discarding the ones with nothing attached meant reading
+   * ten thousand documents to render a handful of rows.
+   */
+  hasDocument?: DocumentField;
+  /**
+   * Earliest pickup date to include, as epoch milliseconds. Bounds the
+   * analytics history to the range actually being charted.
+   */
+  pickupFrom?: number;
+  /** Trims each order to the fields that shape of screen actually reads. */
+  fields?: 'list' | 'analytics' | 'full';
+}
+
+/** The four attachment paths an order can carry. */
+export const DOCUMENT_FIELDS = [
+  'bolStoragePath', 'invoiceStoragePath', 'podStoragePath', 'driverLicenseStoragePath',
+] as const;
+export type DocumentField = (typeof DOCUMENT_FIELDS)[number];
+
+export interface OrderPage {
+  orders: Record<string, unknown>[];
+  /** Pass back as `cursor` for the next page. null means this was the last. */
+  cursor: string | null;
+}
+
+/**
+ * A page of the orders the caller may see, newest first.
+ *
+ * The two visibility paths are paged very differently, and deliberately so.
+ *
+ * A privileged caller sees the whole collection — ten thousand orders and
+ * growing — so their page is a real Firestore cursor query that reads only the
+ * rows it returns. Everyone else sees the union of four queries (assigned to
+ * them, to their groups, or owned via the client on either), and a union cannot
+ * be cursor-paged without an index for every branch *times* every filter. It
+ * does not need to be: a broker sees the loads they are working, which is a
+ * small set by construction, so that path reads its union once and pages it in
+ * memory. The asymmetry is the point — it is the same reason the two paths
+ * exist at all.
+ */
+export async function listVisibleOrdersPage(
+  caller: Caller,
+  query: OrderQuery = {},
+): Promise<OrderPage> {
+  const col = adminDb.collection(COL);
+  const projection = PROJECTIONS[query.fields ?? 'full'];
+
+  if (canSeeAllParties(caller.profile)) {
+    let q: FirebaseFirestore.Query = col;
+    if (query.status)               q = q.where('status', '==', query.status);
+    if (query.carrierId)            q = q.where('carrierId', '==', query.carrierId);
+    if (query.clientId)             q = q.where('clientId', '==', query.clientId);
+    if (query.shipperId)            q = q.where('shipperId', '==', query.shipperId);
+    if (query.consigneeId)          q = q.where('consigneeId', '==', query.consigneeId);
+    // `!= null` rather than `> ''`: the field is written as null when there is
+    // no file, and an inequality also excludes documents missing it entirely,
+    // which is what "has an attachment" should mean.
+    if (query.hasDocument)          q = q.where(query.hasDocument, '!=', null);
+    if (query.parentOrderId != null) {
+      // A suborder's parent is stored as null, not an empty string, so the
+      // "top level only" case has to ask for null rather than ''.
+      q = q.where('parentOrderId', '==', query.parentOrderId || null);
+    }
+
+    /*
+      Firestore insists that the field carrying an inequality is the first one
+      sorted on, which rules out the createdAt cursor used everywhere else. Both
+      inequality filters therefore return their result whole rather than paging
+      it, and both are bounded by their nature rather than by a page size: an
+      attachment is the exception among orders, and a pickup-date floor is
+      already the range the caller chose to look at.
+
+      Capped regardless, so neither can become an unbounded read — a company-wide
+      document drive, or an "all time" range some years from now.
+    */
+    if (query.hasDocument || query.pickupFrom) {
+      const sortField = query.hasDocument ?? 'pickupDate';
+      if (query.pickupFrom) {
+        q = q.where('pickupDate', '>=', Timestamp.fromMillis(query.pickupFrom));
+      }
+      if (projection) q = q.select(...projection);
+      const snap = await q.orderBy(sortField, 'desc').limit(query.limit ?? 20000).get();
+      return { orders: snap.docs.map((d) => ({ id: d.id, ...d.data() })), cursor: null };
+    }
+
+    // __name__ is ordered explicitly so the cursor is total: two orders sharing
+    // a createdAt (a BATS import gave a whole day the same timestamp) would
+    // otherwise page inconsistently, dropping or repeating rows at the seam.
+    q = q.orderBy('createdAt', 'desc').orderBy('__name__', 'desc');
+    if (projection) q = q.select(...projection);
+
+    const after = decodeCursor(query.cursor);
+    if (after) q = q.startAfter(after.createdAt, col.doc(after.id));
+
+    // One more than asked for, purely to learn whether a next page exists
+    // without running a second query for the answer.
+    if (query.limit) q = q.limit(query.limit + 1);
+
+    const snap = await q.get();
+    return toPage(snap.docs.map((d) => ({ id: d.id, ...d.data() })), query.limit);
+  }
+
+  const all = await unionForCaller(caller);
+  const filtered = all.filter((o) => matchesFilters(o, query));
+
+  // A cursor naming a row that is no longer in the set — the order was
+  // reassigned away between one page and the next — resolves to the end rather
+  // than the start. Restarting would serve page one again, and a "load more"
+  // button that quietly re-serves the first page never terminates.
+  const after = decodeCursor(query.cursor);
+  const at    = after ? filtered.findIndex((o) => o.id === after.id) : -1;
+  const rows  = after
+    ? (at === -1 ? [] : filtered.slice(at + 1))
+    : filtered;
+
+  const page = toPage(query.limit ? rows.slice(0, query.limit + 1) : rows, query.limit);
+  return projection
+    ? { ...page, orders: page.orders.map((o) => trimTo(o, projection)) }
+    : page;
+}
+
+/**
+ * Every order the caller may see, unpaged.
+ *
+ * Kept for the screens that genuinely aggregate over the whole set — analytics
+ * works out margin by month and cannot do that from one page. Everything that
+ * merely *shows a list* should call listVisibleOrdersPage instead: on the
+ * current collection this reads ten thousand documents and takes about
+ * seventeen seconds.
+ */
+export async function listVisibleOrders(
+  caller: Caller,
+  query: OrderQuery = {},
+): Promise<Record<string, unknown>[]> {
+  const { orders } = await listVisibleOrdersPage(caller, { ...query, limit: undefined });
+  return orders;
+}
+
+/**
+ * How many visible orders sit in each status.
+ *
+ * The filter tabs show a count beside every status, and they used to get it by
+ * counting a ten-thousand-element array in the browser — which meant the
+ * browser had to be sent all ten thousand. Firestore's count() reads at one
+ * document per thousand counted, so the whole row of tabs costs about eleven
+ * reads instead of ten thousand.
+ */
+export async function countVisibleOrdersByStatus(
+  caller: Caller,
+  statuses: readonly string[],
+): Promise<Record<string, number>> {
   const col = adminDb.collection(COL);
 
   if (canSeeAllParties(caller.profile)) {
-    const snap = await col.orderBy('createdAt', 'desc').get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const counts = await Promise.all(
+      statuses.map((s) =>
+        col.where('parentOrderId', '==', null).where('status', '==', s).count().get()
+          .then((r) => [s, r.data().count] as const),
+      ),
+    );
+    return Object.fromEntries(counts);
   }
 
+  // The union path already holds every row it can see in memory, so counting
+  // them there is free and avoids four aggregations per status.
+  const all = (await unionForCaller(caller)).filter((o) => !o.parentOrderId);
+  return Object.fromEntries(
+    statuses.map((s) => [s, all.filter((o) => o.status === s).length]),
+  );
+}
+
+/** The four-query union that stands in for a query the rules could approve. */
+async function unionForCaller(caller: Caller): Promise<Record<string, unknown>[]> {
+  const col = adminDb.collection(COL);
   const groupIds = caller.profile.groupIds ?? [];
   // array-contains-any caps at 30 values, far more work groups than one person
   // would ever belong to.
@@ -60,6 +269,63 @@ export async function listVisibleOrders(caller: Caller): Promise<Record<string, 
   // composite index to carry an orderBy, and the union has to be re-sorted
   // afterwards regardless.
   return [...byId.values()].sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+}
+
+/** The in-memory equivalent of the where() clauses the privileged path pushes down. */
+function matchesFilters(order: Record<string, unknown>, query: OrderQuery): boolean {
+  if (query.status && order.status !== query.status) return false;
+  if (query.carrierId && order.carrierId !== query.carrierId) return false;
+  if (query.clientId && order.clientId !== query.clientId) return false;
+  if (query.shipperId && order.shipperId !== query.shipperId) return false;
+  if (query.consigneeId && order.consigneeId !== query.consigneeId) return false;
+  if (query.hasDocument && !order[query.hasDocument]) return false;
+  if (query.pickupFrom && toMillis(order.pickupDate) < query.pickupFrom) return false;
+  if (query.parentOrderId != null) {
+    const want = query.parentOrderId || null;
+    if ((order.parentOrderId ?? null) !== want) return false;
+  }
+  return true;
+}
+
+/** What each `fields` value selects. `full` projects nothing and sends it all. */
+const PROJECTIONS: Record<string, readonly string[] | null> = {
+  list:      LIST_FIELDS,
+  analytics: ANALYTICS_FIELDS,
+  full:      null,
+};
+
+function trimTo(order: Record<string, unknown>, fields: readonly string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = { id: order.id };
+  for (const f of fields) if (order[f] !== undefined) out[f] = order[f];
+  return out;
+}
+
+/** Splits off the extra row fetched to detect a next page, and mints its cursor. */
+function toPage(rows: Record<string, unknown>[], limit?: number): OrderPage {
+  if (!limit || rows.length <= limit) return { orders: rows, cursor: null };
+  const page = rows.slice(0, limit);
+  return { orders: page, cursor: encodeCursor(page[page.length - 1]) };
+}
+
+/**
+ * Cursors are opaque to the browser on purpose: they name a position in a
+ * result set the caller may not see all of, and a client that could forge one
+ * would be naming a document id it was never given.
+ */
+function encodeCursor(order: Record<string, unknown>): string {
+  const raw = `${toMillis(order.createdAt)}:${order.id}`;
+  return Buffer.from(raw, 'utf8').toString('base64url');
+}
+
+function decodeCursor(cursor: string | null | undefined): { createdAt: Date; id: string } | null {
+  if (!cursor) return null;
+  const raw = Buffer.from(cursor, 'base64url').toString('utf8');
+  const at  = raw.indexOf(':');
+  if (at < 1) return null;
+  const millis = Number(raw.slice(0, at));
+  const id     = raw.slice(at + 1);
+  if (!Number.isFinite(millis) || !id) return null;
+  return { createdAt: new Date(millis), id };
 }
 
 /** Firestore Timestamps sort by their epoch millis; anything missing sorts last. */

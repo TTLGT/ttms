@@ -63,6 +63,12 @@ function formatCurrency(n: number | undefined): string {
 }
 
 /** Which role this party played on a given order — it may be more than one. */
+/** Firestore Timestamps sort by their epoch millis; anything missing sorts last. */
+function millis(value: unknown): number {
+  const ts = value as { toMillis?: () => number } | null | undefined;
+  return typeof ts?.toMillis === 'function' ? ts.toMillis() : 0;
+}
+
 function rolesOnOrder(order: Order, partyId: string): PartyRole[] {
   const roles: PartyRole[] = [];
   if (order.clientId === partyId)    roles.push('client');
@@ -128,8 +134,21 @@ export default function PartyDetailPage() {
         const p = access.party;
         setParty(p);
         setLeadSources(await listLeadSources().catch(() => []));
-        const all = await listOrders();
-        setOrders(all.filter((o) => rolesOnOrder(o, partyId).length > 0));
+        // Three queries rather than one scan of every order in the company.
+        // A party can have played any of the three roles on a given load and
+        // the role lives on the order, so each is asked for separately and the
+        // results merged — a party that was both shipper and consignee on the
+        // same order would otherwise appear twice.
+        const [asClient, asShipper, asConsignee] = await Promise.all([
+          listOrders({ clientId: partyId }),
+          listOrders({ shipperId: partyId }),
+          listOrders({ consigneeId: partyId }),
+        ]);
+        const byId = new Map<string, Order>();
+        for (const o of [...asClient, ...asShipper, ...asConsignee]) byId.set(o.id, o);
+        setOrders([...byId.values()].sort(
+          (a, b) => millis(b.createdAt) - millis(a.createdAt),
+        ));
         // Group names are needed for the ownership summary even for non-admins.
         setGroups(await listWorkGroups().catch(() => []));
         if (canAssign) setProfiles(await listUserProfiles());

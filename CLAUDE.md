@@ -144,6 +144,16 @@ scripts cannot import TypeScript either:
 |---|---|
 | `toSourceKey()` + `leadSourceDocId()` | `scripts/import-bats.js` |
 
+| `src/types/carrier.ts` | mirrored in |
+|---|---|
+| `carrierNameKey()` | `scripts/import-bats.js`, `scripts/backfill-carrier-name-keys.js` |
+
+`carrierNameKey` is what the carriers list searches on. **Anything that writes a
+carrier must write `nameKey` alongside `companyName`** — `createCarrier`,
+`updateCarrier` and both BATS importers do. A carrier saved without one exists
+but cannot be found by name, and one whose name changes without its key being
+rewritten stays findable only under the name it used to have.
+
 Both carry "keep in sync" comments. **After editing either, deploy the rules
 (below) — otherwise only half the change is live.**
 
@@ -180,6 +190,37 @@ node scripts/rollback-rules.js --to <rulesetId>
 
 If you edit a rules file, say plainly in your summary that it is not live until
 that script is run.
+
+**Composite indexes work the same way.** They live in `firestore.indexes.json`
+and are created by `scripts/deploy-indexes.js`. A missing index is worse than a
+missing rule: the query does not run slowly, it fails outright, so a page that
+needs one is broken until the index reports `READY`.
+
+```bash
+node scripts/deploy-indexes.js --dry-run   # what is missing
+node scripts/deploy-indexes.js             # create them
+node scripts/deploy-indexes.js --list      # what exists, and its build state
+```
+
+**The service account cannot create indexes.** It can read them, and it can
+deploy rules, but `roles/firebase.sdkAdminServiceAgent` does not carry
+`datastore.indexes.create`, so the script above fails with "The caller does not
+have permission" until somebody grants it Cloud Datastore Index Admin. Until
+then, deploy them as a human instead — same file, no IAM change:
+
+```bash
+npx -y firebase-tools login
+npx -y firebase-tools deploy --only firestore:indexes --project ttms-59aa5
+```
+
+`firestore.indexes.json` must list **every** index the project has, including
+ones this app does not query — the CLI offers to delete anything present in
+Firestore but absent from the file. The chat `replies` index is in there for
+exactly that reason; do not tidy it out.
+
+Adding a filter or a sort to a list screen usually needs a new index. Add it to
+`firestore.indexes.json` and to the table in the Schema Guide, and say in your
+summary that it is not live until the script is run.
 
 Storage rules cannot read Firestore, so they gate on the `ttlAccess` custom
 claim set at sign-in — which is why revoked access lags in Storage for up to an

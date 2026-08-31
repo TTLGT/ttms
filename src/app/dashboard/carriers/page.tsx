@@ -1,11 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { listCarriers } from '@/lib/carriers';
+import { listCarriersPage, countCarriers } from '@/lib/carriers';
 import type { Carrier } from '@/types/carrier';
+import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+
+/** See the orders list for why fifty. */
+const PAGE_SIZE = 50;
 
 export default function CarriersPage() {
   // Dates are written the way the company setting says — see Settings →
@@ -13,25 +17,60 @@ export default function CarriersPage() {
   const { formatDate } = useDateFormatters();
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [cursor, setCursor]     = useState<QueryDocumentSnapshot | null>(null);
   const [error, setError]       = useState('');
   const [search, setSearch]     = useState('');
   const [showInactive, setShowInactive] = useState(false);
 
-  useEffect(() => {
-    listCarriers()
-      .then(setCarriers)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
+  /**
+   * What the list is actually showing, as opposed to what is in the box. The
+   * two are kept apart so every keystroke does not become a query — see the
+   * debounce below.
+   */
+  const [applied, setApplied] = useState('');
 
-  const filtered = carriers
-    .filter((c) => showInactive || c.isActive)
-    .filter((c) =>
-      !search.trim() ||
-      c.companyName.toLowerCase().includes(search.toLowerCase()) ||
-      c.dot.includes(search) ||
-      c.mc.includes(search)
-    );
+  useEffect(() => {
+    // 250ms is long enough that typing a carrier name is one query rather than
+    // fifteen, and short enough that the list feels like it is keeping up.
+    const t = setTimeout(() => setApplied(search.trim()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Discards a response whose request has been superseded — a slow search
+  // landing after a later one would otherwise show results for the wrong text.
+  const requestId = useRef(0);
+
+  const loadPage = useCallback(async (after: QueryDocumentSnapshot | null) => {
+    const mine = ++requestId.current;
+    if (after) setLoadingMore(true); else setLoading(true);
+    try {
+      const page = await listCarriersPage({
+        limit:      PAGE_SIZE,
+        after,
+        search:     applied,
+        activeOnly: !showInactive,
+      });
+      if (mine !== requestId.current) return;
+      setCarriers((prev) => (after ? [...prev, ...page.carriers] : page.carriers));
+      setCursor(page.cursor);
+      setError('');
+    } catch (e) {
+      if (mine === requestId.current) setError((e as Error).message);
+    } finally {
+      if (mine === requestId.current) { setLoading(false); setLoadingMore(false); }
+    }
+  }, [applied, showInactive]);
+
+  // Re-runs whenever the search text or the inactive toggle changes, which
+  // starts that query over from its first page.
+  useEffect(() => { setCarriers([]); setCursor(null); void loadPage(null); }, [loadPage]);
+
+  // Counted by the database, once. These do not move as pages are appended.
+  const [counts, setCounts] = useState<{ active: number; inactive: number } | null>(null);
+  useEffect(() => { countCarriers().then(setCounts).catch(() => setCounts(null)); }, []);
+
+  const filtered = carriers;
 
   return (
     <div className="p-8">
@@ -40,7 +79,9 @@ export default function CarriersPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Carriers</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {carriers.filter((c) => c.isActive).length} active · {carriers.filter((c) => !c.isActive).length} inactive
+            {counts
+              ? `${counts.active.toLocaleString()} active · ${counts.inactive.toLocaleString()} inactive`
+              : '…'}
           </p>
         </div>
         <Link
@@ -55,7 +96,7 @@ export default function CarriersPage() {
       <div className="flex items-center gap-4 mb-4">
         <input
           type="text"
-          placeholder="Search by name, DOT, or MC…"
+          placeholder="Search by name start, DOT, or MC…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-72 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
@@ -131,6 +172,25 @@ export default function CarriersPage() {
               ))}
             </tbody>
           </table>
+
+          {cursor && (
+            <div className="flex flex-col items-center gap-1 border-t border-gray-100 py-4">
+              <button
+                onClick={() => void loadPage(cursor)}
+                disabled={loadingMore}
+                className="px-4 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50 rounded-lg transition disabled:opacity-50"
+              >
+                {loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} more`}
+              </button>
+              <p className="text-xs text-gray-400">
+                Showing {filtered.length.toLocaleString()}
+                {!applied && counts &&
+                  ` of ${(showInactive
+                    ? counts.active + counts.inactive
+                    : counts.active).toLocaleString()}`}
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
