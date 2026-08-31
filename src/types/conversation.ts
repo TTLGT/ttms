@@ -18,8 +18,24 @@ import type { Timestamp } from 'firebase/firestore';
  *    each other at the same moment would otherwise create two separate threads
  *    and each would see half the conversation.
  *  - `group` — a named room with a chosen membership.
+ *  - `record` — the room about one order. Like a group in every way the rules
+ *    care about, and different in the one way that matters: nobody is invited
+ *    to it. Its id is derived from the record (see recordConversationId), and
+ *    anyone who can already see that order joins by opening it — which is a
+ *    check only the server can make, so /api/chat/conversations is the only
+ *    way in. That is the whole point of chat living inside TTMS: every
+ *    conversation about a load is reachable from the load, a year later.
  */
-export type ConversationKind = 'company' | 'direct' | 'group';
+export type ConversationKind = 'company' | 'direct' | 'group' | 'record';
+
+/**
+ * What a record room is about. Only orders for now.
+ *
+ * Kept as a field rather than baked into the id format because carriers and
+ * clients are the obvious next two, and a room whose type has to be inferred
+ * by parsing its id is a room nothing can query for.
+ */
+export type RecordKind = 'order';
 
 /** The one room everyone is in. A fixed id so it can be read without a query. */
 export const COMPANY_CONVERSATION_ID = 'company';
@@ -144,7 +160,79 @@ export interface Conversation {
    * arguing about one load do not interrupt the twenty who are not in it.
    */
   threadPings?: Record<string, ThreadPing>;
+  /**
+   * The messages pinned to the top of this room, as `{ [messageId]: pin }`.
+   *
+   * **A map rather than an array**, which is what makes it safe to write from
+   * the browser. An array has to be sent whole, so two people pinning at the
+   * same moment would lose one of the pins — and a rule allowing the write
+   * would be allowing anybody in the room to replace every pin in it. A map
+   * keyed by message id is written one dotted path at a time: pinning touches
+   * `pinned.<id>` and nothing else, and unpinning deletes that one field.
+   *
+   * The message is copied into the pin for the usual reason — the pin bar has
+   * to draw in one read, and a pinned message is very often older than the
+   * loaded window, so there is nothing on screen to read it off. It goes stale
+   * the way every copy in this file does: editing a pinned message does not
+   * rewrite the pin. Clicking it still jumps to the message itself when it is
+   * loaded, which is where the truth is.
+   */
+  pinned?: Record<string, PinnedMessage>;
+
+  /* --------------------------------------------------------- record rooms */
+
+  /** Record rooms only: what kind of record this room is about. */
+  recordType?: RecordKind;
+  /** Record rooms only: the document id of that record. */
+  recordId?: string;
+  /**
+   * Record rooms only: what that record is called — an order's display number.
+   *
+   * Copied at creation so the room can be titled without reading the order,
+   * which most people in the room could not do anyway at the moment the list
+   * is drawn. An order number never changes once issued, so unlike the other
+   * copies in this file this one does not go stale.
+   */
+  recordLabel?: string;
 }
+
+/**
+ * One pinned message: enough to draw the pin bar without reading the message.
+ *
+ * `at` is plain millis from the writer's clock, not a server timestamp.
+ * Firestore refuses a server timestamp anywhere inside a map written as a
+ * value, and the field only orders one short list — the same trade the read
+ * marks make, for the same reason.
+ */
+export interface PinnedMessage {
+  messageId: string;
+  /** The message as it read when it was pinned, trimmed. '' for a file-only one. */
+  text: string;
+  senderUid: string;
+  senderName: string;
+  pinnedByUid: string;
+  pinnedByName: string;
+  at: number;
+  /**
+   * Set when what was pinned is a thread reply, naming the thread it sits in.
+   * Following the pin has to open that thread — the reply is not in the room,
+   * so jumping to it there would find nothing.
+   */
+  rootId?: string | null;
+}
+
+/**
+ * How many messages one room can hold pinned.
+ *
+ * A pin bar is a place for the standing facts — the on-call number, this
+ * week's priority load — and a list of thirty is not that. Enforced in the UI
+ * and again in the rules, so nobody can park a room's worth of text up there.
+ *
+ * **Keep in sync with the `pinned` branch of the conversation update rule in
+ * firestore.rules**, which cannot import this and carries the number written
+ * out. Raising it here alone leaves the rules refusing the eleventh pin.
+ */
+export const MAX_PINNED = 10;
 
 /** Who reacted, with what, to which of your messages — enough for a notification. */
 export interface ReactionPing {
@@ -415,6 +503,59 @@ export interface ChatReads {
    * message should be unread.
    */
   threadReadAt?: Record<string, number>;
+  /**
+   * How loud each room is for this person, as `{ [conversationId]: level }`.
+   *
+   * Deliberately on this document rather than on the conversation. It is a
+   * preference about the reader, not a fact about the room — two people in the
+   * same room want different things from it, and the busiest room in the
+   * company is the one nobody may leave. Keeping it here also means it needs
+   * no rules change at all: this document is already the one thing a user
+   * writes about themselves.
+   *
+   * An absent key is 'all', so nothing has to be written until somebody turns
+   * a room down.
+   */
+  notify?: Record<string, ConversationNotify>;
+  /**
+   * Conversations this person keeps at the top of their list.
+   *
+   * Per person, for the same reason as `notify`: which rooms matter is a fact
+   * about who is reading, not about the room. Order within the list is the
+   * order they were pinned in, which is the only order the reader chose.
+   */
+  pinnedConversations?: string[];
+  /** The same, for rows in the threads list. Keyed by the thread's root id. */
+  pinnedThreads?: string[];
+}
+
+/**
+ * How much a room is allowed to interrupt this reader.
+ *
+ *  - `all` — the default. Unread marks, desktop notification, sound.
+ *  - `mentions` — only what is addressed to them personally: an @, a reply in
+ *    a thread they are in, a reaction on something they said. Ordinary traffic
+ *    still arrives and is still readable; it simply stops badging and popping.
+ *  - `none` — nothing at all, including mentions. Genuinely silent.
+ *
+ * The middle one is the important one and it is why this is not a switch. A
+ * busy room that can only be all-or-nothing gets muted completely on its first
+ * loud day, and then the one message that was actually for you is lost too.
+ */
+export type ConversationNotify = 'all' | 'mentions' | 'none';
+
+export const NOTIFY_LABEL: Record<ConversationNotify, string> = {
+  all:      'All messages',
+  mentions: 'Only when I am named',
+  none:     'Nothing — muted',
+};
+
+/** What a room is set to for this reader. Absent means the default. */
+export function notifyLevel(
+  notify: Record<string, ConversationNotify> | undefined,
+  conversationId: string,
+): ConversationNotify {
+  return notify?.[conversationId] ?? 'all';
 }
 
 /**
@@ -426,6 +567,18 @@ export interface ChatReads {
  */
 export function directConversationId(uidA: string, uidB: string): string {
   return `dm_${[uidA, uidB].sort().join('_')}`;
+}
+
+/**
+ * The id of the room about one record, from the record itself.
+ *
+ * Derived rather than random for exactly the reason a direct thread's id is:
+ * two brokers pressing Discuss on the same load in the same minute must land
+ * in the same room. A random id would give them one each, and the second one
+ * would be a room about load 41207 that nobody else would ever find.
+ */
+export function recordConversationId(kind: RecordKind, recordId: string): string {
+  return `rec_${kind}_${recordId}`;
 }
 
 /** The other person in a direct thread, or null if it is not one. */
@@ -448,6 +601,10 @@ export function conversationTitle(
 ): string {
   if (c.kind === 'company') return 'Everyone';
   if (c.kind === 'group')   return c.name || 'Untitled room';
+  // Titled from the record it is about, never renamed by hand: two people
+  // looking for the conversation about a load have to arrive at the same name,
+  // and the load already has one.
+  if (c.kind === 'record')  return c.recordLabel || c.name || 'Record';
   const other = otherMemberUid(c, myUid);
   return other ? nameOf(other) : 'Just you';
 }

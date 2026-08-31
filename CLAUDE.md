@@ -131,6 +131,7 @@ Changing one without the other creates a silent security hole:
 | `canSeeOrder()` | `orderVisible()` |
 | `canEditSource()` | `canEditSource()` |
 | `isConversationMember()` in `src/types/conversation.ts` | `inConversation()` |
+| `MAX_PINNED` in `src/types/conversation.ts` | the count in the `pinned` branch of the conversation update rule |
 
 The owner matcher is duplicated three ways for the same reason — plain node
 scripts cannot import TypeScript either:

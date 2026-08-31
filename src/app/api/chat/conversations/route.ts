@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError, requireCompanyUser } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
+import { readOrder } from '@/lib/orderAccess';
 import { MAX_ROOM_NAME, validMembers } from '@/lib/chatServer';
+import { orderDisplayNumber } from '@/types/order';
 import {
   COMPANY_CONVERSATION_ID,
   CONVERSATIONS_COLLECTION,
   directConversationId,
+  recordConversationId,
 } from '@/types/conversation';
 
 /**
@@ -67,12 +70,15 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Opens a direct thread, or creates a named room.
+ * Opens a direct thread, opens the room about a record, or creates a named room.
  *
  * A direct thread is addressed by a deterministic id derived from the two
  * uids, so this doubles as "open the thread with this person": if it already
  * exists the existing one is returned untouched. Anything else would give two
- * colleagues who messaged each other simultaneously a thread each.
+ * colleagues who messaged each other simultaneously a thread each. A record
+ * room works the same way and for the same reason, with the id derived from
+ * the record — plus the access check that decides whether the caller may be in
+ * it at all.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -112,6 +118,84 @@ export async function POST(req: NextRequest) {
           if (e?.code !== 6) throw e;
         });
       }
+      return NextResponse.json({ id }, { status: 201 });
+    }
+
+    if (kind === 'record') {
+      const recordType = String(body.recordType ?? '');
+      // Orders only for now. Carriers and clients are the obvious next two,
+      // and each needs its own access check written here — which is the whole
+      // reason this is a closed list rather than a collection name off the
+      // request. A caller who could name the collection could open a room
+      // about a document nothing in this route knows how to gate.
+      if (recordType !== 'order') {
+        return NextResponse.json({ error: 'Unknown record type.' }, { status: 400 });
+      }
+
+      const recordId = String(body.recordId ?? '').trim();
+      if (!recordId) {
+        return NextResponse.json({ error: 'Which order?' }, { status: 400 });
+      }
+
+      /*
+       * The check this whole route exists for.
+       *
+       * A record room has no invitations: whoever can see the order is in the
+       * room about it, and joining is what opening it does. "Can this person
+       * see this order" is the union of their own ownership, their groups' and
+       * their clients' — the same question /api/orders answers, and one the
+       * browser cannot be trusted to answer about itself. So it is answered
+       * here, with the Admin SDK, before the caller's uid goes anywhere near
+       * the membership array the security rules read.
+       */
+      const access = await readOrder(caller, recordId);
+      if (access.status === 'missing') {
+        return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+      }
+      if (access.status === 'denied') {
+        // Named, like the order route itself does, so the answer is "this is
+        // Maria's load, ask her" rather than a dead end.
+        return NextResponse.json(
+          { error: 'You do not have access to this order', ownerName: access.ownerName },
+          { status: 403 },
+        );
+      }
+
+      const label = orderDisplayNumber(access.order as { orderNumber?: string; batsId?: string });
+      const id    = recordConversationId('order', recordId);
+      const ref   = adminDb.collection(COL).doc(id);
+      const snap  = await ref.get();
+
+      if (!snap.exists) {
+        try {
+          await ref.create({
+            kind:        'record',
+            // Held as the room's name too, so anything reading a conversation
+            // without knowing about record rooms still has something to show.
+            name:        `Order ${label}`,
+            recordType:  'order',
+            recordId,
+            recordLabel: label,
+            memberUids:  [caller.uid],
+            createdBy:   caller.uid,
+            createdAt:   FieldValue.serverTimestamp(),
+            updatedAt:   FieldValue.serverTimestamp(),
+            lastMessage: null,
+          });
+        } catch (e) {
+          // 6 = ALREADY_EXISTS: two people pressed Discuss on the same load in
+          // the same second. The loser joins the room the winner just made,
+          // which is exactly what a derived id is for.
+          if ((e as { code?: number }).code !== 6) throw e;
+          await ref.update({ memberUids: FieldValue.arrayUnion(caller.uid) });
+        }
+      } else if (!((snap.data()!.memberUids ?? []) as string[]).includes(caller.uid)) {
+        // Joining. `updatedAt` is left alone: arriving in a room is not
+        // speaking in it, and bumping it would shove the room to the top of
+        // the list of everybody already in it.
+        await ref.update({ memberUids: FieldValue.arrayUnion(caller.uid) });
+      }
+
       return NextResponse.json({ id }, { status: 201 });
     }
 

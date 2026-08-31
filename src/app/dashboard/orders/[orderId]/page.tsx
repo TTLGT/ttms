@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { getOrder, updateOrderStatus, updateOrder, listOrders, createOrder } from '@/lib/orders';
 import NoAccessPanel from '@/components/access/NoAccessPanel';
 import CopyLinkButton from '@/components/CopyLinkButton';
+import DiscussButton from '@/components/chat/DiscussButton';
 import { listCarriers } from '@/lib/carriers';
 import type { Order, OrderStatus } from '@/types/order';
 import type { Carrier } from '@/types/carrier';
@@ -628,6 +629,11 @@ export default function OrderDetailPage() {
           )}
         </div>
         <div className="flex gap-2">
+          {/* Beside the link button, not buried in a tab: the conversation
+              about a load is part of the load's record, and the whole point of
+              it living here is that nobody has to remember which room it was
+              in. See DiscussButton. */}
+          <DiscussButton recordId={orderId} />
           <CopyLinkButton />
           <Link href={`/dashboard/orders/${orderId}/edit`}
             className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">

@@ -7,6 +7,7 @@ import { clock } from '@/lib/chatFormat';
 import { formatMessage } from '@/lib/messageFormat';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import MessageAttachments from './MessageAttachments';
+import OrderCards from './OrderCards';
 import ReactionBar from './ReactionBar';
 import {
   MAX_MESSAGE_LENGTH,
@@ -187,6 +188,12 @@ export default function MessageBubble({
                   )}
               </p>
             )}
+
+            {/* The loads this message names, if the reader is allowed to see
+                them. Under the text rather than replacing the number in it:
+                what somebody typed stays exactly as they typed it, and the
+                card is TTMS answering the question the number asks. */}
+            {!message.deletedAt && message.text && <OrderCards text={message.text} />}
 
             {/* The clock sits inside the bubble, under the text, which is where
                 a chat has trained everyone to look for it — and it costs no

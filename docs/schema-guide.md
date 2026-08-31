@@ -615,7 +615,7 @@ gated on `assignedToUids`, work groups or roles.
 
 | Field | Type | Notes |
 |---|---|---|
-| `kind` | `'company' \| 'direct' \| 'group'` | See below |
+| `kind` | `'company' \| 'direct' \| 'group' \| 'record'` | See below |
 | `name` | string | Group rooms only; `''` for direct threads |
 | `memberUids` | string[] | Empty on the company room — see below |
 | `createdBy` | string | uid, or `'system'` for the company room |
@@ -624,8 +624,10 @@ gated on `assignedToUids`, work groups or roles.
 | `mentionedAt` | `{ [uid]: Timestamp }` | When each person was last named with an @ here |
 | `reactionPings` | `{ [uid]: ReactionPing }` | The last reaction on each person's own messages here |
 | `threadPings` | `{ [uid]: ThreadPing }` | The last thread reply aimed at each person — see Threads below |
+| `pinned` | `{ [messageId]: PinnedMessage }` | Messages pinned to the top of the room, max 10 — see below |
+| `recordType` / `recordId` / `recordLabel` | string | Record rooms only: which order the room is about, and what it is called |
 
-Three shapes, one document type:
+Four shapes, one document type:
 
 - **`company`** — the single room everyone is in, at the fixed document id
   `company`. Its `memberUids` is deliberately empty: listing every employee
@@ -638,6 +640,24 @@ Three shapes, one document type:
   other simultaneously land on one thread instead of two half-threads.
 - **`group`** — a named room with an explicit membership. Any member may
   rename it, change who is in it, or leave.
+- **`record`** — the room about one order, at the derived id
+  `rec_order_<orderId>`. Nobody is invited to it: anyone who can see the order
+  is entitled to be in it, and pressing **Discuss** on the order is what joins
+  them. That check is the union of order visibility, which no client-side query
+  can express, so `POST /api/chat/conversations` with `{ kind: 'record' }` is
+  the only way in — it runs `readOrder()` before the caller's uid goes anywhere
+  near `memberUids`. Never renamed: it is titled from the order's display
+  number, so two people looking for the conversation about a load arrive at the
+  same name. It can be left, and pressing Discuss again rejoins it.
+
+`pinned` is a **map keyed by message id, never an array**, and that is what
+makes it safe to write from the browser: an array has to be written whole, so
+the rule allowing it would be allowing any member to replace every pin in the
+room. Written at `pinned.<messageId>` instead, one key at a time, so two people
+pinning at once cannot lose each other's work. Anybody in the room may pin or
+unpin anybody's message. The cap of 10 is enforced in `MAX_PINNED` and again in
+`firestore.rules` — **keep the two in step**. `at` inside a pin is plain millis,
+because Firestore refuses a server timestamp inside a map value.
 
 `lastMessage` is a preview line and nothing is decided from it. It exists so a
 list of a dozen conversations does not cost a dozen extra queries per page
@@ -724,12 +744,29 @@ machinery to get wrong on a live database for no gain.
 
 ### `chatReads/{uid}`
 
-`{ uid, lastReadAt: { [conversationId]: millis }, threadReadAt: { [rootMessageId]: millis } }`.
+| Field | Type | Notes |
+|---|---|---|
+| `lastReadAt` | `{ [conversationId]: millis }` | How far this person has read each room |
+| `threadReadAt` | `{ [rootMessageId]: millis }` | The same per thread — see below |
+| `notify` | `{ [conversationId]: 'all' \| 'mentions' \| 'none' }` | How loud each room is for this person. An absent key is `all` |
+| `pinnedConversations` | string[] | Rooms this person keeps at the top of their list, in pin order |
+| `pinnedThreads` | string[] | The same for rows in the threads list, keyed by root message id |
+
 One document per user rather than a marker per conversation: the unread badge
 needs every conversation's state at once, and a live listener on one document
 costs a fraction of one per room. It is the only chat document a user writes
 about themselves, and it says nothing about access — only which conversations
 still show a dot.
+
+Everything here is a fact about the *reader*, not about the room, which is why
+per-room notification settings and both pin lists live here rather than on the
+conversation: two people in the same room want different things from it, and the
+busiest room in the company is the one nobody may leave. It also means none of
+those three features needed a rules change — this document is already the one
+thing a user may write about themselves. `mentions` still lets an @, a reply in
+a thread they are in, and a reaction on something they said through; only `none`
+is silent. Opening a room marks it read whatever it is set to, so unmuting one
+months later does not present the whole intervening conversation as unread.
 
 `threadReadAt` is keyed on the message a thread hangs under, not on the room,
 and that separation is the point. Opening a room marks the room read; if that

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Settings2 } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeft, ExternalLink, Settings2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import ConversationList from './ConversationList';
@@ -198,8 +199,25 @@ function Header({
         <p className="truncate text-xs text-gray-500">{subtitle(conversation, myUid, nameOf)}</p>
       </div>
 
-      {/* Only rooms have anything to change. The company room belongs to
-          everyone, and a direct thread is defined by its two people. */}
+      {/* The record this room is about, one click away. A conversation about a
+          load is only worth having here if the load is always to hand — the
+          alternative is somebody reading four messages about a pickup date and
+          then searching for the order to check it. Record rooms are never
+          renamed, so there is no settings gear beside it. */}
+      {conversation.kind === 'record' && conversation.recordId && (
+        <Link
+          href={`/dashboard/orders/${conversation.recordId}`}
+          title="Open this order"
+          className="flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-brand-600 transition hover:bg-brand-50"
+        >
+          Open order
+          <ExternalLink size={12} />
+        </Link>
+      )}
+
+      {/* Only named rooms have anything to change. The company room belongs to
+          everyone, a direct thread is defined by its two people, and a record
+          room is titled by its record. */}
       {conversation.kind === 'group' && (
         <button
           type="button"
@@ -218,6 +236,15 @@ function Header({
 function subtitle(c: Conversation, myUid: string, nameOf: (uid: string) => string): string {
   if (c.kind === 'company') return 'Everyone at Total Transport Logistics';
   if (c.kind === 'direct')  return 'Just the two of you';
+  // A record room says who is in it *so far*, because that is the honest
+  // description: nobody was invited, and anybody who can see the order joins
+  // by opening it. A count that read like a guest list would be misleading.
+  if (c.kind === 'record') {
+    const here = c.memberUids.length;
+    return here <= 1
+      ? 'About this load · you are the first one here'
+      : `About this load · ${here} people here so far`;
+  }
 
   const others = c.memberUids.filter((uid) => uid !== myUid).map(nameOf);
   if (others.length === 0) return 'Just you';

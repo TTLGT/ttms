@@ -5,6 +5,7 @@ import {
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getCountFromServer,
   increment,
@@ -15,6 +16,7 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
+  updateDoc,
   where,
   writeBatch,
   type Unsubscribe,
@@ -26,6 +28,8 @@ import {
   COMPANY_CONVERSATION_ID,
   CONVERSATIONS_COLLECTION,
   MAX_MESSAGE_LENGTH,
+  notifyLevel,
+  MAX_PINNED,
   MESSAGES_COLLECTION,
   REPLIES_COLLECTION,
   THREAD_PAGE_SIZE,
@@ -34,7 +38,10 @@ import {
   type ChatMessage,
   type ChatReads,
   type Conversation,
+  type ConversationNotify,
   type MessageQuote,
+  type PinnedMessage,
+  type RecordKind,
   type ThreadEntry,
 } from '@/types/conversation';
 
@@ -590,18 +597,93 @@ export async function toggleReaction(
   await batch.commit();
 }
 
+/* ------------------------------------------------------------------- pins */
+
+/**
+ * Pins a message to the top of the room it was said in.
+ *
+ * Unlike a pinned conversation, this one is the room's and everybody in it
+ * sees it — which is the point. The on-call number, this week's priority load
+ * and the thing dispatch keeps being asked twice a day belong at the top of
+ * the room rather than in whoever remembers them.
+ *
+ * Anybody in the room may pin and anybody may unpin, not only the message's
+ * sender and not only whoever pinned it. These are working rooms with no admin
+ * to appeal to — the same reasoning that lets any member rename a room — and a
+ * pin only the person who left it could remove is a pin that outlives them
+ * leaving.
+ *
+ * Written at `pinned.<messageId>` so two people pinning different messages at
+ * the same moment do not overwrite each other. See the field on Conversation
+ * for why this is a map and not an array.
+ */
+export async function pinMessage(
+  conversationId: string,
+  message: Pick<ChatMessage, 'id' | 'text' | 'senderUid' | 'senderName' | 'attachments' | 'rootId'>,
+  pinnedBy: { uid: string; displayName: string },
+  alreadyPinned: number,
+): Promise<void> {
+  if (alreadyPinned >= MAX_PINNED) {
+    throw new Error(`A room can hold ${MAX_PINNED} pinned messages. Unpin one first.`);
+  }
+
+  const pin: PinnedMessage = {
+    messageId:    message.id,
+    // A message may be nothing but a photo, so the file name is the label —
+    // the same rule rootLabel follows, and for the same reason: an empty
+    // string in a list reads as a message that was deleted.
+    text:         (message.text || message.attachments?.[0]?.name || '').slice(0, 200),
+    senderUid:    message.senderUid,
+    senderName:   message.senderName,
+    pinnedByUid:  pinnedBy.uid,
+    pinnedByName: pinnedBy.displayName,
+    // The browser's clock. A server timestamp cannot be written inside a map
+    // value, and this only orders one short list — the same trade the read
+    // marks make.
+    at:           Date.now(),
+    rootId:       message.rootId ?? null,
+  };
+
+  await updateDoc(doc(db, CONVERSATIONS_COLLECTION, conversationId), {
+    [`pinned.${message.id}`]: pin,
+  });
+}
+
+/** Takes a message off the pin bar. The message itself is untouched. */
+export async function unpinMessage(conversationId: string, messageId: string): Promise<void> {
+  await updateDoc(doc(db, CONVERSATIONS_COLLECTION, conversationId), {
+    [`pinned.${messageId}`]: deleteField(),
+  });
+}
+
+/** The pins of one room, newest first — the order the bar draws them in. */
+export function pinnedMessages(conversation: Conversation): PinnedMessage[] {
+  return Object.values(conversation.pinned ?? {}).sort((a, b) => b.at - a.at);
+}
+
 /* ------------------------------------------------------------------ reads */
 
 /**
- * What this user has read, kept live — rooms and threads both.
+ * Everything this user's own chat document holds, kept live.
  *
- * Two marks out of one document and one listener. A thread's mark cannot ride
- * on its room's: opening a room would otherwise clear every thread inside it,
- * including the ones the reader never opened. See ChatReads.
+ * Read marks for rooms and for threads, how loud each room is, and what they
+ * have pinned to the top of either list. All four out of one document and one
+ * listener, because all four are answers to "what does this person want to see
+ * first" and every one of them is needed to draw the same list. A thread's
+ * mark cannot ride on its room's — opening a room would otherwise clear every
+ * thread inside it, including the ones the reader never opened. See ChatReads.
  */
+export interface ChatMarks {
+  lastReadAt: Record<string, number>;
+  threadReadAt: Record<string, number>;
+  notify: Record<string, ConversationNotify>;
+  pinnedConversations: string[];
+  pinnedThreads: string[];
+}
+
 export function watchReads(
   uid: string,
-  onChange: (marks: { lastReadAt: Record<string, number>; threadReadAt: Record<string, number> }) => void,
+  onChange: (marks: ChatMarks) => void,
   onError?: (err: Error) => void,
 ): Unsubscribe {
   return onSnapshot(
@@ -609,11 +691,71 @@ export function watchReads(
     (snap) => {
       const data = snap.data() as Partial<ChatReads> | undefined;
       onChange({
-        lastReadAt:   data?.lastReadAt   ?? {},
-        threadReadAt: data?.threadReadAt ?? {},
+        lastReadAt:          data?.lastReadAt          ?? {},
+        threadReadAt:        data?.threadReadAt        ?? {},
+        notify:              data?.notify              ?? {},
+        pinnedConversations: data?.pinnedConversations ?? [],
+        pinnedThreads:       data?.pinnedThreads       ?? [],
       });
     },
     (err) => onError?.(err),
+  );
+}
+
+/**
+ * Sets how loud one room is for this user.
+ *
+ * Written as a dotted path so turning one room down does not rewrite the
+ * settings for every other. 'all' is stored rather than removed: a key that is
+ * there and says 'all' and a key that is missing mean the same thing, and
+ * deleting it would be one more Firestore operation to get wrong for a
+ * document that holds a handful of short strings.
+ */
+export async function setConversationNotify(
+  uid: string,
+  conversationId: string,
+  level: ConversationNotify,
+): Promise<void> {
+  await setDoc(
+    doc(db, CHAT_READS_COLLECTION, uid),
+    { uid, notify: { [conversationId]: level } },
+    { merge: true },
+  );
+}
+
+/**
+ * Pins a conversation to the top of this user's list, or takes it off.
+ *
+ * `arrayUnion`/`arrayRemove` rather than writing the array back: this document
+ * is written from every tab the person has TTMS open in, and a read-then-write
+ * would let one tab undo a pin made in another.
+ *
+ * The two lists are separate fields rather than one, because a thread and a
+ * room are pinned to different lists and a shared array would put a thread's
+ * root id into the room list, where nothing would ever resolve it.
+ */
+export async function setConversationPinned(
+  uid: string,
+  conversationId: string,
+  pinned: boolean,
+): Promise<void> {
+  await setDoc(
+    doc(db, CHAT_READS_COLLECTION, uid),
+    { uid, pinnedConversations: pinned ? arrayUnion(conversationId) : arrayRemove(conversationId) },
+    { merge: true },
+  );
+}
+
+/** The same, for a row in the threads list. Keyed by the thread's root id. */
+export async function setThreadPinned(
+  uid: string,
+  rootId: string,
+  pinned: boolean,
+): Promise<void> {
+  await setDoc(
+    doc(db, CHAT_READS_COLLECTION, uid),
+    { uid, pinnedThreads: pinned ? arrayUnion(rootId) : arrayRemove(rootId) },
+    { merge: true },
   );
 }
 
@@ -692,14 +834,21 @@ export async function markThreadRead(uid: string, rootId: string): Promise<void>
  *
  * Your own messages never count — you have read what you just typed — and a
  * conversation nobody has spoken in yet counts as read.
+ *
+ * A room turned down to mentions or muted outright produces nothing here, which
+ * is the whole of what turning it down does: the messages still arrive and are
+ * still there to read, they simply stop putting a number in front of anybody.
+ * Being named is a separate question and survives it — see below.
  */
 export function unreadConversationIds(
   conversations: Conversation[],
   lastReadAt: Record<string, number>,
   myUid: string,
+  notify: Record<string, ConversationNotify> = {},
 ): string[] {
   return conversations
     .filter((c) => {
+      if (notifyLevel(notify, c.id) !== 'all') return false;
       const last = c.lastMessage;
       if (!last || last.senderUid === myUid) return false;
       return millis(last.at) > (lastReadAt[c.id] ?? 0);
@@ -718,8 +867,10 @@ export function unreadMentionIds(
   conversations: Conversation[],
   lastReadAt: Record<string, number>,
   myUid: string,
+  notify: Record<string, ConversationNotify> = {},
 ): string[] {
   return conversations
+    .filter((c) => notifyLevel(notify, c.id) !== 'none')
     .filter((c) => millis(c.mentionedAt?.[myUid]) > (lastReadAt[c.id] ?? 0))
     .map((c) => c.id);
 }
@@ -742,9 +893,15 @@ export function unreadThreadIds(
   conversations: Conversation[],
   threadReadAt: Record<string, number>,
   myUid: string,
+  notify: Record<string, ConversationNotify> = {},
 ): string[] {
   return conversations
     .filter((c) => {
+      // A thread reply is aimed at the people it is for, so it survives a room
+      // turned down to mentions — that setting is about the room's ordinary
+      // traffic, and a reply under your own message is not that. Only a fully
+      // muted room silences it.
+      if (notifyLevel(notify, c.id) === 'none') return false;
       const ping = c.threadPings?.[myUid];
       if (!ping) return false;
       return millis(ping.at) > (threadReadAt[ping.rootId] ?? 0);
@@ -798,6 +955,28 @@ export async function openDirectConversation(otherUid: string): Promise<string> 
     method:  'POST',
     headers: await authHeaders(),
     body:    JSON.stringify({ kind: 'direct', otherUid }),
+  });
+  const { id } = await unwrap<{ id: string }>(res);
+  return id;
+}
+
+/**
+ * Opens — creating, or joining — the room about one record.
+ *
+ * The join is the part that has to be a server call. Whether somebody may be
+ * in the room about load 41207 is exactly the question "may they see load
+ * 41207", and that is a union of ownership rules the browser cannot be trusted
+ * to answer about itself. The route checks it and adds the caller to the
+ * membership the security rules read; nothing here can put anybody in a room.
+ */
+export async function openRecordConversation(
+  recordType: RecordKind,
+  recordId: string,
+): Promise<string> {
+  const res = await fetch('/api/chat/conversations', {
+    method:  'POST',
+    headers: await authHeaders(),
+    body:    JSON.stringify({ kind: 'record', recordType, recordId }),
   });
   const { id } = await unwrap<{ id: string }>(res);
   return id;

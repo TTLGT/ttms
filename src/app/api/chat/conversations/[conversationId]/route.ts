@@ -108,7 +108,12 @@ export async function DELETE(
     if (!snap.exists) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
     }
-    if (snap.data()!.kind !== 'group') {
+    // A record room can be left as well as a named one: it is the one kind of
+    // room nobody was invited to, so somebody who opened the conversation
+    // about a load once must be able to put it down. Pressing Discuss on that
+    // order puts them straight back, which is why this needs no confirmation
+    // that a named room's does.
+    if (!['group', 'record'].includes(snap.data()!.kind)) {
       return NextResponse.json(
         { error: 'You can only leave a room. The company room and direct messages stay.' },
         { status: 400 },

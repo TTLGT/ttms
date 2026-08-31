@@ -120,6 +120,44 @@ export async function orderOwnerLabel(order: FirebaseFirestore.DocumentData): Pr
 }
 
 /**
+ * The order a *number* refers to, if the caller may see it.
+ *
+ * Numbers rather than ids, because this exists for the number somebody types
+ * into chat — nobody pastes a Firestore document id into a message about a
+ * load. A load can be known by two numbers at once (see orderDisplayNumber),
+ * so both are tried: the sequence number first, then the BATS id, which is
+ * what the older half of the company still says out loud.
+ *
+ * `limit(1)` on each. An order number is unique by construction — it comes out
+ * of a counter transaction — and a BATS id was unique in the system it came
+ * from; a duplicate would be a data fault, and answering with the first is
+ * better than refusing to answer at all.
+ */
+export async function readOrderByNumber(caller: Caller, number: string): Promise<OrderAccess> {
+  const wanted = number.trim();
+  if (!wanted) return { status: 'missing' };
+
+  const col = adminDb.collection(COL);
+  for (const field of ['orderNumber', 'batsId'] as const) {
+    const snap = await col.where(field, '==', wanted).limit(1).get();
+    if (snap.empty) continue;
+
+    const doc  = snap.docs[0];
+    const data = doc.data();
+    if (canSeeOrder(data, caller.uid, caller.profile)) {
+      return { status: 'ok', order: { id: doc.id, ...data } };
+    }
+    // Deliberately no owner name here, unlike readOrder. Somebody who follows
+    // an order link chose to open it and is owed an explanation; a number that
+    // happened to appear in a message they were reading is not something they
+    // asked about, and naming its owner would turn every room into a way to
+    // ask who works which load.
+    return { status: 'denied', ownerName: '' };
+  }
+  return { status: 'missing' };
+}
+
+/**
  * Loads one order only if the caller is entitled to it; 403s rather than 404s.
  * The throwing face of `readOrder`.
  */

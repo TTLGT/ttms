@@ -511,6 +511,35 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['threadPings'])
           && request.resource.data.threadPings is map
         )
+        // Pinning a message to the top of the room, and unpinning one.
+        //
+        // Anybody in the room may do either, on anybody's message. These are
+        // working rooms with no admin to appeal to — the same reasoning that
+        // lets any member rename one — and a pin only its author could remove
+        // is a pin that outlives them leaving the company.
+        //
+        // `updatedAt` is deliberately absent from the list, like the ping
+        // branches above: pinning is not somebody speaking, and letting it
+        // move the stamp would shove a finished room back to the top of
+        // everybody's list.
+        //
+        // A map, not an array, which is what makes this safe to allow at all:
+        // an array has to be written whole, so this rule would be letting any
+        // member replace every pin in the room. Written at `pinned.<messageId>`
+        // instead, one key at a time.
+        //
+        // Checked for type and for how many, and no further. Rules cannot walk
+        // the values of a map, so the 200-character trim on the copied text
+        // lives in pinMessage() alone — the same honest limit as `mentionedAt`,
+        // `reactionPings` and `threadPings`, and with the same consequence: the
+        // worst a member can do here is pin something silly in a room they are
+        // already in, which anybody else in it can undo. Keep the count in step
+        // with MAX_PINNED in src/types/conversation.ts.
+        || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinned'])
+          && request.resource.data.get('pinned', {}) is map
+          && request.resource.data.get('pinned', {}).keys().size() <= 10
+        )
       );
 
       // Subcollections are not covered by the parent match, so messages need

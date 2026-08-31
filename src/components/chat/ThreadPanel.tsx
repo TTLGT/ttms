@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pencil, Trash2, X } from 'lucide-react';
+import { Pencil, Pin, PinOff, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -9,14 +9,16 @@ import {
   deleteMessage,
   editMessage,
   millis,
+  pinMessage,
   sendThreadReply,
   toggleReaction,
+  unpinMessage,
   watchMessage,
   watchReplies,
 } from '@/lib/chat';
 import { dayLabel, dayOf, groupsWithPrevious } from '@/lib/chatFormat';
 import PersonCard from './PersonCard';
-import MessageActions, { type MessageAction } from './MessageActions';
+import ActionMenu, { type MenuAction } from './ActionMenu';
 import MessageBubble from './MessageBubble';
 import MessageComposer from './MessageComposer';
 import {
@@ -203,9 +205,33 @@ export default function ThreadPanel({
    * find. Correcting and taking back your own words are the two that still
    * have to be here.
    */
-  function actionsOn(m: ChatMessage, isReply: boolean): MessageAction[] {
-    if (m.senderUid !== myUid) return [];
+  function actionsOn(m: ChatMessage, isReply: boolean): MenuAction[] {
+    const pinnedHere = Object.keys(conversation.pinned ?? {});
+    // Pinning is the one thing here anybody may do to anybody's words, and the
+    // reason it is offered inside a thread at all: the answer to a question is
+    // very often four replies down, where only the people in the thread can
+    // see it. Pinned from here it carries its thread with it, so the room's
+    // pin bar opens the thread rather than hunting for a reply that was never
+    // in the room.
+    const pin: MenuAction = pinnedHere.includes(m.id)
+      ? {
+          key: 'pin', label: 'Unpin from room', Icon: PinOff,
+          onSelect: () => void unpinMessage(conversationId, m.id)
+            .catch(() => setError('That did not unpin.')),
+        }
+      : {
+          key: 'pin', label: 'Pin to room', Icon: Pin,
+          onSelect: () => void pinMessage(
+            conversationId,
+            { ...m, rootId: isReply ? rootId : undefined },
+            senderIdentity,
+            pinnedHere.length,
+          ).catch((e) => setError(e instanceof Error ? e.message : 'That did not pin.')),
+        };
+
+    if (m.senderUid !== myUid) return [pin];
     return [
+      pin,
       {
         key: 'edit', label: 'Edit', Icon: Pencil,
         onSelect: () => { setEditingId(m.id); setEditDraft(m.text); },
@@ -252,7 +278,7 @@ export default function ThreadPanel({
         />
 
         {actionsFor?.messageId === m.id && (
-          <MessageActions
+          <ActionMenu
             anchor={actionsFor.anchor}
             onClose={() => setActionsFor(null)}
             actions={actionsOn(m, isReply)}

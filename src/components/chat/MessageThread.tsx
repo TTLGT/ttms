@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CornerUpLeft, Link2, Lock, MessagesSquare, Pencil, Trash2 } from 'lucide-react';
+import { CornerUpLeft, Link2, Lock, MessagesSquare, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -10,16 +10,19 @@ import {
   editMessage,
   millis,
   openDirectConversation,
+  pinMessage,
   sendMessage,
   toggleReaction,
+  unpinMessage,
   watchMessages,
 } from '@/lib/chat';
 import { dayLabel, dayOf, groupsWithPrevious } from '@/lib/chatFormat';
 import { copyToClipboard } from '@/lib/clipboard';
 import PersonCard from './PersonCard';
-import MessageActions, { type MessageAction } from './MessageActions';
+import ActionMenu, { type MenuAction } from './ActionMenu';
 import MessageBubble from './MessageBubble';
 import MessageComposer from './MessageComposer';
+import PinnedBar from './PinnedBar';
 import {
   isThreadUnread,
   type Attachment,
@@ -106,6 +109,9 @@ export default function MessageThread({ conversation }: { conversation: Conversa
     uid:         myUid,
     displayName: profile?.displayName || user?.displayName || user?.email || 'Someone',
   };
+
+  /** Which messages this room has pinned, read off the live conversation. */
+  const pinnedHere = Object.keys(conversation.pinned ?? {});
 
   /* ------------------------------------------------------------ messages */
 
@@ -298,8 +304,8 @@ export default function MessageThread({ conversation }: { conversation: Conversa
    * Built per message rather than filtered in the menu, so the menu itself
    * knows nothing about who may do what.
    */
-  function actionsOn(m: ChatMessage, mine: boolean): MessageAction[] {
-    const actions: MessageAction[] = [
+  function actionsOn(m: ChatMessage, mine: boolean): MenuAction[] {
+    const actions: MenuAction[] = [
       // Replying works on anyone's message, your own included — quoting
       // yourself is how you pick a thread back up after the room has moved on.
       { key: 'reply', label: 'Reply', Icon: CornerUpLeft, onSelect: () => setReplyingTo(quoteOf(m)) },
@@ -318,6 +324,21 @@ export default function MessageThread({ conversation }: { conversation: Conversa
         label: copiedId === m.id ? 'Link copied' : 'Copy link to message',
         Icon: Link2,
         onSelect: () => void copyMessageLink(m.id),
+      },
+      // Anybody in the room, on anybody's message: what is worth keeping at
+      // the top of a room is rarely something you said yourself.
+      {
+        key:   'pin',
+        label: pinnedHere.includes(m.id) ? 'Unpin from room' : 'Pin to room',
+        Icon:  pinnedHere.includes(m.id) ? PinOff : Pin,
+        onSelect: () => {
+          if (pinnedHere.includes(m.id)) {
+            void unpinMessage(conversationId, m.id).catch(() => setError('That did not unpin.'));
+          } else {
+            void pinMessage(conversationId, m, senderIdentity, pinnedHere.length)
+              .catch((e) => setError(e instanceof Error ? e.message : 'That did not pin.'));
+          }
+        },
       },
     ];
 
@@ -421,6 +442,10 @@ export default function MessageThread({ conversation }: { conversation: Conversa
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {/* Above the scroller rather than inside it: a pin that scrolled away
+          with the conversation would be a pin you have to go and look for. */}
+      <PinnedBar conversation={conversation} onJump={jumpTo} />
+
       <div
         ref={scroller}
         onScroll={onScroll}
@@ -520,7 +545,7 @@ export default function MessageThread({ conversation }: { conversation: Conversa
               />
 
               {actionsFor?.messageId === m.id && (
-                <MessageActions
+                <ActionMenu
                   anchor={actionsFor.anchor}
                   onClose={() => setActionsFor(null)}
                   actions={actionsOn(m, mine)}

@@ -18,6 +18,9 @@ import {
   markConversationRead,
   markThreadRead,
   millis,
+  setConversationNotify,
+  setConversationPinned,
+  setThreadPinned,
   unreadConversationIds,
   unreadMentionIds,
   unreadThreadIds,
@@ -37,8 +40,10 @@ import {
 import { listUserProfiles } from '@/lib/userProfiles';
 import {
   conversationTitle,
+  notifyLevel,
   reactionGlyph,
   type Conversation,
+  type ConversationNotify,
   type MessageQuote,
   type ThreadEntry,
 } from '@/types/conversation';
@@ -86,7 +91,13 @@ export interface OpenThread {
  */
 
 interface ChatContextValue {
-  /** Everything the signed-in user can see, newest activity first. */
+  /**
+   * Everything the signed-in user can see — pinned rooms first, then newest
+   * activity first.
+   *
+   * Ordered here rather than in each list, so the page and the popup cannot
+   * disagree about where a room sits.
+   */
   conversations: Conversation[];
   /** Everyone who has ever signed in, for titles, avatars and the picker. */
   people: UserProfile[];
@@ -157,6 +168,22 @@ interface ChatContextValue {
   /** Desktop notification and sound settings, per browser. */
   notifyPrefs: NotifyPrefs;
   setNotifyPrefs: (prefs: NotifyPrefs) => void;
+  /**
+   * How loud each room is for this person, per room rather than per browser.
+   *
+   * The pair above is about the machine — whether it has speakers, whether the
+   * browser will pop anything at all. This is about the rooms, and it follows
+   * the person to whichever computer they sign in on, which is why one lives
+   * in localStorage and the other in Firestore.
+   */
+  notify: Record<string, ConversationNotify>;
+  setNotifyFor: (conversationId: string, level: ConversationNotify) => void;
+  /** Conversations this person keeps at the top of the list. */
+  pinnedConversations: string[];
+  togglePinnedConversation: (conversationId: string) => void;
+  /** Threads this person keeps at the top of the threads list. */
+  pinnedThreads: string[];
+  togglePinnedThread: (rootId: string) => void;
   /** Set when the listeners themselves fail — almost always undeployed rules. */
   error: string;
   loading: boolean;
@@ -169,10 +196,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const router   = useRouter();
   const uid      = user?.uid ?? null;
 
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [rooms, setRooms]                 = useState<Conversation[]>([]);
   const [people, setPeople]               = useState<UserProfile[]>([]);
   const [lastReadAt, setLastReadAt]       = useState<Record<string, number>>({});
   const [threadReadAt, setThreadReadAt]   = useState<Record<string, number>>({});
+  const [notify, setNotify]               = useState<Record<string, ConversationNotify>>({});
+  const [pinnedConversations, setPinnedConversations] = useState<string[]>([]);
+  const [pinnedThreads, setPinnedThreads] = useState<string[]>([]);
   const [activeId, setActiveId]           = useState<string | null>(null);
   const [openThread, setOpenThread]       = useState<OpenThread | null>(null);
   const [popupOpen, setPopupOpen]         = useState(false);
@@ -212,12 +242,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (!live) return;
         stopConversations = watchConversations(
           uid,
-          (rows) => { setConversations(rows); setLoading(false); },
+          (rows) => { setRooms(rows); setLoading(false); },
           (err)  => { setError(chatError(err)); setLoading(false); },
         );
         stopReads = watchReads(uid, (marks) => {
           setLastReadAt(marks.lastReadAt);
           setThreadReadAt(marks.threadReadAt);
+          setNotify(marks.notify);
+          setPinnedConversations(marks.pinnedConversations);
+          setPinnedThreads(marks.pinnedThreads);
         }, () => {
           // Read marks failing is not worth an error banner — the worst of it
           // is a badge that will not clear.
@@ -253,6 +286,50 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return watchMyThreads(uid, setMyThreads, 50, () => setMyThreads([]));
   }, [uid]);
 
+  /**
+   * The list as it is drawn: pinned rooms at the top, in the order they were
+   * pinned, then everything else by whoever spoke last.
+   *
+   * The pin has to beat the activity sort rather than merely tie-break it —
+   * the reason to pin the room about a load you are working is precisely that
+   * it is quiet while the company room is not. Rooms arrive already sorted by
+   * `updatedAt` from watchConversations, so lifting the pinned ones out keeps
+   * both halves in the right order without sorting twice.
+   */
+  const conversations = useMemo(() => {
+    if (pinnedConversations.length === 0) return rooms;
+    const pinnedRank = new Map(pinnedConversations.map((id, i) => [id, i]));
+    const pinned = rooms
+      .filter((c) => pinnedRank.has(c.id))
+      .sort((a, b) => (pinnedRank.get(a.id) ?? 0) - (pinnedRank.get(b.id) ?? 0));
+    return [...pinned, ...rooms.filter((c) => !pinnedRank.has(c.id))];
+  }, [rooms, pinnedConversations]);
+
+  const setNotifyFor = useCallback(
+    (conversationId: string, level: ConversationNotify) => {
+      if (!uid) return;
+      void setConversationNotify(uid, conversationId, level).catch(() => {});
+    },
+    [uid],
+  );
+
+  const togglePinnedConversation = useCallback(
+    (conversationId: string) => {
+      if (!uid) return;
+      void setConversationPinned(uid, conversationId, !pinnedConversations.includes(conversationId))
+        .catch(() => {});
+    },
+    [uid, pinnedConversations],
+  );
+
+  const togglePinnedThread = useCallback(
+    (rootId: string) => {
+      if (!uid) return;
+      void setThreadPinned(uid, rootId, !pinnedThreads.includes(rootId)).catch(() => {});
+    },
+    [uid, pinnedThreads],
+  );
+
   const byUid = useMemo(() => {
     const map = new Map<string, UserProfile>();
     for (const p of people) map.set(p.uid, p);
@@ -267,18 +344,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const profileOf = useCallback((target: string) => byUid.get(target), [byUid]);
 
   const unreadIds = useMemo(
-    () => (uid ? unreadConversationIds(conversations, lastReadAt, uid) : []),
-    [conversations, lastReadAt, uid],
+    () => (uid ? unreadConversationIds(conversations, lastReadAt, uid, notify) : []),
+    [conversations, lastReadAt, uid, notify],
   );
 
   const mentionIds = useMemo(
-    () => (uid ? unreadMentionIds(conversations, lastReadAt, uid) : []),
-    [conversations, lastReadAt, uid],
+    () => (uid ? unreadMentionIds(conversations, lastReadAt, uid, notify) : []),
+    [conversations, lastReadAt, uid, notify],
   );
 
   const threadIds = useMemo(
-    () => (uid ? unreadThreadIds(conversations, threadReadAt, uid) : []),
-    [conversations, threadReadAt, uid],
+    () => (uid ? unreadThreadIds(conversations, threadReadAt, uid, notify) : []),
+    [conversations, threadReadAt, uid, notify],
   );
 
   /**
@@ -359,12 +436,23 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [uid],
   );
 
-  // Reading a conversation clears it as you watch, without a second click.
+  /**
+   * Reading a conversation clears it as you watch, without a second click.
+   *
+   * Measured against the messages themselves rather than against `unreadIds`,
+   * which is what a muted room needs. A muted room produces no unread ids by
+   * design — so keying this off them would leave its read mark frozen at
+   * whenever it was muted, and turning notifications back on months later
+   * would present the whole intervening conversation as unread. Opening a room
+   * is reading it, whatever it is set to.
+   */
+  const readable = conversations.find((c) => c.id === activeId);
+  const behindBy = millis(readable?.lastMessage?.at);
   useEffect(() => {
-    if (!activeId) return;
-    if (!unreadIds.includes(activeId)) return;
+    if (!activeId || !behindBy) return;
+    if (behindBy <= (lastReadAt[activeId] ?? 0)) return;
     markRead(activeId);
-  }, [activeId, unreadIds, markRead]);
+  }, [activeId, behindBy, lastReadAt, markRead]);
 
   // A thread belongs to the room it was opened from. Switching rooms — or
   // being removed from one — has to take the panel with it, or the reader is
@@ -394,8 +482,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Held in a ref so the effect below can read the current preferences and the
   // current conversation without re-running — and re-announcing — each time
   // either of them changes.
-  const latest = useRef({ notifyPrefs, activeId, uid, nameOf, openThread });
-  latest.current = { notifyPrefs, activeId, uid, nameOf, openThread };
+  const latest = useRef({ notifyPrefs, activeId, uid, nameOf, openThread, notify });
+  latest.current = { notifyPrefs, activeId, uid, nameOf, openThread, notify };
 
   useEffect(() => {
     if (!uid) return;
@@ -417,6 +505,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // You are looking straight at it. Announcing a message already on screen
       // is how people learn to ignore notifications.
       if (c.id === latest.current.activeId && document.visibilityState === 'visible') continue;
+
+      // How loud this room is for this reader. A room turned down to mentions
+      // still speaks up when the message actually named them: the @ mark is
+      // written into `mentionedAt` in the same batch as the message, so the
+      // two stamps are equal, and comparing them is how this pass knows a
+      // mention landed without reading the message itself.
+      const level = notifyLevel(latest.current.notify, c.id);
+      if (level === 'none') continue;
+      if (level === 'mentions' && millis(c.mentionedAt?.[uid]) < at) continue;
 
       const title = conversationTitle(c, uid, latest.current.nameOf);
       if (latest.current.notifyPrefs.desktop) {
@@ -476,6 +573,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // Already on screen — the reaction appeared under the message as they
       // watched, and a notification for it would be telling them twice.
       if (c.id === latest.current.activeId && document.visibilityState === 'visible') continue;
+      // A reaction is on something this person wrote, so it survives a room
+      // turned down to mentions — that setting is about the room's ordinary
+      // traffic. Only a fully muted room silences it.
+      if (notifyLevel(latest.current.notify, c.id) === 'none') continue;
 
       const where = conversationTitle(c, uid, latest.current.nameOf);
       if (latest.current.notifyPrefs.desktop) {
@@ -544,6 +645,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         latest.current.openThread?.rootId === ping.rootId
         && document.visibilityState === 'visible'
       ) continue;
+      // Aimed at this person by definition — see threadFollowers — so it too
+      // survives a room turned down to mentions, and only a mute stops it.
+      if (notifyLevel(latest.current.notify, c.id) === 'none') continue;
 
       const where = conversationTitle(c, uid, latest.current.nameOf);
       if (latest.current.notifyPrefs.desktop) {
@@ -590,7 +694,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       activeId, setActiveId, popupOpen, setPopupOpen, markRead,
       openThread, setOpenThread, markThreadSeen,
       pendingReply, setPendingReply, focusMessageId, setFocusMessageId,
-      notifyPrefs, setNotifyPrefs, error, loading,
+      notifyPrefs, setNotifyPrefs,
+      notify, setNotifyFor,
+      pinnedConversations, togglePinnedConversation,
+      pinnedThreads, togglePinnedThread,
+      error, loading,
     }),
     [
       conversations, people, nameOf, profileOf, unreadIds, mentionIds, threadIds,
@@ -598,7 +706,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unreadCounts, unreadBadge, lastReadAt, threadReadAt,
       activeId, popupOpen, markRead, openThread, markThreadSeen,
       pendingReply, focusMessageId,
-      notifyPrefs, setNotifyPrefs, error, loading,
+      notifyPrefs, setNotifyPrefs,
+      notify, setNotifyFor,
+      pinnedConversations, togglePinnedConversation,
+      pinnedThreads, togglePinnedThread,
+      error, loading,
     ],
   );
 

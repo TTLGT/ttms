@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, AtSign, MessagesSquare, X } from 'lucide-react';
+import { ArrowLeft, AtSign, MessagesSquare, Pin, PinOff, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -22,7 +22,10 @@ import { conversationTitle } from '@/types/conversation';
  */
 export default function ThreadList({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
-  const { myThreads, conversations, threadReadAt, nameOf, setActiveId, setOpenThread } = useChat();
+  const {
+    myThreads, conversations, threadReadAt, nameOf, setActiveId, setOpenThread,
+    pinnedThreads, togglePinnedThread,
+  } = useChat();
   const { formatDate } = useDateFormatters();
 
   const myUid = user?.uid ?? '';
@@ -37,6 +40,18 @@ export default function ThreadList({ onBack }: { onBack: () => void }) {
     const conversation = conversations.find((c) => c.id === entry.conversationId);
     return conversation ? [{ entry, conversation }] : [];
   });
+
+  // Pinned threads first, in the order they were pinned, then the rest by
+  // newest reply — the same bargain the room list makes. A thread is pinned
+  // precisely because it matters more than its last reply time says: the load
+  // you are working on is often the one nobody has answered about yet.
+  const pinnedRank = new Map(pinnedThreads.map((rootId, i) => [rootId, i]));
+  const ordered = [
+    ...rows
+      .filter((r) => pinnedRank.has(r.entry.rootId))
+      .sort((a, b) => (pinnedRank.get(a.entry.rootId) ?? 0) - (pinnedRank.get(b.entry.rootId) ?? 0)),
+    ...rows.filter((r) => !pinnedRank.has(r.entry.rootId)),
+  ];
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -55,13 +70,13 @@ export default function ThreadList({ onBack }: { onBack: () => void }) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {rows.length === 0 && (
+        {ordered.length === 0 && (
           <p className="px-2 py-3 text-sm text-gray-400">
             No threads yet. Answering under a message puts it here.
           </p>
         )}
 
-        {rows.map(({ entry, conversation }) => {
+        {ordered.map(({ entry, conversation }) => {
           // Measured against this thread's own read mark, the same one the
           // room list uses for its thread dot, so opening a thread in either
           // place clears it in both.
@@ -78,6 +93,7 @@ export default function ThreadList({ onBack }: { onBack: () => void }) {
           const who   = entry.lastReplyByUid === myUid
             ? 'You'
             : entry.lastReplyByName.split(' ')[0];
+          const pinned = pinnedThreads.includes(entry.rootId);
 
           return (
             <div
@@ -104,7 +120,8 @@ export default function ThreadList({ onBack }: { onBack: () => void }) {
                 }}
                 className="min-w-0 flex-1 text-left"
               >
-                <p className="flex items-baseline gap-1.5">
+                <p className="flex items-center gap-1.5">
+                  {pinned && <Pin size={10} className="flex-shrink-0 text-gray-400" />}
                   <span className={`truncate text-sm ${unread ? 'font-bold text-gray-900' : 'font-medium text-gray-800'}`}>
                     {/* A blank title means a row written before rootLabel
                         existed — an attachment-only message stored as ''. It
@@ -124,6 +141,22 @@ export default function ThreadList({ onBack }: { onBack: () => void }) {
               {unread && !named && (
                 <span className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-brand-500" />
               )}
+
+              {/* Keeps the row at the top of this list, for this person only.
+                  Unlike a pinned message, which is the room's, this decides
+                  nothing for anybody else — see pinnedThreads in ChatReads. */}
+              <button
+                type="button"
+                onClick={() => togglePinnedThread(entry.rootId)}
+                title={pinned ? 'Unpin this thread' : 'Pin to the top of this list'}
+                className={`rounded-lg p-1 transition hover:bg-gray-200 hover:text-gray-600 focus:opacity-100 ${
+                  pinned
+                    ? 'text-gray-500 opacity-100'
+                    : 'text-gray-300 opacity-0 group-hover:opacity-100'
+                }`}
+              >
+                {pinned ? <PinOff size={14} /> : <Pin size={14} />}
+              </button>
 
               {/* Takes the row off the list. Not "leave the thread" — a later
                   reply puts it back, which is the point; see dismissThread. */}
