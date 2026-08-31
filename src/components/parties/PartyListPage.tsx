@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { listParties, searchParties } from '@/lib/parties';
 import { useAuth } from '@/context/AuthContext';
 import { partyDisplayName, ROLE_LABEL } from '@/types/party';
@@ -19,13 +20,38 @@ interface Props {
  * same `parties` collection filtered to a role, so a company that pickups on
  * one order and pays on another shows up in both lists as a single record.
  */
-export default function PartyListPage({ role, title, blurb }: Props) {
+function PartyList({ role, title, blurb }: Props) {
   const { user, isAdmin }   = useAuth();
   const [all, setAll]       = useState<Party[]>([]);
   const [loading, setLoad]  = useState(true);
   const [error, setError]   = useState('');
-  const [search, setSearch] = useState('');
-  const [mineOnly, setMine] = useState(false);
+
+  /*
+    The search text and the "only mine" toggle live in the URL, like the orders
+    and carriers lists. Opening a client and pressing Back should return to the
+    search that found it rather than an empty box — the point of a result list
+    is opening more than one of them.
+
+    Unlike those two, this list holds every party it can see in memory and
+    filters locally, so there is no query to debounce. The URL is still written
+    with `replace`, so typing leaves no history entry per letter.
+  */
+  const router       = useRouter();
+  const pathname     = usePathname();
+  const searchParams = useSearchParams();
+
+  const search   = searchParams.get('q') ?? '';
+  const mineOnly = searchParams.get('mine') === '1';
+
+  const setParam = useCallback((key: string, value: string, fallback: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    // A default is written as an absent parameter, so a bare /dashboard/clients
+    // keeps meaning exactly what it means today.
+    if (value === fallback) params.delete(key);
+    else params.set(key, value);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [router, pathname, searchParams]);
 
   useEffect(() => {
     if (!user) return;
@@ -64,12 +90,16 @@ export default function PartyListPage({ role, title, blurb }: Props) {
           type="text"
           placeholder={`Search ${title.toLowerCase()} by name, contact, email, city…`}
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => setParam('q', e.target.value, '')}
           className="w-96 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
         />
         {isAdmin && (
           <label className="flex items-center gap-2 text-sm text-gray-600">
-            <input type="checkbox" checked={mineOnly} onChange={(e) => setMine(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={mineOnly}
+              onChange={(e) => setParam('mine', e.target.checked ? '1' : '', '')}
+            />
             Only mine
           </label>
         )}
@@ -148,5 +178,23 @@ export default function PartyListPage({ role, title, blurb }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+
+export default function PartyListPage(props: Props) {
+  // Suspense is required because the list reads its search text and the "only
+  // mine" toggle out of useSearchParams(), which suspends on the server render.
+  // Same reason as the orders, carriers and Directory lists.
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
+        </div>
+      }
+    >
+      <PartyList {...props} />
+    </Suspense>
   );
 }
