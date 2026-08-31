@@ -9,6 +9,8 @@ import { auth, db } from './firebase';
 import type { Order, OrderStatus } from '@/types/order';
 import { orderSearchTerms } from '@/types/order';
 import type { LicenseDocumentRow, OrderDocumentKind } from '@/types/orderDocument';
+import type { OrderAccessRequest } from '@/types/orderAccessRequest';
+import type { OwnerContact } from '@/types/order';
 import type { OwnerEvent } from '@/types/ownerEvent';
 import type { ActiveClient, DashboardSummary } from './orderSummary';
 
@@ -83,7 +85,64 @@ async function unwrap<T>(res: Response): Promise<T> {
 export type OrderAccess =
   | { status: 'ok'; order: Order }
   | { status: 'missing' }
-  | { status: 'denied'; ownerName: string };
+  | {
+      status: 'denied';
+      ownerName: string;
+      /** Which load was refused, so the reader can name it to a colleague. */
+      orderNumber: string;
+      /** Who to message about it, and on what number. */
+      owner: OwnerContact | null;
+    };
+
+/**
+ * Ask the owner of a load for permission to open it.
+ *
+ * The order-side twin of requestPartyAccessById. Approval grants a standing
+ * read of this one load — not ownership, and not the right to reassign it.
+ */
+export async function requestOrderAccess(
+  orderId: string,
+  reason: string,
+): Promise<{ id: string; status: string }> {
+  const res = await fetch('/api/orders/access-requests', {
+    method:  'POST',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ orderId, reason }),
+  });
+  return unwrap<{ id: string; status: string }>(res);
+}
+
+export async function listOrderAccessRequests(
+  box: 'incoming' | 'outgoing',
+): Promise<OrderAccessRequest[]> {
+  const res = await fetch(`/api/orders/access-requests?box=${box}`, { headers: await authHeaders() });
+  const { requests } = await unwrap<{ requests: OrderAccessRequest[] }>(res);
+  return requests;
+}
+
+/**
+ * Approve, deny or revoke one request.
+ *
+ * `expiresInHours` applies to an approval only: one of GRANT_DURATIONS, or
+ * null to grant it until somebody revokes it. The server validates it against
+ * that list and works the date out from its own clock.
+ */
+export async function decideOrderAccessRequest(
+  requestId: string,
+  action: 'approve' | 'deny' | 'revoke',
+  options: { reason?: string; expiresInHours?: number | null } = {},
+) {
+  const res = await fetch(`/api/orders/access-requests/${requestId}`, {
+    method:  'POST',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body:    JSON.stringify({
+      action,
+      reason:         options.reason,
+      expiresInHours: options.expiresInHours ?? null,
+    }),
+  });
+  return unwrap<{ id: string; status: string }>(res);
+}
 
 /**
  * A short-lived link to one of an order's documents.
@@ -133,7 +192,12 @@ export async function getOrder(orderId: string): Promise<OrderAccess> {
   if (res.status === 403) {
     // The route names the owner precisely so the page can point somewhere.
     const body = await res.json().catch(() => ({}));
-    return { status: 'denied', ownerName: String(body.ownerName ?? '') };
+    return {
+      status:      'denied',
+      ownerName:   String(body.ownerName ?? ''),
+      orderNumber: String(body.orderNumber ?? ''),
+      owner:       (body.owner as OwnerContact | null) ?? null,
+    };
   }
 
   const { order } = await unwrap<{ order: Order }>(res);

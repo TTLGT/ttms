@@ -14,7 +14,8 @@
 import { adminDb, AdminAuthError } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { canSeeAllParties, canSeeOrder } from './accessControl';
-import { orderSearchTerm, searchWords } from '@/types/order';
+import { orderDisplayNumber, orderSearchTerm, searchWords } from '@/types/order';
+import { ORDER_ACCESS_REQUESTS_COLLECTION, isGrantLive } from '@/types/orderAccessRequest';
 import type { OwnerContact } from '@/types/order';
 import { ownerLabel } from './partyAccess';
 import type { Caller } from './partyAccess';
@@ -276,16 +277,29 @@ async function unionForCaller(caller: Caller): Promise<Record<string, unknown>[]
       ? col.where(field, 'array-contains-any', someGroups).get()
       : Promise.resolve({ docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] });
 
-  const [mine, viaGroup, viaClient, viaClientGroup] = await Promise.all([
+  const [mine, viaGroup, viaClient, viaClientGroup, granted] = await Promise.all([
     col.where('assignedToUids', 'array-contains', caller.uid).get(),
     byGroup('assignedToGroupIds'),
     col.where('clientOwnerUids', 'array-contains', caller.uid).get(),
     byGroup('clientOwnerGroupIds'),
+    approvedOrderIds(caller.uid),
   ]);
 
   const byId = new Map<string, Record<string, unknown>>();
   for (const d of [...mine.docs, ...viaGroup.docs, ...viaClient.docs, ...viaClientGroup.docs]) {
     byId.set(d.id, { id: d.id, ...d.data() });
+  }
+
+  // Loads lent by an approved access request. Fetched by id rather than as a
+  // fifth query because there is no field on the order to query — the grant
+  // lives on the request, which is what keeps it out of the ownership fields
+  // and therefore out of anything that decides who may reassign the load.
+  const lent = granted.filter((id) => !byId.has(id));
+  if (lent.length) {
+    // getAll takes the ids in one round trip; an order deleted since the
+    // approval simply does not come back.
+    const docs = await adminDb.getAll(...lent.map((id) => col.doc(id)));
+    for (const d of docs) if (d.exists) byId.set(d.id, { id: d.id, ...d.data()! });
   }
 
   // Sorted here rather than in the queries: each query would need its own
@@ -400,7 +414,19 @@ function toMillis(value: unknown): number {
 export type OrderAccess =
   | { status: 'ok'; order: Record<string, unknown> }
   | { status: 'missing' }
-  | { status: 'denied'; ownerName: string };
+  | {
+      status: 'denied';
+      ownerName: string;
+      /**
+       * The load's number, so the panel can say which load was refused. The
+       * reader followed a link to a Firestore id, which names nothing they can
+       * repeat to a colleague — and they cannot ask about a load they cannot
+       * name. Nothing else about the order goes with it.
+       */
+      orderNumber: string;
+      /** Who to message about it, and on what number. */
+      owner: OwnerContact | null;
+    };
 
 export async function readOrder(caller: Caller, orderId: string): Promise<OrderAccess> {
   const snap = await adminDb.collection(COL).doc(orderId).get();
@@ -410,7 +436,19 @@ export async function readOrder(caller: Caller, orderId: string): Promise<OrderA
   if (canSeeOrder(data, caller.uid, caller.profile)) {
     return { status: 'ok', order: { id: snap.id, ...data } };
   }
-  return { status: 'denied', ownerName: await orderOwnerLabel(data) };
+  // A standing grant from an approved request. Checked only after the ordinary
+  // test fails, so the common path costs no extra read.
+  if (await hasApprovedOrderAccess(caller.uid, orderId)) {
+    return { status: 'ok', order: { id: snap.id, ...data } };
+  }
+
+  const contacts = await resolveOwnerContacts([{ id: snap.id, data }]);
+  return {
+    status:      'denied',
+    ownerName:   await orderOwnerLabel(data),
+    orderNumber: orderDisplayNumber(data),
+    owner:       contacts.get(snap.id) ?? null,
+  };
 }
 
 /**
@@ -537,6 +575,81 @@ export async function resolveOwnerContacts(
 }
 
 /**
+ * Order ids this user has been granted by an approved access request.
+ *
+ * Deliberately not part of canSeeOrder(): that is a pure function over the
+ * order document, mirrored into orderVisible() in firestore.rules, and a rule
+ * cannot run this query. The grant therefore lives in the API layer only,
+ * exactly as the party equivalent does — see approvedPartyIds() in
+ * partyAccess.ts. That is sound here because orders are never read from the
+ * client SDK; /api/orders is the single choke point. Anything that ever reads
+ * an order in the browser would bypass this and must not be added.
+ */
+export async function approvedOrderIds(uid: string): Promise<string[]> {
+  const snap = await adminDb
+    .collection(ORDER_ACCESS_REQUESTS_COLLECTION)
+    .where('requestedByUid', '==', uid)
+    .where('status', '==', 'approved')
+    .get();
+  // The clock is applied here rather than in the query. An `expiresAt > now`
+  // filter would drop the rows where it is null, which are exactly the grants
+  // that never expire — and one person's approved requests are a handful of
+  // documents, so there is nothing to gain by pushing it down.
+  return [...new Set(
+    snap.docs
+      .filter((d) => isGrantLive(d.data() as { status: string; expiresAt?: { toMillis?: () => number } }))
+      .map((d) => d.data().orderId as string)
+      .filter(Boolean),
+  )];
+}
+
+/**
+ * Whether a live grant stands for this user on this order.
+ *
+ * "Live" and not merely "approved" — a grant whose clock has run out still
+ * reads as approved in the document. See isGrantLive().
+ */
+export async function hasApprovedOrderAccess(uid: string, orderId: string): Promise<boolean> {
+  const snap = await adminDb
+    .collection(ORDER_ACCESS_REQUESTS_COLLECTION)
+    .where('requestedByUid', '==', uid)
+    .where('orderId', '==', orderId)
+    .where('status', '==', 'approved')
+    .get();
+  // No limit(1): the live one is not necessarily the first back, since a
+  // lapsed grant for the same load still carries status 'approved'.
+  return snap.docs.some((d) => isGrantLive(d.data() as { status: string; expiresAt?: { toMillis?: () => number } }));
+}
+
+/**
+ * Everyone who may decide a request for this order, with owning groups expanded
+ * to their members — the sibling of ownersFor() for parties.
+ *
+ * The order's own owners and its client's owners both qualify, because both are
+ * routes by which somebody already holds the load: whoever is running it, and
+ * whoever the client belongs to. An order with neither has an empty list, and
+ * the request then waits on an admin, which is the same set canSeeOrder() would
+ * have let open it.
+ */
+export async function ownersForOrder(order: FirebaseFirestore.DocumentData): Promise<string[]> {
+  const direct = [
+    ...((order.assignedToUids ?? []) as string[]),
+    ...((order.clientOwnerUids ?? []) as string[]),
+  ];
+  const groups = [
+    ...((order.assignedToGroupIds ?? []) as string[]),
+    ...((order.clientOwnerGroupIds ?? []) as string[]),
+  ];
+  if (groups.length === 0) return [...new Set(direct)];
+
+  const docs = await adminDb.getAll(
+    ...[...new Set(groups)].map((g) => adminDb.collection('workGroups').doc(g)),
+  );
+  const fromGroups = docs.flatMap((d) => (d.exists ? (d.data()!.memberUids ?? []) : []));
+  return [...new Set([...direct, ...fromGroups])] as string[];
+}
+
+/**
  * The order a *number* refers to, if the caller may see it.
  *
  * Numbers rather than ids, because this exists for the number somebody types
@@ -564,12 +677,13 @@ export async function readOrderByNumber(caller: Caller, number: string): Promise
     if (canSeeOrder(data, caller.uid, caller.profile)) {
       return { status: 'ok', order: { id: doc.id, ...data } };
     }
-    // Deliberately no owner name here, unlike readOrder. Somebody who follows
-    // an order link chose to open it and is owed an explanation; a number that
-    // happened to appear in a message they were reading is not something they
-    // asked about, and naming its owner would turn every room into a way to
-    // ask who works which load.
-    return { status: 'denied', ownerName: '' };
+    // Deliberately no owner name here, unlike readOrder — and for the same
+    // reason, no number and no contact. Somebody who follows an order link
+    // chose to open it and is owed an explanation; a number that happened to
+    // appear in a message they were reading is not something they asked about,
+    // and answering with its owner and desk number would turn every room into
+    // a way to ask who works which load.
+    return { status: 'denied', ownerName: '', orderNumber: '', owner: null };
   }
   return { status: 'missing' };
 }

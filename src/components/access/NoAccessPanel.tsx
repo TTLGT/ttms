@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Lock, SearchX } from 'lucide-react';
+import { Lock, Phone, SearchX } from 'lucide-react';
+import MessagePersonButton from '@/components/chat/MessagePersonButton';
+import { telHref } from '@/lib/phone';
+import type { OwnerContact } from '@/types/order';
 
 type RequestState = 'idle' | 'sending' | 'sent' | 'error';
 
@@ -13,14 +16,29 @@ interface Props {
   status: 'missing' | 'denied';
   /** Who to go and ask. Empty when nobody owns the record. */
   ownerName?: string;
+  /**
+   * What the reader was refused, in the number they and their colleague both
+   * use for it. They arrived on a Firestore id, which names nothing anybody
+   * says out loud, and you cannot ask about a load you cannot name.
+   */
+  recordNumber?: string;
+  /** Chat uid and desk number for the owner, where there is one account. */
+  owner?: OwnerContact | null;
   backHref: string;
   backLabel: string;
   /**
-   * Sends a request to the owner. Omitted where no request path exists yet —
-   * orders have no equivalent of partyAccessRequests, so their panel explains
-   * who to ask and stops there rather than offering a button that does nothing.
+   * Sends a request to the owner. Both kinds have one now — orders got
+   * orderAccessRequests, the sibling of partyAccessRequests — but it stays
+   * optional so a caller with no request path never renders a button that
+   * does nothing.
    */
   onRequest?: (reason: string) => Promise<void>;
+  /**
+   * What approval will get them, in one line. The two grants genuinely differ:
+   * a party approval is spent on one order, an order approval is a standing
+   * read of that load. Saying the wrong one is worse than saying nothing.
+   */
+  grantNote?: string;
 }
 
 const NOUN = { order: 'order', client: 'client' } as const;
@@ -34,7 +52,7 @@ const NOUN = { order: 'order', client: 'client' } as const;
  * been deleted. Naming the owner is the whole point of this panel.
  */
 export default function NoAccessPanel({
-  kind, status, ownerName, backHref, backLabel, onRequest,
+  kind, status, ownerName, recordNumber, owner, backHref, backLabel, onRequest, grantNote,
 }: Props) {
   const [reason, setReason] = useState('');
   const [state,  setState]  = useState<RequestState>('idle');
@@ -65,7 +83,12 @@ export default function NoAccessPanel({
   }
 
   return (
-    <Shell icon={<Lock className="w-5 h-5 text-gray-400" />} title={`You do not have access to this ${NOUN[kind]}`}>
+    <Shell
+      icon={<Lock className="w-5 h-5 text-gray-400" />}
+      title={recordNumber
+        ? `You do not have access to ${NOUN[kind]} ${recordNumber}`
+        : `You do not have access to this ${NOUN[kind]}`}
+    >
       <p className="text-sm text-gray-600">
         {ownerName
           ? <>It belongs to <strong className="text-gray-900">{ownerName}</strong>.</>
@@ -74,6 +97,29 @@ export default function NoAccessPanel({
             reader to an administrator, which the line above already says. */}
         {kind === 'order' && ownerName && ' Ask them to add you to it, or to share what you need.'}
       </p>
+
+      {/* The two ways to actually reach them. Rendered even when a request can
+          be raised below: a message gets an answer today, and an approval is
+          worth nothing to somebody who needed the rate ten minutes ago. */}
+      {(owner?.uid || owner?.phone) && (
+        <div className="flex items-center gap-4 mt-3">
+          <MessagePersonButton
+            uid={owner.uid}
+            name={ownerName}
+            label={`Message ${ownerName || 'the owner'}`}
+            className="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700 disabled:opacity-50"
+            iconSize={14}
+          />
+          {owner.phone && (
+            <a href={telHref(owner.phone, 'US')}
+              className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700">
+              <Phone size={14} className="opacity-70" />
+              {owner.phone}
+              {owner.extension && <span className="text-gray-400">ext. {owner.extension}</span>}
+            </a>
+          )}
+        </div>
+      )}
 
       {onRequest && state !== 'sent' && (
         <div className="mt-5 pt-5 border-t border-gray-200">
@@ -96,12 +142,10 @@ export default function NoAccessPanel({
           >
             {state === 'sending' ? 'Sending…' : 'Request access'}
           </button>
-          {/* Said here rather than after the fact: approval also lets the
-              requester put this client on one order, and the owner should not
-              be the only person who knows that. */}
-          <p className="text-xs text-gray-500 mt-2">
-            If approved, you will be able to open this client and use it on one order.
-          </p>
+          {/* Said here rather than after the fact: the requester should know
+              what they are asking for before they ask, and the owner should not
+              be the only person who knows what approving it hands over. */}
+          {grantNote && <p className="text-xs text-gray-500 mt-2">{grantNote}</p>}
           {state === 'error' && <p className="text-sm text-red-600 mt-2">{error}</p>}
         </div>
       )}

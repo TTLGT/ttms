@@ -243,6 +243,24 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // The order-side equivalent. Same read rule and the same closed writes, for
+    // the same reason: the decision carries the approver's IP, taken from the
+    // request headers, and a client-side write could forge that trail.
+    //
+    // Note what this collection can do that the rules cannot see: an approved
+    // request lends read access to one order. That grant is applied in
+    // /api/orders only — orderVisible() below knows nothing about it. Safe
+    // because orders are never read through the client SDK; anything that
+    // starts doing so would bypass the grant and must not be added.
+    match /orderAccessRequests/{requestId} {
+      allow read: if isAllowedUser() && (
+        isAdmin()
+        || resource.data.requestedByUid == request.auth.uid
+        || (request.auth.uid in resource.data.get('ownerUids', []))
+      );
+      allow write: if false;
+    }
+
     // Sites are reference data — where someone works, not what they can see.
     // Readable by everyone signed in so a site name can be shown next to a
     // person; written only through /api/sites, which detaches users on delete.

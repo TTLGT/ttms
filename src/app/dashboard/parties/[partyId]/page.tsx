@@ -264,6 +264,7 @@ export default function PartyDetailPage() {
       ownerName={noAccess?.ownerName}
       backHref="/dashboard/clients"
       backLabel="Back to Clients"
+      grantNote="If approved, you will be able to open this client and use it on one order."
       // Only offered on a denial: there is nobody to ask about a record that
       // has been deleted.
       onRequest={

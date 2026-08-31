@@ -190,7 +190,10 @@ export default function DocumentsPage() {
               {visible.map((row, i) => (
                 <tr key={i} className="hover:bg-gray-50 transition">
                   <td className="px-5 py-3">
-                    <Link href={`/dashboard/orders/${row.orderId}?tab=documents`}
+                    {/* `from` so the no-access panel sends them back here
+                        rather than to a list of orders that, for a licence on
+                        somebody else's load, will not contain it. */}
+                    <Link href={`/dashboard/orders/${row.orderId}?tab=documents&from=documents`}
                       className="text-sm font-mono font-medium text-brand-700 hover:underline">
                       {row.orderNumber}
                     </Link>

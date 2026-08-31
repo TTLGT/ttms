@@ -289,6 +289,28 @@ boundaries: everyone on the allowlist is staff, and staff can talk to staff.
 Nothing else in the app should copy the live-read pattern without the same
 argument.
 
+**An approved access request lends visibility that the rules cannot see.**
+`partyAccessRequests` and `orderAccessRequests` each grant a read that
+`canSeeParty()` / `canSeeOrder()` know nothing about — the grant is applied in
+the API layer only, because a rule cannot run the query it needs. That is sound
+only while parties and orders are never read through the client SDK. Anything
+that starts reading them in the browser bypasses both grants.
+
+The two differ in what approval buys, and the difference is deliberate: a party
+approval is spent on one order and expires, keeping the audit trail one-to-one
+with the orders it authorized; an order approval runs on a clock the approver
+picks (`expiresAt`, or null for no expiry) and is revocable early from the
+Approvals screen, because there is nothing for it to be spent on. Neither is
+ownership — an approved requester cannot reassign the record and does not
+appear as an owner on it.
+
+**A lapsed order grant still reads `status: 'approved'`.** Expiry is applied
+when the grant is read, not by a scheduled job — there is no scheduler here,
+and a grant that outlived its clock because a cron did not fire is the worst
+failure this could have. `isGrantLive()` in `src/types/orderAccessRequest.ts`
+is the only correct test; anything that reads `status` directly to decide
+access is a bug.
+
 Ownership changes only through `/api/{orders,parties}/{id}/owners`, which is
 **admin and dispatcher only** and writes an `ownerEvents` subcollection entry in
 the same batch. Every owner a record has ever had is kept, including the

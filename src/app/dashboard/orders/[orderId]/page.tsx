@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { ExternalLink, Map, Plus, RefreshCw, Route } from 'lucide-react';
 import Link from 'next/link';
 import {
-  announceOrderEvent, getOrder, orderDocumentUrl, updateOrderStatus, updateOrder, listOrdersPage,
-  createOrder,
+  announceOrderEvent, getOrder, orderDocumentUrl, requestOrderAccess, updateOrderStatus, updateOrder,
+  listOrdersPage, createOrder,
 } from '@/lib/orders';
 import NoAccessPanel from '@/components/access/NoAccessPanel';
 import CopyLinkButton from '@/components/CopyLinkButton';
@@ -37,6 +37,7 @@ import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload
 import { useAuth } from '@/context/AuthContext';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
+import type { OwnerContact } from '@/types/order';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 
 // Sentinel value for the dropdown's "add a new carrier" row. Not a document id,
@@ -131,7 +132,12 @@ export default function OrderDetailPage() {
   // Why the order could not be opened, when it could not. Kept apart from
   // `order` being null so the page can name the owner instead of claiming the
   // load does not exist — see NoAccessPanel.
-  const [noAccess, setNoAccess]     = useState<{ status: 'missing' | 'denied'; ownerName: string } | null>(null);
+  const [noAccess, setNoAccess]     = useState<{
+    status: 'missing' | 'denied';
+    ownerName: string;
+    orderNumber: string;
+    owner: OwnerContact | null;
+  } | null>(null);
   // Loaded so the order can show its source's current name. Only the id is
   // stored on the order, so a source an admin renames reads correctly here
   // without any order being rewritten.
@@ -142,7 +148,28 @@ export default function OrderDetailPage() {
   const [advancing, setAdvancing]   = useState(false);
   const [splitting, setSplitting]   = useState(false);
   const [error, setError]           = useState('');
-  const [tab, setTab]               = useState<'details' | 'documents' | 'suborders'>('details');
+  /*
+    The tab comes from the URL when one was named. The Documents screen has
+    always linked here with ?tab=documents and this page has always ignored it,
+    so following a document landed on Details and left the reader to find the
+    file again. Same reason `from` is read below.
+  */
+  const searchParams = useSearchParams();
+  const askedTab     = searchParams.get('tab');
+  const [tab, setTab] = useState<'details' | 'documents' | 'suborders'>(
+    askedTab === 'documents' || askedTab === 'suborders' ? askedTab : 'details',
+  );
+
+  /*
+    Where "back" goes. Orders is right for somebody who came from the orders
+    list, and wrong for somebody who followed a driver's licence off the
+    Documents screen: licences are listed company-wide, so they may well have
+    arrived from a load that is not theirs, and the orders list does not contain
+    it. Sending them there offers a list they cannot find their way back from.
+  */
+  const back = searchParams.get('from') === 'documents'
+    ? { href: '/dashboard/documents', label: 'Back to Documents' }
+    : { href: '/dashboard/orders',    label: 'Back to Orders' };
 
   // carrier assignment state
   const [assigningCarrier, setAssigningCarrier] = useState(false);
@@ -201,7 +228,12 @@ export default function OrderDetailPage() {
         setNoAccess(
           access.status === 'ok'
             ? null
-            : { status: access.status, ownerName: access.status === 'denied' ? access.ownerName : '' },
+            : {
+                status:      access.status,
+                ownerName:   access.status === 'denied' ? access.ownerName   : '',
+                orderNumber: access.status === 'denied' ? access.orderNumber : '',
+                owner:       access.status === 'denied' ? access.owner       : null,
+              },
         );
         setOrder(o);
         setLeadSources(srcs);
@@ -620,8 +652,21 @@ export default function OrderDetailPage() {
       kind="order"
       status={noAccess?.status ?? 'missing'}
       ownerName={noAccess?.ownerName}
-      backHref="/dashboard/orders"
-      backLabel="Back to Orders"
+      recordNumber={noAccess?.orderNumber}
+      owner={noAccess?.owner}
+      // Where they came from, not where orders live. Somebody who followed a
+      // driver's licence off the Documents screen has no business being sent
+      // to a list of loads they mostly cannot open — see cameFrom.
+      backHref={back.href}
+      backLabel={back.label}
+      // Only offered on a denial: there is nobody to ask about a load that has
+      // been deleted.
+      onRequest={
+        noAccess?.status === 'denied'
+          ? async (reason) => { await requestOrderAccess(orderId, reason); }
+          : undefined
+      }
+      grantNote="If approved, you will be able to open this load for as long as the owner allows. It does not make you an owner of it."
     />
   );
 

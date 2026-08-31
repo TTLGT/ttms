@@ -1,10 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { usePathname } from 'next/navigation';
-import { MessageSquare, Phone } from 'lucide-react';
-import { useChat } from '@/context/ChatContext';
-import { openDirectConversation } from '@/lib/chat';
+import { Phone } from 'lucide-react';
+import MessagePersonButton from '@/components/chat/MessagePersonButton';
 import { telHref } from '@/lib/phone';
 import type { OwnerContact } from '@/types/order';
 
@@ -23,32 +20,10 @@ import type { OwnerContact } from '@/types/order';
  * mounted.
  */
 export default function OrderOwnerContact({ owner }: { owner: OwnerContact }) {
-  const pathname = usePathname();
-  const { setActiveId, setPopupOpen } = useChat();
-  const [busy, setBusy]   = useState(false);
-  const [error, setError] = useState('');
-
   // No account on the other end: a work group, an invite nobody has accepted,
   // or an order with no owner at all. Naming it is still worth more than a
   // blank, but there is nothing to open and no desk to ring.
   const name = owner.name || 'an administrator';
-
-  async function message() {
-    if (!owner.uid) return;
-    setBusy(true);
-    setError('');
-    try {
-      setActiveId(await openDirectConversation(owner.uid));
-      // The popup, not the chat page — the same reasoning as DiscussButton.
-      // Whoever is looking at this row is part-way through finding a document
-      // and should not lose the list to ask a question about it.
-      if (!pathname.startsWith('/dashboard/chat')) setPopupOpen(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'That conversation could not be opened.');
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <div className="flex flex-col gap-1">
@@ -59,18 +34,7 @@ export default function OrderOwnerContact({ owner }: { owner: OwnerContact }) {
         </span>
       </div>
       <div className="flex items-center gap-3">
-        {owner.uid && (
-          <button
-            type="button"
-            onClick={() => void message()}
-            disabled={busy}
-            title={`Message ${name}`}
-            className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 disabled:opacity-50"
-          >
-            <MessageSquare size={12} className="opacity-70" />
-            {busy ? 'Opening…' : 'Message'}
-          </button>
-        )}
+        <MessagePersonButton uid={owner.uid} name={name} />
         {owner.phone && (
           <a
             href={telHref(owner.phone, 'US')}
@@ -82,7 +46,6 @@ export default function OrderOwnerContact({ owner }: { owner: OwnerContact }) {
           </a>
         )}
       </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );
 }
