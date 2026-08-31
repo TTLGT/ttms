@@ -481,21 +481,33 @@ const MAX_TERM = 12;
 const MAX_TERMS = 400;
 
 /**
- * The fields a person searches an order by.
+ * The numbers a load is known by.
+ *
+ * Kept apart from the text because they are searched differently — see
+ * orderSearchTerms. Nobody says "the Morris load" and means the middle of the
+ * word, but everybody says "the load ending 1218".
+ */
+function searchableNumbers(order: Record<string, unknown>): string[] {
+  return [
+    String(order.orderNumber ?? ''),
+    String(order.batsId ?? ''),
+    String(order.previousOrderNumber ?? ''),
+  ];
+}
+
+/**
+ * The words a person searches an order by.
  *
  * `shipperName` carries the customer on every imported order — BATS put the
  * CustomerName there — which is why it matters more than `clientName`, a field
  * that is empty on all but one order until the party migration runs.
  */
-function searchableValues(order: Record<string, unknown>): string[] {
+function searchableText(order: Record<string, unknown>): string[] {
   const address = (a: unknown) => {
     const v = a as { city?: string; state?: string } | null | undefined;
     return [v?.city ?? '', v?.state ?? ''];
   };
   return [
-    String(order.orderNumber ?? ''),
-    String(order.batsId ?? ''),
-    String(order.previousOrderNumber ?? ''),
     String(order.shipperName ?? ''),
     String(order.clientName ?? ''),
     String(order.consigneeName ?? ''),
@@ -516,6 +528,28 @@ export function searchWords(text: string): string[] {
     .filter(Boolean);
 }
 
+/** Every prefix of a word, from MIN_TERM up to MAX_TERM characters. */
+function prefixesOf(word: string): string[] {
+  const out: string[] = [];
+  const limit = Math.min(word.length, MAX_TERM);
+  // A word shorter than MIN_TERM is still worth storing whole — a two-letter
+  // state code is exactly what somebody types to find a lane.
+  for (let n = Math.min(MIN_TERM, word.length); n <= limit; n++) out.push(word.slice(0, n));
+  return out;
+}
+
+/** Every run of characters inside a word, so any segment of it can be typed. */
+function segmentsOf(word: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < word.length; i++) {
+    for (let n = MIN_TERM; n <= Math.min(word.length - i, MAX_TERM); n++) {
+      out.push(word.substr(i, n));
+    }
+  }
+  // A word shorter than MIN_TERM produces nothing above; keep it whole.
+  return out.length ? out : [word];
+}
+
 /**
  * Every fragment an order should be findable by.
  *
@@ -525,10 +559,20 @@ export function searchWords(text: string): string[] {
  * are worked out on save and stored, and the query becomes `array-contains`,
  * which is a single indexed lookup however large the collection grows.
  *
- * Every prefix of every word is stored, so typing "morr" finds "Morris" — which
- * is what a search box is expected to do. Prefixes only: "orris" will not find
- * it. Storing every *substring* would square the size of this array for a case
- * nobody actually types.
+ * Numbers and words are treated differently, because people say them
+ * differently.
+ *
+ * A load's **numbers** are indexed by every segment, so TTL22001218 answers to
+ * "1218" and to "2001" as well as "ttl22". A carrier on the phone says "the
+ * load ending 1218" and a broker reads the last four off a rate confirmation;
+ * requiring the number from its beginning would fail the way people actually
+ * use it. Numbers are short, so this is affordable: it roughly doubles the
+ * stored fragments, from about 62 per order to about 124.
+ *
+ * **Words** are indexed by prefix only — "morr" finds Morris, "orris" does not.
+ * Every segment of every name and commodity description would multiply the
+ * array for a case nobody types, and unlike a number, a name is something
+ * people reliably start at the beginning of.
  *
  * A word is indexed under its own prefixes, so multi-word values are found by
  * any of their words: "Palm Beach" answers to "palm" and to "beach".
@@ -536,17 +580,17 @@ export function searchWords(text: string): string[] {
 export function orderSearchTerms(order: Record<string, unknown>): string[] {
   const terms = new Set<string>();
 
-  for (const value of searchableValues(order)) {
-    for (const word of searchWords(value)) {
-      const limit = Math.min(word.length, MAX_TERM);
-      // A word shorter than MIN_TERM is still worth storing whole — a two-letter
-      // state code is exactly what somebody types to find a lane.
-      for (let n = Math.min(MIN_TERM, word.length); n <= limit; n++) {
-        terms.add(word.slice(0, n));
+  const add = (values: string[], fragments: (word: string) => string[]) => {
+    for (const value of values) {
+      for (const word of searchWords(value)) {
+        for (const fragment of fragments(word)) terms.add(fragment);
+        if (terms.size > MAX_TERMS) return;
       }
-      if (terms.size > MAX_TERMS) break;
     }
-  }
+  };
+
+  add(searchableNumbers(order), segmentsOf);
+  add(searchableText(order), prefixesOf);
 
   return [...terms].slice(0, MAX_TERMS);
 }

@@ -425,8 +425,14 @@ in `scripts/backfill-order-search-terms.js`). A search is then one
 
 Consequences worth knowing:
 
-- **Prefixes only.** "morr" finds Morris; "orris" does not. Storing every
-  substring would square the array for a case nobody types.
+- **Numbers match on any segment; words match on prefix.** TTL22001218 answers
+  to "1218" and "2001" as well as "ttl22", because a carrier says "the load
+  ending 1218" and a broker reads the last four off a rate confirmation. Names
+  answer to prefixes only — "morr" finds Morris, "orris" does not — since a
+  name is something people reliably start at the beginning of, and segmenting
+  every commodity description would multiply the array for a case nobody types.
+  Numbers are short, so segmenting them roughly doubles the stored fragments:
+  about 62 per order to about 124, worst case 309.
 - **Only the first typed word reaches the query.** `array-contains-any` is an
   OR, so "palm beach" through it would return everything matching *either* —
   wider than what was asked, not narrower. The remaining words are applied to

@@ -150,7 +150,7 @@ scripts cannot import TypeScript either:
 
 | `src/types/order.ts` | mirrored in |
 |---|---|
-| `orderSearchTerms()` + `searchWords()` | `scripts/backfill-order-search-terms.js` |
+| `orderSearchTerms()` + `searchWords()` | `scripts/backfill-order-search-terms.js`, `scripts/import-bats.js` |
 | `searchableValues()` | `SEARCHABLE_FIELDS` in `src/lib/orders.ts` |
 
 `orderSearchTerms` is what the Orders search box looks up. **Anything that

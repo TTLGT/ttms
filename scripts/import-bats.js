@@ -313,25 +313,43 @@ function searchWords(text) {
     .filter(Boolean);
 }
 
-function orderSearchTerms(o) {
-  const addr = (a) => [(a && a.city) || '', (a && a.state) || ''];
-  const values = [
-    o.orderNumber || '', o.batsId || '', o.previousOrderNumber || '',
-    o.shipperName || '', o.clientName || '', o.consigneeName || '',
-    o.carrierName || '', o.commodity || '',
-    ...addr(o.origin), ...addr(o.destination),
-  ].map(String);
+function prefixesOf(word) {
+  const out = [];
+  const limit = Math.min(word.length, SEARCH_MAX_TERM);
+  for (let n = Math.min(SEARCH_MIN_TERM, word.length); n <= limit; n++) out.push(word.slice(0, n));
+  return out;
+}
 
-  const terms = new Set();
-  for (const value of values) {
-    for (const word of searchWords(value)) {
-      const limit = Math.min(word.length, SEARCH_MAX_TERM);
-      for (let n = Math.min(SEARCH_MIN_TERM, word.length); n <= limit; n++) {
-        terms.add(word.slice(0, n));
-      }
-      if (terms.size > SEARCH_MAX_TERMS) break;
+function segmentsOf(word) {
+  const out = [];
+  for (let i = 0; i < word.length; i++) {
+    for (let n = SEARCH_MIN_TERM; n <= Math.min(word.length - i, SEARCH_MAX_TERM); n++) {
+      out.push(word.substr(i, n));
     }
   }
+  return out.length ? out : [word];
+}
+
+function orderSearchTerms(order) {
+  const addr = (a) => [(a && a.city) || '', (a && a.state) || ''];
+  const numbers = [order.orderNumber, order.batsId, order.previousOrderNumber]
+    .map((v) => String(v || ''));
+  const text = [order.shipperName, order.clientName, order.consigneeName,
+                order.carrierName, order.commodity,
+                ...addr(order.origin), ...addr(order.destination)]
+    .map((v) => String(v || ''));
+
+  const terms = new Set();
+  const add = (values, fragments) => {
+    for (const value of values) {
+      for (const word of searchWords(value)) {
+        for (const fragment of fragments(word)) terms.add(fragment);
+        if (terms.size > SEARCH_MAX_TERMS) return;
+      }
+    }
+  };
+  add(numbers, segmentsOf);
+  add(text, prefixesOf);
   return [...terms].slice(0, SEARCH_MAX_TERMS);
 }
 

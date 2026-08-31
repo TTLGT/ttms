@@ -75,29 +75,46 @@ function searchWords(text) {
     .filter(Boolean);
 }
 
-function searchableValues(o) {
-  const addr = (a) => [(a && a.city) || '', (a && a.state) || ''];
-  return [
-    o.orderNumber || '', o.batsId || '', o.previousOrderNumber || '',
-    o.shipperName || '', o.clientName || '', o.consigneeName || '',
-    o.carrierName || '', o.commodity || '',
-    ...addr(o.origin), ...addr(o.destination),
-  ].map(String);
+function prefixesOf(word) {
+  const out = [];
+  const limit = Math.min(word.length, MAX_TERM);
+  for (let n = Math.min(MIN_TERM, word.length); n <= limit; n++) out.push(word.slice(0, n));
+  return out;
+}
+
+function segmentsOf(word) {
+  const out = [];
+  for (let i = 0; i < word.length; i++) {
+    for (let n = MIN_TERM; n <= Math.min(word.length - i, MAX_TERM); n++) {
+      out.push(word.substr(i, n));
+    }
+  }
+  return out.length ? out : [word];
 }
 
 function orderSearchTerms(order) {
+  const addr = (a) => [(a && a.city) || '', (a && a.state) || ''];
+  const numbers = [order.orderNumber, order.batsId, order.previousOrderNumber]
+    .map((v) => String(v || ''));
+  const text = [order.shipperName, order.clientName, order.consigneeName,
+                order.carrierName, order.commodity,
+                ...addr(order.origin), ...addr(order.destination)]
+    .map((v) => String(v || ''));
+
   const terms = new Set();
-  for (const value of searchableValues(order)) {
-    for (const word of searchWords(value)) {
-      const limit = Math.min(word.length, MAX_TERM);
-      for (let n = Math.min(MIN_TERM, word.length); n <= limit; n++) {
-        terms.add(word.slice(0, n));
+  const add = (values, fragments) => {
+    for (const value of values) {
+      for (const word of searchWords(value)) {
+        for (const fragment of fragments(word)) terms.add(fragment);
+        if (terms.size > MAX_TERMS) return;
       }
-      if (terms.size > MAX_TERMS) break;
     }
-  }
+  };
+  add(numbers, segmentsOf);
+  add(text, prefixesOf);
   return [...terms].slice(0, MAX_TERMS);
 }
+
 // ── end mirror ──────────────────────────────────────────────────────────────
 
 function same(a, b) {
