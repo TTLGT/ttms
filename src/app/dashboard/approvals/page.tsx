@@ -40,7 +40,7 @@ const millis = (ts: { toMillis?: () => number } | null | undefined): number =>
 export default function ApprovalsPage() {
   // Requests are read as a timeline, so these keep the time after the date.
   const { formatDateTime: formatWhen } = useDateFormatters();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isDispatcher } = useAuth();
   const [box, setBox]         = useState<Box>('incoming');
   const [rows, setRows]       = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +56,19 @@ export default function ApprovalsPage() {
     permission is the one that lapses by itself.
   */
   const [grantHours, setGrantHours] = useState<Record<string, number | null>>({});
+  /*
+    What a party approval will grant, by request id. `once` lends the record
+    for a single order; `ownership` hands it over along with every order it is
+    the client on.
+
+    Defaulted to `once` and never to `ownership`, for the same reason the load
+    picker defaults to a week: the reversible answer is the safe one to reach
+    by accident. Only admins and dispatchers see the choice at all — the server
+    refuses the second from anyone else, so hiding it here is a courtesy rather
+    than the control.
+  */
+  const [grantKind, setGrantKind] = useState<Record<string, 'once' | 'ownership'>>({});
+  const canGrantOwnership = isAdmin || isDispatcher;
 
   const load = useCallback(async (which: Box) => {
     setLoading(true);
@@ -94,7 +107,11 @@ export default function ApprovalsPage() {
         });
       }
       // A party approval has nothing to revoke — it spends itself on an order.
-      else if (action !== 'revoke') await decideAccessRequest(row.req.id, action);
+      else if (action !== 'revoke') {
+        await decideAccessRequest(row.req.id, action, {
+          grant: grantKind[row.req.id] ?? 'once',
+        });
+      }
       await load(box);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to record the decision');
@@ -109,7 +126,8 @@ export default function ApprovalsPage() {
         <h1 className="text-2xl font-bold text-gray-900">Approvals</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Requests to use a client, shipper or consignee that belongs to someone else,
-          and requests to open a load. A party approval covers one order; a load
+          and requests to open a load. A party approval covers one order, or hands the
+          record over for good if an admin or dispatcher grants it that way; a load
           approval lasts for as long as you grant it, and can be taken back early.
         </p>
       </div>
@@ -199,6 +217,20 @@ export default function ApprovalsPage() {
                       <p className="text-sm text-gray-700 mt-2 italic">&ldquo;{r.reason}&rdquo;</p>
                     )}
 
+                    {/* Said before the decision, not after. Handing a record
+                        over is permanent and carries orders with it, which is
+                        not what "approve" reads like on its own. */}
+                    {box === 'incoming' && r.status === 'pending'
+                      && row.kind === 'party' && canGrantOwnership
+                      && grantKind[r.id] === 'ownership' && (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+                        This hands the record over for good. {r.requestedByName} joins its
+                        owners and can open every order it is the client on, including ones
+                        already booked. The current owners keep theirs. Only an admin or
+                        dispatcher can undo it, on the record itself.
+                      </p>
+                    )}
+
                     {r.status !== 'pending' && r.decidedByName && (
                       <p className="text-xs text-gray-500 mt-2">
                         {r.status === 'denied'
@@ -208,6 +240,13 @@ export default function ApprovalsPage() {
                         {r.decidedByAdmin && ' (admin)'}
                         {' on '}{formatWhen(r.decidedAt)}
                         {r.decidedByIp && <span className="font-mono ml-1">({r.decidedByIp})</span>}
+                      </p>
+                    )}
+
+                    {row.kind === 'party' && row.req.grantKind === 'ownership' && row.req.status === 'approved' && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Handed over — <strong>{r.requestedByName}</strong> now owns this record
+                        and every order it is the client on.
                       </p>
                     )}
 
@@ -244,6 +283,22 @@ export default function ApprovalsPage() {
                   </div>
 
                   <div className="flex gap-2 shrink-0">
+                    {box === 'incoming' && r.status === 'pending' && row.kind === 'party' && canGrantOwnership && (
+                      <label className="flex flex-col text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                        Grant
+                        <select
+                          value={grantKind[r.id] ?? 'once'}
+                          onChange={(e) => setGrantKind((g) => ({
+                            ...g,
+                            [r.id]: e.target.value === 'ownership' ? 'ownership' : 'once',
+                          }))}
+                          className="mt-0.5 rounded-lg border border-gray-300 px-2 py-1 text-xs font-normal normal-case text-gray-700 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                        >
+                          <option value="once">This order only</option>
+                          <option value="ownership">Ownership + its orders</option>
+                        </select>
+                      </label>
+                    )}
                     {box === 'incoming' && r.status === 'pending' && row.kind === 'order' && (
                       <label className="flex flex-col text-[10px] font-medium uppercase tracking-wide text-gray-400">
                         For

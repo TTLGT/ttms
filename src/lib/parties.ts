@@ -166,12 +166,25 @@ export async function listAccessRequests(box: 'incoming' | 'outgoing') {
   return requests;
 }
 
+/**
+ * Approve or deny one party request.
+ *
+ * `grant` applies to an approval only. `once` lends the record for a single
+ * order — the default, and what this has always done. `ownership` hands it
+ * over: the requester joins its owners and gets every order it is the client
+ * on. Only admins and dispatchers may send the second, and the server enforces
+ * that rather than trusting the screen to hide the option.
+ */
 export async function decideAccessRequest(
   requestId: string,
   action: 'approve' | 'deny',
-  reason?: string,
+  options: { reason?: string; grant?: 'once' | 'ownership' } = {},
 ) {
-  return apiPost(`/api/parties/access-requests/${requestId}`, { action, reason });
+  return apiPost(`/api/parties/access-requests/${requestId}`, {
+    action,
+    reason: options.reason,
+    grant:  options.grant ?? 'once',
+  });
 }
 
 /** Spends an approval on a freshly created order; a no-op when none is needed. */

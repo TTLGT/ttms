@@ -6,10 +6,19 @@ export type AccessRequestStatus = 'pending' | 'approved' | 'denied' | 'expired';
 /**
  * A request to use somebody else's client, shipper or consignee on one order.
  *
- * Approval is deliberately per-order and single-use: `orderId` is stamped when
- * the approved request is consumed, and the request moves to `expired`. Using
- * the same party on a second order means asking again, which keeps the audit
- * trail one-to-one with the orders it authorized.
+ * There are two ways to approve one, and they differ enormously.
+ *
+ * `once` is the original and the default: per-order and single-use. `orderId`
+ * is stamped when the approval is consumed and the request moves to `expired`,
+ * so the audit trail stays one-to-one with the orders it authorized. Using the
+ * same party on a second order means asking again.
+ *
+ * `ownership` hands the record over instead — the requester is added to the
+ * party's owners, which carries every order that party is the *client* on, now
+ * and in future. It is not a bigger version of the same thing; it is a
+ * permanent transfer, so only admins and dispatchers may grant it, matching who
+ * may reassign a record anywhere else, and it writes an ownerEvents entry like
+ * any other ownership change.
  */
 export interface AccessRequest {
   id: string;
@@ -45,6 +54,15 @@ export interface AccessRequest {
   /** True when an admin decided on the owner's behalf. */
   decidedByAdmin: boolean;
   denyReason: string | null;
+
+  /**
+   * What approving it granted. Absent on requests decided before the choice
+   * existed, and read as `once` — which is what all of them were.
+   *
+   * An `ownership` approval is never consumed: the requester owns the record
+   * outright, so there is no single use to spend. It stays `approved`.
+   */
+  grantKind?: 'once' | 'ownership';
 
   /** Set when the approval is spent on an order. */
   consumedByOrderId: string | null;

@@ -296,13 +296,24 @@ the API layer only, because a rule cannot run the query it needs. That is sound
 only while parties and orders are never read through the client SDK. Anything
 that starts reading them in the browser bypasses both grants.
 
-The two differ in what approval buys, and the difference is deliberate: a party
-approval is spent on one order and expires, keeping the audit trail one-to-one
-with the orders it authorized; an order approval runs on a clock the approver
-picks (`expiresAt`, or null for no expiry) and is revocable early from the
-Approvals screen, because there is nothing for it to be spent on. Neither is
-ownership — an approved requester cannot reassign the record and does not
-appear as an owner on it.
+The two differ in what approval buys, and the difference is deliberate. A party
+approval has two forms, chosen by the approver: `once` is spent on one order and
+expires, keeping the audit trail one-to-one with the orders it authorized;
+`ownership` instead adds the requester to the party's owners through
+`changeOwners()` — writing an `ownerEvents` entry like any other change of
+hands — and then runs `syncClientOwners()`, which is what carries the party's
+orders with it. Only admins and dispatchers may grant that form, matching
+`/api/parties/{id}/owners`. **An `ownership` request is excluded from
+`approvedPartyIds()` and `findApproval()` on purpose**: it never expires, so
+counting it as a loan would mean removing the person from the record took
+nothing away.
+
+An **order** approval runs on a clock the approver picks (`expiresAt`, or null
+for no expiry) and is revocable early from the Approvals screen, because there
+is nothing for it to be spent on. It is never ownership: the requester cannot
+reassign the load and does not appear as an owner on it. Ownership of a *load*
+is not requestable at all — only of the client, through the form above, which
+then carries its orders.
 
 **A lapsed order grant still reads `status: 'approved'`.** Expiry is applied
 when the grant is read, not by a scheduled job — there is no scheduler here,

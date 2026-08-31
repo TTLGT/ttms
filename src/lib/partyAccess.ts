@@ -221,26 +221,45 @@ export async function listVisibleParties(caller: Caller): Promise<VisibleParty[]
   return [...byId.values()].sort((a, b) => a.nameKey.localeCompare(b.nameKey));
 }
 
-/** Party ids this user has an approved, not-yet-spent request for. */
+/**
+ * Party ids this user has an approved, not-yet-spent request for.
+ *
+ * Ownership grants are deliberately excluded. Such a request stays 'approved'
+ * for good — there is no single use to spend — so counting it here would mean
+ * an admin who later removed the person from the record had not actually taken
+ * anything away: the stale approval would keep lending what the removal was
+ * meant to end. Their access comes from being an owner, and it has to end when
+ * that does.
+ */
 export async function approvedPartyIds(uid: string): Promise<string[]> {
   const snap = await adminDb
     .collection('partyAccessRequests')
     .where('requestedByUid', '==', uid)
     .where('status', '==', 'approved')
     .get();
-  return snap.docs.map((d) => d.data().partyId as string).filter(Boolean);
+  return snap.docs
+    .filter((d) => d.data().grantKind !== 'ownership')
+    .map((d) => d.data().partyId as string)
+    .filter(Boolean);
 }
 
-/** Resolves the approval that entitles `uid` to use `partyId`, if any. */
+/**
+ * Resolves the approval that entitles `uid` to use `partyId`, if any.
+ *
+ * Ownership grants are excluded here too, and for the matching reason: they are
+ * not a single-use token and must not be spendable as one. While the grant
+ * holds, the caller owns the record and needs no approval at all; once it has
+ * been taken away, this must not hand them one last order on the strength of a
+ * permission that was withdrawn.
+ */
 export async function findApproval(uid: string, partyId: string) {
   const snap = await adminDb
     .collection('partyAccessRequests')
     .where('requestedByUid', '==', uid)
     .where('partyId', '==', partyId)
     .where('status', '==', 'approved')
-    .limit(1)
     .get();
-  return snap.empty ? null : snap.docs[0];
+  return snap.docs.find((d) => d.data().grantKind !== 'ownership') ?? null;
 }
 
 /**
