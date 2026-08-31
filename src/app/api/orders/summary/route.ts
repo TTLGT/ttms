@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
-import { buildDashboardSummary, activeClientLoads } from '@/lib/orderSummary';
+import { buildDashboardSummary, activeClients } from '@/lib/orderSummary';
 
 /**
  * Everything the dashboard's stat cards show, worked out server-side.
@@ -25,7 +25,8 @@ export async function GET(req: NextRequest) {
     // about eight times as long as all of them together. Kept off the main
     // response so eleven cards are not waiting on the twelfth.
     if (req.nextUrl.searchParams.get('clients')) {
-      return NextResponse.json({ activeClientLoads: await activeClientLoads(caller) });
+      const { loads, top } = await activeClients(caller);
+      return NextResponse.json({ activeClientLoads: loads, activeClients: top });
     }
 
     const summary = await buildDashboardSummary(caller);

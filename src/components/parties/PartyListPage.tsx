@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { listParties, searchParties } from '@/lib/parties';
+import { listPartiesPage, countParties } from '@/lib/parties';
 import { useAuth } from '@/context/AuthContext';
 import { partyDisplayName, ROLE_LABEL } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
@@ -15,6 +15,9 @@ interface Props {
   blurb: string;
 }
 
+/** See the orders list for why fifty. */
+const PAGE_SIZE = 50;
+
 /**
  * One list screen shared by Clients, Shippers and Consignees. They are all the
  * same `parties` collection filtered to a role, so a company that pickups on
@@ -24,6 +27,9 @@ function PartyList({ role, title, blurb }: Props) {
   const { user, isAdmin }   = useAuth();
   const [all, setAll]       = useState<Party[]>([]);
   const [loading, setLoad]  = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [total, setTotal]   = useState<number | null>(null);
   const [error, setError]   = useState('');
 
   /*
@@ -53,20 +59,59 @@ function PartyList({ role, title, blurb }: Props) {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [router, pathname, searchParams]);
 
-  useEffect(() => {
-    if (!user) return;
-    listParties({ role })
-      .then(setAll)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoad(false));
-  }, [user, role]);
+  /*
+    Paged, and searched by the database.
 
-  const visible = useMemo(() => {
-    const scoped = mineOnly && user
+    This list held every party it could see and filtered in memory, which was
+    free while `parties` had one record in it. The migration made that seven
+    thousand — about 3.7 MB and six and a half seconds — so it pages like the
+    orders and carriers lists now, and typing queries a name prefix rather than
+    scanning an array.
+  */
+  const [applied, setApplied] = useState(search.trim());
+  useEffect(() => {
+    const t = setTimeout(() => setApplied(search.trim()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Discards a response whose request has been superseded.
+  const requestId = useRef(0);
+
+  const loadPage = useCallback(async (after: string | null) => {
+    if (!user) return;
+    const mine = ++requestId.current;
+    if (after) setLoadingMore(true); else setLoad(true);
+    try {
+      const page = await listPartiesPage({
+        limit: PAGE_SIZE, cursor: after, role, search: applied || undefined,
+      });
+      if (mine !== requestId.current) return;
+      setAll((prev) => (after ? [...prev, ...page.parties] : page.parties));
+      setCursor(page.cursor);
+      setError('');
+    } catch (e) {
+      if (mine === requestId.current) setError((e as Error).message);
+    } finally {
+      if (mine === requestId.current) { setLoad(false); setLoadingMore(false); }
+    }
+  }, [user, role, applied]);
+
+  useEffect(() => { setAll([]); setCursor(null); void loadPage(null); }, [loadPage]);
+
+  useEffect(() => { countParties(role).then(setTotal).catch(() => setTotal(null)); }, [role]);
+
+  /*
+    "Only mine" still filters the loaded page rather than the query. Ownership
+    is four fields — uids, groups, emails, and the legacy name — and narrowing
+    on them server-side would need an index per combination for a control only
+    admins see. It reads as a filter on what is shown, which is what it is.
+  */
+  const visible = useMemo(
+    () => (mineOnly && user
       ? all.filter((p) => (p.assignedToUids ?? []).includes(user.uid))
-      : all;
-    return searchParties(scoped, search);
-  }, [all, search, mineOnly, user]);
+      : all),
+    [all, mineOnly, user],
+  );
 
   return (
     <div className="p-8">
@@ -74,7 +119,7 @@ function PartyList({ role, title, blurb }: Props) {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {all.length} total · {blurb}
+            {total === null ? '…' : total.toLocaleString()} total · {blurb}
           </p>
         </div>
         <Link
@@ -88,7 +133,7 @@ function PartyList({ role, title, blurb }: Props) {
       <div className="mb-4 flex items-center gap-4">
         <input
           type="text"
-          placeholder={`Search ${title.toLowerCase()} by name, contact, email, city…`}
+          placeholder={`Search ${title.toLowerCase()} by name…`}
           value={search}
           onChange={(e) => setParam('q', e.target.value, '')}
           className="w-96 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
@@ -175,6 +220,22 @@ function PartyList({ role, title, blurb }: Props) {
               })}
             </tbody>
           </table>
+
+          {cursor && (
+            <div className="flex flex-col items-center gap-1 border-t border-gray-100 py-4">
+              <button
+                onClick={() => void loadPage(cursor)}
+                disabled={loadingMore}
+                className="px-4 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50 rounded-lg transition disabled:opacity-50"
+              >
+                {loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} more`}
+              </button>
+              <p className="text-xs text-gray-400">
+                Showing {visible.length.toLocaleString()}
+                {!applied && total !== null && ` of ${total.toLocaleString()}`}
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

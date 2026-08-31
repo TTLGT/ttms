@@ -1,16 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError } from '@/lib/firebase-admin';
 import { FieldValue, adminDb } from '@/lib/firebase-admin';
-import { requireCaller, listVisibleParties, toVisibleParty, ownerLabel } from '@/lib/partyAccess';
+import {
+  requireCaller, listVisibleParties, listVisiblePartiesPage, countVisibleParties,
+  toVisibleParty, ownerLabel,
+} from '@/lib/partyAccess';
 import { canSeeParty } from '@/lib/accessControl';
 import { toNameKey } from '@/types/party';
 
-/** Every party the caller may see. Filtering happens here, never in the browser. */
+/**
+ * The parties the caller may see. Filtering happens here, never in the browser.
+ *
+ *   ?limit=50&cursor=…   one page, by name
+ *   ?role=client         narrowed to one role
+ *   ?search=acme         name prefix
+ *   ?count=1             how many, without fetching any
+ *
+ * With no `limit` it still returns everything, for the pickers that need a full
+ * list. On the current collection that is about seven thousand records — a list
+ * screen should page instead.
+ */
 export async function GET(req: NextRequest) {
   try {
-    const caller  = await requireCaller(req);
-    const parties = await listVisibleParties(caller);
-    return NextResponse.json({ parties });
+    const caller = await requireCaller(req);
+    const p = req.nextUrl.searchParams;
+    const role = p.get('role') ?? undefined;
+
+    if (p.get('count')) {
+      return NextResponse.json({ count: await countVisibleParties(caller, role) });
+    }
+
+    const rawLimit = Number(p.get('limit'));
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0
+      ? Math.min(Math.floor(rawLimit), 500)
+      : undefined;
+
+    if (!limit) {
+      const parties = await listVisibleParties(caller);
+      const scoped = role ? parties.filter((x) => (x.roles ?? []).includes(role)) : parties;
+      return NextResponse.json({ parties: scoped, cursor: null });
+    }
+
+    const page = await listVisiblePartiesPage(caller, {
+      limit,
+      cursor: p.get('cursor'),
+      role,
+      search: p.get('search') ?? undefined,
+    });
+    return NextResponse.json(page);
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

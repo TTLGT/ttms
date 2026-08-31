@@ -81,8 +81,45 @@ export async function getParty(partyId: string): Promise<PartyAccess> {
  * not entitled to. `role` narrows the result to parties used in that role.
  */
 export async function listParties(opts: { role?: PartyRole } = {}): Promise<Party[]> {
-  const { parties } = await apiGet<{ parties: Party[] }>('/api/parties');
-  return opts.role ? parties.filter((p) => (p.roles ?? []).includes(opts.role!)) : parties;
+  const qs = opts.role ? `?role=${encodeURIComponent(opts.role)}` : '';
+  const { parties } = await apiGet<{ parties: Party[] }>(`/api/parties${qs}`);
+  return parties;
+}
+
+export interface PartyQuery {
+  limit?: number;
+  cursor?: string | null;
+  role?: PartyRole;
+  /** Name prefix. Matched by the server, not in the browser. */
+  search?: string;
+}
+
+export interface PartyPage {
+  parties: Party[];
+  cursor: string | null;
+}
+
+/**
+ * One page of parties, by name.
+ *
+ * What a list screen should use. `listParties` above returns every visible
+ * party, which since the migration is about seven thousand records.
+ */
+export async function listPartiesPage(q: PartyQuery = {}): Promise<PartyPage> {
+  const p = new URLSearchParams();
+  if (q.limit)  p.set('limit', String(q.limit));
+  if (q.cursor) p.set('cursor', q.cursor);
+  if (q.role)   p.set('role', q.role);
+  if (q.search) p.set('search', q.search);
+  const page = await apiGet<{ parties: Party[]; cursor: string | null }>(`/api/parties?${p}`);
+  return { parties: page.parties ?? [], cursor: page.cursor ?? null };
+}
+
+/** How many parties hold a role, without fetching them. */
+export async function countParties(role?: PartyRole): Promise<number> {
+  const qs = role ? `&role=${encodeURIComponent(role)}` : '';
+  const { count } = await apiGet<{ count: number }>(`/api/parties?count=1${qs}`);
+  return count;
 }
 
 export type ResolveVerdict =

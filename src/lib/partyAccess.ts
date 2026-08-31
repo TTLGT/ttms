@@ -74,10 +74,108 @@ export function toVisibleParty(id: string, d: FirebaseFirestore.DocumentData): V
   };
 }
 
+export interface PartyQuery {
+  /** Page size. Omitted returns every visible party. */
+  limit?: number;
+  /** The nameKey of the last party on the previous page. */
+  cursor?: string | null;
+  /** 'client', 'shipper' or 'consignee'. */
+  role?: string;
+  /** Name prefix, matched against nameKey. */
+  search?: string;
+}
+
+export interface PartyPage {
+  parties: VisibleParty[];
+  cursor: string | null;
+}
+
+/**
+ * A page of the parties the caller may see, by name.
+ *
+ * Paged for the same reason orders and carriers are: the party migration took
+ * this collection from one record to seven thousand, and the Clients screen was
+ * reading all of them — about 3.7 MB and six and a half seconds — to show a
+ * screenful.
+ *
+ * The two visibility paths split the way they do everywhere else. A privileged
+ * caller gets a real cursor query over the collection. Everyone else gets the
+ * union of what they own, what their groups own, what nobody owns and what they
+ * have been granted, which cannot be cursored without an index per branch — so
+ * that path reads its union once and pages it in memory, as it always has.
+ *
+ * Ordered by `nameKey` rather than the display name: it is the normalized form
+ * the collection is already indexed on, and sorting by it puts "acme" next to
+ * "ACME Corp." instead of in a different part of the alphabet.
+ */
+export async function listVisiblePartiesPage(
+  caller: Caller,
+  query: PartyQuery = {},
+): Promise<PartyPage> {
+  const col = adminDb.collection('parties');
+
+  if (canSeeAllParties(caller.profile)) {
+    let q: FirebaseFirestore.Query = col;
+    if (query.role) q = q.where('roles', 'array-contains', query.role);
+
+    const term = (query.search ?? '').trim().toLowerCase();
+    if (term) {
+      // U+F8FF sorts above any character that appears in a name, so the pair bounds every
+      // key starting with what was typed. Prefix only — Firestore has no
+      // substring index; see the carriers list for the same trade.
+      q = q.where('nameKey', '>=', term).where('nameKey', '<', term + '\uf8ff');
+    }
+
+    q = q.orderBy('nameKey');
+    if (query.cursor) q = q.startAfter(query.cursor);
+    if (query.limit)  q = q.limit(query.limit + 1);
+
+    const snap = await q.get();
+    const docs = query.limit ? snap.docs.slice(0, query.limit) : snap.docs;
+    return {
+      parties: docs.map((d) => toVisibleParty(d.id, d.data())),
+      cursor: query.limit && snap.docs.length > query.limit
+        ? (docs[docs.length - 1].data().nameKey ?? null)
+        : null,
+    };
+  }
+
+  const all = await listVisibleParties(caller);
+  const term = (query.search ?? '').trim().toLowerCase();
+  const matching = all.filter((p) => {
+    if (query.role && !(p.roles ?? []).includes(query.role)) return false;
+    if (term && !(p.nameKey ?? '').startsWith(term)) return false;
+    return true;
+  });
+
+  const start = query.cursor
+    ? matching.findIndex((p) => p.nameKey === query.cursor) + 1
+    : 0;
+  const rows = matching.slice(start);
+  if (!query.limit || rows.length <= query.limit) return { parties: rows, cursor: null };
+
+  const page = rows.slice(0, query.limit);
+  return { parties: page, cursor: page[page.length - 1].nameKey ?? null };
+}
+
+/** How many visible parties hold a role, without fetching them. */
+export async function countVisibleParties(caller: Caller, role?: string): Promise<number> {
+  if (canSeeAllParties(caller.profile)) {
+    const col = adminDb.collection('parties');
+    const q = role ? col.where('roles', 'array-contains', role) : col;
+    return (await q.count().get()).data().count;
+  }
+  const all = await listVisibleParties(caller);
+  return role ? all.filter((p) => (p.roles ?? []).includes(role)).length : all.length;
+}
+
 /**
  * Every party the caller may see. Privileged roles get the collection; everyone
  * else gets the union of what they own and what nobody owns. The two targeted
  * queries avoid streaming thousands of documents only to discard most of them.
+ *
+ * On the current collection the privileged path is seven thousand documents and
+ * several seconds — use `listVisiblePartiesPage` for anything that shows a list.
  */
 export async function listVisibleParties(caller: Caller): Promise<VisibleParty[]> {
   const col = adminDb.collection('parties');

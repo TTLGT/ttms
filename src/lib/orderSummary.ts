@@ -25,6 +25,7 @@ import { adminDb } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { canSeeAllParties } from './accessControl';
 import { listVisibleOrdersPage } from './orderAccess';
+import { listVisibleParties } from './partyAccess';
 import type { Caller } from './partyAccess';
 
 const COL = 'orders';
@@ -67,6 +68,10 @@ export interface DashboardSummary {
     cancelledItems: Record<string, unknown>[];
   };
   deliveredThisMonth: SummaryStat;
+  /** Parties first seen this month, counted rather than listed. */
+  newClients: SummaryStat;
+  /** Carriers whose insurance has lapsed or is about to. */
+  expiringCarriers: SummaryStat;
   overdueInvoices: SummaryStat;
   unsignedOrders: SummaryStat;
   staleQuotes: SummaryStat;
@@ -124,6 +129,7 @@ export async function buildDashboardSummary(caller: Caller): Promise<DashboardSu
   const [
     statusCounts, active, pendingPickup, inTransit, deliveredToday, bookedToday,
     monthOrders, deliveredThisMonth, overdue, unsigned, stale, docsMissing,
+    newClients, expiringCarriers,
   ] = await Promise.all([
     Promise.all(statuses.map((s) =>
       col.where('status', '==', s).count().get().then((r) => [s, r.data().count] as const),
@@ -152,6 +158,8 @@ export async function buildDashboardSummary(caller: Caller): Promise<DashboardSu
 
     stat((q) => q.where('status', '==', 'quote').where('updatedAt', '<=', staleBefore), 'updatedAt'),
     missingDocumentsStat(col),
+    newClientsStat(monthStart),
+    expiringCarriersStat(),
   ]);
 
   const monthDocs: Record<string, unknown>[] =
@@ -176,10 +184,58 @@ export async function buildDashboardSummary(caller: Caller): Promise<DashboardSu
       cancelledItems: cancelled.slice(0, TOOLTIP_LIMIT),
     },
     deliveredThisMonth,
+    newClients,
+    expiringCarriers,
     overdueInvoices: overdue,
     unsignedOrders:  unsigned,
     staleQuotes:     stale,
     documentsMissing: docsMissing,
+  };
+}
+
+/**
+ * Clients first seen this month.
+ *
+ * The dashboard used to work this out by downloading every party and filtering
+ * on createdAt. That was tolerable while `parties` held one record; the party
+ * migration made it seven thousand, about 3.7 MB and six and a half seconds on
+ * the page people land on. A count and twenty-five rows is the same answer.
+ */
+async function newClientsStat(monthStart: Timestamp): Promise<SummaryStat> {
+  const q = adminDb.collection('parties').where('createdAt', '>=', monthStart);
+  const [total, sample] = await Promise.all([
+    q.count().get(),
+    q.orderBy('createdAt', 'desc').limit(TOOLTIP_LIMIT)
+      .select('companyName', 'contactName', 'createdAt').get(),
+  ]);
+  return {
+    count: total.data().count,
+    items: sample.docs.map((d) => ({ id: d.id, ...d.data() })),
+  };
+}
+
+/**
+ * Carriers whose insurance has expired or is about to.
+ *
+ * Asked of the database rather than filtered from all eleven thousand carriers,
+ * which cost about ten seconds and six megabytes on every dashboard load.
+ * Thirty days matches getInsuranceStatus, which is what the card's badge reads;
+ * a carrier with no expiry recorded is "unknown" there and is not counted here.
+ */
+async function expiringCarriersStat(): Promise<SummaryStat> {
+  const cutoff = Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const q = adminDb.collection('carriers')
+    .where('isActive', '==', true)
+    .where('insuranceExpiration', '<=', cutoff);
+  const [total, sample] = await Promise.all([
+    q.count().get(),
+    // Soonest first, which for an expired one means longest overdue first.
+    q.orderBy('insuranceExpiration', 'asc').limit(TOOLTIP_LIMIT)
+      .select('companyName', 'contactName', 'insuranceExpiration').get(),
+  ]);
+  return {
+    count: total.data().count,
+    items: sample.docs.map((d) => ({ id: d.id, ...d.data() })),
   };
 }
 
@@ -198,7 +254,51 @@ export async function buildDashboardSummary(caller: Caller): Promise<DashboardSu
  * the current figure is inflated by imported loads parked in `carrier_assigned`
  * that were never advanced, which is a data question rather than a query one.
  */
-export async function activeClientLoads(caller: Caller): Promise<Record<string, number>> {
+export interface ActiveClient {
+  id: string;
+  name: string;
+  contactName: string;
+  loads: number;
+}
+
+/**
+ * The busiest clients by open load, with their names resolved.
+ *
+ * Names are looked up for the handful the card actually lists rather than by
+ * loading every party — the dashboard used to pull all seven thousand purely to
+ * turn twenty-five ids into labels.
+ */
+export async function activeClients(caller: Caller): Promise<{
+  loads: Record<string, number>;
+  top: ActiveClient[];
+}> {
+  const loads = await activeClientLoads(caller);
+  const busiest = Object.entries(loads)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, TOOLTIP_LIMIT);
+
+  if (busiest.length === 0) return { loads, top: [] };
+
+  const docs = await adminDb.getAll(
+    ...busiest.map(([id]) => adminDb.collection('parties').doc(id)),
+    { fieldMask: ['companyName', 'contactName'] },
+  );
+  const byId = new Map(docs.map((d) => [d.id, d.data() ?? {}]));
+
+  return {
+    loads,
+    top: busiest.map(([id, count]) => ({
+      id,
+      // A client whose party was deleted still has orders pointing at it; the
+      // id is a poor label but a truthful one, and better than dropping the row.
+      name:        String(byId.get(id)?.companyName || id),
+      contactName: String(byId.get(id)?.contactName || ''),
+      loads:       count,
+    })),
+  };
+}
+
+async function activeClientLoads(caller: Caller): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
 
   const rows = canSeeAllParties(caller.profile)
@@ -289,6 +389,18 @@ async function summariseInMemory(
   at: { dayStart: Timestamp; monthStart: Timestamp; staleBefore: Timestamp },
 ): Promise<DashboardSummary> {
   const { orders } = await listVisibleOrdersPage(caller, { parentOrderId: '' });
+
+  /*
+    Parties stay visibility-scoped here rather than counted with an aggregation.
+    "New clients this month" has always meant the ones this person can see, and
+    a count() over the whole collection would quietly start including records
+    they are not entitled to. Carriers are not owned records — every allowed
+    user may read them — so that card uses the same query for everyone.
+  */
+  const [visibleParties, expiringCarriers] = await Promise.all([
+    listVisibleParties(caller),
+    expiringCarriersStat(),
+  ]);
   const ms = (v: unknown) => {
     const ts = v as { toMillis?: () => number } | null | undefined;
     return typeof ts?.toMillis === 'function' ? ts.toMillis() : 0;
@@ -321,6 +433,11 @@ async function summariseInMemory(
       cancelledItems: cancelled.slice(0, TOOLTIP_LIMIT),
     },
     deliveredThisMonth: pick(orders.filter((o) => ms(o.deliveredAt) >= at.monthStart.toMillis())),
+    newClients: pick(
+      visibleParties.filter((p) => ms((p as unknown as { createdAt?: unknown }).createdAt)
+        >= at.monthStart.toMillis()) as unknown as Record<string, unknown>[],
+    ),
+    expiringCarriers,
     overdueInvoices:    pick(orders.filter((o) =>
       (INVOICEABLE as readonly string[]).includes(status(o)) && !o.invoiceStoragePath)),
     unsignedOrders:     pick(orders.filter((o) =>

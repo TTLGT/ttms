@@ -9,7 +9,7 @@ import { auth, db } from './firebase';
 import type { Order, OrderStatus } from '@/types/order';
 import { orderSearchTerms } from '@/types/order';
 import type { OwnerEvent } from '@/types/ownerEvent';
-import type { DashboardSummary } from './orderSummary';
+import type { ActiveClient, DashboardSummary } from './orderSummary';
 
 const COL = 'orders';
 
@@ -173,10 +173,16 @@ export async function fetchDashboardSummary(): Promise<DashboardSummary> {
  * it is roughly eight times slower than everything else on the page combined —
  * see lib/orderSummary.ts.
  */
-export async function fetchActiveClientLoads(): Promise<Record<string, number>> {
+export async function fetchActiveClientLoads(): Promise<{
+  loads: Record<string, number>;
+  top: ActiveClient[];
+}> {
   const res = await fetch('/api/orders/summary?clients=1', { headers: await authHeaders() });
-  const { activeClientLoads } = await unwrap<{ activeClientLoads: Record<string, number> }>(res);
-  return activeClientLoads ?? {};
+  const body = await unwrap<{
+    activeClientLoads: Record<string, number>;
+    activeClients: ActiveClient[];
+  }>(res);
+  return { loads: body.activeClientLoads ?? {}, top: body.activeClients ?? [] };
 }
 
 /** How many orders sit in each status, without fetching any of them. */

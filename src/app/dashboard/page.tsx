@@ -10,17 +10,11 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { listOrdersPage, fetchDashboardSummary, fetchActiveClientLoads } from '@/lib/orders';
-import type { DashboardSummary } from '@/lib/orderSummary';
-import { listParties } from '@/lib/parties';
-import { listCarriers } from '@/lib/carriers';
+import type { ActiveClient, DashboardSummary } from '@/lib/orderSummary';
 import { getAlerts } from '@/lib/alerts';
 import type { Order } from '@/types/order';
-import { partyDisplayName } from '@/types/party';
-import type { Party } from '@/types/party';
-import type { Carrier } from '@/types/carrier';
 import type { OrderAlert } from '@/lib/alerts';
 import type { LucideIcon } from 'lucide-react';
-import { getInsuranceStatus } from '@/types/carrier';
 import { STATUS_LABEL, orderDisplayNumber } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
 import AlertPanel from '@/components/orders/AlertPanel';
@@ -182,10 +176,11 @@ export default function DashboardPage() {
   const [summary,  setSummary]  = useState<DashboardSummary | null>(null);
   // Loaded on its own, after the rest — it is the one figure that reads every
   // open order instead of counting them. null means "still coming".
-  const [clientLoads, setClientLoads] = useState<Record<string, number> | null>(null);
+  const [clientLoads, setClientLoads] = useState<{
+    loads: Record<string, number>;
+    top: ActiveClient[];
+  } | null>(null);
   const [orders,   setOrders]   = useState<Order[]>([]);
-  const [clients,  setClients]  = useState<Party[]>([]);
-  const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [alerts,   setAlerts]   = useState<OrderAlert[]>([]);
   const [loading,  setLoading]  = useState(true);
 
@@ -201,14 +196,9 @@ export default function DashboardPage() {
     Promise.all([
       fetchDashboardSummary(),
       listOrdersPage({ limit: 30, fields: 'list', parentOrderId: '' }),
-      // Visibility is applied server-side, so no uid filter is passed here.
-      listParties({ role: 'client' }),
-      listCarriers(),
-    ]).then(([sum, recent, allClients, allCarriers]) => {
+    ]).then(([sum, recent]) => {
       setSummary(sum);
       setOrders(recent.orders);
-      setClients(allClients);
-      setCarriers(allCarriers);
       // Alerts are raised from the loads that still need attention, which is
       // what the summary's samples already are — the full book is not needed
       // and never was, since an alert about a load closed last year is noise.
@@ -227,7 +217,9 @@ export default function DashboardPage() {
     // Deliberately not awaited with the rest: it takes roughly eight times as
     // long as every other card combined, and one slow card should not hold up
     // eleven fast ones.
-    fetchActiveClientLoads().then(setClientLoads).catch(() => setClientLoads({}));
+    fetchActiveClientLoads()
+      .then(setClientLoads)
+      .catch(() => setClientLoads({ loads: {}, top: [] }));
   }, []);
 
   /*
@@ -261,17 +253,14 @@ export default function DashboardPage() {
   const staleQuotes        = s?.staleQuotes        ?? empty;
   const documentsMissing   = s?.documentsMissing   ?? empty;
 
-  const newClientsThisMonth = clients.filter((c) => isThisMonth(c.createdAt as TS));
-
-  const expiringCarriers = carriers.filter((c) => {
-    const st = getInsuranceStatus(c.insuranceExpiration);
-    return st === 'expiring_soon' || st === 'expired';
-  });
+  const newClientsThisMonth = s?.newClients   ?? empty;
+  const expiringCarriers    = s?.expiringCarriers ?? empty;
 
   // ── Clients ────────────────────────────────────────────────────────────
-  const activeClientLoads = clientLoads ?? {};
-  const activeClientIds   = new Set(Object.keys(activeClientLoads));
-  const clientMap         = new Map(clients.map((c) => [c.id, c]));
+  // Counted and named by the server. The page used to download every party in
+  // the company to turn twenty-five ids into labels.
+  const activeClientCount = clientLoads ? Object.keys(clientLoads.loads).length : null;
+  const topClients        = clientLoads?.top ?? [];
 
   // ── Card definitions ──────────────────────────────────────────────────────
   const PRIMARY_CARDS: StatCard[] = [
@@ -379,20 +368,17 @@ export default function DashboardPage() {
       label: 'Active Clients',
       // Its own request is still in flight — say so rather than flash a
       // confident zero that corrects itself a moment later.
-      value: clientLoads === null ? '…' : activeClientIds.size,
+      value: activeClientCount === null ? '…' : activeClientCount,
       color: 'bg-indigo-50 border-indigo-200 text-indigo-700',
       icon: Building2, anim: '', hoverAnim: 'animate-pulse',
-      items: Array.from(activeClientIds).map((id) => {
-        const client    = clientMap.get(id);
-        const loadCount = activeClientLoads[id] ?? 0;
-        return {
-          id,
-          label: client ? partyDisplayName(client) : id,
-          sub:   client?.contactName ?? '',
-          badge: `${loadCount} load${loadCount !== 1 ? 's' : ''}`,
-          href:  `/dashboard/parties/${id}`,
-        };
-      }),
+      // The busiest twenty-five, named by the server.
+      items: topClients.map((c) => ({
+        id:    c.id,
+        label: c.name,
+        sub:   c.contactName,
+        badge: `${c.loads} load${c.loads !== 1 ? 's' : ''}`,
+        href:  `/dashboard/parties/${c.id}`,
+      })),
       emptyMsg: 'No active clients',
     },
     {
@@ -405,13 +391,13 @@ export default function DashboardPage() {
     },
     {
       label: 'New Clients This Month',
-      value: newClientsThisMonth.length,
+      value: newClientsThisMonth.count,
       color: 'bg-cyan-50 border-cyan-200 text-cyan-700',
       icon: UserPlus, anim: '', hoverAnim: 'animate-bounce',
-      items: newClientsThisMonth.map((c) => ({
-        id:    c.id,
-        label: partyDisplayName(c),
-        sub:   c.contactName,
+      items: newClientsThisMonth.items.map((c) => ({
+        id:    String(c.id),
+        label: String(c.companyName || c.contactName || c.id),
+        sub:   String(c.contactName ?? ''),
         badge: formatDate(c.createdAt as TS),
         href:  `/dashboard/parties/${c.id}`,
       })),
@@ -419,17 +405,18 @@ export default function DashboardPage() {
     },
     {
       label: 'Expiring Insurance',
-      value: expiringCarriers.length,
+      value: expiringCarriers.count,
       color: 'bg-rose-50 border-rose-200 text-rose-700',
-      icon: ShieldAlert, anim: expiringCarriers.length > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-pop',
-      items: expiringCarriers.map((c) => {
-        const status  = getInsuranceStatus(c.insuranceExpiration);
-        const expDate = formatDate(c.insuranceExpiration as TS);
+      icon: ShieldAlert, anim: expiringCarriers.count > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-pop',
+      items: expiringCarriers.items.map((c) => {
+        const expiry  = c.insuranceExpiration as TS;
+        const expDate = formatDate(expiry);
+        const expired = !!expiry?.toDate && expiry.toDate().getTime() < Date.now();
         return {
-          id:    c.id,
-          label: c.companyName,
-          sub:   c.contactName,
-          badge: status === 'expired' ? `Expired ${expDate}` : `Exp. ${expDate}`,
+          id:    String(c.id),
+          label: String(c.companyName ?? ''),
+          sub:   String(c.contactName ?? ''),
+          badge: expired ? `Expired ${expDate}` : `Exp. ${expDate}`,
           href:  `/dashboard/carriers/${c.id}`,
         };
       }),
