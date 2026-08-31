@@ -149,11 +149,17 @@ export async function announceOrderEvent(
   orderId: string,
   event: 'status' | 'carrier' | 'pod',
 ): Promise<void> {
-  await fetch(`/api/orders/${orderId}/announce`, {
-    method:  'POST',
-    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ event }),
-  }).catch(() => {});
+  try {
+    await fetch(`/api/orders/${orderId}/announce`, {
+      method:  'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ event }),
+    });
+  } catch {
+    // Swallowed whole, including the token lookup: callers use `void` on this,
+    // so anything thrown here would surface as an unhandled rejection over a
+    // save that actually succeeded.
+  }
 }
 
 export async function updateOrderStatus(
