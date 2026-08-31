@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { listOrdersPage, countOrdersByStatus } from '@/lib/orders';
 import type { Order, OrderStatus } from '@/types/order';
 import { orderDisplayNumber } from '@/types/order';
@@ -59,7 +60,12 @@ function formatCurrency(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 }
 
-export default function OrdersPage() {
+/** Guards the tab read out of the URL — anything else falls back to All. */
+function isStatus(value: string | null): value is OrderStatus {
+  return !!value && FILTER_TABS.some((t) => t.value === value && t.value !== 'all');
+}
+
+function OrdersList() {
   // Dates are written the way the company setting says — see Settings →
   // Operations → Date Format.
   const { formatDate } = useDateFormatters();
@@ -68,17 +74,55 @@ export default function OrdersPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [cursor, setCursor]   = useState<string | null>(null);
   const [error, setError]     = useState('');
-  const [filter, setFilter]   = useState<OrderStatus | 'all'>('all');
   const [counts, setCounts]   = useState<Record<string, number> | null>(null);
-  const [search, setSearch]   = useState('');
-  // What the list is actually showing, as opposed to what is in the box — see
-  // the debounce below, which keeps typing from becoming one query per letter.
-  const [applied, setApplied] = useState('');
+
+  /*
+    The search text and the status tab live in the URL, not in component state.
+
+    That is what makes a result openable and returnable-from: a broker searches
+    for a customer, opens the third load, decides it is the wrong one and hits
+    Back — and lands on the same search, not an empty box and page one. It also
+    makes the list linkable, so "the Laredo quotes" can be pasted into chat.
+
+    Written with `replace` rather than `push`, so typing does not leave a
+    history entry per letter. Back still returns here from an order, because
+    opening the order was itself a push.
+  */
+  const router       = useRouter();
+  const pathname     = usePathname();
+  const searchParams = useSearchParams();
+
+  const applied = (searchParams.get('q') ?? '').trim();
+  const filter: OrderStatus | 'all' = isStatus(searchParams.get('status'))
+    ? (searchParams.get('status') as OrderStatus)
+    : 'all';
+
+  const setParam = useCallback((key: string, value: string, fallback: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    // The default is left out entirely, so a bare /dashboard/orders keeps
+    // meaning exactly what it means today.
+    if (value === fallback) params.delete(key);
+    else params.set(key, value);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [router, pathname, searchParams]);
+
+  // The text box is local so it stays responsive between keystrokes; the URL
+  // is the source of truth for what has actually been searched.
+  const [search, setSearch] = useState(applied);
+
+  // Back, Forward, or a pasted link changed the URL from outside. The guard
+  // keeps this from fighting the user mid-word, since the URL trails the box
+  // by one debounce.
+  useEffect(() => {
+    setSearch((current) => (current.trim() === applied ? current : applied));
+  }, [applied]);
 
   useEffect(() => {
-    const t = setTimeout(() => setApplied(search.trim()), 250);
+    if (search.trim() === applied) return;
+    const t = setTimeout(() => setParam('q', search.trim(), ''), 250);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [search, applied, setParam]);
 
   const columnWidths = useColumnWidths(WIDTH_STORAGE_KEY, DEFAULT_WIDTHS);
   const tableWidth = COLUMNS.reduce((sum, c) => sum + (columnWidths.widths[c.key] ?? c.width), 0);
@@ -170,7 +214,7 @@ export default function OrdersPage() {
         {FILTER_TABS.map((tab) => (
           <button
             key={tab.value}
-            onClick={() => setFilter(tab.value)}
+            onClick={() => setParam('status', tab.value, 'all')}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
               filter === tab.value
                 ? 'border-brand-600 text-brand-700'
@@ -219,7 +263,7 @@ export default function OrdersPage() {
               */}
               {filter !== 'all' && (
                 <button
-                  onClick={() => setFilter('all')}
+                  onClick={() => setParam('status', 'all', 'all')}
                   className="mt-3 text-sm text-brand-600 hover:underline"
                 >
                   Search every status instead →
@@ -336,5 +380,22 @@ export default function OrdersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function OrdersPage() {
+  // Suspense is required because the list reads its search text and status tab
+  // out of useSearchParams(), which suspends on the server render. Same reason
+  // as the Directory page.
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
+        </div>
+      }
+    >
+      <OrdersList />
+    </Suspense>
   );
 }

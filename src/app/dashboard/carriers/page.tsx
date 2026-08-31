@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { listCarriersPage, countCarriers } from '@/lib/carriers';
 import type { Carrier } from '@/types/carrier';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
@@ -11,7 +12,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 /** See the orders list for why fifty. */
 const PAGE_SIZE = 50;
 
-export default function CarriersPage() {
+function CarriersList() {
   // Dates are written the way the company setting says — see Settings →
   // Operations → Date Format.
   const { formatDate } = useDateFormatters();
@@ -20,22 +21,42 @@ export default function CarriersPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [cursor, setCursor]     = useState<QueryDocumentSnapshot | null>(null);
   const [error, setError]       = useState('');
-  const [search, setSearch]     = useState('');
-  const [showInactive, setShowInactive] = useState(false);
 
-  /**
-   * What the list is actually showing, as opposed to what is in the box. The
-   * two are kept apart so every keystroke does not become a query — see the
-   * debounce below.
-   */
-  const [applied, setApplied] = useState('');
+  /*
+    Search and the inactive toggle live in the URL for the same reason they do
+    on the orders list: opening a carrier and coming back should return to the
+    search that found it, not to an empty box. `replace`, so typing leaves no
+    history to walk back through.
+  */
+  const router       = useRouter();
+  const pathname     = usePathname();
+  const searchParams = useSearchParams();
+
+  const applied      = (searchParams.get('q') ?? '').trim();
+  const showInactive = searchParams.get('inactive') === '1';
+
+  const setParam = useCallback((key: string, value: string, fallback: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === fallback) params.delete(key);
+    else params.set(key, value);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [router, pathname, searchParams]);
+
+  // Local so the box stays responsive; the URL is what has actually been run.
+  const [search, setSearch] = useState(applied);
+
+  useEffect(() => {
+    setSearch((current) => (current.trim() === applied ? current : applied));
+  }, [applied]);
 
   useEffect(() => {
     // 250ms is long enough that typing a carrier name is one query rather than
     // fifteen, and short enough that the list feels like it is keeping up.
-    const t = setTimeout(() => setApplied(search.trim()), 250);
+    if (search.trim() === applied) return;
+    const t = setTimeout(() => setParam('q', search.trim(), ''), 250);
     return () => clearTimeout(t);
-  }, [search]);
+  }, [search, applied, setParam]);
 
   // Discards a response whose request has been superseded — a slow search
   // landing after a later one would otherwise show results for the wrong text.
@@ -105,7 +126,7 @@ export default function CarriersPage() {
           <input
             type="checkbox"
             checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
+            onChange={(e) => setParam('inactive', e.target.checked ? '1' : '', '')}
             className="rounded"
           />
           Show inactive
@@ -194,5 +215,23 @@ export default function CarriersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+
+export default function CarriersPage() {
+  // Suspense is required because the list reads its search text and the
+  // inactive toggle out of useSearchParams(), which suspends on the server
+  // render. Same reason as the orders list and the Directory page.
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
+        </div>
+      }
+    >
+      <CarriersList />
+    </Suspense>
   );
 }
