@@ -104,15 +104,32 @@ export async function buildDashboardSummary(caller: Caller): Promise<DashboardSu
    * for it explicitly builds an index carrying status twice — once for the
    * filter, once for the sort. The sample is twenty-five rows behind a hover;
    * the order it arrives in is not worth an index of its own.
+   *
+   * `rangeSorted` says `sortField` is the field the filter's range is on, and
+   * makes the count carry that same sort. A count is normally asked unsorted,
+   * but a query with an inequality is never unordered to Firestore: it sorts
+   * implicitly *ascending* on the inequality field, while the index serving the
+   * sample is descending on it. An index can be read backwards, but that
+   * reverses every field in it — `parentOrderId` included — so the descending
+   * index cannot answer the ascending form, and Firestore asks for a second
+   * index differing from the first only in direction. Sorting the count the way
+   * the sample is already sorted answers both from the one index.
+   *
+   * Only correct where the range is on the sort field: `orderBy` drops
+   * documents missing that field, and there the inequality has dropped them
+   * already, so the count is the same number. This is why four cards read zero
+   * on a dashboard whose every other figure was right — the counts failed, the
+   * whole summary rejected with them, and the page showed its empty state.
    */
   const stat = async (
     build: (q: FirebaseFirestore.Query) => FirebaseFirestore.Query,
     sortField: string | null = 'createdAt',
+    rangeSorted = false,
   ): Promise<SummaryStat> => {
     const q = build(col);
     const sampleQuery = sortField ? q.orderBy(sortField, 'desc') : q;
     const [total, sample] = await Promise.all([
-      q.count().get(),
+      (rangeSorted ? sampleQuery : q).count().get(),
       sampleQuery.limit(TOOLTIP_LIMIT).select(...CARD_FIELDS).get(),
     ]);
     return {
@@ -140,8 +157,8 @@ export async function buildDashboardSummary(caller: Caller): Promise<DashboardSu
     stat((q) => q.where('status', 'not-in', ['completed', 'cancelled']), null),
     stat((q) => q.where('status', 'in', [...PENDING_PICKUP]), null),
     stat((q) => q.where('status', '==', 'in_transit')),
-    stat((q) => q.where('status', '==', 'delivered').where('deliveredAt', '>=', dayStart), 'deliveredAt'),
-    stat((q) => q.where('createdAt', '>=', dayStart)),
+    stat((q) => q.where('status', '==', 'delivered').where('deliveredAt', '>=', dayStart), 'deliveredAt', true),
+    stat((q) => q.where('createdAt', '>=', dayStart), 'createdAt', true),
 
     // This month's book is small enough to total exactly. Firestore's sum()
     // would need its own index per field, and this set is one month of orders
@@ -151,12 +168,12 @@ export async function buildDashboardSummary(caller: Caller): Promise<DashboardSu
       .select(...CARD_FIELDS)
       .get(),
 
-    stat((q) => q.where('deliveredAt', '>=', monthStart), 'deliveredAt'),
+    stat((q) => q.where('deliveredAt', '>=', monthStart), 'deliveredAt', true),
     stat((q) => q.where('status', 'in', [...INVOICEABLE]).where('invoiceStoragePath', '==', null), null),
 
     unsignedStat(col),
 
-    stat((q) => q.where('status', '==', 'quote').where('updatedAt', '<=', staleBefore), 'updatedAt'),
+    stat((q) => q.where('status', '==', 'quote').where('updatedAt', '<=', staleBefore), 'updatedAt', true),
     missingDocumentsStat(col),
     newClientsStat(monthStart),
     expiringCarriersStat(),

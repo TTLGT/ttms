@@ -183,6 +183,10 @@ export default function DashboardPage() {
   const [orders,   setOrders]   = useState<Order[]>([]);
   const [alerts,   setAlerts]   = useState<OrderAlert[]>([]);
   const [loading,  setLoading]  = useState(true);
+  // A failed summary used to be indistinguishable from an empty company: every
+  // card fell back to zero and Recent Orders said "No orders yet — create your
+  // first order" over ten thousand of them. Say what happened instead.
+  const [error,    setError]    = useState<string | null>(null);
 
   /*
     The stat cards are counted by the database and arrive as numbers; `orders`
@@ -212,6 +216,8 @@ export default function DashboardPage() {
         ? [...byId.values()]
         : [...byId.values()].filter((o) => o.createdBy === user?.uid);
       setAlerts(getAlerts(alertOrders));
+    }).catch((e: unknown) => {
+      setError(e instanceof Error ? e.message : 'Could not load the dashboard.');
     }).finally(() => setLoading(false));
 
     // Deliberately not awaited with the rest: it takes roughly eight times as
@@ -446,6 +452,15 @@ export default function DashboardPage() {
         <p className="text-gray-500 mt-1 text-sm">Your loads and clients, at a glance.</p>
       </div>
 
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4">
+          <p className="text-sm font-semibold text-red-800">These figures could not be loaded</p>
+          <p className="text-sm text-red-700 mt-1">
+            The numbers below are not zero — they are missing. {error}
+          </p>
+        </div>
+      )}
+
       {!loading && <AlertPanel alerts={alerts} />}
 
       <div className="mb-4">
@@ -466,6 +481,12 @@ export default function DashboardPage() {
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="w-7 h-7 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : error ? (
+          // Not the same thing as having no orders, and inviting someone to
+          // create their first one when the load failed is a lie.
+          <div className="px-6 py-12 text-center text-gray-400 text-sm">
+            Recent orders could not be loaded.
           </div>
         ) : recentOrders.length === 0 ? (
           <div className="px-6 py-12 text-center text-gray-400 text-sm">
