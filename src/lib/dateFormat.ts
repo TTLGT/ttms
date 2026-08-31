@@ -26,7 +26,23 @@ const MONTHS = [
 ];
 
 /** Anything the app actually holds a date in: Firestore Timestamp, ISO string, Date. */
-export type DateLike = Date | string | { toDate?: () => Date } | null | undefined;
+/**
+ * Everything a date reaches this file as.
+ *
+ * The last shape is the one that is easy to miss: a Firestore Timestamp that
+ * has been through JSON on its way out of an API route arrives as
+ * `{_seconds, _nanoseconds}` with no methods on it. It looks like a Timestamp
+ * in the types and behaves like nothing at all, so every date rendered from an
+ * API response silently fell back to the em dash. Handled in toDate() below.
+ */
+export type DateLike =
+  | Date
+  | string
+  | { toDate?: () => Date }
+  | { _seconds: number; _nanoseconds?: number }
+  | { seconds: number; nanoseconds?: number }
+  | null
+  | undefined;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -52,9 +68,19 @@ function toDate(value: DateLike): Date | null {
     const d = new Date(value);
     return isNaN(d.getTime()) ? null : d;
   }
-  if (typeof value.toDate === 'function') {
+  if ('toDate' in value && typeof value.toDate === 'function') {
     const d = value.toDate();
     return d instanceof Date && !isNaN(d.getTime()) ? d : null;
+  }
+  // A Timestamp that came back over JSON. The Admin SDK serializes to
+  // `_seconds`; some paths produce the unprefixed form, so both are read.
+  const secs =
+    '_seconds' in value && typeof value._seconds === 'number' ? value._seconds
+    : 'seconds' in value && typeof value.seconds === 'number' ? value.seconds
+    : null;
+  if (secs !== null) {
+    const d = new Date(secs * 1000);
+    return isNaN(d.getTime()) ? null : d;
   }
   return null;
 }

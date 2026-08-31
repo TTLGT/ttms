@@ -95,11 +95,27 @@ export function isValidGrantHours(hours: unknown): boolean {
   return hours === null || GRANT_DURATIONS.some((d) => d.hours === hours);
 }
 
-/** Timestamps from the client and admin SDKs both answer toMillis(). */
-type Instant = { toMillis?: () => number } | null | undefined;
+/**
+ * A moment, in any of the shapes one arrives in.
+ *
+ * A live Timestamp answers toMillis(); one that has been through JSON on the
+ * way out of an API route is a bare `{_seconds}` object with no methods. Both
+ * have to work here, because this decides whether a grant is still live — and
+ * reading the JSON form as "no expiry" would show a lapsed grant as active.
+ */
+type Instant =
+  | { toMillis?: () => number }
+  | { _seconds: number }
+  | { seconds: number }
+  | null
+  | undefined;
 
 function millisOf(ts: Instant): number | null {
-  return typeof ts?.toMillis === 'function' ? ts.toMillis() : null;
+  if (!ts) return null;
+  if ('toMillis' in ts && typeof ts.toMillis === 'function') return ts.toMillis();
+  if ('_seconds' in ts && typeof ts._seconds === 'number') return ts._seconds * 1000;
+  if ('seconds'  in ts && typeof ts.seconds  === 'number') return ts.seconds  * 1000;
+  return null;
 }
 
 /**
