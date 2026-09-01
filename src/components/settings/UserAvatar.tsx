@@ -115,6 +115,7 @@ export function UserAvatar({
   size = 36,
   expandable,
   name,
+  shape = 'circle',
 }: {
   photoPath: string | null | undefined;
   /** Shown when there is no photo — the first letter of the name or email. */
@@ -125,9 +126,70 @@ export function UserAvatar({
   expandable?: boolean;
   /** Captions the enlarged photo, and names it for a screen reader. */
   name?: string;
+  /**
+   * `panel` is the large portrait down the side of a card rather than a circle
+   * in front of a line of text: it takes `size` as its width and then stretches
+   * to whatever height the card beside it ends up being. A circle that big
+   * crops the top of the head and both shoulders off every photo, which is the
+   * one thing a photo on an access list is there to show.
+   */
+  shape?: 'circle' | 'panel';
 }) {
   const url = usePhotoUrl(photoPath);
   const [open, setOpen] = useState(false);
+
+  if (shape === 'panel') {
+    // Capped as a share of the card as well as fixed in pixels, so a
+    // phone-width card does not hand the photo half the room the facts need.
+    const frame =
+      'relative flex flex-shrink-0 items-center justify-center self-stretch overflow-hidden rounded-lg max-w-[38%]';
+    const dimensions = { width: size, minHeight: size };
+    const tone = url
+      ? 'bg-gray-100'
+      : muted
+      ? 'bg-gray-200 text-gray-400'
+      : 'bg-brand-100 text-brand-700';
+
+    const content = url ? (
+      <Image
+        src={url}
+        alt=""
+        fill
+        unoptimized
+        sizes={`${size}px`}
+        className={`object-cover ${muted ? 'opacity-50 grayscale' : ''}`}
+      />
+    ) : (
+      <span className="font-semibold" style={{ fontSize: Math.round(size * 0.42) }}>
+        {fallback}
+      </span>
+    );
+
+    if (!url || !expandable) {
+      return (
+        <div className={`${frame} ${tone}`} style={dimensions}>
+          {content}
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          title={name ? `See ${name}'s photo full size` : 'See the photo full size'}
+          className={`${frame} ${tone} cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-brand-400`}
+          style={dimensions}
+        >
+          {content}
+        </button>
+        {open && (
+          <PhotoLightbox url={url} name={name ?? ''} onClose={() => setOpen(false)} />
+        )}
+      </>
+    );
+  }
 
   if (url) {
     const circle = (

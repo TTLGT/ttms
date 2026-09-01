@@ -377,11 +377,51 @@ edited or deleted from inside TTMS — it is a record, not a list you manage.
 > the only place their details survive if a removal turns out to have been a
 > mistake. Nothing in TTMS will ever delete from it.
 
+### Three ways to look at the list
+
+The buttons above the list switch between them. Whichever you pick is
+remembered in your browser, and the filters, the search and the order stay the
+same across all three — only the shape changes.
+
+| View | What it is for |
+|---|---|
+| **Cards** | One roomy card each, with the photo down the side. Reading somebody's record, or editing it. |
+| **Compact** | Smaller cards, three across. Still a photo, but a screenful of people instead of four. |
+| **List** | One line each. The view for the question this page exists to answer: who is an admin, who has never signed in, who is suspended — across everybody at once. |
+
+In the **List** view the headings sort: click **Person**, **Email**, **Work
+phone**, **Started** or **Born** to order by it, and click the same heading
+again to reverse it. Status and roles have a column each and cannot be switched
+off. The role chips still work — if you spot a role that is wrong while
+scanning, click it there and then; you do not have to go and find the person in
+another view. The pencil opens the same editor, in a panel under their line.
+
+### Choosing what each card shows
+
+Each person's card shows their photo and the details on file — including their
+full legal name, personal email and date of birth, which only this page and the
+CSV ever show.
+
+The **Show** button above the list is where you turn any of those off. Tick or
+untick a detail and every card updates — and in the List view, so does every
+column, since it is the same choice behind both. Status and roles are not on
+that menu: they are what this page is for, and hiding them by accident is not
+worth the convenience of being able to. This is your own view and nobody else's:
+it is remembered in this browser only, so hiding birthdays before you share your
+screen changes nothing for anyone else, and it does not change who is allowed to
+see what — everyone who can open this page can read all of it either way.
+**Show everything again** puts them all back.
+
+The full legal name only appears when it is different from the everyday name,
+since a card repeating the same name twice tells you nothing.
+
 ### Exporting the list
 
 The **Export CSV** button above the list saves everyone as a CSV file that opens
 in Excel — useful for HR or an audit. It saves exactly what is on screen, so if
-you have filtered the list, you get the filtered version.
+you have filtered the list, you get the filtered version. The **Show** button
+does not affect it: the CSV always has every column, so a file exported today
+can be read — or imported — the same as one exported last month.
 
 ---
 

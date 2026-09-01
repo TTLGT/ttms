@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowDown, ArrowUp, Ban, Building2, CalendarDays, Check, Download, Pencil,
-  Phone, RotateCcw, Smartphone, Trash2, UsersRound, X,
+  ArrowDown, ArrowUp, AtSign, Building2, Cake, CalendarDays, Check, Download,
+  IdCard, LayoutGrid, LayoutList, List, Phone, Smartphone, UsersRound,
 } from 'lucide-react';
 import {
   listAllowedUsers,
@@ -33,33 +33,32 @@ import { listSites } from '@/lib/sites';
 import { listTeams } from '@/lib/teams';
 import { useAuth } from '@/context/AuthContext';
 import {
-  accessStatus, fullName, splitName, yearsSince,
+  ROLE_CHIPS, accessStatus, fullName, splitName, yearsSince,
 } from '@/types/allowedUser';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import type { DateLike } from '@/lib/dateFormat';
 import type { AccessStatus, AllowedUser, AllowedUserRole } from '@/types/allowedUser';
+import {
+  SORT_FIELDS, directionLabel, millis, sortText,
+  type SortDir, type SortField,
+} from '@/lib/peopleSort';
 import { toCsv, csvDate, downloadCsv } from '@/lib/csv';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
+import { usePeopleCardFields } from '@/lib/peopleCardFields';
+import { usePeopleView, type PeopleView } from '@/lib/peopleView';
 import AddPeoplePanel from '@/components/settings/AddPeoplePanel';
+import CardFieldPicker from '@/components/settings/CardFieldPicker';
+import PeopleTable from '@/components/settings/PeopleTable';
+import PersonActions from '@/components/settings/PersonActions';
+import PersonRoles from '@/components/settings/PersonRoles';
+import StatusChip from '@/components/settings/StatusChip';
 import CollapsibleSection from '@/components/settings/CollapsibleSection';
 import RemovedPeoplePanel from '@/components/settings/RemovedPeoplePanel';
 import { personAnchorId } from '@/components/settings/settingsSections';
 import { AvatarUploader, UserAvatar } from '@/components/settings/UserAvatar';
 import DateField from '@/components/DateField';
 import Fact from '@/components/people/Fact';
-
-/**
- * The elevated roles. Broker is not among them: it is the default everyone
- * has until one of these is granted, so it is shown as a chip but derived
- * rather than stored (see isBroker in accessControl).
- */
-const ROLE_CHIPS: { field: AllowedUserRole; label: string }[] = [
-  { field: 'isAdmin',      label: 'Admin' },
-  { field: 'isDispatcher', label: 'Dispatcher' },
-  { field: 'isFinance',    label: 'Finance' },
-  { field: 'isHr',         label: 'HR' },
-];
 
 const NO_ROLES = { isAdmin: false, isDispatcher: false, isFinance: false, isHr: false };
 
@@ -74,102 +73,6 @@ type RoleFilter   = 'all' | AllowedUserRole | 'broker';
  */
 const UNASSIGNED  = 'none';
 type PlaceFilter  = 'all' | typeof UNASSIGNED | string;
-type SortField =
-  | 'firstName' | 'lastName' | 'email' | 'phone' | 'phoneOther' | 'extension'
-  | 'startDate' | 'dateOfBirth' | 'added';
-type SortDir   = 'asc' | 'desc';
-
-const SORT_FIELDS: { key: SortField; label: string }[] = [
-  { key: 'firstName', label: 'First name' },
-  { key: 'lastName',  label: 'Last name' },
-  { key: 'email',     label: 'Email' },
-  { key: 'phone',     label: 'Work phone (US)' },
-  { key: 'phoneOther', label: OTHER_PHONE_LABEL },
-  { key: 'extension', label: 'Extension' },
-  { key: 'startDate', label: 'Start date' },
-  { key: 'dateOfBirth', label: 'Date of birth' },
-  { key: 'added',     label: 'Date added' },
-];
-
-/** Direction reads differently depending on what is being ordered. */
-function directionLabel(field: SortField, dir: SortDir): string {
-  if (field === 'added')     return dir === 'asc' ? 'Oldest first' : 'Newest first';
-  if (field === 'startDate') return dir === 'asc' ? 'Longest here first' : 'Newest hire first';
-  // The earliest birthday belongs to the oldest person, which is the way round
-  // anyone sorting by it is actually thinking.
-  if (field === 'dateOfBirth') return dir === 'asc' ? 'Oldest first' : 'Youngest first';
-  if (field === 'phone' || field === 'phoneOther' || field === 'extension') {
-    return dir === 'asc' ? 'Low → High' : 'High → Low';
-  }
-  return dir === 'asc' ? 'A → Z' : 'Z → A';
-}
-
-const digitsOnly = (value: string | null | undefined) => (value ?? '').replace(/\D/g, '');
-
-/**
- * Compare phone numbers as digits alone.
- *
- * New and re-saved numbers are all one shape now (lib/phone.ts), but entries
- * that have not been touched since still hold whatever was typed at the time —
- * (555) 123-4567, 555.123.4567, +1 555 123 4567 — and those have to sort in
- * with the rest rather than in a block of their own. The country code is
- * dropped for the same reason: +1 on the US line, +502 or +52 on the other.
- *
- * Sorting the second column mixes countries, and that is the honest result:
- * it is one column holding one number each, so it orders by the number and
- * lets the country ride along.
- */
-function phoneKey(value: string | null | undefined, region: PhoneRegion): string {
-  const d = digitsOnly(value);
-  const code = PHONE_COUNTRY_CODE[region];
-  const national = PHONE_NATIONAL_LENGTH[region];
-  return d.length === national + code.length && d.startsWith(code)
-    ? d.slice(code.length)
-    : d;
-}
-
-/**
- * Extensions are numbers, so they have to sort like numbers: comparing them as
- * text would put 1050 ahead of 204. Zero-padding to a fixed width gets numeric
- * order out of the same string compare everything else uses. Anything not
- * purely numeric falls back to its own text.
- */
-function extensionKey(p: AllowedUser): string {
-  const raw = (p.extension ?? '').trim().toLowerCase();
-  const d = digitsOnly(raw);
-  return d ? d.padStart(8, '0') : raw;
-}
-
-/**
- * The text a row sorts under. Empty for someone the field is blank on, which
- * the comparator treats as "unknown" and sends to the end — a block of blanks
- * at the top is just noise, and pending invites often have no details at all.
- */
-function sortText(p: AllowedUser, field: SortField): string {
-  if (field === 'email')     return p.email.toLowerCase();
-  if (field === 'phone')     return phoneKey(p.phone, 'US');
-  if (field === 'phoneOther') {
-    const { value, region } = otherPhone(p);
-    return phoneKey(value, region);
-  }
-  if (field === 'extension') return extensionKey(p);
-  // Stored as YYYY-MM-DD precisely so plain text order is date order; a blank
-  // one falls through to the same "unknown, so put it last" rule as the rest.
-  if (field === 'startDate')   return (p.startDate ?? '').trim();
-  if (field === 'dateOfBirth') return (p.dateOfBirth ?? '').trim();
-  const value = field === 'lastName' ? p.lastName : p.firstName;
-  return (value ?? '').trim().toLowerCase();
-}
-
-/**
- * Firestore hands back a Timestamp, but an entry created before `invitedAt`
- * existed has none. Those sort to the end either way rather than jumping to
- * the top as epoch zero.
- */
-function millis(ts: { toDate?: () => Date } | null | undefined): number | null {
-  return ts && typeof ts.toDate === 'function' ? ts.toDate().getTime() : null;
-}
-
 type TileTone     = 'gray' | 'green' | 'amber' | 'red';
 
 const TILE_TONE: Record<TileTone, string> = {
@@ -193,6 +96,7 @@ function CountTile({
   active: boolean;
   onClick: () => void;
 }) {
+
   return (
     <button
       type="button"
@@ -218,34 +122,6 @@ function CountTile({
   );
 }
 
-const STATUS_CHIP: Record<AccessStatus, { label: string; className: string }> = {
-  active:    { label: 'Active',    className: 'bg-green-50 text-green-700 border-green-200' },
-  pending:   { label: 'Pending',   className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  suspended: { label: 'Suspended', className: 'bg-red-50 text-red-700 border-red-200' },
-};
-
-/**
- * The three states as a chip in the card's corner rather than a line of text
- * under the name — it is one word, and giving it a whole row was part of what
- * made the list so tall.
- */
-function StatusChip({ status }: { status: AccessStatus }) {
-  const { label, className } = STATUS_CHIP[status];
-  return (
-    <span
-      className={`flex-shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${className}`}
-      title={status === 'pending' ? 'Added, but has never signed in' : undefined}
-    >
-      {label}
-    </span>
-  );
-}
-
-/**
- * What someone is allowed to do, in words. Broker is the absence of the rest,
- * so it is spelled out rather than left as an empty row — same rule the CSV
- * export follows.
- */
 /** Does this person survive the office (or team) filter that is switched on? */
 function inPlace(id: string | null | undefined, filter: PlaceFilter): boolean {
   if (filter === 'all')        return true;
@@ -263,16 +139,27 @@ function tally(people: AllowedUser[], key: (p: AllowedUser) => string | null | u
   return counts;
 }
 
-function roleLabels(p: AllowedUser): string[] {
-  const held = ROLE_CHIPS.filter(({ field }) => p[field]).map(({ label }) => label);
-  return held.length > 0 ? held : ['Broker'];
-}
-
 export default function SettingsPeoplePage() {
   const { user, isAdmin }       = useAuth();
   // Start dates and birthdays follow the company setting — Settings →
   // Operations → Date Format.
   const { formatCalendarDate, formatDateTime } = useDateFormatters();
+
+  /**
+   * Which details the cards show. A per-reader preference kept in this browser
+   * — see lib/peopleCardFields. It hides nothing the reader could not read
+   * anyway; admins and HR are the only ones who can open this page at all.
+   */
+  const cardFields = usePeopleCardFields();
+
+  /**
+   * Cards, compact cards or one line each — see lib/peopleView. The three show
+   * the same people, filtered and ordered the same way; only the shape
+   * changes, so everything below is about *which* people to draw and never
+   * about how.
+   */
+  const [view, setView] = usePeopleView();
+  const compact = view === 'compact';
   // "Added" is a fact about the record rather than about the person, so a
   // missing one says so in words instead of showing a dash.
   const formatWhen = (ts: DateLike) => formatDateTime(ts, 'date unknown');
@@ -658,12 +545,225 @@ They will be signed out immediately and cannot sign in until you restore them. T
     statusFilter !== 'all' || roleFilter !== 'all' ||
     siteFilter !== 'all'   || teamFilter !== 'all';
 
+  /**
+   * Clicking a heading in the list view. The column already in use reverses;
+   * any other starts ascending — a click on a new heading is asking "who comes
+   * first", not for whatever direction the last column happened to be in.
+   *
+   * It writes the same two pieces of state the Sort by dropdown does, so the
+   * dropdown, the arrow in the header row and the order on screen can never
+   * describe three different things.
+   */
+  const sortBy = (field: SortField) => {
+    if (field === sortField) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortField(field); setSortDir('asc'); }
+  };
+
+  /**
+   * The pencil is a toggle: clicking it on the person already being edited
+   * closes the editor rather than reopening it on the same draft. Here rather
+   * than in PersonActions so both views get the same behaviour from the same
+   * place.
+   */
+  const toggleEditor = (person: AllowedUser) =>
+    (editing === person.email ? setEditing(null) : startEditing(person));
+
   function clearFilters() {
     setStatusFilter('all');
     setRoleFilter('all');
     setSiteFilter('all');
     setTeamFilter('all');
   }
+
+
+  /**
+   * The editor for one person, drawn wherever the view that is on screen wants
+   * it: under the card in either card view, in a full-width row under the line
+   * in the list view. It stays here rather than in a component of its own
+   * because it writes through `draft` and every handler above it — the views
+   * decide where it goes, never what it does.
+   */
+  const renderEditor = (p: AllowedUser) => (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+      <div className="pb-4 mb-4 border-b border-gray-200">
+        <AvatarUploader
+          email={p.email}
+          photoPath={p.photoPath}
+          onChange={(path) => handlePhoto(p, path)}
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <label className="text-xs text-gray-500">
+          First name
+          <input
+            value={draft.firstName}
+            onChange={(e) => setDraft((d) => ({ ...d, firstName: e.target.value }))}
+            placeholder="First"
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          />
+        </label>
+        <label className="text-xs text-gray-500">
+          Last name
+          <input
+            value={draft.lastName}
+            onChange={(e) => setDraft((d) => ({ ...d, lastName: e.target.value }))}
+            placeholder="Last"
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          />
+        </label>
+        <label className="text-xs text-gray-500">
+          Full legal name
+          <input
+            value={draft.legalName}
+            onChange={(e) => setDraft((d) => ({ ...d, legalName: e.target.value }))}
+            placeholder="As it appears on payroll"
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          />
+        </label>
+        <label className="text-xs text-gray-500">
+          Team
+          <select
+            value={draft.teamId}
+            onChange={(e) => setDraft((d) => ({ ...d, teamId: e.target.value }))}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          >
+            <option value="">No team</option>
+            {teams.map((team) => (
+              <option key={team.id} value={team.id}>{team.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-gray-500">
+          Site
+          <select
+            value={draft.siteId}
+            onChange={(e) => setDraft((d) => ({ ...d, siteId: e.target.value }))}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          >
+            <option value="">No site</option>
+            {sites.map((site) => (
+              <option key={site.id} value={site.id}>{site.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-gray-500">
+          {PHONE_LABEL.US}
+          <input
+            value={draft.phone}
+            onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
+            onBlur={tidyPhone('phone', 'US')}
+            placeholder={PHONE_EXAMPLE.US}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          />
+          {phoneHint(draft.phone, 'US') && (
+            <span className="mt-1 block text-[11px] text-amber-700">
+              {phoneHint(draft.phone, 'US')}
+            </span>
+          )}
+        </label>
+        <label className="text-xs text-gray-500">
+          {OTHER_PHONE_LABEL}
+          <div className="mt-1 flex gap-2">
+            <select
+              value={draft.phoneOtherRegion}
+              onChange={(e) => setOtherRegion(e.target.value as OtherPhoneRegion)}
+              className="w-32 shrink-0 rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+            >
+              {OTHER_PHONE_REGIONS.map((r) => (
+                <option key={r} value={r}>{PHONE_REGION_NAME[r]}</option>
+              ))}
+            </select>
+            <input
+              value={draft.phoneOther}
+              onChange={(e) => setDraft((d) => ({ ...d, phoneOther: e.target.value }))}
+              onBlur={tidyPhone('phoneOther', draft.phoneOtherRegion)}
+              placeholder={PHONE_EXAMPLE[draft.phoneOtherRegion]}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+            />
+          </div>
+          {phoneHint(draft.phoneOther, draft.phoneOtherRegion) && (
+            <span className="mt-1 block text-[11px] text-amber-700">
+              {phoneHint(draft.phoneOther, draft.phoneOtherRegion)}
+            </span>
+          )}
+        </label>
+        <label className="text-xs text-gray-500">
+          Extension
+          <input
+            value={draft.extension}
+            onChange={(e) => setDraft((d) => ({ ...d, extension: e.target.value }))}
+            placeholder="e.g. 204"
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          />
+        </label>
+        <label className="text-xs text-gray-500">
+          Personal email
+          <input
+            type="email"
+            value={draft.personalEmail}
+            onChange={(e) => setDraft((d) => ({ ...d, personalEmail: e.target.value }))}
+            placeholder="name@example.com"
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          />
+        </label>
+        {/* DateField holds a real YYYY-MM-DD whatever was
+            typed, so what is saved still needs no parsing. */}
+        <label className="text-xs text-gray-500">
+          Start date
+          <DateField
+            value={draft.startDate}
+            onChange={(v) => setDraft((d) => ({ ...d, startDate: v }))}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          />
+        </label>
+        <label className="text-xs text-gray-500">
+          Date of birth
+          <DateField
+            value={draft.dateOfBirth}
+            onChange={(v) => setDraft((d) => ({ ...d, dateOfBirth: v }))}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          />
+        </label>
+      </div>
+
+      {/* Said once, next to the two fields it applies to,
+          rather than left for someone to assume either way. */}
+      <p className="text-[11px] text-gray-400 mt-2">
+        Full legal name, date of birth and personal email are visible to admins
+        and HR only — they are not copied onto the profile the rest of the
+        company can read. Leave the legal name blank when it is the same as the
+        first and last name above.
+      </p>
+
+      <div className="flex items-center gap-2 mt-3">
+        <button
+          onClick={() => handleSaveDetails(p)}
+          disabled={busy === `${p.email}:details`}
+          className="flex items-center gap-1.5 rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 transition disabled:opacity-50"
+        >
+          <Check size={13} />
+          {busy === `${p.email}:details` ? 'Saving…' : 'Save details'}
+        </button>
+        <button
+          onClick={() => setEditing(null)}
+          className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+        >
+          Cancel
+        </button>
+        {sites.length === 0 && (
+          <span className="text-xs text-gray-400">
+            No sites yet — add one under Sites below.
+          </span>
+        )}
+        {teams.length === 0 && (
+          <span className="text-xs text-gray-400">
+            No teams yet — add one under Teams below.
+          </span>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <div>
@@ -872,6 +972,34 @@ They will be signed out immediately and cannot sign in until you restore them. T
               </p>
 
               <div className="flex items-center gap-2">
+                {/* Three buttons rather than a dropdown: which one is on has
+                    to be readable without opening anything, and the same
+                    control on the Directory works this way. */}
+                <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5">
+                  {([
+                    { id: 'cards',   Icon: LayoutGrid, label: 'Cards',   hint: 'One card each, with the photo' },
+                    { id: 'compact', Icon: LayoutList, label: 'Compact', hint: 'Smaller cards, more of them' },
+                    { id: 'list',    Icon: List,       label: 'List',    hint: 'One line each — the view for checking roles across everyone' },
+                  ] as const).map(({ id, Icon, label, hint }) => (
+                    <button
+                      key={id}
+                      onClick={() => setView(id as PeopleView)}
+                      title={hint}
+                      aria-pressed={view === id}
+                      className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition ${
+                        view === id
+                          ? 'bg-brand-50 font-medium text-brand-700'
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                      }`}
+                    >
+                      <Icon size={13} />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <CardFieldPicker {...cardFields} />
+
                 <button
                   onClick={handleExport}
                   disabled={visiblePeople.length === 0}
@@ -942,11 +1070,45 @@ They will be signed out immediately and cannot sign in until you restore them. T
               Clear filters
             </button>
           </div>
+        ) : view === 'list' ? (
+          /* Same grey bed the cards sit on, so switching views changes the
+             shape of the list and nothing else about the page. */
+          <div className="rounded-b-xl bg-gray-50 p-4">
+            <PeopleTable
+              people={visiblePeople}
+              fields={cardFields.fields}
+              canEdit={canEdit}
+              myEmail={myEmail}
+              isProtectedEmail={isBootstrapAdmin}
+              busy={busy}
+              editing={editing}
+              siteName={siteName}
+              teamName={teamName}
+              formatWhen={(person) =>
+                `Added ${formatWhen(person.invitedAt)}${person.invitedBy ? ` by ${person.invitedBy}` : ''}`
+              }
+              anchorId={personAnchorId}
+              sortField={sortField}
+              sortDir={sortDir}
+              onSort={sortBy}
+              onMakeBroker={handleMakeBroker}
+              onToggleRole={handleToggle}
+              onEdit={toggleEditor}
+              onSuspend={handleSuspend}
+              onRevoke={handleRevoke}
+              renderEditor={renderEditor}
+            />
+          </div>
         ) : (
-          /* Two abreast once there is room. This was one full-width row per
-             person down a narrow column, which made two dozen people a long
-             scroll for no reason — half the width of every row was empty. */
-          <ul className="grid items-start gap-3 rounded-b-xl bg-gray-50 p-4 xl:grid-cols-2">
+          /* Two abreast once there is room, three when they are compact. This
+             was one full-width row per person down a narrow column, which made
+             two dozen people a long scroll for no reason — half the width of
+             every row was empty. */
+          <ul
+            className={`grid items-start gap-3 rounded-b-xl bg-gray-50 p-4 ${
+              compact ? 'sm:grid-cols-2 xl:grid-cols-3' : 'xl:grid-cols-2'
+            }`}
+          >
             {visiblePeople.map((p) => {
               const isSelf      = normalizeEmail(p.email) === myEmail;
               const isProtected = isBootstrapAdmin(p.email);
@@ -955,6 +1117,31 @@ They will be signed out immediately and cannot sign in until you restore them. T
               const other       = otherPhone(p);
               const site        = siteName(p.siteId);
               const team        = teamName(p.teamId);
+              const name        = fullName(p);
+
+              /* What this card actually has to say, once the reader's picker
+                 and the blanks on the record are both accounted for. Worked
+                 out up here so the facts grid can be left out altogether when
+                 nothing survives both — an empty grid still takes its margin,
+                 and the card would sit there with a gap in it. */
+              const show = cardFields.fields;
+              // A legal name identical to the everyday one is a line of noise
+              // on most cards. It earns its place only when it differs, which
+              // is the case the field exists for.
+              const showLegalName =
+                show.legalName
+                && !!p.legalName
+                && p.legalName.trim().toLowerCase() !== name.trim().toLowerCase();
+              const showPersonalEmail = show.personalEmail && !!p.personalEmail;
+              const showPhone      = show.phone && !!(p.phone || p.extension);
+              const showOther      = show.phoneOther && !!other.value;
+              const showSite       = show.site && !!site;
+              const showTeam       = show.team && !!team;
+              const showStartDate  = show.startDate && !!p.startDate;
+              const showBirthday   = show.dateOfBirth && !!p.dateOfBirth;
+              const hasFacts =
+                showLegalName || showPhone || showOther || showPersonalEmail
+                || showSite || showTeam || showStartDate || showBirthday;
 
               return (
                 /* The id is what the search box jumps to when someone looks a
@@ -967,420 +1154,196 @@ They will be signed out immediately and cannot sign in until you restore them. T
                 <li
                   key={p.email}
                   id={personAnchorId(p.email)}
-                  className={`scroll-mt-44 rounded-xl border p-4 transition target:ring-2 target:ring-brand-400 ${
-                    editing === p.email ? 'border-brand-300 xl:col-span-2' : 'border-gray-200'
+                  className={`scroll-mt-44 rounded-xl border transition target:ring-2 target:ring-brand-400 ${
+                    compact ? 'p-3' : 'p-4'
+                  } ${
+                    editing === p.email
+                      ? `border-brand-300 ${compact ? 'sm:col-span-2 xl:col-span-3' : 'xl:col-span-2'}`
+                      : 'border-gray-200'
                   } ${suspended ? 'bg-red-50/50' : 'bg-white'}`}
                 >
-                  <div className="flex items-start gap-3">
+                  {/* Photo down the side rather than a circle in front of the
+                      name: at that size a circle crops the top of the head and
+                      both shoulders off every portrait, and recognising the
+                      person is the whole reason the photo is here. It stretches
+                      to the height of the facts beside it, so a card with more
+                      on it simply gets a taller picture.
+
+                      The compact card goes back to the round thumbnail the
+                      Directory uses — three abreast, there is no side to put a
+                      portrait down. */}
+                  <div className={compact ? 'flex items-start gap-3' : 'flex items-stretch gap-4'}>
                     <UserAvatar
                       photoPath={p.photoPath}
-                      fallback={(fullName(p) || p.email).charAt(0).toUpperCase()}
+                      fallback={(name || p.email).charAt(0).toUpperCase()}
                       muted={suspended}
-                      size={48}
+                      shape={compact ? 'circle' : 'panel'}
+                      size={compact ? 64 : 200}
                       expandable
-                      name={fullName(p) || p.email}
+                      name={name || p.email}
                     />
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={`truncate text-sm font-medium ${
-                          suspended ? 'text-gray-500' : 'text-gray-900'
-                        }`}
-                      >
-                        {fullName(p) || p.email}
-                        {isSelf && <span className="ml-1.5 text-xs text-gray-400">(you)</span>}
-                      </p>
 
-                      {/* Only worth a line of its own once a name is displacing
-                          it from the line above. `break-all` because an address
-                          is the one thing on the card that cannot wrap at a
-                          space, and cutting it would hide the domain. */}
-                      {fullName(p) && (
-                        <p className="break-all text-xs text-gray-500">{p.email}</p>
-                      )}
-                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <div className="flex items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={`truncate text-sm font-medium ${
+                              suspended ? 'text-gray-500' : 'text-gray-900'
+                            }`}
+                          >
+                            {name || p.email}
+                            {isSelf && <span className="ml-1.5 text-xs text-gray-400">(you)</span>}
+                          </p>
 
-                    <StatusChip status={status} />
-                  </div>
+                          {/* Only worth a line of its own once a name is displacing
+                              it from the line above. `break-all` because an address
+                              is the one thing on the card that cannot wrap at a
+                              space, and cutting it would hide the domain.
 
-                  {/* The facts, one per line, none of them truncated. They used
-                      to be joined into a single line that was cut off at the
-                      edge of the row — which in practice meant the office name,
-                      because it sat last. A card one line taller is a much
-                      smaller problem than a fact that is not there at all. */}
-                  {(p.phone || p.extension || other.value || site || team || p.startDate) && (
-                    <div className="mt-3 grid grid-cols-[14px_1fr] items-start gap-x-2 gap-y-1">
-                      {(p.phone || p.extension) && (
-                        <Fact Icon={Phone}>
-                          {[
-                            // Labelled, because two bare numbers on adjacent
-                            // lines give no clue which to dial from where.
-                            p.phone ? `US ${p.phone}` : null,
-                            p.extension ? `ext. ${p.extension}` : null,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </Fact>
-                      )}
+                              Turning the work email off in the picker cannot take
+                              it off a card that has no name: it is standing in as
+                              the person's name up there, not repeating itself. */}
+                          {name && show.email && (
+                            <p className="break-all text-xs text-gray-500">{p.email}</p>
+                          )}
+                        </div>
 
-                      {other.value && (
-                        <Fact Icon={Smartphone}>
-                          {other.region} {other.value}
-                        </Fact>
-                      )}
-
-                      {site && <Fact Icon={Building2}>{site}</Fact>}
-
-                      {/* Prefixed so a team called "Staff" cannot be read as
-                          another office sitting next to the real one. */}
-                      {team && <Fact Icon={UsersRound}>Team {team}</Fact>}
-
-                      {/* Start date earns a line because it answers "how long
-                          has this person been here" at a glance. Date of birth
-                          does not — it stays in the editor, where it is not on
-                          screen every time someone opens Settings. */}
-                      {p.startDate && (
-                        <Fact Icon={CalendarDays}>
-                          Started {formatCalendarDate(p.startDate)}
-                          {(() => {
-                            const years = yearsSince(p.startDate);
-                            return years !== null && years >= 1
-                              ? ` · ${years} year${years === 1 ? '' : 's'}`
-                              : '';
-                          })()}
-                        </Fact>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Every control below writes. HR reads this page, so they get
-                      the roles as plain chips instead — what someone is allowed
-                      to do is the first thing anyone reads a directory entry
-                      for, and a row of greyed-out buttons would only invite a
-                      support call asking why none of them work. */}
-                  <div className="mt-3 border-t border-gray-100 pt-3">
-                    {canEdit ? (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {(() => {
-                          const active = isBroker(p);
-                          // Demoting means dropping admin, which these two
-                          // accounts are never allowed to do.
-                          const locked = (isSelf && p.isAdmin) || (isProtected && p.isAdmin);
-                          const working = busy === `${p.email}:broker`;
-                          return (
-                            <button
-                              onClick={() => handleMakeBroker(p)}
-                              disabled={active || locked || working}
-                              title={
-                                locked
-                                  ? 'This admin role cannot be removed'
-                                  : active
-                                  ? 'The default role — their own clients and loads'
-                                  : 'Remove the other roles and leave them a broker'
-                              }
-                              className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
-                                locked
-                                  ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                                  : active && suspended
-                                  ? 'border-gray-200 bg-gray-100 text-gray-500'
-                                  : active
-                                  ? 'border-brand-200 bg-brand-50 text-brand-700 cursor-default'
-                                  : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-                              }`}
-                            >
-                              {working ? '…' : 'Broker'}
-                            </button>
-                          );
-                        })()}
-
-                        {ROLE_CHIPS.map(({ field, label }) => {
-                          const active   = !!p[field];
-                          // Roles stay editable while suspended — they are what
-                          // the person comes back to — but read as inactive.
-                          const locked   = field === 'isAdmin' && (isSelf || isProtected);
-                          const working  = busy === `${p.email}:${field}`;
-                          return (
-                            <button
-                              key={field}
-                              onClick={() => handleToggle(p, field)}
-                              disabled={locked || working}
-                              title={locked ? 'This admin role cannot be removed' : undefined}
-                              className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
-                                locked
-                                  ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                                  : active && suspended
-                                  ? 'border-gray-200 bg-gray-100 text-gray-500'
-                                  : active
-                                  ? 'border-brand-200 bg-brand-50 text-brand-700'
-                                  : 'border-gray-200 text-gray-500 hover:bg-gray-50'
-                              }`}
-                            >
-                              {working ? '…' : label}
-                            </button>
-                          );
-                        })}
+                        <StatusChip status={status} />
                       </div>
-                    ) : (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {roleLabels(p).map((label) => (
-                          <span
-                            key={label}
-                            className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600"
-                          >
-                            {label}
-                          </span>
-                        ))}
-                      </div>
-                    )}
 
-                    <div className="mt-2 flex items-end justify-between gap-3">
-                      <p className="min-w-0 text-[11px] text-gray-400">
-                        Added {formatWhen(p.invitedAt)}
-                        {p.invitedBy ? ` by ${p.invitedBy}` : ''}
-                        {isProtected && <span className="block">Protected account</span>}
-                      </p>
+                      {/* The facts, one per line, none of them truncated. They used
+                          to be joined into a single line that was cut off at the
+                          edge of the row — which in practice meant the office name,
+                          because it sat last. A card one line taller is a much
+                          smaller problem than a fact that is not there at all. */}
+                      {hasFacts && (
+                        <div className="mt-3 grid grid-cols-[14px_1fr] items-start gap-x-2 gap-y-1">
+                          {/* Labelled, because a second name under the first is
+                              otherwise anybody's guess — a nickname, a previous
+                              name, the name of the person who reports to them. */}
+                          {showLegalName && (
+                            <Fact Icon={IdCard}>
+                              <span className="text-gray-400">Legal name</span> {p.legalName}
+                            </Fact>
+                          )}
 
-                      {canEdit && (
-                        <div className="flex flex-shrink-0 items-center gap-1.5">
-                          <button
-                            onClick={() => (editing === p.email ? setEditing(null) : startEditing(p))}
-                            title="Edit name, phone, extension and site"
-                            className={`rounded-lg border p-1.5 transition ${
-                              editing === p.email
-                                ? 'border-brand-300 bg-brand-50 text-brand-700'
-                                : 'border-gray-200 text-gray-400 hover:bg-gray-50 hover:text-gray-600'
-                            }`}
-                          >
-                            {editing === p.email ? <X size={14} /> : <Pencil size={14} />}
-                          </button>
+                          {showPhone && (
+                            <Fact Icon={Phone}>
+                              {[
+                                // Labelled, because two bare numbers on adjacent
+                                // lines give no clue which to dial from where.
+                                p.phone ? `US ${p.phone}` : null,
+                                p.extension ? `ext. ${p.extension}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </Fact>
+                          )}
 
-                          <button
-                            onClick={() => handleSuspend(p)}
-                            disabled={isSelf || isProtected || busy === `${p.email}:suspend`}
-                            title={
-                              isSelf
-                                ? 'You cannot suspend your own access'
-                                : isProtected
-                                ? 'Protected accounts cannot be suspended'
-                                : suspended
-                                ? 'Restore access'
-                                : 'Suspend access temporarily'
-                            }
-                            className={`rounded-lg border p-1.5 transition ${
-                              isSelf || isProtected
-                                ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                                : suspended
-                                ? 'border-green-200 text-green-600 hover:bg-green-50'
-                                : 'border-gray-200 text-gray-400 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200'
-                            }`}
-                          >
-                            {suspended ? <RotateCcw size={14} /> : <Ban size={14} />}
-                          </button>
+                          {showOther && (
+                            <Fact Icon={Smartphone}>
+                              {other.region} {other.value}
+                            </Fact>
+                          )}
 
-                          <button
-                            onClick={() => handleRevoke(p)}
-                            disabled={isSelf || isProtected || busy === `${p.email}:revoke`}
-                            title={
-                              isSelf
-                                ? 'You cannot remove your own access'
-                                : isProtected
-                                ? 'Protected accounts cannot be removed here'
-                                : 'Remove access'
-                            }
-                            className={`rounded-lg border p-1.5 transition ${
-                              isSelf || isProtected
-                                ? 'border-gray-200 text-gray-300 cursor-not-allowed'
-                                : 'border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
-                            }`}
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {/* Marked as the personal one: it is the address to
+                              use when the company account is gone, and reaching
+                              somebody there by mistake is a different thing
+                              from emailing them at work. */}
+                          {showPersonalEmail && (
+                            <Fact Icon={AtSign}>
+                              <span className="break-all">{p.personalEmail}</span>{' '}
+                              <span className="text-gray-400">personal</span>
+                            </Fact>
+                          )}
+
+                          {showSite && <Fact Icon={Building2}>{site}</Fact>}
+
+                          {/* Prefixed so a team called "Staff" cannot be read as
+                              another office sitting next to the real one. */}
+                          {showTeam && <Fact Icon={UsersRound}>Team {team}</Fact>}
+
+                          {/* Start date answers "how long has this person been
+                              here" at a glance. */}
+                          {showStartDate && (
+                            <Fact Icon={CalendarDays}>
+                              Started {formatCalendarDate(p.startDate)}
+                              {(() => {
+                                const years = yearsSince(p.startDate);
+                                return years !== null && years >= 1
+                                  ? ` · ${years} year${years === 1 ? '' : 's'}`
+                                  : '';
+                              })()}
+                            </Fact>
+                          )}
+
+                          {/* A birthday used to stay in the editor rather than sit
+                              on the card. It is on the card now because HR asks for
+                              it here — and the Show picker is what takes it back
+                              off, for the reader who does not want a screen full of
+                              birthdays while somebody is looking over their
+                              shoulder. No age: the date is the fact on file, and an
+                              age is a thing about a person. */}
+                          {showBirthday && (
+                            <Fact Icon={Cake}>Born {formatCalendarDate(p.dateOfBirth)}</Fact>
+                          )}
                         </div>
                       )}
+
+                      {/* Holds the roles and the buttons to the foot of the card
+                          when the photo beside them is the taller of the two —
+                          without it they float in the middle of a gap. */}
+                      <div className="flex-1" />
+
+                      {/* Every control below writes. HR reads this page, so they get
+                          the roles as plain chips instead — what someone is allowed
+                          to do is the first thing anyone reads a directory entry
+                          for, and a row of greyed-out buttons would only invite a
+                          support call asking why none of them work. */}
+                      {/* Every control below writes. HR reads this page, so the
+                          chips come back as plain words for them — see
+                          PersonRoles, which both this card and the list view
+                          draw from so a role can never read one way here and
+                          another there. */}
+                      <div className="mt-3 border-t border-gray-100 pt-3">
+                        <PersonRoles
+                          person={p}
+                          canEdit={canEdit}
+                          suspended={suspended}
+                          isSelf={isSelf}
+                          isProtected={isProtected}
+                          busy={busy}
+                          onMakeBroker={handleMakeBroker}
+                          onToggle={handleToggle}
+                        />
+
+                        <div className="mt-2 flex items-end justify-between gap-3">
+                          <p className="min-w-0 text-[11px] text-gray-400">
+                            Added {formatWhen(p.invitedAt)}
+                            {p.invitedBy ? ` by ${p.invitedBy}` : ''}
+                            {isProtected && <span className="block">Protected account</span>}
+                          </p>
+
+                          {canEdit && (
+                            <PersonActions
+                              person={p}
+                              editing={editing === p.email}
+                              suspended={suspended}
+                              isSelf={isSelf}
+                              isProtected={isProtected}
+                              busy={busy}
+                              onEdit={toggleEditor}
+                              onSuspend={handleSuspend}
+                              onRevoke={handleRevoke}
+                            />
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   {canEdit && editing === p.email && (
-                    <div className="mt-3">
-                      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                        <div className="pb-4 mb-4 border-b border-gray-200">
-                          <AvatarUploader
-                            email={p.email}
-                            photoPath={p.photoPath}
-                            onChange={(path) => handlePhoto(p, path)}
-                          />
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                          <label className="text-xs text-gray-500">
-                            First name
-                            <input
-                              value={draft.firstName}
-                              onChange={(e) => setDraft((d) => ({ ...d, firstName: e.target.value }))}
-                              placeholder="First"
-                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                            />
-                          </label>
-                          <label className="text-xs text-gray-500">
-                            Last name
-                            <input
-                              value={draft.lastName}
-                              onChange={(e) => setDraft((d) => ({ ...d, lastName: e.target.value }))}
-                              placeholder="Last"
-                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                            />
-                          </label>
-                          <label className="text-xs text-gray-500">
-                            Full legal name
-                            <input
-                              value={draft.legalName}
-                              onChange={(e) => setDraft((d) => ({ ...d, legalName: e.target.value }))}
-                              placeholder="As it appears on payroll"
-                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                            />
-                          </label>
-                          <label className="text-xs text-gray-500">
-                            Team
-                            <select
-                              value={draft.teamId}
-                              onChange={(e) => setDraft((d) => ({ ...d, teamId: e.target.value }))}
-                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                            >
-                              <option value="">No team</option>
-                              {teams.map((team) => (
-                                <option key={team.id} value={team.id}>{team.name}</option>
-                              ))}
-                            </select>
-                          </label>
-                          <label className="text-xs text-gray-500">
-                            Site
-                            <select
-                              value={draft.siteId}
-                              onChange={(e) => setDraft((d) => ({ ...d, siteId: e.target.value }))}
-                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                            >
-                              <option value="">No site</option>
-                              {sites.map((site) => (
-                                <option key={site.id} value={site.id}>{site.name}</option>
-                              ))}
-                            </select>
-                          </label>
-                          <label className="text-xs text-gray-500">
-                            {PHONE_LABEL.US}
-                            <input
-                              value={draft.phone}
-                              onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
-                              onBlur={tidyPhone('phone', 'US')}
-                              placeholder={PHONE_EXAMPLE.US}
-                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                            />
-                            {phoneHint(draft.phone, 'US') && (
-                              <span className="mt-1 block text-[11px] text-amber-700">
-                                {phoneHint(draft.phone, 'US')}
-                              </span>
-                            )}
-                          </label>
-                          <label className="text-xs text-gray-500">
-                            {OTHER_PHONE_LABEL}
-                            <div className="mt-1 flex gap-2">
-                              <select
-                                value={draft.phoneOtherRegion}
-                                onChange={(e) => setOtherRegion(e.target.value as OtherPhoneRegion)}
-                                className="w-32 shrink-0 rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                              >
-                                {OTHER_PHONE_REGIONS.map((r) => (
-                                  <option key={r} value={r}>{PHONE_REGION_NAME[r]}</option>
-                                ))}
-                              </select>
-                              <input
-                                value={draft.phoneOther}
-                                onChange={(e) => setDraft((d) => ({ ...d, phoneOther: e.target.value }))}
-                                onBlur={tidyPhone('phoneOther', draft.phoneOtherRegion)}
-                                placeholder={PHONE_EXAMPLE[draft.phoneOtherRegion]}
-                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                              />
-                            </div>
-                            {phoneHint(draft.phoneOther, draft.phoneOtherRegion) && (
-                              <span className="mt-1 block text-[11px] text-amber-700">
-                                {phoneHint(draft.phoneOther, draft.phoneOtherRegion)}
-                              </span>
-                            )}
-                          </label>
-                          <label className="text-xs text-gray-500">
-                            Extension
-                            <input
-                              value={draft.extension}
-                              onChange={(e) => setDraft((d) => ({ ...d, extension: e.target.value }))}
-                              placeholder="e.g. 204"
-                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                            />
-                          </label>
-                          <label className="text-xs text-gray-500">
-                            Personal email
-                            <input
-                              type="email"
-                              value={draft.personalEmail}
-                              onChange={(e) => setDraft((d) => ({ ...d, personalEmail: e.target.value }))}
-                              placeholder="name@example.com"
-                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                            />
-                          </label>
-                          {/* DateField holds a real YYYY-MM-DD whatever was
-                              typed, so what is saved still needs no parsing. */}
-                          <label className="text-xs text-gray-500">
-                            Start date
-                            <DateField
-                              value={draft.startDate}
-                              onChange={(v) => setDraft((d) => ({ ...d, startDate: v }))}
-                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                            />
-                          </label>
-                          <label className="text-xs text-gray-500">
-                            Date of birth
-                            <DateField
-                              value={draft.dateOfBirth}
-                              onChange={(v) => setDraft((d) => ({ ...d, dateOfBirth: v }))}
-                              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                            />
-                          </label>
-                        </div>
-
-                        {/* Said once, next to the two fields it applies to,
-                            rather than left for someone to assume either way. */}
-                        <p className="text-[11px] text-gray-400 mt-2">
-                          Full legal name, date of birth and personal email are visible to admins
-                          and HR only — they are not copied onto the profile the rest of the
-                          company can read. Leave the legal name blank when it is the same as the
-                          first and last name above.
-                        </p>
-
-                        <div className="flex items-center gap-2 mt-3">
-                          <button
-                            onClick={() => handleSaveDetails(p)}
-                            disabled={busy === `${p.email}:details`}
-                            className="flex items-center gap-1.5 rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 transition disabled:opacity-50"
-                          >
-                            <Check size={13} />
-                            {busy === `${p.email}:details` ? 'Saving…' : 'Save details'}
-                          </button>
-                          <button
-                            onClick={() => setEditing(null)}
-                            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
-                          >
-                            Cancel
-                          </button>
-                          {sites.length === 0 && (
-                            <span className="text-xs text-gray-400">
-                              No sites yet — add one under Sites below.
-                            </span>
-                          )}
-                          {teams.length === 0 && (
-                            <span className="text-xs text-gray-400">
-                              No teams yet — add one under Teams below.
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <div className="mt-3">{renderEditor(p)}</div>
                   )}
                 </li>
               );

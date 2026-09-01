@@ -131,6 +131,34 @@ export function accessStatus(user: Pick<AllowedUser, 'uid' | 'suspended'>): Acce
 
 export type AllowedUserRole = 'isAdmin' | 'isDispatcher' | 'isFinance' | 'isHr';
 
+/**
+ * The elevated roles, in the order they are shown wherever roles are listed.
+ *
+ * Broker is not among them: it is what everyone has until one of these is
+ * granted, so it is derived rather than stored (see `isBroker` in
+ * lib/accessControl) and drawn as its own chip in front of these.
+ *
+ * Here rather than in a page because the access list, its list view and the
+ * CSV export all have to name the same four roles the same way round — three
+ * copies of this array would drift the first time a role was added.
+ */
+export const ROLE_CHIPS: { field: AllowedUserRole; label: string }[] = [
+  { field: 'isAdmin',      label: 'Admin' },
+  { field: 'isDispatcher', label: 'Dispatcher' },
+  { field: 'isFinance',    label: 'Finance' },
+  { field: 'isHr',         label: 'HR' },
+];
+
+/**
+ * What someone is allowed to do, in words. Broker is the absence of the rest,
+ * so it is spelled out rather than left as an empty row — a blank there reads
+ * as "no roles loaded", not as "the default one".
+ */
+export function roleLabels(user: AllowedUser): string[] {
+  const held = ROLE_CHIPS.filter(({ field }) => user[field]).map(({ label }) => label);
+  return held.length > 0 ? held : ['Broker'];
+}
+
 /** The contact fields an admin edits together, as one patch. */
 export interface AllowedUserDetails {
   firstName: string;
