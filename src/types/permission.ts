@@ -80,6 +80,16 @@ export const PERMISSIONS = [
   // ── People ───────────────────────────────────────────────────────────────
   /** The company phone book. Everyone but an intern has this by default. */
   'directory.view',
+  /**
+   * Take the directory out of the app: the printed extension sheet and the CSV.
+   *
+   * Separate from `directory.view` because looking someone up and producing a
+   * file that then lives on a wall, in a mailbox or on a memory stick are two
+   * different acts. Everyone can do the first; the second is for the people
+   * whose job is keeping the list right — admin, HR and dispatch — and can be
+   * handed to anybody else one person at a time.
+   */
+  'directory.export',
   /** The access list and the payroll fields on it — admin and HR. */
   'people.view',
   /** Add, remove, suspend, and change roles and permissions. */
@@ -170,6 +180,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     title: 'People',
     permissions: [
       { key: 'directory.view', label: 'See the directory', detail: 'The company phone book. Everyone but an intern has this already.' },
+      { key: 'directory.export', label: 'Print and export the directory', detail: 'The extension sheet for the wall, and the directory as a spreadsheet file.' },
       { key: 'people.view',    label: 'See the access list', detail: 'Settings → People, including legal names, birthdays and personal addresses.' },
       { key: 'people.manage',  label: 'Manage people',     detail: 'Add and remove people, suspend them, and change roles and permissions.' },
     ],
@@ -263,6 +274,9 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     ...BASE_PERMISSIONS,
     'orders.viewAll', 'clients.viewAll', 'shippers.viewAll', 'consignees.viewAll',
     'ownership.change', 'access.grantOwnership', 'orders.sendAgreement',
+    // The extension sheet on the wall by the phones is dispatch's, and they
+    // are the ones who notice first when a number on it is wrong.
+    'directory.export',
   ],
 
   // Finance: every record, and the paperwork that bills for it.
@@ -275,7 +289,10 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
   // HR: the access list and the payroll fields on it, on top of an ordinary
   // broker's own book. Deliberately no `.viewAll` of anything — a payroll
   // clerk has no business seeing every client in the company.
-  isHr: [...BASE_PERMISSIONS, 'people.view'],
+  // `directory.export` alongside it: keeping the list right is the job, and a
+  // list nobody can print is one that gets retyped by hand into a spreadsheet
+  // instead, which is how two versions of it start existing.
+  isHr: [...BASE_PERMISSIONS, 'people.view', 'directory.export'],
 
   /**
    * Sales Manager: a broker, plus admin-level power over their own team.

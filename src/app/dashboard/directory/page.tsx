@@ -3,10 +3,15 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { IdCard, LayoutGrid, List, Network, Search, X } from 'lucide-react';
+import {
+  Building2, Download, IdCard, LayoutGrid, List, Network, Printer, Search, Users, X,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { canSeeDirectory } from '@/lib/accessControl';
+import { can, canSeeDirectory } from '@/lib/accessControl';
 import { listDirectory, type DirectoryPerson } from '@/lib/directory';
+import { directoryCsv, directoryCsvFilename } from '@/lib/directoryExport';
+import { NO_TEAM_HEADING, type SheetOptions } from '@/lib/extensionSheet';
+import { downloadCsv } from '@/lib/csv';
 import { listSites } from '@/lib/sites';
 import { listTeams } from '@/lib/teams';
 import { otherPhone } from '@/lib/phone';
@@ -23,6 +28,8 @@ import DirectoryCards from '@/components/people/DirectoryCards';
 import DirectoryOrg from '@/components/people/DirectoryOrg';
 import DirectoryProfiles from '@/components/people/DirectoryProfiles';
 import DirectoryTable from '@/components/people/DirectoryTable';
+import ExtensionSheet from '@/components/people/ExtensionSheet';
+import SheetOptionsDialog from '@/components/people/SheetOptionsDialog';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
 
@@ -96,6 +103,15 @@ function matches(id: string | null | undefined, filter: string): boolean {
   return id === filter;
 }
 
+/** The two shortcut chips share a look; only whether they are on differs. */
+function chipClass(on: boolean): string {
+  return `flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition ${
+    on
+      ? 'border-brand-200 bg-brand-50 font-medium text-brand-700'
+      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+  }`;
+}
+
 function Directory() {
   const { profile } = useAuth();
   // Admin and HR get the fuller view. Same test the data layer applies, asked
@@ -108,6 +124,16 @@ function Directory() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
   const [query, setQuery]     = useState('');
+  /**
+   * Printing happens in two steps, and this is which one is in progress.
+   *
+   * `null` is neither: no dialog, no sheet. `'asking'` is the options dialog
+   * on screen. Anything else is the chosen shape, held only for as long as the
+   * sheet is mounted and the browser's print dialog is up — the options are
+   * kept here rather than in the sheet so that mounting the sheet is what
+   * starts the print, once, and closing it forgets nothing worth keeping.
+   */
+  const [printing, setPrinting] = useState<'asking' | SheetOptions | null>(null);
 
   /**
    * The view and both filters live in the address bar rather than in component
@@ -229,6 +255,49 @@ function Directory() {
   const teamName = (id: string | null | undefined) =>
     teams.find((t) => t.id === id)?.name ?? null;
 
+  /**
+   * The viewer's own office and team, for the two shortcut chips.
+   *
+   * Each is offered only when the viewer has that field set *and* the record
+   * it names still exists — a chip pointing at a deleted office would filter
+   * the page down to nobody and leave the dropdown beside it showing a value
+   * it has no option for. Looked up rather than trusted for the same reason
+   * the dropdowns are built from these lists.
+   */
+  const mySite = sites.find((s) => s.id === profile?.siteId) ?? null;
+  const myTeam = teams.find((t) => t.id === profile?.teamId) ?? null;
+
+  /**
+   * Printing the extension sheet and taking the directory away as a file are
+   * one permission, held by admin, HR and dispatch and grantable to anybody
+   * else — see `directory.export` in types/permission.ts for why looking
+   * somebody up and producing a copy of the whole book are separated.
+   *
+   * It gates the two buttons and nothing else, which is all it can gate: both
+   * are built from the list already on screen, so this decides who is offered
+   * the file, not what is in it. The admin/HR columns are absent from a
+   * dispatcher's copy of a person because lib/directory.ts never loaded them.
+   */
+  const canExport = can(profile, 'directory.export');
+
+  /**
+   * What the list is narrowed to, in words — the line under the sheet's
+   * heading and the middle of the downloaded file's name.
+   *
+   * The search box is in it as well as the two filters. A sheet printed while
+   * something was typed in the box is a partial list, and the one place that
+   * can be said out loud is on the paper itself.
+   */
+  const scope = [
+    siteFilter === 'all'
+      ? null
+      : siteFilter === UNASSIGNED ? 'No office set' : siteName(siteFilter),
+    teamFilter === 'all'
+      ? null
+      : teamFilter === UNASSIGNED ? NO_TEAM_HEADING : teamName(teamFilter),
+    query.trim() ? `matching “${query.trim()}”` : null,
+  ].filter(Boolean).join(' · ') || 'Everyone';
+
   useEffect(() => {
     // `profile` is null for the moment before AuthContext has established the
     // session; loading then would fetch the narrow list and never widen it.
@@ -280,6 +349,25 @@ function Directory() {
     [visible, view, orderKey, orderDir, sites, teams],
   );
 
+  /**
+   * Both exports take `rows` rather than `people`: what comes out is exactly
+   * what is on screen — the same filters, the same search, and in the list
+   * view the same order. Somebody who has narrowed the page down to one office
+   * and then printed it has asked for that office, and a file that quietly
+   * held the whole company would be found out at the photocopier.
+   */
+  const handleExport = () => {
+    downloadCsv(
+      directoryCsvFilename(scope === 'Everyone' ? null : scope),
+      directoryCsv(rows, { siteName, teamName, full }),
+    );
+  };
+
+  // Stable, because ExtensionSheet triggers the print dialog from an effect
+  // that depends on it — a fresh arrow every render would reprint on every
+  // render while the sheet is up.
+  const finishPrinting = useCallback(() => setPrinting(null), []);
+
   return (
     <div className="p-8 max-w-[1600px]">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -329,6 +417,44 @@ function Directory() {
               onToggle={toggleColumn}
               onShowAll={showAllColumns}
             />
+          )}
+
+          {/* The two questions people actually bring to a phone book — "who
+              else is in my office" and "who is on my team" — as one click
+              each. Both set the same parameter the dropdowns below do, and
+              pressing the one already on clears it, so the chip is the way
+              back out as well as the way in; the dropdown moving with it is
+              what keeps that from being a filter nobody can find again. */}
+          {mySite && (
+            <button
+              onClick={() => filterSite(mySite.id)}
+              aria-pressed={siteFilter === mySite.id}
+              title={
+                siteFilter === mySite.id
+                  ? `Showing ${mySite.name} only — click to show every office`
+                  : `Show only ${mySite.name}`
+              }
+              className={chipClass(siteFilter === mySite.id)}
+            >
+              <Building2 size={14} />
+              My office
+            </button>
+          )}
+
+          {myTeam && (
+            <button
+              onClick={() => filterTeam(myTeam.id)}
+              aria-pressed={teamFilter === myTeam.id}
+              title={
+                teamFilter === myTeam.id
+                  ? `Showing ${myTeam.name} only — click to show every team`
+                  : `Show only ${myTeam.name}`
+              }
+              className={chipClass(teamFilter === myTeam.id)}
+            >
+              <Users size={14} />
+              My team
+            </button>
           )}
 
           {sites.length > 0 && (
@@ -400,11 +526,68 @@ function Directory() {
         </div>
       ) : (
         <>
-          <p className="mt-6 text-xs text-gray-500">
-            {visible.length === people.length
-              ? `${people.length} ${people.length === 1 ? 'person' : 'people'}`
-              : `Showing ${visible.length} of ${people.length}`}
-          </p>
+          {/* The two export buttons sit on the count line rather than up in
+              the toolbar, because the count is the sentence they act on:
+              whatever it says is showing is what comes out. */}
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-gray-500">
+              {visible.length === people.length
+                ? `${people.length} ${people.length === 1 ? 'person' : 'people'}`
+                : `Showing ${visible.length} of ${people.length}`}
+            </p>
+
+            {canExport && visible.length > 0 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPrinting('asking')}
+                  title="Print an extension sheet — choose how it is grouped and ordered"
+                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
+                >
+                  <Printer size={14} />
+                  Print extension sheet
+                </button>
+                <button
+                  onClick={handleExport}
+                  title={
+                    full
+                      ? 'Download these people as a spreadsheet, including the payroll fields'
+                      : 'Download these people as a spreadsheet'
+                  }
+                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 transition hover:bg-gray-50 hover:text-gray-900"
+                >
+                  <Download size={14} />
+                  Export CSV
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* How the sheet should come out, asked before the browser's own
+              print dialog — grouping, order and columns all live in here. */}
+          {printing === 'asking' && (
+            <SheetOptionsDialog
+              people={rows}
+              siteName={siteName}
+              teamName={teamName}
+              onCancel={finishPrinting}
+              onPrint={setPrinting}
+            />
+          )}
+
+          {/* Mounted only once the shape is settled: it puts the browser's
+              print dialog up itself and asks to come back out when that has
+              been dealt with, so a stray Ctrl+P still prints the screen and
+              not the sheet. */}
+          {printing && printing !== 'asking' && (
+            <ExtensionSheet
+              people={rows}
+              siteName={siteName}
+              teamName={teamName}
+              options={printing}
+              scope={scope}
+              onDone={finishPrinting}
+            />
+          )}
 
           {visible.length === 0 ? (
             <div className="mt-3 rounded-xl border border-gray-200 bg-white py-16 text-center text-sm text-gray-400">

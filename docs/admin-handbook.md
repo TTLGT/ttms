@@ -438,7 +438,13 @@ can be read — or imported — the same as one exported last month.
 The email address and the phone numbers are clickable: one opens a new email,
 the other dials, which is the whole reason the page exists. The box at the top
 right searches names, addresses, numbers, extensions, offices and teams all at
-once, and the dropdown beside it narrows the page to one office.
+once, and the two dropdowns beside it narrow the page to one office or one team.
+
+Before those dropdowns sit **My office** and **My team** — one click each for
+the two questions the phone book actually gets asked. They set the filter to
+whichever office and team *you* are on in Settings → People, and clicking the
+same button again puts everyone back. If a button is missing it is because that
+field is blank on your own record; ask an admin to fill it in.
 
 The three buttons at the top left of the controls switch between **Cards**,
 **List** and **Org chart**. Cards are for looking someone up when you are not
@@ -472,6 +478,46 @@ Two things it deliberately does **not** show anyone: date of birth, personal
 email, full legal name and start date are never on it, and neither is anyone
 whose access has been suspended — except for Admins and HR, who see them marked
 as suspended because doing something about it is their job.
+
+### Printing the extension sheet, and the spreadsheet
+
+Just under the count of how many people are showing, **Admins, HR and
+dispatchers** get two more buttons. Everyone else does not see them: this is a
+separate permission called *Print and export the directory*, and an admin can
+hand it to anybody in Settings → People without giving them anything else.
+
+- **Print extension sheet** produces the paper list for the wall by the phones.
+  It asks how you want it first, then hands over to the normal print box where
+  you choose the printer — or *Save as PDF*, which is the same button. If the
+  page is narrowed to one office or one team, the sheet is that office or team,
+  and the line under the heading says so.
+- **Export CSV** downloads the same people as a spreadsheet file, opened by
+  Excel or Google Sheets. Admins and HR get a wider file than a dispatcher does:
+  theirs also has the second phone, full legal name, personal email, date of
+  birth, start date and whether the account is active, invited or suspended.
+
+**Setting the sheet up.** The box that opens has four things in it, and it opens
+on what you chose last time, so a sheet you print every month is set up once:
+
+| | |
+|---|---|
+| **Group them** | *By team* is how it starts — a heading per team, the way the org chart reads. *By office* instead, or *One list* for everybody together with no headings. |
+| **Order them** | *By name* is A–Z. *By extension* runs 101, 102, 110 in number order, with anyone who has no extension at the bottom. |
+| **Extra columns** | Name, extension and work number are always on it. Role, office, team and email can be added. A column that would just repeat the heading — team, on a sheet grouped by team — is greyed out. |
+| **Start each group on its own page** | On, so each team can pin up their own sheet. Turn it off to run everybody together and save paper. |
+
+The line at the bottom left says how many groups and roughly how many pages
+that comes to. Check it before printing: *one team to a page* left switched on
+while the page is showing the whole company is a dozen sheets nobody wanted.
+
+**Both give you exactly what is on screen** — the same search, the same filters,
+the same order. If you have typed something in the search box, the sheet is only
+the people it matched, so clear it before printing a full list.
+
+Two things stay off the printed sheet on purpose, even for an Admin: the second
+phone number and everything on the payroll list. A sheet on a wall is read by
+whoever walks past it, and a personal mobile does not belong there. If you need
+those, use the CSV.
 
 **Nothing on the Directory can be edited there.** It reads the details from
 **Settings → People**, so a wrong extension is corrected on that page and is

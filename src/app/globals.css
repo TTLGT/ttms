@@ -115,3 +115,38 @@ html.app-shell-locked body {
   right: -8px;
   clip-path: polygon(0 0, 0 100%, 100% 0);
 }
+
+/*
+ * Printing the extension sheet — see components/people/ExtensionSheet.tsx.
+ *
+ * The sheet is portalled to <body> and the class below is on <html> only while
+ * it is mounted, so nothing here affects an ordinary Ctrl+P of a screen: that
+ * still prints the page the way it looks.
+ */
+@media print {
+  /*
+   * The dashboard shell is exactly the viewport and does not scroll (see
+   * .app-shell-locked above). A printer reads that as "one page tall" and
+   * stops after the first sheet, which is how a twelve-person team comes out
+   * as four names.
+   */
+  html.app-shell-locked,
+  html.app-shell-locked body {
+    height: auto;
+    overflow: visible;
+  }
+
+  /*
+   * Everything the app draws is a sibling of the sheet, including the nodes
+   * Firebase Auth and the dev overlay append to <body>. Hiding by exclusion
+   * rather than naming the shell means a new one of those cannot appear on the
+   * paper without anybody noticing.
+   */
+  html.printing-sheet body > *:not([data-print-sheet]) {
+    display: none !important;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}
