@@ -1,4 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
+import { normalizeEmail } from '@/lib/accessControl';
 
 /**
  * A named set of users that can own clients, shippers and consignees.
@@ -30,4 +31,39 @@ export interface WorkGroup {
   notes: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+/**
+ * Is this person in this group?
+ *
+ * Both halves of the membership are checked, because a group holds people two
+ * ways: by uid once they have signed in, by email until then. Asking about
+ * only one of them reads a new hire as being in no group at all — which is
+ * exactly the person whose access someone is most likely to be checking.
+ *
+ * Shaped like `findTeamLead()` in src/types/team.ts: a caller passes whatever
+ * kind of person record it has, so long as it carries the two identifiers.
+ */
+export function isGroupMember(
+  group: Pick<WorkGroup, 'memberUids' | 'memberEmails'>,
+  person: { email: string; uid?: string | null },
+): boolean {
+  if (person.uid && (group.memberUids ?? []).includes(person.uid)) return true;
+
+  const email = normalizeEmail(person.email);
+  if (!email) return false;
+  return (group.memberEmails ?? []).some((e) => normalizeEmail(e) === email);
+}
+
+/**
+ * How many people are in a group.
+ *
+ * Counted from the group rather than from however many members a viewer's
+ * directory happens to resolve. Dispatch reads the directory from profiles,
+ * so a suspended member is somebody they cannot name — and a count that
+ * quietly dropped them would understate who can see the group's records,
+ * which is the one thing this number is asked for.
+ */
+export function groupMemberCount(group: Pick<WorkGroup, 'memberUids' | 'memberEmails'>): number {
+  return (group.memberUids ?? []).length + (group.memberEmails ?? []).length;
 }

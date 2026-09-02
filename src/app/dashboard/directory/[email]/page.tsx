@@ -5,14 +5,15 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
   ArrowLeft, AtSign, Building2, Cake, CalendarDays, ChevronRight, Hash, IdCard,
-  Mail, MapPin, MessageSquare, Phone, Smartphone, UserRound, UsersRound,
+  Mail, MapPin, MessageSquare, Phone, Smartphone, UserRound, Users, UsersRound,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { canSeeDirectory } from '@/lib/accessControl';
+import { can, canSeeDirectory } from '@/lib/accessControl';
 import { listDirectory, type DirectoryPerson } from '@/lib/directory';
 import { buildPersonProfile, personEmailFromParam, personHref } from '@/lib/directoryProfile';
 import { listSites } from '@/lib/sites';
 import { listTeams } from '@/lib/teams';
+import { listWorkGroups } from '@/lib/workGroups';
 import { otherPhone, telHref } from '@/lib/phone';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { yearsSince } from '@/types/allowedUser';
@@ -23,6 +24,7 @@ import RoleBadges from '@/components/people/RoleBadges';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
+import type { WorkGroup } from '@/types/workGroup';
 
 /**
  * One colleague, at their own address.
@@ -36,9 +38,14 @@ import type { Team } from '@/types/team';
  *
  * It shows what the card shows and then the things a card has no room for: the
  * office's street address rather than just its name, who the person reports
- * to, and everyone sitting on their team. Nothing new is loaded to do it —
- * the directory, the sites and the teams are the same three lists the index
- * page loads, and lib/directoryProfile.ts turns them into one person.
+ * to, and everyone sitting on their team. Almost nothing new is loaded to do
+ * it — the directory, the sites and the teams are the same three lists the
+ * index page loads, and lib/directoryProfile.ts turns them into one person.
+ *
+ * The fourth list is the work groups, and only admin and dispatch are handed
+ * it: which groups somebody is in is the usual answer to "why can they open
+ * this client and I cannot", and that question was previously only answerable
+ * in Settings, from the group's end rather than the person's.
  *
  * **Read-only, like the rest of the directory.** Names, numbers and offices
  * are edited in Settings → People, which is the access list and stays admin
@@ -107,6 +114,40 @@ function PersonRow({ person, note }: { person: DirectoryPerson; note?: string })
   );
 }
 
+/**
+ * Who a work group is shared with, as a sentence rather than another list of
+ * people.
+ *
+ * A group's membership is read to answer one question — "who else sees these
+ * records" — and the answer is usually two or three names. Names link out, so
+ * the next person is one click away, the same as a teammate above.
+ */
+function GroupMembers({ others, unnamed }: { others: DirectoryPerson[]; unnamed: number }) {
+  if (others.length === 0 && unnamed === 0) {
+    return <span className="text-gray-400">Nobody else is in it.</span>;
+  }
+
+  return (
+    <>
+      Shared with{' '}
+      {others.map((p, i) => (
+        <span key={p.email}>
+          {i > 0 && ', '}
+          <Link href={personHref(p.email)} className="hover:text-brand-700 hover:underline">
+            {p.displayName}
+          </Link>
+        </span>
+      ))}
+      {unnamed > 0 && (
+        <>
+          {others.length > 0 && ' and '}
+          {unnamed === 1 ? '1 other person' : `${unnamed} other people`}
+        </>
+      )}
+    </>
+  );
+}
+
 export default function PersonPage() {
   // Dates follow the company setting, like every other date in the app.
   const { formatCalendarDate } = useDateFormatters();
@@ -114,6 +155,11 @@ export default function PersonPage() {
   // Admin and HR get the payroll block and the account's state. Same test the
   // data layer applies — asked again here only to word the page.
   const full = canSeeDirectory(profile);
+  // Work groups are shown to the two roles who deal with the consequences of
+  // them — the same pair who can reassign a record's owners. Editing one is
+  // still Settings, which is admins only.
+  const canSeeGroups  = can(profile, 'ownership.change');
+  const canEditGroups = can(profile, 'settings.manage');
 
   // Decoded on the way in — useParams() does not do it, unlike the params a
   // server component is handed. See personEmailFromParam.
@@ -123,6 +169,7 @@ export default function PersonPage() {
   const [people, setPeople] = useState<DirectoryPerson[]>([]);
   const [sites, setSites]   = useState<Site[]>([]);
   const [teams, setTeams]   = useState<Team[]>([]);
+  const [allGroups, setAllGroups] = useState<WorkGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
 
@@ -133,14 +180,27 @@ export default function PersonPage() {
 
     let live = true;
     setLoading(true);
-    // All three together, because the page cannot say anything until it has
-    // the person *and* the names of the office and team they point at.
-    Promise.all([listDirectory(profile), listSites(), listTeams()])
-      .then(([directory, siteList, teamList]) => {
+    // All together, because the page cannot say anything until it has the
+    // person *and* the names of the office and team they point at.
+    //
+    // The groups are the exception on both counts: they are fetched only for
+    // the viewers who are shown them, and a failure resolves to none rather
+    // than rejecting. Refusing to render a colleague's phone number because a
+    // secondary panel could not load would be the wrong trade — the panel then
+    // reads as "no groups", which is also what somebody genuinely in none
+    // gets, and Settings is where the real error would show.
+    Promise.all([
+      listDirectory(profile),
+      listSites(),
+      listTeams(),
+      canSeeGroups ? listWorkGroups().catch(() => [] as WorkGroup[]) : Promise.resolve([]),
+    ])
+      .then(([directory, siteList, teamList, groupList]) => {
         if (!live) return;
         setPeople(directory);
         setSites(siteList);
         setTeams(teamList);
+        setAllGroups(groupList);
         setError('');
       })
       .catch((e: unknown) => {
@@ -149,11 +209,11 @@ export default function PersonPage() {
       .finally(() => { if (live) setLoading(false); });
 
     return () => { live = false; };
-  }, [profile]);
+  }, [profile, canSeeGroups]);
 
   const found = useMemo(
-    () => buildPersonProfile(email, people, teams, sites),
-    [email, people, teams, sites],
+    () => buildPersonProfile(email, people, teams, sites, allGroups),
+    [email, people, teams, sites, allGroups],
   );
 
   const back = (
@@ -209,7 +269,7 @@ export default function PersonPage() {
     );
   }
 
-  const { person, site, team, lead, isLead, teammates, alsoLeads } = found;
+  const { person, site, team, lead, isLead, teammates, alsoLeads, groups } = found;
   const other = otherPhone(person);
   // Only worth showing when it is not simply the name again — most people's
   // legal name is what everyone already calls them.
@@ -414,6 +474,71 @@ export default function PersonPage() {
               <Link href="/dashboard/directory?view=org" className="text-brand-700 underline">
                 See the whole org chart
               </Link>
+            </p>
+          </Panel>
+        </div>
+      )}
+
+      {/* Work groups — the answer to "why can they open this client and I
+          cannot". A record owned by a group is visible to everyone in it, so
+          this is the first thing to check when somebody's access looks wrong,
+          and until now the only place to check it was Settings.
+
+          Admin and dispatch, because they are the two who fix it: reassigning
+          ownership is theirs (`ownership.change`), and this is the same
+          question from the other end. Everyone else is handed no groups at all
+          rather than an empty panel — see buildPersonProfile. */}
+      {canSeeGroups && (
+        <div className="mt-4">
+          <Panel title="Work groups — admins and dispatch only">
+            {groups.length === 0 ? (
+              <p className="px-2 text-xs text-gray-500">
+                Not in any work group. They see only the clients, shippers, consignees
+                and loads assigned to them by name.
+              </p>
+            ) : (
+              <ul className="-mx-2 divide-y divide-gray-50">
+                {groups.map(({ group, others, unnamed }) => (
+                  <li key={group.id} className="flex items-start gap-2.5 px-2 py-2">
+                    <Users size={14} className="mt-1 flex-shrink-0 text-gray-400" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-gray-900">{group.name}</div>
+                      <div className="mt-0.5 text-xs text-gray-500">
+                        <GroupMembers others={others} unnamed={unnamed} />
+                      </div>
+                      {/* What the group is for, if whoever set it up said. */}
+                      {group.notes && (
+                        <p className="mt-0.5 text-xs text-gray-400">{group.notes}</p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Membership is held by email until Google has seen the person, and
+                nothing they were put in takes effect before then. Worth saying
+                on the page where somebody is checking why a new hire cannot
+                open anything. */}
+            {person.pending && groups.length > 0 && (
+              <p className="mt-3 px-2 text-xs text-amber-600">
+                None of this applies until they sign in for the first time.
+              </p>
+            )}
+
+            <p className="mt-3 px-2 text-xs text-gray-400">
+              Everything a work group owns — clients, shippers, consignees and loads —
+              is visible to everyone in it.{' '}
+              {canEditGroups ? (
+                <Link
+                  href="/dashboard/settings/organization#work-groups"
+                  className="text-brand-700 underline"
+                >
+                  Change who is in one in Settings → Organization.
+                </Link>
+              ) : (
+                'Ask an admin to change who is in one.'
+              )}
             </p>
           </Panel>
         </div>

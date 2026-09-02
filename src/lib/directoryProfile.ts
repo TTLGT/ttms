@@ -2,6 +2,7 @@ import { findTeamLead, type Team } from '@/types/team';
 import { normalizeEmail } from './accessControl';
 import type { DirectoryPerson } from './directory';
 import type { Site } from '@/types/site';
+import { groupMemberCount, isGroupMember, type WorkGroup } from '@/types/workGroup';
 
 /**
  * One person, pulled out of the directory with everything that places them:
@@ -63,6 +64,28 @@ export function personEmailFromParam(param: string | string[] | undefined): stri
   }
 }
 
+/**
+ * One work group this person is in, with the colleagues it is shared with.
+ *
+ * The group is the answer to "why can this person see that client, and I
+ * cannot" — a record owned by a group is visible to everyone in it and to
+ * nobody else. Until now that answer lived only in Settings, several clicks
+ * away from the person being asked about.
+ *
+ * `others` is who else is in it, resolved against the directory the viewer was
+ * already given. `unnamed` is how many members that lookup could not put a
+ * name to: dispatch reads the directory from profiles, so a suspended
+ * colleague is a member they cannot name. Counted rather than dropped —
+ * understating who can see a group's records is the one mistake this panel
+ * must not make — and left unnamed rather than guessed at, because whether an
+ * account is suspended is admin and HR's business, not dispatch's.
+ */
+export interface PersonGroup {
+  group: WorkGroup;
+  others: DirectoryPerson[];
+  unnamed: number;
+}
+
 export interface PersonProfile {
   person: DirectoryPerson;
   /** Their office, with its address — null when none is set, or when the site
@@ -93,6 +116,12 @@ export interface PersonProfile {
    * saying where else to look.
    */
   alsoLeads: Team[];
+  /**
+   * The work groups they belong to, name-ordered — empty for a viewer who was
+   * not handed any, which is everyone but admin and dispatch. See the note on
+   * the `groups` parameter below.
+   */
+  groups: PersonGroup[];
 }
 
 /**
@@ -109,6 +138,19 @@ export function buildPersonProfile(
   people: DirectoryPerson[],
   teams: Team[],
   sites: Site[],
+  /**
+   * Every work group in the company, for the panel that says which ones this
+   * person is in. Defaults to none, and none is what a viewer without
+   * `ownership.change` is handed — see the page.
+   *
+   * That gate is editorial, not a boundary. `GET /api/work-groups` answers any
+   * signed-in user, because every owner picker in the app needs the names, so
+   * this is a decision about what is *useful* on a phone-book page rather than
+   * about what could be found out — the same kind of call as the second phone
+   * number in lib/directory.ts. Do not put anything genuinely private behind
+   * it.
+   */
+  groups: WorkGroup[] = [],
 ): PersonProfile | null {
   const key    = normalizeEmail(email);
   const person = people.find((p) => normalizeEmail(p.email) === key);
@@ -135,6 +177,23 @@ export function buildPersonProfile(
       )
     : [];
 
+  // Name order, so the panel reads the same way twice running: a group's
+  // position must not depend on whether its members happen to have signed in.
+  const personGroups: PersonGroup[] = groups
+    .filter((g) => isGroupMember(g, person))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((group) => {
+      const others = people.filter(
+        (p) => normalizeEmail(p.email) !== key && isGroupMember(group, p),
+      );
+      return {
+        group,
+        others,
+        // Everyone in the group, less this person, less the ones just named.
+        unnamed: Math.max(0, groupMemberCount(group) - 1 - others.length),
+      };
+    });
+
   return {
     person,
     site,
@@ -145,5 +204,6 @@ export function buildPersonProfile(
     alsoLeads: teams
       .filter((t) => t.id !== team?.id && findTeamLead(t, people)?.email === person.email)
       .sort((a, b) => a.name.localeCompare(b.name)),
+    groups: personGroups,
   };
 }
