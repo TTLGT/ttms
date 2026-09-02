@@ -54,7 +54,9 @@ export default function DirectoryCards({
         return (
           <li
             key={p.email}
-            className={`rounded-xl border p-4 ${
+            // `group` so the copy buttons on the contact details stay out of
+            // sight until this card is the one being read — see CopyValue.
+            className={`group rounded-xl border p-4 ${
               p.suspended ? 'border-red-200 bg-red-50/50' : 'border-gray-200 bg-white'
             }`}
           >
@@ -107,18 +109,49 @@ export default function DirectoryCards({
             </div>
 
             <div className="mt-3 grid grid-cols-[14px_1fr] items-start gap-x-2 gap-y-1">
-              <Fact Icon={AtSign} href={`mailto:${p.email}`}>{p.email}</Fact>
+              {/* Every contact detail here is copyable, because a directory is
+                  read to get something out of it — an address into an email, a
+                  number into a dialler — and dragging a mouse across small grey
+                  text is the fiddliest way to do that. */}
+              <Fact
+                Icon={AtSign}
+                href={`mailto:${p.email}`}
+                copy={p.email}
+                copyLabel="email address"
+              >
+                {p.email}
+              </Fact>
 
               {/* Dialable, because half the reason to open a directory is to
                   call the person in it. */}
               {p.phone && (
-                <Fact Icon={Phone} href={telHref(p.phone, 'US')}>{p.phone}</Fact>
+                <Fact
+                  Icon={Phone}
+                  href={telHref(p.phone, 'US')}
+                  copy={p.phone}
+                  copyLabel="work phone"
+                >
+                  {p.phone}
+                </Fact>
               )}
 
-              {p.extension && <Fact Icon={Hash}>ext. {p.extension}</Fact>}
+              {/* Copyable but not dialable: an extension is four digits that
+                  mean something only inside the office phone system, and a
+                  `tel:` link would hand them to a softphone that dials the
+                  outside world. It is pasted into a phone, not clicked. */}
+              {p.extension && (
+                <Fact Icon={Hash} copy={p.extension} copyLabel="extension">
+                  ext. {p.extension}
+                </Fact>
+              )}
 
               {other.value && (
-                <Fact Icon={Smartphone} href={telHref(other.value, other.region)}>
+                <Fact
+                  Icon={Smartphone}
+                  href={telHref(other.value, other.region)}
+                  copy={other.value}
+                  copyLabel="other phone"
+                >
                   {other.region} {other.value}
                 </Fact>
               )}
@@ -135,7 +168,12 @@ export default function DirectoryCards({
                   to draw, and `full` decides the wording rather than the
                   secrecy. */}
               {full && p.personalEmail && (
-                <Fact Icon={Mail} href={`mailto:${p.personalEmail}`}>
+                <Fact
+                  Icon={Mail}
+                  href={`mailto:${p.personalEmail}`}
+                  copy={p.personalEmail}
+                  copyLabel="personal email address"
+                >
                   {p.personalEmail} (personal)
                 </Fact>
               )}

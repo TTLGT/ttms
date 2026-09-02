@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Building2, Hash, Phone, UserRound, Users } from 'lucide-react';
 import { personHref } from '@/lib/directoryProfile';
 import { telHref } from '@/lib/phone';
+import CopyValue from '@/components/CopyValue';
 import { buildOrgChart, type OrgGroup } from '@/lib/directoryOrg';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import MessagePersonButton from '@/components/chat/MessagePersonButton';
@@ -98,20 +99,28 @@ function OrgPerson({
         </div>
 
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-500">
+          {/* Copyable but not dialable: an extension only means anything
+              inside the office phone system, so it is pasted into a phone
+              rather than clicked. The buttons hide with the message button
+              above until the row is hovered — see CopyValue. */}
           {person.extension && (
-            <span className="inline-flex items-center gap-1">
-              <Hash size={11} className="text-gray-400" />
-              ext. {person.extension}
-            </span>
+            <CopyValue value={person.extension} label="extension">
+              <span className="inline-flex items-center gap-1">
+                <Hash size={11} className="text-gray-400" />
+                ext. {person.extension}
+              </span>
+            </CopyValue>
           )}
           {person.phone && (
-            <a
-              href={telHref(person.phone, 'US')}
-              className="inline-flex items-center gap-1 hover:text-brand-700 hover:underline"
-            >
-              <Phone size={11} className="text-gray-400" />
-              {person.phone}
-            </a>
+            <CopyValue value={person.phone} label="work phone">
+              <a
+                href={telHref(person.phone, 'US')}
+                className="inline-flex items-center gap-1 hover:text-brand-700 hover:underline"
+              >
+                <Phone size={11} className="text-gray-400" />
+                {person.phone}
+              </a>
+            </CopyValue>
           )}
           {site && (
             <span className="inline-flex items-center gap-1">

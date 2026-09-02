@@ -8,6 +8,7 @@ import { otherPhone, telHref } from '@/lib/phone';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import type { SortKey } from '@/lib/directorySort';
 import type { DirectoryColumn } from '@/lib/directoryColumns';
+import CopyValue from '@/components/CopyValue';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import MessagePersonButton from '@/components/chat/MessagePersonButton';
 import RoleBadges from '@/components/people/RoleBadges';
@@ -250,21 +251,31 @@ export default function DirectoryTable({
                 </td>
               ),
 
+              // Copyable but not dialable: an extension is digits that mean
+              // something only inside the office phone system, and a `tel:`
+              // link would hand them to a softphone that dials the outside
+              // world. It is pasted into a phone, not clicked.
               extension: (
                 <td key="extension" className="whitespace-nowrap px-4 py-2.5 text-sm text-gray-600">
-                  {p.extension || <Blank />}
+                  {p.extension ? (
+                    <CopyValue value={p.extension} label="extension">{p.extension}</CopyValue>
+                  ) : (
+                    <Blank />
+                  )}
                 </td>
               ),
 
               phone: (
                 <td key="phone" className="whitespace-nowrap px-4 py-2.5 text-sm">
                   {p.phone ? (
-                    <a
-                      href={telHref(p.phone, 'US')}
-                      className="text-gray-600 hover:text-brand-700 hover:underline"
-                    >
-                      {p.phone}
-                    </a>
+                    <CopyValue value={p.phone} label="work phone">
+                      <a
+                        href={telHref(p.phone, 'US')}
+                        className="text-gray-600 hover:text-brand-700 hover:underline"
+                      >
+                        {p.phone}
+                      </a>
+                    </CopyValue>
                   ) : (
                     <Blank />
                   )}
@@ -274,12 +285,17 @@ export default function DirectoryTable({
               other: (
                 <td key="other" className="whitespace-nowrap px-4 py-2.5 text-sm">
                   {other.value ? (
-                    <a
-                      href={telHref(other.value, other.region)}
-                      className="text-gray-600 hover:text-brand-700 hover:underline"
-                    >
-                      {other.region} {other.value}
-                    </a>
+                    /* The country prefix is drawn but not copied — it labels
+                       the number for a reader, and pasting it into a dialler
+                       would break it. */
+                    <CopyValue value={other.value} label="other phone">
+                      <a
+                        href={telHref(other.value, other.region)}
+                        className="text-gray-600 hover:text-brand-700 hover:underline"
+                      >
+                        {other.region} {other.value}
+                      </a>
+                    </CopyValue>
                   ) : (
                     <Blank />
                   )}
@@ -300,24 +316,28 @@ export default function DirectoryTable({
 
               email: (
                 <td key="email" className="px-4 py-2.5 text-sm">
-                  <a
-                    href={`mailto:${p.email}`}
-                    className="text-gray-600 hover:text-brand-700 hover:underline"
-                  >
-                    {p.email}
-                  </a>
+                  <CopyValue value={p.email} label="email address">
+                    <a
+                      href={`mailto:${p.email}`}
+                      className="text-gray-600 hover:text-brand-700 hover:underline"
+                    >
+                      {p.email}
+                    </a>
+                  </CopyValue>
                   {/* The personal address sits under the company one rather
                       than in a column of its own, and is labelled, because the
                       two are only ever told apart by which is which. */}
                   {full && p.personalEmail && (
                     <div className="text-[11px] text-gray-500">
                       Personal:{' '}
-                      <a
-                        href={`mailto:${p.personalEmail}`}
-                        className="hover:text-brand-700 hover:underline"
-                      >
-                        {p.personalEmail}
-                      </a>
+                      <CopyValue value={p.personalEmail} label="personal email address">
+                        <a
+                          href={`mailto:${p.personalEmail}`}
+                          className="hover:text-brand-700 hover:underline"
+                        >
+                          {p.personalEmail}
+                        </a>
+                      </CopyValue>
                     </div>
                   )}
                 </td>

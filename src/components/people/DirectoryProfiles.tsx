@@ -11,6 +11,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { accessStatus, yearsSince } from '@/types/allowedUser';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import StatusChip from '@/components/settings/StatusChip';
+import CopyValue from '@/components/CopyValue';
 import Fact from '@/components/people/Fact';
 import MessagePersonButton from '@/components/chat/MessagePersonButton';
 import RoleBadges from '@/components/people/RoleBadges';
@@ -70,7 +71,9 @@ export default function DirectoryProfiles({
         return (
           <li
             key={p.email}
-            className={`rounded-xl border p-4 ${
+            // `group` so the copy buttons on the contact details stay out of
+            // sight until this card is the one being read — see CopyValue.
+            className={`group rounded-xl border p-4 ${
               p.suspended ? 'border-red-200 bg-red-50/50' : 'border-gray-200 bg-white'
             }`}
           >
@@ -103,12 +106,14 @@ export default function DirectoryProfiles({
                         that cannot wrap at a space, and cutting it would hide
                         the domain — which is the half that says whether it is
                         the work account. */}
-                    <a
-                      href={`mailto:${p.email}`}
-                      className="block break-all text-xs text-gray-500 hover:text-brand-700 hover:underline"
-                    >
-                      {p.email}
-                    </a>
+                    <CopyValue value={p.email} label="email address">
+                      <a
+                        href={`mailto:${p.email}`}
+                        className="block break-all text-xs text-gray-500 hover:text-brand-700 hover:underline"
+                      >
+                        {p.email}
+                      </a>
+                    </CopyValue>
                   </div>
 
                   {/* The state of an account is not directory information — it
@@ -133,7 +138,7 @@ export default function DirectoryProfiles({
                       otherwise anybody's guess — a nickname, a previous name,
                       the name of the person who reports to them. */}
                   {legal && (
-                    <Fact Icon={IdCard}>
+                    <Fact Icon={IdCard} copy={legal} copyLabel="legal name">
                       <span className="text-gray-400">Legal name</span> {legal}
                     </Fact>
                   )}
@@ -141,20 +146,38 @@ export default function DirectoryProfiles({
                   {/* Labelled by country and dialable, unlike the access
                       list's: this is the view somebody has open when they are
                       about to make the call. */}
+                  {/* The number and the extension keep their one line, and
+                      each carries its own copy button: they are two different
+                      things to paste — one into a dialler, one into a desk
+                      phone — and a single button on the row would have to
+                      choose between them. */}
                   {(p.phone || p.extension) && (
                     <Fact Icon={Phone}>
                       {p.phone && (
-                        <a href={telHref(p.phone, 'US')} className="hover:text-brand-700 hover:underline">
-                          US {p.phone}
-                        </a>
+                        <CopyValue value={p.phone} label="work phone">
+                          <a href={telHref(p.phone, 'US')} className="hover:text-brand-700 hover:underline">
+                            US {p.phone}
+                          </a>
+                        </CopyValue>
                       )}
                       {p.phone && p.extension && ' · '}
-                      {p.extension && `ext. ${p.extension}`}
+                      {/* Copyable but not dialable — an extension only means
+                          anything inside the office phone system. */}
+                      {p.extension && (
+                        <CopyValue value={p.extension} label="extension">
+                          ext. {p.extension}
+                        </CopyValue>
+                      )}
                     </Fact>
                   )}
 
                   {other.value && (
-                    <Fact Icon={Smartphone} href={telHref(other.value, other.region)}>
+                    <Fact
+                      Icon={Smartphone}
+                      href={telHref(other.value, other.region)}
+                      copy={other.value}
+                      copyLabel="other phone"
+                    >
                       {other.region} {other.value}
                     </Fact>
                   )}
@@ -164,7 +187,12 @@ export default function DirectoryProfiles({
                       by mistake is a different thing from emailing them at
                       work. Loaded for admin and HR alone. */}
                   {full && p.personalEmail && (
-                    <Fact Icon={Mail} href={`mailto:${p.personalEmail}`}>
+                    <Fact
+                      Icon={Mail}
+                      href={`mailto:${p.personalEmail}`}
+                      copy={p.personalEmail}
+                      copyLabel="personal email address"
+                    >
                       <span className="break-all">{p.personalEmail}</span>{' '}
                       <span className="text-gray-400">personal</span>
                     </Fact>

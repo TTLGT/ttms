@@ -292,22 +292,50 @@ export default function PersonPage() {
 
       <div className="mt-4 grid items-start gap-4 md:grid-cols-2">
         <Panel title="How to reach them">
-          <div className="grid grid-cols-[14px_1fr] items-start gap-x-2 gap-y-2">
-            <Fact Icon={AtSign} href={`mailto:${person.email}`}>{person.email}</Fact>
+          {/* `group` so every detail in this panel offers a copy button while
+              the pointer is inside it — this is the page somebody opens with a
+              form or a dialler waiting beside it. */}
+          <div className="group grid grid-cols-[14px_1fr] items-start gap-x-2 gap-y-2">
+            <Fact
+              Icon={AtSign}
+              href={`mailto:${person.email}`}
+              copy={person.email}
+              copyLabel="email address"
+            >
+              {person.email}
+            </Fact>
 
             {/* Dialable, because half the reason to open a directory is to
                 call the person in it. */}
             {person.phone && (
-              <Fact Icon={Phone} href={telHref(person.phone, 'US')}>{person.phone}</Fact>
+              <Fact
+                Icon={Phone}
+                href={telHref(person.phone, 'US')}
+                copy={person.phone}
+                copyLabel="work phone"
+              >
+                {person.phone}
+              </Fact>
             )}
 
-            {person.extension && <Fact Icon={Hash}>ext. {person.extension}</Fact>}
+            {/* Copyable but not dialable — an extension only means anything
+                inside the office phone system. See the same note on the cards. */}
+            {person.extension && (
+              <Fact Icon={Hash} copy={person.extension} copyLabel="extension">
+                ext. {person.extension}
+              </Fact>
+            )}
 
             {/* Filled in for admin and HR only — see the note at the top of
                 lib/directory.ts. It is usually somebody's home-country mobile
                 rather than a desk they sit at. */}
             {other.value && (
-              <Fact Icon={Smartphone} href={telHref(other.value, other.region)}>
+              <Fact
+                Icon={Smartphone}
+                href={telHref(other.value, other.region)}
+                copy={other.value}
+                copyLabel="other phone"
+              >
                 {other.region} {other.value}
               </Fact>
             )}
@@ -397,11 +425,25 @@ export default function PersonPage() {
       {payroll && (
         <div className="mt-4">
           <Panel title="Payroll details — admins and HR only">
-            <div className="grid grid-cols-[14px_1fr] items-start gap-x-2 gap-y-2">
-              {legal && <Fact Icon={IdCard}>{legal} (legal name)</Fact>}
+            {/* `group` for the copy buttons, as above — and this is the panel
+                that most needs them: these are the fields HR retypes onto a
+                form, where a transposed digit in a date of birth or a dropped
+                letter in a legal name is the kind of mistake that comes back
+                weeks later. */}
+            <div className="group grid grid-cols-[14px_1fr] items-start gap-x-2 gap-y-2">
+              {legal && (
+                <Fact Icon={IdCard} copy={legal} copyLabel="legal name">
+                  {legal} (legal name)
+                </Fact>
+              )}
 
               {person.personalEmail && (
-                <Fact Icon={Mail} href={`mailto:${person.personalEmail}`}>
+                <Fact
+                  Icon={Mail}
+                  href={`mailto:${person.personalEmail}`}
+                  copy={person.personalEmail}
+                  copyLabel="personal email address"
+                >
                   {person.personalEmail} (personal)
                 </Fact>
               )}
