@@ -31,9 +31,36 @@ import type { Site } from '@/types/site';
  * their entry was typed.
  *
  * Every view links through here so all four agree on the shape of the URL.
+ *
+ * The `@` is put back after encoding. It is legal in a path segment, and this
+ * address exists to be pasted into a message — `erwin%40totaltransportlogistics.us`
+ * is the same link and reads like a mistake. Everything else stays escaped.
  */
 export function personHref(email: string): string {
-  return `/dashboard/directory/${encodeURIComponent(normalizeEmail(email))}`;
+  return `/dashboard/directory/${encodeURIComponent(normalizeEmail(email)).replace(/%40/g, '@')}`;
+}
+
+/**
+ * The address back out of the URL, for the page that reads it.
+ *
+ * **`useParams()` does not decode.** It hands back the segment exactly as it
+ * sits in the address bar, where a server component's `params` prop would have
+ * been decoded already — so a link written by `personHref` above arrives with
+ * any escape still in it, and matching on it finds nobody. That is not obvious
+ * from the calling code, which is why the decode lives next to the encode
+ * rather than in the page.
+ *
+ * A segment that decodes to nothing sensible is used as it stands: a stray `%`
+ * is not a valid escape and throws, and "no such person" is a better answer
+ * than a page that fails to render at all.
+ */
+export function personEmailFromParam(param: string | string[] | undefined): string {
+  const raw = typeof param === 'string' ? param : '';
+  try {
+    return normalizeEmail(decodeURIComponent(raw));
+  } catch {
+    return normalizeEmail(raw);
+  }
 }
 
 export interface PersonProfile {

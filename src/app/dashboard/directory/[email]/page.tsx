@@ -10,7 +10,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { canSeeDirectory } from '@/lib/accessControl';
 import { listDirectory, type DirectoryPerson } from '@/lib/directory';
-import { buildPersonProfile, personHref } from '@/lib/directoryProfile';
+import { buildPersonProfile, personEmailFromParam, personHref } from '@/lib/directoryProfile';
 import { listSites } from '@/lib/sites';
 import { listTeams } from '@/lib/teams';
 import { otherPhone, telHref } from '@/lib/phone';
@@ -115,10 +115,10 @@ export default function PersonPage() {
   // data layer applies — asked again here only to word the page.
   const full = canSeeDirectory(profile);
 
-  // Next decodes the segment, so this is the address as it was written into
-  // the link. buildPersonProfile lowercases before matching.
+  // Decoded on the way in — useParams() does not do it, unlike the params a
+  // server component is handed. See personEmailFromParam.
   const params = useParams();
-  const email  = typeof params.email === 'string' ? params.email : '';
+  const email  = personEmailFromParam(params.email);
 
   const [people, setPeople] = useState<DirectoryPerson[]>([]);
   const [sites, setSites]   = useState<Site[]>([]);
