@@ -12,14 +12,28 @@ export type DistanceResult =
   | { status: 'ok'; miles: number; source: LaneMilesSource; straightLineMiles?: number; degraded?: string }
   /** Lane distances are switched off in Settings. */
   | { status: 'disabled' }
+  /**
+   * Google Routes is the chosen method and this lane has never been looked up,
+   * so answering it would be billed. Nothing happens until the caller asks
+   * again with `manual`, which is what the button in the form does.
+   */
+  | { status: 'needs_lookup' }
   /** One or both addresses have no usable ZIP yet. */
   | { status: 'need_zip'; degraded?: string }
   | { status: 'unknown_zip'; zip: string; degraded?: string }
   | { status: 'error'; message: string };
 
+/**
+ * @param manual A person asked for this — they clicked a button. Under Google
+ *   Routes an unlooked-up lane is only fetched, and billed, when this is set;
+ *   without it the server answers from its cache or says `needs_lookup`. Leave
+ *   it off for anything that fires on its own, such as a form watching an
+ *   address being typed.
+ */
 export async function fetchLaneDistance(
   origin: Address,
   destination: Address,
+  manual = false,
 ): Promise<DistanceResult> {
   const user = auth.currentUser;
   if (!user) return { status: 'error', message: 'Not signed in' };
@@ -31,7 +45,7 @@ export async function fetchLaneDistance(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${await user.getIdToken()}`,
       },
-      body: JSON.stringify({ origin, destination }),
+      body: JSON.stringify({ origin, destination, manual }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {

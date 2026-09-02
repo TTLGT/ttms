@@ -32,7 +32,7 @@ const OPTIONS: {
     mode: 'routes',
     title: 'Google Routes — exact, but charged',
     detail:
-      'Real road miles from Google. Google charges for every lookup, so this bills on each new order and each time an address changes. Needs GOOGLE_MAPS_API_KEY set on the server. If Google is ever unreachable, orders fall back to the free estimate and say so.',
+      'Real road miles from Google. Google charges for every lane it has not been asked about before, so on this setting distances stop filling themselves in as you type: the order shows a button and works the distance out only when somebody asks for it. A lane already paid for is reused for nothing, on every later order. Needs GOOGLE_MAPS_API_KEY set on the server. If Google is ever unreachable, orders fall back to the free estimate and say so.',
   },
 ];
 

@@ -127,6 +127,9 @@ export default function OrderDetailPage() {
 
   const [refreshingMiles, setRefreshingMiles] = useState(false);
   const [milesNote, setMilesNote]             = useState('');
+  // Set when the backfill below finds this order has no mileage and working
+  // one out would be billed. The number then waits for a click instead.
+  const [milesNeedLookup, setMilesNeedLookup] = useState(false);
 
   const [order, setOrder]           = useState<Order | null>(null);
   // Why the order could not be opened, when it could not. Kept apart from
@@ -272,8 +275,10 @@ export default function OrderDetailPage() {
    * back so the number stays fixed to what the broker saw, rather than moving
    * if the estimate is retuned or the method is switched later.
    *
-   * Runs once per order. Under Google Routes that restraint is what stops
-   * viewing an order from billing a lookup every time.
+   * Runs once per order, and never bills: under Google Routes it is answered
+   * only if the lane is already in the cache, and otherwise puts the button
+   * below on screen rather than spending money on somebody merely opening a
+   * load. See /api/route-distance.
    */
   useEffect(() => {
     if (!order || order.laneMiles !== null && order.laneMiles !== undefined) return;
@@ -284,7 +289,9 @@ export default function OrderDetailPage() {
     let cancelled = false;
     (async () => {
       const result = await fetchLaneDistance(order.origin, order.destination);
-      if (cancelled || result.status !== 'ok') return;
+      if (cancelled) return;
+      if (result.status === 'needs_lookup') { setMilesNeedLookup(true); return; }
+      if (result.status !== 'ok') return;
       const patch = { laneMiles: result.miles, laneMilesSource: result.source };
       setOrder((prev) => (prev ? { ...prev, ...patch } : prev));
       // Best-effort: showing the distance matters more than storing it, and a
@@ -293,6 +300,38 @@ export default function OrderDetailPage() {
     })();
     return () => { cancelled = true; };
   }, [order]);
+
+  /**
+   * Work out the mileage for an order that has none, on request.
+   *
+   * Only reachable under Google Routes, and only for a lane nobody has looked
+   * up before — anything cheaper the backfill above has already filled in. Not
+   * admin-only, unlike the recheck below: this fills a blank rather than
+   * replacing a number, and until the button existed simply opening the load
+   * did it unasked. The cost is said out loud beside the button instead.
+   */
+  async function handleLookUpMiles() {
+    if (!order) return;
+
+    setRefreshingMiles(true);
+    setMilesNote('');
+    const result = await fetchLaneDistance(order.origin, order.destination, true);
+    setRefreshingMiles(false);
+
+    if (result.status !== 'ok') {
+      setMilesNote(
+        result.status === 'error' ? result.message : 'Could not work out a distance for this lane.',
+      );
+      return;
+    }
+
+    setMilesNeedLookup(false);
+    const patch = { laneMiles: result.miles, laneMilesSource: result.source };
+    setOrder((prev) => (prev ? { ...prev, ...patch } : prev));
+    // Best-effort, as in the backfill: the number on screen matters more than
+    // the write, and the lane is in Google's cache now either way.
+    updateOrder(order.id, patch).catch(() => {});
+  }
 
   /**
    * Ask Google for this lane again, overwriting what was stored.
@@ -857,6 +896,24 @@ export default function OrderDetailPage() {
                       {milesNote ? <span className="text-xs text-gray-500">{milesNote}</span> : null}
                     </div>
                   ) : null}
+                </div>
+              </div>
+            ) : milesNeedLookup ? (
+              <div className="mt-4 flex items-center gap-2.5">
+                <Route className="w-4 h-4 text-brand-600 shrink-0" />
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Distance</p>
+                  <button
+                    onClick={handleLookUpMiles}
+                    disabled={refreshingMiles}
+                    className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${refreshingMiles ? 'animate-spin' : ''}`} />
+                    {refreshingMiles ? 'Asking Google…' : 'Work out the distance'}
+                  </button>
+                  <p className="text-xs text-gray-500">
+                    {milesNote || 'Nobody has looked this lane up before, and each new lane is charged.'}
+                  </p>
                 </div>
               </div>
             ) : null}

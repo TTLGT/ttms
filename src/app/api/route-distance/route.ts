@@ -38,6 +38,12 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as {
     origin?: Address;
     destination?: Address;
+    /**
+     * The caller is asking on a person's say-so — a button they clicked —
+     * rather than on its own, as a form does while somebody types. Only a
+     * manual ask may reach Google, so no automatic path can bill.
+     */
+    manual?: boolean;
   } | null;
 
   if (!body?.origin || !body?.destination) {
@@ -55,6 +61,16 @@ export async function POST(req: NextRequest) {
     const cached = await readCachedLane(body.origin, body.destination);
     if (cached !== null) {
       return NextResponse.json({ status: 'ok', miles: cached, source: 'routes' });
+    }
+
+    // A lane nobody has looked up yet costs money to answer, so under Routes
+    // it is answered only when somebody asks for it. The order form types a
+    // dozen versions of an address on the way to the right one; billing each
+    // of them is exactly what the debounce was papering over. The check lives
+    // here rather than in the form because it is the spending rule, and a
+    // second caller that forgot it would quietly start charging again.
+    if (!body.manual) {
+      return NextResponse.json({ status: 'needs_lookup' });
     }
 
     const routed = await lookupDrivingMiles(body.origin, body.destination);
