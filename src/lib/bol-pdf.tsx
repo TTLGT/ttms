@@ -240,7 +240,7 @@ function BolDocument({ d }: { d: BolData }) {
 
         {/* Footer */}
         <View style={s.footer}>
-          <Text style={s.footerTxt}>Total Transport Logistics · tms.totaltransportlogistics.us</Text>
+          <Text style={s.footerTxt}>Total Transport Logistics · totaltransportlogistics.us</Text>
           <Text style={s.footerTxt}>This document serves as the official Bill of Lading</Text>
         </View>
 

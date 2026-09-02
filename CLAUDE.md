@@ -444,7 +444,8 @@ assignment is held in `assignedToEmails` / `memberEmails` and converted by
   - The default is `estimate` on purpose: a default must never be the option that spends money.
   - Distances are looked up once and stored on the order (`laneMiles` + `laneMilesSource`). Don't add code that re-derives them on render — under `routes` that bills on every page view.
   - An estimate is labelled as one everywhere it appears. Keep it that way; it must never be billed per mile against.
-- `NEXT_PUBLIC_APP_URL` is still `http://localhost:3000`. Every e-sign link emailed to a carrier is built from it, so links currently point at localhost. Fixing this properly requires a real deployment.
+- `NEXT_PUBLIC_APP_URL` is **not set** — it is absent from `.env.local` entirely, so both agreement routes fall back to the hardcoded `https://ttms.totaltransportlogistics.us`. Nothing resolves there yet, so every e-sign link emailed to a carrier currently points at a host that does not answer. The fallback and the DNS record must match exactly, character for character — a link built from the wrong one 404s on a legal signature page. Set the variable in the deployment once the subdomain is live rather than relying on the fallback.
+  - Documents that **leave the company** — the BOL and invoice PDFs, and the two agreement email footers — deliberately show the public site `totaltransportlogistics.us`, not this subdomain. A carrier holding an invoice cannot sign in to a staff tool, so printing its address there is noise.
 - No deployment exists: no `vercel.json`, no `.github/workflows/`, no Hosting block in `firebase.json`.
 - Firestore composite indexes are listed in `docs/schema-guide.md`. A missing-index error links to a one-click creator in the Console.
 

@@ -119,7 +119,7 @@ function InvoiceDocument({ d }: { d: InvoiceData }) {
           <View style={s.cardLast}>
             <Text style={s.secTitle}>FROM</Text>
             <Field label="Company"  value="Total Transport Logistics" />
-            <Field label="Website"  value="tms.totaltransportlogistics.us" />
+            <Field label="Website"  value="totaltransportlogistics.us" />
           </View>
         </View>
 
@@ -180,7 +180,7 @@ function InvoiceDocument({ d }: { d: InvoiceData }) {
 
         {/* Footer */}
         <View style={s.footer}>
-          <Text style={s.footerTxt}>Total Transport Logistics · tms.totaltransportlogistics.us</Text>
+          <Text style={s.footerTxt}>Total Transport Logistics · totaltransportlogistics.us</Text>
           <Text style={s.footerTxt}>Generated {d.generatedAt}</Text>
         </View>
 
