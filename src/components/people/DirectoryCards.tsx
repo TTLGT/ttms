@@ -27,9 +27,12 @@ export default function DirectoryCards({
 }: DirectoryViewProps) {
   // Dates follow the company setting, like every other date in the app.
   const { formatCalendarDate } = useDateFormatters();
-  // Own card, and cards for people who have never signed in, get no message
-  // link. Tested here as well as inside the button because Fact draws the icon
-  // — a button that rendered nothing would leave the icon behind on its own.
+  // Three states, and the card has to tell them apart: a colleague with an
+  // account gets the button, somebody invited who has never signed in gets told
+  // why there is no button, and your own card gets neither. Decided here rather
+  // than left to the button, which can only render or not render — and "no
+  // button" was being read as "the feature is missing", because most of this
+  // company has not signed in yet and almost every card was blank.
   const { user } = useAuth();
 
   return (
@@ -97,20 +100,6 @@ export default function DirectoryCards({
             <div className="mt-3 grid grid-cols-[14px_1fr] items-start gap-x-2 gap-y-1">
               <Fact Icon={AtSign} href={`mailto:${p.email}`}>{p.email}</Fact>
 
-              {/* The in-house way to reach them, beside the email and the desk
-                  number. */}
-              {p.uid && p.uid !== user?.uid && (
-              <Fact Icon={MessageSquare}>
-                <MessagePersonButton
-                  uid={p.uid}
-                  name={p.displayName}
-                  label="Send a message"
-                  className="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 hover:underline disabled:opacity-50"
-                  iconSize={0}
-                />
-              </Fact>
-              )}
-
               {/* Dialable, because half the reason to open a directory is to
                   call the person in it. */}
               {p.phone && (
@@ -156,6 +145,34 @@ export default function DirectoryCards({
                 <Fact Icon={Cake}>Born {formatCalendarDate(p.dateOfBirth)}</Fact>
               )}
             </div>
+
+            {/* The in-house way to reach them, under the contact details rather
+                than among them: this is the one thing on the card you *do*
+                rather than read, and it was being scanned straight past while
+                it sat in the grid looking like another address. */}
+            {p.uid && p.uid !== user?.uid ? (
+              <MessagePersonButton
+                uid={p.uid}
+                name={p.displayName}
+                label="Message"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700 disabled:opacity-50"
+                iconSize={13}
+              />
+            ) : !p.uid ? (
+              /* Chat threads are keyed to the account Google creates at first
+                 sign-in, so there is genuinely nobody to open one with yet.
+                 Saying so beats leaving a gap: most of the company is in this
+                 state today, and a blank space where the button goes reads as
+                 a missing feature rather than a waiting invite.
+
+                 Only ever drawn in the admin and HR view — everyone else's
+                 directory is built from profiles, which exist only for people
+                 who have signed in. */
+              <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-gray-400">
+                <MessageSquare size={13} className="opacity-70" />
+                Not on chat yet
+              </p>
+            ) : null}
           </li>
         );
       })}
