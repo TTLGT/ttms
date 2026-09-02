@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { LayoutGrid, List, Search, X } from 'lucide-react';
+import { LayoutGrid, List, Network, Search, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { canSeeDirectory } from '@/lib/accessControl';
 import { listDirectory, type DirectoryPerson } from '@/lib/directory';
@@ -20,6 +20,7 @@ import {
 } from '@/lib/directoryColumns';
 import ColumnPicker from '@/components/people/ColumnPicker';
 import DirectoryCards from '@/components/people/DirectoryCards';
+import DirectoryOrg from '@/components/people/DirectoryOrg';
 import DirectoryTable from '@/components/people/DirectoryTable';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
@@ -41,13 +42,19 @@ import type { Team } from '@/types/team';
  * either list — the two halves are kept private in different ways, and only
  * one of them is a real boundary.
  *
- * Two views, the same people: cards for looking someone up, a list for
- * scanning a whole office. Both live in components/people and take the same
- * props, so everything below is about *which* people to show and in what
- * order, never how they are drawn.
+ * Three views, the same people: cards for looking someone up, a list for
+ * scanning a whole office, and the org chart for finding who a team answers
+ * to. All three live in components/people and take the same props, so
+ * everything below is about *which* people to show and in what order, never
+ * how they are drawn.
  */
 
-type View = 'cards' | 'list';
+type View = 'cards' | 'list' | 'org';
+
+/** Anything else in the URL — including nothing — means cards. */
+function toView(value: string | null): View {
+  return value === 'list' || value === 'org' ? value : 'cards';
+}
 
 /** No office or no team, as it travels in the URL. An id can never be this. */
 const UNASSIGNED = 'none';
@@ -109,7 +116,7 @@ function Directory() {
   const pathname     = usePathname();
   const searchParams = useSearchParams();
 
-  const view: View  = searchParams.get('view') === 'list' ? 'list' : 'cards';
+  const view: View  = toView(searchParams.get('view'));
   const siteFilter  = searchParams.get('site') ?? 'all';
   const teamFilter  = searchParams.get('team') ?? 'all';
 
@@ -280,12 +287,13 @@ function Directory() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Two buttons rather than a dropdown: there are only ever two, and
+          {/* Buttons rather than a dropdown: there are only ever a few, and
               which one is on has to be readable without opening anything. */}
           <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5">
             {([
-              { id: 'cards', Icon: LayoutGrid, label: 'Cards' },
-              { id: 'list',  Icon: List,       label: 'List'  },
+              { id: 'cards', Icon: LayoutGrid, label: 'Cards'     },
+              { id: 'list',  Icon: List,       label: 'List'      },
+              { id: 'org',   Icon: Network,    label: 'Org chart' },
             ] as const).map(({ id, Icon, label }) => (
               <button
                 key={id}
@@ -304,9 +312,9 @@ function Directory() {
             ))}
           </div>
 
-          {/* Only over the list: the cards have no columns to choose
-              between, and a control that did nothing where it stood would be
-              worse than not having one. */}
+          {/* Only over the list: neither the cards nor the chart has columns
+              to choose between, and a control that did nothing where it stood
+              would be worse than not having one. */}
           {view === 'list' && (
             <ColumnPicker
               columns={pickableColumns(full)}
@@ -395,6 +403,20 @@ function Directory() {
             <div className="mt-3 rounded-xl border border-gray-200 bg-white py-16 text-center text-sm text-gray-400">
               Nobody matches that.
             </div>
+          ) : view === 'org' ? (
+            <DirectoryOrg
+              people={visible}
+              /* The unfiltered list as well, because a team's lead is still
+                 its lead when a search has hidden them — see the note on
+                 OrgGroup. */
+              allPeople={people}
+              teams={teams}
+              siteName={siteName}
+              teamName={teamName}
+              full={full}
+              teamFilter={teamFilter}
+              onFilterTeam={filterTeam}
+            />
           ) : view === 'list' ? (
             <DirectoryTable
               people={rows}

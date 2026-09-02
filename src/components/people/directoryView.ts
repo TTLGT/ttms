@@ -1,15 +1,17 @@
 import type { DirectoryPerson } from '@/lib/directory';
 import type { DirectoryColumn } from '@/lib/directoryColumns';
 import type { SortDir, SortKey } from '@/lib/directorySort';
+import type { Team } from '@/types/team';
 
 /**
- * What both directory views are handed.
+ * What every directory view is handed.
  *
- * The two views — cards and list — show the same people and differ only in
- * shape, so they take the same props and the page can swap one for the other
- * without knowing anything about either. Searching, filtering and the office
- * and team lookups all stay on the page: they are the same work whichever view
- * is on screen, and doing them twice would let the two drift.
+ * The three views — cards, list and org chart — show the same people and
+ * differ only in shape, so they share these props and the page can swap one
+ * for another without knowing anything about any of them. Searching, filtering
+ * and the office and team lookups all stay on the page: they are the same work
+ * whichever view is on screen, and doing them three times would let them
+ * drift.
  */
 export interface DirectoryViewProps {
   people: DirectoryPerson[];
@@ -67,4 +69,26 @@ export interface DirectoryTableProps extends DirectoryViewProps {
   /** Called with the column whose heading was clicked. Clicking the column
    *  already sorted on reverses it; any other column starts ascending. */
   onSort: (key: SortKey) => void;
+}
+
+/**
+ * The org chart takes the teams themselves, which neither other view needs:
+ * cards and list only ever put a team's *name* next to a person, and the page
+ * hands them `teamName` for that. This view is drawn team-first, so it needs
+ * the leads and the ids as well.
+ *
+ * It also takes the unfiltered list beside the filtered one. A team's lead is
+ * still its lead when a search has hidden them, and a chart that blanked the
+ * name would say the team is leaderless — see the note on OrgGroup.
+ */
+export interface DirectoryOrgProps extends DirectoryViewProps {
+  /** Every team, so the chart can be drawn in team order. */
+  teams: Team[];
+  /** Everyone the viewer may see, before the search and the two filters. */
+  allPeople: DirectoryPerson[];
+  /** Which team is filtered now: 'all', 'none' for unassigned, or an id.
+   *  Clicking a team's heading filters down to it, the same as clicking the
+   *  team in the list view. */
+  teamFilter: string;
+  onFilterTeam: (id: string) => void;
 }

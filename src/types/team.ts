@@ -56,8 +56,13 @@ export interface Team {
  * Callers pass the list they already have rather than this reaching for one,
  * because every screen that shows a lead is showing other people beside them
  * and has loaded the allowlist anyway.
+ *
+ * `uid` is optional on the way in so a directory entry can be passed straight
+ * through — there, somebody who has never signed in has no uid rather than a
+ * null one. It makes no difference to the match: a team pointing at a uid can
+ * only be matched by somebody who has one.
  */
-export function findTeamLead<T extends { email: string; uid: string | null }>(
+export function findTeamLead<T extends { email: string; uid?: string | null }>(
   team: Pick<Team, 'leadUid' | 'leadEmail'>,
   people: T[],
 ): T | null {

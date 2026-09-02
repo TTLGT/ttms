@@ -440,12 +440,25 @@ the other dials, which is the whole reason the page exists. The box at the top
 right searches names, addresses, numbers, extensions, offices and teams all at
 once, and the dropdown beside it narrows the page to one office.
 
-The two buttons at the top left of the controls switch between **Cards** and
-**List**. Cards are for looking someone up when you are not sure how their name
-is spelled — the photo is the quickest way to recognise a colleague. The list is
-for running an eye down a whole office: one line per person, and clicking any
-column heading sorts the list by that column (clicking the same heading again
-reverses it).
+The three buttons at the top left of the controls switch between **Cards**,
+**List** and **Org chart**. Cards are for looking someone up when you are not
+sure how their name is spelled — the photo is the quickest way to recognise a
+colleague. The list is for running an eye down a whole office: one line per
+person, and clicking any column heading sorts the list by that column (clicking
+the same heading again reverses it).
+
+The org chart answers a different question: **who reports to whom.** It groups
+everyone by their team, puts the team's lead at the top of each group, and lists
+the rest of the team underneath. Where a lead is themselves on somebody else's
+team, a line under their name says which. Clicking a team's name narrows the
+whole page to that team, and clicking it again puts everyone back.
+
+It is built entirely from what is already in **Settings → Teams** and
+**Settings → People** — the lead named on each team, and the team set on each
+person. So if somebody appears under **No team set**, or a team says *No lead
+named*, that is not a fault on this page: set the team or name the lead in
+Settings and the chart is right immediately. That is the fastest way to find
+the people nobody has placed yet.
 
 On the list there is also a **Columns** button. It switches individual columns
 off, which matters because the full table is wider than most laptop screens — if
