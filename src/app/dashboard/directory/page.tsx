@@ -10,6 +10,7 @@ import { listDirectory, type DirectoryPerson } from '@/lib/directory';
 import { listSites } from '@/lib/sites';
 import { listTeams } from '@/lib/teams';
 import { otherPhone } from '@/lib/phone';
+import { roleLabels } from '@/types/allowedUser';
 import {
   sortDirectory, isSortKey, isSortDir, DEFAULT_SORT_KEY, DEFAULT_SORT_DIR,
   type SortKey,
@@ -61,6 +62,10 @@ function haystack(p: DirectoryPerson, site: string | null, team: string | null):
     otherPhone(p).value,
     site,
     team,
+    // So that typing "dispatcher" finds the dispatchers. The chips are on
+    // screen; a search box that cannot match what is written on the card is
+    // the kind of small dishonesty people stop trusting the box over.
+    roleLabels(p).join(' '),
     // Blank for everyone but admin and HR, who are also the only people who
     // would think to search for a payroll name or a private address.
     p.legalName,
@@ -348,7 +353,7 @@ function Directory() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search name, email, phone or extension"
+              placeholder="Search name, role, email, phone or extension"
               className="w-72 rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-8 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
             />
             {query && (

@@ -1,6 +1,14 @@
 import { adminDb, AdminAuthError, requireCompanyUser } from './firebase-admin';
-import { canSeeAllParties, canSeeParty } from './accessControl';
-import type { RoleFlags } from './accessControl';
+import {
+  canOpenParty,
+  canSeeEveryParty,
+  canSeeParty,
+  viewAllPartyRoles,
+  viewablePartyRoles,
+  type PartyRoleName,
+  type RoleFlags,
+} from './accessControl';
+import { inChunks } from './teamScope';
 
 export interface Caller {
   uid: string;
@@ -22,10 +30,21 @@ export async function requireCaller(req: Request): Promise<Caller> {
     uid,
     email,
     profile: {
-      isAdmin:      data.isAdmin === true,
-      isDispatcher: data.isDispatcher === true,
-      isFinance:    data.isFinance === true,
-      groupIds:     (data.groupIds ?? []) as string[],
+      isAdmin:        data.isAdmin === true,
+      isDispatcher:   data.isDispatcher === true,
+      isFinance:      data.isFinance === true,
+      isHr:           data.isHr === true,
+      isSalesManager: data.isSalesManager === true,
+      isIntern:       data.isIntern === true,
+      // The effective list, and the thing every `can()` below actually reads.
+      // Left undefined rather than defaulted to [] when the profile predates
+      // permissions: an empty array would read as "allowed to do nothing",
+      // where undefined tells `can()` to derive the list from the role flags
+      // and hand this person exactly the access they had yesterday.
+      permissions:   Array.isArray(data.permissions) ? data.permissions as string[] : undefined,
+      groupIds:      (data.groupIds ?? []) as string[],
+      managedUids:   (data.managedUids ?? []) as string[],
+      managedEmails: (data.managedEmails ?? []) as string[],
     },
     displayName: data.displayName || email || 'Unknown user',
   };
@@ -114,7 +133,29 @@ export async function listVisiblePartiesPage(
 ): Promise<PartyPage> {
   const col = adminDb.collection('parties');
 
-  if (canSeeAllParties(caller.profile)) {
+  // Nothing at all for somebody who may not open this kind of record. Applied
+  // here as well as in canSeeParty because the union below is built from
+  // queries rather than filtered through that test — an intern would otherwise
+  // be handed every unowned party in the company.
+  if (!canOpenParty(caller.profile, query.role ? [query.role] : undefined)) {
+    return { parties: [], cursor: null };
+  }
+
+  /*
+    Two ways to get the cheap path: seeing every party there is, or seeing
+    every party of the one kind this screen is asking for. The second is what
+    makes a "sees every client but not every shipper" permission usable — the
+    Clients screen names its role, so the query can be the same collection scan
+    a dispatcher gets, narrowed to clients.
+
+    Anything else falls through to the ownership union below, which is where a
+    wholesale kind is folded in a query at a time.
+  */
+  const seesAll = viewAllPartyRoles(caller.profile);
+  const wholesale = canSeeEveryParty(caller.profile)
+    || (!!query.role && seesAll.includes(query.role as PartyRoleName));
+
+  if (wholesale) {
     let q: FirebaseFirestore.Query = col;
     if (query.role) q = q.where('roles', 'array-contains', query.role);
 
@@ -140,7 +181,7 @@ export async function listVisiblePartiesPage(
     };
   }
 
-  const all = await listVisibleParties(caller);
+  const all = await listVisibleParties(caller, query.role);
   const term = (query.search ?? '').trim().toLowerCase();
   const matching = all.filter((p) => {
     if (query.role && !(p.roles ?? []).includes(query.role)) return false;
@@ -160,12 +201,16 @@ export async function listVisiblePartiesPage(
 
 /** How many visible parties hold a role, without fetching them. */
 export async function countVisibleParties(caller: Caller, role?: string): Promise<number> {
-  if (canSeeAllParties(caller.profile)) {
+  if (!canOpenParty(caller.profile, role ? [role] : undefined)) return 0;
+
+  const seesAll = viewAllPartyRoles(caller.profile);
+  if (canSeeEveryParty(caller.profile)
+    || (role && seesAll.includes(role as PartyRoleName))) {
     const col = adminDb.collection('parties');
     const q = role ? col.where('roles', 'array-contains', role) : col;
     return (await q.count().get()).data().count;
   }
-  const all = await listVisibleParties(caller);
+  const all = await listVisibleParties(caller, role);
   return role ? all.filter((p) => (p.roles ?? []).includes(role)).length : all.length;
 }
 
@@ -177,17 +222,34 @@ export async function countVisibleParties(caller: Caller, role?: string): Promis
  * On the current collection the privileged path is seven thousand documents and
  * several seconds — use `listVisiblePartiesPage` for anything that shows a list.
  */
-export async function listVisibleParties(caller: Caller): Promise<VisibleParty[]> {
+export async function listVisibleParties(
+  caller: Caller,
+  /**
+   * The kind of party the caller is asking about, when they are asking about
+   * one.
+   *
+   * Only used to keep the wholesale queries below honest. Somebody who sees
+   * every client but not every shipper, looking at the Shippers screen, must
+   * not have the entire client list read and thrown away to answer it — on
+   * this collection that is seven thousand documents for nothing.
+   */
+  role?: string,
+): Promise<VisibleParty[]> {
   const col = adminDb.collection('parties');
 
-  if (canSeeAllParties(caller.profile)) {
+  const viewable = viewablePartyRoles(caller.profile);
+  if (viewable.length === 0) return [];
+
+  if (canSeeEveryParty(caller.profile)) {
     const snap = await col.orderBy('nameKey').get();
     return snap.docs.map((d) => toVisibleParty(d.id, d.data()));
   }
 
   const groupIds = caller.profile.groupIds ?? [];
+  const managed  = caller.profile.managedUids ?? [];
+  const managedEmails = caller.profile.managedEmails ?? [];
 
-  const [mine, unowned, viaGroup, granted] = await Promise.all([
+  const [mine, unowned, viaGroup, granted, viaTeam, byKind] = await Promise.all([
     col.where('assignedToUids', 'array-contains', caller.uid).get(),
     // Every ownership field has to be empty for a party to count as unowned.
     // assignedToEmails joined this list when ownership-by-email was added: a
@@ -204,10 +266,40 @@ export async function listVisibleParties(caller: Caller): Promise<VisibleParty[]
       ? col.where('assignedToGroupIds', 'array-contains-any', groupIds.slice(0, 30)).get()
       : Promise.resolve({ docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] }),
     approvedPartyIds(caller.uid),
+    /*
+      A Sales Manager's team. Two queries rather than one because a member who
+      has never signed in is held by email — see managedEmails — and dropping
+      that half would hide exactly the records a manager is most likely to be
+      setting up for a new hire.
+    */
+    Promise.all([
+      ...inChunks(managed).map((batch) =>
+        col.where('assignedToUids', 'array-contains-any', batch).get()),
+      ...inChunks(managedEmails).map((batch) =>
+        col.where('assignedToEmails', 'array-contains-any', batch).get()),
+    ]),
+    /*
+      Kinds this caller sees wholesale but could not be served by the cheap
+      path above, because the screen did not name a role. One query per kind;
+      usually none, because a caller with all three took the branch above and a
+      caller with a role filter took the other one.
+    */
+    Promise.all(
+      viewAllPartyRoles(caller.profile)
+        // Narrowed to what was asked for. With no role named — the analytics
+        // rollup, the resolver — every wholesale kind is fetched, which is
+        // correct and is why those callers are the ones that page nothing.
+        .filter((kind) => !role || kind === role)
+        .map((kind) => col.where('roles', 'array-contains', kind).get()),
+    ),
   ]);
 
   const byId = new Map<string, VisibleParty>();
-  for (const d of [...mine.docs, ...unowned.docs, ...viaGroup.docs]) {
+  for (const d of [
+    ...mine.docs, ...unowned.docs, ...viaGroup.docs,
+    ...viaTeam.flatMap((snap) => snap.docs),
+    ...byKind.flatMap((snap) => snap.docs),
+  ]) {
     byId.set(d.id, toVisibleParty(d.id, d.data()));
   }
 
@@ -218,7 +310,12 @@ export async function listVisibleParties(caller: Caller): Promise<VisibleParty[]
     for (const d of docs) if (d.exists) byId.set(d.id, toVisibleParty(d.id, d.data()!));
   }
 
-  return [...byId.values()].sort((a, b) => a.nameKey.localeCompare(b.nameKey));
+  return [...byId.values()]
+    // A caller who may open only some kinds gets only those. The queries above
+    // ask about ownership, which knows nothing about what kind of record it is
+    // attached to, so the narrowing happens here.
+    .filter((p) => canOpenParty(caller.profile, p.roles))
+    .sort((a, b) => a.nameKey.localeCompare(b.nameKey));
 }
 
 /**

@@ -1,4 +1,5 @@
 import { canSeeDirectory, type RoleFlags } from './accessControl';
+import { ROLE_ORDER, type RoleFlagSet } from '@/types/permission';
 import { listAllowedUsers } from './allowedUsers';
 import { listUserProfiles } from './userProfiles';
 import type { OtherPhoneRegion } from './phone';
@@ -43,7 +44,24 @@ import type { OtherPhoneRegion } from './phone';
  * the profile; hiding it here would only keep it off the screen.
  */
 
-export interface DirectoryPerson {
+/**
+ * Extends RoleFlagSet, so every person carries the roles they hold — Admin,
+ * Dispatcher, Finance, HR, Sales Manager, Intern, or none of them, which is a
+ * Broker.
+ *
+ * Shown to everyone, and safe to show: the flags are already on `users/{uid}`,
+ * which every signed-in user can read, because the app and the Storage rules
+ * both need them there. Putting them in the phone book gives away nothing new
+ * and answers the question it is most often opened for after a phone number —
+ * who do I ask about this?
+ *
+ * Note what is deliberately absent: the effective permission list. What
+ * somebody's *role* is is ordinary working information. That one person has
+ * been given the right to generate invoices is between them and an admin, and
+ * a card showing it would turn the directory into a map of which accounts are
+ * worth having.
+ */
+export interface DirectoryPerson extends RoleFlagSet {
   email: string;
   /**
    * Null for somebody invited who has never signed in — there is no account
@@ -99,6 +117,12 @@ function common(p: {
   siteId?: string | null;
   teamId?: string | null;
   photoPath?: string | null;
+  isAdmin?: boolean;
+  isDispatcher?: boolean;
+  isFinance?: boolean;
+  isHr?: boolean;
+  isSalesManager?: boolean;
+  isIntern?: boolean;
 }): DirectoryPerson {
   const joined = [p.firstName, p.lastName].filter(Boolean).join(' ').trim();
   return {
@@ -112,6 +136,9 @@ function common(p: {
     extension:   p.extension,
     siteId:      p.siteId ?? null,
     teamId:      p.teamId ?? null,
+    // Spread from the source rather than listed one by one, so a role added to
+    // the catalog reaches the directory without this function being found.
+    ...Object.fromEntries(ROLE_ORDER.map((role) => [role, p[role] === true])),
     pending:     false,
     suspended:   false,
   };

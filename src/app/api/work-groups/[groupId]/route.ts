@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue, adminDb, AdminAuthError, requireAdmin } from '@/lib/firebase-admin';
+import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
 
 const COL = 'workGroups';
 
@@ -15,7 +15,7 @@ export async function PATCH(
 ) {
   try {
     const { groupId } = await params;
-    await requireAdmin(req);
+    await requirePermission(req, 'settings.manage');
     const body = await req.json().catch(() => ({}));
 
     const ref  = adminDb.collection(COL).doc(groupId);
@@ -71,7 +71,7 @@ export async function DELETE(
 ) {
   try {
     const { groupId } = await params;
-    await requireAdmin(req);
+    await requirePermission(req, 'settings.manage');
 
     const ref  = adminDb.collection(COL).doc(groupId);
     const snap = await ref.get();

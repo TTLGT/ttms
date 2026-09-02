@@ -1,5 +1,6 @@
 import type { DirectoryPerson } from './directory';
 import { otherPhone } from './phone';
+import { roleLabels } from '@/types/allowedUser';
 
 /**
  * Ordering the directory list by one of its columns.
@@ -24,6 +25,7 @@ import { otherPhone } from './phone';
 
 export type SortKey =
   | 'name'
+  | 'role'
   | 'site'
   | 'team'
   | 'extension'
@@ -40,7 +42,7 @@ export const DEFAULT_SORT_KEY: SortKey = 'name';
 export const DEFAULT_SORT_DIR: SortDir = 'asc';
 
 const SORT_KEYS: SortKey[] = [
-  'name', 'site', 'team', 'extension', 'phone',
+  'name', 'role', 'site', 'team', 'extension', 'phone',
   'other', 'startDate', 'dateOfBirth', 'email',
 ];
 
@@ -76,6 +78,14 @@ function sortValue(
   switch (key) {
     case 'name':
       return p.displayName;
+
+    case 'role':
+      // The roles they hold, joined — which sorts Admin before Dispatcher
+      // before Finance, and puts everybody with the same standing together.
+      // Broker is the absence of a role, so it is spelled out rather than left
+      // null: brokers are most of the company, and sinking them to the bottom
+      // of both directions would make this column useless in one of them.
+      return roleLabels(p).join(', ');
 
     case 'site':
       return names.siteName(p.siteId);

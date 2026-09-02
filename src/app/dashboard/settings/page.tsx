@@ -82,7 +82,12 @@ const DATE_SAMPLE = '2020-03-04';
 type Values = Partial<Record<string, string>>;
 
 export default function SettingsOverviewPage() {
-  const { isAdmin } = useAuth();
+  const { can } = useAuth();
+
+  // Overview is the company's setup at a glance. HR and a Sales Manager both
+  // belong on People instead — one reads the directory, the other manages a
+  // team, and neither has anything to do on this page.
+  const isAdmin = can('settings.manage') || can('people.manage');
   const router = useRouter();
   const [values, setValues] = useState<Values>({});
   const [loading, setLoading] = useState(true);

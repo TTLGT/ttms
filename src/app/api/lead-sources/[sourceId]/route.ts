@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue, adminDb, AdminAuthError, requireAdmin } from '@/lib/firebase-admin';
+import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
 import { toSourceKey } from '@/types/leadSource';
 
 const COL = 'leadSources';
@@ -27,7 +27,7 @@ export async function PATCH(
 ) {
   try {
     const { sourceId } = await params;
-    await requireAdmin(req);
+    await requirePermission(req, 'settings.manage');
     const body = await req.json().catch(() => ({}));
 
     const ref  = adminDb.collection(COL).doc(sourceId);
@@ -85,7 +85,7 @@ export async function DELETE(
 ) {
   try {
     const { sourceId } = await params;
-    await requireAdmin(req);
+    await requirePermission(req, 'settings.manage');
 
     const ref  = adminDb.collection(COL).doc(sourceId);
     const snap = await ref.get();

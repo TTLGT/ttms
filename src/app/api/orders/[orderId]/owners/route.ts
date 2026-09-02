@@ -11,15 +11,13 @@ type RouteContext = { params: Promise<{ orderId: string }> };
 /**
  * Who may hand an order to someone else.
  *
- * Admins and dispatchers only. Deliberately narrower than who can *see* an
- * order: a broker working a load should not be able to quietly move it off
- * their own book, or onto it. requirePermission already admits admins, so
- * naming dispatcher here covers both.
+ * Deliberately narrower than who can *see* an order: a broker working a load
+ * should not be able to quietly move it off their own book, or onto it. Admins
+ * and dispatchers hold this permission by role; anybody else has to be given
+ * it deliberately.
  */
-const OWNER_ROLES = ['dispatcher'] as const;
-
 async function actorFor(req: NextRequest) {
-  const { uid } = await requirePermission(req, [...OWNER_ROLES]);
+  const { uid } = await requirePermission(req, 'ownership.change');
   const profile = await adminDb.collection(USERS_COLLECTION).doc(uid).get();
   const d = profile.data();
   return { uid, name: d?.displayName || d?.email || uid, ip: callerIp(req) };

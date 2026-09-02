@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, AdminAuthError } from '@/lib/firebase-admin';
+import { requirePermission, AdminAuthError } from '@/lib/firebase-admin';
 import { UserImportError, importUsersCsv } from '@/lib/userImport';
 
 /**
@@ -19,7 +19,7 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   let caller;
   try {
-    caller = await requireAdmin(req);
+    caller = await requirePermission(req, 'people.manage');
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -18,42 +18,67 @@ import {
   BarChart2,
   Settings,
   BookOpen,
+  GraduationCap,
   LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import type { Permission } from '@/types/permission';
 import { ChatProvider, useChat } from '@/context/ChatContext';
 import { ApprovalsProvider, useApprovals } from '@/context/ApprovalsContext';
 import ChatPopup from '@/components/chat/ChatPopup';
 
+/**
+ * The sidebar, and the permission each entry needs.
+ *
+ * Naming a permission rather than a role is what makes the sections divisible:
+ * somebody given `analytics.view` and nothing else gets Analytics and no other
+ * admin screen, and an intern — who holds only the directory, chat and their
+ * own area — gets a sidebar with three things on it.
+ *
+ * `anyOf` for the two screens that are a doorway to several things: Settings
+ * opens to a people manager or to HR, and Approvals is worth showing to
+ * anybody who can own a record somebody might ask about.
+ *
+ * This list is a courtesy, not a boundary. Every page behind it is enforced by
+ * the API routes it calls and by the Firestore rules underneath those; hiding a
+ * link stops somebody wandering in, not somebody trying.
+ */
 const NAV_ITEMS: {
   href: string;
   label: string;
   Icon: LucideIcon;
-  adminOnly: boolean;
-  /** Admin-only, but HR gets in too. Only Settings uses this. */
-  alsoHr?: boolean;
+  /** Shown when the viewer holds this permission. */
+  needs?: Permission;
+  /** ...or any one of these. */
+  anyOf?: Permission[];
 }[] = [
-  { href: '/dashboard',           label: 'Dashboard', Icon: LayoutDashboard, adminOnly: false },
-  { href: '/dashboard/orders',    label: 'Orders',    Icon: ClipboardList,   adminOnly: false },
-  { href: '/dashboard/carriers',  label: 'Carriers',  Icon: Truck,           adminOnly: false },
-  { href: '/dashboard/clients',   label: 'Clients',   Icon: Users,           adminOnly: false },
-  { href: '/dashboard/shippers',  label: 'Shippers',  Icon: Building2,       adminOnly: false },
-  { href: '/dashboard/consignees', label: 'Consignees', Icon: PackageCheck,  adminOnly: false },
-  { href: '/dashboard/approvals', label: 'Approvals', Icon: ShieldCheck,      adminOnly: false },
-  { href: '/dashboard/documents', label: 'Documents', Icon: Folder,          adminOnly: false },
+  { href: '/dashboard',           label: 'Dashboard', Icon: LayoutDashboard },
+  { href: '/dashboard/orders',    label: 'Orders',    Icon: ClipboardList, needs: 'orders.view' },
+  { href: '/dashboard/carriers',  label: 'Carriers',  Icon: Truck,         needs: 'carriers.view' },
+  { href: '/dashboard/clients',   label: 'Clients',   Icon: Users,         needs: 'clients.view' },
+  { href: '/dashboard/shippers',  label: 'Shippers',  Icon: Building2,     needs: 'shippers.view' },
+  { href: '/dashboard/consignees', label: 'Consignees', Icon: PackageCheck, needs: 'consignees.view' },
+  { href: '/dashboard/approvals', label: 'Approvals', Icon: ShieldCheck,
+    anyOf: ['orders.view', 'clients.view', 'shippers.view', 'consignees.view'] },
+  { href: '/dashboard/documents', label: 'Documents', Icon: Folder,        needs: 'documents.view' },
   // Open to everyone: it is the company phone book, not the access list.
   // What each person is shown depends on their role — see src/lib/directory.ts.
-  { href: '/dashboard/directory', label: 'Directory', Icon: Contact,         adminOnly: false },
+  { href: '/dashboard/directory', label: 'Directory', Icon: Contact,       needs: 'directory.view' },
   // Next to the Directory on purpose: that page is who your colleagues are,
   // this one is talking to them. Open to everyone — chat crosses none of the
   // ownership boundaries the record pages are gated by.
-  { href: '/dashboard/chat',      label: 'Chat',      Icon: MessageCircle,   adminOnly: false },
-  { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart2,       adminOnly: true  },
+  { href: '/dashboard/chat',      label: 'Chat',      Icon: MessageCircle, needs: 'chat.use' },
+  // An intern's own corner: their guide, their onboarding survey, their tasks.
+  // Sits below Chat because it is theirs rather than the company's. Admins hold
+  // every permission, so they see it too — which is the only way to check what
+  // an intern is actually being shown.
+  { href: '/dashboard/intern',    label: 'My onboarding', Icon: GraduationCap, needs: 'intern.section' },
+  { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart2,     needs: 'analytics.view' },
   // Also open to HR, who read the people directory there and nothing else —
-  // the page itself renders read-only for them. Analytics and Handbook stay
-  // admin-only.
-  { href: '/dashboard/settings',  label: 'Settings',  Icon: Settings,        adminOnly: true, alsoHr: true },
-  { href: '/dashboard/handbook',  label: 'Handbook',  Icon: BookOpen,        adminOnly: true  },
+  // the page itself renders read-only for them.
+  { href: '/dashboard/settings',  label: 'Settings',  Icon: Settings,
+    anyOf: ['people.manage', 'people.view', 'settings.manage'] },
+  { href: '/dashboard/handbook',  label: 'Handbook',  Icon: BookOpen,      needs: 'handbook.view' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -98,8 +123,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
  * rather than opening a second set of listeners to count the same thing.
  */
 function DashboardShell({ children }: { children: React.ReactNode }) {
-  const { user, logout, isAdmin, isHr } = useAuth();
-  const pathname                        = usePathname();
+  const { user, logout, can } = useAuth();
+  const pathname              = usePathname();
+  const router                = useRouter();
   const { unreadBadge }                 = useChat();
   const { incoming, outgoing }          = useApprovals();
 
@@ -111,6 +137,43 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
    */
   const isCurrent = (href: string) =>
     href === '/dashboard' ? pathname === href : pathname.startsWith(href);
+
+  /** The sidebar this viewer actually gets. */
+  const visible = useMemo(
+    () => NAV_ITEMS.filter((item) => {
+      if (item.needs) return can(item.needs);
+      if (item.anyOf) return item.anyOf.some((p) => can(p));
+      return true;
+    }),
+    [can],
+  );
+
+  /**
+   * Somebody who typed, bookmarked or was sent the address of a section they
+   * cannot open lands on the first one they can.
+   *
+   * Not a security measure — the data behind these pages is gated server-side,
+   * and an intern who reaches /dashboard/orders is served an empty list rather
+   * than somebody else's loads. This is about not leaving them on a screen with
+   * nothing on it and no way out: the sidebar has no entry for the page they
+   * are on, so there is nothing to click.
+   *
+   * Dashboard is deliberately exempt. It is everybody's landing page and shows
+   * each person only what they can already see.
+   */
+  useEffect(() => {
+    if (pathname === '/dashboard') return;
+
+    const item = NAV_ITEMS.find(
+      (i) => i.href !== '/dashboard' && pathname.startsWith(i.href),
+    );
+    // A page with no nav entry of its own — an order's detail view, say — is
+    // left alone: it was reached from a list that had already been gated.
+    if (!item) return;
+    if (visible.some((i) => i.href === item.href)) return;
+
+    router.replace(visible[0]?.href ?? '/dashboard');
+  }, [pathname, visible, router]);
 
   /**
    * The badges on a nav item. Most carry none; Approvals can carry two.
@@ -158,9 +221,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             would refuse to shrink below its content, so the list would push the
             sign-out block off-screen instead of scrolling. */}
         <nav className="flex-1 min-h-0 overflow-y-auto sidebar-scroll px-3 py-4 space-y-1">
-          {NAV_ITEMS.filter(
-            (item) => !item.adminOnly || isAdmin || (item.alsoHr === true && isHr),
-          ).map(({ href, label, Icon }) => {
+          {visible.map(({ href, label, Icon }) => {
             const current = isCurrent(href);
             const badges  = badgesFor(href);
             return (

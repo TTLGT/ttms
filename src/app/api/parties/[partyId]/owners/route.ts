@@ -10,17 +10,16 @@ type RouteContext = { params: Promise<{ partyId: string }> };
 /**
  * Who may reassign a client.
  *
- * Admins and dispatchers only, matching orders. This route exists because
- * ownership used to be writable straight from the browser through updateParty:
+ * Gated on `ownership.change`, matching orders — admins and dispatchers hold
+ * it by role. This route exists because ownership used to be writable straight
+ * from the browser through updateParty:
  * since an unowned party is visible to everyone, any broker could claim any
  * unclaimed client and lock the rest of the company out of it, leaving nothing
  * behind to say who did it. Ownership fields are now closed in the rules and
  * this is the only way through.
  */
-const OWNER_ROLES = ['dispatcher'] as const;
-
 async function actorFor(req: NextRequest) {
-  const { uid } = await requirePermission(req, [...OWNER_ROLES]);
+  const { uid } = await requirePermission(req, 'ownership.change');
   const profile = await adminDb.collection(USERS_COLLECTION).doc(uid).get();
   const d = profile.data();
   return { uid, name: d?.displayName || d?.email || uid, ip: callerIp(req) };

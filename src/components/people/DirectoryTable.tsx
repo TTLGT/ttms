@@ -8,6 +8,7 @@ import type { SortKey } from '@/lib/directorySort';
 import type { DirectoryColumn } from '@/lib/directoryColumns';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import MessagePersonButton from '@/components/chat/MessagePersonButton';
+import RoleBadges from '@/components/people/RoleBadges';
 import type { DirectoryTableProps } from '@/components/people/directoryView';
 
 /**
@@ -208,6 +209,12 @@ export default function DirectoryTable({
                       )}
                     </div>
                   </div>
+                </td>
+              ),
+
+              role: (
+                <td key="role" className="px-4 py-2.5">
+                  <RoleBadges person={p} size="small" />
                 </td>
               ),
 

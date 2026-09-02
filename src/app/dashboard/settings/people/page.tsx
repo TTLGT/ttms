@@ -6,14 +6,15 @@ import {
   IdCard, LayoutGrid, LayoutList, List, Phone, Smartphone, UsersRound,
 } from 'lucide-react';
 import {
-  listAllowedUsers,
+  listManageableUsers,
   setAllowedUserRole,
   setAllowedUserDetails,
   setAllowedUserPhoto,
   setAllowedUserSuspended,
+  setAllowedUserPermissions,
   revokeUser,
 } from '@/lib/allowedUsers';
-import { isBootstrapAdmin, isBroker, normalizeEmail } from '@/lib/accessControl';
+import { canManagePerson, isBootstrapAdmin, isBroker, normalizeEmail } from '@/lib/accessControl';
 import {
   DEFAULT_OTHER_REGION,
   OTHER_PHONE_LABEL,
@@ -38,6 +39,15 @@ import {
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import type { DateLike } from '@/lib/dateFormat';
 import type { AccessStatus, AllowedUser, AllowedUserRole } from '@/types/allowedUser';
+import { ROLE_ORDER, type Permission, type RoleKey } from '@/types/permission';
+
+/**
+ * Never delegable by a Sales Manager, whatever they hold themselves: either
+ * one would take the person receiving it outside the team the manager's own
+ * authority comes from. Kept in step with NON_DELEGABLE in /api/admin/users,
+ * which is where it is actually enforced.
+ */
+const NON_DELEGABLE: Permission[] = ['people.manage', 'settings.manage'];
 import {
   SORT_FIELDS, directionLabel, millis, sortText,
   type SortDir, type SortField,
@@ -52,6 +62,7 @@ import CardFieldPicker from '@/components/settings/CardFieldPicker';
 import PeopleTable from '@/components/settings/PeopleTable';
 import PersonActions from '@/components/settings/PersonActions';
 import PersonRoles from '@/components/settings/PersonRoles';
+import PersonPermissions from '@/components/settings/PersonPermissions';
 import StatusChip from '@/components/settings/StatusChip';
 import CollapsibleSection from '@/components/settings/CollapsibleSection';
 import RemovedPeoplePanel from '@/components/settings/RemovedPeoplePanel';
@@ -140,7 +151,7 @@ function tally(people: AllowedUser[], key: (p: AllowedUser) => string | null | u
 }
 
 export default function SettingsPeoplePage() {
-  const { user, isAdmin }       = useAuth();
+  const { user, isAdmin, profile, can } = useAuth();
   // Start dates and birthdays follow the company setting — Settings →
   // Operations → Date Format.
   const { formatCalendarDate, formatDateTime } = useDateFormatters();
@@ -223,19 +234,51 @@ export default function SettingsPeoplePage() {
     });
 
   /**
-   * HR reads this page; only admins act on it. Everything that writes is gated
-   * on this rather than on `isAdmin` directly, so there is one place to look
-   * when asking what HR can do here.
+   * Three different authorities on this page, and they are not the same.
+   *
+   * - `canEdit` — may write here at all. Admins, and Sales Managers, who reach
+   *   this page for their own team. HR reads and does not write.
+   * - `canManageAll` — the company-wide powers: adding somebody, removing
+   *   them, changing a role. A role is company-wide by nature, so a manager
+   *   scoped to a team cannot hand one out.
+   * - `canEditPerson(p)` — may act on this particular row. Always true for an
+   *   admin; true for a manager only on their own team.
+   *
+   * Collapsing them would either lock a manager out of their own team or hand
+   * them the whole access list, and each of these is separately enforced on
+   * the server — see the guards in /api/admin/users.
    */
-  const canEdit = isAdmin;
+  const canManageAll = can('people.manage');
+  const canEdit      = canManageAll || profile?.isSalesManager === true;
+
+  const canEditPerson = useCallback(
+    (person: AllowedUser) =>
+      canManagePerson(profile, { uid: person.uid, email: person.email }),
+    [profile],
+  );
+
+  /**
+   * Which permissions this reader may hand over. Admins, anything; a manager,
+   * only what they hold themselves and nothing that would take the recipient
+   * outside the team — the same rule the server applies, drawn here so a box
+   * that would be refused is never tickable in the first place.
+   */
+  const grantable = useCallback(
+    (permission: Permission) =>
+      canManageAll
+      || (!NON_DELEGABLE.includes(permission) && can(permission)),
+    [canManageAll, can],
+  );
 
   const myEmail = normalizeEmail(user?.email);
 
   const refresh = useCallback(async () => {
-    const list = await listAllowedUsers();
+    // Admin and HR read the whole allowlist; a Sales Manager gets their team
+    // and nobody else. See listManageableUsers for why that split exists.
+    const list = await listManageableUsers(profile);
     setPeople(list);
     setLoadFailed(false);
-  }, []);
+  }, [profile]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -278,6 +321,31 @@ export default function SettingsPeoplePage() {
       );
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not update role');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Save the extras one person has been given, as a set.
+   *
+   * The whole list goes at once rather than one key per click — see
+   * setAllowedUserPermissions. The row is updated from what the server sends
+   * back rather than from what was asked for: a Sales Manager's save keeps any
+   * grant an admin made that they are not allowed to touch, so the two can
+   * differ and the server's answer is the true one.
+   */
+  async function handlePermissions(person: AllowedUser, permissions: Permission[]) {
+    const key = `${person.email}:permissions`;
+    setBusy(key);
+    setError('');
+    try {
+      const saved = await setAllowedUserPermissions(person.email, permissions);
+      setPeople((prev) =>
+        prev.map((p) => (p.email === person.email ? { ...p, grantedPermissions: saved } : p)),
+      );
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not update permissions');
     } finally {
       setBusy(null);
     }
@@ -483,17 +551,17 @@ They will be signed out immediately and cannot sign in until you restore them. T
   // the whole picture while a filter is applied. Role counts overlap — one
   // person can hold several roles — so they do not sum to the total.
   const counts = useMemo(() => {
-    const roleCount = (p: AllowedUser) =>
-      Number(p.isAdmin) + Number(p.isDispatcher) + Number(p.isFinance) + Number(p.isHr);
+    const roleCount = (p: AllowedUser) => ROLE_ORDER.filter((role) => p[role]).length;
     return {
       all:          people.length,
       active:       people.filter((p) => accessStatus(p) === 'active').length,
       pending:      people.filter((p) => accessStatus(p) === 'pending').length,
       suspended:    people.filter((p) => accessStatus(p) === 'suspended').length,
-      isAdmin:      people.filter((p) => p.isAdmin).length,
-      isDispatcher: people.filter((p) => p.isDispatcher).length,
-      isFinance:    people.filter((p) => p.isFinance).length,
-      isHr:         people.filter((p) => p.isHr).length,
+      // One tile per role, keyed by the flag, so a role added to the catalog
+      // gets its tile without this list having to be found and extended.
+      ...Object.fromEntries(
+        ROLE_ORDER.map((role) => [role, people.filter((p) => p[role]).length]),
+      ) as Record<RoleKey, number>,
       broker:       people.filter(isBroker).length,
       multiRole:    people.filter((p) => roleCount(p) > 1).length,
       // Counted by id rather than by name: two sites can be renamed to the
@@ -785,7 +853,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
           one — right while it was a single column, but it lays itself out in
           columns now, so the width buys more fields side by side rather than
           wider ones. */}
-      {canEdit && <AddPeoplePanel sites={sites} teams={teams} onChanged={load} />}
+      {canManageAll && <AddPeoplePanel sites={sites} teams={teams} onChanged={load} />}
 
       {/* Open unless the reader has folded it away: this list is the reason
           the tab exists, and the other two are things you go looking for.
@@ -801,10 +869,14 @@ They will be signed out immediately and cannot sign in until you restore them. T
             <>
               Everyone is a Broker by default — their own clients and loads, and nothing they
               do not own. Admins can see all records and manage access, dispatchers can send
-              carrier/shipper agreements, finance can generate BOLs and invoices, and HR can
-              read this directory and nothing else. Click a role to toggle it, or Broker to
-              take the others away. Suspending blocks sign-in but keeps the roles, so access
-              can be restored; removing deletes the entry outright.
+              carrier/shipper agreements, finance can generate BOLs and invoices, HR can read
+              this directory and nothing else, a Sales Manager has an admin&rsquo;s powers over
+              the team they lead under Teams, and an Intern sees less than a broker — the
+              directory, chat and their own area. Click a role to toggle it, or Broker to take
+              the others away. Anything smaller than a whole role is a permission: open
+              Permissions under a person to give them one thing without the rest.
+              Suspending blocks sign-in but keeps the roles, so access can be restored;
+              removing deletes the entry outright.
             </>
           ) : (
             <>
@@ -1077,7 +1149,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
             <PeopleTable
               people={visiblePeople}
               fields={cardFields.fields}
-              canEdit={canEdit}
+              canEdit={canManageAll}
               myEmail={myEmail}
               isProtectedEmail={isBootstrapAdmin}
               busy={busy}
@@ -1308,13 +1380,21 @@ They will be signed out immediately and cannot sign in until you restore them. T
                       <div className="mt-3 border-t border-gray-100 pt-3">
                         <PersonRoles
                           person={p}
-                          canEdit={canEdit}
+                          canEdit={canManageAll}
                           suspended={suspended}
                           isSelf={isSelf}
                           isProtected={isProtected}
                           busy={busy}
                           onMakeBroker={handleMakeBroker}
                           onToggle={handleToggle}
+                        />
+
+                        <PersonPermissions
+                          person={p}
+                          canEdit={canEditPerson(p)}
+                          grantable={grantable}
+                          busy={busy === `${p.email}:permissions`}
+                          onSave={(next) => handlePermissions(p, next)}
                         />
 
                         <div className="mt-2 flex items-end justify-between gap-3">
@@ -1324,9 +1404,10 @@ They will be signed out immediately and cannot sign in until you restore them. T
                             {isProtected && <span className="block">Protected account</span>}
                           </p>
 
-                          {canEdit && (
+                          {canEditPerson(p) && (
                             <PersonActions
                               person={p}
+                              canRemove={canManageAll}
                               editing={editing === p.email}
                               suspended={suspended}
                               isSelf={isSelf}
@@ -1342,7 +1423,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
                     </div>
                   </div>
 
-                  {canEdit && editing === p.email && (
+                  {canEditPerson(p) && editing === p.email && (
                     <div className="mt-3">{renderEditor(p)}</div>
                   )}
                 </li>
@@ -1355,7 +1436,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
       {/* The archive holds date of birth and personal email for people who
           have left, so it stays admin-only — HR reads the live directory
           above and nothing else. */}
-      {canEdit && <RemovedPeoplePanel sites={sites} teams={teams} />}
+      {canManageAll && <RemovedPeoplePanel sites={sites} teams={teams} />}
     </div>
   );
 }

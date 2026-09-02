@@ -54,7 +54,7 @@ const millis = (ts: unknown): number => {
 export default function ApprovalsPage() {
   // Requests are read as a timeline, so these keep the time after the date.
   const { formatDateTime: formatWhen } = useDateFormatters();
-  const { user, isAdmin, isDispatcher } = useAuth();
+  const { user, can } = useAuth();
   // The nav badge counts the same queue, so deciding one here has to re-count
   // there — otherwise the number sits stale until the next full page load.
   const { refresh: refreshBadges } = useApprovals();
@@ -80,12 +80,12 @@ export default function ApprovalsPage() {
 
     Defaulted to `once` and never to `ownership`, for the same reason the load
     picker defaults to a week: the reversible answer is the safe one to reach
-    by accident. Only admins and dispatchers see the choice at all — the server
-    refuses the second from anyone else, so hiding it here is a courtesy rather
-    than the control.
+    by accident. Only somebody holding `access.grantOwnership` sees the choice
+    at all — the server refuses the second from anyone else, so hiding it here
+    is a courtesy rather than the control.
   */
   const [grantKind, setGrantKind] = useState<Record<string, 'once' | 'ownership'>>({});
-  const canGrantOwnership = isAdmin || isDispatcher;
+  const canGrantOwnership = can('access.grantOwnership');
 
   const load = useCallback(async (which: Box) => {
     setLoading(true);
@@ -152,7 +152,11 @@ export default function ApprovalsPage() {
 
       <div className="flex gap-1 mb-5 border-b border-gray-200">
         {([
-          ['incoming', isAdmin ? 'Waiting on you (all pending)' : 'Waiting on you'],
+          // Whoever can decide anybody's request is looking at the whole
+          // company's queue, so the tab says so rather than implying these are
+          // all theirs. A Sales Manager sees their own and their team's, which
+          // is still "waiting on you".
+          ['incoming', can('access.decideAny') ? 'Waiting on you (all pending)' : 'Waiting on you'],
           ['outgoing', 'Your requests'],
         ] as const).map(([key, label]) => (
           <button

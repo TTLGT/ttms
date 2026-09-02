@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
-import { canDecideRequest } from '@/lib/accessControl';
+import { can, canDecideRequest } from '@/lib/accessControl';
 import { callerIp, changeOwners, syncClientOwners } from '@/lib/ownership';
 
 const COL = 'partyAccessRequests';
@@ -63,11 +63,10 @@ export async function POST(
 
     // Handing a record over is a different decision from lending it, and not
     // one an ordinary owner gets to make on their own — see the note above.
-    const canGrantOwnership =
-      caller.profile.isAdmin === true || caller.profile.isDispatcher === true;
-    if (action === 'approve' && grant === 'ownership' && !canGrantOwnership) {
+    if (action === 'approve' && grant === 'ownership'
+      && !can(caller.profile, 'access.grantOwnership')) {
       return NextResponse.json(
-        { error: 'Only an admin or dispatcher can hand ownership of a record over.' },
+        { error: 'You are not allowed to hand ownership of a record over.' },
         { status: 403 },
       );
     }

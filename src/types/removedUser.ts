@@ -1,4 +1,5 @@
 import type { OtherPhoneRegion } from '@/lib/phone';
+import { ROLE_LABELS, ROLE_ORDER } from './permission';
 
 /**
  * A record of someone whose access was revoked, written to `removedUsers` at
@@ -51,6 +52,16 @@ export interface RemovedUser {
   isDispatcher: boolean;
   isFinance: boolean;
   isHr?: boolean;
+  /** Absent on archives written before these roles existed. */
+  isSalesManager?: boolean;
+  isIntern?: boolean;
+  /**
+   * The permissions they had been given individually, on top of their roles.
+   * Kept because "what could this person do" is the question a removal record
+   * is read to answer, and after permissions became divisible the roles alone
+   * no longer answer it.
+   */
+  grantedPermissions?: string[];
   /**
    * Whether they were already suspended when removed. Worth keeping: a removal
    * that follows a suspension is a normal offboarding, whereas removing an
@@ -92,10 +103,5 @@ export function removedUserName(user: RemovedUser): string {
 
 /** The roles they held, as labels. Empty means they were a plain broker. */
 export function removedUserRoles(user: RemovedUser): string[] {
-  return [
-    user.isAdmin && 'Admin',
-    user.isDispatcher && 'Dispatcher',
-    user.isFinance && 'Finance',
-    user.isHr && 'HR',
-  ].filter(Boolean) as string[];
+  return ROLE_ORDER.filter((role) => user[role] === true).map((role) => ROLE_LABELS[role]);
 }

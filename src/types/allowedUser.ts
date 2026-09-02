@@ -1,5 +1,12 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { OtherPhoneRegion } from '@/lib/phone';
+import {
+  ROLE_DETAILS,
+  ROLE_LABELS,
+  ROLE_ORDER,
+  type RoleFlagSet,
+  type RoleKey,
+} from './permission';
 
 /**
  * An entry in the sign-in allowlist, stored at `allowedUsers/{normalizedEmail}`.
@@ -105,6 +112,44 @@ export interface AllowedUser {
    * written before the role existed; treat as false.
    */
   isHr?: boolean;
+  /**
+   * A broker with admin-level power over one team — the team they are the lead
+   * of in Settings → Teams. This is the only role a team's setup affects: for
+   * everybody else, leading a team records who reports to whom and grants
+   * nothing. See ROLE_PERMISSIONS in src/types/permission.ts and
+   * src/lib/teamScope.ts.
+   *
+   * Absent on documents written before the role existed; treat as false.
+   */
+  isSalesManager?: boolean;
+  /**
+   * Less than a broker, and the only role that is.
+   *
+   * An intern gets the directory, chat and their own area — no loads, no
+   * clients, no carriers. Everything beyond that is handed over one permission
+   * at a time in `grantedPermissions` below, which is why this exists as a
+   * role rather than as an absence: "no roles set" already means broker, and a
+   * broker sees the whole baseline.
+   *
+   * Absent on documents written before the role existed; treat as false.
+   */
+  isIntern?: boolean;
+  /**
+   * Permissions given to this person individually, on top of whatever their
+   * role grants — the point of which is that somebody can be allowed to send
+   * agreements without being made a Dispatcher and handed every client in the
+   * company along with it.
+   *
+   * Additive only. A permission their role already grants cannot be taken away
+   * by leaving it out here; remove the role instead. See the header of
+   * src/types/permission.ts.
+   *
+   * This is the *grant*, not the effective set. The effective set — roles
+   * expanded, grants folded in — is computed by `effectivePermissions()` and
+   * mirrored onto `users/{uid}.permissions`, which is what the security rules
+   * and the API guards read.
+   */
+  grantedPermissions?: string[];
   invitedBy: string;
   invitedAt: Timestamp | null;
   /** Filled in on first sign-in — null means the invite is still pending. */
@@ -129,7 +174,12 @@ export function accessStatus(user: Pick<AllowedUser, 'uid' | 'suspended'>): Acce
   return user.uid ? 'active' : 'pending';
 }
 
-export type AllowedUserRole = 'isAdmin' | 'isDispatcher' | 'isFinance' | 'isHr';
+/**
+ * A stored role. The catalog lives in src/types/permission.ts, beside the
+ * permissions each one expands to — a role and its meaning belong in the same
+ * file, or the two drift the first time one is added.
+ */
+export type AllowedUserRole = RoleKey;
 
 /**
  * The elevated roles, in the order they are shown wherever roles are listed.
@@ -138,23 +188,23 @@ export type AllowedUserRole = 'isAdmin' | 'isDispatcher' | 'isFinance' | 'isHr';
  * granted, so it is derived rather than stored (see `isBroker` in
  * lib/accessControl) and drawn as its own chip in front of these.
  *
- * Here rather than in a page because the access list, its list view and the
- * CSV export all have to name the same four roles the same way round — three
- * copies of this array would drift the first time a role was added.
+ * Built from ROLE_ORDER rather than typed out, so a role added to the catalog
+ * appears on the access list, in its list view and in the CSV export without
+ * three arrays having to be edited in step.
  */
-export const ROLE_CHIPS: { field: AllowedUserRole; label: string }[] = [
-  { field: 'isAdmin',      label: 'Admin' },
-  { field: 'isDispatcher', label: 'Dispatcher' },
-  { field: 'isFinance',    label: 'Finance' },
-  { field: 'isHr',         label: 'HR' },
-];
+export const ROLE_CHIPS: { field: AllowedUserRole; label: string; detail: string }[] =
+  ROLE_ORDER.map((field) => ({
+    field,
+    label:  ROLE_LABELS[field],
+    detail: ROLE_DETAILS[field],
+  }));
 
 /**
  * What someone is allowed to do, in words. Broker is the absence of the rest,
  * so it is spelled out rather than left as an empty row — a blank there reads
  * as "no roles loaded", not as "the default one".
  */
-export function roleLabels(user: AllowedUser): string[] {
+export function roleLabels(user: RoleFlagSet): string[] {
   const held = ROLE_CHIPS.filter(({ field }) => user[field]).map(({ label }) => label);
   return held.length > 0 ? held : ['Broker'];
 }

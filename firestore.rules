@@ -68,76 +68,172 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // Read-only access to the people directory. Keep in sync with
-    // canSeeDirectory() in src/lib/accessControl.ts.
+    // ── Permissions ──────────────────────────────────────────────────────
     //
-    // Deliberately NOT part of canSeeAllParties() below: HR reads the staff
-    // directory and nothing else. A payroll clerk must not inherit every
-    // broker's book of business by being given a role named after a filing
-    // cabinet.
-    function isHr() {
-      return isAllowedUser()
-        && hasProfile()
-        && profileData().get('isHr', false) == true;
+    // These rules no longer do role maths. What somebody may do is computed
+    // once on the server — see effectivePermissions() in
+    // src/types/permission.ts — and mirrored onto `users/{uid}.permissions`.
+    // Everything below tests that one array.
+    //
+    // That is the point of the change. A role used to be re-derived here in a
+    // second dialect, so "who can see every client" was written twice and kept
+    // in step by hand. Now the app and these rules read the same list, and
+    // adding an ability means adding a string to the catalog and testing it
+    // here — not rewriting a role test in two places.
+
+    function perms() {
+      return hasProfile() ? profileData().get('permissions', []) : [];
     }
 
-    // Keep in sync with canSeeAllParties() in src/lib/accessControl.ts.
-    function canSeeAllParties() {
-      return isAllowedUser() && (
-        isBootstrapAdmin() || (
-          hasProfile() && (
-            profileData().get('isAdmin', false) == true
-            || profileData().get('isDispatcher', false) == true
-            || profileData().get('isFinance', false) == true
-          )
-        )
+    /*
+      A profile written before permissions existed carries no list, and would
+      otherwise read as "allowed to do nothing" — locking out everybody who had
+      not signed in since this shipped.
+
+      So such a profile falls back to exactly what its role flags gave it
+      yesterday. This is transitional: the list is written on every sign-in,
+      and POST /api/admin/users/sync rewrites it for everybody at once, so the
+      branch stops being reachable as soon as each person has signed in once.
+      Until then it costs one map lookup and removes a whole class of
+      deployment-order accident — these rules going live before the profiles
+      they read have caught up.
+    */
+    function legacyProfile() {
+      return hasProfile() && !('permissions' in profileData());
+    }
+
+    function legacyList() {
+      return [
+        'orders.view', 'orders.create',
+        'clients.view', 'shippers.view', 'consignees.view',
+        'carriers.view', 'carriers.edit',
+        'documents.view', 'directory.view', 'chat.use'
+      ].concat(
+        // Dispatch and finance saw every record of every kind.
+        (profileData().get('isDispatcher', false) == true
+          || profileData().get('isFinance', false) == true)
+          ? ['orders.viewAll', 'clients.viewAll', 'shippers.viewAll', 'consignees.viewAll']
+          : []
+      ).concat(
+        // HR read the access list, and nothing else.
+        profileData().get('isHr', false) == true ? ['people.view'] : []
       );
     }
 
-    // A party is visible to its owners, to the privileged roles, and to
-    // everyone when nobody owns it. Defaults keep the check safe on documents
-    // written before these fields existed.
-    function partyVisible() {
-      return canSeeAllParties()
-        || (request.auth.uid in resource.data.get('assignedToUids', []))
-        // Group ownership is tested against the membership mirrored onto the
-        // user's profile. Rules cannot query, so without that mirror this would
-        // need one document read per owning group.
-        || resource.data.get('assignedToGroupIds', []).hasAny(
-             hasProfile() ? profileData().get('groupIds', []) : []
-           )
-        || (
-          resource.data.get('assignedToUids', []).size() == 0
-          && resource.data.get('assignedToGroupIds', []).size() == 0
-          // A party held for somebody who has not signed in yet is owned, not
-          // unowned. Leaving this out would publish their book of business to
-          // the whole company until the day they first logged in.
-          && resource.data.get('assignedToEmails', []).size() == 0
-          && resource.data.get('assignedToName', '') == ''
-        );
+    /*
+      The list this request is judged against.
+
+      Written as one function rather than folded into can() because the party
+      rules below ask about three permissions at a time: expanding the whole
+      admin-and-legacy check once per question would multiply the size of every
+      evaluation for an answer that cannot change within one request.
+    */
+    function myPerms() {
+      return legacyProfile() ? legacyList() : perms();
     }
 
-    // Keep in sync with canSeeOrder() in src/lib/accessControl.ts.
+    // The one question every rule below asks. Admin short-circuits for the same
+    // reason it does in can() on the TypeScript side: a mirror that failed to
+    // write must never be able to lock out the people who would repair it.
+    function can(p) {
+      return isAllowedUser() && (isAdmin() || p in myPerms());
+    }
+
+    // Read-only access to the people directory — the allowlist entries and the
+    // payroll fields on them. Keep in sync with canSeeDirectory() in
+    // src/lib/accessControl.ts.
     //
-    // Deliberately stricter than partyVisible(): there is no "nobody owns it,
-    // so everybody can see it" branch. An unowned party is usually a facility
-    // nobody has claimed and is harmless to share; an unowned order is a live
-    // load with rates on it, so it stays with admin, dispatch and finance until
-    // somebody is assigned to it.
-    function orderVisible() {
-      return canSeeAllParties()
-        || (request.auth.uid in resource.data.get('assignedToUids', []))
-        || (request.auth.uid in resource.data.get('clientOwnerUids', []))
-        || resource.data.get('assignedToGroupIds', []).hasAny(
-             hasProfile() ? profileData().get('groupIds', []) : []
-           )
-        // Owning the client carries every one of its orders. Rules cannot run
-        // the query that would answer this, and a get() on the client party
-        // per order would blow the document-access limit on any list, so the
-        // client's owners are mirrored onto the order by syncClientOwners().
-        || resource.data.get('clientOwnerGroupIds', []).hasAny(
-             hasProfile() ? profileData().get('groupIds', []) : []
-           );
+    // Deliberately not bundled with seeing records: HR reads the staff
+    // directory and nothing else. A payroll clerk must not inherit every
+    // broker's book of business by being given a role named after a filing
+    // cabinet.
+    function canSeeDirectory() {
+      return can('people.view');
+    }
+
+    // ── The Sales Manager's team ─────────────────────────────────────────
+    //
+    // Their reach is "everyone on the team I lead", which is a query, and rules
+    // cannot query. So the answer is computed by src/lib/teamScope.ts and
+    // mirrored onto the manager's own profile — the same trick `groupIds` uses
+    // for work groups, and the same trick an order uses to carry its client's
+    // owners.
+    //
+    // Both halves are needed: a report who has signed in is matched by uid, and
+    // one who has not is held by the address their records were assigned to.
+    // Both are empty for everybody who is not a Sales Manager, and hasAny on an
+    // empty list is false, so this costs nothing for anybody else.
+
+    function managedUids() {
+      return hasProfile() ? profileData().get('managedUids', []) : [];
+    }
+
+    function managedEmails() {
+      return hasProfile() ? profileData().get('managedEmails', []) : [];
+    }
+
+    function myGroups() {
+      return hasProfile() ? profileData().get('groupIds', []) : [];
+    }
+
+    // Does the record under `resource` belong to one of this manager's people?
+    //
+    // Group ownership is deliberately absent: a work group can span teams, so a
+    // report being in one does not make that whole group's book the manager's
+    // business. Keep in sync with managesRecord() in src/lib/accessControl.ts.
+    function managesRecord() {
+      return resource.data.get('assignedToUids', []).hasAny(managedUids())
+        || resource.data.get('clientOwnerUids', []).hasAny(managedUids())
+        || resource.data.get('assignedToEmails', []).hasAny(managedEmails());
+    }
+
+    // ── Party kinds ──────────────────────────────────────────────────────
+    //
+    // Seeing every record is split by kind, so somebody can be given every
+    // client without also being given every shipper. A party can play more than
+    // one role, and holding the permission for any role it plays is enough —
+    // the sections are what people are given access to, and a company that is
+    // both a client and a consignee is one record either way.
+    //
+    // The two lists below are built by turning permissions into role names, so
+    // the test is one hasAny against the party rather than three questions
+    // asked separately. Keep in sync with canSeeParty() in accessControl.ts.
+
+    function partyRoles() {
+      return resource.data.get('roles', []);
+    }
+
+    /** The kinds of party this reader may open at all. */
+    function viewableKinds() {
+      return (('clients.view' in myPerms())    ? ['client']    : [])
+        .concat(('shippers.view' in myPerms())   ? ['shipper']   : [])
+        .concat(('consignees.view' in myPerms()) ? ['consignee'] : []);
+    }
+
+    /** The kinds they see wholesale, whoever owns them. */
+    function wholesaleKinds() {
+      return (('clients.viewAll' in myPerms())    ? ['client']    : [])
+        .concat(('shippers.viewAll' in myPerms())   ? ['shipper']   : [])
+        .concat(('consignees.viewAll' in myPerms()) ? ['consignee'] : []);
+    }
+
+    /*
+      A party carrying no roles at all is matched by holding any of the three.
+      Roles are written when a party is created as a client, a shipper or a
+      consignee, so an empty list means an imported record that predates that —
+      and before this split, dispatch and finance saw it. Keeping it visible to
+      them is the behaviour that was there, rather than a record that silently
+      belongs to nobody.
+    */
+    function canOpenParty() {
+      return isAdmin()
+        || partyRoles().hasAny(viewableKinds())
+        || (partyRoles().size() == 0 && viewableKinds().size() > 0);
+    }
+
+    function canSeeAllPartiesOfKind() {
+      return partyRoles().hasAny(wholesaleKinds())
+        || (partyRoles().size() == 0 && wholesaleKinds().size() > 0);
     }
 
     // Ownership decides who can read a record, so it must not be writable by
@@ -167,11 +263,12 @@ service cloud.firestore {
     // owns therefore leaves only an admin able to set it — which falls out of
     // the rule rather than being a special case, and errs closed.
     function canEditSource() {
-      return isAdmin()
+      return can('source.editAny')
         || (request.auth.uid in resource.data.get('assignedToUids', []))
-        || resource.data.get('assignedToGroupIds', []).hasAny(
-             hasProfile() ? profileData().get('groupIds', []) : []
-           );
+        || resource.data.get('assignedToGroupIds', []).hasAny(myGroups())
+        // A manager settling attribution on their own team's record is the
+        // person who would be asked to settle it anyway.
+        || managesRecord();
     }
 
     // The allowlist itself: readable by admins so Settings can render it, and
@@ -181,8 +278,19 @@ service cloud.firestore {
     //
     // Never writable from the client. All changes go through
     // /api/admin/users, which also updates Firebase Auth (claims, revocation).
+    /*
+      Note who is NOT here: a Sales Manager, who can edit the people on their
+      own team. They reach those entries through GET /api/admin/users, which
+      returns their team and nobody else.
+
+      That is deliberate rather than an oversight. A rule cannot answer "only
+      the rows belonging to my team" for a collection read — the query would
+      have to prove it up front, and the Settings page reads the collection
+      whole — so opening this to them would hand a manager every colleague's
+      legal name, birthday and personal address. Route it; do not widen this.
+    */
     match /allowedUsers/{email} {
-      allow read:  if isAdmin() || isHr();
+      allow read:  if canSeeDirectory();
       allow write: if false;
     }
 
@@ -221,7 +329,10 @@ service cloud.firestore {
       allow update: if isAllowedUser() && partyVisible() && ownershipUnchanged([
         'assignedToUids', 'assignedToGroupIds', 'assignedToEmails', 'assignedToName'
       ]) && (sourceUnchanged() || canEditSource());
-      allow delete: if isAdmin();
+      // A Sales Manager may delete their own team's records, on the same
+      // reasoning as everything else scoped to them: within the team they have
+      // what an admin has. Outside it they have nothing.
+      allow delete: if can('parties.delete') || (isAllowedUser() && managesRecord());
 
 
       // See the same block under /orders for why this is closed rather than
@@ -236,9 +347,12 @@ service cloud.firestore {
     // could forge the audit trail, so all writes are closed here.
     match /partyAccessRequests/{requestId} {
       allow read: if isAllowedUser() && (
-        isAdmin()
+        can('access.decideAny')
         || resource.data.requestedByUid == request.auth.uid
         || (request.auth.uid in resource.data.get('ownerUids', []))
+        // The Sales Manager of an owner, so a request against a rep who is out
+        // does not sit until an admin notices it.
+        || resource.data.get('ownerUids', []).hasAny(managedUids())
       );
       allow write: if false;
     }
@@ -254,9 +368,10 @@ service cloud.firestore {
     // starts doing so would bypass the grant and must not be added.
     match /orderAccessRequests/{requestId} {
       allow read: if isAllowedUser() && (
-        isAdmin()
+        can('access.decideAny')
         || resource.data.requestedByUid == request.auth.uid
         || (request.auth.uid in resource.data.get('ownerUids', []))
+        || resource.data.get('ownerUids', []).hasAny(managedUids())
       );
       allow write: if false;
     }
@@ -329,9 +444,13 @@ service cloud.firestore {
       allow update, delete: if isAllowedUser();
     }
 
+    // Carriers are shared reference data — every broker works with all of them,
+    // so there is no ownership here to gate on. What there is now is a
+    // permission, which is what keeps an account built to see less (an intern)
+    // from being handed the whole carrier book by default.
     match /carriers/{carrierId} {
-      allow read, create, update, delete: if isAllowedUser();
-
+      allow read: if can('carriers.view');
+      allow create, update, delete: if can('carriers.edit');
     }
 
     // Orders are owned records, like parties — but closed by default. See
@@ -350,7 +469,7 @@ service cloud.firestore {
       // The creator has to be on the order. Orders are closed by default, so
       // an order created without an owner would be invisible to the person who
       // just wrote it.
-      allow create: if isAllowedUser()
+      allow create: if can('orders.create')
         && (request.auth.uid in request.resource.data.get('assignedToUids', []));
 
       allow update: if isAllowedUser() && orderVisible() && ownershipUnchanged([
@@ -358,7 +477,7 @@ service cloud.firestore {
         'clientOwnerUids', 'clientOwnerGroupIds', 'assignedTo'
       ]) && (sourceUnchanged() || canEditSource());
 
-      allow delete: if isAdmin();
+      allow delete: if can('orders.delete') || (isAllowedUser() && managesRecord());
 
       // There is deliberately no `documents` subcollection rule here, nor under
       // parties or carriers. docs/schema-guide.md describes one, but it was

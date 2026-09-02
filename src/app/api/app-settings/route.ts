@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue, adminDb, AdminAuthError, requireAdmin, requireCompanyUser } from '@/lib/firebase-admin';
+import { FieldValue, adminDb, AdminAuthError, requirePermission, requireCompanyUser } from '@/lib/firebase-admin';
 import { DEFAULT_APP_SETTINGS, isDateFormat, isLaneDistanceMode } from '@/types/appSettings';
 
 const DOC = adminDb.collection('appSettings').doc('general');
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   let caller;
   try {
-    caller = await requireAdmin(req);
+    caller = await requirePermission(req, 'settings.manage');
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

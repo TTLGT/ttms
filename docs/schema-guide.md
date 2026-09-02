@@ -532,17 +532,47 @@ a company address that was never invited is refused.
 | `allowedUsers` | The allowlist, keyed by lowercased email. Source of truth for roles. Readable by admins and HR, never client-writable. |
 | `users`        | Live profile for someone who has actually signed in, keyed by uid. Provisioned server-side from the allowlist. |
 
-**Roles.** `isAdmin`, `isDispatcher`, `isFinance`, `isHr`. Broker is derived —
-it is what someone has when none of the four is set (`isBroker()` in
-`src/lib/accessControl.ts`) — and is deliberately never stored.
+**Roles.** `isAdmin`, `isDispatcher`, `isFinance`, `isHr`, `isSalesManager`,
+`isIntern`. Broker is derived — it is what someone has when none of them is set
+(`isBroker()` in `src/lib/accessControl.ts`) — and is deliberately never stored.
 
-`isHr` is the odd one out: it grants **read-only access to this directory and
-nothing else**. An HR user opens Settings, sees the people list including the
-payroll fields below, and can export it; they cannot grant a role, edit an
-entry, suspend, remove or import. They see no more clients or loads than a
-plain broker, which is why `isHr` is deliberately absent from
-`canSeeAllParties()`. It is also the one role with no custom claim — nothing in
-the rules reads one, and it is enforced against `users/{uid}` instead.
+**A role is a bundle of permissions, not the unit of access.** The catalog is
+`src/types/permission.ts`: each role expands to a set of named permissions,
+anything granted to one person individually sits in
+`allowedUsers/{email}.grantedPermissions`, and the union is computed by
+`effectivePermissions()` and written to `users/{uid}.permissions`. **That array
+is what `firestore.rules` reads** — the rules do no role maths of their own.
+Permissions only ever add: what a role grants cannot be taken away by leaving
+it out of the grant list.
+
+| Field | Where | Meaning |
+|---|---|---|
+| `grantedPermissions` | `allowedUsers` | The extras this person was given individually. |
+| `permissions` | `users` | The effective list: roles expanded, grants folded in. Rewritten on every sign-in and every change to the entry. |
+| `managedUids` / `managedEmails` | `users` | For a Sales Manager, everyone on the teams they lead. Empty for everybody else. |
+
+`isHr` grants **read-only access to this directory and nothing else**. An HR
+user opens Settings, sees the people list including the payroll fields below,
+and can export it; they cannot grant a role, edit an entry, suspend, remove or
+import. They see no more clients or loads than a plain broker — their role
+grants no `.viewAll` of anything. It also has no custom claim: nothing in the
+rules reads one, and it is enforced against `users/{uid}` instead.
+
+`isIntern` is the one role that is **less** than a broker: the directory, chat
+and `/dashboard/intern`, and nothing else unless it is granted one permission at
+a time. It has to be stored rather than derived because "no roles set" already
+means broker. It is also the only role `storage.rules` knows about, through an
+`intern` custom claim — driver's licences are readable by every other staff
+account, and an intern cannot open the load a licence belongs to.
+
+`isSalesManager` is the only role a team's setup affects. They are a broker plus
+an admin's powers over the people on the team they lead in Settings → Teams:
+those people's records, details and permissions. The scope is a query, and rules
+cannot query, so `src/lib/teamScope.ts` resolves it into the `managedUids` /
+`managedEmails` mirror above and the rules test that — the same pattern as
+`groupIds` for work groups, and `clientOwnerUids` on an order. Anything that
+moves somebody between teams, changes a lead, or grants the role has to call
+`syncManagedScopes()`.
 
 An entry with `uid: null` is a pending invite — created, but the person has not
 signed in yet.

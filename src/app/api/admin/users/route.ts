@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  FieldValue, adminAuth, adminDb, adminStorage, requireAdmin, AdminAuthError,
+  FieldValue, adminAuth, adminDb, adminStorage, requireCompanyUser, AdminAuthError,
 } from '@/lib/firebase-admin';
 import {
   ALLOWED_EMAIL_DOMAIN,
@@ -8,13 +8,19 @@ import {
   USERS_COLLECTION,
   isAllowedEmailDomain,
   isBootstrapAdmin,
+  can,
+  canManagePerson,
   normalizeEmail,
   parseEmailList,
+  type RoleFlags,
   REMOVED_USERS_COLLECTION,
   SITES_COLLECTION,
   TEAMS_COLLECTION,
 } from '@/lib/accessControl';
 import { normalizeCalendarDate } from '@/types/allowedUser';
+import { isPermission, ROLE_ORDER, type Permission, type RoleKey } from '@/types/permission';
+import { applyClaims, claimsFor, syncPermissionsFor } from '@/lib/userSync';
+import { syncManagedScopes } from '@/lib/teamScope';
 import {
   DEFAULT_OTHER_REGION,
   PHONE_LABEL,
@@ -26,11 +32,33 @@ import {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type Guard = { uid: string; email: string | undefined };
+type Guard = { uid: string; email: string | undefined; profile: RoleFlags };
 
+/**
+ * Who may reach this route at all.
+ *
+ * Two kinds of caller, and the difference matters on every handler below:
+ *
+ * - Somebody holding `people.manage` — an admin — who may do anything here.
+ * - A **Sales Manager**, who may act only on the people on the team they lead,
+ *   and only on some of it: their details, their suspension, and the
+ *   permissions they are given. Never adding somebody to the company, never
+ *   removing them, and never changing a role — see the checks at each handler.
+ *
+ * The split is enforced per operation rather than here, because "may you open
+ * this route" and "may you do this to this person" are different questions and
+ * collapsing them is how a scoped role quietly becomes an unscoped one.
+ */
 async function guard(req: NextRequest): Promise<Guard | NextResponse> {
   try {
-    return await requireAdmin(req);
+    const { uid, email } = await requireCompanyUser(req);
+    const snap = await adminDb.collection(USERS_COLLECTION).doc(uid).get();
+    const profile = (snap.data() ?? {}) as RoleFlags;
+
+    if (!can(profile, 'people.manage') && profile.isSalesManager !== true) {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+    }
+    return { uid, email, profile };
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });
@@ -39,13 +67,91 @@ async function guard(req: NextRequest): Promise<Guard | NextResponse> {
   }
 }
 
+/** Refuses anybody who is not managing people company-wide. */
+function requireFullManage(caller: Guard): NextResponse | null {
+  if (can(caller.profile, 'people.manage')) return null;
+  return NextResponse.json(
+    { error: 'Only an admin can do that. A Sales Manager can edit the people on their own team.' },
+    { status: 403 },
+  );
+}
+
+/**
+ * Refuses a caller who may not act on this particular person.
+ *
+ * A Sales Manager's scope is the mirror on their own profile, so this needs the
+ * target's uid as well as their address — a team member who has never signed in
+ * is held by email, and they are exactly who a manager is most often setting up.
+ */
+async function requirePersonInScope(caller: Guard, email: string): Promise<NextResponse | null> {
+  if (can(caller.profile, 'people.manage')) return null;
+
+  const snap = await adminDb.collection(ALLOWED_USERS_COLLECTION).doc(email).get();
+  const uid  = typeof snap.data()?.uid === 'string' ? snap.data()!.uid as string : null;
+
+  if (canManagePerson(caller.profile, { uid, email })) return null;
+  return NextResponse.json(
+    { error: 'That person is not on your team.' },
+    { status: 403 },
+  );
+}
+
+/**
+ * The people this caller is allowed to manage.
+ *
+ * Exists for the Sales Manager, and only for them. Everybody else who can open
+ * Settings → People holds `people.view` and reads the allowlist straight from
+ * Firestore, which the rules permit — see the note on `allowedUsers` in
+ * firestore.rules.
+ *
+ * A manager cannot, and the reason is worth writing down: a rule cannot answer
+ * "only the rows belonging to my team" for a collection read, because the query
+ * would have to prove that up front and the Settings page reads the collection
+ * whole. Opening the collection to them would hand a manager every colleague's
+ * legal name, birthday and personal address. So the narrowing happens here,
+ * with the Admin SDK, and they are served their own team and nobody else.
+ *
+ * The payroll fields do go out for the people they manage. That is the point:
+ * a manager who can edit their team's details has to be able to see the
+ * details they are editing.
+ */
+export async function GET(req: NextRequest) {
+  const caller = await guard(req);
+  if (caller instanceof NextResponse) return caller;
+
+  const snap = await adminDb.collection(ALLOWED_USERS_COLLECTION).get();
+  const all  = snap.docs.map((d) => d.data());
+
+  const users = can(caller.profile, 'people.view')
+    ? all
+    : all.filter((entry) => canManagePerson(caller.profile, {
+        uid:   typeof entry.uid === 'string' ? entry.uid : null,
+        email: typeof entry.email === 'string' ? entry.email : null,
+      }));
+
+  return NextResponse.json({
+    users: users.sort((a, b) => String(a.email).localeCompare(String(b.email))),
+  });
+}
+
 /** Upper bound on one paste, so a runaway list cannot hammer Firestore. */
 const MAX_BATCH = 100;
 
 type InviteStatus = 'added' | 'exists' | 'suspended' | 'invalid' | 'wrong-domain' | 'error';
 type InviteResult = { email: string; status: InviteStatus; message: string };
 
-type Roles = { isAdmin: boolean; isDispatcher: boolean; isFinance: boolean; isHr: boolean };
+/**
+ * The role flags an invite can carry. Built from the catalog rather than typed
+ * out, so a role added there can be granted on the way in without this file
+ * having to be found and edited.
+ */
+type Roles = Record<RoleKey, boolean>;
+
+function rolesFrom(body: Record<string, unknown>): Roles {
+  return Object.fromEntries(
+    ROLE_ORDER.map((role) => [role, body[role] === true]),
+  ) as Roles;
+}
 
 /**
  * The contact block an admin can fill in while adding someone, already
@@ -109,6 +215,10 @@ async function invite(
       // pass in the editor. Never present on a multi-address batch.
       ...(details ?? {}),
       ...roles,
+      // Written empty rather than left off, so the shape of an entry is the
+      // same everywhere and the editor never has to tell "no extras" from
+      // "this document predates permissions".
+      grantedPermissions: [],
       uid:         null,
       invitedBy,
       invitedAt:   FieldValue.serverTimestamp(),
@@ -147,6 +257,11 @@ async function invite(
 export async function POST(req: NextRequest) {
   const caller = await guard(req);
   if (caller instanceof NextResponse) return caller;
+  // Adding somebody to the company is a company-level act, not a team one: the
+  // address becomes an account that can sign in, and a Sales Manager's reach
+  // stops at the people already on their team.
+  const denied = requireFullManage(caller);
+  if (denied) return denied;
 
   const body = await req.json().catch(() => ({}));
   const raw = Array.isArray(body.emails) ? body.emails.join(' ') : String(body.email ?? '');
@@ -162,12 +277,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const roles: Roles = {
-    isAdmin:      body.isAdmin === true,
-    isDispatcher: body.isDispatcher === true,
-    isFinance:    body.isFinance === true,
-    isHr:         body.isHr === true,
-  };
+  const roles = rolesFrom(body);
   const invitedBy = caller.email ?? caller.uid;
 
   // One site for the whole batch — a paste is normally one office's worth of
@@ -199,6 +309,16 @@ export async function POST(req: NextRequest) {
   }
 
   const added = results.filter((r) => r.status === 'added').length;
+
+  // A new hire dropped onto a team changes that team's manager's scope, and a
+  // new Sales Manager arrives with none. Cheap, and it means no invite path can
+  // leave a mirror stale — see src/lib/teamScope.ts.
+  if (added > 0) {
+    await syncManagedScopes().catch((e) => {
+      console.error('[admin/users] refreshing managed scopes failed', e);
+    });
+  }
+
   // `skippedPhones` rides along with the results rather than failing the add:
   // the person still gets access, and the caller says which number to re-enter.
   return NextResponse.json({ ok: true, added, results, skippedPhones });
@@ -371,6 +491,12 @@ async function updateDetails(email: string, details: Record<string, unknown>) {
     await adminDb.collection(USERS_COLLECTION).doc(uid).set(patch, { merge: true });
   }
 
+  // `teamId` is in that patch, and moving somebody between teams moves them
+  // between two managers' scopes. Nothing else in this block affects access.
+  await syncManagedScopes().catch((e) => {
+    console.error('[admin/users] refreshing managed scopes failed', email, e);
+  });
+
   return NextResponse.json({ ok: true, skippedPhones });
 }
 
@@ -398,7 +524,17 @@ async function updatePhoto(email: string, photoPath: string | null) {
   return NextResponse.json({ ok: true });
 }
 
-/** Change a role on an existing allowlist entry (and the live profile). */
+/**
+ * Change one thing about an existing entry: a role, a permission grant,
+ * suspension, the contact details, or the photo.
+ *
+ * Every branch below decides for itself whether a Sales Manager may take it.
+ * The rule across all of them: a manager may change what one of *their own
+ * people* can do, but never what standing they have in the company. Roles are
+ * company-wide by nature — Dispatcher hands over every client there is — so a
+ * manager cannot grant one at all; individual permissions they hold themselves
+ * they can pass on, because those are things they were already trusted with.
+ */
 export async function PATCH(req: NextRequest) {
   const caller = await guard(req);
   if (caller instanceof NextResponse) return caller;
@@ -407,6 +543,16 @@ export async function PATCH(req: NextRequest) {
   const email = normalizeEmail(body.email);
   const field = body.field;
   const value = body.value === true;
+
+  // Checked before anything looks a document up: doc('') throws rather than
+  // returning nothing, which would turn a malformed request into a 500.
+  if (!email) {
+    return NextResponse.json({ error: 'Missing email.' }, { status: 400 });
+  }
+
+  // Every branch acts on one person, so scope is checked once, here.
+  const outOfScope = await requirePersonInScope(caller, email);
+  if (outOfScope) return outOfScope;
 
   // Contact details arrive as one object; roles and suspension as field/value.
   if (body.details && typeof body.details === 'object') {
@@ -419,9 +565,27 @@ export async function PATCH(req: NextRequest) {
     return updatePhoto(email, typeof body.value === 'string' ? body.value : null);
   }
 
-  if (!['isAdmin', 'isDispatcher', 'isFinance', 'isHr', 'suspended'].includes(field)) {
+  // The permission editor sends the whole granted list rather than one key at a
+  // time: it is a set, and applying it as a set is what makes "these are the
+  // extras this person has" a single writeable thing rather than a sequence of
+  // toggles that can half-apply.
+  if (field === 'grantedPermissions') {
+    return updateGrants(caller, email, body.value);
+  }
+
+  if (!([...ROLE_ORDER, 'suspended'] as string[]).includes(field)) {
     return NextResponse.json({ error: 'Unknown field.' }, { status: 400 });
   }
+
+  // Roles are company-wide, so only a company-wide people manager sets them.
+  // Suspension is left out of this deliberately: taking a team member's access
+  // away for the afternoon is exactly the kind of thing their manager should
+  // not have to raise a ticket for.
+  if ((ROLE_ORDER as string[]).includes(field)) {
+    const denied = requireFullManage(caller);
+    if (denied) return denied;
+  }
+
   if (field === 'isAdmin' && !value && normalizeEmail(caller.email) === email) {
     return NextResponse.json({ error: 'You cannot remove your own admin access.' }, { status: 400 });
   }
@@ -462,7 +626,7 @@ export async function PATCH(req: NextRequest) {
       suspendedBy: value ? caller.email ?? caller.uid : null,
     });
 
-    // Mirrored onto the profile because requireAdmin and the Firestore rules
+    // Mirrored onto the profile because the API guards and the Firestore rules
     // read `users/{uid}`, not the allowlist, on every request.
     if (entry.uid) {
       await adminDb
@@ -484,16 +648,9 @@ export async function PATCH(req: NextRequest) {
         // sign-in re-syncs these anyway; setting them here keeps Storage rules
         // correct from the moment access is restored.
         await adminAuth.updateUser(uid, { disabled: false }).catch(() => {});
-        // No `hr` claim: nothing in the rules reads one — see syncClaims in
-        // /api/auth/session for why.
-        await adminAuth
-          .setCustomUserClaims(uid, {
-            ttlAccess:  true,
-            admin:      entry.isAdmin === true,
-            dispatcher: entry.isDispatcher === true,
-            finance:    entry.isFinance === true,
-          })
-          .catch(() => {});
+        // Only the claims Storage reads — see claimsFor in src/lib/userSync.ts
+        // for which those are and why the permission list is not among them.
+        await adminAuth.setCustomUserClaims(uid, claimsFor(entry)).catch(() => {});
       }
     }
 
@@ -505,11 +662,85 @@ export async function PATCH(req: NextRequest) {
   // Mirror onto the live profile so the change applies without a re-invite.
   if (entry.uid) {
     await adminDb.collection(USERS_COLLECTION).doc(entry.uid).set({ [field]: value }, { merge: true });
+    // The role moved, so the permissions it expands to moved with it. This is
+    // the write the rules actually read; without it the entry says Dispatcher
+    // and the system still treats them as a broker until they sign in again.
+    await syncPermissionsFor(email);
     // Force a fresh ID token so Storage rules see the new role.
-    await adminAuth.revokeRefreshTokens(entry.uid).catch(() => {});
+    await applyClaims(entry.uid, { ...entry, [field]: value });
   }
 
+  // Making somebody a Sales Manager, or taking it away, changes who they can
+  // see. Nothing else here does, but working out which role it was would be
+  // one more thing to get wrong for no saving.
+  await syncManagedScopes().catch((e) => {
+    console.error('[admin/users] refreshing managed scopes failed', email, e);
+  });
+
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * Replace the set of permissions granted to one person individually.
+ *
+ * The whole set arrives at once rather than one key at a time — see the note
+ * at the PATCH branch. Three things are enforced here:
+ *
+ * - Only keys in the catalog are stored. An unrecognised string would sit in
+ *   the array forever and the rules match on strings.
+ * - A **Sales Manager may only pass on what they hold themselves.** This is
+ *   the ordinary delegation rule, and it is what keeps the team boundary
+ *   meaningful: a manager with a broker's permissions can set up an intern,
+ *   and cannot invent an ability nobody gave them.
+ * - Two permissions can never be delegated by a manager at all, whatever they
+ *   hold: managing people and managing settings. Either one would take the
+ *   recipient outside the team the manager's own authority comes from.
+ */
+const NON_DELEGABLE: Permission[] = ['people.manage', 'settings.manage'];
+
+async function updateGrants(caller: Guard, email: string, value: unknown) {
+  if (!Array.isArray(value)) {
+    return NextResponse.json({ error: 'Expected a list of permissions.' }, { status: 400 });
+  }
+
+  const requested = [...new Set(value.map(String))].filter(isPermission);
+  const full      = can(caller.profile, 'people.manage');
+
+  if (!full) {
+    const refused = requested.filter(
+      (p) => NON_DELEGABLE.includes(p) || !can(caller.profile, p),
+    );
+    if (refused.length > 0) {
+      return NextResponse.json(
+        { error: 'You can only give someone a permission you hold yourself.' },
+        { status: 403 },
+      );
+    }
+  }
+
+  const ref  = adminDb.collection(ALLOWED_USERS_COLLECTION).doc(email);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    return NextResponse.json({ error: 'That person is not on the access list.' }, { status: 404 });
+  }
+
+  /*
+    A manager may only rewrite the part of the list they could have granted.
+    Anything an admin gave this person that the manager does not hold is kept
+    exactly as it was — otherwise saving the editor would silently strip
+    abilities the manager cannot even see the point of.
+  */
+  const existing = Array.isArray(snap.data()?.grantedPermissions)
+    ? (snap.data()!.grantedPermissions as string[]).filter(isPermission)
+    : [];
+  const kept = full ? [] : existing.filter((p) => !can(caller.profile, p));
+
+  const grantedPermissions = [...new Set([...kept, ...requested])];
+  await ref.update({ grantedPermissions });
+
+  await syncPermissionsFor(email);
+
+  return NextResponse.json({ ok: true, grantedPermissions });
 }
 
 /**
@@ -549,10 +780,15 @@ async function archiveRemoval(
     startDate:     entry.startDate ?? '',
     siteId:        entry.siteId ?? null,
     teamId:        entry.teamId ?? null,
-    isAdmin:       entry.isAdmin === true,
-    isDispatcher:  entry.isDispatcher === true,
-    isFinance:     entry.isFinance === true,
-    isHr:          entry.isHr === true,
+    isAdmin:        entry.isAdmin === true,
+    isDispatcher:   entry.isDispatcher === true,
+    isFinance:      entry.isFinance === true,
+    isHr:           entry.isHr === true,
+    isSalesManager: entry.isSalesManager === true,
+    isIntern:       entry.isIntern === true,
+    // What they had been given individually, kept with the roles: the removal
+    // log is what answers "what could this person do" after the entry is gone.
+    grantedPermissions: Array.isArray(entry.grantedPermissions) ? entry.grantedPermissions : [],
     // Removing an already-suspended account is routine offboarding; removing an
     // active one is the case someone may later need to ask about.
     wasSuspended:  entry.suspended === true,
@@ -570,6 +806,11 @@ async function archiveRemoval(
 export async function DELETE(req: NextRequest) {
   const caller = await guard(req);
   if (caller instanceof NextResponse) return caller;
+  // Taking somebody off the system is company-level, like adding them: it
+  // archives their payroll details and deletes the account outright. A Sales
+  // Manager who needs a team member out of the way suspends them instead.
+  const denied = requireFullManage(caller);
+  if (denied) return denied;
 
   const email = normalizeEmail(new URL(req.url).searchParams.get('email'));
 
@@ -644,6 +885,13 @@ export async function DELETE(req: NextRequest) {
     await adminAuth.revokeRefreshTokens(uid).catch(() => {});
     await adminAuth.updateUser(uid, { disabled: true }).catch(() => {});
   }
+
+  // They may have been on somebody's team, or have led one — the block above
+  // just cleared any team they led. Either way a manager's mirror now names
+  // somebody who is no longer here.
+  await syncManagedScopes().catch((e) => {
+    console.error('[admin/users] refreshing managed scopes failed', email, e);
+  });
 
   return NextResponse.json({ ok: true });
 }

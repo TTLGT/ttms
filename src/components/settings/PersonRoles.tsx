@@ -99,7 +99,7 @@ export default function PersonRoles({
         {brokerBusy ? '…' : 'Broker'}
       </button>
 
-      {ROLE_CHIPS.map(({ field, label }) => {
+      {ROLE_CHIPS.map(({ field, label, detail }) => {
         const active = !!person[field];
         // Roles stay editable while suspended — they are what the person comes
         // back to — but read as inactive.
@@ -110,7 +110,11 @@ export default function PersonRoles({
             key={field}
             onClick={() => onToggle(person, field)}
             disabled={locked || working}
-            title={locked ? 'This admin role cannot be removed' : undefined}
+            // What the role actually grants, in the words the catalog uses.
+            // Six chips in a row is past the point where a label alone says
+            // enough — "Sales Manager" does not tell anybody that the Teams
+            // section is what decides its reach.
+            title={locked ? 'This admin role cannot be removed' : detail}
             className={chipClass(active, locked)}
           >
             {working ? '…' : label}

@@ -7,7 +7,8 @@
  * from search, or shows up on a tab it isn't on.
  */
 
-export type SettingsTabId = 'overview' | 'people' | 'organization' | 'operations' | 'data';
+export type SettingsTabId =
+  | 'overview' | 'people' | 'permissions' | 'organization' | 'operations' | 'data';
 
 export interface SettingsTab {
   id: SettingsTabId;
@@ -20,6 +21,9 @@ export interface SettingsTab {
 export const SETTINGS_TABS: SettingsTab[] = [
   { id: 'overview',     label: 'Overview',     href: '/dashboard/settings',              adminOnly: true  },
   { id: 'people',       label: 'People',       href: '/dashboard/settings/people',       adminOnly: false },
+  // Next to People, because it answers the other half of the same question:
+  // People is who is here, Permissions is what each of them can do.
+  { id: 'permissions',  label: 'Permissions',  href: '/dashboard/settings/permissions',  adminOnly: true  },
   { id: 'organization', label: 'Organization', href: '/dashboard/settings/organization', adminOnly: true  },
   { id: 'operations',   label: 'Operations',   href: '/dashboard/settings/operations',   adminOnly: true  },
   { id: 'data',         label: 'Data',         href: '/dashboard/settings/data',         adminOnly: true  },
@@ -64,6 +68,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     tab: 'people',
     blurb: 'Everyone whose access has been revoked, and who revoked it.',
     keywords: 'revoked deleted former left offboard archive history log',
+    adminOnly: true,
+  },
+  {
+    id: 'permission-grid',
+    label: 'Who Can Do What',
+    tab: 'permissions',
+    blurb: 'Every permission against every person, in one grid.',
+    keywords: 'permissions grid matrix compare abilities allow grant revoke role admin dispatcher finance hr sales manager intern',
     adminOnly: true,
   },
   {

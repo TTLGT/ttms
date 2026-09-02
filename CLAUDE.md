@@ -100,22 +100,77 @@ claims. Any failure signs the user straight back out. Preserve that property:
 - `users/{uid}` — live profile, provisioned server-side.
 - Neither is client-writable. All mutations go through the Admin SDK so nobody can self-promote.
 
-Roles: `isAdmin`, `isDispatcher`, `isFinance`, `isHr`. **Broker is derived,
-never stored** — `isBroker()` returns true when none of the four is set. Do not
-add an `isBroker` field; the file explains why (a stored flag would permit an
-account that is neither a broker nor anything else, a state the rules don't
-enforce).
+### Ability is a permission, not a role
 
-`isHr` is read-only access to the people directory and nothing else. It is
-deliberately **not** in `canSeeAllParties()` and deliberately has **no custom
-claim**. The payroll fields it exists to expose (`legalName`, `dateOfBirth`,
+`src/types/permission.ts` is the catalog. A **role** is a bundle that expands
+to a set of permissions; individually **granted** permissions
+(`allowedUsers/{email}.grantedPermissions`) are added on top; the union is
+computed by `effectivePermissions()` and mirrored onto
+`users/{uid}.permissions`.
+
+**That mirrored array is what `firestore.rules` reads.** The rules do no role
+maths any more — they test one array — which is why the duplication table below
+got shorter rather than longer. Everything else asks `can(profile, 'orders.bol')`:
+the API guard (`requirePermission(req, 'orders.bol')`), the nav, the screens.
+
+- Permissions are **additive**. There is no deny. A permission a role grants
+  cannot be unticked; remove the role instead.
+- **Renaming a key is a migration**, not a rename — the old string is in live
+  `grantedPermissions` arrays and matched by the rules.
+- Adding a key to `ROLE_PERMISSIONS` widens an existing role at everyone's next
+  sign-in. Say so out loud.
+- The list is rewritten on every sign-in and on every change to an entry.
+  `POST /api/admin/users/sync` rebuilds it for everybody at once — needed only
+  after editing documents by hand in the Console.
+
+Roles: `isAdmin`, `isDispatcher`, `isFinance`, `isHr`, `isSalesManager`,
+`isIntern`. **Broker is derived, never stored** — `isBroker()` returns true when
+none of them is set. Do not add an `isBroker` field; the file explains why (a
+stored flag would permit an account that is neither a broker nor anything else,
+a state the rules don't enforce).
+
+**Intern is the one role that is *less* than a broker** — the directory, chat
+and `/dashboard/intern` (guide, onboarding survey, task list, all placeholders
+for now). It has to be a stored role for exactly that reason: "no roles set"
+already means broker, and a broker holds the whole baseline. It is also the one
+role `storage.rules` knows about, via an `intern` custom claim, because
+driver's licences are otherwise readable by every staff account.
+
+**Sales Manager is the only role a team's setup affects.** They are a broker
+plus admin-level power over the people on the team they lead in Settings →
+Teams: their records, their details, and the permissions they hold. For anybody
+else, leading a team still grants nothing.
+
+That scope is a query — "everyone whose `teamId` is a team I lead" — and rules
+cannot query, so `src/lib/teamScope.ts` computes it and mirrors it onto the
+manager's own profile as `managedUids` / `managedEmails`, the same way
+`groupIds` works for work groups. **Anything that can move a person between
+teams, change a team's lead, or grant the role must call `syncManagedScopes()`**
+— the invite, the details patch, the role toggle, the CSV import, all three team
+routes and first sign-in do. It recomputes every manager rather than working out
+which one changed; both collections are tiny and a missed trigger leaves a
+manager quietly seeing a former report's loads.
+
+Deliberate limits on a Sales Manager, enforced in `/api/admin/users`: they
+cannot add or remove people, cannot change a role, cannot grant a permission
+they do not hold themselves, and can never delegate `people.manage` or
+`settings.manage`. They also cannot read `allowedUsers` from the client — a rule
+cannot narrow a collection read to one team, so they go through
+`GET /api/admin/users`, which returns their team and nobody else.
+
+`isHr` is read-only access to the people directory and nothing else. It grants
+no `.viewAll` of anything and deliberately has **no custom claim**. The payroll fields it exists to expose (`legalName`, `dateOfBirth`,
 `personalEmail`, `startDate`) must never be mirrored onto `users/{uid}`, which
 every signed-in user can read — check `MIRRORED_FIELDS` in `src/lib/userImport.ts`
 and the `patch`/`privatePatch` split in `/api/admin/users` before adding a field.
 
-`sites` and `teams` are reference data that grant nothing — a team records who
-someone reports to. `workGroups` is the access boundary. Nothing in the rules
-reads `teamId`; don't make it.
+`sites` are reference data that grant nothing. `teams` grant nothing **except**
+to a Sales Manager, for whom the team they lead is their scope — see above.
+Nothing in the rules reads `teamId` itself; the membership is resolved
+server-side into the `managedUids` mirror and the rules read that. Don't gate
+anything on `teamId` directly. `workGroups` remains the general access
+boundary, and is the right tool for sharing a book of business between people
+who are not one manager's reports.
 
 ### Duplicated logic that must stay in sync
 
@@ -125,11 +180,16 @@ Changing one without the other creates a silent security hole:
 | `src/lib/accessControl.ts` | `firestore.rules` |
 |---|---|
 | `BOOTSTRAP_ADMIN_EMAILS` | `isBootstrapAdmin()` |
-| `canSeeAllParties()` | `canSeeAllParties()` |
-| `canSeeDirectory()` | `isHr()` + the `allowedUsers` read rule |
+| `can()` | `can()` — both read `users/{uid}.permissions` |
+| `viewablePartyRoles()` / `canOpenParty()` | `viewableKinds()` / `canOpenParty()` |
+| `viewAllPartyRoles()` | `wholesaleKinds()` / `canSeeAllPartiesOfKind()` |
+| `canSeeDirectory()` | `canSeeDirectory()` + the `allowedUsers` read rule |
 | `canSeeParty()` | `partyVisible()` |
 | `canSeeOrder()` | `orderVisible()` |
 | `canEditSource()` | `canEditSource()` |
+| `managesRecord()` | `managesRecord()` |
+| `ROLE_PERMISSIONS` (pre-permission access) | `legacyList()` — transitional, see below |
+| `NON_DELEGABLE` in `/api/admin/users` | the same array in `settings/people/page.tsx` |
 | `isConversationMember()` in `src/types/conversation.ts` | `inConversation()` |
 | `MAX_PINNED` in `src/types/conversation.ts` | the count in the `pinned` branch of the conversation update rule |
 
@@ -192,11 +252,25 @@ This repo's rules once sat undeployed for five weeks while users saw "Missing or
 insufficient permissions".
 
 ```bash
+node scripts/check-rules.js               # COMPILE them — see below
 node scripts/deploy-rules.js --dry-run
 node scripts/deploy-rules.js
 node scripts/rollback-rules.js --list
 node scripts/rollback-rules.js --to <rulesetId>
 ```
+
+`--dry-run` reports what it *would* upload and does **not** compile, so a syntax
+error passes it cleanly and only surfaces on a real deploy — with the broken
+rules already live. `scripts/check-rules.js` compiles both files by creating a
+ruleset nothing points at and deleting it again; it never touches a release.
+Run it before every deploy.
+
+`firestore.rules` reads `users/{uid}.permissions`, and a profile written before
+permissions existed has no such field. `legacyList()` in the rules gives those
+profiles exactly the access their role flags used to imply, so the deploy order
+does not matter and nobody is locked out waiting to sign in again. Once
+everyone has signed in once (or `POST /api/admin/users/sync` has run), that
+function and the `legacyProfile()` branch can be deleted.
 
 If you edit a rules file, say plainly in your summary that it is not live until
 that script is run.

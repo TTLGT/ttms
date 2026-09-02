@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue, adminDb, AdminAuthError, requireAdmin } from '@/lib/firebase-admin';
+import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
 import {
   ALLOWED_USERS_COLLECTION,
   TEAMS_COLLECTION,
   USERS_COLLECTION,
 } from '@/lib/accessControl';
 import { resolveLead } from '@/lib/teamLead';
+import { syncManagedScopes } from '@/lib/teamScope';
 
 /** Renames a team or changes who it reports to. */
 export async function PATCH(
@@ -14,7 +15,7 @@ export async function PATCH(
 ) {
   try {
     const { teamId } = await params;
-    await requireAdmin(req);
+    await requirePermission(req, 'settings.manage');
     const body = await req.json().catch(() => ({}));
 
     const ref  = adminDb.collection(TEAMS_COLLECTION).doc(teamId);
@@ -50,6 +51,13 @@ export async function PATCH(
     }
 
     await ref.update(patch);
+
+    // The lead may have changed hands, which moves a whole team in or out of
+    // somebody's scope.
+    await syncManagedScopes().catch((e) => {
+      console.error('[teams] refreshing managed scopes failed', teamId, e);
+    });
+
     return NextResponse.json({ id: teamId });
   } catch (e) {
     if (e instanceof AdminAuthError) {
@@ -72,7 +80,7 @@ export async function DELETE(
 ) {
   try {
     const { teamId } = await params;
-    await requireAdmin(req);
+    await requirePermission(req, 'settings.manage');
 
     const ref  = adminDb.collection(TEAMS_COLLECTION).doc(teamId);
     const snap = await ref.get();
@@ -88,6 +96,12 @@ export async function DELETE(
     for (const doc of profiles.docs) batch.update(doc.ref, { teamId: null });
     batch.delete(ref);
     await batch.commit();
+
+    // Everyone just lost their team, so any manager who led this one now leads
+    // nobody. Their mirror has to be emptied or they keep seeing the records.
+    await syncManagedScopes().catch((e) => {
+      console.error('[teams] refreshing managed scopes failed', teamId, e);
+    });
 
     return NextResponse.json({ deleted: teamId, detachedUsers: entries.size });
   } catch (e) {

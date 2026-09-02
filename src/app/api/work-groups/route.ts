@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue, adminDb, AdminAuthError, requireAdmin } from '@/lib/firebase-admin';
+import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 
 const COL = 'workGroups';
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    await requireAdmin(req);
+    await requirePermission(req, 'settings.manage');
     const body = await req.json().catch(() => ({}));
 
     const name = String(body.name ?? '').trim();

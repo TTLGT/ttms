@@ -850,8 +850,13 @@ function findRanges(root: HTMLElement, needle: string): Range[] {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HandbookPage() {
-  const { isAdmin, loading } = useAuth();
+  const { can, loading } = useAuth();
   const router = useRouter();
+
+  // Its own permission rather than "is an admin", so the operations handbook
+  // can be handed to whoever actually runs the setup steps in it without also
+  // handing them the company's records.
+  const allowed = can('handbook.view');
 
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set(['accounts']));
   const [indexOpen, setIndexOpen] = useState(false);
@@ -870,8 +875,8 @@ export default function HandbookPage() {
   // Hiding the nav link is not access control — someone can type the URL. This
   // matches the guard on Settings.
   useEffect(() => {
-    if (!loading && !isAdmin) router.replace('/dashboard');
-  }, [isAdmin, loading, router]);
+    if (!loading && !allowed) router.replace('/dashboard');
+  }, [allowed, loading, router]);
 
   useEffect(() => {
     const style = document.createElement('style');
@@ -982,7 +987,7 @@ export default function HandbookPage() {
 
   const allOpen = useMemo(() => CHAPTERS.every((c) => openIds.has(c.id)), [openIds]);
 
-  if (loading || !isAdmin) return null;
+  if (loading || !allowed) return null;
 
   const searching = query.length >= MIN_QUERY;
 

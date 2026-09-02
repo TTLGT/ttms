@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, requireAdmin, AdminAuthError } from '@/lib/firebase-admin';
+import { adminDb, requirePermission, AdminAuthError } from '@/lib/firebase-admin';
 import { lookupDrivingMiles } from '@/lib/routeDistanceGoogle';
 import { recordLaneRefresh } from '@/lib/laneDistanceCache';
 import { DEFAULT_APP_SETTINGS, isLaneDistanceMode } from '@/types/appSettings';
@@ -18,7 +18,7 @@ import type { Address } from '@/types/order';
 export async function POST(req: NextRequest) {
   let caller;
   try {
-    caller = await requireAdmin(req);
+    caller = await requirePermission(req, 'settings.manage');
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

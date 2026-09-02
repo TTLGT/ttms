@@ -16,8 +16,9 @@ const fmtDate = (ts: { toDate?: () => Date } | null | undefined): string => {
 /**
  * Handed straight back to whoever asked for the generation, so the PDF opens
  * without a second round trip. Reading an *existing* BOL goes through
- * /api/orders/{id}/document instead, which checks order ownership — this route
- * is finance-and-admin only, so it does not need to.
+ * /api/orders/{id}/document instead, which checks order ownership — generating
+ * one is gated on `orders.bol`, which is a deliberate grant rather than
+ * something a load's owner has by default, so it does not need to.
  */
 async function getSignedUrl(filePath: string): Promise<string> {
   const [url] = await adminStorage.bucket().file(filePath).getSignedUrl({
@@ -29,7 +30,7 @@ async function getSignedUrl(filePath: string): Promise<string> {
 
 export async function POST(req: NextRequest, { params }: RouteContext) {
   try {
-    await requirePermission(req, ['finance']);
+    await requirePermission(req, 'orders.bol');
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

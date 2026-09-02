@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -16,10 +17,26 @@ import {
 import { useRouter } from 'next/navigation';
 import { auth, googleProvider } from '@/lib/firebase';
 import type { UserProfile } from '@/types/userProfile';
+import { can as canDo } from '@/lib/accessControl';
+import type { Permission } from '@/types/permission';
 
 interface AuthContextValue {
   user: User | null;
   profile: UserProfile | null;
+  /**
+   * Whether the signed-in user holds a permission.
+   *
+   * The one question the UI should ask about ability. Everything below it —
+   * which nav items appear, which buttons are drawn — goes through this rather
+   * than testing a role, so that giving somebody a single permission lights up
+   * exactly the thing it names and nothing else.
+   *
+   * Reads the effective list off the profile, which is the same array the
+   * security rules read. A screen and a rule can still disagree — the screen is
+   * a courtesy and the rule is the enforcement — but they are now disagreeing
+   * about one list rather than about two derivations of it.
+   */
+  can: (permission: Permission) => boolean;
   isAdmin: boolean;
   /**
    * Read-only access to the people directory, and nothing else. Kept separate
@@ -137,8 +154,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isHr    = profile?.isHr ?? false;
   const isDispatcher = profile?.isDispatcher ?? false;
 
+  // Rebuilt only when the profile object changes, which is once per sign-in:
+  // this is called several times per render by the nav alone.
+  const can = useCallback(
+    (permission: Permission) => canDo(profile, permission),
+    [profile],
+  );
+
   return (
-    <AuthContext.Provider value={{ user, profile, isAdmin, isHr, isDispatcher, loading, signInWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, profile, can, isAdmin, isHr, isDispatcher, loading, signInWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

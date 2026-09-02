@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue, adminDb, AdminAuthError, requireAdmin } from '@/lib/firebase-admin';
+import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { TEAMS_COLLECTION } from '@/lib/accessControl';
 import { resolveLead } from '@/lib/teamLead';
+import { syncManagedScopes } from '@/lib/teamScope';
 
 /**
  * Teams — the reporting structure. See src/types/team.ts for why these are
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
 /** Creates a team. Names are unique so the picker can never show two alike. */
 export async function POST(req: NextRequest) {
   try {
-    const caller = await requireAdmin(req);
+    const caller = await requirePermission(req, 'settings.manage');
     const body = await req.json().catch(() => ({}));
 
     const name = String(body.name ?? '').trim();
@@ -53,6 +54,12 @@ export async function POST(req: NextRequest) {
       createdAt: FieldValue.serverTimestamp(),
       createdBy: caller.email ?? caller.uid,
       updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    // A team with a Sales Manager at its head is an access boundary the moment
+    // it exists — see src/lib/teamScope.ts. Nothing else about a team is.
+    await syncManagedScopes().catch((e) => {
+      console.error('[teams] refreshing managed scopes failed', ref.id, e);
     });
 
     return NextResponse.json({ id: ref.id, name }, { status: 201 });

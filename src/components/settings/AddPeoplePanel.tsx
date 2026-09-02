@@ -21,7 +21,12 @@ import {
   type OtherPhoneRegion,
   type PhoneRegion,
 } from '@/lib/phone';
-import type { AllowedUserRole, InviteResult } from '@/types/allowedUser';
+// The same chips the access list draws, rather than a second copy of the
+// list: a role that exists in one place and not the other is how somebody gets
+// added without the role they were meant to have.
+import { ROLE_CHIPS } from '@/types/allowedUser';
+import type { InviteResult } from '@/types/allowedUser';
+import { ROLE_ORDER, type RoleKey } from '@/types/permission';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
 import CollapsibleSection from './CollapsibleSection';
@@ -42,14 +47,10 @@ import DateField from '@/components/DateField';
  * That rule is enforced on the server as well, not just here.
  */
 
-const ROLE_CHIPS: { field: AllowedUserRole; label: string }[] = [
-  { field: 'isAdmin',      label: 'Admin' },
-  { field: 'isDispatcher', label: 'Dispatcher' },
-  { field: 'isFinance',    label: 'Finance' },
-  { field: 'isHr',         label: 'HR' },
-];
-
-const NO_ROLES = { isAdmin: false, isDispatcher: false, isFinance: false, isHr: false };
+/** Every role switched off — a new person is a broker until told otherwise. */
+const NO_ROLES = Object.fromEntries(
+  ROLE_ORDER.map((role) => [role, false]),
+) as Record<RoleKey, boolean>;
 
 const EMPTY_DETAILS: NewPersonDetails = {
   firstName: '', lastName: '', legalName: '', personalEmail: '',
@@ -347,10 +348,11 @@ export default function AddPeoplePanel({
                   >
                     Broker
                   </button>
-                  {ROLE_CHIPS.map(({ field, label }) => (
+                  {ROLE_CHIPS.map(({ field, label, detail }) => (
                     <button
                       key={field}
                       type="button"
+                      title={detail}
                       onClick={() => setRoles((r) => ({ ...r, [field]: !r[field] }))}
                       className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition ${
                         roles[field]

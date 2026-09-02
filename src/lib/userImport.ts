@@ -11,6 +11,9 @@ import {
   normalizeEmail,
 } from './accessControl';
 import { isCalendarDate } from '@/types/allowedUser';
+import { ROLE_LABELS, ROLE_ORDER, type RoleKey } from '@/types/permission';
+import { syncPermissionsFor } from './userSync';
+import { syncManagedScopes } from './teamScope';
 import {
   DEFAULT_OTHER_REGION,
   PHONE_LABEL,
@@ -210,9 +213,11 @@ function dateOutOfRange(key: 'dateOfBirth' | 'startDate', value: string): string
   return null;
 }
 
-type Roles = { isAdmin: boolean; isDispatcher: boolean; isFinance: boolean; isHr: boolean };
+type Roles = Record<RoleKey, boolean>;
 
-const NO_ROLES: Roles = { isAdmin: false, isDispatcher: false, isFinance: false, isHr: false };
+const NO_ROLES: Roles = Object.fromEntries(
+  ROLE_ORDER.map((role) => [role, false]),
+) as Roles;
 
 /**
  * Read a roles cell. Broker is not a flag — it is the absence of every other
@@ -229,6 +234,14 @@ function parseRolesCell(raw: string): Roles | 'unrecognised' {
     else if (t === 'dispatcher' || t === 'dispatch') roles.isDispatcher = true;
     else if (t === 'finance' || t === 'accounting') roles.isFinance = true;
     else if (t === 'hr' || t === 'payroll') roles.isHr = true;
+    // Two words in a spreadsheet cell, so both spellings and the obvious
+    // abbreviation are taken. A cell that means one of these and is not
+    // understood costs somebody their role silently, which is worse than
+    // being generous about how it was typed.
+    else if (t === 'sales' || t === 'salesmanager' || t === 'manager' || t === 'sm') {
+      roles.isSalesManager = true;
+    }
+    else if (t === 'intern' || t === 'trainee') roles.isIntern = true;
     // The default. Named explicitly so a cell can say "leave them a broker"
     // rather than the admin having to know that empty would not do that.
     else if (t === 'broker' || t === 'none' || t === '-') continue;
@@ -259,7 +272,12 @@ const MIRRORED_FIELDS = [
   // has to reach `users/{uid}` too or the old number would linger there.
   'phone', 'phoneOther', 'phoneOtherRegion', 'phoneGt', 'extension',
   'siteId', 'teamId',
-  'isAdmin', 'isDispatcher', 'isFinance', 'isHr',
+  ...ROLE_ORDER,
+  // The effective permission list is mirrored too — it is what the rules read,
+  // and a role change that did not carry it would leave the entry saying one
+  // thing and the system enforcing another until the next sign-in. Written by
+  // syncPermissionsFor() rather than being in the patch, so it is named here
+  // only to document that it is not forgotten.
 ] as const;
 
 interface Plan extends UserImportRow {
@@ -364,6 +382,12 @@ export async function importUsersCsv(
         plan.problems = [];
       }
     }
+
+    // A file can move people between teams and hand out Sales Manager in the
+    // same pass, so the scopes are rebuilt once at the end rather than per row.
+    await syncManagedScopes().catch((e) => {
+      console.error('[userImport] refreshing managed scopes failed', e);
+    });
   }
 
   const rows: UserImportRow[] = plans.map(
@@ -616,17 +640,14 @@ function planRow(
     if (roles === 'unrecognised') {
       return reject(
         'invalid',
-        `Roles “${rolesCell}” was not understood. Use Admin, Dispatcher, Finance, HR — separated by commas — or Broker for none.`,
+        `Roles “${rolesCell}” was not understood. Use Admin, Dispatcher, Finance, HR, Sales Manager, Intern — separated by commas — or Broker for none.`,
         'roles',
       );
     }
 
-    const before: Roles = {
-      isAdmin:      existing?.isAdmin === true,
-      isDispatcher: existing?.isDispatcher === true,
-      isFinance:    existing?.isFinance === true,
-      isHr:         existing?.isHr === true,
-    };
+    const before = Object.fromEntries(
+      ROLE_ORDER.map((role) => [role, existing?.[role] === true]),
+    ) as Roles;
     const differs = (Object.keys(roles) as (keyof Roles)[]).some((k) => before[k] !== roles[k]);
 
     // The same two guards the role buttons enforce. Rather than reject the row
@@ -643,10 +664,7 @@ function planRow(
     } else if (differs) {
       Object.assign(patch, roles);
       rolesChanged = true;
-      const held = [
-        roles.isAdmin && 'Admin', roles.isDispatcher && 'Dispatcher',
-        roles.isFinance && 'Finance', roles.isHr && 'HR',
-      ].filter(Boolean);
+      const held = ROLE_ORDER.filter((role) => roles[role]).map((role) => ROLE_LABELS[role]);
       changes.push(`${LABELS.roles} → ${held.length ? held.join(', ') : 'Broker'}`);
     }
   }
@@ -743,7 +761,13 @@ async function applyPlan(plan: Plan, actor: Actor): Promise<void> {
     await adminDb.collection(USERS_COLLECTION).doc(uid).set(mirror, { merge: true });
   }
 
-  // Storage rules read roles off the ID token, so a role change only lands once
-  // the token is reissued.
-  if (plan.rolesChanged) await adminAuth.revokeRefreshTokens(uid).catch(() => {});
+  // A role change moves the permissions it expands to, and that list is what
+  // the rules read. Mirrored here rather than left to the next sign-in, for the
+  // same reason every other field on this row is.
+  if (plan.rolesChanged) {
+    await syncPermissionsFor(plan.email).catch(() => {});
+    // Storage rules read roles off the ID token, so a role change only lands
+    // once the token is reissued.
+    await adminAuth.revokeRefreshTokens(uid).catch(() => {});
+  }
 }

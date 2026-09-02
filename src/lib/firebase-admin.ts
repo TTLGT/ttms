@@ -2,7 +2,14 @@ import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { getAuth } from 'firebase-admin/auth';
-import { ALLOWED_USERS_COLLECTION, isBootstrapAdmin, normalizeEmail } from './accessControl';
+import {
+  ALLOWED_USERS_COLLECTION,
+  can,
+  isBootstrapAdmin,
+  normalizeEmail,
+  type RoleFlags,
+} from './accessControl';
+import type { Permission } from '@/types/permission';
 
 export { FieldValue };
 
@@ -77,23 +84,41 @@ export async function requireAdmin(req: Request): Promise<{ uid: string; email: 
   return { uid: decoded.uid, email: decoded.email };
 }
 
-export type Role = 'dispatcher' | 'finance';
-
-const ROLE_FIELD: Record<Role, 'isDispatcher' | 'isFinance'> = {
-  dispatcher: 'isDispatcher',
-  finance:    'isFinance',
-};
-
-/** Verifies the caller is an admin, or holds at least one of the given non-admin roles. */
-export async function requirePermission(req: Request, allowedRoles: Role[]): Promise<{ uid: string; email: string | undefined }> {
+/**
+ * Verifies the caller holds a named permission.
+ *
+ * This used to name a role — `requirePermission(req, ['dispatcher'])` — which
+ * meant every route asking "may you send an agreement?" was really asking "are
+ * you a dispatcher?", and the only way to let somebody send agreements was to
+ * hand them every client in the company. Routes now name the ability itself
+ * and the role maths happens once, at sign-in; see src/types/permission.ts.
+ *
+ * Admins pass everything, checked against the flag rather than the mirrored
+ * list, for the same reason `can()` short-circuits them: a mirror that failed
+ * to write must never be able to lock out the people who would fix it.
+ *
+ * Reads the profile rather than the ID token on purpose. A permission removed
+ * a minute ago has already been written to `users/{uid}`, whereas the token in
+ * the caller's hand can be up to an hour old.
+ */
+export async function requirePermission(
+  req: Request,
+  permission: Permission,
+): Promise<{ uid: string; email: string | undefined }> {
   const decoded = await verifyRequestToken(req);
+
+  if (isBootstrapAdmin(decoded.email)) return { uid: decoded.uid, email: decoded.email };
 
   const profile = await adminDb.collection('users').doc(decoded.uid).get();
   const data = profile.data();
-  const hasAccess =
-    data?.suspended !== true
-    && (data?.isAdmin === true || allowedRoles.some((role) => data?.[ROLE_FIELD[role]] === true));
-  if (!profile.exists || !hasAccess) {
+
+  if (!profile.exists || data?.suspended === true) {
+    throw new AdminAuthError('You do not have permission to perform this action', 403);
+  }
+  // `can()` handles the profile written before permissions existed by deriving
+  // the list from the role flags, so an old profile keeps exactly the access it
+  // had rather than failing every guard until its owner signs in again.
+  if (!can(data as RoleFlags, permission)) {
     throw new AdminAuthError('You do not have permission to perform this action', 403);
   }
 

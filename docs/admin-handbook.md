@@ -995,7 +995,7 @@ is neither a broker nor anything else.
 HR user can open Settings, read every allowlist entry including the payroll
 fields (`legalName`, `dateOfBirth`, `personalEmail`, `startDate`) and export the
 list. They cannot write anything, and they are deliberately absent from
-`canSeeAllParties()`, so they see no more clients or loads than a plain broker.
+any `.viewAll` permission, so they see no more clients or loads than a plain broker.
 Three things follow, all easy to break by accident:
 
 - The `allowedUsers` read rule in `firestore.rules` is `isAdmin() || isHr()`. That rule, not the Settings page, is what enforces this.
@@ -1351,7 +1351,7 @@ automatically every time it starts in this folder. It already knows:
 
 - that `.env.local` points at **live production data**, and to dry-run every script
 - that security rules do not take effect until `deploy-rules.js` is run
-- that `BOOTSTRAP_ADMIN_EMAILS` and `canSeeAllParties()` are duplicated in `firestore.rules` and must stay in sync
+- that `BOOTSTRAP_ADMIN_EMAILS` and the visibility helpers are duplicated in `firestore.rules` and must stay in sync
 - that every API route must guard itself, because there is no middleware backstop
 - that `npm run build` is the only test that exists
 - that the `sign/[token]` audit trail is a legal record and must not be weakened

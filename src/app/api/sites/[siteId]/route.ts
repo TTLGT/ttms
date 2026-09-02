@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue, adminDb, AdminAuthError, requireAdmin } from '@/lib/firebase-admin';
+import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
 import { ALLOWED_USERS_COLLECTION, USERS_COLLECTION } from '@/lib/accessControl';
 
 const COL = 'sites';
@@ -11,7 +11,7 @@ export async function PATCH(
 ) {
   try {
     const { siteId } = await params;
-    await requireAdmin(req);
+    await requirePermission(req, 'settings.manage');
     const body = await req.json().catch(() => ({}));
 
     const ref  = adminDb.collection(COL).doc(siteId);
@@ -57,7 +57,7 @@ export async function DELETE(
 ) {
   try {
     const { siteId } = await params;
-    await requireAdmin(req);
+    await requirePermission(req, 'settings.manage');
 
     const ref  = adminDb.collection(COL).doc(siteId);
     const snap = await ref.get();

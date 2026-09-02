@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, requireAdmin, AdminAuthError } from '@/lib/firebase-admin';
+import { adminDb, requirePermission, AdminAuthError } from '@/lib/firebase-admin';
 import { REMOVED_USERS_COLLECTION } from '@/lib/accessControl';
 
 /**
@@ -18,7 +18,7 @@ const LIMIT = 500;
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAdmin(req);
+    await requirePermission(req, 'people.manage');
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

@@ -22,6 +22,7 @@ export default function PersonActions({
   isSelf,
   isProtected,
   busy,
+  canRemove = true,
   onEdit,
   onSuspend,
   onRevoke,
@@ -33,6 +34,16 @@ export default function PersonActions({
   isSelf: boolean;
   isProtected: boolean;
   busy: string | null;
+  /**
+   * Whether this reader may take the person off the system entirely.
+   *
+   * False for a Sales Manager, who can edit and suspend the people on their
+   * team but not remove them: removal deletes the account and archives their
+   * payroll details, which is a company-level act rather than a team one. The
+   * button is drawn dead rather than hidden, so the answer to "why can I not
+   * remove them" is on screen instead of being an absence.
+   */
+  canRemove?: boolean;
   /** Opens the editor, or closes it when it is already this person's. */
   onEdit: (person: AllowedUser) => void;
   onSuspend: (person: AllowedUser) => void;
@@ -77,16 +88,18 @@ export default function PersonActions({
 
       <button
         onClick={() => onRevoke(person)}
-        disabled={isSelf || isProtected || busy === `${person.email}:revoke`}
+        disabled={!canRemove || isSelf || isProtected || busy === `${person.email}:revoke`}
         title={
-          isSelf
+          !canRemove
+            ? 'Only an admin can remove someone from the system'
+            : isSelf
             ? 'You cannot remove your own access'
             : isProtected
             ? 'Protected accounts cannot be removed here'
             : 'Remove access'
         }
         className={`rounded-lg border p-1.5 transition ${
-          isSelf || isProtected
+          !canRemove || isSelf || isProtected
             ? 'border-gray-200 text-gray-300 cursor-not-allowed'
             : 'border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200'
         }`}

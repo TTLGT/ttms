@@ -13,7 +13,8 @@
 
 import { adminDb, AdminAuthError } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { canSeeAllParties, canSeeOrder } from './accessControl';
+import { can, canSeeAllOrders, canSeeOrder } from './accessControl';
+import { inChunks } from './teamScope';
 import { orderDisplayNumber, orderSearchTerm, searchWords } from '@/types/order';
 import { ORDER_ACCESS_REQUESTS_COLLECTION, isGrantLive } from '@/types/orderAccessRequest';
 import type { OwnerContact } from '@/types/order';
@@ -125,7 +126,12 @@ export async function listVisibleOrdersPage(
   const col = adminDb.collection(COL);
   const projection = PROJECTIONS[query.fields ?? 'full'];
 
-  if (canSeeAllParties(caller.profile)) {
+  // An account that may not open a load at all gets an empty page rather than
+  // a filtered one. The union below is built from ownership queries, which
+  // would happily return records to somebody with no business in this section.
+  if (!can(caller.profile, 'orders.view')) return { orders: [], cursor: null };
+
+  if (canSeeAllOrders(caller.profile)) {
     let q: FirebaseFirestore.Query = col;
     if (query.status)               q = q.where('status', '==', query.status);
     if (query.carrierId)            q = q.where('carrierId', '==', query.carrierId);
@@ -247,7 +253,11 @@ export async function countVisibleOrdersByStatus(
 ): Promise<Record<string, number>> {
   const col = adminDb.collection(COL);
 
-  if (canSeeAllParties(caller.profile)) {
+  if (!can(caller.profile, 'orders.view')) {
+    return Object.fromEntries(statuses.map((s) => [s, 0]));
+  }
+
+  if (canSeeAllOrders(caller.profile)) {
     const counts = await Promise.all(
       statuses.map((s) =>
         col.where('parentOrderId', '==', null).where('status', '==', s).count().get()
@@ -265,7 +275,7 @@ export async function countVisibleOrdersByStatus(
   );
 }
 
-/** The four-query union that stands in for a query the rules could approve. */
+/** The union of queries that stands in for a query the rules could approve. */
 async function unionForCaller(caller: Caller): Promise<Record<string, unknown>[]> {
   const col = adminDb.collection(COL);
   const groupIds = caller.profile.groupIds ?? [];
@@ -277,16 +287,40 @@ async function unionForCaller(caller: Caller): Promise<Record<string, unknown>[]
       ? col.where(field, 'array-contains-any', someGroups).get()
       : Promise.resolve({ docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] });
 
-  const [mine, viaGroup, viaClient, viaClientGroup, granted] = await Promise.all([
+  /*
+    A Sales Manager's team, by the same two routes an owner gets in by: the
+    load assigned to one of their people, or its client owned by one of them.
+    Unlike work groups, a team can be bigger than one query takes, so this runs
+    a query per chunk of thirty — see inChunks.
+
+    The email half covers a report who has not signed in yet, whose records are
+    held under their address until they do.
+  */
+  const managed       = caller.profile.managedUids ?? [];
+  const managedEmails = caller.profile.managedEmails ?? [];
+  const teamQueries = [
+    ...inChunks(managed).flatMap((batch) => [
+      col.where('assignedToUids',  'array-contains-any', batch).get(),
+      col.where('clientOwnerUids', 'array-contains-any', batch).get(),
+    ]),
+    ...inChunks(managedEmails).map((batch) =>
+      col.where('assignedToEmails', 'array-contains-any', batch).get()),
+  ];
+
+  const [mine, viaGroup, viaClient, viaClientGroup, granted, viaTeam] = await Promise.all([
     col.where('assignedToUids', 'array-contains', caller.uid).get(),
     byGroup('assignedToGroupIds'),
     col.where('clientOwnerUids', 'array-contains', caller.uid).get(),
     byGroup('clientOwnerGroupIds'),
     approvedOrderIds(caller.uid),
+    Promise.all(teamQueries),
   ]);
 
   const byId = new Map<string, Record<string, unknown>>();
-  for (const d of [...mine.docs, ...viaGroup.docs, ...viaClient.docs, ...viaClientGroup.docs]) {
+  for (const d of [
+    ...mine.docs, ...viaGroup.docs, ...viaClient.docs, ...viaClientGroup.docs,
+    ...viaTeam.flatMap((snap) => snap.docs),
+  ]) {
     byId.set(d.id, { id: d.id, ...d.data() });
   }
 

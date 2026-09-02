@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { canSeeOrder } from '@/lib/accessControl';
+import { pendingForDecider } from '@/lib/accessRequests';
 import { orderOwnerLabel, ownersForOrder, hasApprovedOrderAccess } from '@/lib/orderAccess';
 import { orderDisplayNumber } from '@/types/order';
 import { ORDER_ACCESS_REQUESTS_COLLECTION as COL, isGrantLive } from '@/types/orderAccessRequest';
@@ -9,26 +10,20 @@ import { ORDER_ACCESS_REQUESTS_COLLECTION as COL, isGrantLive } from '@/types/or
 /**
  * The approvals inbox for loads, alongside the one for parties.
  *
- * `box=incoming` — waiting on the caller to decide. Admins see every pending
- * request in the company, so a request against an order whose owner has left
- * is never stuck. `box=outgoing` — the caller's own requests and their status.
+ * `box=incoming` — waiting on the caller to decide: requests against loads
+ * they own, requests against loads their team owns if they are a Sales
+ * Manager, and every pending request in the company for whoever holds
+ * `access.decideAny`, so a request against an order whose owner has left is
+ * never stuck. `box=outgoing` — the caller's own requests and their status.
  */
 export async function GET(req: NextRequest) {
   try {
     const caller = await requireCaller(req);
     const box    = new URL(req.url).searchParams.get('box') ?? 'incoming';
 
-    let docs;
-    if (box === 'outgoing') {
-      docs = (await adminDb.collection(COL).where('requestedByUid', '==', caller.uid).get()).docs;
-    } else if (caller.profile.isAdmin) {
-      docs = (await adminDb.collection(COL).where('status', '==', 'pending').get()).docs;
-    } else {
-      docs = (await adminDb.collection(COL)
-        .where('ownerUids', 'array-contains', caller.uid)
-        .where('status', '==', 'pending')
-        .get()).docs;
-    }
+    const docs = box === 'outgoing'
+      ? (await adminDb.collection(COL).where('requestedByUid', '==', caller.uid).get()).docs
+      : await pendingForDecider(COL, caller);
 
     const requests = docs
       .map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown> & { id: string }))

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue, adminDb, AdminAuthError, requireAdmin } from '@/lib/firebase-admin';
+import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 
 const COL = 'sites';
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 /** Creates a site. Names are unique so the picker can never show two alike. */
 export async function POST(req: NextRequest) {
   try {
-    const caller = await requireAdmin(req);
+    const caller = await requirePermission(req, 'settings.manage');
     const body = await req.json().catch(() => ({}));
 
     const name = String(body.name ?? '').trim();

@@ -1,6 +1,6 @@
 import { collection, getDocs } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { ALLOWED_USERS_COLLECTION } from './accessControl';
+import { ALLOWED_USERS_COLLECTION, canSeeDirectory, type RoleFlags } from './accessControl';
 import type {
   AllowedUser,
   AllowedUserDetails,
@@ -8,6 +8,7 @@ import type {
   InviteResult,
 } from '@/types/allowedUser';
 import type { RemovedUser } from '@/types/removedUser';
+import type { RoleFlagSet } from '@/types/permission';
 
 /**
  * Client helpers for the sign-in allowlist.
@@ -45,6 +46,30 @@ export async function listAllowedUsers(): Promise<AllowedUser[]> {
 }
 
 /**
+ * The access entries this reader is allowed to work with.
+ *
+ * Two paths, and which one is taken is decided by one permission:
+ *
+ * - `people.view` — an admin or HR — reads the collection straight from
+ *   Firestore, as this page always has. The rules allow it.
+ * - A **Sales Manager** has no such permission and the rules refuse them the
+ *   collection, deliberately: it carries every colleague's payroll details and
+ *   a rule cannot narrow a collection read to one team. They go through the
+ *   route instead, which returns their team and nobody else.
+ *
+ * Callers do not need to know which happened. They get the rows they are
+ * entitled to, in the same shape, either way.
+ */
+export async function listManageableUsers(
+  profile: RoleFlags | null | undefined,
+): Promise<AllowedUser[]> {
+  if (canSeeDirectory(profile)) return listAllowedUsers();
+
+  const data = await authedFetch<{ users?: AllowedUser[] }>('/api/admin/users');
+  return (data.users ?? []).sort((a, b) => a.email.localeCompare(b.email));
+}
+
+/**
  * The per-person block that can be filled in while adding one new person.
  * Site and team are excluded because they are passed separately — they apply
  * to the whole batch, and these fields never can.
@@ -70,12 +95,7 @@ export interface PhoneReport {
  */
 export async function inviteUsers(
   emails: string[],
-  roles: {
-    isAdmin?: boolean;
-    isDispatcher?: boolean;
-    isFinance?: boolean;
-    isHr?: boolean;
-  } = {},
+  roles: RoleFlagSet = {},
   /** Applied to every address in the batch, because a site can be. */
   siteId: string | null = null,
   /** Likewise — a pasted list is usually one team's worth of new hires. */
@@ -138,6 +158,25 @@ export async function setAllowedUserRole(
     method: 'PATCH',
     body: JSON.stringify({ email, field, value }),
   });
+}
+
+/**
+ * Replace the permissions granted to one person on top of their role.
+ *
+ * The whole set goes at once rather than one key per request: it is a set, and
+ * a half-applied sequence of toggles is a person with an ability nobody meant
+ * to give them. The server decides what the caller is allowed to hand over —
+ * see updateGrants in /api/admin/users.
+ */
+export async function setAllowedUserPermissions(
+  email: string,
+  permissions: string[],
+): Promise<string[]> {
+  const data = await authedFetch<{ grantedPermissions?: string[] }>('/api/admin/users', {
+    method: 'PATCH',
+    body: JSON.stringify({ email, field: 'grantedPermissions', value: permissions }),
+  });
+  return data.grantedPermissions ?? permissions;
 }
 
 /**

@@ -9,6 +9,7 @@ import { yearsSince } from '@/types/allowedUser';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import Fact from '@/components/people/Fact';
 import MessagePersonButton from '@/components/chat/MessagePersonButton';
+import RoleBadges from '@/components/people/RoleBadges';
 import type { DirectoryViewProps } from '@/components/people/directoryView';
 import { useAuth } from '@/context/AuthContext';
 
@@ -70,6 +71,14 @@ export default function DirectoryCards({
                 {legal && (
                   <p className="truncate text-[11px] text-gray-500">{legal}</p>
                 )}
+                {/* What they do, under who they are and above how to reach
+                    them — which is the order the question is usually asked in:
+                    somebody looking for "the dispatcher" is looking for a
+                    person before they are looking for a number. */}
+                <div className="mt-1">
+                  <RoleBadges person={p} />
+                </div>
+
                 {/* The status of an account is not directory information — it
                     only appears for the two roles whose job it is to do
                     something about it. */}

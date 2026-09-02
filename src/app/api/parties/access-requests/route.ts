@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller, ownerLabel, ownersFor } from '@/lib/partyAccess';
 import { canSeeParty } from '@/lib/accessControl';
+import { pendingForDecider } from '@/lib/accessRequests';
 import { PARTY_ROLES, toNameKey } from '@/types/party';
 import type { PartyRole } from '@/types/party';
 
@@ -10,31 +11,20 @@ const COL = 'partyAccessRequests';
 /**
  * The approvals inbox.
  *
- * `box=incoming` — waiting on the caller to decide. Admins see every pending
- * request in the company, so a request against a rep with no TMS account is
- * never stuck. `box=outgoing` — the caller's own requests and their status.
+ * `box=incoming` — waiting on the caller to decide: their own records, their
+ * team's records if they are a Sales Manager, and every pending request in the
+ * company for whoever holds `access.decideAny`, so a request against a rep
+ * with no TMS account is never stuck. `box=outgoing` — the caller's own
+ * requests and their status.
  */
 export async function GET(req: NextRequest) {
   try {
     const caller = await requireCaller(req);
     const box    = new URL(req.url).searchParams.get('box') ?? 'incoming';
 
-    let docs;
-    if (box === 'outgoing') {
-      const snap = await adminDb.collection(COL)
-        .where('requestedByUid', '==', caller.uid)
-        .get();
-      docs = snap.docs;
-    } else if (caller.profile.isAdmin) {
-      const snap = await adminDb.collection(COL).where('status', '==', 'pending').get();
-      docs = snap.docs;
-    } else {
-      const snap = await adminDb.collection(COL)
-        .where('ownerUids', 'array-contains', caller.uid)
-        .where('status', '==', 'pending')
-        .get();
-      docs = snap.docs;
-    }
+    const docs = box === 'outgoing'
+      ? (await adminDb.collection(COL).where('requestedByUid', '==', caller.uid).get()).docs
+      : await pendingForDecider(COL, caller);
 
     const requests = docs
       .map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown> & { id: string }))

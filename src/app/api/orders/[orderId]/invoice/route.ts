@@ -27,7 +27,7 @@ async function getSignedUrl(filePath: string): Promise<string> {
 
 export async function POST(req: NextRequest, { params }: RouteContext) {
   try {
-    await requirePermission(req, ['finance']);
+    await requirePermission(req, 'orders.invoice');
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

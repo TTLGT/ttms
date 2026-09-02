@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { listPartiesPage, countParties } from '@/lib/parties';
 import { useAuth } from '@/context/AuthContext';
+import { viewAllPermission } from '@/lib/accessControl';
 import { partyDisplayName, ROLE_LABEL } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
 
@@ -24,7 +25,7 @@ const PAGE_SIZE = 50;
  * one order and pays on another shows up in both lists as a single record.
  */
 function PartyList({ role, title, blurb }: Props) {
-  const { user, isAdmin }   = useAuth();
+  const { user, can }       = useAuth();
   const [all, setAll]       = useState<Party[]>([]);
   const [loading, setLoad]  = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -138,7 +139,9 @@ function PartyList({ role, title, blurb }: Props) {
           onChange={(e) => setParam('q', e.target.value, '')}
           className="w-96 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
         />
-        {isAdmin && (
+        {/* Only worth offering to somebody who is seeing everybody's records
+            anyway — for a broker the whole list is already only theirs. */}
+        {can(viewAllPermission(role)) && (
           <label className="flex items-center gap-2 text-sm text-gray-600">
             <input
               type="checkbox"

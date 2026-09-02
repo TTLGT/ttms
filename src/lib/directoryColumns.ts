@@ -44,6 +44,10 @@ export const DIRECTORY_COLUMNS: DirectoryColumn[] = [
   // photo and the address hang off it, and a list of extensions belonging to
   // nobody would be worse than no list.
   { label: 'Name',          key: 'name',        alwaysOn: true },
+  // Next to the name, because it is read as part of who somebody is rather
+  // than as another contact detail. Switchable off like any other column: an
+  // office looking up an extension does not need it.
+  { label: 'Role',          key: 'role' },
   { label: 'Office',        key: 'site' },
   { label: 'Team',          key: 'team' },
   { label: 'Ext.',          key: 'extension' },

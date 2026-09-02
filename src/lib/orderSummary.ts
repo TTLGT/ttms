@@ -23,7 +23,7 @@
 
 import { adminDb } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { canSeeAllParties } from './accessControl';
+import { canSeeAllOrders } from './accessControl';
 import { listVisibleOrdersPage } from './orderAccess';
 import { listVisibleParties } from './partyAccess';
 import type { Caller } from './partyAccess';
@@ -90,7 +90,7 @@ export async function buildDashboardSummary(caller: Caller): Promise<DashboardSu
   // A quote nobody has touched in a week is the one worth chasing.
   const staleBefore = Timestamp.fromMillis(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  if (!canSeeAllParties(caller.profile)) {
+  if (!canSeeAllOrders(caller.profile)) {
     return summariseInMemory(caller, { dayStart, monthStart, staleBefore });
   }
 
@@ -318,7 +318,7 @@ export async function activeClients(caller: Caller): Promise<{
 async function activeClientLoads(caller: Caller): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
 
-  const rows = canSeeAllParties(caller.profile)
+  const rows = canSeeAllOrders(caller.profile)
     ? (await adminDb.collection(COL)
         .where('parentOrderId', '==', null)
         .where('status', 'not-in', ['completed', 'cancelled'])

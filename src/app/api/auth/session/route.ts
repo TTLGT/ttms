@@ -7,7 +7,9 @@ import {
   normalizeEmail,
 } from '@/lib/accessControl';
 import { claimPendingAssignments } from '@/lib/pendingClaims';
+import { managedScopeFor, syncManagedScopes } from '@/lib/teamScope';
 import { otherPhone } from '@/lib/phone';
+import { effectivePermissions } from '@/types/permission';
 
 /**
  * Called by AuthContext immediately after Firebase sign-in.
@@ -65,11 +67,40 @@ export async function POST(req: NextRequest) {
 
   const roles = {
     // Bootstrap accounts are admin by definition — they exist to prevent lockout.
-    isAdmin:      bootstrap || entry.isAdmin === true,
-    isDispatcher: entry.isDispatcher === true,
-    isFinance:    entry.isFinance === true,
-    isHr:         entry.isHr === true,
+    isAdmin:        bootstrap || entry.isAdmin === true,
+    isDispatcher:   entry.isDispatcher === true,
+    isFinance:      entry.isFinance === true,
+    isHr:           entry.isHr === true,
+    isSalesManager: entry.isSalesManager === true,
+    isIntern:       entry.isIntern === true,
   };
+
+  /**
+   * What this person may actually do, worked out once and written down.
+   *
+   * The security rules read this array off the profile rather than deriving
+   * anything from the role flags — see src/types/permission.ts. Recomputing it
+   * on every sign-in is what makes a permission granted this morning take
+   * effect without anybody having to run a migration, and what repairs a
+   * profile whose mirror was written before a permission existed.
+   */
+  const permissions = effectivePermissions(roles, entry.grantedPermissions);
+
+  /**
+   * A Sales Manager's team, mirrored so the rules can test it.
+   *
+   * Computed here rather than read from the profile because this may be the
+   * write that creates the profile. Everybody else gets two empty arrays,
+   * which matters: a manager who has just been demoted must not keep the
+   * scope their last sign-in left behind.
+   */
+  const managed = await managedScopeFor(email).catch((e) => {
+    // Never block sign-in over the org chart. An empty scope costs a manager
+    // sight of their team until the next sign-in or the next team edit; a
+    // failed sign-in costs them the system.
+    console.error('[session] computing managed scope failed', email, e);
+    return { uids: [], emails: [] };
+  });
 
   // An admin-entered name wins over the one Google reports: it is the name the
   // office actually uses, and it would be pointless to type it in Settings only
@@ -101,6 +132,9 @@ export async function POST(req: NextRequest) {
     teamId:      entry.teamId ?? null,
     photoPath:   entry.photoPath ?? null,
     ...roles,
+    permissions,
+    managedUids:   managed.uids,
+    managedEmails: managed.emails,
     // Written on every sign-in so a restored account cannot keep a stale
     // `suspended: true` on its profile, which the rules would still honour.
     suspended: false,
@@ -146,6 +180,16 @@ export async function POST(req: NextRequest) {
     { merge: true },
   );
 
+  // This person now has a uid, and their manager's mirror is still holding
+  // them by email. Re-running the scope sync swaps the one for the other —
+  // without it, a manager would keep matching a new hire's records by address
+  // long after the address stopped being how that person is identified.
+  if (firstSignIn) {
+    await syncManagedScopes().catch((e) => {
+      console.error('[session] refreshing managed scopes failed', email, e);
+    });
+  }
+
   await syncClaims(uid, decoded, roles);
 
   return NextResponse.json({ profile });
@@ -154,21 +198,38 @@ export async function POST(req: NextRequest) {
 /**
  * Storage rules can only see custom claims, so roles are mirrored there.
  *
- * `isHr` is deliberately absent: nothing in storage.rules or firestore.rules
- * reads it — HR is enforced against the `users/{uid}` profile, which rules can
- * look up — and a claim nobody reads is only one more thing to drift out of
- * sync. Add it here the day a Storage path actually needs it.
+ * `isHr` and `isSalesManager` are deliberately absent: nothing in storage.rules
+ * or firestore.rules reads them — both are enforced against the `users/{uid}`
+ * profile, which rules can look up — and a claim nobody reads is only one more
+ * thing to drift out of sync. Add one the day a Storage path actually needs it.
+ *
+ * `intern` is here because a Storage path does need it. Driver's licences are
+ * readable by every staff account, which is right for the people who cover the
+ * phones and wrong for somebody who cannot open a load at all; that prefix is
+ * the one place the bucket has to tell an intern apart from everyone else.
+ *
+ * The effective permission list is deliberately NOT mirrored into claims. It
+ * is a few dozen strings, custom claims are capped at a kilobyte and ride on
+ * every request, and the one consumer that cannot read Firestore needs a
+ * single bit rather than the list.
  */
 async function syncClaims(
   uid: string,
   decoded: Record<string, unknown>,
-  roles: { isAdmin: boolean; isDispatcher: boolean; isFinance: boolean; isHr: boolean },
+  roles: {
+    isAdmin: boolean;
+    isDispatcher: boolean;
+    isFinance: boolean;
+    isHr: boolean;
+    isIntern: boolean;
+  },
 ) {
   const desired = {
     ttlAccess:  true,
     admin:      roles.isAdmin,
     dispatcher: roles.isDispatcher,
     finance:    roles.isFinance,
+    intern:     roles.isIntern,
   };
   const unchanged = Object.entries(desired).every(([key, value]) => decoded[key] === value);
 

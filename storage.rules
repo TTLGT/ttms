@@ -31,13 +31,26 @@ rules_version = '2';
 // cannot do. That is unchanged from before and is the lesser exposure: it
 // costs someone the path of a file they would still not be able to read back.
 //
-// Driver's licences are deliberately readable by every staff account — see
-// needsOrderAccess() in src/types/orderDocument.ts for why that one differs.
+// Driver's licences are deliberately readable by every staff account except an
+// intern — see needsOrderAccess() in src/types/orderDocument.ts for why that
+// prefix differs from the three above it, and the rule itself for why the one
+// role that sees less than a broker is kept out of it.
 service firebase.storage {
   match /b/{bucket}/o {
     function isAllowedUser() {
       return request.auth != null
         && request.auth.token.ttlAccess == true;
+    }
+
+    // The one role this bucket has to tell apart from everybody else.
+    //
+    // An intern sits below a broker: no loads, no clients, no documents. These
+    // rules cannot read Firestore, so they cannot consult the permission list
+    // the rest of the system uses — /api/auth/session stamps this claim at
+    // sign-in instead, alongside ttlAccess. Like every claim here it lags a
+    // change by up to an hour, which is the same trade the whole file makes.
+    function isIntern() {
+      return request.auth != null && request.auth.token.intern == true;
     }
 
     // Order paperwork. Written from the browser, read only via the API route.
@@ -47,7 +60,16 @@ service firebase.storage {
 
     // Checked at pickup, at delivery and by whoever is covering the phones —
     // not only by the load's owner. Open to the allowlist, on purpose.
-    match /driver-licenses/{allPaths=**} { allow read, write: if isAllowedUser(); }
+    //
+    // Except an intern. What opens this prefix is that anybody who might have
+    // to cover a load should be able to see the driver's licence on it — and an
+    // intern cannot open a load at all. A licence is a government ID with a
+    // photograph and a date of birth on it, so "everyone who can sign in" is
+    // the wrong default for the one role deliberately built to see less.
+    match /driver-licenses/{allPaths=**} {
+      allow read:  if isAllowedUser() && !isIntern();
+      allow write: if isAllowedUser() && !isIntern();
+    }
 
     // Chat attachments and profile photos. Both are already gated by what
     // points at them: an attachment path is only written on a message document,

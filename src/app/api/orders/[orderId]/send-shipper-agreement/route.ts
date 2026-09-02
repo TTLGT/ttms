@@ -11,7 +11,7 @@ type RouteContext = { params: Promise<{ orderId: string }> };
 
 export async function POST(req: NextRequest, { params }: RouteContext) {
   try {
-    await requirePermission(req, ['dispatcher']);
+    await requirePermission(req, 'orders.sendAgreement');
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

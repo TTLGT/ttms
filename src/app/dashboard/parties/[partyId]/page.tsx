@@ -83,10 +83,13 @@ export default function PartyDetailPage() {
   const { formatDate } = useDateFormatters();
   const params  = useParams();
   const partyId = params.partyId as string;
-  const { user, profile, isAdmin, isDispatcher } = useAuth();
+  const { user, profile, can } = useAuth();
   // Ownership is admins and dispatchers; everything else on this form is open
   // to anyone who can already see the record.
-  const canAssign = isAdmin || isDispatcher;
+  // Admins and dispatchers hold this by role; anybody else has to be given it
+  // deliberately. The route enforces the same permission — see
+  // /api/parties/[partyId]/owners.
+  const canAssign = can('ownership.change');
 
 
   const [party, setParty]     = useState<Party | null>(null);

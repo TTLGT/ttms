@@ -24,16 +24,30 @@ import { SETTINGS_TABS, scrollToAnchor } from '@/components/settings/settingsSec
  */
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
-  const { isAdmin, isHr, loading } = useAuth();
+  const { isAdmin, profile, can, loading } = useAuth();
   const router   = useRouter();
   const pathname = usePathname();
 
-  // HR belongs in here — read-only, People only. Anyone else is bounced, and
-  // the Firestore rules refuse them independently of this. Gating in the
-  // layout rather than in each page means a new tab cannot be added without
-  // the check, and the pages below never mount for someone who should not see
-  // them at all.
-  const allowed = isAdmin || isHr;
+  /**
+   * Three kinds of reader belong in here, and each sees a different Settings.
+   *
+   * - Somebody managing people or company settings: everything.
+   * - HR: the People tab, read-only. The payroll fields on it are the reason
+   *   they are here and the only reason.
+   * - A Sales Manager: the People tab, writable for their own team and nobody
+   *   else. That narrowing happens inside the page — see canEditPerson there.
+   *
+   * Anyone else is bounced, and the Firestore rules refuse them independently
+   * of this. Gating in the layout rather than in each page means a new tab
+   * cannot be added without the check, and the pages below never mount for
+   * someone who should not see them at all.
+   */
+  const managesPeople = can('people.manage');
+  const allowed =
+    managesPeople
+    || can('people.view')
+    || can('settings.manage')
+    || profile?.isSalesManager === true;
 
   useEffect(() => {
     if (!loading && !allowed) router.replace('/dashboard');
@@ -50,7 +64,11 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
   if (loading || !allowed) return null;
 
-  const tabs = SETTINGS_TABS.filter((t) => isAdmin || !t.adminOnly);
+  // The admin-only tabs are the ones about the company rather than about a
+  // person: offices, teams, lane distance, the import. HR and a Sales Manager
+  // both land on People alone, for opposite reasons — one reads everybody, the
+  // other writes their own team.
+  const tabs = SETTINGS_TABS.filter((t) => !t.adminOnly || managesPeople || can('settings.manage'));
 
   /**
    * Every tab but Data gets the whole screen, because every one of them lays
@@ -75,8 +93,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {isAdmin
+              {tabs.length > 1
                 ? 'Access, permissions, sites, teams and how orders are worked out'
+                : profile?.isSalesManager
+                ? 'The people on your team — their details and what they are allowed to do.'
                 : 'The company directory. Read-only — ask an admin to change anything here.'}
             </p>
           </div>
