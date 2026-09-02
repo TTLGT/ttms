@@ -1,7 +1,9 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { ArrowDown, ArrowUp } from 'lucide-react';
+import { personHref } from '@/lib/directoryProfile';
 import { otherPhone, telHref } from '@/lib/phone';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import type { SortKey } from '@/lib/directorySort';
@@ -180,9 +182,17 @@ export default function DirectoryTable({
                     />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium text-gray-900">
+                        {/* The name opens the person's own page, the same as
+                            it does on a card. The office and the team beside
+                            it are buttons that filter this list rather than
+                            links, so the one thing in the row that goes
+                            anywhere is the person. */}
+                        <Link
+                          href={personHref(p.email)}
+                          className="truncate text-sm font-medium text-gray-900 hover:text-brand-700 hover:underline"
+                        >
                           {p.displayName}
-                        </span>
+                        </Link>
                         {/* Put on the name rather than in a column of its own:
                             the columns are configurable and this is an action,
                             not a field — there is nothing to sort or filter on.

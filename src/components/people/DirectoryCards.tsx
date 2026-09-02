@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import {
   AtSign, Building2, CalendarDays, Cake, Hash, Mail, MessageSquare, Phone, Smartphone, UsersRound,
 } from 'lucide-react';
+import { personHref } from '@/lib/directoryProfile';
 import { otherPhone, telHref } from '@/lib/phone';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { yearsSince } from '@/types/allowedUser';
@@ -66,9 +68,16 @@ export default function DirectoryCards({
                 name={p.displayName}
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-900">
+                {/* The name is the way in to the person's own page — the one
+                    thing on this card that can be sent to a colleague. The
+                    photo stays a photo: clicking it enlarges it, which is what
+                    a picture is for and what people already expect of it. */}
+                <Link
+                  href={personHref(p.email)}
+                  className="block truncate text-sm font-medium text-gray-900 hover:text-brand-700 hover:underline"
+                >
                   {p.displayName}
-                </p>
+                </Link>
                 {/* The name on the paperwork, under the name people use, for
                     the admins and HR who have to copy it onto a form. */}
                 {legal && (

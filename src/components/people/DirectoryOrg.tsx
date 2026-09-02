@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { Building2, Hash, Phone, UserRound, Users } from 'lucide-react';
+import { personHref } from '@/lib/directoryProfile';
 import { telHref } from '@/lib/phone';
 import { buildOrgChart, type OrgGroup } from '@/lib/directoryOrg';
 import { UserAvatar } from '@/components/settings/UserAvatar';
@@ -65,9 +67,16 @@ function OrgPerson({
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className={`truncate text-sm text-gray-900 ${lead ? 'font-semibold' : 'font-medium'}`}>
+          {/* The name opens the person's own page, the same as it does in the
+              other two views. The team heading above still filters the chart
+              rather than going anywhere — a heading is a place in this list, a
+              name is a person. */}
+          <Link
+            href={personHref(person.email)}
+            className={`truncate text-sm text-gray-900 hover:text-brand-700 hover:underline ${lead ? 'font-semibold' : 'font-medium'}`}
+          >
             {person.displayName}
-          </span>
+          </Link>
           <RoleBadges person={person} size="small" />
           {/* Same rule as the other two views: the state of an account is not
               directory information, and shows only to the two roles whose job
