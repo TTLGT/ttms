@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { LayoutGrid, List, Network, Search, X } from 'lucide-react';
+import { IdCard, LayoutGrid, List, Network, Search, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { canSeeDirectory } from '@/lib/accessControl';
 import { listDirectory, type DirectoryPerson } from '@/lib/directory';
@@ -21,6 +21,7 @@ import {
 import ColumnPicker from '@/components/people/ColumnPicker';
 import DirectoryCards from '@/components/people/DirectoryCards';
 import DirectoryOrg from '@/components/people/DirectoryOrg';
+import DirectoryProfiles from '@/components/people/DirectoryProfiles';
 import DirectoryTable from '@/components/people/DirectoryTable';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
@@ -42,18 +43,23 @@ import type { Team } from '@/types/team';
  * either list — the two halves are kept private in different ways, and only
  * one of them is a real boundary.
  *
- * Three views, the same people: cards for looking someone up, a list for
- * scanning a whole office, and the org chart for finding who a team answers
- * to. All three live in components/people and take the same props, so
- * everything below is about *which* people to show and in what order, never
- * how they are drawn.
+ * Four views, the same people: cards for looking someone up, profiles for
+ * putting a face to a name, a list for scanning a whole office, and the org
+ * chart for finding who a team answers to. All four live in components/people
+ * and take the same props, so everything below is about *which* people to show
+ * and in what order, never how they are drawn.
+ *
+ * Cards and profiles differ only in how much room a person gets — a thumbnail
+ * and four abreast against a portrait and two. That is worth two buttons
+ * because it is two different jobs: confirming a number you half remember, and
+ * recognising somebody you have only ever emailed.
  */
 
-type View = 'cards' | 'list' | 'org';
+type View = 'cards' | 'profiles' | 'list' | 'org';
 
 /** Anything else in the URL — including nothing — means cards. */
 function toView(value: string | null): View {
-  return value === 'list' || value === 'org' ? value : 'cards';
+  return value === 'list' || value === 'org' || value === 'profiles' ? value : 'cards';
 }
 
 /** No office or no team, as it travels in the URL. An id can never be this. */
@@ -291,9 +297,10 @@ function Directory() {
               which one is on has to be readable without opening anything. */}
           <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5">
             {([
-              { id: 'cards', Icon: LayoutGrid, label: 'Cards'     },
-              { id: 'list',  Icon: List,       label: 'List'      },
-              { id: 'org',   Icon: Network,    label: 'Org chart' },
+              { id: 'cards',    Icon: LayoutGrid, label: 'Cards'     },
+              { id: 'profiles', Icon: IdCard,     label: 'Profiles'  },
+              { id: 'list',     Icon: List,       label: 'List'      },
+              { id: 'org',      Icon: Network,    label: 'Org chart' },
             ] as const).map(({ id, Icon, label }) => (
               <button
                 key={id}
@@ -416,6 +423,10 @@ function Directory() {
               full={full}
               teamFilter={teamFilter}
               onFilterTeam={filterTeam}
+            />
+          ) : view === 'profiles' ? (
+            <DirectoryProfiles
+              people={visible} siteName={siteName} teamName={teamName} full={full}
             />
           ) : view === 'list' ? (
             <DirectoryTable
