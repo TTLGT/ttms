@@ -224,6 +224,11 @@ export interface OrderQuery {
   pickupFrom?: number;
   /** Trims each order to the fields that shape of screen reads. */
   fields?: 'list' | 'analytics';
+  /**
+   * One colleague's loads, named by their email — the identifier the directory
+   * links on. Resolved to a uid server-side; see lib/ownerFilter.ts.
+   */
+  owner?: string;
 }
 
 export interface OrderPage {
@@ -245,6 +250,7 @@ function orderQueryString(q: OrderQuery): string {
   if (q.fields)       p.set('fields', q.fields);
   if (q.hasDocument)  p.set('hasDocument', q.hasDocument);
   if (q.pickupFrom)   p.set('pickupFrom', String(q.pickupFrom));
+  if (q.owner)        p.set('owner', q.owner);
   // Set even when empty — an empty value is a meaningful request.
   if (q.parentOrderId !== undefined) p.set('parentOrderId', q.parentOrderId);
   return p.toString();
@@ -291,9 +297,15 @@ export async function fetchActiveClientLoads(): Promise<{
   return { loads: body.activeClientLoads ?? {}, top: body.activeClients ?? [] };
 }
 
-/** How many orders sit in each status, without fetching any of them. */
-export async function countOrdersByStatus(): Promise<Record<OrderStatus, number>> {
-  const res = await fetch('/api/orders?counts=1', { headers: await authHeaders() });
+/**
+ * How many orders sit in each status, without fetching any of them.
+ *
+ * `owner` narrows it to one colleague's loads, so the tabs agree with the list
+ * they sit above when the screen was opened from somebody's book of business.
+ */
+export async function countOrdersByStatus(owner?: string): Promise<Record<OrderStatus, number>> {
+  const qs = owner ? `&owner=${encodeURIComponent(owner)}` : '';
+  const res = await fetch(`/api/orders?counts=1${qs}`, { headers: await authHeaders() });
   const { counts } = await unwrap<{ counts: Record<OrderStatus, number> }>(res);
   return counts;
 }

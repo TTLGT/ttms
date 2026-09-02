@@ -318,6 +318,54 @@ export function canManagePerson(
 }
 
 /**
+ * Whether the actor may see how much work another person is carrying — the
+ * book-of-business panel on a directory page: clients owned, loads still open.
+ *
+ * Three ways in, in the order they are tested:
+ *
+ * - **Your own.** Nobody is told anything new about themselves. These are the
+ *   same loads their own dashboard counts, gathered on the page that is about
+ *   them, and a broker being unable to see their own numbers on their own page
+ *   would read as a bug rather than as a boundary.
+ * - **`directory.book`** — admin, dispatch and finance. All three already see
+ *   every load and every client, so the panel saves them counting rather than
+ *   showing them anything they could not reach.
+ * - **The Sales Manager of the person being looked at.** Deliberately not the
+ *   permission: a manager's reach is their own team, so they get this one
+ *   person at a time exactly as `canManagePerson()` gives them the rest of
+ *   their admin-shaped abilities. `directory.book` is kept out of
+ *   `isSalesManager` in ROLE_PERMISSIONS for that reason.
+ *
+ * `orders.view` gates the lot. An intern can open the directory and cannot
+ * open a load, so every number here would be zero for them — and a panel of
+ * zeros reads as "this person has nothing on", which is a different claim.
+ *
+ * Note what this does **not** decide: how much of somebody's book the viewer
+ * actually gets counted. That is settled per record by canSeeOrder() and
+ * canSeeParty() in lib/bookOfBusiness.ts, so a viewer who passes this gate
+ * still only ever counts what they were already entitled to see.
+ */
+export function canSeeBookOfBusiness(
+  actor: RoleFlags | null | undefined,
+  /** Who is looking — needed only for the "your own" case. */
+  viewer: { uid?: string | null; email?: string | null },
+  /** Whose page it is. Named by both, because a colleague who has never
+   *  signed in has no uid and is held on records by their address. */
+  subject: { uid?: string | null; email?: string | null },
+): boolean {
+  if (!can(actor, 'orders.view')) return false;
+
+  const sameUid = !!viewer.uid && viewer.uid === subject.uid;
+  const sameEmail = !!normalizeEmail(viewer.email)
+    && normalizeEmail(viewer.email) === normalizeEmail(subject.email);
+  if (sameUid || sameEmail) return true;
+
+  if (can(actor, 'directory.book')) return true;
+  if (actor?.isSalesManager !== true) return false;
+  return managesUid(actor, subject.uid) || managesEmail(actor, subject.email);
+}
+
+/**
  * Broker is the default role: what someone has when no other role is set.
  * A broker works their own book — their clients, their loads — and sees only
  * the parties they own or that nobody owns. Every other role is an addition on

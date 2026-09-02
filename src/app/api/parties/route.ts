@@ -6,6 +6,7 @@ import {
   toVisibleParty, ownerLabel,
 } from '@/lib/partyAccess';
 import { canSeeParty } from '@/lib/accessControl';
+import { resolveOwnerFilter } from '@/lib/ownerFilter';
 import { toNameKey } from '@/types/party';
 
 /**
@@ -14,7 +15,12 @@ import { toNameKey } from '@/types/party';
  *   ?limit=50&cursor=…   one page, by name
  *   ?role=client         narrowed to one role
  *   ?search=acme         name prefix
+ *   ?owner=maria@…       only the records one colleague owns
  *   ?count=1             how many, without fetching any
+ *
+ * `owner` is an email, for the same reason it is on /api/orders: that is how
+ * the directory names a person, and it is the only identifier somebody who has
+ * never signed in has. Resolved to a uid here, never accepted as one.
  *
  * With no `limit` it still returns everything, for the pickers that need a full
  * list. On the current collection that is about seven thousand records — a list
@@ -26,8 +32,14 @@ export async function GET(req: NextRequest) {
     const p = req.nextUrl.searchParams;
     const role = p.get('role') ?? undefined;
 
+    const ownerEmail = (p.get('owner') ?? '').trim();
+    const owner = ownerEmail ? await resolveOwnerFilter(ownerEmail) : null;
+    if (ownerEmail && !owner) {
+      return NextResponse.json({ error: 'No such person' }, { status: 404 });
+    }
+
     if (p.get('count')) {
-      return NextResponse.json({ count: await countVisibleParties(caller, role) });
+      return NextResponse.json({ count: await countVisibleParties(caller, role, owner) });
     }
 
     const rawLimit = Number(p.get('limit'));
@@ -36,6 +48,13 @@ export async function GET(req: NextRequest) {
       : undefined;
 
     if (!limit) {
+      // An owner filter is honoured even unpaged, rather than quietly dropped:
+      // answering "Maria's clients" with every party in the company would be
+      // the wrong answer given confidently.
+      if (owner) {
+        const page = await listVisiblePartiesPage(caller, { role, owner });
+        return NextResponse.json(page);
+      }
       const parties = await listVisibleParties(caller);
       const scoped = role ? parties.filter((x) => (x.roles ?? []).includes(role)) : parties;
       return NextResponse.json({ parties: scoped, cursor: null });
@@ -46,6 +65,7 @@ export async function GET(req: NextRequest) {
       cursor: p.get('cursor'),
       role,
       search: p.get('search') ?? undefined,
+      owner,
     });
     return NextResponse.json(page);
   } catch (e) {

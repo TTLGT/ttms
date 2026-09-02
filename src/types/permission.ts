@@ -90,6 +90,24 @@ export const PERMISSIONS = [
    * handed to anybody else one person at a time.
    */
   'directory.export',
+  /**
+   * How much work a colleague is carrying: how many clients they own and how
+   * many of their loads are still open, on their directory page.
+   *
+   * Separate from `directory.view` because it is a different question. The
+   * phone book says how to reach somebody; this says what they are holding,
+   * which is a management question and the sort of number that gets compared
+   * between people. Admin, dispatch and finance hold it because all three
+   * already see every load and every client — the panel tells them nothing
+   * they could not count by hand.
+   *
+   * A Sales Manager is deliberately **not** given it here. Their reach is
+   * their own team, not the company, so they get it one person at a time
+   * through the team branch of `canSeeBookOfBusiness()` — the same shape as
+   * `canManagePerson()`. Adding it to `isSalesManager` in ROLE_PERMISSIONS
+   * would quietly hand them everybody's numbers.
+   */
+  'directory.book',
   /** The access list and the payroll fields on it — admin and HR. */
   'people.view',
   /** Add, remove, suspend, and change roles and permissions. */
@@ -181,6 +199,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     permissions: [
       { key: 'directory.view', label: 'See the directory', detail: 'The company phone book. Everyone but an intern has this already.' },
       { key: 'directory.export', label: 'Print and export the directory', detail: 'The extension sheet for the wall, and the directory as a spreadsheet file.' },
+      { key: 'directory.book',   label: 'See a colleague’s book of business', detail: 'How many clients somebody owns and how many of their loads are open. Everyone sees their own; a Sales Manager sees their team’s without this.' },
       { key: 'people.view',    label: 'See the access list', detail: 'Settings → People, including legal names, birthdays and personal addresses.' },
       { key: 'people.manage',  label: 'Manage people',     detail: 'Add and remove people, suspend them, and change roles and permissions.' },
     ],
@@ -277,6 +296,10 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     // The extension sheet on the wall by the phones is dispatch's, and they
     // are the ones who notice first when a number on it is wrong.
     'directory.export',
+    // Dispatch already sees every load and every client; the book-of-business
+    // panel only saves them counting. It is how they decide who has room for
+    // the next one.
+    'directory.book',
   ],
 
   // Finance: every record, and the paperwork that bills for it.
@@ -284,6 +307,9 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     ...BASE_PERMISSIONS,
     'orders.viewAll', 'clients.viewAll', 'shippers.viewAll', 'consignees.viewAll',
     'orders.bol', 'orders.invoice',
+    // Same reasoning as dispatch: finance sees every load already, and "how
+    // much is still open against this broker" is a question they get asked.
+    'directory.book',
   ],
 
   // HR: the access list and the payroll fields on it, on top of an ordinary

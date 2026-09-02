@@ -479,6 +479,37 @@ email, full legal name and start date are never on it, and neither is anyone
 whose access has been suspended — except for Admins and HR, who see them marked
 as suspended because doing something about it is their job.
 
+### How much work someone is carrying
+
+Clicking a person opens their own page. Near the top of it, some readers see a
+**Book of business** box with two numbers in it: how many **clients** that
+person owns, and how many of their **loads are still open** — open meaning
+anything that is not completed and not cancelled.
+
+Both numbers are buttons. Clicking one opens the Clients or Orders list already
+narrowed to that person, with a line at the top saying whose records are showing
+and a link to put the whole list back. That is the point of the box: the number
+tells you how busy somebody is, and the click tells you what with.
+
+**Who sees it.** Admins, dispatchers and finance see it on everybody. A Sales
+Manager sees it on the people on the team they lead in Settings → Teams, and on
+nobody else. Everybody sees their own, on their own page. A broker looking at a
+colleague sees no box at all — not an empty one.
+
+Two things the numbers deliberately leave out, both said on the page itself:
+
+- **Records owned by a work group are not counted.** A work group exists so a
+  book can belong to several people at once, so counting it would credit the
+  same clients to each of them and make the numbers impossible to compare. If
+  somebody's figures look far too low, check the **Work groups** box further
+  down their page — that is usually the answer.
+- **Loads under a load** — the suborders on a split shipment — are not counted
+  separately. One piece of work is one load.
+
+You only ever count what you could already open. A Sales Manager looking at one
+of their people sees that person's whole book, because they can see all of it
+anyway; nothing here shows anyone a record they could not have opened directly.
+
 ### Printing the extension sheet, and the spreadsheet
 
 Just under the count of how many people are showing, **Admins, HR and

@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
-  ArrowLeft, AtSign, Building2, Cake, CalendarDays, ChevronRight, Hash, IdCard,
-  Mail, MapPin, MessageSquare, Phone, Smartphone, UserRound, Users, UsersRound,
+  ArrowLeft, AtSign, Briefcase, Building2, Cake, CalendarDays, ChevronRight, Hash,
+  IdCard, Mail, MapPin, MessageSquare, Phone, Smartphone, Truck, UserRound, Users,
+  UsersRound,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { can, canSeeDirectory } from '@/lib/accessControl';
-import { listDirectory, type DirectoryPerson } from '@/lib/directory';
+import { can, canSeeBookOfBusiness, canSeeDirectory } from '@/lib/accessControl';
+import { fetchBookOfBusiness, listDirectory, type DirectoryPerson } from '@/lib/directory';
+import type { BookOfBusiness } from '@/lib/bookOfBusiness';
 import { buildPersonProfile, personEmailFromParam, personHref } from '@/lib/directoryProfile';
 import { listSites } from '@/lib/sites';
 import { listTeams } from '@/lib/teams';
@@ -148,6 +150,54 @@ function GroupMembers({ others, unnamed }: { others: DirectoryPerson[]; unnamed:
   );
 }
 
+/**
+ * One figure from somebody's book, as a doorway rather than a number.
+ *
+ * The count is the smaller half of what this is for: a manager reading "34
+ * open loads" wants to know *which* thirty-four, and before this the only way
+ * to get there was to open Orders and search for a name that is not on the
+ * load. The tile is the link.
+ *
+ * `href` is null for a reader who may not open that section at all, which is a
+ * combination roles do not normally produce — an individually granted
+ * permission can make one — and it draws as a plain figure rather than a link
+ * that leads to an empty screen.
+ */
+function StatTile({
+  Icon, label, value, href, hint,
+}: {
+  Icon: typeof Briefcase;
+  label: string;
+  value: number | null;
+  href: string | null;
+  hint: string;
+}) {
+  const body = (
+    <>
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+        <Icon size={13} className="text-gray-400" />
+        {label}
+      </div>
+      <div className="mt-1 text-2xl font-bold text-gray-900 group-hover:text-brand-700">
+        {value === null ? '—' : value.toLocaleString()}
+      </div>
+      <div className="mt-0.5 text-xs text-gray-400">{hint}</div>
+    </>
+  );
+
+  if (!href) {
+    return <div className="rounded-lg border border-gray-200 p-3">{body}</div>;
+  }
+  return (
+    <Link
+      href={href}
+      className="group rounded-lg border border-gray-200 p-3 transition hover:border-brand-300 hover:bg-brand-50/50"
+    >
+      {body}
+    </Link>
+  );
+}
+
 export default function PersonPage() {
   // Dates follow the company setting, like every other date in the app.
   const { formatCalendarDate } = useDateFormatters();
@@ -215,6 +265,50 @@ export default function PersonPage() {
     () => buildPersonProfile(email, people, teams, sites, allGroups),
     [email, people, teams, sites, allGroups],
   );
+
+  /*
+    How much work this person is carrying. Loaded separately from everything
+    above, and only for the readers entitled to it:
+
+    - your own, always — these are the loads your own dashboard already counts;
+    - admin, dispatch and finance, who see every load and every client anyway;
+    - the Sales Manager of the team this person is on, and nobody else's.
+
+    The check here is only so the page does not ask a question it knows the
+    answer to. /api/directory/book is where it is enforced, and lib/
+    bookOfBusiness.ts filters record by record on top of that, so a widened
+    permission cannot quietly turn this into a way to count somebody else's
+    book.
+  */
+  const showBook = !!found && canSeeBookOfBusiness(
+    profile,
+    { uid: user?.uid, email: user?.email },
+    { uid: found.person.uid, email: found.person.email },
+  );
+  const isSelf = !!found && !!user
+    && (found.person.uid === user.uid || found.person.email === (user.email ?? '').toLowerCase());
+
+  const [book, setBook] = useState<BookOfBusiness | null>(null);
+  const [bookError, setBookError] = useState('');
+  const bookEmail = showBook ? found!.person.email : '';
+
+  useEffect(() => {
+    if (!bookEmail) { setBook(null); setBookError(''); return; }
+
+    let live = true;
+    setBook(null);
+    setBookError('');
+    fetchBookOfBusiness(bookEmail)
+      .then((b) => { if (live) setBook(b); })
+      // Kept inside the panel rather than failing the page. Counting a book
+      // reads orders and parties, and a phone number should not become
+      // unreachable because that query did not run.
+      .catch((e: unknown) => {
+        if (live) setBookError(e instanceof Error ? e.message : 'Could not count their records.');
+      });
+
+    return () => { live = false; };
+  }, [bookEmail]);
 
   const back = (
     <Link
@@ -453,6 +547,80 @@ export default function PersonPage() {
           </div>
         </Panel>
       </div>
+
+      {/* What this person is carrying, and the way into it.
+
+          Two numbers rather than a list: "how busy is Maria" is the question a
+          manager actually opens a directory page with, and the answer they need
+          next is which loads — so each figure is the link to that filtered
+          list rather than a figure to be acted on somewhere else.
+
+          Deliberately not on the directory cards. The index draws everybody at
+          once, and a count per card would be one query per person on a screen
+          that exists to be scanned. */}
+      {showBook && (
+        <div className="mt-4">
+          <Panel title="Book of business">
+            {bookError ? (
+              <p className="px-1 text-xs text-amber-600">{bookError}</p>
+            ) : (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <StatTile
+                    Icon={Briefcase}
+                    label="Clients"
+                    value={book?.clients ?? null}
+                    href={
+                      can(profile, 'clients.view')
+                        ? `/dashboard/clients?owner=${encodeURIComponent(person.email)}`
+                        : null
+                    }
+                    hint={book ? 'See their clients →' : 'Counting…'}
+                  />
+                  {/* The hint deliberately does not promise the open ones.
+                      The Orders list filters by one status at a time and has
+                      no "open" tab — adding one would mean a
+                      `status in [...]` query that the privileged path cannot
+                      cursor-page — so the link says it lands on all of them.
+                      The status tabs there are narrowed to this person, which
+                      is where the breakdown is. */}
+                  <StatTile
+                    Icon={Truck}
+                    label="Open loads"
+                    value={book?.openLoads ?? null}
+                    href={
+                      can(profile, 'orders.view')
+                        ? `/dashboard/orders?owner=${encodeURIComponent(person.email)}`
+                        : null
+                    }
+                    hint={book ? 'See all their loads →' : 'Counting…'}
+                  />
+                </div>
+
+                {/* Said on the page rather than left to be worked out. A
+                    broker whose book sits in a work group would otherwise read
+                    as carrying nothing, and somebody would draw a conclusion
+                    from it. */}
+                <p className="mt-3 px-1 text-xs text-gray-400">
+                  Counted from records in {isSelf ? 'your' : 'their'} own name:{' '}
+                  {isSelf ? 'clients you own' : 'clients they own'}, and loads
+                  either assigned to {isSelf ? 'you' : 'them'} or booked for one
+                  of those clients. Open means anything not completed or
+                  cancelled — the loads link opens all of them, with a tab per
+                  status. Records owned by a{' '}
+                  <span className="whitespace-nowrap">work group</span> belong to
+                  everyone in it and are not counted here.
+                </p>
+                <p className="mt-1 px-1 text-xs text-gray-400">
+                  {isSelf
+                    ? 'Only you, admins, dispatch, finance and the manager of your team can see this.'
+                    : 'Only they, admins, dispatch, finance and the manager of their team can see this.'}
+                </p>
+              </>
+            )}
+          </Panel>
+        </div>
+      )}
 
       {team && (
         <div className="mt-4">

@@ -20,6 +20,7 @@ import { ORDER_ACCESS_REQUESTS_COLLECTION, isGrantLive } from '@/types/orderAcce
 import type { OwnerContact } from '@/types/order';
 import { ownerLabel } from './partyAccess';
 import type { Caller } from './partyAccess';
+import type { OwnerFilter } from './ownerFilter';
 
 const COL = 'orders';
 
@@ -90,6 +91,16 @@ export interface OrderQuery {
   pickupFrom?: number;
   /** Trims each order to the fields that shape of screen actually reads. */
   fields?: 'list' | 'analytics' | 'full';
+  /**
+   * Only the loads one colleague holds — what the Orders list shows when it is
+   * opened from somebody's book of business.
+   *
+   * Resolved from an email by the route, never taken as a uid from the browser;
+   * see lib/ownerFilter.ts. It narrows what the caller can already see and so
+   * discloses nothing on its own: every row it produces is one they would have
+   * been shown anyway, and who owns a load is on the load's own page.
+   */
+  owner?: OwnerFilter | null;
 }
 
 /** The four attachment paths an order can carry. */
@@ -130,6 +141,15 @@ export async function listVisibleOrdersPage(
   // a filtered one. The union below is built from ownership queries, which
   // would happily return records to somebody with no business in this section.
   if (!can(caller.profile, 'orders.view')) return { orders: [], cursor: null };
+
+  // Asked for one colleague's loads. Taken before the privileged branch on
+  // purpose: starting from the subject's records is narrower than starting
+  // from the caller's and is the same set whoever is asking, so an admin and
+  // a Sales Manager reading the same page see the same list, minus whatever
+  // the manager could not have opened anyway.
+  if (query.owner) {
+    return pageInMemory(await ordersOwnedBy(caller, query.owner), query, projection);
+  }
 
   if (canSeeAllOrders(caller.profile)) {
     let q: FirebaseFirestore.Query = col;
@@ -202,7 +222,24 @@ export async function listVisibleOrdersPage(
     return toPage(hits, query.limit);
   }
 
-  const all = await unionForCaller(caller);
+  return pageInMemory(await unionForCaller(caller), query, projection);
+}
+
+/**
+ * The tail both in-memory paths share: apply the filters the query could not
+ * push down, find the cursor's place, cut a page, trim it to the projection.
+ *
+ * Used by the ownership union and by the owner filter above. Neither can be
+ * cursor-paged in Firestore — one is a union of four queries, the other a union
+ * of three — and both are bounded by one person's book rather than by the size
+ * of the collection, which is what makes reading the set and slicing it here
+ * the right trade rather than a shortcut.
+ */
+function pageInMemory(
+  all: Record<string, unknown>[],
+  query: OrderQuery,
+  projection: readonly string[] | null,
+): OrderPage {
   const filtered = all.filter((o) => matchesFilters(o, query));
 
   // A cursor naming a row that is no longer in the set — the order was
@@ -219,6 +256,63 @@ export async function listVisibleOrdersPage(
   return projection
     ? { ...page, orders: page.orders.map((o) => trimTo(o, projection)) }
     : page;
+}
+
+/**
+ * The loads one colleague holds, as this caller is entitled to see them.
+ *
+ * Runs whatever the caller's own visibility is, privileged or not, because
+ * starting from the subject's records is both narrower and cheaper than
+ * starting from the caller's: an admin's own set is the whole collection, and
+ * filtering ten thousand orders down to one broker's is not how to answer
+ * "show me Maria's loads".
+ *
+ * The per-record test is then the ordinary one. A viewer sees exactly the
+ * subset of that person's book they could already open — which for the people
+ * who reach this screen is usually all of it, and must stay a test rather than
+ * an assumption.
+ */
+async function ordersOwnedBy(
+  caller: Caller,
+  owner: OwnerFilter,
+): Promise<Record<string, unknown>[]> {
+  const col = adminDb.collection(COL);
+
+  const queries: Promise<FirebaseFirestore.QuerySnapshot>[] = [
+    // Held by address until first sign-in — see assignedToEmails on Party.
+    col.where('assignedToEmails', 'array-contains', owner.email).get(),
+  ];
+  if (owner.uid) {
+    queries.push(
+      col.where('assignedToUids', 'array-contains', owner.uid).get(),
+      // Theirs by owning the client, the second route canSeeOrder() grants.
+      col.where('clientOwnerUids', 'array-contains', owner.uid).get(),
+    );
+  }
+
+  const [snaps, lent] = await Promise.all([
+    Promise.all(queries),
+    // A load this caller holds only by an approved request would otherwise
+    // vanish from a filtered list while sitting in the unfiltered one, which
+    // reads as the filter having lost it. Same grant, same choke point.
+    approvedOrderIds(caller.uid),
+  ]);
+
+  const lentIds = new Set(lent);
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const snap of snaps) {
+    for (const d of snap.docs) {
+      const data = d.data();
+      if (canSeeOrder(data, caller.uid, caller.profile) || lentIds.has(d.id)) {
+        byId.set(d.id, { id: d.id, ...data });
+      }
+    }
+  }
+
+  // Newest first, matching every other order list. Sorted here rather than in
+  // the queries: each branch would need its own composite index to carry an
+  // orderBy, and a union has to be re-sorted afterwards regardless.
+  return [...byId.values()].sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
 }
 
 /**
@@ -250,11 +344,26 @@ export async function listVisibleOrders(
 export async function countVisibleOrdersByStatus(
   caller: Caller,
   statuses: readonly string[],
+  /**
+   * Narrowed to one colleague's loads, matching the list beside the tabs.
+   *
+   * Not optional in practice: a tab reading "Booked 412" over a list of nine
+   * rows is worse than no count at all, because the number is what somebody
+   * reads to decide whether the filter worked.
+   */
+  owner?: OwnerFilter | null,
 ): Promise<Record<string, number>> {
   const col = adminDb.collection(COL);
 
   if (!can(caller.profile, 'orders.view')) {
     return Object.fromEntries(statuses.map((s) => [s, 0]));
+  }
+
+  if (owner) {
+    const owned = (await ordersOwnedBy(caller, owner)).filter((o) => !o.parentOrderId);
+    return Object.fromEntries(
+      statuses.map((s) => [s, owned.filter((o) => o.status === s).length]),
+    );
   }
 
   if (canSeeAllOrders(caller.profile)) {

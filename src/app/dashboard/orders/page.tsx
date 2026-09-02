@@ -9,6 +9,7 @@ import { orderDisplayNumber } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
 import ResizableTh from '@/components/table/ResizableTh';
 import { useColumnWidths, type ColumnWidths } from '@/lib/useColumnWidths';
+import { personHref } from '@/lib/directoryProfile';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 
 const FILTER_TABS: { label: string; value: OrderStatus | 'all' }[] = [
@@ -93,6 +94,18 @@ function OrdersList() {
   const searchParams = useSearchParams();
 
   const applied = (searchParams.get('q') ?? '').trim();
+  /*
+    Set when the list was opened from somebody's book of business on their
+    directory page. An email rather than a uid: that is what the directory
+    links on, it is the only identifier a colleague who has never signed in
+    has, and it keeps a pasted link readable. The server resolves it — see
+    lib/ownerFilter.ts.
+
+    No permission of its own. The filter narrows what this reader can already
+    see, so every row it shows is one the unfiltered list would have shown, and
+    who owns a load is already on the load's own page.
+  */
+  const owner = (searchParams.get('owner') ?? '').trim();
   const filter: OrderStatus | 'all' = isStatus(searchParams.get('status'))
     ? (searchParams.get('status') as OrderStatus)
     : 'all';
@@ -149,6 +162,7 @@ function OrdersList() {
         // Filtered by the server now, so a page of fifty is fifty rows the
         // list will actually show.
         parentOrderId: '',
+        owner: owner || undefined,
       });
       if (mine !== requestId.current) return;
       setOrders((prev) => (after ? [...prev, ...page.orders] : page.orders));
@@ -159,7 +173,7 @@ function OrdersList() {
     } finally {
       if (mine === requestId.current) { setLoading(false); setLoadingMore(false); }
     }
-  }, [filter, applied]);
+  }, [filter, applied, owner]);
 
   // Re-runs when the tab changes, which resets to the first page of that status.
   useEffect(() => { setOrders([]); setCursor(null); void loadPage(null); }, [loadPage]);
@@ -168,8 +182,11 @@ function OrdersList() {
   // reads for the whole row, rather than the ten thousand it took to count
   // them in the browser. Loaded once; they do not change as pages are added.
   useEffect(() => {
-    countOrdersByStatus().then(setCounts).catch(() => setCounts(null));
-  }, []);
+    // Narrowed with the list. A tab reading "Booked 412" over nine rows is
+    // worse than no number, because the count is what tells somebody whether
+    // the filter took effect.
+    countOrdersByStatus(owner || undefined).then(setCounts).catch(() => setCounts(null));
+  }, [owner]);
 
   const visible = orders;
   const totalLabel = counts
@@ -182,7 +199,9 @@ function OrdersList() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{totalLabel} total orders</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {totalLabel} {owner ? 'of their orders' : 'total orders'}
+          </p>
         </div>
         <Link
           href="/dashboard/orders/new"
@@ -191,6 +210,29 @@ function OrdersList() {
           + New Order
         </Link>
       </div>
+
+      {/* Says whose loads these are. Without it a filtered list looks like the
+          whole company's book and simply happens to be short — and the tab
+          counts, which are narrowed too, would look wrong rather than scoped.
+          The address is shown rather than a name: it is what the link carries,
+          and resolving it would mean loading the directory to label one line. */}
+      {owner && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-900">
+          <span>
+            Only the loads held by{' '}
+            <Link href={personHref(owner)} className="font-medium underline">
+              {owner}
+            </Link>
+            {' '}— assigned to them, or on a client they own.
+          </span>
+          <button
+            onClick={() => setParam('owner', '', '')}
+            className="font-medium underline hover:no-underline"
+          >
+            Show all orders
+          </button>
+        </div>
+      )}
 
       {/* Search */}
       <div className="mb-4">
@@ -272,10 +314,19 @@ function OrdersList() {
             </>
           ) : (
             <>
-              <p className="text-gray-400 text-sm">No orders found.</p>
-              <Link href="/dashboard/orders/new" className="mt-3 inline-block text-sm text-brand-600 hover:underline">
-                Create your first order →
-              </Link>
+              {/* "Create your first order" is the wrong offer when the list is
+                  filtered to somebody else — the reader is not missing orders,
+                  this colleague is not holding any. */}
+              <p className="text-gray-400 text-sm">
+                {owner
+                  ? `${owner} holds no loads you can see${filter !== 'all' ? ' in this tab' : ''}.`
+                  : 'No orders found.'}
+              </p>
+              {!owner && (
+                <Link href="/dashboard/orders/new" className="mt-3 inline-block text-sm text-brand-600 hover:underline">
+                  Create your first order →
+                </Link>
+              )}
             </>
           )}
         </div>

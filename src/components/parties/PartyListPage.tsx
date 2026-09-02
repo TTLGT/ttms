@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { listPartiesPage, countParties } from '@/lib/parties';
 import { useAuth } from '@/context/AuthContext';
 import { viewAllPermission } from '@/lib/accessControl';
+import { personHref } from '@/lib/directoryProfile';
 import { partyDisplayName, ROLE_LABEL } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
 
@@ -49,6 +50,16 @@ function PartyList({ role, title, blurb }: Props) {
 
   const search   = searchParams.get('q') ?? '';
   const mineOnly = searchParams.get('mine') === '1';
+  /*
+    Set when the screen was opened from somebody's book of business on their
+    directory page. An email rather than a uid, because that is what the
+    directory links on and the only identifier a colleague who has never signed
+    in has — the server resolves it. See lib/ownerFilter.ts.
+
+    It narrows what this reader can already see, so it needs no permission of
+    its own: every row it produces is one the unfiltered list would have shown.
+  */
+  const owner = (searchParams.get('owner') ?? '').trim();
 
   const setParam = useCallback((key: string, value: string, fallback: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -85,6 +96,7 @@ function PartyList({ role, title, blurb }: Props) {
     try {
       const page = await listPartiesPage({
         limit: PAGE_SIZE, cursor: after, role, search: applied || undefined,
+        owner: owner || undefined,
       });
       if (mine !== requestId.current) return;
       setAll((prev) => (after ? [...prev, ...page.parties] : page.parties));
@@ -95,11 +107,13 @@ function PartyList({ role, title, blurb }: Props) {
     } finally {
       if (mine === requestId.current) { setLoad(false); setLoadingMore(false); }
     }
-  }, [user, role, applied]);
+  }, [user, role, applied, owner]);
 
   useEffect(() => { setAll([]); setCursor(null); void loadPage(null); }, [loadPage]);
 
-  useEffect(() => { countParties(role).then(setTotal).catch(() => setTotal(null)); }, [role]);
+  useEffect(() => {
+    countParties(role, owner || undefined).then(setTotal).catch(() => setTotal(null));
+  }, [role, owner]);
 
   /*
     "Only mine" still filters the loaded page rather than the query. Ownership
@@ -114,13 +128,15 @@ function PartyList({ role, title, blurb }: Props) {
     [all, mineOnly, user],
   );
 
+  const clearOwner = () => setParam('owner', '', '');
+
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {total === null ? '…' : total.toLocaleString()} total · {blurb}
+            {total === null ? '…' : total.toLocaleString()}{owner ? ' owned' : ' total'} · {blurb}
           </p>
         </div>
         <Link
@@ -131,6 +147,25 @@ function PartyList({ role, title, blurb }: Props) {
         </Link>
       </div>
 
+      {/* Says what is being looked at, because the list otherwise looks like
+          the whole company's and simply happens to be short. The address is
+          shown rather than a name: it is what the link carries, and resolving
+          it to a name here would mean loading the directory to label one row. */}
+      {owner && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-900">
+          <span>
+            Only the {title.toLowerCase()} owned by{' '}
+            <Link href={personHref(owner)} className="font-medium underline">
+              {owner}
+            </Link>
+            .
+          </span>
+          <button onClick={clearOwner} className="font-medium underline hover:no-underline">
+            Show all {title.toLowerCase()}
+          </button>
+        </div>
+      )}
+
       <div className="mb-4 flex items-center gap-4">
         <input
           type="text"
@@ -140,8 +175,10 @@ function PartyList({ role, title, blurb }: Props) {
           className="w-96 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
         />
         {/* Only worth offering to somebody who is seeing everybody's records
-            anyway — for a broker the whole list is already only theirs. */}
-        {can(viewAllPermission(role)) && (
+            anyway — for a broker the whole list is already only theirs. Hidden
+            while an owner filter is on: "mine" and "Maria's" are two answers to
+            the same question, and ticking both would silently show neither. */}
+        {!owner && can(viewAllPermission(role)) && (
           <label className="flex items-center gap-2 text-sm text-gray-600">
             <input
               type="checkbox"
@@ -162,11 +199,13 @@ function PartyList({ role, title, blurb }: Props) {
       ) : visible.length === 0 ? (
         <div className="text-center py-20">
           <p className="text-gray-400 text-sm">
-            {search
-              ? `No ${title.toLowerCase()} match your search.`
-              : `No ${title.toLowerCase()} yet. They are created automatically the first time you name one on an order.`}
+            {owner
+              ? `${owner} owns no ${title.toLowerCase()} you can see.`
+              : search
+                ? `No ${title.toLowerCase()} match your search.`
+                : `No ${title.toLowerCase()} yet. They are created automatically the first time you name one on an order.`}
           </p>
-          {!search && (
+          {!search && !owner && (
             <Link href={`/dashboard/parties/new?role=${role}`} className="mt-3 inline-block text-sm text-brand-600 hover:underline">
               Add one manually →
             </Link>

@@ -404,6 +404,9 @@ page boundary and be served twice or skipped.
 | orders   | `parentOrderId` ASC + `invoiceStoragePath` ASC | Documents: invoices |
 | orders   | `parentOrderId` ASC + `podStoragePath` ASC | Documents: proofs of delivery |
 | orders   | `parentOrderId` ASC + `status` ASC | Dashboard active / pending / unsigned / missing-document counts |
+| orders   | `parentOrderId` ASC + `status` ASC + `assignedToUids` ARRAY | Book of business: one person's open loads, assigned to them |
+| orders   | `parentOrderId` ASC + `status` ASC + `clientOwnerUids` ARRAY | Book of business: their open loads reached through a client they own |
+| orders   | `parentOrderId` ASC + `status` ASC + `assignedToEmails` ARRAY | The same, for somebody set up who has never signed in |
 | orders   | `parentOrderId` ASC + `status` ASC + `createdAt` DESC | The orders list with a status tab selected |
 | orders   | `parentOrderId` ASC + `status` ASC + `deliveredAt` DESC | Dashboard "delivered today" |
 | orders   | `parentOrderId` ASC + `status` ASC + `updatedAt` DESC | Dashboard "stale quotes" |
@@ -413,7 +416,14 @@ page boundary and be served twice or skipped.
 
 Anything not listed is single-field and automatic: the status-tab `count()`s,
 carrier DOT/MC search, the carrier `count()`s, the analytics pickup-date range,
-and the `array-contains` queries behind the broker visibility union.
+and the `array-contains` queries behind the broker visibility union — including
+the ones behind `?owner=` on the Orders and Clients lists, which filter one
+person's records in memory for exactly that reason.
+
+The three book-of-business rows are the only ones on this list a *page* rather
+than a list screen needs. Without them the two figures on a directory page fail
+outright and the panel shows an error; everything else on that page still
+renders.
 
 ### How the Orders search box works
 

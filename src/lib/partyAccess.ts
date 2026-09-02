@@ -9,6 +9,7 @@ import {
   type RoleFlags,
 } from './accessControl';
 import { inChunks } from './teamScope';
+import type { OwnerFilter } from './ownerFilter';
 
 export interface Caller {
   uid: string;
@@ -102,6 +103,16 @@ export interface PartyQuery {
   role?: string;
   /** Name prefix, matched against nameKey. */
   search?: string;
+  /**
+   * Only the records one colleague owns — what the Clients list shows when it
+   * is opened from somebody's book of business.
+   *
+   * Resolved from an email by the route rather than accepted as a uid; see
+   * lib/ownerFilter.ts. Like the order-side twin it only narrows what this
+   * caller could already see, so it needs no permission of its own — a party's
+   * owners are on its own page.
+   */
+  owner?: OwnerFilter | null;
 }
 
 export interface PartyPage {
@@ -139,6 +150,14 @@ export async function listVisiblePartiesPage(
   // be handed every unowned party in the company.
   if (!canOpenParty(caller.profile, query.role ? [query.role] : undefined)) {
     return { parties: [], cursor: null };
+  }
+
+  // Asked for one colleague's records. Taken before the wholesale branch on
+  // purpose: two `array-contains` filters cannot share a query, so an owner and
+  // a role cannot both be pushed down — and starting from the owner is the one
+  // that narrows, where starting from the role is seven thousand documents.
+  if (query.owner) {
+    return pagePartiesInMemory(await partiesOwnedBy(caller, query.owner), query);
   }
 
   /*
@@ -181,7 +200,18 @@ export async function listVisiblePartiesPage(
     };
   }
 
-  const all = await listVisibleParties(caller, query.role);
+  return pagePartiesInMemory(await listVisibleParties(caller, query.role), query);
+}
+
+/**
+ * The tail both in-memory paths share: apply the role and the name prefix, find
+ * the cursor's place, cut a page.
+ *
+ * Expects `all` already ordered by nameKey, which both callers are — the cursor
+ * is a name rather than a position, so a set that re-sorted between pages would
+ * silently skip records.
+ */
+function pagePartiesInMemory(all: VisibleParty[], query: PartyQuery): PartyPage {
   const term = (query.search ?? '').trim().toLowerCase();
   const matching = all.filter((p) => {
     if (query.role && !(p.roles ?? []).includes(query.role)) return false;
@@ -199,9 +229,75 @@ export async function listVisiblePartiesPage(
   return { parties: page, cursor: page[page.length - 1].nameKey ?? null };
 }
 
-/** How many visible parties hold a role, without fetching them. */
-export async function countVisibleParties(caller: Caller, role?: string): Promise<number> {
+/**
+ * The parties one colleague owns, as this caller is entitled to see them.
+ *
+ * Ownership by name only — `assignedToUids` and the address they are held under
+ * until first sign-in. A work group's records are deliberately not counted as
+ * any one member's: the group exists precisely so a book can belong to several
+ * people, and crediting it to each of them in turn would make "Maria's clients"
+ * mean something different from what the phrase says.
+ *
+ * `assignedToName`, the raw BATS rep name, is also left out. It grants nothing
+ * and resolves to nobody, so a record still carrying only that is unclaimed
+ * rather than somebody's.
+ */
+async function partiesOwnedBy(
+  caller: Caller,
+  owner: OwnerFilter,
+): Promise<VisibleParty[]> {
+  const col = adminDb.collection('parties');
+
+  const queries: Promise<FirebaseFirestore.QuerySnapshot>[] = [
+    col.where('assignedToEmails', 'array-contains', owner.email).get(),
+  ];
+  if (owner.uid) {
+    queries.push(col.where('assignedToUids', 'array-contains', owner.uid).get());
+  }
+
+  const [snaps, lent] = await Promise.all([
+    Promise.all(queries),
+    // A record lent by a live approval would otherwise disappear from a
+    // filtered list while sitting in the unfiltered one, which reads as the
+    // filter having lost it rather than as the grant not applying.
+    approvedPartyIds(caller.uid),
+  ]);
+
+  const lentIds = new Set(lent);
+  const byId = new Map<string, VisibleParty>();
+  for (const snap of snaps) {
+    for (const d of snap.docs) {
+      const data = d.data();
+      // The ordinary per-record test, not an assumption about who is asking.
+      // For the readers who reach this screen it removes nothing; it is here so
+      // that stays true when somebody is given one more permission.
+      if (!canSeeParty(data, caller.uid, caller.profile) && !lentIds.has(d.id)) continue;
+      if (!canOpenParty(caller.profile, data.roles)) continue;
+      byId.set(d.id, toVisibleParty(d.id, data));
+    }
+  }
+
+  return [...byId.values()].sort((a, b) => a.nameKey.localeCompare(b.nameKey));
+}
+
+/**
+ * How many visible parties hold a role, without fetching them.
+ *
+ * `owner` narrows it to one colleague's records, so the total in the heading
+ * agrees with the list under it when the screen was opened from somebody's
+ * book of business.
+ */
+export async function countVisibleParties(
+  caller: Caller,
+  role?: string,
+  owner?: OwnerFilter | null,
+): Promise<number> {
   if (!canOpenParty(caller.profile, role ? [role] : undefined)) return 0;
+
+  if (owner) {
+    const owned = await partiesOwnedBy(caller, owner);
+    return role ? owned.filter((p) => (p.roles ?? []).includes(role)).length : owned.length;
+  }
 
   const seesAll = viewAllPartyRoles(caller.profile);
   if (canSeeEveryParty(caller.profile)

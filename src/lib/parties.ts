@@ -92,6 +92,11 @@ export interface PartyQuery {
   role?: PartyRole;
   /** Name prefix. Matched by the server, not in the browser. */
   search?: string;
+  /**
+   * One colleague's records, named by their email — the identifier the
+   * directory links on. Resolved to a uid server-side; see lib/ownerFilter.ts.
+   */
+  owner?: string;
 }
 
 export interface PartyPage {
@@ -111,14 +116,22 @@ export async function listPartiesPage(q: PartyQuery = {}): Promise<PartyPage> {
   if (q.cursor) p.set('cursor', q.cursor);
   if (q.role)   p.set('role', q.role);
   if (q.search) p.set('search', q.search);
+  if (q.owner)  p.set('owner', q.owner);
   const page = await apiGet<{ parties: Party[]; cursor: string | null }>(`/api/parties?${p}`);
   return { parties: page.parties ?? [], cursor: page.cursor ?? null };
 }
 
-/** How many parties hold a role, without fetching them. */
-export async function countParties(role?: PartyRole): Promise<number> {
-  const qs = role ? `&role=${encodeURIComponent(role)}` : '';
-  const { count } = await apiGet<{ count: number }>(`/api/parties?count=1${qs}`);
+/**
+ * How many parties hold a role, without fetching them.
+ *
+ * `owner` narrows it to one colleague's, so the heading agrees with the list
+ * when the screen was opened from somebody's book of business.
+ */
+export async function countParties(role?: PartyRole, owner?: string): Promise<number> {
+  const p = new URLSearchParams({ count: '1' });
+  if (role)  p.set('role', role);
+  if (owner) p.set('owner', owner);
+  const { count } = await apiGet<{ count: number }>(`/api/parties?${p}`);
   return count;
 }
 

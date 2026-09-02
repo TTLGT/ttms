@@ -1,8 +1,12 @@
+import { auth } from './firebase';
 import { canSeeDirectory, type RoleFlags } from './accessControl';
 import { ROLE_ORDER, type RoleFlagSet } from '@/types/permission';
 import { listAllowedUsers } from './allowedUsers';
 import { listUserProfiles } from './userProfiles';
 import type { OtherPhoneRegion } from './phone';
+// Type only, so nothing from the Admin SDK reaches the browser bundle — the
+// same arrangement lib/orders.ts has with lib/orderSummary.ts.
+import type { BookOfBusiness } from './bookOfBusiness';
 
 /**
  * The company directory — who works here and how to reach them.
@@ -177,4 +181,29 @@ export async function listDirectory(
     (a, b) =>
       a.displayName.localeCompare(b.displayName) || a.email.localeCompare(b.email),
   );
+}
+
+/**
+ * How much work one colleague is carrying: clients owned, loads still open.
+ *
+ * Unlike everything else in this file it is a server call, because it is a
+ * question about records rather than about people. Counting a book means
+ * reading orders and parties, and both are filtered server-side — the browser
+ * is never sent the rows, only the two totals it may be told.
+ *
+ * The route refuses with 403 for a reader who may not ask, which is why the
+ * page checks `canSeeBookOfBusiness()` before calling: the check here is the
+ * enforcement, the one on the page is what stops it asking a question it
+ * already knows the answer to.
+ */
+export async function fetchBookOfBusiness(email: string): Promise<BookOfBusiness> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not signed in');
+
+  const res = await fetch(`/api/directory/book?email=${encodeURIComponent(email)}`, {
+    headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+  return body as BookOfBusiness;
 }

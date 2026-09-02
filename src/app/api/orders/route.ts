@@ -9,6 +9,7 @@ import {
   type DocumentField,
   type OrderQuery,
 } from '@/lib/orderAccess';
+import { resolveOwnerFilter } from '@/lib/ownerFilter';
 import { ORDER_STATUSES } from '@/types/order';
 
 /**
@@ -30,7 +31,16 @@ import { ORDER_STATUSES } from '@/types/order';
  *   ?status=booked          one status
  *   ?search=morris          orders findable by that text — see orderSearchTerms
  *   ?carrierId= / ?clientId= / ?parentOrderId=   the orders belonging to one record
+ *   ?owner=maria@…          the loads one colleague holds
  *   ?counts=1               orders per status, instead of the orders themselves
+ *
+ * `owner` is an **email**, because that is how the directory names a person and
+ * the only identifier a colleague who has never signed in has. It is resolved
+ * to a uid here rather than accepted as one — see lib/ownerFilter.ts. The
+ * filter needs no permission of its own: it narrows the caller's own visible
+ * set, so every row it returns is one they were already entitled to, and an
+ * address that belongs to nobody answers 404 rather than quietly widening back
+ * to the unfiltered list.
  *
  * With no `limit` it still returns everything, because analytics genuinely
  * aggregates over the whole set. Nothing that merely lists orders should.
@@ -40,8 +50,16 @@ export async function GET(req: NextRequest) {
     const caller = await requireCaller(req);
     const p = req.nextUrl.searchParams;
 
+    // Resolved before anything else reads it, so a bad address fails the same
+    // way for the counts and for the list rather than in one of the two.
+    const ownerEmail = (p.get('owner') ?? '').trim();
+    const owner = ownerEmail ? await resolveOwnerFilter(ownerEmail) : null;
+    if (ownerEmail && !owner) {
+      return NextResponse.json({ error: 'No such person' }, { status: 404 });
+    }
+
     if (p.get('counts')) {
-      const counts = await countVisibleOrdersByStatus(caller, ORDER_STATUSES);
+      const counts = await countVisibleOrdersByStatus(caller, ORDER_STATUSES, owner);
       return NextResponse.json({ counts });
     }
 
@@ -72,6 +90,7 @@ export async function GET(req: NextRequest) {
       parentOrderId: p.has('parentOrderId') ? (p.get('parentOrderId') ?? '') : undefined,
       pickupFrom:    Number(p.get('pickupFrom')) > 0 ? Number(p.get('pickupFrom')) : undefined,
       fields:        (['list', 'analytics'] as const).find((f) => f === p.get('fields')) ?? 'full',
+      owner,
     };
 
     if (!limit) {
