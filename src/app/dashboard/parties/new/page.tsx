@@ -3,67 +3,42 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createParty, PartyOwnedError } from '@/lib/parties';
-import { PARTY_ROLES, ROLE_LABEL, BLANK_ADDRESS } from '@/types/party';
-import type { Address } from '@/types/order';
-import type { PartyRole } from '@/types/party';
-import LeadSourceField from '@/components/orders/LeadSourceField';
+import { ROLE_LABEL } from '@/types/party';
+import type { Party, PartyRole } from '@/types/party';
+import PartyFields, { blankPartyDraft, validatePartyDraft } from '@/components/parties/PartyFields';
+import type { PartyDraft, PartyField } from '@/components/parties/PartyFields';
 
-const US_STATES = [
-  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
-  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
-  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
-  'VA','WA','WV','WI','WY',
-];
-
-function AddressFields({ label, value, onChange }: {
-  label: string; value: Address; onChange: (a: Address) => void;
-}) {
-  const set = (k: keyof Address) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    onChange({ ...value, [k]: e.target.value });
-  return (
-    <div>
-      <p className="text-sm font-semibold text-gray-700 mb-3">{label}</p>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2">
-          <input placeholder="Street" value={value.street} onChange={set('street')}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-        </div>
-        <input placeholder="City" value={value.city} onChange={set('city')}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-        <select value={value.state} onChange={set('state')}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
-          <option value="">State</option>
-          {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <input placeholder="ZIP" value={value.zip} onChange={set('zip')}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-      </div>
-    </div>
-  );
-}
-
+/**
+ * The standalone way in to a new client, shipper or consignee.
+ *
+ * Renders the same PartyFields as the quick-add dialog on the order form and
+ * runs the same validatePartyDraft, so a record made here and a record made
+ * mid-order are the same record. They used to differ completely — the order
+ * form asked for a name and nothing else.
+ */
 function NewPartyForm() {
   const router = useRouter();
   const params = useSearchParams();
   const initialRole = (params.get('role') as PartyRole) ?? 'client';
 
-  const [companyName, setCompanyName] = useState('');
-  const [contactName, setContactName] = useState('');
-  const [phone, setPhone]             = useState('');
-  const [email, setEmail]             = useState('');
-  const [address, setAddress]         = useState<Address>(BLANK_ADDRESS);
-  const [roles, setRoles]             = useState<PartyRole[]>([initialRole]);
-  const [sourceId, setSourceId]       = useState<string | null>(null);
-  const [notes, setNotes]             = useState('');
-  const [saving, setSaving]           = useState(false);
-  const [error, setError]             = useState('');
-  const [duplicate, setDuplicate]     = useState<{ ownerName: string } | null>(null);
+  const [draft, setDraft]   = useState<PartyDraft>(() => blankPartyDraft(initialRole));
+  const [errors, setErrors] = useState<Partial<Record<PartyField, string>>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState('');
+  const [duplicate, setDuplicate] = useState<{ ownerName: string } | null>(null);
 
-  const displayName = companyName.trim() || contactName.trim();
+  const displayName = draft.companyName.trim() || draft.contactName.trim();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!displayName) { setError('Enter a company name or a contact name.'); return; }
+
+    const found = validatePartyDraft(draft);
+    setErrors(found);
+    if (Object.keys(found).length > 0) {
+      setError('Fill in the highlighted fields before saving.');
+      return;
+    }
+
     setError('');
     setDuplicate(null);
     setSaving(true);
@@ -71,16 +46,19 @@ function NewPartyForm() {
       // The duplicate check happens server-side: the clash may be with a record
       // this user is not allowed to see.
       const id = await createParty({
-        companyName: companyName.trim(),
-        contactName: contactName.trim(),
-        phone: phone.trim(),
-        email: email.trim(),
-        address,
-        roles,
+        companyName: draft.companyName.trim(),
+        contactName: draft.contactName.trim(),
+        phone:       draft.phone.trim(),
+        email:       draft.email.trim(),
+        phone2:      draft.phone2.trim(),
+        email2:      draft.email2.trim(),
+        address:     draft.address,
+        roles:       draft.roles,
         // Only meaningful on a client, so it is not sent when the record is
         // being created purely as a shipper or consignee.
-        sourceId: roles.includes('client') ? sourceId : null,
-        notes: notes.trim(),
+        sourceId:    draft.roles.includes('client') ? draft.sourceId : null,
+        notes:       draft.notes.trim(),
+        owners:      { uids: draft.ownerUids, groupIds: draft.ownerGroupIds },
       });
       router.push(`/dashboard/parties/${id}`);
     } catch (err: unknown) {
@@ -93,6 +71,11 @@ function NewPartyForm() {
     }
   }
 
+  /** The phone lookup found this one already on file — open it instead. */
+  function useExisting(party: Party) {
+    router.push(`/dashboard/parties/${party.id}`);
+  }
+
   return (
     <div className="p-8 max-w-3xl">
       <div className="mb-6">
@@ -101,73 +84,19 @@ function NewPartyForm() {
         </button>
         <h1 className="text-2xl font-bold text-gray-900">New {ROLE_LABEL[initialRole]}</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          One record serves every role — tick more than one if this company both ships and receives.
+          Everything except the second phone, second email and comments is required — this record
+          is what agreements and load confirmations are addressed to.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Company name</label>
-              <input value={companyName} onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="Leave blank for an individual"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Contact name</label>
-              <input value={contactName} onChange={(e) => setContactName(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-            </div>
-          </div>
-
-          <div>
-            <p className="text-sm font-semibold text-gray-700 mb-2">Roles</p>
-            <div className="flex gap-4">
-              {PARTY_ROLES.map((r) => (
-                <label key={r} className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={roles.includes(r)}
-                    onChange={(e) => setRoles((prev) =>
-                      e.target.checked ? [...prev, r] : prev.filter((x) => x !== r)
-                    )}
-                  />
-                  {ROLE_LABEL[r]}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <AddressFields label="Address" value={address} onChange={setAddress} />
-
-          {/* Only a client has a lead source — a shipper or consignee is a
-              facility on somebody's route, not a lead. The creator owns the
-              record they are about to write, so they may always set it. */}
-          {roles.includes('client') && (
-            <LeadSourceField
-              value={sourceId}
-              onChange={setSourceId}
-              canEdit
-              hint="How this client came to us. Used for attribution reporting."
-            />
-          )}
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-          </div>
+        <section className="bg-white rounded-xl border border-gray-200 p-6">
+          <PartyFields
+            value={draft}
+            onChange={setDraft}
+            errors={errors}
+            onUseExisting={useExisting}
+          />
         </section>
 
         {duplicate && (

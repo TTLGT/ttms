@@ -13,7 +13,7 @@ import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
-import { partyDisplayName } from '@/types/party';
+import { partyDisplayName, ROLE_LABEL } from '@/types/party';
 import { blankCommodityItem, commoditySummary, totalPieces, totalWeightLb } from '@/types/order';
 import type { Address, CommodityItem } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
@@ -54,6 +54,29 @@ function AddressFields({ label, value, onChange }: {
       </div>
     </div>
   );
+}
+
+/**
+ * Names typed into a party box that never became a record.
+ *
+ * The picker binds a name to a real party when one exists and opens the full
+ * add-a-record form when it does not, so an unbound name means somebody typed
+ * something and moved on. The order must not be saved against it: it would
+ * carry a client name with no client behind it — no phone, no email, no
+ * address, and nothing for an agreement to be addressed to.
+ */
+function unboundParties(
+  entries: readonly (readonly [PartyRole, PartySelection])[],
+): string[] {
+  return entries
+    .filter(([, sel]) => !sel.id && sel.name.trim())
+    .map(([role, sel]) => `${ROLE_LABEL[role]} "${sel.name.trim()}"`);
+}
+
+/** The sentence shown when one is found. */
+function unboundMessage(unbound: string[]): string {
+  return `${unbound.join(' and ')} ${unbound.length > 1 ? 'are' : 'is'} not on file yet. `
+    + 'Pick an existing record from the list, or add it with its full details.';
 }
 
 function NewOrderForm() {
@@ -130,6 +153,11 @@ function NewOrderForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
+    const unbound = unboundParties([
+      ['client', client], ['shipper', shipper], ['consignee', consignee],
+    ] as const);
+    if (unbound.length) { setError(unboundMessage(unbound)); return; }
+
     setError('');
     setSaving(true);
     try {

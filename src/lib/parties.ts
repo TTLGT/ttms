@@ -7,7 +7,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { toNameKey, partyDisplayName, BLANK_ADDRESS } from '@/types/party';
+import { toNameKey, partyDisplayName, partyPhoneKeys, toPhoneKey, BLANK_ADDRESS } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
 import type { OwnerEvent } from '@/types/ownerEvent';
 import type { AccessRequest } from '@/types/accessRequest';
@@ -15,12 +15,26 @@ import type { AccessRequest } from '@/types/accessRequest';
 const COL = 'parties';
 
 /**
+ * Extra owners to put on a record at the moment it is created.
+ *
+ * Not part of Party itself because ownership never travels with an ordinary
+ * field patch — see OWNERSHIP_FIELDS below. Creation is the one point where a
+ * broker may name owners directly, because the record is theirs and seconds
+ * old; the route checks what they are allowed to name.
+ */
+export interface NewPartyOwners {
+  uids?: string[];
+  groupIds?: string[];
+}
+
+/**
  * Creates a party through the API so the name collision is checked against
  * records the browser cannot see. Throws `PartyOwnedError` when the name
  * belongs to somebody else.
  */
 export async function createParty(
-  data: Partial<Omit<Party, 'id' | 'createdAt' | 'updatedAt'>> & { companyName: string },
+  data: Partial<Omit<Party, 'id' | 'createdAt' | 'updatedAt'>>
+    & { companyName: string; owners?: NewPartyOwners },
 ): Promise<string> {
   const res = await fetch('/api/parties', {
     method:  'POST',
@@ -150,6 +164,31 @@ export type ResolveVerdict =
  */
 export async function resolvePartyName(name: string): Promise<ResolveVerdict> {
   return apiPost<ResolveVerdict>('/api/parties/resolve', { name });
+}
+
+/**
+ * What a phone number is already on file as.
+ *
+ * `matches` are records this user may use straight away. `owned` says how many
+ * belong to somebody else and names who to ask — the number is on file even
+ * when the caller cannot see whose it is, and treating that as "not found"
+ * would create the duplicate. `searched` is false when the number was too
+ * short to look up at all, which is a different thing from finding nothing.
+ */
+export interface PhoneLookup {
+  matches: Party[];
+  owned: { ownerName: string }[];
+  searched: boolean;
+}
+
+export async function lookupPartiesByPhone(phone: string): Promise<PhoneLookup> {
+  if (!toPhoneKey(phone)) return { matches: [], owned: [], searched: false };
+  const result = await apiPost<PhoneLookup>('/api/parties/by-phone', { phone });
+  return {
+    matches:  result.matches ?? [],
+    owned:    result.owned ?? [],
+    searched: result.searched ?? false,
+  };
 }
 
 export async function requestPartyAccess(
@@ -290,17 +329,36 @@ export async function updateParty(
 ): Promise<void> {
   const patch: Record<string, unknown> = { ...data, updatedAt: serverTimestamp() };
   for (const field of OWNERSHIP_FIELDS) delete patch[field];
-  if (data.companyName !== undefined || data.contactName !== undefined) {
-    // Only half a rename may be sent, and nameKey is derived from both fields,
-    // so the other half is read back first. An unreadable record here means the
-    // update is about to be rejected anyway; falling back to the empty string
-    // keeps that as the rules' decision rather than throwing on the way.
+
+  const touchesPhone = data.phone !== undefined || data.phone2 !== undefined;
+  const touchesName  = data.companyName !== undefined || data.contactName !== undefined;
+
+  // Both derived keys are built from a pair of fields and a patch may carry
+  // only one half of either, so the saved record supplies the rest. Read once
+  // even when a single edit changes a name and a phone together. An unreadable
+  // record means the update is about to be rejected anyway; falling back to the
+  // empty string keeps that as the rules' decision rather than throwing here.
+  let saved: Party | null = null;
+  if (touchesPhone || touchesName) {
     const access = await getParty(partyId);
-    const current = access.status === 'ok' ? access.party : null;
-    const companyName = (data.companyName ?? current?.companyName ?? '').trim();
-    const contactName = (data.contactName ?? current?.contactName ?? '').trim();
+    saved = access.status === 'ok' ? access.party : null;
+  }
+
+  if (touchesPhone) {
+    // Same contract as nameKey: a phone changed without its key rewritten
+    // leaves the party findable only under the number it used to have.
+    patch.phoneKeys = partyPhoneKeys({
+      phone:  data.phone  ?? saved?.phone  ?? '',
+      phone2: data.phone2 ?? saved?.phone2 ?? '',
+    });
+  }
+
+  if (touchesName) {
+    const companyName = (data.companyName ?? saved?.companyName ?? '').trim();
+    const contactName = (data.contactName ?? saved?.contactName ?? '').trim();
     patch.nameKey = toNameKey(companyName || contactName);
   }
+
   await updateDoc(doc(db, COL, partyId), patch);
 }
 
@@ -313,14 +371,21 @@ export async function tagPartyRole(partyId: string, role: PartyRole): Promise<vo
 }
 
 /**
- * Resolves a typed-in name to a usable party, creating one when the name is
- * free. Returns `null` when the name belongs to someone else — the caller
- * should surface the collision rather than silently proceeding.
+ * What a typed-in name means for this user, without creating anything.
+ *
+ * This used to create the party itself when the name was free, from that one
+ * box and nothing else. It no longer does: a client minted from a name alone
+ * has no phone, no email and no address, and the gap only shows up later, when
+ * somebody needs to send it an agreement. The picker opens the full form on
+ * `free` instead — see PartyQuickCreate.
+ *
+ * The role is still tagged onto an existing record here, because using a party
+ * in a new role is not the same as inventing one.
  */
-export async function findOrCreateParty(
+export async function findParty(
   name: string,
   role: PartyRole,
-): Promise<{ party: Party } | { ownedBy: string }> {
+): Promise<{ party: Party } | { ownedBy: string } | { free: true }> {
   const trimmed = name.trim();
   const verdict = await resolvePartyName(trimmed);
 
@@ -329,16 +394,15 @@ export async function findOrCreateParty(
   if (verdict.verdict === 'visible') {
     const party = verdict.party;
     if (!(party.roles ?? []).includes(role)) {
-      await tagPartyRole(party.id, role);
+      // Best effort: a party reached under an approval is not writable by the
+      // requester, and failing to tag a role must not block picking it.
+      await tagPartyRole(party.id, role).catch(() => {});
       party.roles = [...(party.roles ?? []), role];
     }
     return { party };
   }
 
-  const id = await createParty({ companyName: trimmed, roles: [role] });
-  const created = await getParty(id);
-  if (created.status !== 'ok') throw new Error('Party was created but could not be read back');
-  return { party: created.party };
+  return { free: true };
 }
 
 // ── Search ranking ───────────────────────────────────────────────────────────

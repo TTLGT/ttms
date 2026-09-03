@@ -361,6 +361,17 @@ function carrierNameKey(raw) {
     .replace(/\s+/g, ' ');
 }
 
+/**
+ * Mirror of toPhoneKey() in src/types/party.ts. Keep the two identical — the
+ * party phone lookup queries this key, so a party imported without one exists
+ * but cannot be found by the number that rang in.
+ */
+function toPhoneKey(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length < 7) return '';
+  return digits.slice(-10);
+}
+
 function toNameKey(raw) {
   let out = String(raw || '')
     .toLowerCase()
@@ -959,6 +970,10 @@ async function flushParties(reg, now) {
       nameKey:       d.nameKey,
       phone:         d.phone,
       email:         d.email,
+      // The party phone lookup queries this, the same way the search box
+      // queries searchTerms. BATS gives a party one number, so there is only
+      // ever the one key; a second number added in the app joins it there.
+      phoneKeys:     [toPhoneKey(d.phone)].filter(Boolean),
       address:       d.address || { street: '', city: '', state: '', zip: '', country: '' },
       roles:         [...merged].sort(),
       defaultOrigin: d.defaultOrigin,

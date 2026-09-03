@@ -208,6 +208,10 @@ scripts cannot import TypeScript either:
 |---|---|
 | `carrierNameKey()` | `scripts/import-bats.js`, `scripts/backfill-carrier-name-keys.js` |
 
+| `src/types/party.ts` | mirrored in |
+|---|---|
+| `toPhoneKey()` + `partyPhoneKeys()` | `scripts/import-bats.js`, `scripts/backfill-party-phone-keys.js` |
+
 | `src/types/order.ts` | mirrored in |
 |---|---|
 | `orderSearchTerms()` + `searchWords()` | `scripts/backfill-order-search-terms.js`, `scripts/import-bats.js` |
@@ -223,6 +227,13 @@ carrier must write `nameKey` alongside `companyName`** — `createCarrier`,
 `updateCarrier` and both BATS importers do. A carrier saved without one exists
 but cannot be found by name, and one whose name changes without its key being
 rewritten stays findable only under the name it used to have.
+
+`phoneKeys` is what the party phone lookup searches on — the BATS habit of
+typing the number that rang in. **Anything that writes a party's `phone` or
+`phone2` must rewrite it** — `POST /api/parties` computes it, `updateParty`
+rebuilds it from the pair. Same failure mode as the two above: findable only
+under the number it used to have, with nothing failing loudly.
+`scripts/backfill-party-phone-keys.js` fills in the imported records.
 
 Both carry "keep in sync" comments. **After editing either, deploy the rules
 (below) — otherwise only half the change is live.**

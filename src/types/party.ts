@@ -36,6 +36,18 @@ export interface Party {
   contacts: Contact[];
   phone: string;
   email: string;
+  /** A second number for the same contact — a mobile beside a switchboard. */
+  phone2: string;
+  /** A second address for the same contact — an AP inbox beside a personal one. */
+  email2: string;
+  /**
+   * Both phone numbers reduced to `toPhoneKey()`, so a party can be found by
+   * dialling code. Stored as an array because Firestore can only match a whole
+   * field value: `array-contains` is the only way one query reaches either
+   * number. Kept in step by everything that writes a phone — see the note on
+   * toPhoneKey().
+   */
+  phoneKeys: string[];
   address: Address;
   /** Roles this party has been used in on at least one order. */
   roles: PartyRole[];
@@ -90,6 +102,49 @@ export interface Party {
   notes: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+/**
+ * The digits of a phone number, last ten kept.
+ *
+ * Ten because that is a US number without its country code: a broker who types
+ * `469-576-9974` must find the record saved as `+1 (469) 576-9974`, and both
+ * reduce to `4695769974`. Anything shorter than seven digits is not a number
+ * anybody could dial and returns empty, which is what stops a half-typed
+ * search from matching every extension in the database.
+ */
+export function toPhoneKey(raw: string | null | undefined): string {
+  const digits = (raw ?? '').replace(/\D/g, '');
+  if (digits.length < 7) return '';
+  return digits.slice(-10);
+}
+
+/**
+ * The keys a party should be findable by. Both numbers, deduplicated, blanks
+ * dropped.
+ *
+ * ⚠️ Anything that writes a party's phone must write this alongside it —
+ * `createParty` (via /api/parties), `updateParty` and the BATS importers all
+ * do. A party saved without it exists but cannot be found by phone, and
+ * nothing fails loudly. Same contract as `nameKey`, for the same reason.
+ */
+export function partyPhoneKeys(
+  p: Pick<Party, 'phone' | 'phone2'> | { phone?: string; phone2?: string },
+): string[] {
+  return [...new Set([toPhoneKey(p.phone), toPhoneKey(p.phone2)].filter(Boolean))];
+}
+
+/**
+ * True when what somebody typed into a name box is really a phone number.
+ *
+ * Seven digits and almost nothing else: a company name can contain a digit
+ * ("3M", "A1 Freight") but not seven of them, so this never hijacks a name
+ * search. Letters disqualify it outright.
+ */
+export function looksLikePhone(raw: string): boolean {
+  const trimmed = raw.trim();
+  if (!trimmed || /[a-z]/i.test(trimmed)) return false;
+  return trimmed.replace(/\D/g, '').length >= 7;
 }
 
 export const BLANK_CONTACT: Contact = { name: '', email: '', phone: '', role: '' };

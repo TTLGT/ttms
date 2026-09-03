@@ -59,6 +59,9 @@ export interface VisibleParty {
   nameKey: string;
   phone: string;
   email: string;
+  phone2: string;
+  email2: string;
+  phoneKeys: string[];
   address: unknown;
   roles: string[];
   defaultOrigin: unknown;
@@ -80,6 +83,12 @@ export function toVisibleParty(id: string, d: FirebaseFirestore.DocumentData): V
     nameKey:        d.nameKey        ?? '',
     phone:          d.phone          ?? '',
     email:          d.email          ?? '',
+    phone2:         d.phone2         ?? '',
+    email2:         d.email2         ?? '',
+    // Sent so the picker can show which of two records under one switchboard
+    // matched. It is derived from the two numbers above and reveals nothing
+    // they do not.
+    phoneKeys:      d.phoneKeys      ?? [],
     address:        d.address        ?? null,
     roles:          d.roles          ?? [],
     defaultOrigin:  d.defaultOrigin  ?? null,

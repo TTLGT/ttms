@@ -456,6 +456,37 @@ Consequences worth knowing:
   directly; `updateOrder` posts to `/api/orders/{id}/search-terms`, which
   rereads the saved order because a patch is only part of one.
 
+### How the party phone lookup works
+
+A broker takes a call and types the number that rang in — the habit BATS built.
+Firestore can only match a whole field value, so `4695769974` typed against a
+`phone` saved as `+1 (469) 576-9974` matches nothing. Each party therefore
+stores `phoneKeys`: both of its numbers reduced to their last ten digits by
+`toPhoneKey()` in `src/types/party.ts`. The lookup is then one `array-contains`
+query, which needs no composite index — Firestore indexes array fields for
+`array-contains` on its own.
+
+- **An array, not a field, because a party has two numbers.** `phone` and
+  `phone2` both feed it, so either finds the record.
+- **Ten digits, and never a prefix.** Ten is a US number without its country
+  code, so the same person is found however the number was written down. A
+  prefix search would turn the endpoint into a way to walk the customer list an
+  area code at a time, which is exactly what the name endpoint refuses to be;
+  seven digits is the floor and shorter input returns nothing.
+- **Anything that writes a party's phone must refresh it.** `/api/parties`
+  computes it on create; `updateParty` rebuilds it whenever `phone` or `phone2`
+  is in the patch, reading back the half it was not given. A party saved
+  without it exists but cannot be found by phone, and nothing fails loudly —
+  the same contract as `nameKey` and `carrierNameKey`.
+- **The query runs server-side, at `POST /api/parties/by-phone`.** The number
+  may sit on a record the caller cannot see, and answering "not on file" for
+  one of those is how a duplicate of a colleague's client gets made. The route
+  returns the matches they may use and a count of the ones they may not, with
+  the owner's name to go and ask — never the record or its id. Near misses are
+  logged to `partyAccessProbes` with `via: 'phone'`, beside the name probes.
+- Existing parties predate the field; `scripts/backfill-party-phone-keys.js`
+  fills them in (`--dry-run` first).
+
 **Adding an index is about adding a new *way of asking*, not a bigger
 collection.** These sixteen serve the app at any size; a new filter or a new
 sort column is what would need a seventeenth.

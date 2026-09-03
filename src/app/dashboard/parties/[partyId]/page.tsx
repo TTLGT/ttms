@@ -109,6 +109,8 @@ export default function PartyDetailPage() {
   const [contactName, setContactName] = useState('');
   const [phone, setPhone]             = useState('');
   const [email, setEmail]             = useState('');
+  const [phone2, setPhone2]           = useState('');
+  const [email2, setEmail2]           = useState('');
   const [address, setAddress]         = useState<Address>(BLANK_ADDRESS);
   const [defaultOrigin, setOrigin]    = useState<Address>(BLANK_ADDRESS);
   const [defaultDest, setDest]        = useState<Address>(BLANK_ADDRESS);
@@ -169,6 +171,8 @@ export default function PartyDetailPage() {
     setContactName(party.contactName ?? '');
     setPhone(party.phone ?? '');
     setEmail(party.email ?? '');
+    setPhone2(party.phone2 ?? '');
+    setEmail2(party.email2 ?? '');
     setAddress(party.address ?? BLANK_ADDRESS);
     setOrigin(party.defaultOrigin ?? BLANK_ADDRESS);
     setDest(party.defaultDest ?? BLANK_ADDRESS);
@@ -221,6 +225,11 @@ export default function PartyDetailPage() {
         contactName,
         phone,
         email,
+        // Sent even when unchanged so updateParty rebuilds phoneKeys off the
+        // pair. A number edited without its key rewritten leaves the record
+        // findable only under the number it used to have.
+        phone2,
+        email2,
         address,
         defaultOrigin: hasAny(defaultOrigin) ? defaultOrigin : null,
         defaultDest:   hasAny(defaultDest)   ? defaultDest   : null,
@@ -358,6 +367,17 @@ export default function PartyDetailPage() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
               <p className="text-xs text-gray-400 mt-1">Agreements and load confirmations are sent here.</p>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Secondary phone</label>
+              <input value={phone2} onChange={(e) => setPhone2(e.target.value)} inputMode="tel"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+              <p className="text-xs text-gray-400 mt-1">Searchable the same way the main number is.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Secondary email</label>
+              <input type="email" value={email2} onChange={(e) => setEmail2(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            </div>
           </div>
 
           <AddressFields label="Address" value={address} onChange={setAddress} />
@@ -453,6 +473,8 @@ export default function PartyDetailPage() {
             <Detail label="Contact"  value={party.contactName} />
             <Detail label="Phone"    value={party.phone} />
             <Detail label="Email"    value={party.email} />
+            <Detail label="Secondary phone" value={party.phone2} />
+            <Detail label="Secondary email" value={party.email2} />
             <Detail label="Address"  value={formatAddress(party.address)} />
             <Detail label="Default pickup"   value={formatAddress(party.defaultOrigin)} />
             <Detail label="Default delivery" value={formatAddress(party.defaultDest)} />
