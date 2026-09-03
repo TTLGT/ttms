@@ -3,7 +3,7 @@ import { FieldValue, adminDb, AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller, ownerLabel, ownersFor } from '@/lib/partyAccess';
 import { canSeeParty } from '@/lib/accessControl';
 import { pendingForDecider } from '@/lib/accessRequests';
-import { PARTY_ROLES, toNameKey } from '@/types/party';
+import { PARTY_ROLES, toNameKey, toPhoneKey } from '@/types/party';
 import type { PartyRole } from '@/types/party';
 
 const COL = 'partyAccessRequests';
@@ -29,6 +29,13 @@ export async function GET(req: NextRequest) {
     const requests = docs
       .map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown> & { id: string }))
       .sort((a, b) => millis(b.createdAt) - millis(a.createdAt));
+
+    // A phone-raised request is stored with no party name, because the person
+    // who raised it must not learn one. The owner deciding it needs to know
+    // which record is being asked for, and may know — so the name is resolved
+    // here, on the incoming side only, and only for a party this reader can
+    // actually see. Outgoing rows keep the blank, which is the point.
+    if (box !== 'outgoing') await fillPartyNames(requests, caller);
 
     return NextResponse.json({ requests });
   } catch (e) {
@@ -64,6 +71,7 @@ export async function POST(req: NextRequest) {
 
     const name        = String(body.name ?? '').trim();
     const requestedId = String(body.partyId ?? '').trim();
+    const phone       = String(body.phone ?? '').trim();
     const reason      = String(body.reason ?? '').trim().slice(0, 500);
 
     let snap;
@@ -71,6 +79,20 @@ export async function POST(req: NextRequest) {
       const doc = await adminDb.collection('parties').doc(requestedId).get();
       if (!doc.exists) return bad('That record no longer exists.', 404);
       snap = doc;
+    } else if (phone) {
+      const key = toPhoneKey(phone);
+      if (!key) return bad('That is too short to be a phone number.');
+      // The caller never received an id from the lookup — deliberately, so a
+      // number cannot be turned into a record they can attach to an order — so
+      // the number is resolved again here. Only a record they cannot already
+      // see is worth asking about; one they can is not a request at all.
+      const found = await adminDb.collection('parties')
+        .where('phoneKeys', 'array-contains', key)
+        .limit(8)
+        .get();
+      const locked = found.docs.filter((d) => !canSeeParty(d.data(), caller.uid, caller.profile));
+      if (locked.length === 0) return bad('No record on that number needs approval.', 404);
+      snap = locked[0];
     } else {
       const key = toNameKey(name);
       if (!key) return bad('A name is required.');
@@ -121,9 +143,15 @@ export async function POST(req: NextRequest) {
 
     // Any member of an owning group can approve, so groups are expanded here.
     const ownerUids = await ownersFor(party);
+    const viaPhone = !requestedId && !!phone;
     const ref = await adminDb.collection(COL).add({
       partyId,
-      partyName:        party.companyName || party.contactName || '',
+      // Left blank for a phone request. The requester can read their own rows,
+      // and the name is exactly what the number lookup refuses to give them;
+      // writing it here would hand it over through the back door. The decider's
+      // copy is filled in on read — see fillPartyNames below.
+      partyName:        viaPhone ? '' : (party.companyName || party.contactName || ''),
+      partyPhone:       viaPhone ? phone.slice(0, 40) : '',
       role,
       requestedByUid:   caller.uid,
       requestedByName:  caller.displayName,
@@ -131,7 +159,7 @@ export async function POST(req: NextRequest) {
       reason,
       // Where the request came from, so the inbox can say "wants to open" for a
       // link rather than "wants to use", which is only true of the order form.
-      via:              requestedId ? 'link' : 'name',
+      via:              requestedId ? 'link' : viaPhone ? 'phone' : 'name',
       ownerUids,
       ownerName:        await ownerLabel(
         party.assignedToUids ?? [],
@@ -158,6 +186,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: e.message }, { status: e.status });
     }
     throw e;
+  }
+}
+
+/**
+ * Fill in the party name on rows that were stored without one.
+ *
+ * Only phone-raised requests are missing it, and only the decider gets it back
+ * — checked with canSeeParty rather than assumed from the fact that this is the
+ * incoming box, because `access.decideAny` puts every pending request in the
+ * company in front of an admin, and a name withheld from a broker should not
+ * arrive because they happen to also be looking at somebody else's queue.
+ *
+ * Mutates in place; a party that has since been deleted simply keeps its blank.
+ */
+async function fillPartyNames(
+  requests: (Record<string, unknown> & { id: string })[],
+  caller: Awaited<ReturnType<typeof requireCaller>>,
+): Promise<void> {
+  const needing = requests.filter((r) => !r.partyName && typeof r.partyId === 'string' && r.partyId);
+  if (needing.length === 0) return;
+
+  const ids  = [...new Set(needing.map((r) => r.partyId as string))];
+  const docs = await adminDb.getAll(...ids.map((id) => adminDb.collection('parties').doc(id)));
+
+  const names = new Map<string, string>();
+  for (const doc of docs) {
+    const d = doc.data();
+    if (!d || !canSeeParty(d, caller.uid, caller.profile)) continue;
+    names.set(doc.id, d.companyName || d.contactName || '');
+  }
+
+  for (const r of needing) {
+    const name = names.get(r.partyId as string);
+    if (name) r.partyName = name;
   }
 }
 

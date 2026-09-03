@@ -23,8 +23,18 @@ export type AccessRequestStatus = 'pending' | 'approved' | 'denied' | 'expired';
 export interface AccessRequest {
   id: string;
   partyId: string;
-  /** Snapshot so the inbox reads correctly even if the party is renamed. */
+  /**
+   * Snapshot so the inbox reads correctly even if the party is renamed.
+   *
+   * **Deliberately empty when `via` is 'phone'.** A requester can read their
+   * own requests, so storing the name here would hand back the one thing the
+   * phone lookup withholds — see the note on `via` below. The owner's inbox
+   * fills it in on read instead, which it may because the owner can see the
+   * record.
+   */
   partyName: string;
+  /** The number that was searched, for a request the requester raised by phone. */
+  partyPhone?: string;
   role: PartyRole;
 
   requestedByUid: string;
@@ -35,10 +45,17 @@ export interface AccessRequest {
 
   /**
    * How the request was raised: `name` from the order form, `link` from a party
-   * page a colleague sent. Requests written before this field existed carry
-   * neither and are read as `name`, which is what they all were.
+   * page a colleague sent, `phone` from the number lookup. Requests written
+   * before this field existed carry neither and are read as `name`, which is
+   * what they all were.
+   *
+   * `phone` is the one that changes what may be stored. A broker who searched a
+   * number was never told whose record it is — that is the whole point, so a
+   * number cannot be used to fish for a colleague's clients and go after them.
+   * The request therefore carries no `partyName`, and nothing that renders a
+   * requester's own row may reveal one.
    */
-  via?: 'name' | 'link';
+  via?: 'name' | 'link' | 'phone';
 
   /** Owners at the time of the request; any one of them may approve. */
   ownerUids: string[];

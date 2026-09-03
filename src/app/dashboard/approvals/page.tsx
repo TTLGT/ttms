@@ -51,6 +51,20 @@ const millis = (ts: unknown): number => {
   return 0;
 };
 
+/**
+ * What to call the record a party request is about.
+ *
+ * A request raised from the phone lookup carries no name on purpose — the
+ * searcher was never told one, so that a number cannot be used to find out who
+ * a colleague's clients are. The owner deciding it gets the name filled in by
+ * the API; everybody else, the requester included, sees the number they typed.
+ */
+function partyLabel(req: { partyName?: string; partyPhone?: string }): string {
+  if (req.partyName) return req.partyName;
+  if (req.partyPhone) return `Record on ${req.partyPhone}`;
+  return 'A record';
+}
+
 export default function ApprovalsPage() {
   // Requests are read as a timeline, so these keep the time after the date.
   const { formatDateTime: formatWhen } = useDateFormatters();
@@ -196,7 +210,7 @@ export default function ApprovalsPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-gray-900">
                         {row.kind === 'party'
-                          ? row.req.partyName
+                          ? partyLabel(row.req)
                           : `Load ${row.req.orderNumber || row.req.orderId}`}
                       </span>
                       <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-medium">

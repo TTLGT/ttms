@@ -200,6 +200,21 @@ export async function requestPartyAccess(
 }
 
 /**
+ * Asks for access to whoever is on a phone number.
+ *
+ * The caller has no id and no name — the lookup gives neither for a record
+ * they cannot see — so the server resolves the number again. What comes back
+ * never names the record, and the stored request does not either.
+ */
+export async function requestPartyAccessByPhone(
+  phone: string,
+  role: PartyRole,
+  reason: string,
+): Promise<{ id: string; status: string }> {
+  return apiPost('/api/parties/access-requests', { phone, role, reason });
+}
+
+/**
  * Asks for access to a party the caller reached by link, where there is an id
  * but no order and so no role to fill. The server derives the role from the
  * record; see the route for why that is only ever an audit-trail detail.

@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { searchParties, findParty, lookupPartiesByPhone, requestPartyAccess } from '@/lib/parties';
+import {
+  searchParties, findParty, lookupPartiesByPhone,
+  requestPartyAccess, requestPartyAccessByPhone,
+} from '@/lib/parties';
 import { partyDisplayName, toNameKey, toPhoneKey, looksLikePhone, ROLE_LABEL } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
 import PartyQuickCreate from './PartyQuickCreate';
@@ -26,6 +29,25 @@ interface Props {
 const MAX_VISIBLE = 8;
 
 /**
+ * A record that exists but belongs to somebody else.
+ *
+ * `kind` is how the searcher found it, and it decides what may be said about
+ * it. A name collision can be named back — they typed the name, so repeating
+ * it tells them nothing new. A phone collision must not be: the number is all
+ * they had, and turning it into a customer's name is how somebody works out
+ * who a colleague's clients are and goes after them. So the phone branch shows
+ * the owner to ask and the number that was typed, and never the record.
+ */
+interface Collision {
+  kind: 'name' | 'phone';
+  /** The name or the number that was searched. Never the record's own name. */
+  label: string;
+  ownerName: string;
+  /** How many records the number matched, when more than one. */
+  alsoOwned: number;
+}
+
+/**
  * Type-ahead picker over the shared party list — by name, or by phone number.
  *
  * The phone path is the BATS habit brokers came from: a customer calls, you
@@ -34,6 +56,12 @@ const MAX_VISIBLE = 8;
  * as a number rather than a name; see looksLikePhone(). It goes to the server
  * because the number may sit on a record this user cannot see, and "not found"
  * would then be a lie that ends in a duplicate.
+ *
+ * A number that matches anything never offers to create a record. That is the
+ * whole point of looking it up: the match may be a record the searcher cannot
+ * see, and "add new" on top of it mints the duplicate of a colleague's client
+ * this is meant to prevent. Adding is offered only when the number is on
+ * nothing at all.
  *
  * What this deliberately no longer does is create a party by itself. Typing a
  * name here used to mint a record from that one string on blur, leaving a
@@ -54,8 +82,7 @@ export default function PartyCombobox({
   const [queryText, setQueryText] = useState(value.name);
   const [open, setOpen]           = useState(false);
   const [active, setActive]       = useState(0);
-  /** Set when the typed name belongs to a record this user cannot see. */
-  const [collision, setCollision] = useState<{ name: string; ownerName: string } | null>(null);
+  const [collision, setCollision] = useState<Collision | null>(null);
   const [requestState, setRequestState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [requestError, setRequestError] = useState('');
   const [reason, setReason]       = useState('');
@@ -63,11 +90,11 @@ export default function PartyCombobox({
   /** Non-null while the full add-a-record dialog is open, holding its prefill. */
   const [adding, setAdding]       = useState<string | null>(null);
   /**
-   * A name that is free but has not been filled in yet. The order must not be
-   * saved against it — see the note in handleBlur.
+   * A search that matched nothing at all. The order must not be saved against
+   * it — see the note in handleBlur.
    */
   const [unsaved, setUnsaved]     = useState('');
-  const [phoneHits, setPhoneHits] = useState<{ matches: Party[]; owned: number } | null>(null);
+  const [phoneHits, setPhoneHits] = useState<{ matches: Party[]; owned: { ownerName: string }[] } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   // Keep the visible text in step when the parent sets a selection (e.g. the
@@ -94,7 +121,23 @@ export default function PartyCombobox({
     setChecking(true);
     const timer = setTimeout(() => {
       lookupPartiesByPhone(trimmed)
-        .then((r) => { if (live) setPhoneHits({ matches: r.matches, owned: r.owned.length }); })
+        .then((r) => {
+          if (!live) return;
+          setPhoneHits({ matches: r.matches, owned: r.owned });
+          // Nothing this user may use, but the number is on file: that is a
+          // collision, and the only useful next step is to ask its owner.
+          // Raised here rather than on blur so the panel is up while they are
+          // still looking at the box.
+          if (r.matches.length === 0 && r.owned.length > 0) {
+            setCollision({
+              kind:      'phone',
+              label:     trimmed,
+              ownerName: r.owned[0].ownerName,
+              alsoOwned: r.owned.length - 1,
+            });
+            setOpen(false);
+          }
+        })
         .catch(() => { if (live) setPhoneHits(null); })
         .finally(() => { if (live) setChecking(false); });
     }, 350);
@@ -108,8 +151,21 @@ export default function PartyCombobox({
 
   const typedKey    = toNameKey(trimmed);
   const exactExists = !phoneMode && parties.some((p) => p.nameKey === typedKey);
-  const canCreate   = trimmed.length > 0 && !exactExists;
-  const rowCount    = matches.length + (canCreate ? 1 : 0);
+
+  /**
+   * Whether to offer creating a record.
+   *
+   * For a number: only once the lookup has come back empty. Offering it while
+   * the answer is still in flight, or beside a match, is what produced the
+   * duplicate — and beside a match the searcher cannot see, they would have no
+   * way of knowing that is what they were doing.
+   */
+  const canCreate = phoneMode
+    ? Boolean(trimmed) && !checking && phoneHits !== null
+        && phoneHits.matches.length === 0 && phoneHits.owned.length === 0
+    : trimmed.length > 0 && !exactExists;
+
+  const rowCount = matches.length + (canCreate ? 1 : 0);
 
   function pick(party: Party) {
     const name = partyDisplayName(party);
@@ -136,7 +192,10 @@ export default function PartyCombobox({
     setRequestState('sending');
     setRequestError('');
     try {
-      await requestPartyAccess(collision.name, role, reason);
+      // Two roads to the same request. The phone one sends the number and lets
+      // the server resolve it, because the browser was never given an id.
+      if (collision.kind === 'phone') await requestPartyAccessByPhone(collision.label, role, reason);
+      else                            await requestPartyAccess(collision.label, role, reason);
       setRequestState('sent');
     } catch (e) {
       setRequestState('error');
@@ -149,6 +208,7 @@ export default function PartyCombobox({
     setRequestState('idle');
     setReason('');
     setQueryText('');
+    setPhoneHits(null);
     onChange({ id: '', name: '' }, null);
   }
 
@@ -178,20 +238,22 @@ export default function PartyCombobox({
   }
 
   /**
-   * A name left in the box is resolved, never created.
+   * A search left in the box is resolved, never created.
    *
    * An existing record the user may use is still selected for them — that
-   * convenience was worth keeping. A free name is flagged as unsaved instead,
-   * and the order form refuses to save against it, because the alternative is
-   * the one-field record this whole change exists to stop.
+   * convenience was worth keeping. A search that matched nothing is flagged as
+   * unsaved instead, and the order form refuses to save against it, because the
+   * alternative is the one-field record this whole change exists to stop.
    */
   async function handleBlur() {
     if (!trimmed || value.id || collision || adding !== null) return;
 
     if (phoneMode) {
-      // A number is not a name: there is nothing to resolve and nothing to
-      // create from it on its own. The dropdown has already said what it found.
-      setUnsaved(trimmed);
+      // The lookup has already said what it found, and a collision has already
+      // raised its own panel. Only a number on nothing at all is left over.
+      if (phoneHits && phoneHits.matches.length === 0 && phoneHits.owned.length === 0) {
+        setUnsaved(trimmed);
+      }
       return;
     }
 
@@ -202,7 +264,10 @@ export default function PartyCombobox({
     try {
       const result = await findParty(trimmed, role);
       if ('party' in result)   { pick(result.party); return; }
-      if ('ownedBy' in result) { setCollision({ name: trimmed, ownerName: result.ownedBy }); return; }
+      if ('ownedBy' in result) {
+        setCollision({ kind: 'name', label: trimmed, ownerName: result.ownedBy, alsoOwned: 0 });
+        return;
+      }
       setUnsaved(trimmed);
     } catch {
       // A lookup that failed must not read as "free to create" — leaving it
@@ -226,7 +291,7 @@ export default function PartyCombobox({
         onFocus={() => setOpen(true)}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        placeholder={placeholder ?? `Search by name or phone…`}
+        placeholder={placeholder ?? 'Search by name or phone…'}
         autoComplete="off"
         role="combobox"
         aria-expanded={open}
@@ -255,15 +320,34 @@ export default function PartyCombobox({
 
       {collision && (
         <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm">
-          <p className="text-amber-900">
-            <strong>{collision.name}</strong> is already on file and belongs to{' '}
-            <strong>{collision.ownerName}</strong>.
-          </p>
-          <p className="text-amber-800 text-xs mt-1">
-            Talk to {collision.ownerName} before using this {roleLabel}. They
-            need to approve it on their side — an admin can also approve. Approval covers this one
-            order.
-          </p>
+          {collision.kind === 'phone' ? (
+            <>
+              <p className="text-amber-900">
+                A record on <strong>{collision.label}</strong> belongs to{' '}
+                <strong>{collision.ownerName}</strong>.
+                {collision.alsoOwned > 0 && (
+                  <> {collision.alsoOwned} other {collision.alsoOwned === 1 ? 'record' : 'records'} on
+                  that number {collision.alsoOwned === 1 ? 'belongs' : 'belong'} to colleagues too.</>
+                )}
+              </p>
+              <p className="text-amber-800 text-xs mt-1">
+                Ask {collision.ownerName} before using it — they or an admin approve, and approval
+                covers this one order. You will see the record once it is approved.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-amber-900">
+                <strong>{collision.label}</strong> is already on file and belongs to{' '}
+                <strong>{collision.ownerName}</strong>.
+              </p>
+              <p className="text-amber-800 text-xs mt-1">
+                Talk to {collision.ownerName} before using this {roleLabel}. They
+                need to approve it on their side — an admin can also approve. Approval covers this
+                one order.
+              </p>
+            </>
+          )}
 
           {requestState === 'sent' ? (
             <p className="text-xs text-green-700 mt-2 font-medium">
@@ -292,7 +376,7 @@ export default function PartyCombobox({
                   onClick={clearCollision}
                   className="px-3 py-1.5 border border-amber-300 text-amber-800 text-xs font-medium rounded-lg hover:bg-amber-100 transition"
                 >
-                  Use a different name
+                  {collision.kind === 'phone' ? 'Search for something else' : 'Use a different name'}
                 </button>
               </div>
             </div>
@@ -301,7 +385,7 @@ export default function PartyCombobox({
         </div>
       )}
 
-      {open && (rowCount > 0 || checking) && (
+      {open && !collision && (rowCount > 0 || checking) && (
         <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-auto py-1">
           {checking && matches.length === 0 && (
             <li className="px-3 py-2 text-sm text-gray-400">Checking…</li>
@@ -335,10 +419,13 @@ export default function PartyCombobox({
               </li>
             );
           })}
-          {phoneMode && (phoneHits?.owned ?? 0) > 0 && (
+          {/* Only ever shown beside records they CAN use — a number that matched
+              nothing but somebody else's record raises the panel above instead,
+              which is the one that offers the useful next step. */}
+          {phoneMode && matches.length > 0 && (phoneHits?.owned.length ?? 0) > 0 && (
             <li className="px-3 py-2 text-xs text-amber-700 bg-amber-50 border-t border-amber-100">
-              {phoneHits!.owned === 1 ? 'One record' : `${phoneHits!.owned} records`} with this
-              number belong to colleagues. Search by name to request approval.
+              {phoneHits!.owned.length === 1 ? 'One further record' : `${phoneHits!.owned.length} further records`}
+              {' '}on this number {phoneHits!.owned.length === 1 ? 'belongs' : 'belong'} to colleagues.
             </li>
           )}
           {canCreate && (
