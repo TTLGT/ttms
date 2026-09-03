@@ -285,6 +285,23 @@ export function laneMilesLabel(source: LaneMilesSource | null | undefined): stri
 }
 
 /**
+ * When the number was arrived at, in words, given an already-formatted date.
+ *
+ * Phrased by method because the two mean different things to a reader: a
+ * routed figure was *obtained* from Google on that date and has sat unchanged
+ * since, while an estimate was *computed* then from the calibration in force
+ * at the time. Takes the formatted string rather than the date so the caller
+ * keeps using the company date format — see src/lib/dateFormat.ts.
+ */
+export function laneMilesAtNote(
+  source: LaneMilesSource | null | undefined,
+  formattedDate: string,
+): string {
+  if (!formattedDate) return '';
+  return source === 'routes' ? `Looked up ${formattedDate}` : `Worked out ${formattedDate}`;
+}
+
+/**
  * Whether an address can be placed on the map at all. The distance estimate
  * works off ZIP centroids, so a ZIP is the one part it cannot do without.
  */
@@ -370,6 +387,21 @@ export interface Order {
    * number reads this to know what to call it.
    */
   laneMilesSource: LaneMilesSource | null;
+  /**
+   * When `laneMiles` was worked out — the moment the *number* was produced,
+   * not the moment this order was saved.
+   *
+   * The two are only the same under the estimate. Under Google Routes a lane
+   * is answered from `laneDistances` forever after the first lookup, so an
+   * order created today can carry a figure Google gave months ago, and an
+   * order whose addresses have since been corrected carries one worked out for
+   * the old lane. This is the date that tells a broker which, and it is what
+   * "Recheck with Google" moves.
+   *
+   * null on every order written before this field existed, and on any order
+   * whose distance came from a cached lane with no date recorded.
+   */
+  laneMilesAt: Timestamp | null;
   /**
    * Earliest date the freight can be collected, as the client stated it.
    *

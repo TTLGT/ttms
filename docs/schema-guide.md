@@ -91,6 +91,7 @@ orders/{orderId}
   routeMapUrl     : string          // Google Maps directions link; auto-built, editable
   laneMiles       : number | null   // distance between the two addresses; see below
   laneMilesSource : "estimate" | "routes" | null   // how laneMiles was obtained
+  laneMilesAt     : Timestamp | null   // when laneMiles was worked out; see below
   pickupDate      : Timestamp | null
   deliveryDate    : Timestamp | null
   carrierId       : string | null   // → carriers/{carrierId}; null until assigned
@@ -218,6 +219,16 @@ Stored on the order rather than recomputed on read: it is looked up once, when
 the order is created or first viewed without one. That keeps the figure a
 broker quoted against fixed, and under Routes it is what stops every page view
 from costing money.
+
+`laneMilesAt` records **when the number itself was produced**, not when the
+order was saved. The two only coincide under the estimate. Under Routes a lane
+is answered out of `laneDistances` forever after its first lookup, so an order
+created today can store a figure Google gave a year ago — and that is what the
+date says. `/api/route-distance` returns it as `calculatedAt`, off the server
+clock, taking the lane's own `lastRefreshedAt ?? createdAt` on a cache hit. An
+admin recheck moves it with the mileage. It is null on orders written before
+the field existed, which is why every screen hides the line rather than showing
+a blank.
 
 ## Collection: `appSettings`
 

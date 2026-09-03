@@ -2,14 +2,24 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, Route } from 'lucide-react';
-import { formatLaneMiles, isRoutableAddress, laneMilesCaption, laneMilesLabel } from '@/types/order';
+import { formatLaneMiles, isRoutableAddress, laneMilesAtNote, laneMilesCaption, laneMilesLabel } from '@/types/order';
 import type { Address, LaneMilesSource } from '@/types/order';
 import { fetchLaneDistance } from '@/lib/routeDistanceClient';
 import type { DistanceResult } from '@/lib/routeDistanceClient';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 
 export interface LaneDistanceValue {
   laneMiles: number | null;
   laneMilesSource: LaneMilesSource | null;
+  /**
+   * When the mileage was worked out — see `laneMilesAt` on Order.
+   *
+   * A real Date, never the `{_seconds}` shape a loaded order arrives in: the
+   * form writes this value straight back, and that shape would save as a map
+   * instead of a timestamp. Callers loading an order pass it through
+   * `toDate()` from src/lib/dateFormat.ts.
+   */
+  laneMilesAt: Date | null;
 }
 
 interface Props {
@@ -37,6 +47,7 @@ interface Props {
  * decides how to ask.
  */
 export default function RouteDistanceField({ origin, destination, value, onChange }: Props) {
+  const { formatDateTime } = useDateFormatters();
   const [message, setMessage] = useState('');
   const [disabled, setDisabled] = useState(false);
   /** Google Routes is on and this lane has never been priced — it costs money. */
@@ -98,11 +109,17 @@ export default function RouteDistanceField({ origin, destination, value, onChang
       // this apart from the number never having been refreshed.
       lastMiles.current = result.miles;
       valueLane.current = laneRef.current;
-      onChangeRef.current({ laneMiles: result.miles, laneMilesSource: result.source });
+      onChangeRef.current({
+        laneMiles: result.miles,
+        laneMilesSource: result.source,
+        // The server's date, not the browser's — and under Routes a cached
+        // lane hands back the date it was originally looked up.
+        laneMilesAt: result.calculatedAt ? new Date(result.calculatedAt) : null,
+      });
       return;
     }
 
-    onChangeRef.current({ laneMiles: null, laneMilesSource: null });
+    onChangeRef.current({ laneMiles: null, laneMilesSource: null, laneMilesAt: null });
     if (result.status === 'need_zip') setMessage('Add a ZIP to both addresses to work out the distance');
     if (result.status === 'unknown_zip') setMessage(`ZIP ${result.zip} was not recognised`);
     if (result.status === 'error') setMessage(result.message);
@@ -136,6 +153,7 @@ export default function RouteDistanceField({ origin, destination, value, onChang
   if (disabled) return null;
 
   const caption = laneMilesCaption(value.laneMilesSource);
+  const atNote = laneMilesAtNote(value.laneMilesSource, formatDateTime(value.laneMilesAt, ''));
   // A half-typed address has nothing worth paying for yet, so the button only
   // appears once both ends could actually be routed.
   const showButton = needsLookup && routable;
@@ -151,6 +169,11 @@ export default function RouteDistanceField({ origin, destination, value, onChang
               {formatLaneMiles(value.laneMiles, value.laneMilesSource)}
               {caption && <span className="font-normal text-gray-500"> · {caption}</span>}
             </p>
+            {/* An order being edited usually opens on a distance somebody else
+                worked out, possibly months ago — and under Routes a lane just
+                fetched can itself be old. Saying when settles whether it is
+                worth rechecking. */}
+            {atNote && <p className="text-xs text-gray-500 mt-0.5">{atNote}</p>}
             {stale && showButton && (
               <p className="text-xs text-amber-700 mt-0.5">
                 The addresses have changed since this distance was worked out.

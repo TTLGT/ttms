@@ -25,6 +25,16 @@ async function currentMode(): Promise<LaneDistanceMode> {
   }
 }
 
+/**
+ * When a figure worked out on this request was produced.
+ *
+ * Read off the server's clock rather than the browser's: the date is stored on
+ * the order and shown back to everybody, and a laptop set to the wrong day
+ * would put a distance in next week. An estimate is recomputed on every
+ * request, so for it "now" is always the honest answer.
+ */
+const nowIso = () => new Date().toISOString();
+
 export async function POST(req: NextRequest) {
   try {
     await requireCompanyUser(req);
@@ -60,7 +70,15 @@ export async function POST(req: NextRequest) {
     // re-asks Google. See `laneDistanceCache.ts`.
     const cached = await readCachedLane(body.origin, body.destination);
     if (cached !== null) {
-      return NextResponse.json({ status: 'ok', miles: cached, source: 'routes' });
+      // The lane's own date, not now: this number came out of Google whenever
+      // the lane was first looked up (or last refreshed), and an order that
+      // stores it stores a figure that old. See `laneMilesAt` on Order.
+      return NextResponse.json({
+        status: 'ok',
+        miles: cached.miles,
+        source: 'routes',
+        calculatedAt: cached.obtainedAt ? cached.obtainedAt.toISOString() : null,
+      });
     }
 
     // A lane nobody has looked up yet costs money to answer, so under Routes
@@ -79,7 +97,12 @@ export async function POST(req: NextRequest) {
       // returnable: writing down a degraded fallback would pin this lane to an
       // estimate forever, and fixing the billing would not bring it back.
       await writeCachedLane(body.origin, body.destination, routed.miles);
-      return NextResponse.json({ status: 'ok', miles: routed.miles, source: 'routes' });
+      return NextResponse.json({
+        status: 'ok',
+        miles: routed.miles,
+        source: 'routes',
+        calculatedAt: nowIso(),
+      });
     }
     // Rather than show a broker nothing, fall through to the free estimate and
     // label it as such. A missing key, a billing lapse or an address Google
@@ -88,7 +111,7 @@ export async function POST(req: NextRequest) {
       const fallback = estimateRouteMiles(body.origin, body.destination);
       return NextResponse.json(
         fallback.status === 'ok'
-          ? { status: 'ok', ...fallback.estimate, source: 'estimate', degraded: routed.message }
+          ? { status: 'ok', ...fallback.estimate, source: 'estimate', calculatedAt: nowIso(), degraded: routed.message }
           : { ...fallback, degraded: routed.message },
       );
     }
@@ -99,6 +122,8 @@ export async function POST(req: NextRequest) {
   // A missing or unrecognised ZIP is a normal state of a half-filled form, not
   // an error — the caller says what is needed and shows no distance.
   return NextResponse.json(
-    result.status === 'ok' ? { status: 'ok', ...result.estimate, source: 'estimate' } : result,
+    result.status === 'ok'
+      ? { status: 'ok', ...result.estimate, source: 'estimate', calculatedAt: nowIso() }
+      : result,
   );
 }

@@ -23,12 +23,15 @@ import {
   buildRouteMapUrl,
   formatLaneMiles,
   isRoutableAddress,
+  laneMilesAtNote,
   laneMilesCaption,
   laneMilesLabel,
   orderDisplayNumber,
   orderAltNumber,
 } from '@/types/order';
 import { fetchLaneDistance } from '@/lib/routeDistanceClient';
+import { toDate } from '@/lib/dateFormat';
+import type { Timestamp } from 'firebase/firestore';
 import StatusBadge from '@/components/orders/StatusBadge';
 import DriverLicenseUpload from '@/components/orders/DriverLicenseUpload';
 import QuickAddCarrierModal from '@/components/carriers/QuickAddCarrierModal';
@@ -61,6 +64,17 @@ function parentLabel(parentOrderId: string): string {
   return parentOrderId.startsWith('bats-')
     ? parentOrderId.slice(5)
     : `${parentOrderId.slice(0, 8)}…`;
+}
+
+/**
+ * The distance API's `calculatedAt` as the order stores it.
+ *
+ * A Date is what the client SDK turns into a timestamp on write, and what the
+ * date formatters read on the way back out, so the value goes in unconverted
+ * and the cast is only for the field's declared type.
+ */
+function laneMilesStamp(iso: string | null | undefined): Timestamp | null {
+  return iso ? (new Date(iso) as unknown as Timestamp) : null;
 }
 
 function formatCurrency(n: number | undefined): string {
@@ -119,7 +133,7 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 export default function OrderDetailPage() {
   // Dates are written the way the company setting says — see Settings →
   // Operations → Date Format.
-  const { formatDate } = useDateFormatters();
+  const { formatDate, formatDateTime } = useDateFormatters();
   const params   = useParams();
   const orderId  = params.orderId as string;
   const router   = useRouter();
@@ -292,7 +306,11 @@ export default function OrderDetailPage() {
       if (cancelled) return;
       if (result.status === 'needs_lookup') { setMilesNeedLookup(true); return; }
       if (result.status !== 'ok') return;
-      const patch = { laneMiles: result.miles, laneMilesSource: result.source };
+      const patch = {
+        laneMiles: result.miles,
+        laneMilesSource: result.source,
+        laneMilesAt: laneMilesStamp(result.calculatedAt),
+      };
       setOrder((prev) => (prev ? { ...prev, ...patch } : prev));
       // Best-effort: showing the distance matters more than storing it, and a
       // failed write just means the next viewer works it out again.
@@ -326,7 +344,11 @@ export default function OrderDetailPage() {
     }
 
     setMilesNeedLookup(false);
-    const patch = { laneMiles: result.miles, laneMilesSource: result.source };
+    const patch = {
+      laneMiles: result.miles,
+      laneMilesSource: result.source,
+      laneMilesAt: laneMilesStamp(result.calculatedAt),
+    };
     setOrder((prev) => (prev ? { ...prev, ...patch } : prev));
     // Best-effort, as in the backfill: the number on screen matters more than
     // the write, and the lane is in Google's cache now either way.
@@ -368,7 +390,13 @@ export default function OrderDetailPage() {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'Refresh failed');
 
-      const patch = { laneMiles: body.miles as number, laneMilesSource: 'routes' as const };
+      const patch = {
+        laneMiles: body.miles as number,
+        laneMilesSource: 'routes' as const,
+        // Moves with the number: the point of a recheck is that the figure is
+        // as of now, and a date left behind would say the opposite.
+        laneMilesAt: laneMilesStamp(body.calculatedAt as string | null),
+      };
       setOrder((prev) => (prev ? { ...prev, ...patch } : prev));
       await updateOrder(order.id, patch);
 
@@ -622,6 +650,10 @@ export default function OrderDetailPage() {
         // under Google Routes, no reason to buy the identical lookup twice.
         laneMiles:       order.laneMiles ?? null,
         laneMilesSource: order.laneMilesSource ?? null,
+        // The same number, so the same date it was worked out — not today.
+        // Through toDate() because the parent came over the API, where a
+        // timestamp arrives as `{_seconds}` and would save back as a map.
+        laneMilesAt:     toDate(order.laneMilesAt) as unknown as Timestamp | null,
         // The client's earliest-pickup constraint applies to the whole load, so
         // it carries onto a split. The scheduled dates do not — those are for
         // dispatch to set per suborder.
@@ -711,6 +743,7 @@ export default function OrderDetailPage() {
 
   const nextStatus  = STATUS_NEXT[order.status];
   const currentStep = PIPELINE.indexOf(order.status);
+  const milesAtNote = laneMilesAtNote(order.laneMilesSource, formatDateTime(order.laneMilesAt, ''));
 
 
   return (
@@ -880,6 +913,12 @@ export default function OrderDetailPage() {
                     {formatLaneMiles(order.laneMiles, order.laneMilesSource)}
                     <span className="font-normal text-gray-500"> · {laneMilesCaption(order.laneMilesSource)}</span>
                   </p>
+                  {/* How old the number is. A stored mileage never moves on its
+                      own, so this is the only thing on screen that says whether
+                      it was worked out for this load last week or inherited
+                      from a lane looked up a year ago. Absent on orders that
+                      predate the field. */}
+                  {milesAtNote ? <p className="text-xs text-gray-500">{milesAtNote}</p> : null}
                   {/* Admins only, and only on a Google figure: an estimate is
                       recomputed from scratch every time, so there is nothing
                       stale about it to refresh. */}

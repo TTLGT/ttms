@@ -19,6 +19,7 @@ import type { Party, PartyRole } from '@/types/party';
 import { ROLE_LABEL } from '@/types/party';
 import LeadSourceField from '@/components/orders/LeadSourceField';
 import { canEditSource } from '@/lib/accessControl';
+import { toDate } from '@/lib/dateFormat';
 import { useAuth } from '@/context/AuthContext';
 import DateField from '@/components/DateField';
 
@@ -105,7 +106,7 @@ export default function EditOrderPage() {
   const [origin, setOrigin]             = useState<Address>(BLANK_ADDRESS);
   const [destination, setDest]          = useState<Address>(BLANK_ADDRESS);
   const [routeMapUrl, setRouteMapUrl]   = useState('');
-  const [distance, setDistance]         = useState<LaneDistanceValue>({ laneMiles: null, laneMilesSource: null });
+  const [distance, setDistance]         = useState<LaneDistanceValue>({ laneMiles: null, laneMilesSource: null, laneMilesAt: null });
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [firstAvailable, setFirstAvailable] = useState('');
   const [pickupDate, setPickupDate]     = useState('');
@@ -152,7 +153,14 @@ export default function EditOrderPage() {
         setOrigin(o.origin ?? BLANK_ADDRESS);
         setDest(o.destination ?? BLANK_ADDRESS);
         setRouteMapUrl(o.routeMapUrl ?? '');
-        setDistance({ laneMiles: o.laneMiles ?? null, laneMilesSource: o.laneMilesSource ?? null });
+        setDistance({
+          laneMiles:       o.laneMiles ?? null,
+          laneMilesSource: o.laneMilesSource ?? null,
+          // Through toDate() because the order came over the API, where a
+          // timestamp arrives as `{_seconds}`. Saved back as-is that would
+          // write a map into the field — see toDate in src/lib/dateFormat.ts.
+          laneMilesAt:     toDate(o.laneMilesAt),
+        });
         setSourceId(o.sourceId ?? null);
         setFirstAvailable(tsToDateStr(o.firstAvailablePickup));
         setPickupDate(tsToDateStr(o.pickupDate));
@@ -217,6 +225,7 @@ export default function EditOrderPage() {
         routeMapUrl:  routeMapUrl.trim(),
         laneMiles:       distance.laneMiles,
         laneMilesSource: distance.laneMilesSource,
+        laneMilesAt:     distance.laneMilesAt ? Timestamp.fromDate(distance.laneMilesAt) : null,
         // Only sent when this user is allowed to change it. Writing the same
         // value back would still be a write to the field, and the rules reject
         // any touch of it from someone who is neither an admin nor an owner —

@@ -95,7 +95,7 @@ function NewOrderForm() {
   const [origin, setOrigin]             = useState<Address>(BLANK_ADDRESS);
   const [destination, setDest]          = useState<Address>(BLANK_ADDRESS);
   const [routeMapUrl, setRouteMapUrl]   = useState('');
-  const [distance, setDistance]         = useState<LaneDistanceValue>({ laneMiles: null, laneMilesSource: null });
+  const [distance, setDistance]         = useState<LaneDistanceValue>({ laneMiles: null, laneMilesSource: null, laneMilesAt: null });
   const [sourceId, setSourceId] = useState<string | null>(null);
   const [firstAvailable, setFirstAvailable] = useState('');
   const [pickupDate, setPickupDate]     = useState('');
@@ -191,6 +191,9 @@ function NewOrderForm() {
         routeMapUrl:  routeMapUrl.trim(),
         laneMiles:       distance.laneMiles,
         laneMilesSource: distance.laneMilesSource,
+        // When the mileage was worked out, which under Google Routes can be
+        // long before this order existed — the lane comes from the cache.
+        laneMilesAt:     distance.laneMilesAt as unknown as import('firebase/firestore').Timestamp | null,
         firstAvailablePickup: firstAvailable ? (new Date(firstAvailable) as unknown as import('firebase/firestore').Timestamp) : null,
         pickupDate:   pickupDate   ? (new Date(pickupDate)   as unknown as import('firebase/firestore').Timestamp) : null,
         deliveryDate: deliveryDate ? (new Date(deliveryDate) as unknown as import('firebase/firestore').Timestamp) : null,

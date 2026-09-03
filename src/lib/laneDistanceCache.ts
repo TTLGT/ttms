@@ -36,6 +36,21 @@ export interface CachedLane {
   destinationQuery: string;
 }
 
+/** A lane that was in the cache, and how old the number in it is. */
+export interface CachedLaneHit {
+  miles: number;
+  /**
+   * When Google produced this figure — `lastRefreshedAt` if an admin has ever
+   * rechecked the lane, otherwise the first lookup. Null on an entry written
+   * before either was recorded.
+   *
+   * Carried out of here because a cache hit is the one case where the number
+   * an order stores is older than the order: it is what `laneMilesAt` on the
+   * order has to say, and answering "today" for it would be a lie.
+   */
+  obtainedAt: Date | null;
+}
+
 interface LaneKey {
   id: string;
   from: string;
@@ -64,15 +79,23 @@ function laneKey(origin: Address, destination: Address): LaneKey | null {
 export async function readCachedLane(
   origin: Address,
   destination: Address,
-): Promise<number | null> {
+): Promise<CachedLaneHit | null> {
   const key = laneKey(origin, destination);
   if (!key) return null;
 
   try {
     const snap = await adminDb.collection(COLLECTION).doc(key.id).get();
     if (!snap.exists) return null;
-    const miles = snap.data()?.miles;
-    return typeof miles === 'number' ? miles : null;
+    const data = snap.data();
+    const miles = data?.miles;
+    if (typeof miles !== 'number') return null;
+
+    // A refresh replaces the mileage but deliberately leaves `createdAt` on
+    // when the lane was first obtained, so the newer of the two is the age of
+    // the number actually being served.
+    const stamp = data?.lastRefreshedAt ?? data?.createdAt;
+    const obtainedAt = typeof stamp?.toDate === 'function' ? stamp.toDate() : null;
+    return { miles, obtainedAt };
   } catch {
     // A cache read failure must not take the lookup down with it — the caller
     // falls through to Google, which costs money but still answers.

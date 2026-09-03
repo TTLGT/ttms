@@ -77,5 +77,9 @@ export async function POST(req: NextRequest) {
     miles: result.miles,
     previousMiles: result.previousMiles,
     source: 'routes',
+    // Google was just asked, so this figure is as new as the request. The
+    // caller stores it on the order as `laneMilesAt` — the whole point of a
+    // refresh is that the date moves with the number.
+    calculatedAt: new Date().toISOString(),
   });
 }

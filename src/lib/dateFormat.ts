@@ -60,8 +60,15 @@ function render(year: number, month: number, day: number, format: DateFormat): s
   return `${day}-${MONTHS[month - 1]}-${year}`;
 }
 
-/** Whatever the caller had → a real Date, or null if there is nothing to show. */
-function toDate(value: DateLike): Date | null {
+/**
+ * Whatever the caller had → a real Date, or null if there is nothing to show.
+ *
+ * Exported because the `{_seconds}` shape an API response arrives in is not
+ * only a display problem: written straight back to Firestore it saves as a map
+ * rather than a timestamp. A form that loads a date and saves it again has to
+ * come through here first.
+ */
+export function toDate(value: DateLike): Date | null {
   if (!value) return null;
   if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
   if (typeof value === 'string') {

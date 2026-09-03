@@ -9,7 +9,20 @@ import type { LaneMilesSource } from '@/types/order';
  */
 
 export type DistanceResult =
-  | { status: 'ok'; miles: number; source: LaneMilesSource; straightLineMiles?: number; degraded?: string }
+  | {
+      status: 'ok';
+      miles: number;
+      source: LaneMilesSource;
+      /**
+       * When this figure was produced, off the server's clock. Under Google
+       * Routes a cached lane answers with the date it was originally looked
+       * up, not today — so this is the age of the number, not of the answer.
+       * Null on a cached lane written before the date was recorded.
+       */
+      calculatedAt?: string | null;
+      straightLineMiles?: number;
+      degraded?: string;
+    }
   /** Lane distances are switched off in Settings. */
   | { status: 'disabled' }
   /**
