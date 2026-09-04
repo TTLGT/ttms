@@ -81,10 +81,17 @@ src/types/        One file per domain object, domain helpers alongside
 
 `@/` aliases `src/`.
 
-**There is no `middleware.ts`.** The auth gate is client-side in
-`src/app/dashboard/layout.tsx`. The comment in `src/app/page.tsx` referring to
-middleware is stale. Server-side enforcement lives in the API route guards and
-in Firestore/Storage rules — not in a middleware layer. Don't assume one exists.
+**Nothing is gated in a middleware layer.** The auth gate is client-side in
+`src/app/dashboard/layout.tsx`. Server-side enforcement lives in the API route
+guards and in Firestore/Storage rules. Don't assume a request has been checked
+before it reaches a route.
+
+There is no `middleware.ts` — Next 16 renamed that file to `proxy.ts`, and
+`src/proxy.ts` does exist, but it is a **no-op**: every branch returns
+`NextResponse.next()`. Its matcher still catches every request, so on Vercel it
+costs an invocation per request and buys nothing. The comment in
+`src/app/page.tsx` claiming middleware handles the unauthenticated redirect is
+stale — it never has.
 
 ### Access control — the core invariant
 
@@ -491,9 +498,11 @@ assignment is held in `assignedToEmails` / `memberEmails` and converted by
   - The default is `estimate` on purpose: a default must never be the option that spends money.
   - Distances are looked up once and stored on the order (`laneMiles` + `laneMilesSource`). Don't add code that re-derives them on render — under `routes` that bills on every page view.
   - An estimate is labelled as one everywhere it appears. Keep it that way; it must never be billed per mile against.
-- `NEXT_PUBLIC_APP_URL` is **not set** — it is absent from `.env.local` entirely, so both agreement routes fall back to the hardcoded `https://ttms.totaltransportlogistics.us`. Nothing resolves there yet, so every e-sign link emailed to a carrier currently points at a host that does not answer. The fallback and the DNS record must match exactly, character for character — a link built from the wrong one 404s on a legal signature page. Set the variable in the deployment once the subdomain is live rather than relying on the fallback.
+- **The public address lives in `src/lib/appUrl.ts`, nowhere else.** `APP_URL` reads `NEXT_PUBLIC_APP_URL` and falls back to `PRODUCTION_APP_URL`; `signUrl(token)` builds every e-sign link. That constant and the DNS record must match exactly, character for character — a link built from the wrong one 404s on a legal signature page. Don't reintroduce an inline `process.env.NEXT_PUBLIC_APP_URL ?? '...'`; that duplication is what the module replaced.
+  - `NEXT_PUBLIC_APP_URL` is **not set** in `.env.local`, and `ttms.totaltransportlogistics.us` does not resolve yet (checked 2026-09-04: no DNS record), so no e-sign link works today. `docs/deployment.md` is the runbook that fixes both.
+  - `NEXT_PUBLIC_*` is inlined at **build** time, not read at run time. Setting it on the host after a deploy changes nothing until the next build — which is why the fallback is the production host rather than localhost.
   - Documents that **leave the company** — the BOL and invoice PDFs, and the two agreement email footers — deliberately show the public site `totaltransportlogistics.us`, not this subdomain. A carrier holding an invoice cannot sign in to a staff tool, so printing its address there is noise.
-- No deployment exists: no `vercel.json`, no `.github/workflows/`, no Hosting block in `firebase.json`.
+- **Nothing is deployed yet**, but the repo is now prepared for it: security headers in `next.config.ts`, the address centralised in `src/lib/appUrl.ts`, and [`docs/deployment.md`](docs/deployment.md) as the step-by-step runbook (Vercel Pro → Firebase authorized domains → Namecheap CNAME). Still absent, and deliberately so: no `vercel.json` (Vercel's Next.js defaults are correct and each route declares its own `maxDuration`), no `.github/workflows/` (Vercel builds on push), no Hosting block in `firebase.json`. Once it is live, **a push to `main` is a production release** — say so before pushing.
 - Firestore composite indexes are listed in `docs/schema-guide.md`. A missing-index error links to a one-click creator in the Console.
 
 ## Git

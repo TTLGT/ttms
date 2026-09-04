@@ -3,6 +3,7 @@ import { adminDb, requirePermission, AdminAuthError } from '@/lib/firebase-admin
 import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
 import { agreementSentAlert, postOrderAlert } from '@/lib/chatAlerts';
+import { signUrl } from '@/lib/appUrl';
 import { randomBytes } from 'crypto';
 import { dimensionsSummary, orderCommodityItems, orderDisplayNumber } from '@/types/order';
 import type { Order } from '@/types/order';
@@ -108,8 +109,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     notes:        order.notes        || '',
   });
 
-  const appUrl  = process.env.NEXT_PUBLIC_APP_URL ?? 'https://ttms.totaltransportlogistics.us';
-  const signUrl = `${appUrl}/sign/${token}`;
+  const link = signUrl(token);
 
   await resend.emails.send({
     from:    `TTL Dispatch <${process.env.RESEND_FROM_EMAIL ?? 'noreply@totaltransportlogistics.us'}>`,
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       pickupStr,
       deliveryStr,
       formattedRate: rateStr,
-      signUrl,
+      signUrl: link,
     }),
   });
 

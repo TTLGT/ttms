@@ -11,7 +11,7 @@ This handbook has **three parts**. Start with whichever describes you.
 **A note on who takes this over.** This project does not need a full-time
 developer to keep running — a non-technical person can do everything in Part 1
 unaided. But it does need someone technical for the outstanding work in
-[Deployment](#deployment--currently-unresolved), and for anything that
+[Deployment](#deployment--prepared-not-yet-done), and for anything that
 changes behaviour. If that person is you and you code with an AI assistant,
 Part 3 is written for you and the repo is already set up for it.
 
@@ -52,8 +52,10 @@ Before anything else, understand this:
 > changed for good, immediately. There is no practice mode and no undo.
 >
 > Getting TTMS onto a real web address so the whole team can use it is the
-> biggest outstanding job on this project. See
-> [Part 2, Deployment](#deployment--currently-unresolved).
+> biggest outstanding job on this project. **The instructions for doing it are
+> written out step by step in [`docs/deployment.md`](deployment.md)** — it does
+> not need a developer, but it does need the Namecheap login and about $20 a
+> month. See also [Part 2, Deployment](#deployment--prepared-not-yet-done).
 
 ---
 
@@ -85,7 +87,7 @@ and most of the rest opens up.
 |---|---|---|
 | **GitHub** (org `TTLGT`) | **Sign in with Google**, using `it@totaltransportlogistics.us` | Where the TTMS code lives |
 | **Firebase Console** (`ttms-59aa5`) | Google — `it@totaltransportlogistics.us` | The database, uploaded files, sign-in, and security rules |
-| **Vercel** | Google — `it@totaltransportlogistics.us` | Website hosting. The account exists, but **TTMS is not deployed on it yet** — see [Deployment](#deployment--currently-unresolved). |
+| **Vercel** | Google — `it@totaltransportlogistics.us` | Website hosting. The account exists, but **TTMS is not deployed on it yet** — see [Deployment](#deployment--prepared-not-yet-done). |
 | **TTMS itself** | Google — your own company address | The app. Being in the allowlist is what grants access, not the Google login itself. |
 | **Resend** | **Continue with GitHub** — which is itself Google, `it@totaltransportlogistics.us` | Sends the agreement emails. Account is owned by the `it@` role account. **Not yet usable — no verified domain, no API key.** See [Email sending](#email-sending--not-yet-provisioned). |
 | **Claude Code** | ⚠️ **No company account exists** — see below | Optional AI assistant for code work |
@@ -924,7 +926,7 @@ escalate rather than experiment — because the data is live.
 | **"Missing or insufficient permissions"** | A technical settings change hasn't been published to Google. | **Call for help.** A developer must run the rules deploy — [Part 2, section 07](#security-rules--the-trap-that-already-cost-five-weeks). |
 | **Nobody in the company can sign in** | Something has gone wrong with the access list. | **Call for help immediately.** The recovery account is `it@totaltransportlogistics.us` — do not remove or change it. |
 | **Agreement emails aren't arriving** | The email service key has expired, or the sending domain lost verification. | Check the junk folder first. Then **call for help** — see [Part 2, Troubleshooting](#troubleshooting). |
-| **A signing link sent to a carrier points at "localhost"** | Expected until TTMS is properly deployed. | The carrier cannot use that link. **Call for help** — this needs [Deployment](#deployment--currently-unresolved) resolved. |
+| **A signing link sent to a carrier points at "localhost"** | Expected until TTMS is properly deployed. | The carrier cannot use that link. **Call for help** — this needs [Deployment](#deployment--prepared-not-yet-done) resolved. |
 | Red text mentioning a **"missing index"** | A search needs a database setting Google has to create. | **Call for help.** It's a two-minute fix for a developer. |
 
 ---
@@ -1369,27 +1371,45 @@ Two things worth deciding while you are in there:
   for one — switching TTMS to it is a code change in both send routes, not a
   settings change, so decide before rather than after.
 
-## Deployment — currently unresolved
+## Deployment — prepared, not yet done
 
-**There is no deployment configured.** Confirmed: no `vercel.json` or
-`.vercel/`, no `.github/workflows/`, no Hosting block in `firebase.json`, and
-`NEXT_PUBLIC_APP_URL` still points at localhost.
+> **The step-by-step instructions are in [`docs/deployment.md`](deployment.md).**
+> That document is the runbook — follow it rather than this section, which only
+> explains where things stand and what the decisions were.
 
-Today this runs on someone's machine against the **live production Firebase
-project**. Two things need doing:
+**Nothing is deployed yet.** TTMS still runs on one machine at a time, against
+the live production Firebase project.
 
-1. **Deploy the app.** Vercel is the path of least resistance for Next.js 16,
-   and **a Vercel account already exists — sign in with Google as
-   `it@totaltransportlogistics.us`.** Nothing is deployed on it from this repo
-   yet. Connect the repo, add every variable above as a project env var, and set
-   `NEXT_PUBLIC_APP_URL` to the real domain. Firebase App Hosting also works.
-   Then add the production domain under Firebase Console → Authentication →
-   Settings → **Authorized domains**, or Google sign-in is rejected there.
-2. **Separate dev from production.** Local development currently writes to live
-   business data. Stand up a second Firebase project for development, or use the
-   Emulator Suite, and point `.env.local` at it.
+**What is now ready.** The repo has been prepared for a deployment:
 
-Until #2 is done, assume every local change is live.
+- The public address is defined once, in `src/lib/appUrl.ts`, instead of being
+  copied into both agreement routes.
+- `next.config.ts` sends the security headers a publicly reachable site needs.
+- `.env.local.example` lists every variable, including the two the old copy
+  omitted.
+- `npm run build` passes.
+
+**What is left, and it is all clicking, not coding.** Three consoles, in order:
+Vercel (connect the repo, type in the variables), Firebase (add the address to
+Authentication → Authorized domains, or Google sign-in is rejected on it), then
+Namecheap (one CNAME record for the `ttms` name). `docs/deployment.md` walks
+through each, with the traps called out.
+
+**Two decisions already made**, so nobody has to reopen them:
+
+- **Vercel, not Firebase App Hosting.** Best Next.js 16 support and the account
+  already exists on the `it@` Google login. It needs the **Pro** plan, about
+  **$20/month** — Vercel's free tier forbids commercial use.
+- **DNS is at Namecheap**, on `dns1/dns2.registrar-servers.com`. The public Wix
+  site and Google Workspace email live in that same zone, so the runbook adds
+  one record and touches nothing else.
+
+**Still outstanding after all that: separate dev from production.** Local
+development writes to live business data, and once the site is deployed the
+same records are reachable from two places. Stand up a second Firebase project
+for development, or use the Emulator Suite, and point `.env.local` at it.
+
+Until that is done, assume every local change is live.
 
 ## First-week checklist
 
@@ -1504,6 +1524,6 @@ and changes nothing.
 That is a legitimate choice, and most of the day-to-day does not require it.
 Everything in [Part 1](#part-1--running-ttms) — access, imports, sites, work
 groups — is done through the browser. What genuinely needs a technical person
-is the deployment work in [Deployment](#deployment--currently-unresolved).
+is the deployment work in [Deployment](#deployment--prepared-not-yet-done).
 That is a one-off project, and a contractor could do it in a few days using
 Part 2 and `CLAUDE.md` as the brief.
