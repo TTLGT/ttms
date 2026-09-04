@@ -236,6 +236,68 @@ service cloud.firestore {
         || (partyRoles().size() == 0 && wholesaleKinds().size() > 0);
     }
 
+    /*
+      A party is visible to its owners, to whoever sees that kind wholesale, to
+      the manager of an owner, and to everyone when nobody owns it at all.
+      Defaults keep the check safe on documents written before these fields
+      existed. Keep in sync with canSeeParty() in src/lib/accessControl.ts.
+
+      canOpenParty() is the gate and comes first, in the same order the TypeScript
+      asks it: somebody who may not open this kind of record does not reach one
+      by nobody owning it.
+    */
+    function partyVisible() {
+      return canOpenParty() && (
+        isAdmin()
+        || canSeeAllPartiesOfKind()
+        || (request.auth.uid in resource.data.get('assignedToUids', []))
+        // Group ownership is tested against the membership mirrored onto the
+        // user's profile. Rules cannot query, so without that mirror this would
+        // need one document read per owning group.
+        || resource.data.get('assignedToGroupIds', []).hasAny(myGroups())
+        || managesRecord()
+        || (
+          resource.data.get('assignedToUids', []).size() == 0
+          && resource.data.get('assignedToGroupIds', []).size() == 0
+          // A party held for somebody who has not signed in yet is owned, not
+          // unowned. Leaving this out would publish their book of business to
+          // the whole company until the day they first logged in.
+          && resource.data.get('assignedToEmails', []).size() == 0
+          && resource.data.get('assignedToName', '') == ''
+        )
+      );
+    }
+
+    /*
+      Keep in sync with canSeeOrder() in src/lib/accessControl.ts.
+
+      Deliberately stricter than partyVisible(): there is no "nobody owns it, so
+      everybody can see it" branch. An unowned party is usually a facility
+      nobody has claimed and is harmless to share; an unowned order is a live
+      load with rates on it, so it stays with whoever sees every load until
+      somebody is assigned to it.
+
+      `can('orders.view')` is the gate and is asked first, before seeing every
+      load, because that is the order canSeeOrder() asks them in — reversing it
+      would put a screen and a rule into disagreement about the same person.
+      Both calls short-circuit for an admin, which is why there is no separate
+      admin branch here.
+    */
+    function orderVisible() {
+      return can('orders.view') && (
+        can('orders.viewAll')
+        || (request.auth.uid in resource.data.get('assignedToUids', []))
+        // Owning the client carries every one of its orders. Rules cannot run
+        // the query that would answer this, and a get() on the client party per
+        // order would blow the document-access limit on any list, so the
+        // client's owners are mirrored onto the order by syncClientOwners().
+        || (request.auth.uid in resource.data.get('clientOwnerUids', []))
+        || resource.data.get('assignedToGroupIds', []).hasAny(myGroups())
+        || resource.data.get('clientOwnerGroupIds', []).hasAny(myGroups())
+        || managesRecord()
+      );
+    }
+
     // Ownership decides who can read a record, so it must not be writable by
     // the same people who can read it — otherwise anyone who could see an
     // unowned client could claim it and shut everybody else out, silently.
