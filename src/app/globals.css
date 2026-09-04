@@ -150,3 +150,44 @@ html.app-shell-locked body {
     margin: 14mm;
   }
 }
+
+/*
+ * A tab bar that has run out of room.
+ *
+ * Below `lg` the page is a phone's width and a five-tab bar does not fit. It
+ * scrolls sideways rather than wrapping, because wrapping breaks the shared
+ * underline that is the only thing making a row of buttons read as a tab bar
+ * at all — the second line ends up looking like unrelated links.
+ *
+ * The bar is short and its own scrollbar would sit on the underline, so the
+ * scrollbar is hidden and the tabs are dragged instead. That is the native
+ * gesture on a touch screen, which is the only place this overflows.
+ */
+.tab-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.tab-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * The height of a phone browser's viewport, which is not 100vh.
+ *
+ * On mobile Safari and Chrome, `100vh` is the height the page would have if
+ * the address bar were hidden — so a shell sized to it hangs about 60px below
+ * the bottom of the screen. The shell does not scroll (see .app-shell-locked
+ * above), so that band is simply lost: on the chat page it is the composer, on
+ * the sidebar it is the sign-out link.
+ *
+ * `100dvh` is the same measurement taken against the chrome that is actually
+ * showing, and it re-measures as the address bar collapses. It is behind an
+ * @supports test rather than replacing the h-screen class, so a browser that
+ * has never heard of dvh keeps the height it has today instead of dropping the
+ * declaration and collapsing the shell to nothing.
+ */
+@supports (height: 100dvh) {
+  .app-shell {
+    height: 100dvh;
+  }
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -19,6 +19,8 @@ import {
   Settings,
   BookOpen,
   GraduationCap,
+  Menu,
+  X,
   LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -135,6 +137,32 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const { incoming, outgoing }          = useApprovals();
 
   /**
+   * The sidebar is a drawer on a phone and a column on a desktop.
+   *
+   * Below `lg` there is not room for both a 240px nav and a readable page, so
+   * the same <aside> slides in over the content instead of sitting beside it.
+   * It is one element in both cases rather than two rendered copies: a second
+   * copy would mean the badge counts, the permission filter and the "which
+   * item is lit" test all existing twice, and the two drifting apart.
+   *
+   * This state does nothing at `lg` and up — the drawer classes are all
+   * `lg:`-reset, so the desktop layout is exactly what it was.
+   */
+  const [navOpen, setNavOpen] = useState(false);
+
+  // Tapping a link should leave you looking at the page, not at the menu you
+  // opened it from. Keyed on the path so it also closes on a back gesture.
+  useEffect(() => { setNavOpen(false); }, [pathname]);
+
+  // Escape closes it, the same as any other thing that covers the screen.
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setNavOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [navOpen]);
+
+  /**
    * Which nav item to light up. Dashboard is matched exactly — every other
    * page lives under /dashboard, so a prefix test would leave it lit
    * everywhere. The rest match their own subtree, so an order's detail page
@@ -210,16 +238,47 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     /* h-screen + overflow-hidden, not min-h-screen: the shell is exactly the
        viewport, so a long page scrolls inside <main> instead of scrolling the
-       window and carrying the nav off the top of the screen with it. */
-    <div className="h-screen flex overflow-hidden">
-      {/* Sidebar — always visible; only its nav list scrolls */}
-      <aside className="w-60 flex-shrink-0 bg-brand-900 text-white flex flex-col">
+       window and carrying the nav off the top of the screen with it.
+
+       `app-shell` is what globals.css hangs the mobile-browser height fix on —
+       see the comment there. It carries no styles of its own, so h-screen is
+       still what sizes this on anything that does not support dvh. */
+    <div className="app-shell h-screen flex overflow-hidden">
+      {/*
+        The drawer's backdrop. Rendered only while it is open and only below
+        `lg`, so on a desktop there is never an invisible layer over the page.
+      */}
+      {navOpen && (
+        <div
+          onClick={() => setNavOpen(false)}
+          aria-hidden
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+        />
+      )}
+
+      {/* Sidebar — a column on a desktop, a drawer over the page on a phone.
+          Only its nav list scrolls, in both cases. */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-60 flex-shrink-0 bg-brand-900 text-white flex flex-col transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0 ${
+          navOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
         <div className="flex-shrink-0 px-4 py-4 border-b border-brand-700 flex items-center gap-3">
           <Image src="/logo-circle.png" alt="TTL" width={44} height={44} className="flex-shrink-0" />
-          <div>
+          <div className="min-w-0">
             <p className="font-[family-name:var(--font-rajdhani)] text-3xl font-bold tracking-[0.2em] pl-[0.2em] leading-tight text-white">TTMS</p>
             <p className="text-[10px] font-medium uppercase tracking-widest text-blue-300 mt-0.5">Total Transportation Management System</p>
           </div>
+          {/* A way out that is not "tap the sliver of page still showing" —
+              on a narrow phone the drawer covers nearly all of it. */}
+          <button
+            type="button"
+            onClick={() => setNavOpen(false)}
+            aria-label="Close menu"
+            className="-mr-1 ml-auto flex-shrink-0 rounded-lg p-1.5 text-blue-200 transition hover:bg-brand-700 hover:text-white lg:hidden"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         {/* min-h-0 is load-bearing: a flex child defaults to min-height:auto and
@@ -307,9 +366,53 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto bg-gray-50">
-        {children}
-      </main>
+      {/* min-w-0 is load-bearing here for the same reason min-h-0 is on the
+          nav: a flex child will not shrink below its content, so a wide table
+          inside <main> would stretch this column and push the page off the
+          right of a phone screen instead of scrolling inside its own box. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/*
+          The phone's title bar. It exists because the sidebar — which is the
+          only way between sections — is off-screen below `lg`, so without it
+          there is no way to open the menu. Hidden at `lg` and up, where the
+          sidebar is its own header.
+        */}
+        <header className="flex flex-shrink-0 items-center gap-3 border-b border-brand-700 bg-brand-900 px-3 py-2.5 text-white lg:hidden">
+          <button
+            type="button"
+            onClick={() => setNavOpen(true)}
+            aria-label="Open menu"
+            aria-expanded={navOpen}
+            className="rounded-lg p-1.5 text-blue-100 transition hover:bg-brand-700 hover:text-white"
+          >
+            <Menu size={22} />
+          </button>
+          <Link href="/dashboard" className="flex min-w-0 items-center gap-2">
+            <Image src="/logo-circle.png" alt="TTL" width={28} height={28} className="flex-shrink-0" />
+            <span className="font-[family-name:var(--font-rajdhani)] text-2xl font-bold tracking-[0.2em] pl-[0.2em] leading-none text-white">
+              TTMS
+            </span>
+          </Link>
+          {/* The same destination as the block at the foot of the sidebar, so
+              your own record stays one tap away without opening the menu. */}
+          <Link
+            href="/dashboard/profile"
+            aria-current={isCurrent('/dashboard/profile') ? 'page' : undefined}
+            title="Your details, and how to ask for a change"
+            className="ml-auto flex-shrink-0 rounded-full"
+          >
+            <UserAvatar
+              photoPath={profile?.photoPath}
+              fallback={(profile?.displayName || user?.email || '?').charAt(0).toUpperCase()}
+              size={30}
+            />
+          </Link>
+        </header>
+
+        <main className="flex-1 overflow-y-auto bg-gray-50">
+          {children}
+        </main>
+      </div>
 
       {/* Over every page but the chat page itself, so a quick word does not
           cost you the order you were in the middle of. */}

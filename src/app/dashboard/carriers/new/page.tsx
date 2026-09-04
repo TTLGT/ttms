@@ -63,7 +63,7 @@ export default function NewCarrierPage() {
   const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl">
       <div className="mb-6">
         <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-gray-700 mb-2 flex items-center gap-1">
           ← Back
@@ -75,13 +75,13 @@ export default function NewCarrierPage() {
         {/* Company Info */}
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Company Info</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="col-span-1 sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
               <input required value={companyName} onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="e.g. Swift Transport LLC" className={inputCls} />
             </div>
-            <div className="col-span-2">
+            <div className="col-span-1 sm:col-span-2">
               <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />
             </div>
             <div>
@@ -89,7 +89,7 @@ export default function NewCarrierPage() {
               <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
                 placeholder="(555) 555-5555" className={inputCls} />
             </div>
-            <div className="col-span-2">
+            <div className="col-span-1 sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="dispatch@carrier.com" className={inputCls} />
@@ -100,7 +100,7 @@ export default function NewCarrierPage() {
         {/* Authority */}
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Authority</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">DOT Number</label>
               <input value={dot} onChange={(e) => setDot(e.target.value)}
@@ -117,7 +117,7 @@ export default function NewCarrierPage() {
         {/* Insurance */}
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Insurance</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Provider</label>
               <input value={insuranceProvider} onChange={(e) => setInsProvider(e.target.value)}

@@ -45,8 +45,8 @@ function AddressFields({ label, value, onChange }: {
   return (
     <div>
       <p className="text-sm font-semibold text-gray-700 mb-3">{label}</p>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="col-span-1 sm:col-span-2">
           <input placeholder="Street address" value={value.street} onChange={set('street')}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
         </div>
@@ -253,14 +253,14 @@ export default function EditOrderPage() {
   );
 
   if (!order) return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <p className="text-red-600 text-sm">{error || 'Order not found.'}</p>
       <Link href="/dashboard/orders" className="text-sm text-brand-600 hover:underline mt-2 block">← Orders</Link>
     </div>
   );
 
   return (
-    <div className="p-8 max-w-7xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl">
       <div className="mb-6">
         <Link href={`/dashboard/orders/${orderId}`} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-2">
           ← Back to {orderDisplayNumber(order)}
@@ -274,8 +274,8 @@ export default function EditOrderPage() {
           {/* Shipment Info */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Shipment Info</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="col-span-1 sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <PartyCombobox role="client"    label="Client (signs the contract)" parties={parties}
                   value={client}    onChange={setClient}    onPartyCreated={cacheParty} required />
                 <PartyCombobox role="shipper"   label="Shipper (pickup)"           parties={parties}
@@ -324,7 +324,7 @@ export default function EditOrderPage() {
           {/* Route */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
             <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Route</h2>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <AddressFields label="Origin" value={origin} onChange={setOrigin} />
               <AddressFields label="Destination" value={destination} onChange={setDest} />
             </div>
@@ -345,7 +345,7 @@ export default function EditOrderPage() {
           {/* Financials */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Financials</h2>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Agreed Rate (USD)</label>
                 <input type="number" min="0" step="0.01" value={agreedRate} onChange={(e) => setAgreedRate(e.target.value)} placeholder="0.00"

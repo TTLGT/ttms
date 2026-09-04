@@ -176,7 +176,7 @@ export default function ApprovalsPage() {
   }
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Approvals</h1>
         <p className="text-sm text-gray-500 mt-0.5">
@@ -189,7 +189,7 @@ export default function ApprovalsPage() {
         </p>
       </div>
 
-      <div className="flex gap-1 mb-5 border-b border-gray-200">
+      <div className="flex gap-1 mb-5 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
         {([
           // Whoever can decide anybody's request is looking at the whole
           // company's queue, so the tab says so rather than implying these are

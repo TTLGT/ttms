@@ -4,6 +4,7 @@ import { Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ChatPanel from '@/components/chat/ChatPanel';
 import { useChat } from '@/context/ChatContext';
+import { useIsNarrow } from '@/lib/useIsNarrow';
 
 /**
  * Chat, full width.
@@ -18,6 +19,20 @@ import { useChat } from '@/context/ChatContext';
  * reach this page is on the allowlist, and everyone on the allowlist is staff.
  */
 export default function ChatPage() {
+  /*
+   * On a phone the page becomes the same one-at-a-time view the popup uses.
+   * `compact` is about how much room there is rather than about what chat
+   * does, which is exactly the choice being made here: the list beside a
+   * thread needs roughly 900px, and below that the thread ends up about 200px
+   * wide, which is not a chat.
+   *
+   * It has to be decided in JavaScript rather than with an `lg:` class because
+   * the two layouts are different trees, not the same tree styled twice.
+   * Everything else — which conversation is open, what has been read — lives
+   * in ChatProvider, so crossing the breakpoint keeps your place.
+   */
+  const narrow = useIsNarrow();
+
   return (
     // h-full with the shell locked to the viewport: the thread scrolls inside
     // itself, the way the sidebar nav does, rather than scrolling the page and
@@ -29,7 +44,7 @@ export default function ChatPage() {
       <Suspense fallback={null}>
         <OpenFromLink />
       </Suspense>
-      <ChatPanel />
+      <ChatPanel compact={narrow} />
     </div>
   );
 }

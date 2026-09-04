@@ -43,7 +43,7 @@ export default function InternLayout({ children }: { children: React.ReactNode }
   if (loading || !allowed) return null;
 
   return (
-    <div className="p-8 max-w-4xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">My onboarding</h1>
         <p className="text-sm text-gray-500 mt-0.5">
@@ -51,7 +51,7 @@ export default function InternLayout({ children }: { children: React.ReactNode }
         </p>
       </div>
 
-      <nav className="mt-5 flex gap-1 border-b border-gray-200">
+      <nav className="mt-5 flex gap-1 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
         {TABS.map((tab) => {
           // Guide is the parent of the other two, so it matches exactly —
           // a prefix test would leave it lit on every tab.

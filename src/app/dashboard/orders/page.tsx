@@ -194,9 +194,9 @@ function OrdersList() {
     : '…';
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -241,7 +241,7 @@ function OrdersList() {
           placeholder="Search by order number, customer, city, or commodity…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-96 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+          className="w-full sm:w-96 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
         />
         {applied && !loading && (
           <span className="ml-3 text-xs text-gray-400">
@@ -252,7 +252,7 @@ function OrdersList() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex items-center gap-1 mb-6 border-b border-gray-200">
+      <div className="flex items-center gap-1 mb-6 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
         {FILTER_TABS.map((tab) => (
           <button
             key={tab.value}

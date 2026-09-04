@@ -146,13 +146,13 @@ export default function PermissionsPage() {
           ))}
         </div>
 
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search a name or address"
-            className="w-64 rounded-lg border border-gray-200 bg-white py-1.5 pl-9 pr-8 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
+            className="w-full sm:w-64 rounded-lg border border-gray-200 bg-white py-1.5 pl-9 pr-8 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
           />
           {query && (
             <button

@@ -369,7 +369,7 @@ function Directory() {
   const finishPrinting = useCallback(() => setPrinting(null), []);
 
   return (
-    <div className="p-8 max-w-[1600px]">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px]">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Directory</h1>
@@ -489,13 +489,13 @@ function Directory() {
             </select>
           )}
 
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search name, role, email, phone or extension"
-              className="w-72 rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-8 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
+              className="w-full sm:w-72 rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-8 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
             />
             {query && (
               <button

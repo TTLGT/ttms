@@ -92,13 +92,13 @@ export default function QuickAddCarrierModal({
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="col-span-1 sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
               <input required autoFocus value={companyName} onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="e.g. Swift Transport LLC" className={inputCls} />
             </div>
-            <div className="col-span-2">
+            <div className="col-span-1 sm:col-span-2">
               <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />
             </div>
             <div>
@@ -106,7 +106,7 @@ export default function QuickAddCarrierModal({
               <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
                 placeholder="(555) 555-5555" className={inputCls} />
             </div>
-            <div className="col-span-2">
+            <div className="col-span-1 sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="dispatch@carrier.com" className={inputCls} />

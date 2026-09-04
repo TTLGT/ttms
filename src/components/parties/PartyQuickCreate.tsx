@@ -90,7 +90,7 @@ export default function PartyQuickCreate({
   const label = ROLE_LABEL[role].toLowerCase();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-6"
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-6"
       role="dialog" aria-modal="true" aria-label={`New ${label}`}>
       <div className="w-full max-w-3xl bg-white rounded-xl shadow-xl my-6">
         <div className="flex items-start justify-between border-b border-gray-200 px-6 py-4">

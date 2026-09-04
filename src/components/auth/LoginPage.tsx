@@ -53,7 +53,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
 
         {/* Header stripe */}
-        <div className="bg-brand-900 px-8 py-6 flex flex-col items-center gap-3">
+        <div className="bg-brand-900 px-6 sm:px-8 py-6 flex flex-col items-center gap-3">
           <Image src="/logo-circle.png" alt="Total Transport Logistics" width={88} height={88} className="rounded-full shadow-lg" />
           <h1 className="font-[family-name:var(--font-rajdhani)] text-white text-6xl tracking-[0.3em] pl-[0.3em] drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">TTMS</h1>
           <p className="text-blue-200 text-sm font-medium tracking-wide">Total Transport Logistics</p>
@@ -61,7 +61,7 @@ export default function LoginPage() {
         </div>
 
         {/* Body */}
-        <div className="px-8 py-8 flex flex-col gap-5">
+        <div className="px-6 sm:px-8 py-8 flex flex-col gap-5">
           <div className="text-center">
             <h2 className="text-gray-800 text-lg font-semibold">Welcome</h2>
             <p className="text-gray-500 text-sm mt-1">Sign in with your TTL Google account to continue</p>

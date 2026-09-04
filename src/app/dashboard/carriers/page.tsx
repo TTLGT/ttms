@@ -94,9 +94,9 @@ function CarriersList() {
   const filtered = carriers;
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Carriers</h1>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -114,13 +114,13 @@ function CarriersList() {
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-4 mb-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
         <input
           type="text"
           placeholder="Search by name start, DOT, or MC…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-72 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+          className="w-full sm:w-72 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
         />
         <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
           <input
@@ -149,7 +149,7 @@ function CarriersList() {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>

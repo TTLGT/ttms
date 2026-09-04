@@ -132,7 +132,7 @@ function PartyList({ role, title, blurb }: Props) {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -166,13 +166,13 @@ function PartyList({ role, title, blurb }: Props) {
         </div>
       )}
 
-      <div className="mb-4 flex items-center gap-4">
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
         <input
           type="text"
           placeholder={`Search ${title.toLowerCase()} by name…`}
           value={search}
           onChange={(e) => setParam('q', e.target.value, '')}
-          className="w-96 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+          className="w-full sm:w-96 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
         />
         {/* Only worth offering to somebody who is seeing everybody's records
             anyway — for a broker the whole list is already only theirs. Hidden
@@ -212,7 +212,7 @@ function PartyList({ role, title, blurb }: Props) {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>

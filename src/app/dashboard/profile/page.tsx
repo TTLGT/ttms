@@ -206,7 +206,7 @@ export default function MyProfilePage() {
 
   if (!me) {
     return (
-      <div className="p-8 max-w-5xl">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600">
           {error || 'Could not load your record.'}
         </div>
@@ -217,7 +217,7 @@ export default function MyProfilePage() {
   const name = me.displayName || [me.firstName, me.lastName].filter(Boolean).join(' ') || me.email;
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">My profile</h1>
         <p className="mt-0.5 text-sm text-gray-500">
@@ -430,7 +430,7 @@ function FieldRow({
       <div className="flex items-center gap-3">
         <span
           title={meta.detail}
-          className="flex w-32 flex-shrink-0 items-center gap-1 text-xs text-gray-500"
+          className="flex w-24 sm:w-32 flex-shrink-0 items-center gap-1 text-xs text-gray-500"
         >
           <span className="truncate">{meta.label}</span>
           {meta.privateToHr && (
@@ -467,7 +467,7 @@ function FieldRow({
           value column — 8rem of label plus the 0.75rem gap — so the two line
           up and the arrow reads as pointing from one to the other. */}
       {pending && (
-        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-[8.75rem] text-xs">
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-[6.75rem] sm:pl-[8.75rem] text-xs">
           <ArrowRight size={12} className="flex-shrink-0 text-gray-400" />
           <span className="font-medium text-gray-700">{changeSummary(pending).to}</span>
           <span className="text-gray-300">·</span>

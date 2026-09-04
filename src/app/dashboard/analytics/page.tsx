@@ -173,9 +173,9 @@ export default function AnalyticsPage() {
   }, [filtered]);
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6 sm:mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Revenue & Margin Analytics</h1>
           <p className="text-gray-500 mt-1 text-sm">Delivered and completed orders only.</p>
@@ -277,6 +277,7 @@ export default function AnalyticsPage() {
               <h2 className="font-semibold text-gray-800">Monthly Breakdown</h2>
             </div>
             {monthlyData.length === 0 ? <Empty /> : (
+              <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-100">
                 <thead className="bg-gray-50">
                   <tr>
@@ -302,6 +303,7 @@ export default function AnalyticsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </>

@@ -205,7 +205,7 @@ export default function PartyFields({
         onUseExisting={onUseExisting}
       />
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Company name" error={errors.companyName}
           hint="The name this shows up as on orders and agreements.">
           <input value={value.companyName} onChange={(e) => set('companyName', e.target.value)}
@@ -243,8 +243,8 @@ export default function PartyFields({
 
       <div>
         <p className="text-sm font-semibold text-gray-700 mb-3">Address</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="col-span-1 sm:col-span-2">
             <input placeholder="Street address" value={value.address.street} onChange={setAddress('street')}
               className={errors.street ? badCls : inputCls} />
             {errors.street && <p className="text-xs text-red-600 mt-1">{errors.street}</p>}
@@ -254,7 +254,7 @@ export default function PartyFields({
               className={errors.city ? badCls : inputCls} />
             {errors.city && <p className="text-xs text-red-600 mt-1">{errors.city}</p>}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <select value={value.address.state} onChange={setAddress('state')}
                 className={errors.state ? badCls : inputCls}>

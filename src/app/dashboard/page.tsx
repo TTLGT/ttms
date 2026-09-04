@@ -446,7 +446,7 @@ export default function DashboardPage() {
   const recentOrders = orders;
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Good to see you, {firstName} 👋</h1>
         <p className="text-gray-500 mt-1 text-sm">Your loads and clients, at a glance.</p>
@@ -473,7 +473,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-semibold text-gray-800">Recent Orders</h2>
           <Link href="/dashboard/orders" className="text-sm text-brand-500 hover:underline">View all →</Link>
         </div>
@@ -494,7 +494,7 @@ export default function DashboardPage() {
             <Link href="/dashboard/orders/new" className="text-brand-600 hover:underline">create your first order</Link>.
           </div>
         ) : (
-          <div className="overflow-y-auto max-h-[320px]">
+          <div className="overflow-auto max-h-[320px]">
             <table className="min-w-full divide-y divide-gray-100">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>

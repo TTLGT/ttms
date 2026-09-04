@@ -992,7 +992,7 @@ export default function HandbookPage() {
   const searching = query.length >= MIN_QUERY;
 
   return (
-    <div className="max-w-4xl p-8">
+    <div className="max-w-4xl p-4 sm:p-6 lg:p-8">
       <div className="mb-6">
         <h1 className="flex items-center gap-2.5 text-2xl font-bold text-gray-900">
           <BookOpen size={24} className="text-brand-500" />
@@ -1007,7 +1007,7 @@ export default function HandbookPage() {
           index stay reachable from anywhere in a long page. */}
       <div
         data-no-search
-        className="sticky top-0 z-20 -mx-8 mb-5 border-b border-gray-200 bg-gray-50/95 px-8 py-3 backdrop-blur"
+        className="sticky top-0 z-20 -mx-4 mb-5 border-b border-gray-200 bg-gray-50/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
       >
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[220px] flex-1">

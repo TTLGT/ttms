@@ -84,11 +84,16 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   const wide = !pathname.startsWith('/dashboard/settings/data');
 
   return (
-    <div className={`p-8 ${wide ? 'max-w-[1600px]' : 'max-w-3xl'}`}>
+    <div className={`p-4 sm:p-6 lg:p-8 ${wide ? 'max-w-[1600px]' : 'max-w-3xl'}`}>
       {/* Sticky so the tabs stay reachable while a long tab — People, mostly —
           is scrolled. `top-0` refers to <main>, which is the scroll container;
-          the background is opaque so rows do not show through it. */}
-      <div className="sticky top-0 z-10 -mx-8 -mt-8 bg-gray-50 px-8 pt-8">
+          the background is opaque so rows do not show through it.
+
+          The negative margins have to cancel the container's padding exactly,
+          so they step at the same breakpoints it does — otherwise the sticky
+          band sits inset from the page edge on a phone and the rows scroll
+          past in the gutter beside it. */}
+      <div className="sticky top-0 z-10 -mx-4 -mt-4 bg-gray-50 px-4 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
@@ -106,7 +111,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
         {/* One tab is not a tab bar. HR sees only People, so they get the
             page without the furniture. */}
         {tabs.length > 1 && (
-          <nav className="mt-5 flex gap-1 border-b border-gray-200">
+          <nav className="mt-5 flex gap-1 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
             {tabs.map((tab) => {
               // Overview is the parent of the others, so it can only match
               // exactly — otherwise it would light up on every tab.

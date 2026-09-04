@@ -154,14 +154,14 @@ export default function CarrierDetailPage() {
   );
 
   if (!carrier) return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <p className="text-gray-500">Carrier not found.</p>
       <Link href="/dashboard/carriers" className="text-sm text-brand-600 hover:underline mt-2 block">← Back to Carriers</Link>
     </div>
   );
 
   return (
-    <div className="p-8 max-w-4xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
       <Link href="/dashboard/carriers" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
         ← Carriers
       </Link>
@@ -210,7 +210,7 @@ export default function CarrierDetailPage() {
       {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600 mb-4">{error}</div>}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-gray-200">
+      <div className="flex gap-1 mb-4 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
         {(['details', 'orders'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition ${
@@ -228,7 +228,7 @@ export default function CarrierDetailPage() {
           <section className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Company Info</h3>
             {!editing ? (
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {[
                   ['Contact', carrier.contactName],
                   ['Phone', carrier.phone],
@@ -243,19 +243,19 @@ export default function CarrierDetailPage() {
                 ))}
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="col-span-1 sm:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
                   <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={inputCls} />
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
                   <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-1 sm:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
                   <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
                 </div>
@@ -275,7 +275,7 @@ export default function CarrierDetailPage() {
           <section className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Authority</h3>
             {!editing ? (
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
                   <p className="text-xs text-gray-500 mb-0.5">DOT Number</p>
                   <p className="text-sm font-mono text-gray-900">{carrier.dot || '—'}</p>
@@ -286,7 +286,7 @@ export default function CarrierDetailPage() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">DOT Number</label>
                   <input value={dot} onChange={(e) => setDot(e.target.value)} placeholder="1234567" className={inputCls} />
@@ -304,7 +304,7 @@ export default function CarrierDetailPage() {
             <section className="bg-white rounded-xl border border-gray-200 p-6">
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Dispatcher</h3>
               {!editing ? (
-                <div className="grid grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {[
                     ['Name', carrier.dispatcher],
                     ['Phone', carrier.dispatcherPhone],
@@ -317,15 +317,15 @@ export default function CarrierDetailPage() {
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="col-span-1 sm:col-span-2">
                     <PersonNameFields label="Dispatcher" value={dispatcher} onChange={setDispatcher} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Dispatcher Phone</label>
                     <input type="tel" value={dispatcherPhone} onChange={(e) => setDispatcherPhone(e.target.value)} className={inputCls} />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">Dispatcher Email</label>
                     <input type="email" value={dispatcherEmail} onChange={(e) => setDispatcherEmail(e.target.value)} className={inputCls} />
                   </div>
@@ -339,7 +339,7 @@ export default function CarrierDetailPage() {
             <section className="bg-white rounded-xl border border-gray-200 p-6">
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Billing Contact</h3>
               {!editing ? (
-                <div className="grid grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {[
                     ['Name', carrier.billingContact],
                     ['Phone', carrier.billingPhone],
@@ -352,15 +352,15 @@ export default function CarrierDetailPage() {
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="col-span-1 sm:col-span-2">
                     <PersonNameFields label="Billing Contact" value={billingContact} onChange={setBillingContact} />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Billing Phone</label>
                     <input type="tel" value={billingPhone} onChange={(e) => setBillingPhone(e.target.value)} className={inputCls} />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">Billing Email</label>
                     <input type="email" value={billingEmail} onChange={(e) => setBillingEmail(e.target.value)} className={inputCls} />
                   </div>
@@ -373,7 +373,7 @@ export default function CarrierDetailPage() {
           <section className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Insurance</h3>
             {!editing ? (
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>
                   <p className="text-xs text-gray-500 mb-0.5">Provider</p>
                   <p className="text-sm text-gray-900">{carrier.insuranceProvider || '—'}</p>
@@ -393,7 +393,7 @@ export default function CarrierDetailPage() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Provider</label>
                   <input value={insProvider} onChange={(e) => setInsProvider(e.target.value)} className={inputCls} />
@@ -439,7 +439,7 @@ export default function CarrierDetailPage() {
               <p className="text-sm text-gray-400">No orders assigned to this carrier yet.</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-100">
                 <thead className="bg-gray-50">
                   <tr>

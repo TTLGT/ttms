@@ -112,7 +112,7 @@ export default function SignForm({
 
   if (signed) {
     return (
-      <div className="bg-white rounded-xl border border-green-200 p-10 text-center">
+      <div className="bg-white rounded-xl border border-green-200 p-6 sm:p-10 text-center">
         <p className="text-5xl mb-4">✅</p>
         <h2 className="text-xl font-bold text-gray-900 mb-2">Signed Successfully</h2>
         <p className="text-sm text-gray-600 mb-1">

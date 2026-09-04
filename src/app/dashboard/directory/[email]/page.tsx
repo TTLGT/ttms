@@ -330,7 +330,7 @@ export default function PersonPage() {
 
   if (error) {
     return (
-      <div className="max-w-3xl p-8">
+      <div className="max-w-3xl p-4 sm:p-6 lg:p-8">
         {back}
         <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600">
           {error}
@@ -341,7 +341,7 @@ export default function PersonPage() {
 
   if (!found) {
     return (
-      <div className="max-w-3xl p-8">
+      <div className="max-w-3xl p-4 sm:p-6 lg:p-8">
         {back}
         <div className="mt-6 rounded-xl border border-gray-200 bg-white p-8 text-center">
           <UserRound size={22} className="mx-auto mb-2 text-gray-300" />
@@ -377,7 +377,7 @@ export default function PersonPage() {
   const payroll = full && (legal || person.personalEmail || started || born);
 
   return (
-    <div className="max-w-5xl p-8">
+    <div className="max-w-5xl p-4 sm:p-6 lg:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         {back}
         {/* The reason this page exists, so it is on it rather than left to

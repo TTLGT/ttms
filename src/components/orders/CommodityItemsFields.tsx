@@ -86,8 +86,8 @@ export default function CommodityItemsFields({ value, onChange }: Props) {
               )}
             </div>
 
-            <div className="grid grid-cols-12 gap-3">
-              <div className="col-span-9">
+            <div className="grid grid-cols-6 sm:grid-cols-12 gap-3">
+              <div className="col-span-6 sm:col-span-9">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Commodity</label>
                 <input
                   required={idx === 0}

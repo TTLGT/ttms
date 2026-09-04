@@ -747,13 +747,13 @@ export default function OrderDetailPage() {
 
 
   return (
-    <div className="p-8 max-w-4xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
       <Link href="/dashboard/orders" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
         ← Orders
       </Link>
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-bold text-gray-900 font-mono">{orderDisplayNumber(order)}</h1>
@@ -775,7 +775,7 @@ export default function OrderDetailPage() {
             </p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {/* Beside the link button, not buried in a tab: the conversation
               about a load is part of the load's record, and the whole point of
               it living here is that nobody has to remember which room it was
@@ -828,7 +828,7 @@ export default function OrderDetailPage() {
       {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600 mb-4">{error}</div>}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 border-b border-gray-200">
+      <div className="flex gap-1 mb-4 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
         {(['details', 'documents', 'suborders'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition ${
@@ -845,7 +845,7 @@ export default function OrderDetailPage() {
           {/* Shipment */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Shipment</h3>
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <DetailRow label="Client"    value={order.clientName || '—'} />
               <DetailRow label="Shipper"   value={order.shipperName || '—'} />
               <DetailRow label="Consignee" value={order.consigneeName || '—'} />
@@ -890,7 +890,7 @@ export default function OrderDetailPage() {
           {/* Route */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Route</h3>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-1">Origin</p>
                 <p className="text-sm text-gray-900">
@@ -1049,7 +1049,7 @@ export default function OrderDetailPage() {
                   </div>
                 </div>
                 <PersonNameFields label="Driver" value={driverName} onChange={setDriverName} />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Driver Phone</label>
                     <input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="(555) 555-5555"
@@ -1082,7 +1082,7 @@ export default function OrderDetailPage() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <DetailRow label="Carrier" value={
                   order.carrierId
                     ? <Link href={`/dashboard/carriers/${order.carrierId}`} className="text-brand-600 hover:underline">{order.carrierName}</Link>
@@ -1168,7 +1168,7 @@ export default function OrderDetailPage() {
           {/* Financials */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Financials</h3>
-            <div className="grid grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <DetailRow label="Agreed Rate" value={formatCurrency(order.agreedRate)} />
               <DetailRow label="Broker Fee" value={formatCurrency(order.brokerFee)} />
               <DetailRow label="Carrier Pay" value={formatCurrency(order.carrierPay)} />
@@ -1216,7 +1216,7 @@ export default function OrderDetailPage() {
 
       {/* Documents tab */}
       {tab === 'documents' && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>
@@ -1337,7 +1337,7 @@ export default function OrderDetailPage() {
               <p className="text-sm text-gray-400">No suborders yet.</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-100">
                 <thead className="bg-gray-50">
                   <tr>

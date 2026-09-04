@@ -202,7 +202,7 @@ export default function DimensionConverter() {
       {/* Volume */}
       <div>
         <SectionTitle>Volume (L × W × H)</SectionTitle>
-        <div className="grid grid-cols-4 gap-2 mb-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
           <input type="number" step="any" value={vL} onChange={(e) => setVL(e.target.value)} placeholder="L" className={INPUT} />
           <input type="number" step="any" value={vW} onChange={(e) => setVW(e.target.value)} placeholder="W" className={INPUT} />
           <input type="number" step="any" value={vH} onChange={(e) => setVH(e.target.value)} placeholder="H" className={INPUT} />

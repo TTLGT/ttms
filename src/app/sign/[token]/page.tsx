@@ -38,7 +38,7 @@ export default async function SignPage({ params }: Props) {
   if (!snap.exists) {
     return (
       <Shell title={pageTitle}>
-        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-10 text-center">
           <p className="text-4xl mb-4">🔗</p>
           <h2 className="text-lg font-semibold text-gray-800 mb-2">Link Not Found</h2>
           <p className="text-sm text-gray-500">This signing link is invalid or has already expired. Please contact your dispatcher for a new link.</p>
@@ -53,7 +53,7 @@ export default async function SignPage({ params }: Props) {
     const signedDate = data.usedAt.toDate().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' });
     return (
       <Shell title={pageTitle}>
-        <div className="bg-white rounded-xl border border-green-200 p-10 text-center">
+        <div className="bg-white rounded-xl border border-green-200 p-6 sm:p-10 text-center">
           <p className="text-4xl mb-4">✅</p>
           <h2 className="text-lg font-semibold text-gray-800 mb-2">Already Signed</h2>
           <p className="text-sm text-gray-600">
@@ -68,7 +68,7 @@ export default async function SignPage({ params }: Props) {
   if (data.expiresAt.toDate() < new Date()) {
     return (
       <Shell title={pageTitle}>
-        <div className="bg-white rounded-xl border border-red-200 p-10 text-center">
+        <div className="bg-white rounded-xl border border-red-200 p-6 sm:p-10 text-center">
           <p className="text-4xl mb-4">⏰</p>
           <h2 className="text-lg font-semibold text-gray-800 mb-2">Link Expired</h2>
           <p className="text-sm text-gray-500">This signing link expired on {fmt(data.expiresAt)}. Please contact your dispatcher for a new link.</p>

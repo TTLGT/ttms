@@ -38,8 +38,8 @@ function AddressFields({ label, value, onChange }: {
   return (
     <div>
       <p className="text-sm font-semibold text-gray-700 mb-3">{label}</p>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="col-span-1 sm:col-span-2">
           <input placeholder="Street" value={value.street} onChange={set('street')}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
         </div>
@@ -292,7 +292,7 @@ export default function PartyDetailPage() {
   const displayName = partyDisplayName(party);
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
       <Link href="/dashboard/clients" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
         ← Back
       </Link>
@@ -343,7 +343,7 @@ export default function PartyDetailPage() {
 
       {editing ? (
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5 mb-6">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Company name</label>
               <input value={companyName} onChange={(e) => setCompanyName(e.target.value)}
@@ -469,7 +469,7 @@ export default function PartyDetailPage() {
         </section>
       ) : (
         <section className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-          <dl className="grid grid-cols-3 gap-y-4 gap-x-6 text-sm">
+          <dl className="grid grid-cols-1 sm:grid-cols-3 gap-y-4 gap-x-6 text-sm">
             <Detail label="Contact"  value={party.contactName} />
             <Detail label="Phone"    value={party.phone} />
             <Detail label="Email"    value={party.email} />
@@ -505,6 +505,7 @@ export default function PartyDetailPage() {
             </Link>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>
@@ -543,6 +544,7 @@ export default function PartyDetailPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </div>

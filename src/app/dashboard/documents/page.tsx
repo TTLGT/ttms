@@ -135,7 +135,7 @@ export default function DocumentsPage() {
   });
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
@@ -162,7 +162,7 @@ export default function DocumentsPage() {
           placeholder="Search by order # or shipper…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="ml-auto w-64 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+          className="w-full sm:ml-auto sm:w-64 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
         />
       </div>
 
@@ -177,7 +177,7 @@ export default function DocumentsPage() {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>

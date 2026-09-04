@@ -47,7 +47,7 @@ export default function PersonNameFields({
   const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div>
         <label className="block text-xs font-medium text-gray-600 mb-1">{label} — First Name</label>
         <input value={first} onChange={(e) => update(e.target.value, last)}
