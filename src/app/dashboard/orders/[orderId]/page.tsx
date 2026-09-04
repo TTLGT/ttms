@@ -36,6 +36,7 @@ import type { Timestamp } from 'firebase/firestore';
 import StatusBadge from '@/components/orders/StatusBadge';
 import DriverLicenseUpload from '@/components/orders/DriverLicenseUpload';
 import QuickAddCarrierModal from '@/components/carriers/QuickAddCarrierModal';
+import PartyLink from '@/components/parties/PartyLink';
 import PersonNameFields from '@/components/PersonNameFields';
 import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload';
 import { useAuth } from '@/context/AuthContext';
@@ -901,9 +902,9 @@ export default function OrderDetailPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Shipment</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <DetailRow label="Client"    value={order.clientName || '—'} />
-              <DetailRow label="Shipper"   value={order.shipperName || '—'} />
-              <DetailRow label="Consignee" value={order.consigneeName || '—'} />
+              <DetailRow label="Client"    value={<PartyLink id={order.clientId}    name={order.clientName} />} />
+              <DetailRow label="Shipper"   value={<PartyLink id={order.shipperId}   name={order.shipperName} />} />
+              <DetailRow label="Consignee" value={<PartyLink id={order.consigneeId} name={order.consigneeName} />} />
               <DetailRow label="Pieces" value={order.pieces} />
               <DetailRow label="Weight" value={order.weight ? `${order.weight.toLocaleString()} lbs` : '—'} />
               <DetailRow label="Lead Source" value={leadSourceLabel(leadSources, order.sourceId, order.sourceName)} />
