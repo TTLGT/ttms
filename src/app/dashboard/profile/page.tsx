@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ref, uploadBytesResumable } from 'firebase/storage';
-import { Check, ExternalLink, Lock, ShieldCheck, X } from 'lucide-react';
+import { ArrowRight, Check, ExternalLink, Lock, ShieldCheck, X } from 'lucide-react';
 import { storage } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import { useApprovals } from '@/context/ApprovalsContext';
@@ -28,6 +28,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   MAX_REASON,
   PROFILE_FIELDS,
+  changeSummary,
   type ProfileField,
   type ProfileFieldMeta,
   type ProfileUpdateRequest,
@@ -205,7 +206,7 @@ export default function MyProfilePage() {
 
   if (!me) {
     return (
-      <div className="p-8 max-w-3xl">
+      <div className="p-8 max-w-5xl">
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600">
           {error || 'Could not load your record.'}
         </div>
@@ -216,7 +217,7 @@ export default function MyProfilePage() {
   const name = me.displayName || [me.firstName, me.lastName].filter(Boolean).join(' ') || me.email;
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-8 max-w-5xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">My profile</h1>
         <p className="mt-0.5 text-sm text-gray-500">
@@ -238,22 +239,49 @@ export default function MyProfilePage() {
       )}
 
       {/* Who you are, and the picture everyone else sees beside your name. */}
-      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-5">
-        <div className="flex flex-wrap items-center gap-4">
-          <UserAvatar
-            photoPath={me.photoPath}
-            fallback={name.charAt(0).toUpperCase()}
-            size={72}
-            expandable
-            name={name}
-          />
+      <section className="mb-5 rounded-xl border border-gray-200 bg-white p-5">
+        <div className="flex flex-wrap items-start gap-5">
+          {/* The photo and the one control that changes it, kept together —
+              the button belongs to the picture above it, not to the name. */}
+          <div className="flex flex-col items-center gap-2">
+            <UserAvatar
+              photoPath={me.photoPath}
+              fallback={name.charAt(0).toUpperCase()}
+              size={72}
+              expandable
+              name={name}
+            />
+            <PhotoRow
+              email={me.email}
+              photoPath={me.photoPath}
+              name={name}
+              pending={pendingFor.get('photoPath')}
+              disabled={!me.onAllowlist}
+              onSubmit={(value, reason) => submit('photoPath', { value, reason })}
+              onWithdraw={withdraw}
+            />
+          </div>
+
           <div className="min-w-0 flex-1">
             <p className="text-lg font-semibold text-gray-900">{name}</p>
             <p className="text-sm text-gray-500">{me.email}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <RoleBadges person={me} />
             </div>
+
+            {/*
+              What everybody else can and cannot see, said once rather than
+              repeated on four rows. People assume a birthday held for payroll
+              is on the card their colleagues read, and it is not.
+            */}
+            <p className="mt-3 flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
+              <ShieldCheck size={14} className="mt-0.5 flex-shrink-0 text-gray-400" />
+              Your name, photo, work number, extension, office and team are in the
+              company directory. Your legal name, personal email, date of birth and
+              start date are not — only you, HR and administrators can see those.
+            </p>
           </div>
+
           <Link
             href={personHref(me.email)}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:underline"
@@ -261,65 +289,55 @@ export default function MyProfilePage() {
             See your directory page <ExternalLink size={13} />
           </Link>
         </div>
-
-        {/*
-          What everybody else can and cannot see, said once rather than
-          repeated on four rows. People assume a birthday held for payroll is
-          on the card their colleagues read, and it is not.
-        */}
-        <p className="mt-4 flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
-          <ShieldCheck size={14} className="mt-0.5 flex-shrink-0 text-gray-400" />
-          Your name, photo, work number, extension, office and team are in the company
-          directory. Your legal name, personal email, date of birth and start date are
-          not — only you, HR and administrators can see those.
-        </p>
-
-        <PhotoRow
-          email={me.email}
-          photoPath={me.photoPath}
-          name={name}
-          pending={pendingFor.get('photoPath')}
-          disabled={!me.onAllowlist}
-          onSubmit={(value, reason) => submit('photoPath', { value, reason })}
-          onWithdraw={withdraw}
-        />
       </section>
 
-      {SECTIONS.map((section) => (
-        <section key={section.title} className="mb-6 rounded-xl border border-gray-200 bg-white">
-          <header className="border-b border-gray-100 bg-gray-50 px-4 py-2.5">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              {section.title}
-            </h2>
-            <p className="mt-0.5 text-[11px] text-gray-400">{section.blurb}</p>
-          </header>
+      {/*
+        Two columns from `md` up, and `items-start` so a card is only as tall
+        as what is in it. Eleven fields stacked one to a screen-width row made
+        this a page you scrolled rather than read — the whole record is eleven
+        short facts and should fit in about one screen.
 
-          <ul className="divide-y divide-gray-100">
-            {section.fields.map((field) => {
-              const meta = PROFILE_FIELDS.find((f) => f.key === field)!;
-              return (
-                <FieldRow
-                  key={field}
-                  meta={meta}
-                  value={shown(field)}
-                  pending={pendingFor.get(field)}
-                  open={editing === field}
-                  disabled={!me.onAllowlist}
-                  onOpen={() => { setEditing(field); setNotice(''); }}
-                  onCancel={() => setEditing(null)}
-                  onWithdraw={withdraw}
-                  onSubmit={(input) => submit(field, input)}
-                  me={me}
-                  sites={sites}
-                  teams={teams}
-                />
-              );
-            })}
-          </ul>
-        </section>
-      ))}
+        A grid rather than CSS columns on purpose: opening an editor grows one
+        card, and under `columns-*` that reflows every card after it, so the
+        row somebody was reading jumps out from under them.
+      */}
+      <div className="grid items-start gap-5 md:grid-cols-2">
+        {SECTIONS.map((section) => (
+          <section key={section.title} className="rounded-xl border border-gray-200 bg-white">
+            <header className="border-b border-gray-100 bg-gray-50 px-4 py-2.5">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                {section.title}
+              </h2>
+              <p className="mt-0.5 text-[11px] text-gray-400">{section.blurb}</p>
+            </header>
 
-      <p className="text-xs text-gray-400">
+            <ul className="divide-y divide-gray-100">
+              {section.fields.map((field) => {
+                const meta = PROFILE_FIELDS.find((f) => f.key === field)!;
+                return (
+                  <FieldRow
+                    key={field}
+                    meta={meta}
+                    value={shown(field)}
+                    pending={pendingFor.get(field)}
+                    open={editing === field}
+                    disabled={!me.onAllowlist}
+                    onOpen={() => { setEditing(field); setNotice(''); }}
+                    onCancel={() => setEditing(null)}
+                    onWithdraw={withdraw}
+                    onSubmit={(input) => submit(field, input)}
+                    me={me}
+                    sites={sites}
+                    teams={teams}
+                  />
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
+
+      <p className="mt-5 text-xs text-gray-400">
         Everything you have asked for, decided or not, is under{' '}
         <Link href="/dashboard/approvals" className="text-brand-600 hover:underline">
           Approvals → Your requests
@@ -338,31 +356,52 @@ function Banner({ tone, children }: { tone: 'error' | 'ok'; children: React.Reac
   return <div className={`mb-4 rounded-lg border p-3 text-sm ${style}`}>{children}</div>;
 }
 
-/** "Waiting on HR" plus the way out of it, shown wherever a request is open. */
-function PendingNote({
+/**
+ * That a change is waiting, and the way out of it.
+ *
+ * Two pieces rather than one, because they do not sit together in both places
+ * that need them: a field row puts the chip where its "Change" button was and
+ * the way out on the line below, beside the value that was asked for, while
+ * the photo has room for the pair side by side.
+ */
+function PendingBadge() {
+  return (
+    <span
+      title="Waiting on HR or an administrator"
+      className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700"
+    >
+      Requested
+    </span>
+  );
+}
+
+function WithdrawButton({
   request, onWithdraw,
 }: {
   request: ProfileUpdateRequest;
   onWithdraw: (id: string) => void;
 }) {
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-        Change requested
-      </span>
-      <button
-        type="button"
-        onClick={() => onWithdraw(request.id)}
-        className="text-[11px] text-gray-400 underline-offset-2 hover:text-gray-700 hover:underline"
-      >
-        Take it back
-      </button>
-    </span>
+    <button
+      type="button"
+      onClick={() => onWithdraw(request.id)}
+      className="text-[11px] text-gray-400 underline-offset-2 hover:text-gray-700 hover:underline"
+    >
+      Take it back
+    </button>
   );
 }
 
 /**
- * One field: what it holds now, and the way to ask for something else.
+ * One field, on one line: what it holds now, and the way to ask for something
+ * else.
+ *
+ * Label, value and button sit across a single row rather than stacked, and
+ * what the field is *for* has moved to the label's tooltip and to the editor
+ * that opens beneath it. Eleven fields at three lines each turned a record
+ * that is eleven short facts into several screens of scrolling; the
+ * explanation is worth reading once, when you are about to change something,
+ * and not eleven times on the way past.
  *
  * The editor opens in place rather than in a dialog. A dialog would hide the
  * value being changed at the moment somebody is deciding what to change it to,
@@ -387,36 +426,54 @@ function FieldRow({
   teams: Team[];
 }) {
   return (
-    <li className="px-4 py-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm font-medium text-gray-900">{meta.label}</span>
-            {meta.privateToHr && (
-              <Lock size={11} className="text-gray-400" aria-label="Not shown in the directory" />
-            )}
-          </div>
-          <p className="mt-0.5 text-sm text-gray-600">
-            {value || <span className="text-gray-400">Not recorded</span>}
-          </p>
-          <p className="mt-0.5 text-[11px] text-gray-400">{meta.detail}</p>
-        </div>
+    <li className="px-4 py-2.5">
+      <div className="flex items-center gap-3">
+        <span
+          title={meta.detail}
+          className="flex w-32 flex-shrink-0 items-center gap-1 text-xs text-gray-500"
+        >
+          <span className="truncate">{meta.label}</span>
+          {meta.privateToHr && (
+            <Lock
+              size={10}
+              className="flex-shrink-0 text-gray-400"
+              aria-label="Not shown in the directory"
+            />
+          )}
+        </span>
 
-        <div className="flex-shrink-0">
-          {pending ? (
-            <PendingNote request={pending} onWithdraw={onWithdraw} />
-          ) : open ? null : (
+        <span className="min-w-0 flex-1 break-words text-sm text-gray-900">
+          {value || <span className="text-gray-400">Not recorded</span>}
+        </span>
+
+        <span className="flex-shrink-0">
+          {pending ? <PendingBadge /> : open ? null : (
             <button
               type="button"
               onClick={onOpen}
               disabled={disabled}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+              // Says what will happen, since the button itself only has room
+              // for the verb. Nothing on this page edits anything directly.
+              title={`Ask HR or an administrator to change your ${meta.label.toLowerCase()}`}
+              className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
             >
-              Ask to change
+              Change
             </button>
           )}
-        </div>
+        </span>
       </div>
+
+      {/* What was asked for, under the value it would replace. Indented to the
+          value column — 8rem of label plus the 0.75rem gap — so the two line
+          up and the arrow reads as pointing from one to the other. */}
+      {pending && (
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 pl-[8.75rem] text-xs">
+          <ArrowRight size={12} className="flex-shrink-0 text-gray-400" />
+          <span className="font-medium text-gray-700">{changeSummary(pending).to}</span>
+          <span className="text-gray-300">·</span>
+          <WithdrawButton request={pending} onWithdraw={onWithdraw} />
+        </p>
+      )}
 
       {open && !pending && (
         <FieldEditor
@@ -478,8 +535,12 @@ function FieldEditor({
   }
 
   return (
-    <div className="mt-3 rounded-lg bg-gray-50 p-3">
-      <label className="block text-[11px] font-medium uppercase tracking-wide text-gray-400">
+    <div className="mt-2 rounded-lg bg-gray-50 p-3">
+      {/* What the field is for. It used to sit under every row; here it is
+          read by the one person about to change it, at the moment they are. */}
+      <p className="text-[11px] text-gray-500">{meta.detail}</p>
+
+      <label className="mt-2 block text-[11px] font-medium uppercase tracking-wide text-gray-400">
         New {meta.label.toLowerCase()}
       </label>
 
@@ -498,7 +559,7 @@ function FieldEditor({
             <select
               value={region}
               onChange={(e) => setRegion(e.target.value as OtherPhoneRegion)}
-              className={`${field} w-36`}
+              className={`${field} w-28 flex-shrink-0`}
               aria-label="Country"
             >
               {OTHER_PHONE_REGIONS.map((r) => (
@@ -625,47 +686,47 @@ function PhotoRow({
   }
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
+    <div className="flex w-[9.5rem] flex-col items-center gap-1.5">
       {pending ? (
+        // The photo that is waiting, small and under the one in use, so the
+        // pair reads as "this, becoming this" without a second big portrait.
         <>
-          <UserAvatar
-            photoPath={pending.requestedValue || null}
-            fallback={name.charAt(0).toUpperCase()}
-            size={44}
-            expandable
-            name={name}
-          />
-          <div className="min-w-0">
-            <p className="text-xs text-gray-600">
-              This photo is waiting on HR or an administrator.
-            </p>
-            <div className="mt-1"><PendingNote request={pending} onWithdraw={onWithdraw} /></div>
+          <div className="flex items-center gap-2">
+            <ArrowRight size={12} className="flex-shrink-0 text-gray-400" />
+            <UserAvatar
+              photoPath={pending.requestedValue || null}
+              fallback={name.charAt(0).toUpperCase()}
+              size={32}
+              expandable
+              name={name}
+            />
+            <PendingBadge />
           </div>
+          <WithdrawButton request={pending} onWithdraw={onWithdraw} />
         </>
       ) : progress !== null ? (
-        <div className="flex w-48 items-center gap-2">
+        <div className="flex w-full items-center gap-2">
           <div className="h-1.5 flex-1 rounded-full bg-gray-200">
             <div className="h-1.5 rounded-full bg-brand-500 transition-all" style={{ width: `${progress}%` }} />
           </div>
           <span className="text-xs text-gray-500">{progress}%</span>
         </div>
       ) : (
-        <>
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={disabled}
-            className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-brand-100 disabled:opacity-50"
-          >
-            {photoPath ? 'Ask to change your photo' : 'Ask for a photo to be added'}
-          </button>
-          <p className="text-[11px] text-gray-400">
-            JPG or PNG, under 5 MB. It is not used until somebody approves it.
-          </p>
-        </>
+        // The size limit and the "not used until approved" note are in the
+        // tooltip rather than under the button: they answer questions somebody
+        // has once, and they were taking three lines beside a 72px portrait.
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={disabled}
+          title="JPG or PNG, under 5 MB. It is not used until HR or an administrator approves it."
+          className="rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 transition hover:bg-brand-100 disabled:opacity-50"
+        >
+          {photoPath ? 'Change photo' : 'Add a photo'}
+        </button>
       )}
 
-      {problem && <p className="w-full text-xs text-red-500">{problem}</p>}
+      {problem && <p className="text-center text-xs text-red-500">{problem}</p>}
 
       <input
         ref={inputRef}
