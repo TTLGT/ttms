@@ -279,15 +279,51 @@ which collapses the legacy fields into a single dimensionless line.
 ### `OrderStatus` enum
 ```
 "quote"          — initial quote, not yet accepted
-"booked"         — shipper accepted the rate
-"carrier_assigned" — carrier matched and Carrier Agreement sent
+"booked"         — client accepted the rate
+"carrier_assigned" — carrier matched
+"shipper_signed" — Load Confirmation e-signed by the CLIENT
 "carrier_signed" — Carrier Agreement e-signed
-"shipper_signed" — Shipper Agreement e-signed
 "in_transit"     — picked up, en route
 "delivered"      — delivered; awaiting BOL + invoice upload
 "completed"      — all paperwork received, payment settled
 "cancelled"
 ```
+
+**The client signs first.** `shipper_signed` ranks *below* `carrier_signed` in
+`STATUS_RANK` — the Carrier Agreement is not sent until the client has signed
+the Load Confirmation, because a rate confirmation commits us to paying a
+carrier for freight nobody has yet agreed to pay us for.
+
+`shipper_signed` is a misnomer kept on purpose: live orders carry the string and
+renaming a stored status is a migration, not a rename. It is shown as **Client
+Signed**, the document goes to `clientId`, and it is stored in
+`shipperSignedAt` / `shipperSignerName` / `shipperSignerIp`.
+
+### Dispatching without the client's signature
+
+The one way past that gate, held by admin and dispatch through the
+`orders.waiveSignature` permission and grantable to anyone else individually.
+
+| Field | Meaning |
+|---|---|
+| `signatureWaivedAt` | When the waiver was made. Non-null **is** the waiver. Never cleared. |
+| `signatureWaivedByUid` / `signatureWaivedByName` | Who decided. |
+| `signatureWaivedReason` | Free text, optional, capped at 500 characters. |
+| `signatureWaived` | Boolean mirror of `signatureWaivedAt != null`. |
+
+Written **only** by `POST /api/orders/{id}/waive-signature` through the Admin
+SDK; `signatureRecordUnchanged()` in `firestore.rules` refuses all of them from
+the client, alongside both sets of signature fields.
+
+A waiver is **not** a signature. `shipperSignedAt` stays null, nothing is
+fabricated on the audit trail, and the Load Confirmation can still be sent and
+signed afterwards. Application code asks `clientSignatureSatisfied()` in
+`src/types/order.ts` and never tests the fields directly.
+
+`signatureWaived` exists solely because Firestore cannot ask "null **or**
+absent" in one query, and the dashboard's unsigned-agreements figure is an
+aggregation. It must be present on every order —
+`scripts/backfill-signature-waived.js` puts it there.
 
 ### Suborders
 A suborder is simply an `orders` document where `parentOrderId` is set to the primary order's ID.
@@ -365,7 +401,7 @@ documents/{documentId}
 "bol_signed"        — Signed BOL returned by driver
 "invoice"           — Carrier's invoice
 "carrier_agreement" — Carrier rate confirmation / agreement
-"shipper_agreement" — Shipper rate confirmation / agreement
+"shipper_agreement" — the CLIENT's load confirmation (name is historical)
 "driver_license"    — Uploaded by broker at carrier-match step
 "insurance_cert"    — Carrier insurance certificate
 "other"

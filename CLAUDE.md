@@ -202,6 +202,7 @@ Changing one without the other creates a silent security hole:
 | `canSeeParty()` | `partyVisible()` |
 | `canSeeOrder()` | `orderVisible()` |
 | `canEditSource()` | `canEditSource()` |
+| `clientSignatureSatisfied()` (the gate it feeds) | `signatureRecordUnchanged()` — the rules only refuse the fields; the gate itself is API-side |
 | `managesRecord()` | `managesRecord()` |
 | `ROLE_PERMISSIONS` (pre-permission access) | `legacyList()` — transitional, see below |
 | `NON_DELEGABLE` in `/api/admin/users` | the same array in `settings/people/page.tsx` |
@@ -359,10 +360,32 @@ order, not on the party.** Ownership (`assignedToUids` / `assignedToGroupIds` /
 legacy `assignedToName`) determines visibility; unowned parties are shared
 reference data.
 
-`orders` follow `quote → booked → carrier_assigned → carrier_signed →
-shipper_signed → in_transit → delivered → completed`, with `cancelled` a
+`orders` follow `quote → booked → carrier_assigned → shipper_signed →
+carrier_signed → in_transit → delivered → completed`, with `cancelled` a
 terminal side-exit deliberately absent from `STATUS_RANK`. `parentOrderId` set
 means a suborder — its own carrier, dates and BOL.
+
+**The client signs before the carrier does**, and `POST
+/api/orders/{id}/send-agreement` refuses until they have: a rate confirmation
+commits us to paying a carrier for freight nobody has yet agreed to pay us for.
+The one way past is `POST /api/orders/{id}/waive-signature`, gated on
+`orders.waiveSignature` — admin and dispatch by default. Ask
+`clientSignatureSatisfied()` in `src/types/order.ts`; never read the fields.
+
+`shipper_signed` is a misnomer kept deliberately. The document is the **client's**
+load confirmation — it quotes `agreedRate`, which is what the client pays us —
+and for years it was emailed to `shipperId`, putting our client's rate in a
+facility's inbox. The recipient and the wording are fixed; the stored status
+string, the token `type`, and `shipperSignedAt` / `shipperSignerName` /
+`shipperSignerIp` are not, because live orders and live signing links carry
+them. Renaming a stored status is a migration, not a rename.
+
+A waiver is **not** a signature: `shipperSignedAt` stays null and the
+confirmation can still be sent and signed afterwards. `signatureWaivedAt` is the
+record, never cleared. `signatureWaived` is a boolean mirror that exists only
+because Firestore cannot ask "null or absent" in one query and the dashboard's
+unsigned count is an aggregation — it must be on every order, which is what
+`scripts/backfill-signature-waived.js` is for.
 
 **Orders are owned records, and closed by default.** Two independent routes in:
 the order's own `assignedToUids` / `assignedToGroupIds`, and the owners of its

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, FieldValue } from '@/lib/firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { postOrderAlert, signedAlert } from '@/lib/chatAlerts';
+import { STATUS_RANK } from '@/types/order';
+import type { OrderStatus } from '@/types/order';
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -50,7 +52,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
    * the alert twice, and a failure to write into a chat room must never roll
    * back a signature that is a legal record.
    */
-  let signed: { orderId: string; by: 'carrier' | 'shipper' } | null = null;
+  let signed: { orderId: string; by: 'carrier' | 'client' } | null = null;
 
   try {
     /**
@@ -83,34 +85,58 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         throw new SignError('This signing link has expired', 410);
       }
 
-      const isShipper = data.type === 'shipper_agreement';
+      // `shipper_agreement` is the client's load confirmation. The token type
+      // is historical — it names the field it writes, not who receives it.
+      const isClient = data.type === 'shipper_agreement';
 
-      const orderUpdate = isShipper
+      const orderRef = adminDb.collection('orders').doc(data.orderId);
+      const orderSnap = await tx.get(orderRef);
+
+      const orderUpdate: Record<string, unknown> = isClient
         ? {
-            status:             'shipper_signed',
             shipperSignedAt:    now,
             shipperSignerName:  signer,
             shipperSignerIp:    ip,
             updatedAt:          FieldValue.serverTimestamp(),
           }
         : {
-            status:            'carrier_signed',
             carrierSignedAt:   now,
             carrierSignerName: signer,
             carrierSignerIp:   ip,
             updatedAt:         FieldValue.serverTimestamp(),
           };
 
+      /*
+       * The signature always lands; the status only ever moves forward.
+       *
+       * Setting it outright was safe while the two signatures came back in a
+       * fixed order. They no longer do — a load dispatched without a client
+       * signature can have its carrier sign first and the client sign days
+       * later — and `shipper_signed` now ranks below `carrier_signed`, so a
+       * blind write would drag a load that is already in transit back to
+       * "Client Signed" and undo everything downstream of it.
+       *
+       * A cancelled order is left where it is: it has no rank, and a signature
+       * arriving on a dead load is not a reason to revive it.
+       */
+      const current = orderSnap.data()?.status as OrderStatus | undefined;
+      const next    = (isClient ? 'shipper_signed' : 'carrier_signed') as OrderStatus;
+      const rankOf  = (st: OrderStatus | undefined) =>
+        st && st in STATUS_RANK ? STATUS_RANK[st as keyof typeof STATUS_RANK] : -1;
+      if (current !== 'cancelled' && rankOf(next) > rankOf(current)) {
+        orderUpdate.status = next;
+      }
+
       tx.update(tokenRef, {
         usedAt:     now,
         signerName: signer,
         signerIp:   ip,
       });
-      tx.update(adminDb.collection('orders').doc(data.orderId), orderUpdate);
+      tx.update(orderRef, orderUpdate);
 
       return {
         orderId: data.orderId as string,
-        by: (isShipper ? 'shipper' : 'carrier') as 'carrier' | 'shipper',
+        by: (isClient ? 'client' : 'carrier') as 'carrier' | 'client',
       };
     });
   } catch (e) {

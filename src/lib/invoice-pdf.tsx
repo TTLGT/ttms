@@ -171,7 +171,7 @@ function InvoiceDocument({ d }: { d: InvoiceData }) {
         {/* Load confirmation signature */}
         {d.shipperSignerName ? (
           <View style={s.sigBox}>
-            <Text style={s.sigTitle}>LOAD CONFIRMATION — SHIPPER SIGNATURE</Text>
+            <Text style={s.sigTitle}>LOAD CONFIRMATION — CLIENT SIGNATURE</Text>
             <Text style={s.sigLine}>Signed by: {d.shipperSignerName}</Text>
             {d.shipperSignedAt ? <Text style={s.sigLine}>Date: {d.shipperSignedAt}</Text> : null}
             {d.shipperSignerIp ? <Text style={s.sigLine}>IP Address: {d.shipperSignerIp}</Text> : null}

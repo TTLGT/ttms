@@ -115,9 +115,22 @@ export function documentAlert(document: 'BOL' | 'Invoice' | 'POD', present: bool
   return present ? `${document} added.` : `${document} removed.`;
 }
 
-export function agreementSentAlert(to: 'carrier' | 'shipper', email: string): string {
-  const who = to === 'carrier' ? 'Rate confirmation' : 'Shipper agreement';
+export function agreementSentAlert(to: 'carrier' | 'client', email: string): string {
+  const who = to === 'carrier' ? 'Rate confirmation' : 'Load confirmation';
   return `${who} sent for signature to ${email}.`;
+}
+
+/**
+ * A load dispatched before the client signed.
+ *
+ * Said in the room rather than left on the order screen because it is the one
+ * thing here that is a decision instead of an event: somebody chose to book a
+ * carrier against an unsigned load, and the people who share the load should
+ * see who, and why, without going looking for it.
+ */
+export function signatureWaivedAlert(byName: string, reason: string): string {
+  const because = reason.trim() ? ` — ${reason.trim()}` : '';
+  return `${byName} dispatched this load without the client's signature${because}.`;
 }
 
 /**
@@ -142,7 +155,7 @@ export function openedAlert(order: {
   return `Discussion opened. ${parts.join(' · ')}.`;
 }
 
-export function signedAlert(by: 'carrier' | 'shipper', signerName: string): string {
-  const who = by === 'carrier' ? 'Carrier' : 'Shipper';
+export function signedAlert(by: 'carrier' | 'client', signerName: string): string {
+  const who = by === 'carrier' ? 'Carrier' : 'Client';
   return `${who} signed — ${signerName}.`;
 }

@@ -43,21 +43,21 @@ This Rate Confirmation ("Agreement") is entered into between Total Transport Log
 
 const SHIPPER_TERMS = `SHIPPER LOAD CONFIRMATION
 
-This Load Confirmation ("Agreement") is entered into between Total Transport Logistics ("Broker") and the shipper identified above ("Shipper").
+This Load Confirmation ("Agreement") is entered into between Total Transport Logistics ("Broker") and the client identified above ("Client").
 
-1. LOAD ACCEPTANCE. By signing below, Shipper confirms the freight details described in this confirmation and authorizes Total Transport Logistics to arrange transportation of the described shipment.
+1. LOAD ACCEPTANCE. By signing below, Client confirms the freight details described in this confirmation and authorizes Total Transport Logistics to arrange transportation of the described shipment.
 
-2. RATE. Shipper agrees to pay the Agreed Rate stated above for transportation services. Payment terms are net 30 days from invoice date.
+2. RATE. Client agrees to pay the Agreed Rate stated above for transportation services. Payment terms are net 30 days from invoice date.
 
-3. FREIGHT DESCRIPTION. Shipper warrants that the commodity description, weight, and piece count are accurate. Any discrepancies may result in additional charges.
+3. FREIGHT DESCRIPTION. Client warrants that the commodity description, weight, and piece count are accurate. Any discrepancies may result in additional charges.
 
-4. PICKUP & DELIVERY. Shipper is responsible for having freight ready at the origin location on the specified pickup date. Delivery estimates are not guaranteed unless stated as guaranteed service.
+4. PICKUP & DELIVERY. Client is responsible for having freight ready at the origin location on the specified pickup date. Delivery estimates are not guaranteed unless stated as guaranteed service.
 
-5. CLAIMS. Any freight claims must be submitted in writing within 9 months of delivery. Shipper must retain all supporting documentation including bills of lading and delivery receipts.
+5. CLAIMS. Any freight claims must be submitted in writing within 9 months of delivery. Client must retain all supporting documentation including bills of lading and delivery receipts.
 
-6. INDEMNIFICATION. Shipper shall indemnify and hold harmless Total Transport Logistics from any claims arising from Shipper's failure to properly prepare, describe, or label the freight.
+6. INDEMNIFICATION. Client shall indemnify and hold harmless Total Transport Logistics from any claims arising from Client's failure to properly prepare, describe, or label the freight.
 
-7. DIGITAL SIGNATURE. The parties agree that an electronic signature is legally binding to the same extent as a wet ink signature pursuant to the Electronic Signatures in Global and National Commerce Act (E-SIGN) and applicable state law. Shipper's name, IP address, date, and time are recorded upon submission.
+7. DIGITAL SIGNATURE. The parties agree that an electronic signature is legally binding to the same extent as a wet ink signature pursuant to the Electronic Signatures in Global and National Commerce Act (E-SIGN) and applicable state law. Client's name, IP address, date, and time are recorded upon submission.
 
 8. GOVERNING LAW. This Agreement is governed by the laws of the United States and the state of Texas.`;
 
@@ -80,10 +80,11 @@ export default function SignForm({
   const [error, setError]           = useState('');
   const [signed, setSigned]         = useState(false);
 
-  const isShipper  = type === 'shipper_agreement';
-  const partyLabel = isShipper ? 'Shipper' : 'Carrier';
-  const rateLabel  = isShipper ? 'Agreed Rate' : 'Carrier Pay';
-  const terms      = isShipper ? SHIPPER_TERMS : CARRIER_TERMS;
+  // The type string is historical; the party signing this one is the client.
+  const isClient   = type === 'shipper_agreement';
+  const partyLabel = isClient ? 'Client' : 'Carrier';
+  const rateLabel  = isClient ? 'Agreed Rate' : 'Carrier Pay';
+  const terms      = isClient ? SHIPPER_TERMS : CARRIER_TERMS;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -119,7 +120,7 @@ export default function SignForm({
           Thank you, <strong>{signerName}</strong>. Your signature has been recorded.
         </p>
         <p className="text-sm text-gray-600">
-          {isShipper ? 'Load confirmation' : 'Rate confirmation'} <strong>{orderNumber}</strong> is now complete.
+          {isClient ? 'Load confirmation' : 'Rate confirmation'} <strong>{orderNumber}</strong> is now complete.
         </p>
         <p className="text-xs text-gray-400 mt-4">You may close this window.</p>
       </div>
@@ -135,7 +136,7 @@ export default function SignForm({
           <span className="font-mono text-sm font-bold text-gray-800">{orderNumber}</span>
         </div>
         <DetailRow label={partyLabel} value={partyName} />
-        {!isShipper && driverName && <DetailRow label="Driver" value={driverName} />}
+        {!isClient && driverName && <DetailRow label="Driver" value={driverName} />}
         <DetailRow label="From"      value={originStr} />
         <DetailRow label="To"        value={destinationStr} />
         <DetailRow label="Commodity" value={commodity} />
@@ -190,7 +191,7 @@ export default function SignForm({
             className="mt-0.5 w-4 h-4 flex-shrink-0"
           />
           <span className="text-sm text-gray-700">
-            I have read and agree to all terms in this {isShipper ? 'Shipper Load Confirmation' : 'Carrier Agreement & Rate Confirmation'}. I understand this constitutes a legally binding electronic signature.
+            I have read and agree to all terms in this {isClient ? 'Client Load Confirmation' : 'Carrier Agreement & Rate Confirmation'}. I understand this constitutes a legally binding electronic signature.
           </span>
         </label>
 

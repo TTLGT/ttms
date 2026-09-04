@@ -81,6 +81,9 @@ export interface DashboardSummary {
 const CARD_FIELDS = [
   'orderNumber', 'batsId', 'status', 'origin', 'destination', 'shipperName',
   'clientId', 'agreedRate', 'brokerFee', 'pickupDate', 'updatedAt', 'deliveredAt',
+  // So the unsigned-agreements hover list can say which signature is missing,
+  // and say "waived" rather than "missing" where somebody decided that.
+  'carrierSignedAt', 'shipperSignedAt', 'signatureWaivedAt',
 ] as const;
 
 export async function buildDashboardSummary(caller: Caller): Promise<DashboardSummary> {
@@ -346,12 +349,28 @@ async function activeClientLoads(caller: Caller): Promise<Record<string, number>
 async function unsignedStat(col: FirebaseFirestore.Query): Promise<SummaryStat> {
   const scoped = col.where('status', 'in', [...SIGNABLE]);
   const noCarrier = scoped.where('carrierSignedAt', '==', null);
-  const noShipper = scoped.where('shipperSignedAt', '==', null);
+  /*
+   * A load dispatched without the client's signature is not waiting for one,
+   * so it does not belong on a card that exists to say what to chase.
+   *
+   * Tested against the boolean mirror rather than `signatureWaivedAt == null`
+   * because Firestore cannot ask "null or absent" in one query, and every
+   * order predating the waiver has neither field. scripts/backfill-signature-
+   * waived.js is what puts `false` on those; until it has run, this clause
+   * matches nothing and the count is the old, slightly high one.
+   */
+  const noClient = scoped
+    .where('shipperSignedAt', '==', null)
+    .where('signatureWaived', '==', false);
 
   const [a, b, both, sample] = await Promise.all([
     noCarrier.count().get(),
-    noShipper.count().get(),
-    scoped.where('carrierSignedAt', '==', null).where('shipperSignedAt', '==', null).count().get(),
+    noClient.count().get(),
+    scoped
+      .where('carrierSignedAt', '==', null)
+      .where('shipperSignedAt', '==', null)
+      .where('signatureWaived', '==', false)
+      .count().get(),
     noCarrier.limit(TOOLTIP_LIMIT).select(...CARD_FIELDS).get(),
   ]);
 
@@ -457,8 +476,11 @@ async function summariseInMemory(
     expiringCarriers,
     overdueInvoices:    pick(orders.filter((o) =>
       (INVOICEABLE as readonly string[]).includes(status(o)) && !o.invoiceStoragePath)),
+    // A waived load is not waiting on the client, so only its carrier
+    // signature can still be outstanding. Mirrors unsignedStat() above.
     unsignedOrders:     pick(orders.filter((o) =>
-      (SIGNABLE as readonly string[]).includes(status(o)) && (!o.carrierSignedAt || !o.shipperSignedAt))),
+      (SIGNABLE as readonly string[]).includes(status(o))
+      && (!o.carrierSignedAt || (!o.shipperSignedAt && !o.signatureWaivedAt)))),
     staleQuotes:        pick(orders.filter((o) =>
       status(o) === 'quote' && ms(o.updatedAt) > 0 && ms(o.updatedAt) <= at.staleBefore.toMillis())),
     documentsMissing:   pick(orders.filter((o) => {

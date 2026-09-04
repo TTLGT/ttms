@@ -17,6 +17,7 @@ import type { Carrier } from '@/types/carrier';
 import {
   STATUS_LABEL,
   STATUS_NEXT,
+  clientSignatureSatisfied,
   formatDimensions,
   itemWeightLb,
   orderCommodityItems,
@@ -48,8 +49,8 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 const NEW_CARRIER = '__new__';
 
 const PIPELINE: OrderStatus[] = [
-  'quote', 'booked', 'carrier_assigned', 'carrier_signed',
-  'shipper_signed', 'in_transit', 'delivered', 'completed',
+  'quote', 'booked', 'carrier_assigned', 'shipper_signed',
+  'carrier_signed', 'in_transit', 'delivered', 'completed',
 ];
 
 /**
@@ -137,7 +138,7 @@ export default function OrderDetailPage() {
   const params   = useParams();
   const orderId  = params.orderId as string;
   const router   = useRouter();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, can } = useAuth();
 
   const [refreshingMiles, setRefreshingMiles] = useState(false);
   const [milesNote, setMilesNote]             = useState('');
@@ -211,6 +212,13 @@ export default function OrderDetailPage() {
   // shipper e-sign state
   const [sendingShipperAgreement, setSendingShipperAgreement] = useState(false);
   const [shipperAgreementSentTo, setShipperAgreementSentTo]   = useState('');
+
+  // Dispatching without the client's signature. The reason box is open by
+  // default rather than a confirm dialog: this is a decision somebody will be
+  // asked about later, and typing why is the cheapest moment to record it.
+  const [showWaive, setShowWaive]     = useState(false);
+  const [waiveReason, setWaiveReason] = useState('');
+  const [waiving, setWaiving]         = useState(false);
 
   // BOL state
   const [generatingBol, setGeneratingBol] = useState(false);
@@ -550,6 +558,37 @@ export default function OrderDetailPage() {
     }
   }
 
+  async function handleWaiveSignature() {
+    if (!order || !user) return;
+    setWaiving(true);
+    setError('');
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/orders/${orderId}/waive-signature`, {
+        method:  'POST',
+        headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ reason: waiveReason.trim() }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Failed to dispatch without a signature');
+      // Written into local state as a truthy stand-in for the server's
+      // timestamp. Only `clientSignatureSatisfied()` reads it here, and it asks
+      // whether there is one — the order is refetched on the next visit.
+      setOrder({
+        ...order,
+        signatureWaivedAt:     body.signatureWaivedAt as unknown as Timestamp,
+        signatureWaivedByName: body.signatureWaivedByName ?? null,
+        signatureWaivedReason: body.signatureWaivedReason ?? null,
+        signatureWaived:       true,
+      });
+      setShowWaive(false);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to dispatch without a signature');
+    } finally {
+      setWaiving(false);
+    }
+  }
+
   async function handleGenerateBol() {
     if (!order || !user) return;
     setGeneratingBol(true);
@@ -700,9 +739,11 @@ export default function OrderDetailPage() {
         shipperSignerName:  null,
         shipperSignerIp:    null,
         partyApprovals:     [],
-        clientSignedAt:     null,
-        clientSignerName:   null,
-        clientSignerIp:     null,
+        signatureWaivedAt:     null,
+        signatureWaivedByUid:  null,
+        signatureWaivedByName: null,
+        signatureWaivedReason: null,
+        signatureWaived:       false,
         createdBy:    user.uid,
       });
       router.push(`/dashboard/orders/${id}`);
@@ -711,6 +752,20 @@ export default function OrderDetailPage() {
       setSplitting(false);
     }
   }
+
+  /*
+   * Where the two agreements stand, as the cards ask it.
+   *
+   * Both are written against the signature fields rather than the status,
+   * because the status is one value and the two signatures now come back in
+   * whichever order the load takes — a waived load can have its carrier sign
+   * days before the client does, and reading `status === 'carrier_signed'`
+   * would hide a card the moment the other signature landed.
+   */
+  const clientConfirmationStarted =
+    !!order && !['quote', 'cancelled'].includes(order.status);
+  const awaitingCarrierSignature =
+    !!order && !['quote', 'booked', 'cancelled'].includes(order.status) && !order.carrierSignedAt;
 
   if (loading) return (
     <div className="flex justify-center py-20">
@@ -972,6 +1027,60 @@ export default function OrderDetailPage() {
             })()}
           </div>
 
+          {/* Client Confirmation — the load confirmation, which the client
+              signs before the carrier agreement may go out. Shown from the
+              moment a load is booked rather than after a carrier is assigned:
+              it is now the first signature of the two, so waiting for the
+              carrier would be waiting on the thing it gates. */}
+          {clientConfirmationStarted && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Client Confirmation</h3>
+              {order.shipperSignedAt || order.shipperSignerName ? (
+                <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  <span>✓</span>
+                  <span>
+                    Signed by <strong>{order.shipperSignerName || 'the client'}</strong>
+                    {order.shipperSignedAt && (
+                      <> on {formatDate(order.shipperSignedAt as { toDate: () => Date })}</>
+                    )}
+                    {order.shipperSignerIp && (
+                      <span className="text-green-600 font-mono text-xs ml-1">({order.shipperSignerIp})</span>
+                    )}
+                  </span>
+                </div>
+              ) : shipperAgreementSentTo ? (
+                <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                  <span>✉</span>
+                  <span>Load confirmation sent to <strong>{shipperAgreementSentTo}</strong> — awaiting signature</span>
+                </div>
+              ) : (
+                <button
+                  onClick={handleSendShipperAgreement}
+                  disabled={sendingShipperAgreement}
+                  className="px-3 py-1.5 bg-brand-50 text-brand-700 border border-brand-200 text-xs font-semibold rounded-lg hover:bg-brand-100 disabled:opacity-50 transition"
+                >
+                  {sendingShipperAgreement ? 'Sending…' : '✉ Send for Client Signature'}
+                </button>
+              )}
+
+              {/* The waiver, once it has been used. Kept on the record and on
+                  the screen even after the client signs late: it explains why
+                  a rate confirmation went out when it did. */}
+              {order.signatureWaivedAt && (
+                <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                  <p className="text-sm text-amber-800">
+                    Dispatched without the client&rsquo;s signature
+                    {order.signatureWaivedByName && <> by <strong>{order.signatureWaivedByName}</strong></>}
+                    .
+                  </p>
+                  {order.signatureWaivedReason && (
+                    <p className="text-xs text-amber-700 mt-1">{order.signatureWaivedReason}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Carrier */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
@@ -987,7 +1096,7 @@ export default function OrderDetailPage() {
             {/* Send for Signature / e-sign status */}
             {!assigningCarrier && order.carrierId && (
               <div className="mb-4">
-                {order.status === 'carrier_signed' ? (
+                {order.carrierSignedAt ? (
                   <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                     <span>✓</span>
                     <span>
@@ -1005,15 +1114,78 @@ export default function OrderDetailPage() {
                     <span>✉</span>
                     <span>Agreement sent to <strong>{agreementSentTo}</strong> — awaiting signature</span>
                   </div>
-                ) : order.status === 'carrier_assigned' ? (
-                  <button
-                    onClick={handleSendAgreement}
-                    disabled={sendingAgreement}
-                    className="px-3 py-1.5 bg-brand-50 text-brand-700 border border-brand-200 text-xs font-semibold rounded-lg hover:bg-brand-100 disabled:opacity-50 transition"
-                  >
-                    {sendingAgreement ? 'Sending…' : '✉ Send for Signature'}
-                  </button>
-                ) : null}
+                ) : !awaitingCarrierSignature ? null : clientSignatureSatisfied(order) ? (
+                  <>
+                    <button
+                      onClick={handleSendAgreement}
+                      disabled={sendingAgreement}
+                      className="px-3 py-1.5 bg-brand-50 text-brand-700 border border-brand-200 text-xs font-semibold rounded-lg hover:bg-brand-100 disabled:opacity-50 transition"
+                    >
+                      {sendingAgreement ? 'Sending…' : '✉ Send for Signature'}
+                    </button>
+                    {order.signatureWaivedAt && !order.shipperSignedAt && (
+                      <p className="text-xs text-amber-700 mt-2">
+                        Going out without the client&rsquo;s signature
+                        {order.signatureWaivedByName && <> — {order.signatureWaivedByName}</>}
+                        {order.signatureWaivedReason && <> · {order.signatureWaivedReason}</>}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  /* The gate. The rate confirmation commits us to paying the
+                     carrier, so it waits on the client agreeing to pay us. The
+                     same test runs in the route — this is the explanation, not
+                     the enforcement. */
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                    <p className="text-sm text-amber-800">
+                      The client has not signed the load confirmation yet. The carrier agreement
+                      cannot be sent until they do.
+                    </p>
+                    {can('orders.waiveSignature') && !showWaive && (
+                      <button
+                        onClick={() => setShowWaive(true)}
+                        className="mt-2 px-3 py-1.5 border border-amber-300 bg-white text-amber-800 text-xs font-semibold rounded-lg hover:bg-amber-100 transition"
+                      >
+                        Dispatch without a signature
+                      </button>
+                    )}
+                    {can('orders.waiveSignature') && showWaive && (
+                      <div className="mt-3 space-y-2">
+                        <label className="block text-xs font-medium text-amber-900">
+                          Why is this going out unsigned? <span className="font-normal">(optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={waiveReason}
+                          onChange={(e) => setWaiveReason(e.target.value)}
+                          maxLength={500}
+                          placeholder="Client confirmed by phone, signing in the morning"
+                          className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        />
+                        <p className="text-xs text-amber-700">
+                          This is recorded against the load with your name and posted in its chat
+                          room. It is not a signature — the client can still be sent the load
+                          confirmation and sign it afterwards.
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleWaiveSignature}
+                            disabled={waiving}
+                            className="px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50 transition"
+                          >
+                            {waiving ? 'Recording…' : 'Dispatch without a signature'}
+                          </button>
+                          <button
+                            onClick={() => { setShowWaive(false); setWaiveReason(''); }}
+                            className="px-3 py-1.5 border border-amber-300 text-amber-800 text-xs font-medium rounded-lg hover:bg-amber-100 transition"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1131,40 +1303,6 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* Shipper Confirmation */}
-          {(['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed') && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Shipper Confirmation</h3>
-              {order.status === 'shipper_signed' || order.shipperSignerName ? (
-                <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                  <span>✓</span>
-                  <span>
-                    Signed by <strong>{order.shipperSignerName || 'shipper'}</strong>
-                    {order.shipperSignedAt && (
-                      <> on {formatDate(order.shipperSignedAt as { toDate: () => Date })}</>
-                    )}
-                    {order.shipperSignerIp && (
-                      <span className="text-green-600 font-mono text-xs ml-1">({order.shipperSignerIp})</span>
-                    )}
-                  </span>
-                </div>
-              ) : shipperAgreementSentTo ? (
-                <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                  <span>✉</span>
-                  <span>Load confirmation sent to <strong>{shipperAgreementSentTo}</strong> — awaiting signature</span>
-                </div>
-              ) : (
-                <button
-                  onClick={handleSendShipperAgreement}
-                  disabled={sendingShipperAgreement}
-                  className="px-3 py-1.5 bg-brand-50 text-brand-700 border border-brand-200 text-xs font-semibold rounded-lg hover:bg-brand-100 disabled:opacity-50 transition"
-                >
-                  {sendingShipperAgreement ? 'Sending…' : '✉ Send for Shipper Signature'}
-                </button>
-              )}
-            </div>
-          )}
-
           {/* Financials */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Financials</h3>
@@ -1272,8 +1410,13 @@ export default function OrderDetailPage() {
                       <a href={invoiceUrl} target="_blank" rel="noreferrer"
                         className="text-xs text-brand-600 hover:underline">View Invoice</a>
                     )}
-                    {(['shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(
-                      order.status as 'shipper_signed' | 'in_transit' | 'delivered' | 'completed'
+                    {/* Named `carrier_signed` rather than `shipper_signed`
+                        since the two rungs swapped: the invoice waits for the
+                        later of the two signatures, which is now the
+                        carrier's. Listing the earlier one would offer an
+                        invoice on a load no carrier has committed to. */}
+                    {(['carrier_signed', 'in_transit', 'delivered', 'completed'] as const).includes(
+                      order.status as 'carrier_signed' | 'in_transit' | 'delivered' | 'completed'
                     ) && (
                       <button onClick={handleGenerateInvoice} disabled={generatingInvoice}
                         className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 bg-brand-50 rounded-lg px-3 py-1.5 font-medium transition hover:bg-brand-100 disabled:opacity-50">

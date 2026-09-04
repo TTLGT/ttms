@@ -31,26 +31,35 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   }
   const order = orderSnap.data()!;
 
-  if (!order.shipperId) {
-    return NextResponse.json({ error: 'No shipper assigned to this order' }, { status: 400 });
+  /*
+   * The load confirmation goes to the **client**, not the shipper.
+   *
+   * It quotes the agreed rate — what the client pays us — so it was never a
+   * document a shipper should have been holding. It went to `shipperId` for
+   * years, which put our client's rate in a facility's inbox on every load.
+   * The stored field is still called `shipperSignedAt` because live orders
+   * carry it; only the recipient and the wording changed.
+   */
+  if (!order.clientId) {
+    return NextResponse.json({ error: 'No client on this order' }, { status: 400 });
   }
 
-  const shipperSnap = await adminDb.collection('parties').doc(order.shipperId).get();
-  if (!shipperSnap.exists) {
-    return NextResponse.json({ error: 'Shipper not found' }, { status: 404 });
+  const clientSnap = await adminDb.collection('parties').doc(order.clientId).get();
+  if (!clientSnap.exists) {
+    return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
-  const shipper = shipperSnap.data()!;
+  const client = clientSnap.data()!;
 
   // Prefer a named contact, but fall back to the address on the party record so
-  // a shipper created inline from an order can still be sent an agreement.
-  const contacts: { name: string; email: string }[] = shipper.contacts ?? [];
+  // a client created inline from an order can still be sent an agreement.
+  const contacts: { name: string; email: string }[] = client.contacts ?? [];
   const contact =
     contacts.find((c) => c.email?.trim()) ??
-    (shipper.email?.trim()
-      ? { name: shipper.contactName || shipper.companyName || '', email: shipper.email.trim() }
+    (client.email?.trim()
+      ? { name: client.contactName || client.companyName || '', email: client.email.trim() }
       : null);
   if (!contact) {
-    return NextResponse.json({ error: 'Shipper has no email address on file' }, { status: 400 });
+    return NextResponse.json({ error: 'Client has no email address on file' }, { status: 400 });
   }
 
   const token     = randomBytes(32).toString('hex');
@@ -70,8 +79,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   await adminDb.collection('signing_tokens').doc(token).set({
     orderId,
-    shipperId:    order.shipperId,
-    shipperEmail: contact.email,
+    clientId:     order.clientId,
+    clientEmail:  contact.email,
+    // The token type is unchanged: live unsigned links carry it, and the sign
+    // route branches on it. It names the field it writes, not the recipient.
     type:         'shipper_agreement',
     createdAt:    now,
     expiresAt,
@@ -84,7 +95,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     commodity:    order.commodity   || '',
     weight:       order.weight      || 0,
     pieces:       order.pieces      || 0,
-    // Snapshotted with the rest of the load: what the shipper signed against
+    // Snapshotted with the rest of the load: what the client signed against
     // must not shift if the order is edited afterwards.
     dimensions:   dimensionsSummary(orderCommodityItems(order as Partial<Order>)),
     originStr,
@@ -92,7 +103,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     pickupDate:   order.pickupDate   || null,
     deliveryDate: order.deliveryDate || null,
     agreedRate:   order.agreedRate   || 0,
-    shipperName:  shipper.companyName || shipper.contactName,
+    clientName:   client.companyName || client.contactName,
     carrierName:  order.carrierName  || '',
     notes:        order.notes        || '',
   });
@@ -105,8 +116,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     to:      contact.email,
     subject: `Load Confirmation — ${orderDisplayNumber(order)}`,
     html:    buildEmailHtml({
-      shipperName:  shipper.companyName || shipper.contactName,
-      contactName:  contact.name || shipper.companyName,
+      contactName:  contact.name || client.companyName,
       orderNumber:  orderDisplayNumber(order),
       originStr,
       destinationStr,
@@ -118,13 +128,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     }),
   });
 
-  await postOrderAlert(orderId, agreementSentAlert('shipper', contact.email)).catch(() => {});
+  await postOrderAlert(orderId, agreementSentAlert('client', contact.email)).catch(() => {});
 
   return NextResponse.json({ success: true, sentTo: contact.email });
 }
 
 function buildEmailHtml(p: {
-  shipperName: string;
   contactName: string;
   orderNumber: string;
   originStr: string;

@@ -4,7 +4,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
 import { agreementSentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { randomBytes } from 'crypto';
-import { dimensionsSummary, orderCommodityItems, orderDisplayNumber } from '@/types/order';
+import { clientSignatureSatisfied, dimensionsSummary, orderCommodityItems, orderDisplayNumber } from '@/types/order';
 import type { Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -33,6 +33,29 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   if (!order.carrierId) {
     return NextResponse.json({ error: 'No carrier assigned to this order' }, { status: 400 });
+  }
+
+  /*
+   * The client signs first.
+   *
+   * A rate confirmation is a commitment to pay a carrier for a load the client
+   * has not yet agreed to pay us for, so it does not leave the building until
+   * the load confirmation comes back signed — or until somebody holding
+   * `orders.waiveSignature` has deliberately decided to dispatch without it.
+   *
+   * Checked here and not only on the screen: the button is the courtesy, this
+   * is the rule. The route is reachable by anybody who can send agreements.
+   */
+  if (!clientSignatureSatisfied(order)) {
+    return NextResponse.json(
+      {
+        error:
+          'The client has not signed the load confirmation yet. Send it for signature first, ' +
+          'or dispatch without a signature if you have that permission.',
+        needsClientSignature: true,
+      },
+      { status: 409 },
+    );
   }
 
   const carrierSnap = await adminDb.collection('carriers').doc(order.carrierId).get();

@@ -32,8 +32,10 @@ export default async function SignPage({ params }: Props) {
 
   const snap = await adminDb.collection('signing_tokens').doc(token).get();
 
-  const isShipper = snap.exists && snap.data()!.type === 'shipper_agreement';
-  const pageTitle = isShipper ? 'Shipper Load Confirmation' : 'Carrier Rate Confirmation';
+  // `shipper_agreement` is the client's load confirmation — the token type is
+  // historical and names the field it writes, not who signs it.
+  const isClient  = snap.exists && snap.data()!.type === 'shipper_agreement';
+  const pageTitle = isClient ? 'Client Load Confirmation' : 'Carrier Rate Confirmation';
 
   if (!snap.exists) {
     return (
@@ -77,13 +79,25 @@ export default async function SignPage({ params }: Props) {
     );
   }
 
+  /*
+   * Who the document names.
+   *
+   * `shipperName` is the fallback: links emailed before the load confirmation
+   * was readdressed to the client stored the name under that key, and they
+   * stay live for seven days. Without it, a carrier or client part-way through
+   * signing would see a blank party name on a legal document.
+   */
+  const partyName = data.type === 'shipper_agreement'
+    ? (data.clientName || data.shipperName || '')
+    : (data.carrierName || '');
+
   return (
     <Shell title={pageTitle}>
       <SignForm
         token={token}
         type={data.type === 'shipper_agreement' ? 'shipper_agreement' : 'carrier_agreement'}
         orderNumber={data.orderNumber}
-        partyName={data.type === 'shipper_agreement' ? (data.shipperName || '') : (data.carrierName || '')}
+        partyName={partyName}
         driverName={data.driverName || ''}
         commodity={data.commodity}
         weight={data.weight ? `${Number(data.weight).toLocaleString()} lbs` : '—'}

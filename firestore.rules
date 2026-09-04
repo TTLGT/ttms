@@ -254,6 +254,30 @@ service cloud.firestore {
         .hasAny(['sourceId', 'sourceName']);
     }
 
+    /*
+     * Whether this write leaves the signature record alone.
+     *
+     * Both the client's signature and the decision to dispatch without it are
+     * written only by the Admin SDK — the signing route and
+     * /api/orders/{id}/waive-signature — so the client SDK has no business
+     * touching either, and "anyone who can see an order can edit it" would
+     * otherwise let any broker mark a load as signed, or waive their own way
+     * past the carrier-agreement gate without holding `orders.waiveSignature`.
+     *
+     * A blanket refusal rather than a permission test on purpose: a rule
+     * cannot check that a waiver carries the name of the person who made it,
+     * so there is nothing to be gained by letting a holder of the permission
+     * write it here instead of through the route that records that.
+     */
+    function signatureRecordUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'carrierSignedAt', 'carrierSignerName', 'carrierSignerIp',
+        'shipperSignedAt', 'shipperSignerName', 'shipperSignerIp',
+        'signatureWaivedAt', 'signatureWaivedByUid', 'signatureWaivedByName',
+        'signatureWaivedReason', 'signatureWaived',
+      ]);
+    }
+
     // Keep in sync with canEditSource() in src/lib/accessControl.ts.
     //
     // Narrower than "can edit this record" on purpose. Anyone who can see an
@@ -499,7 +523,8 @@ service cloud.firestore {
       allow update: if isAllowedUser() && orderVisible() && ownershipUnchanged([
         'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
         'clientOwnerUids', 'clientOwnerGroupIds', 'assignedTo'
-      ]) && (sourceUnchanged() || canEditSource());
+      ]) && (sourceUnchanged() || canEditSource())
+        && signatureRecordUnchanged();
 
       allow delete: if can('orders.delete') || (isAllowedUser() && managesRecord());
 

@@ -239,9 +239,11 @@ function NewOrderForm() {
         shipperSignerName:  null,
         shipperSignerIp:    null,
         partyApprovals:     [],
-        clientSignedAt:     null,
-        clientSignerName:   null,
-        clientSignerIp:     null,
+        signatureWaivedAt:     null,
+        signatureWaivedByUid:  null,
+        signatureWaivedByName: null,
+        signatureWaivedReason: null,
+        signatureWaived:       false,
         createdBy:    user.uid,
       });
       // Stamp proof of authorization for any party the creator does not own.

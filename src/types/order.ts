@@ -485,17 +485,47 @@ export interface Order {
   carrierSignedAt: Timestamp | null;
   carrierSignerName: string | null;
   carrierSignerIp: string | null;
+  /**
+   * When the client signed the load confirmation, and who.
+   *
+   * Named for the shipper for historical reasons only — the document is the
+   * client's and is emailed to `clientId`. See STATUS_LABEL.shipper_signed.
+   */
   shipperSignedAt: Timestamp | null;
   shipperSignerName: string | null;
   shipperSignerIp: string | null;
+  /**
+   * Set when somebody dispatched this load without waiting for the client to
+   * sign — see the `orders.waiveSignature` permission.
+   *
+   * A timestamp rather than a flag, and never cleared: this is the record of a
+   * commercial risk being taken deliberately, and "who decided, and when" is
+   * the whole point of storing it. Written only by
+   * POST /api/orders/{id}/waive-signature through the Admin SDK; the rules
+   * refuse it from the client so nobody can waive their own way past the gate.
+   *
+   * It is emphatically **not** a signature. `shipperSignedAt` stays null,
+   * nothing is fabricated on the audit trail, and the load confirmation can
+   * still be sent and signed afterwards.
+   */
+  signatureWaivedAt: Timestamp | null;
+  signatureWaivedByUid: string | null;
+  signatureWaivedByName: string | null;
+  signatureWaivedReason: string | null;
+  /**
+   * Mirror of `signatureWaivedAt != null`, and the only reason it exists is
+   * that Firestore cannot ask "is this field null or absent" in one query.
+   * The dashboard's unsigned-agreements count is an aggregation, so it needs a
+   * value present on every order — see scripts/backfill-signature-waived.js.
+   *
+   * Never test this in application code; call `clientSignatureSatisfied()`.
+   */
+  signatureWaived: boolean;
   /**
    * Proof of authorization when this order uses a party the creator does not
    * own. Written server-side only — see /api/orders/[orderId]/party-approvals.
    */
   partyApprovals: OrderPartyApproval[];
-  clientSignedAt: Timestamp | null;
-  clientSignerName: string | null;
-  clientSignerIp: string | null;
   createdBy: string;
   /**
    * Fragments this order can be found by — see orderSearchTerms. Derived on
@@ -512,7 +542,12 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   booked:           'Booked',
   carrier_assigned: 'Carrier Assigned',
   carrier_signed:   'Carrier Signed',
-  shipper_signed:   'Shipper Signed',
+  // Stored as `shipper_signed` and shown as "Client Signed". The document has
+  // always been the client's load confirmation — it quotes the agreed rate,
+  // which is what the client pays us — and it was only ever addressed to the
+  // shipper by mistake. The key is left alone because live orders carry it and
+  // renaming a stored status is a migration, not a rename.
+  shipper_signed:   'Client Signed',
   in_transit:       'In Transit',
   delivered:        'Delivered',
   completed:        'Completed',
@@ -679,19 +714,36 @@ export const STATUS_RANK: Record<Exclude<OrderStatus, 'cancelled'>, number> = {
   quote:            0,
   booked:           1,
   carrier_assigned: 2,
-  carrier_signed:   3,
-  shipper_signed:   4,
+  // The client signs before the carrier does. A rate confirmation commits us to
+  // paying a carrier, so it does not go out until the client has agreed to pay
+  // us — see `clientSignatureSatisfied()` below for the one way past that.
+  shipper_signed:   3,
+  carrier_signed:   4,
   in_transit:       5,
   delivered:        6,
   completed:        7,
 };
 
+/**
+ * Whether the carrier agreement may go out yet.
+ *
+ * Either the client signed the load confirmation, or somebody with
+ * `orders.waiveSignature` decided to dispatch without it. Both the API guard in
+ * /api/orders/{id}/send-agreement and the button on the order screen ask this,
+ * so the screen can never offer something the route will refuse.
+ */
+export function clientSignatureSatisfied(
+  order: Pick<Partial<Order>, 'shipperSignedAt' | 'signatureWaivedAt'>,
+): boolean {
+  return Boolean(order.shipperSignedAt) || Boolean(order.signatureWaivedAt);
+}
+
 export const STATUS_NEXT: Partial<Record<OrderStatus, OrderStatus>> = {
   quote:            'booked',
   booked:           'carrier_assigned',
-  carrier_assigned: 'carrier_signed',
-  carrier_signed:   'shipper_signed',
-  shipper_signed:   'in_transit',
+  carrier_assigned: 'shipper_signed',
+  shipper_signed:   'carrier_signed',
+  carrier_signed:   'in_transit',
   in_transit:       'delivered',
   delivered:        'completed',
 };

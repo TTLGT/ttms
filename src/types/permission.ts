@@ -46,6 +46,17 @@ export const PERMISSIONS = [
   'orders.viewAll',
   'orders.delete',
   'orders.sendAgreement',
+  /**
+   * Dispatch a load without waiting for the client to sign.
+   *
+   * The carrier agreement is otherwise blocked until the client has signed the
+   * load confirmation, because a rate confirmation is a commitment to pay a
+   * carrier for a load nobody has yet agreed to pay us for. Waiving that is a
+   * commercial risk somebody has to own, so it is a permission rather than a
+   * button everybody has: admin and dispatch by default, and anybody else one
+   * person at a time.
+   */
+  'orders.waiveSignature',
   'orders.bol',
   'orders.invoice',
 
@@ -175,7 +186,8 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'orders.view',    label: 'See loads',        detail: 'Open the Orders section and see their own loads.' },
       { key: 'orders.create',  label: 'Create loads',     detail: 'Book a new load and edit the ones they can see.' },
       { key: 'orders.viewAll', label: 'See every load',   detail: 'Every load in the company, not only their own and their clients’.' },
-      { key: 'orders.sendAgreement', label: 'Send agreements', detail: 'Email the carrier and shipper agreements for signature.' },
+      { key: 'orders.sendAgreement', label: 'Send agreements', detail: 'Email the client and carrier agreements for signature.' },
+      { key: 'orders.waiveSignature', label: 'Dispatch without a signature', detail: 'Send the carrier agreement before the client has signed. Admin and dispatch have this already.' },
       { key: 'orders.bol',     label: 'Generate BOLs',    detail: 'Produce the bill of lading for a load.' },
       { key: 'orders.invoice', label: 'Generate invoices', detail: 'Produce the invoice for a load.' },
       { key: 'orders.delete',  label: 'Delete loads',     detail: 'Permanently remove a load. There is no undo.' },
@@ -310,6 +322,10 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     ...BASE_PERMISSIONS,
     'orders.viewAll', 'clients.viewAll', 'shippers.viewAll', 'consignees.viewAll',
     'ownership.change', 'access.grantOwnership', 'orders.sendAgreement',
+    // Dispatch is who gets the call at five o'clock saying the client will sign
+    // in the morning but the truck has to be booked tonight. They are the ones
+    // who already carry that judgement, so they carry the waiver with it.
+    'orders.waiveSignature',
     // The extension sheet on the wall by the phones is dispatch's, and they
     // are the ones who notice first when a number on it is wrong.
     'directory.export',
