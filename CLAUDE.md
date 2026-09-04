@@ -86,12 +86,15 @@ src/types/        One file per domain object, domain helpers alongside
 guards and in Firestore/Storage rules. Don't assume a request has been checked
 before it reaches a route.
 
-There is no `middleware.ts` — Next 16 renamed that file to `proxy.ts`, and
-`src/proxy.ts` does exist, but it is a **no-op**: every branch returns
-`NextResponse.next()`. Its matcher still catches every request, so on Vercel it
-costs an invocation per request and buys nothing. The comment in
-`src/app/page.tsx` claiming middleware handles the unauthenticated redirect is
-stale — it never has.
+There is no `middleware.ts` and no `proxy.ts` (Next 16's name for the same
+file). There was one: it matched every request and returned `NextResponse.next()`
+in every branch, so it enforced nothing while adding a hop to every page and API
+request. It was deleted rather than fixed — the guards it would have duplicated
+already live in the routes.
+
+**If you add one back, it is a second gate, not the first.** The API guards and
+the Firestore/Storage rules stay authoritative; a proxy cannot see the allowlist
+without a Firestore read it is not able to make.
 
 ### Access control — the core invariant
 
