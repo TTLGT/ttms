@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { useAuth } from '@/context/AuthContext';
 import { listAccessRequests } from '@/lib/parties';
 import { listOrderAccessRequests } from '@/lib/orders';
+import { listProfileUpdateRequests } from '@/lib/profileRequests';
 
 /**
  * How many approvals are waiting, for the badges in the nav.
@@ -12,8 +13,9 @@ import { listOrderAccessRequests } from '@/lib/orders';
  * itself exists: a request nobody notices blocks the person who raised it. The
  * badge has to be visible from wherever they happen to be working.
  *
- * Both kinds are counted together — a client request and a load request are the
- * same interruption to whoever has to decide them, and two separate numbers on
+ * All three kinds are counted together — a client request, a load request and
+ * somebody asking for their own phone number to be corrected are the same
+ * interruption to whoever has to decide them, and three separate numbers on
  * one nav item would be arithmetic, not information.
  *
  * The two directions are kept apart, though, because they are not the same
@@ -39,27 +41,25 @@ export function ApprovalsProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(() => {
     if (!user) { setIncoming(0); setOutgoing(0); return; }
 
-    // Four small queries. Failures are swallowed per box rather than dropping
-    // the pair: a badge that is short by one is worth more than no badge, and
+    // Six small queries. Failures are swallowed per box rather than dropping
+    // the set: a badge that is short by one is worth more than no badge, and
     // there is nothing useful to tell somebody about a count that did not load.
+    // The profile queue answers with an empty list rather than a 403 for
+    // somebody who cannot decide those, so it costs a broker nothing.
     Promise.all([
       listAccessRequests('incoming').catch(() => []),
       listOrderAccessRequests('incoming').catch(() => []),
-    ]).then(([parties, orders]) => {
-      setIncoming(
-        parties.filter((r) => r.status === 'pending').length
-        + orders.filter((r) => r.status === 'pending').length,
-      );
+      listProfileUpdateRequests('incoming').catch(() => []),
+    ]).then((boxes) => {
+      setIncoming(pending(boxes));
     });
 
     Promise.all([
       listAccessRequests('outgoing').catch(() => []),
       listOrderAccessRequests('outgoing').catch(() => []),
-    ]).then(([parties, orders]) => {
-      setOutgoing(
-        parties.filter((r) => r.status === 'pending').length
-        + orders.filter((r) => r.status === 'pending').length,
-      );
+      listProfileUpdateRequests('outgoing').catch(() => []),
+    ]).then((boxes) => {
+      setOutgoing(pending(boxes));
     });
   }, [user]);
 
@@ -69,6 +69,14 @@ export function ApprovalsProvider({ children }: { children: React.ReactNode }) {
     <ApprovalsContext.Provider value={{ incoming, outgoing, refresh }}>
       {children}
     </ApprovalsContext.Provider>
+  );
+}
+
+/** How many of the merged queues are still waiting on a decision. */
+function pending(boxes: { status: string }[][]): number {
+  return boxes.reduce(
+    (total, box) => total + box.filter((r) => r.status === 'pending').length,
+    0,
   );
 }
 

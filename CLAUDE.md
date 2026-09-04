@@ -158,11 +158,26 @@ they do not hold themselves, and can never delegate `people.manage` or
 cannot narrow a collection read to one team, so they go through
 `GET /api/admin/users`, which returns their team and nobody else.
 
-`isHr` is read-only access to the people directory and nothing else. It grants
+`isHr` is the people directory and nothing else. It grants
 no `.viewAll` of anything and deliberately has **no custom claim**. The payroll fields it exists to expose (`legalName`, `dateOfBirth`,
 `personalEmail`, `startDate`) must never be mirrored onto `users/{uid}`, which
 every signed-in user can read — check `MIRRORED_FIELDS` in `src/lib/userImport.ts`
 and the `patch`/`privatePatch` split in `/api/admin/users` before adding a field.
+
+The one thing HR can write is `profile.decideUpdates`: approving a change
+somebody asked for on **their own** record. That is why the role is no longer
+strictly read-only, and the boundary that keeps it safe is the catalog, not the
+role — `PROFILE_FIELDS` in `src/types/profileUpdateRequest.ts` is the whole of
+what can be requested, `src/lib/profileFields.ts` is the only thing that applies
+one, and neither can reach a role, a granted permission, a suspension or the
+email address. **Do not add any of those to that catalog.**
+
+**Everybody can see their own record** at `/dashboard/profile`, payroll fields
+included, served by `GET /api/me` — a rule cannot narrow a collection read to
+one document, so the narrowing is the verified email off the ID token and there
+is no parameter for whose record it is. Everything on that page is a *request*;
+nothing there writes `allowedUsers`. Approving does, through the Admin SDK.
+See `profileUpdateRequests` in the Schema Guide.
 
 `sites` are reference data that grant nothing. `teams` grant nothing **except**
 to a Sales Manager, for whom the team they lead is their scope — see above.
@@ -363,7 +378,16 @@ groups', my clients'" cannot be expressed as one client-side query the rules
 would approve. `listOrders()` / `getOrder()` in `src/lib/orders.ts` are the
 single choke point every order-reading page uses.
 
-**Chat is the one deliberate exception to that.** `src/lib/chat.ts` reads
+**Chat is the largest deliberate exception to that.** The other is
+`AuthContext`, which keeps an `onSnapshot` on the signed-in user's own
+`users/{uid}` so a photo, name or permission changed by an admin lands without
+a sign-out. Same argument, more narrowly: one document, addressed by the
+caller's own uid, on a collection the rules already open to every signed-in
+user — there is no query for a rule to fail to express. It is not a second
+gate; `/api/auth/session` is still the only thing that verifies the allowlist
+entry.
+
+ `src/lib/chat.ts` reads
 Firestore live from the browser over `onSnapshot`, and messages are written
 straight from the client under the rules. That is safe here and is not safe for
 orders because "conversations I am a member of" is a single `array-contains`

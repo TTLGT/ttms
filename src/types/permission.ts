@@ -112,6 +112,22 @@ export const PERMISSIONS = [
   'people.view',
   /** Add, remove, suspend, and change roles and permissions. */
   'people.manage',
+  /**
+   * Decide the requests people raise about their own record — a new phone
+   * number, a corrected spelling, a photo.
+   *
+   * Separate from `people.manage` because it is a smaller thing than managing
+   * people: approving one of these writes one field on one person's entry and
+   * can never touch a role, a permission or somebody's suspension — the
+   * catalog in src/types/profileUpdateRequest.ts is the whole of what can be
+   * asked for. That is what makes it safe to give HR, whose job is keeping
+   * those details right and who hold no operational access at all.
+   *
+   * Note that raising a request needs no permission. It is about the
+   * requester's own record, and an intern who has moved house has the same
+   * reason to say so as anybody else.
+   */
+  'profile.decideUpdates',
 
   // ── Company ──────────────────────────────────────────────────────────────
   'analytics.view',
@@ -202,6 +218,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'directory.book',   label: 'See a colleague’s book of business', detail: 'How many clients somebody owns and how many of their loads are open. Everyone sees their own; a Sales Manager sees their team’s without this.' },
       { key: 'people.view',    label: 'See the access list', detail: 'Settings → People, including legal names, birthdays and personal addresses.' },
       { key: 'people.manage',  label: 'Manage people',     detail: 'Add and remove people, suspend them, and change roles and permissions.' },
+      { key: 'profile.decideUpdates', label: 'Decide profile change requests', detail: 'Approve or refuse the changes people ask for on their own record — a number, a spelling, a photo. Never a role.' },
     ],
   },
   {
@@ -318,7 +335,14 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
   // `directory.export` alongside it: keeping the list right is the job, and a
   // list nobody can print is one that gets retyped by hand into a spreadsheet
   // instead, which is how two versions of it start existing.
-  isHr: [...BASE_PERMISSIONS, 'people.view', 'directory.export'],
+  //
+  // `profile.decideUpdates` is the one thing HR can now *write*, and it is a
+  // deliberate widening of a role that was read-only before: the queue of
+  // "that is my old number" is HR's work, and routing it to an admin instead
+  // would make the role read-only in name and useless in practice. It still
+  // cannot reach a role, a permission or a suspension — see the note on the
+  // key in the catalog above.
+  isHr: [...BASE_PERMISSIONS, 'people.view', 'directory.export', 'profile.decideUpdates'],
 
   /**
    * Sales Manager: a broker, plus admin-level power over their own team.

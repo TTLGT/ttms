@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { listAccessRequests, decideAccessRequest } from '@/lib/parties';
 import { listOrderAccessRequests, decideOrderAccessRequest } from '@/lib/orders';
+import { listProfileUpdateRequests, decideProfileUpdateRequest } from '@/lib/profileRequests';
 import { useAuth } from '@/context/AuthContext';
 import { ROLE_LABEL } from '@/types/party';
 import type { AccessRequest } from '@/types/accessRequest';
@@ -10,22 +12,31 @@ import type { OrderAccessRequest } from '@/types/orderAccessRequest';
 import {
   DEFAULT_GRANT_HOURS, GRANT_DURATIONS, grantDisplayStatus, isGrantLive,
 } from '@/types/orderAccessRequest';
+import { changeSummary, type ProfileUpdateRequest } from '@/types/profileUpdateRequest';
+import { UserAvatar } from '@/components/settings/UserAvatar';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { useApprovals } from '@/context/ApprovalsContext';
 
 type Box = 'incoming' | 'outgoing';
 
 /**
- * One inbox, two kinds of request.
+ * One inbox, three kinds of request.
  *
  * They are separate collections because what approval grants differs — a party
  * approval is spent on one order, a load approval runs on a clock the approver
- * sets — but they arrive in the same place and are decided by the same people,
- * so splitting the screen would only make somebody check two.
+ * sets, a profile change writes one field on somebody's own record — but they
+ * arrive in the same place, so splitting the screen would only make somebody
+ * check three.
+ *
+ * The third is not decided by the same people as the first two: a profile
+ * change goes to admin and HR, and the queue for it comes back empty for
+ * everybody else. That is settled server-side in /api/profile/requests, which
+ * is why nothing on this screen has to ask.
  */
 type Row =
-  | { kind: 'party'; req: AccessRequest }
-  | { kind: 'order'; req: OrderAccessRequest };
+  | { kind: 'party';   req: AccessRequest }
+  | { kind: 'order';   req: OrderAccessRequest }
+  | { kind: 'profile'; req: ProfileUpdateRequest };
 
 const STATUS_STYLE: Record<string, string> = {
   pending:  'bg-amber-50 text-amber-700',
@@ -33,6 +44,7 @@ const STATUS_STYLE: Record<string, string> = {
   denied:   'bg-red-50 text-red-700',
   expired:  'bg-gray-100 text-gray-600',
   revoked:  'bg-gray-100 text-gray-600',
+  withdrawn: 'bg-gray-100 text-gray-600',
 };
 
 /**
@@ -105,17 +117,19 @@ export default function ApprovalsPage() {
     setLoading(true);
     setError('');
     try {
-      // Fetched together and merged so the inbox reads as one queue. Neither
-      // call is allowed to fail quietly: half a queue looks exactly like an
-      // empty one, and the whole point of this screen is that nothing waits
+      // Fetched together and merged so the inbox reads as one queue. No call
+      // is allowed to fail quietly: two thirds of a queue looks exactly like
+      // an empty one, and the whole point of this screen is that nothing waits
       // on somebody without them knowing.
-      const [parties, orders] = await Promise.all([
+      const [parties, orders, profiles] = await Promise.all([
         listAccessRequests(which),
         listOrderAccessRequests(which),
+        listProfileUpdateRequests(which),
       ]);
       const merged: Row[] = [
         ...parties.map((req) => ({ kind: 'party' as const, req })),
         ...orders.map((req) => ({ kind: 'order' as const, req })),
+        ...profiles.map((req) => ({ kind: 'profile' as const, req })),
       ];
       merged.sort((a, b) => millis(b.req.createdAt) - millis(a.req.createdAt));
       setRows(merged);
@@ -128,17 +142,26 @@ export default function ApprovalsPage() {
 
   useEffect(() => { if (user) void load(box); }, [user, box, load]);
 
-  async function decide(row: Row, action: 'approve' | 'deny' | 'revoke') {
+  async function decide(row: Row, action: 'approve' | 'deny' | 'revoke' | 'withdraw') {
     setBusyId(row.req.id);
     setError('');
     try {
-      if (row.kind === 'order') {
+      if (row.kind === 'profile') {
+        // The only kind with a `withdraw`, and the only kind without a
+        // `revoke`: the change is applied the moment it is approved, so there
+        // is nothing standing afterwards to take back. What can be taken back
+        // is the asking, by the person who asked.
+        if (action === 'revoke') return;
+        await decideProfileUpdateRequest(row.req.id, action);
+      }
+      else if (row.kind === 'order') {
+        if (action === 'withdraw') return;
         await decideOrderAccessRequest(row.req.id, action, {
           expiresInHours: grantHours[row.req.id] ?? DEFAULT_GRANT_HOURS,
         });
       }
       // A party approval has nothing to revoke — it spends itself on an order.
-      else if (action !== 'revoke') {
+      else if (action !== 'revoke' && action !== 'withdraw') {
         await decideAccessRequest(row.req.id, action, {
           grant: grantKind[row.req.id] ?? 'once',
         });
@@ -158,9 +181,11 @@ export default function ApprovalsPage() {
         <h1 className="text-2xl font-bold text-gray-900">Approvals</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Requests to use a client, shipper or consignee that belongs to someone else,
-          and requests to open a load. A party approval covers one order, or hands the
-          record over for good if an admin or dispatcher grants it that way; a load
-          approval lasts for as long as you grant it, and can be taken back early.
+          requests to open a load, and changes people have asked for on their own
+          record. A party approval covers one order, or hands the record over for good
+          if an admin or dispatcher grants it that way; a load approval lasts for as
+          long as you grant it, and can be taken back early; a profile change is
+          written straight onto the person&rsquo;s record when you approve it.
         </p>
       </div>
 
@@ -196,7 +221,7 @@ export default function ApprovalsPage() {
       ) : rows.length === 0 ? (
         <div className="text-center py-20">
           <p className="text-gray-400 text-sm">
-            {box === 'incoming' ? 'Nothing waiting on you.' : 'You have not requested any access.'}
+            {box === 'incoming' ? 'Nothing waiting on you.' : 'You have not asked for anything.'}
           </p>
         </div>
       ) : (
@@ -211,10 +236,16 @@ export default function ApprovalsPage() {
                       <span className="font-semibold text-gray-900">
                         {row.kind === 'party'
                           ? partyLabel(row.req)
-                          : `Load ${row.req.orderNumber || row.req.orderId}`}
+                          : row.kind === 'order'
+                            ? `Load ${row.req.orderNumber || row.req.orderId}`
+                            // The field is the subject of a profile request the
+                            // way a load is the subject of the one above it.
+                            : `${row.req.subjectName} — ${row.req.fieldLabel}`}
                       </span>
                       <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-medium">
-                        {row.kind === 'party' ? `as ${ROLE_LABEL[row.req.role]}` : 'load'}
+                        {row.kind === 'party'
+                          ? `as ${ROLE_LABEL[row.req.role]}`
+                          : row.kind === 'order' ? 'load' : 'profile'}
                       </span>
                       {/* A lapsed grant still says 'approved' in the document
                           — the clock is applied when it is read, not by a job.
@@ -235,6 +266,8 @@ export default function ApprovalsPage() {
                           <strong>{r.requestedByName}</strong>
                           {row.kind === 'order'
                             ? ' wants to open this load'
+                            : row.kind === 'profile'
+                              ? ' wants this changed on their own record'
                             // A request raised from the order form is asking to
                             // put this party on a load; one raised from a shared
                             // link is asking to read the record at all. Saying
@@ -243,11 +276,52 @@ export default function ApprovalsPage() {
                               ? ' wants to open this record'
                               : ' wants to use this record'}
                         </>
+                      ) : row.kind === 'profile' ? (
+                        // A personnel record has no owner to name — it belongs
+                        // to the person asking, which is why they had to ask
+                        // somebody else in the first place.
+                        <>Waiting on HR or an administrator</>
                       ) : (
-                        <>Owned by <strong>{r.ownerName || 'nobody — an administrator will decide'}</strong></>
+                        <>Owned by <strong>{row.req.ownerName || 'nobody — an administrator will decide'}</strong></>
                       )}
                       {' · '}{formatWhen(r.createdAt)}
                     </p>
+
+                    {/* The change itself, before the reason for it. A photo is
+                        shown rather than described: one storage path turning
+                        into another tells an approver nothing, and the picture
+                        is the entire thing being decided. */}
+                    {row.kind === 'profile' && (
+                      row.req.field === 'photoPath' ? (
+                        <div className="mt-2 flex items-center gap-3">
+                          <UserAvatar
+                            photoPath={row.req.currentValue || null}
+                            fallback={row.req.subjectName.charAt(0).toUpperCase()}
+                            size={52}
+                            expandable
+                            name={row.req.subjectName}
+                          />
+                          <ArrowRight size={16} className="flex-shrink-0 text-gray-400" />
+                          <UserAvatar
+                            photoPath={row.req.requestedValue || null}
+                            fallback={row.req.subjectName.charAt(0).toUpperCase()}
+                            size={52}
+                            expandable
+                            name={row.req.subjectName}
+                          />
+                        </div>
+                      ) : (
+                        <p className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                          <span className="text-gray-400 line-through">
+                            {changeSummary(row.req).from}
+                          </span>
+                          <ArrowRight size={14} className="flex-shrink-0 text-gray-400" />
+                          <span className="font-semibold text-gray-900">
+                            {changeSummary(row.req).to}
+                          </span>
+                        </p>
+                      )
+                    )}
 
                     {r.reason && (
                       <p className="text-sm text-gray-700 mt-2 italic">&ldquo;{r.reason}&rdquo;</p>
@@ -271,9 +345,11 @@ export default function ApprovalsPage() {
                       <p className="text-xs text-gray-500 mt-2">
                         {r.status === 'denied'
                           ? 'Denied'
-                          : r.status === 'revoked' ? 'Revoked' : 'Approved'} by{' '}
+                          : r.status === 'revoked'   ? 'Revoked'
+                          : r.status === 'withdrawn' ? 'Taken back'
+                          : 'Approved'} by{' '}
                         <strong>{r.decidedByName}</strong>
-                        {r.decidedByAdmin && ' (admin)'}
+                        {row.kind !== 'profile' && row.req.decidedByAdmin && ' (admin)'}
                         {' on '}{formatWhen(r.decidedAt)}
                         {r.decidedByIp && <span className="font-mono ml-1">({r.decidedByIp})</span>}
                       </p>
@@ -370,9 +446,28 @@ export default function ApprovalsPage() {
                         </button>
                       </>
                     )}
+                    {/* The requester's own way out, and the only kind of
+                        request that has one. A party or load request is about
+                        somebody else's record and there is nothing to undo by
+                        dropping it; this one is a person's own correction, and
+                        they may notice they typed the number wrong before
+                        anybody has looked at it. It records as `withdrawn`
+                        rather than deleting — the queue exists so that nothing
+                        quietly disappears out of it. */}
+                    {box === 'outgoing' && row.kind === 'profile' && r.status === 'pending' && (
+                      <button
+                        onClick={() => decide(row, 'withdraw')}
+                        disabled={busyId === r.id}
+                        className="px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+                      >
+                        {busyId === r.id ? '…' : 'Take it back'}
+                      </button>
+                    )}
                     {/* A load approval stands until somebody takes it back, so
                         the owner needs a way to take it back. Nothing to revoke
-                        on the party side — that one expires on its own. */}
+                        on the party side — that one expires on its own, and a
+                        profile change is already written by the time it is
+                        approved. */}
                     {box === 'incoming' && row.kind === 'order' && isGrantLive(row.req) && (
                       <button
                         onClick={() => decide(row, 'revoke')}

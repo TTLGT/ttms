@@ -24,6 +24,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import type { Permission } from '@/types/permission';
 import { ChatProvider, useChat } from '@/context/ChatContext';
+import { UserAvatar } from '@/components/settings/UserAvatar';
 import { ApprovalsProvider, useApprovals } from '@/context/ApprovalsContext';
 import ChatPopup from '@/components/chat/ChatPopup';
 
@@ -58,8 +59,12 @@ const NAV_ITEMS: {
   { href: '/dashboard/clients',   label: 'Clients',   Icon: Users,         needs: 'clients.view' },
   { href: '/dashboard/shippers',  label: 'Shippers',  Icon: Building2,     needs: 'shippers.view' },
   { href: '/dashboard/consignees', label: 'Consignees', Icon: PackageCheck, needs: 'consignees.view' },
+  // `directory.view` is in this list so an intern gets it too. They own no
+  // records and can decide nothing, but they have their own profile — and the
+  // request to correct their own phone number lands in this screen's
+  // "Your requests" tab like anybody else's.
   { href: '/dashboard/approvals', label: 'Approvals', Icon: ShieldCheck,
-    anyOf: ['orders.view', 'clients.view', 'shippers.view', 'consignees.view'] },
+    anyOf: ['orders.view', 'clients.view', 'shippers.view', 'consignees.view', 'directory.view'] },
   { href: '/dashboard/documents', label: 'Documents', Icon: Folder,        needs: 'documents.view' },
   // Open to everyone: it is the company phone book, not the access list.
   // What each person is shown depends on their role — see src/lib/directory.ts.
@@ -123,7 +128,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
  * rather than opening a second set of listeners to count the same thing.
  */
 function DashboardShell({ children }: { children: React.ReactNode }) {
-  const { user, logout, can } = useAuth();
+  const { user, profile, logout, can } = useAuth();
   const pathname              = usePathname();
   const router                = useRouter();
   const { unreadBadge }                 = useChat();
@@ -253,17 +258,46 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
+        {/*
+          Who you are signed in as, and the way into your own record.
+
+          The picture and the name come off `users/{uid}` — the photo an admin
+          uploaded in Settings → People, mirrored onto the profile — and not
+          off the Google account. Those are two different pictures: Google's is
+          whatever the person set on their personal account years ago, while
+          the one here is the one their colleagues see beside them in the
+          directory and in chat. Showing the wrong one in the one place a
+          person looks at their own name was the most visible way this
+          disagreed with itself.
+
+          Both update without a sign-out, because AuthContext keeps a live
+          watch on that document — see watchOwnProfile there.
+
+          The whole block is the link to /dashboard/profile rather than a
+          separate "My profile" nav item: your own name in the corner is where
+          people already click looking for their own details.
+        */}
         <div className="flex-shrink-0 px-4 py-4 border-t border-brand-700">
-          <div className="flex items-center gap-3 mb-3">
-            {user?.photoURL && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.photoURL} alt="avatar" className="w-8 h-8 rounded-full" />
-            )}
+          <Link
+            href="/dashboard/profile"
+            aria-current={isCurrent('/dashboard/profile') ? 'page' : undefined}
+            title="Your details, and how to ask for a change"
+            className={`-mx-2 mb-2 flex items-center gap-3 rounded-lg px-2 py-2 transition ${
+              isCurrent('/dashboard/profile') ? 'bg-brand-700' : 'hover:bg-brand-700'
+            }`}
+          >
+            <UserAvatar
+              photoPath={profile?.photoPath}
+              fallback={(profile?.displayName || user?.email || '?').charAt(0).toUpperCase()}
+              size={32}
+            />
             <div className="overflow-hidden">
-              <p className="text-sm font-medium text-white truncate">{user?.displayName}</p>
+              <p className="text-sm font-medium text-white truncate">
+                {profile?.displayName || user?.displayName}
+              </p>
               <p className="text-xs text-blue-300 truncate">{user?.email}</p>
             </div>
-          </div>
+          </Link>
           <button
             onClick={logout}
             className="w-full text-xs text-blue-300 hover:text-white transition text-left"

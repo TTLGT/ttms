@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   ReactNode,
 } from 'react';
@@ -14,8 +15,10 @@ import {
   signInWithPopup,
   signOut,
 } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
-import { auth, googleProvider } from '@/lib/firebase';
+import { auth, db, googleProvider } from '@/lib/firebase';
+import { USERS_COLLECTION } from '@/lib/accessControl';
 import type { UserProfile } from '@/types/userProfile';
 import { can as canDo } from '@/lib/accessControl';
 import type { Permission } from '@/types/permission';
@@ -93,14 +96,56 @@ async function establishSession(firebaseUser: User): Promise<UserProfile> {
   return data.profile as UserProfile;
 }
 
+/**
+ * Keep the signed-in profile in step with `users/{uid}` while the tab is open.
+ *
+ * `/api/auth/session` provisions the profile and hands back a snapshot of it,
+ * and for a long time that snapshot was the whole story — so an admin
+ * uploading somebody's photo, correcting their name or approving a change to
+ * their number was invisible to that person until they signed out and back in.
+ * Their own picture in the corner of their own screen was the most obvious
+ * case, and the hardest to explain.
+ *
+ * **This is a live client-side read, which the rest of the app avoids.** The
+ * argument that makes chat the exception (see lib/chat.ts) applies here for
+ * the same reason and more narrowly: this is one document, addressed by the
+ * caller's own uid, and `users/{uid}` is already readable by every signed-in
+ * user under the rules. There is no query for the rules to fail to express, so
+ * nothing is being trusted to the browser that was not already open to it.
+ *
+ * What it is **not** is a second gate. Access is established by the session
+ * route, which is the only thing that verifies the allowlist entry; this only
+ * keeps a verified session's details fresh. A profile that disappears
+ * underneath us is left as it was rather than blanked — the session is still
+ * valid, and dropping every permission on a transient read failure would
+ * empty the nav for somebody in the middle of a load.
+ */
+function watchOwnProfile(
+  uid: string,
+  onProfile: (profile: UserProfile) => void,
+): () => void {
+  return onSnapshot(
+    doc(db, USERS_COLLECTION, uid),
+    (snap) => { if (snap.exists()) onProfile(snap.data() as UserProfile); },
+    // Nothing to tell the user: they already have the profile the session
+    // route handed them, and it stands until the page is reloaded.
+    () => {},
+  );
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]       = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const router                = useRouter();
+  /** Torn down on sign-out, and before a second sign-in can open its own. */
+  const watchProfile          = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      watchProfile.current?.();
+      watchProfile.current = null;
+
       if (!firebaseUser) {
         setUser(null);
         setProfile(null);
@@ -112,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const p = await establishSession(firebaseUser);
         setUser(firebaseUser);
         setProfile(p);
+        watchProfile.current = watchOwnProfile(firebaseUser.uid, setProfile);
       } catch (err) {
         // Any failure to establish access ends the session — never fall through
         // to a signed-in state without a verified allowlist entry.
@@ -125,7 +171,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      watchProfile.current?.();
+      watchProfile.current = null;
+      unsubscribe();
+    };
   }, [router]);
 
   const signInWithGoogle = async () => {
@@ -154,8 +204,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isHr    = profile?.isHr ?? false;
   const isDispatcher = profile?.isDispatcher ?? false;
 
-  // Rebuilt only when the profile object changes, which is once per sign-in:
-  // this is called several times per render by the nav alone.
+  // Rebuilt only when the profile object changes — at sign-in, and again
+  // whenever the live watch above sees an edit. This is called several times
+  // per render by the nav alone, so it must not be rebuilt on every render.
   const can = useCallback(
     (permission: Permission) => canDo(profile, permission),
     [profile],

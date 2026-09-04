@@ -264,8 +264,13 @@ function parseRolesCell(raw: string): Roles | 'unrecognised' {
  *
  * `teamId` IS mirrored — who someone reports to is ordinary directory
  * information, and the app shows it next to their name.
+ *
+ * Exported because the profile-request approver in lib/profileFields.ts writes
+ * the same fields one at a time and has to make the same mirror decision. Two
+ * lists of what reaches `users/{uid}` would be two chances to leak a payroll
+ * field onto a document every signed-in user can read.
  */
-const MIRRORED_FIELDS = [
+export const MIRRORED_FIELDS = [
   'firstName', 'lastName', 'displayName',
   // `phoneGt` is mirrored even though nothing writes a value to it any more:
   // it is written blank whenever the second number changes, and that blanking

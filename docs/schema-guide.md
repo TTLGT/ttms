@@ -381,7 +381,16 @@ documents/{documentId}
 /invoices/{orderId}/{fileName}
 /agreements/{agreementId}/{fileName}
 /carrier_docs/{carrierId}/{fileName}
+/avatars/{email}/{timestamp}.{ext}            profile photo an admin uploaded
+/avatars/{email}/requested-{timestamp}.{ext}  one waiting on a profile request
 ```
+
+An avatar path is stored on the record, never a download URL — URLs carry a
+token and go stale, paths do not. `photoPath` on `allowedUsers/{email}` is the
+one that is in use; it is mirrored onto `users/{uid}` so the sidebar, chat and
+the directory can show it, and `AuthContext` keeps a live watch on that document
+so a new photo appears without the person signing out. A `requested-` file is
+pointed at by nothing until its request is approved.
 
 ---
 
@@ -677,6 +686,51 @@ the only evidence a person was ever on the system and the only place their
 details survive a mistaken removal, so shortening its life defeats both reasons
 it exists. If a future legal obligation forces expiry, that is a decision for
 the owner, not a maintenance task.
+
+## Collection: `profileUpdateRequests`
+
+Somebody asking for one field on **their own** record to be corrected — a new
+phone number, a misspelt name, a photo. Raised from **My profile**
+(`/dashboard/profile`), decided in **Approvals** by whoever holds
+`profile.decideUpdates`, which is admins and HR.
+
+This exists because the access model deliberately gives nobody the ability to
+write their own `allowedUsers` entry, which also left the person that entry is
+about unable to correct it — and unable even to see the four payroll fields
+(`legalName`, `personalEmail`, `dateOfBirth`, `startDate`) that are never
+mirrored onto `users/{uid}`. `GET /api/me` serves those to the one caller they
+belong to; this collection is how they get changed.
+
+| Field | Notes |
+|---|---|
+| `subjectEmail`, `subjectUid`, `subjectName` | Whose record. Always the requester's own — the API takes it from the verified token, never from the body. |
+| `field`, `fieldLabel` | One key from `PROFILE_FIELDS` in `src/types/profileUpdateRequest.ts`, plus its label snapshotted at the time. |
+| `currentValue`, `requestedValue` | Both already normalised — a phone number goes through `normalizePhone` before it is stored, so the inbox compares like with like. `''` means "clear this". |
+| `requestedRegion` | `'GT'` / `'MX'`, only for `phoneOther`. |
+| `currentLabel`, `requestedLabel` | The words behind an id — office and team names. Absent for every other field, where the value already is the words. |
+| `reason` | Free text from the requester, up to 500 characters. |
+| `status` | `pending` → `approved` / `denied` / `withdrawn`. |
+| `decidedByUid`, `decidedByName`, `decidedByIp`, `decidedAt`, `denyReason` | The trail. The IP comes from the request headers, never from the browser. |
+
+**What can be asked for is closed.** `PROFILE_FIELDS` is the whole catalog, and
+roles, individually granted permissions, suspension and the email address are
+deliberately not in it. `lib/profileFields.ts` is the only thing that applies an
+approved request, it accepts nothing outside that catalog, and it re-plans the
+value at approval time rather than replaying it — an office named in a request
+can be deleted before anybody decides it.
+
+**Photos are uploaded before the request is raised**, to
+`avatars/{email}/requested-{timestamp}.{ext}` — a request document cannot carry
+a JPEG and the approver has to see the picture. Nothing points at the file until
+approval; refusing or withdrawing deletes it, and approving deletes the photo it
+replaced.
+
+One pending request per person per field. A decided one does not block a new
+one — asking again after a refusal is exactly what someone should be able to do.
+
+Client writes are closed, like the two access-request collections. Reads are open
+to the requester and to `profile.decideUpdates`; the app goes through
+`/api/profile/requests` either way.
 
 ## Collections: `sites` and `teams`
 

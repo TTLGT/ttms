@@ -376,6 +376,30 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Somebody asking for a field on their own record to be corrected.
+    //
+    // Readable by the person who raised it and by whoever decides them — admin
+    // and HR, through `profile.decideUpdates`. There is no owner branch as
+    // there is on the two collections above: a personnel record has no owner,
+    // it belongs to the person it is about, and they are the one asking.
+    //
+    // Writes are closed for the same reason they are closed above. The
+    // decision carries the approver's IP, taken from the request headers, and
+    // approving one WRITES A FIELD ON `allowedUsers` — which is client-closed
+    // precisely so nobody can edit their own entry. A client-side write here
+    // would be a way around that; everything goes through
+    // /api/profile/requests, which re-reads the field off the stored document
+    // and can only ever write what the catalog in
+    // src/types/profileUpdateRequest.ts allows. Roles, permissions and
+    // suspension are not in that catalog and must never be added to it.
+    match /profileUpdateRequests/{requestId} {
+      allow read: if isAllowedUser() && (
+        can('profile.decideUpdates')
+        || resource.data.requestedByUid == request.auth.uid
+      );
+      allow write: if false;
+    }
+
     // Sites are reference data — where someone works, not what they can see.
     // Readable by everyone signed in so a site name can be shown next to a
     // person; written only through /api/sites, which detaches users on delete.
