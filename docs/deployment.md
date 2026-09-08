@@ -47,6 +47,28 @@ Vercel is a hosting company. You point it at the code on GitHub, and it builds
 the site and serves it to the world. It is the normal choice for this kind of
 app, and an account already exists.
 
+> ### ✅ This part is already done — check it, do not redo it
+>
+> Discovered on 8 September 2026: a Vercel project called **`ttms`** already
+> exists on the Pro plan, connected to `TTLGT/ttms`, and it has been rebuilding
+> the site on every push for some time.
+>
+> **Do not create a second project.** Two projects racing to build the same code
+> is a mess to unpick later. Instead, open the existing one and confirm three
+> things:
+>
+> 1. **Settings → Domains** lists `ttms.totaltransportlogistics.us` — with
+>    **two t's**. A one-t `tms.` variant was showing on the project card; if you
+>    find that, remove it and add the two-t version. The code spells it with two
+>    and the code is right.
+> 2. **Settings → Environment Variables** holds all twelve from A3 below,
+>    including `NEXT_PUBLIC_APP_URL`. If you add or change that one, you **must**
+>    redeploy — see the note at the end of A3.
+> 3. **Settings → General → Node.js Version** is 22.x.
+>
+> Then skip to Part B. The rest of Part A is kept for the day somebody has to
+> build this project again from nothing.
+
 > ### This costs about $20 a month, and the free plan is not allowed
 >
 > **Budget $20/month. Not $20 per member of staff.**
@@ -209,9 +231,14 @@ careful about. Read the warning, then it is two form fields.
 3. Vercel shows you a record to create and says the domain is not configured
    yet. **Leave this tab open** — you need the value it shows.
 
-   It will be a **CNAME**, and the value is normally `cname.vercel-dns.com`.
-   **Use whatever Vercel shows on screen**, not what is written here, in case
-   they have changed it.
+   It will be a **CNAME**. **Use whatever Vercel shows on screen** — do not copy
+   an example from here or from a web search.
+   
+   Vercel now issues a value unique to the project, of the form
+   `c8d7304de8e54a70.vercel-dns-017.com`, rather than the generic
+   `cname.vercel-dns.com` that older guides and earlier drafts of this document
+   quoted. Both spellings exist in the wild, and the generic one will not work
+   for this project.
 
 ### C2 — Create the record in Namecheap
 
@@ -224,7 +251,7 @@ careful about. Read the warning, then it is two form fields.
    |---|---|
    | Type | `CNAME Record` |
    | Host | `ttms` |
-   | Value | the value Vercel showed you, e.g. `cname.vercel-dns.com` |
+   | Value | the value Vercel showed you, e.g. `c8d7304de8e54a70.vercel-dns-017.com` |
    | TTL | `Automatic` |
 
    **Host is `ttms`, not the whole address.** Namecheap adds

@@ -55,8 +55,12 @@ file's checks and its plain-language error messages too.
 GitHub (org `TTLGT`), the Firebase Console (`ttms-59aa5`) and Vercel are all
 reached by **signing in with Google as `it@totaltransportlogistics.us`** — a
 role account, not a person. When giving setup or console instructions, say so
-rather than implying separate per-service credentials. Nothing is deployed on
-the Vercel account yet.
+rather than implying separate per-service credentials.
+
+**Vercel is set up and building.** Team `TTL IT's projects`, on the Pro plan,
+with a project `ttms` connected to `TTLGT/ttms` that deploys on every push to
+`main` and has been doing so for some time. Do not create a second project.
+What is missing is DNS, not hosting — see the gotcha near the end of this file.
 
 ## Environment
 
@@ -505,7 +509,9 @@ assignment is held in `assignedToEmails` / `memberEmails` and converted by
   - `NEXT_PUBLIC_APP_URL` is **not set** in `.env.local`, and `ttms.totaltransportlogistics.us` does not resolve yet (checked 2026-09-04: no DNS record), so no e-sign link works today. `docs/deployment.md` is the runbook that fixes both.
   - `NEXT_PUBLIC_*` is inlined at **build** time, not read at run time. Setting it on the host after a deploy changes nothing until the next build — which is why the fallback is the production host rather than localhost.
   - Documents that **leave the company** — the BOL and invoice PDFs, and the two agreement email footers — deliberately show the public site `totaltransportlogistics.us`, not this subdomain. A carrier holding an invoice cannot sign in to a staff tool, so printing its address there is noise.
-- **Nothing is deployed yet**, but the repo is now prepared for it: security headers in `next.config.ts`, the address centralised in `src/lib/appUrl.ts`, and [`docs/deployment.md`](docs/deployment.md) as the step-by-step runbook (Vercel Pro → Firebase authorized domains → Namecheap CNAME). Still absent, and deliberately so: no `vercel.json` (Vercel's Next.js defaults are correct and each route declares its own `maxDuration`), no `.github/workflows/` (Vercel builds on push), no Hosting block in `firebase.json`. Once it is live, **a push to `main` is a production release** — say so before pushing.
+- **It is deployed on Vercel, and has been for a while — but no domain resolves to it.** A push to `main` builds and goes live on the project's `.vercel.app` address right now, so **a push to `main` is already a production release**; say so before pushing. What was never finished is DNS: as of 2026-09-08 neither `ttms.` nor `tms.totaltransportlogistics.us` has any record at Namecheap, so the address in `appUrl.ts` answers nothing and every e-sign link is dead. Adding one CNAME is the whole of the remaining work. The repo side is done: security headers in `next.config.ts`, the address centralised in `src/lib/appUrl.ts`, [`docs/deployment.md`](docs/deployment.md) as the runbook.
+  - **`ttms` with two t's is the agreed spelling** (2026-09-08), matching `PRODUCTION_APP_URL` and the product name. A Vercel project card was showing a one-t `tms.` variant; if that reappears it is the thing to change, not the code.
+  - Deliberately absent: no `vercel.json` (Vercel's Next.js defaults are correct and each route declares its own `maxDuration`), no `.github/workflows/` (Vercel builds on push), no Hosting block in `firebase.json`.
 - Firestore composite indexes are listed in `docs/schema-guide.md`. A missing-index error links to a one-click creator in the Console.
 
 ## Git

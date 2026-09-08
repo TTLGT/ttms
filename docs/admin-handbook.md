@@ -87,7 +87,7 @@ and most of the rest opens up.
 |---|---|---|
 | **GitHub** (org `TTLGT`) | **Sign in with Google**, using `it@totaltransportlogistics.us` | Where the TTMS code lives |
 | **Firebase Console** (`ttms-59aa5`) | Google — `it@totaltransportlogistics.us` | The database, uploaded files, sign-in, and security rules |
-| **Vercel** | Google — `it@totaltransportlogistics.us` | Website hosting. The account exists, but **TTMS is not deployed on it yet** — see [Deployment](#deployment--prepared-not-yet-done). |
+| **Vercel** | Google — `it@totaltransportlogistics.us` | Website hosting. **Set up and building** on the Pro plan; the project is called `ttms`. What is missing is the DNS record, not the hosting — see [Deployment](#deployment--prepared-not-yet-done). |
 | **TTMS itself** | Google — your own company address | The app. Being in the allowlist is what grants access, not the Google login itself. |
 | **Resend** | **Continue with GitHub** — which is itself Google, `it@totaltransportlogistics.us` | Sends the agreement emails. Account is owned by the `it@` role account. **Not yet usable — no verified domain, no API key.** See [Email sending](#email-sending--not-yet-provisioned). |
 | **Claude Code** | ⚠️ **No company account exists** — see below | Optional AI assistant for code work |
@@ -1377,8 +1377,18 @@ Two things worth deciding while you are in there:
 > That document is the runbook — follow it rather than this section, which only
 > explains where things stand and what the decisions were.
 
-**Nothing is deployed yet.** TTMS still runs on one machine at a time, against
-the live production Firebase project.
+**TTMS is deployed on Vercel already — it just has no address.** This was
+discovered on 8 September 2026, and earlier versions of this handbook said the
+opposite. A Vercel project called `ttms` exists on the Pro plan, connected to
+the `TTLGT/ttms` code, and it rebuilds the site every time code is pushed. It
+has been doing that for some time.
+
+What was never done is the **DNS record** — the line that tells the internet
+where `ttms.totaltransportlogistics.us` lives. Without it the address answers
+nothing, which is why nobody has ever been able to use TTMS from a browser.
+
+So the remaining work is **one record at Namecheap**, plus telling Firebase to
+accept sign-ins on the new address. Do not create a second Vercel project.
 
 **What is now ready.** The repo has been prepared for a deployment:
 
@@ -1389,11 +1399,18 @@ the live production Firebase project.
   omitted.
 - `npm run build` passes.
 
-**What is left, and it is all clicking, not coding.** Three consoles, in order:
-Vercel (connect the repo, type in the variables), Firebase (add the address to
-Authentication → Authorized domains, or Google sign-in is rejected on it), then
-Namecheap (one CNAME record for the `ttms` name). `docs/deployment.md` walks
-through each, with the traps called out.
+**What is left, and it is all clicking, not coding.** Two consoles now that
+Vercel is done: Namecheap (one CNAME record for the `ttms` name) and Firebase
+(add the address under Authentication → Authorized domains, or Google sign-in
+is rejected on it). Check on the way past that Vercel holds a
+`NEXT_PUBLIC_APP_URL` of `https://ttms.totaltransportlogistics.us`, and
+redeploy if you change it. `docs/deployment.md` walks through each, with the
+traps called out.
+
+**The name is `ttms`, with two t's** — matching the product name and the address
+written into the code. A one-t `tms.` variant was showing on the Vercel project
+in September 2026; if you meet it, the Vercel entry is what changes, not the
+code.
 
 **Two decisions already made**, so nobody has to reopen them:
 
@@ -1416,7 +1433,7 @@ Until that is done, assume every local change is live.
 - [ ] **Access to the `it@totaltransportlogistics.us` Google account.** This is the master key — GitHub, Firebase and Vercel all sign in through it. Get this first.
 - [ ] GitHub org (`TTLGT`) reachable via **Continue with Google** as `it@`; repo cloned.
 - [ ] Firebase Console access to `ttms-59aa5` (Google, `it@`) — ideally Owner, some rules operations need it.
-- [ ] Vercel reachable (Google, `it@`). Nothing is deployed there yet.
+- [ ] Vercel reachable (Google, `it@`). The `ttms` project is already there and building — do not create a second one.
 - [ ] Resend reachable at resend.com via **Continue with GitHub** as `it@`. Owned by the `it@` role account — nothing to chase. **Turn on MFA:** it is currently off, and this account sends your signed agreements.
 - [ ] Confirmed sign-in to TTMS itself as `it@totaltransportlogistics.us` — the lockout recovery path.
 - [ ] **If you want the Claude Code workflow: TTL has no paid Claude account.** The prior work used a personal one. Budget for a company plan or skip Part 3.
