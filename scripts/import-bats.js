@@ -1324,6 +1324,30 @@ async function importOrders() {
         dispatchedAt:             ts(str(r[21])),
         pickedUpAt:               ts(str(r[22])),
         deliveredAt:              ts(str(r[23])),
+        /*
+         * Blank because BATS does not export the carrier on an order, not
+         * because the importer drops it.
+         *
+         * Read the column list above: the orders export carries
+         * `TotalCarrierFee` — what the carrier was paid — and nothing that
+         * says who they were. No name, no id, no MC number. The carriers
+         * export has no order reference either, so there is no third file to
+         * join the two on. The link simply is not in the data BATS gives us.
+         *
+         * What that means downstream is worth stating plainly, because it does
+         * not look like anything is wrong: every carrier imported from
+         * `carriers-export` is a real record that no imported load points at.
+         * Measured on 2026-09-10, 2 of 10,377 orders carried a `carrierId`,
+         * and both were entered by hand through the app.
+         *
+         * So a load imported here arrives unassigned and has its carrier
+         * chosen in TTMS — which is the honest state for a historical record
+         * whose carrier we cannot know. Closing this gap needs a different
+         * export out of BATS (one with the carrier per order), not a change
+         * to this file. Do not paper over it by matching on `TotalCarrierFee`
+         * or by guessing from the fee: a rate confirmation sent to the wrong
+         * carrier is a contract with the wrong company.
+         */
         carrierId:                null,
         carrierName:              '',
         driverName:               '',
