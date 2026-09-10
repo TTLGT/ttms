@@ -315,6 +315,10 @@ scripts cannot import TypeScript either:
 |---|---|
 | `toPhoneKey()` + `partyPhoneKeys()` | `scripts/import-bats.js`, `scripts/backfill-party-phone-keys.js` |
 
+| `src/lib/orderViews.ts` | mirrored in |
+|---|---|
+| the `unsigned` and `documents_missing` queries | `unsignedStat()` / `missingDocumentsStat()` in `src/lib/orderSummary.ts` |
+
 | `src/types/order.ts` | mirrored in |
 |---|---|
 | `orderSearchTerms()` + `searchWords()` | `scripts/backfill-order-search-terms.js`, `scripts/import-bats.js` |
@@ -324,6 +328,27 @@ scripts cannot import TypeScript either:
 writes an order must refresh it** — `createOrder` computes it inline,
 `updateOrder` posts to `/api/orders/{id}/search-terms`. An order saved without
 it exists but cannot be found by searching, and nothing fails loudly.
+
+**A dashboard card and the list it opens are one definition.** Each card links
+to `/dashboard/orders?view=<id>`, and `src/lib/orderViews.ts` holds the filter
+behind that id: the summary counts through `viewQuery()` and the Orders screen
+lists through the same catalog, so a number cannot disagree with the loads it
+opens. The ids, labels and sort table live in `src/types/orderView.ts` because
+the browser needs them and that module must not pull in the Admin SDK.
+
+Two views are the exception in the table above. "Missing either signature" and
+"missing either document" are ORs, which Firestore will not serve from one
+index — the list runs two queries and merges them, while the card counts by
+inclusion–exclusion. **Change one and change the other**, or the card's number
+stops matching its own list.
+
+A view is **bounded, not paged** — 200 rows. Sorting most of them in Firestore
+would want a composite index per view, so `ORDER_VIEW_SORT_FIELDS` names only
+the fields already carried by an index the counts use, and is `null` for the
+four that could not have one for free. Those four come back in document order,
+and the Orders screen says "200 of them" rather than "the most recent 200".
+Adding a view means checking whether its query needs an index it does not have:
+a missing one fails outright.
 
 `carrierNameKey` is what the carriers list searches on. **Anything that writes a
 carrier must write `nameKey` alongside `companyName`** — `createCarrier`,

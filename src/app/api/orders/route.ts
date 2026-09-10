@@ -11,6 +11,7 @@ import {
 } from '@/lib/orderAccess';
 import { resolveOwnerFilter } from '@/lib/ownerFilter';
 import { ORDER_STATUSES } from '@/types/order';
+import { isOrderView } from '@/types/orderView';
 
 /**
  * Every order the caller may see, a page at a time.
@@ -32,6 +33,7 @@ import { ORDER_STATUSES } from '@/types/order';
  *   ?search=morris          orders findable by that text — see orderSearchTerms
  *   ?carrierId= / ?clientId= / ?parentOrderId=   the orders belonging to one record
  *   ?owner=maria@…          the loads one colleague holds
+ *   ?view=unsigned          one of the dashboard's named slices — see orderViews
  *   ?counts=1               orders per status, instead of the orders themselves
  *
  * `owner` is an **email**, because that is how the directory names a person and
@@ -89,6 +91,10 @@ export async function GET(req: NextRequest) {
       // means "top-level orders only", which is not the same as not asking.
       parentOrderId: p.has('parentOrderId') ? (p.get('parentOrderId') ?? '') : undefined,
       pickupFrom:    Number(p.get('pickupFrom')) > 0 ? Number(p.get('pickupFrom')) : undefined,
+      // Checked against the catalog rather than passed through: a view becomes
+      // a set of query filters, and an unknown one must not fall through to an
+      // unfiltered list of the whole book.
+      view:          isOrderView(p.get('view')) ? p.get('view') as never : undefined,
       fields:        (['list', 'analytics'] as const).find((f) => f === p.get('fields')) ?? 'full',
       owner,
     };

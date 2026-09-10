@@ -13,35 +13,6 @@
   }
 }
 
-@keyframes truck-pass {
-  0%   { transform: translateX(-150%); opacity: 0; }
-  10%  { opacity: 1; }
-  90%  { opacity: 1; }
-  100% { transform: translateX(150%); opacity: 0; }
-}
-
-.animate-truck-pass {
-  animation: truck-pass 2.2s ease-in-out infinite;
-}
-
-@keyframes wiggle {
-  0%, 100% { transform: rotate(-8deg); }
-  50%       { transform: rotate(8deg); }
-}
-
-.animate-wiggle {
-  animation: wiggle 0.4s ease-in-out infinite;
-}
-
-@keyframes pop {
-  0%, 100% { transform: scale(1); }
-  50%       { transform: scale(1.25); }
-}
-
-.animate-pop {
-  animation: pop 0.6s ease-in-out infinite;
-}
-
 /*
  * Scrollbar for the dark sidebar nav. Only shows up once there are more menu
  * items than fit; the browser default renders as a bright grey slab against

@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { isOrderView, orderViewLabel, viewIsSorted } from '@/types/orderView';
 import { listOrdersPage, countOrdersByStatus } from '@/lib/orders';
 import type { Order, OrderStatus } from '@/types/order';
 import { orderDisplayNumber } from '@/types/order';
@@ -106,6 +107,18 @@ function OrdersList() {
     who owns a load is already on the load's own page.
   */
   const owner = (searchParams.get('owner') ?? '').trim();
+  /*
+    Set when the list was opened by clicking a card on the dashboard. It is a
+    named slice of the book — "unsigned agreements", "documents missing" —
+    defined once in lib/orderViews.ts and counted there for the card, so the
+    list shows exactly the loads the number promised.
+
+    A view is not paged: two of them are an OR served by two queries, and
+    sorting the rest in Firestore would want an index per view. The server
+    returns up to two hundred, newest first, and says so below.
+  */
+  const viewParam = searchParams.get('view');
+  const view = isOrderView(viewParam) ? viewParam : null;
   const filter: OrderStatus | 'all' = isStatus(searchParams.get('status'))
     ? (searchParams.get('status') as OrderStatus)
     : 'all';
@@ -116,6 +129,12 @@ function OrdersList() {
     // meaning exactly what it means today.
     if (value === fallback) params.delete(key);
     else params.set(key, value);
+    // Anything else the reader chooses replaces the view rather than narrowing
+    // it. A view already fixes a status set of its own, and the server answers
+    // it as one bounded query — "unsigned agreements, but only the booked
+    // ones" would be a filter the list cannot actually apply, which is worse
+    // than a filter it refuses to offer.
+    if (key !== 'view') params.delete('view');
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [router, pathname, searchParams]);
@@ -163,6 +182,7 @@ function OrdersList() {
         // list will actually show.
         parentOrderId: '',
         owner: owner || undefined,
+        view:  view ?? undefined,
       });
       if (mine !== requestId.current) return;
       setOrders((prev) => (after ? [...prev, ...page.orders] : page.orders));
@@ -173,7 +193,7 @@ function OrdersList() {
     } finally {
       if (mine === requestId.current) { setLoading(false); setLoadingMore(false); }
     }
-  }, [filter, applied, owner]);
+  }, [filter, applied, owner, view]);
 
   // Re-runs when the tab changes, which resets to the first page of that status.
   useEffect(() => { setOrders([]); setCursor(null); void loadPage(null); }, [loadPage]);
@@ -227,6 +247,27 @@ function OrdersList() {
           </span>
           <button
             onClick={() => setParam('owner', '', '')}
+            className="font-medium underline hover:no-underline"
+          >
+            Show all orders
+          </button>
+        </div>
+      )}
+
+      {/* Says which card this list came from. Without it a view looks like the
+          whole book and simply happens to be short — the same trap the owner
+          filter above would set. The cap is stated rather than hidden: a list
+          that quietly stops at two hundred reads as a complete answer. */}
+      {view && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-900">
+          <span>
+            Showing <span className="font-semibold">{orderViewLabel(view)}</span>
+            {visible.length >= 200 && (viewIsSorted(view)
+              ? ' — the most recent 200'
+              : ' — 200 of them')}.
+          </span>
+          <button
+            onClick={() => setParam('view', '', '')}
             className="font-medium underline hover:no-underline"
           >
             Show all orders

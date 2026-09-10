@@ -21,6 +21,10 @@ import type { OwnerContact } from '@/types/order';
 import { ownerLabel } from './partyAccess';
 import type { Caller } from './partyAccess';
 import type { OwnerFilter } from './ownerFilter';
+import {
+  matchesView, viewClock, viewOrderField, viewQueries,
+  type OrderViewId, type ViewClock,
+} from './orderViews';
 
 const COL = 'orders';
 
@@ -72,6 +76,13 @@ export interface OrderQuery {
   consigneeId?: string;
   /** '' selects top-level orders; an id selects that order's suborders. */
   parentOrderId?: string;
+  /**
+   * One of the named slices a dashboard card stands for — see lib/orderViews.
+   *
+   * It is what makes a card clickable: the card counts the view and the Orders
+   * screen lists it, from one definition, so the two cannot drift.
+   */
+  view?: OrderViewId;
   /**
    * Only orders carrying this attachment. The Documents screen is a list of
    * files, and the overwhelming majority of orders have none — asking for
@@ -152,6 +163,10 @@ export async function listVisibleOrdersPage(
   }
 
   if (canSeeAllOrders(caller.profile)) {
+    // A named view is its own shape of query and cannot share the cursor paging
+    // below — see viewPage.
+    if (query.view) return viewPage(col, query.view, projection);
+
     let q: FirebaseFirestore.Query = col;
     if (query.status)               q = q.where('status', '==', query.status);
     if (query.carrierId)            q = q.where('carrierId', '==', query.carrierId);
@@ -223,6 +238,66 @@ export async function listVisibleOrdersPage(
   }
 
   return pageInMemory(await unionForCaller(caller), query, projection);
+}
+
+/**
+ * One dashboard view's orders, for a caller who can see the whole book.
+ *
+ * Bounded rather than paged, and that is deliberate. Two of these views are an
+ * OR served by two queries whose results have to be merged, which no cursor
+ * can walk; and sorting the rest in Firestore would mean a composite index per
+ * view, on top of the ones the dashboard's counts already use. Ordering the
+ * merged rows here instead keeps every one of these queries the same shape the
+ * summary already runs, so this needed no new index at all.
+ *
+ * The cap is the honest limit of that trade. A view is a working list — what
+ * is unsigned, what is missing paperwork — and a person who has more than two
+ * hundred of those to work through needs the count on the card, not two
+ * hundred more rows.
+ *
+ * Top-level orders only, matching the card exactly: a suborder carries its own
+ * BOL and its own carrier, and counting it here would make the list disagree
+ * with the number that was clicked to reach it.
+ */
+const VIEW_LIMIT = 200;
+
+async function viewPage(
+  col: FirebaseFirestore.CollectionReference,
+  view: OrderViewId,
+  projection: readonly string[] | null,
+): Promise<OrderPage> {
+  const clock: ViewClock = viewClock();
+  const top = col.where('parentOrderId', '==', null);
+
+  // Descending, matching the direction of the composite index the dashboard
+  // already counts this view with. Left off where the view names no field:
+  // asking Firestore to sort those would need an index per view, and an
+  // inequality it cannot sort is implicitly ordered *ascending*, which the
+  // descending index cannot answer — the same trap orderSummary documents.
+  const sortField = viewOrderField(view);
+
+  const snaps = await Promise.all(
+    viewQueries(view, top, clock).map((q) => {
+      const sorted = sortField ? q.orderBy(sortField, 'desc') : q;
+      // createdAt rides along whatever the caller asked for: the merged rows are
+      // ordered by it below, and a projection without it would sort arbitrarily.
+      const scoped = projection ? sorted.select(...projection, 'createdAt') : sorted;
+      return scoped.limit(VIEW_LIMIT).get();
+    }),
+  );
+
+  // Merged by id: an order missing both its BOL and its POD comes back from
+  // both queries, and it is one load either way.
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const snap of snaps) {
+    for (const d of snap.docs) byId.set(d.id, { id: d.id, ...d.data() });
+  }
+
+  const rows = [...byId.values()]
+    .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
+    .slice(0, VIEW_LIMIT);
+
+  return { orders: projection ? rows.map((o) => trimTo(o, projection)) : rows, cursor: null };
 }
 
 /**
@@ -498,6 +573,10 @@ function matchesFilters(order: Record<string, unknown>, query: OrderQuery): bool
     const want = query.parentOrderId || null;
     if ((order.parentOrderId ?? null) !== want) return false;
   }
+  // The clock is built here rather than passed in because this runs over one
+  // caller's own records — a few hundred at most — and a view's boundaries
+  // (midnight, the first of the month) do not move while a list is being cut.
+  if (query.view && !matchesView(query.view, order, viewClock())) return false;
   return true;
 }
 

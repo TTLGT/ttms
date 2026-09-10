@@ -12,6 +12,7 @@ import type { LicenseDocumentRow, OrderDocumentKind } from '@/types/orderDocumen
 import type { OrderAccessRequest } from '@/types/orderAccessRequest';
 import type { OwnerContact } from '@/types/order';
 import type { OwnerEvent } from '@/types/ownerEvent';
+import type { OrderViewId } from '@/types/orderView';
 import type { ActiveClient, DashboardSummary } from './orderSummary';
 
 const COL = 'orders';
@@ -225,6 +226,11 @@ export interface OrderQuery {
   /** Trims each order to the fields that shape of screen reads. */
   fields?: 'list' | 'analytics';
   /**
+   * One of the dashboard's named slices — see lib/orderViews.ts. This is what a
+   * stat card links to, so the list shows exactly what the card counted.
+   */
+  view?: OrderViewId;
+  /**
    * One colleague's loads, named by their email — the identifier the directory
    * links on. Resolved to a uid server-side; see lib/ownerFilter.ts.
    */
@@ -251,6 +257,7 @@ function orderQueryString(q: OrderQuery): string {
   if (q.hasDocument)  p.set('hasDocument', q.hasDocument);
   if (q.pickupFrom)   p.set('pickupFrom', String(q.pickupFrom));
   if (q.owner)        p.set('owner', q.owner);
+  if (q.view)         p.set('view', q.view);
   // Set even when empty — an empty value is a meaningful request.
   if (q.parentOrderId !== undefined) p.set('parentOrderId', q.parentOrderId);
   return p.toString();

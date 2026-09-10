@@ -7,6 +7,7 @@ import {
   DollarSign, TrendingUp, FilePlus, XCircle,
   ReceiptText, PenLine, Hourglass, Building2,
   FlagTriangleRight, UserPlus, ShieldAlert, Paperclip,
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { listOrdersPage, fetchDashboardSummary, fetchActiveClientLoads } from '@/lib/orders';
@@ -16,6 +17,7 @@ import type { Order } from '@/types/order';
 import type { OrderAlert } from '@/lib/alerts';
 import type { LucideIcon } from 'lucide-react';
 import { STATUS_LABEL, orderDisplayNumber } from '@/types/order';
+import type { OrderViewId } from '@/types/orderView';
 import StatusBadge from '@/components/orders/StatusBadge';
 import AlertPanel from '@/components/orders/AlertPanel';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -55,11 +57,45 @@ interface StatCard {
   value: string | number;
   color: string;
   icon: LucideIcon;
-  anim: string;
-  hoverAnim?: string;
-  truckPass?: boolean;
   items?: TooltipItem[];
   emptyMsg?: string;
+  /**
+   * Where the card leads. Every order card points at the Orders screen filtered
+   * to the same slice it counted — see src/lib/orderViews.ts — so the number and
+   * the list behind it cannot disagree.
+   */
+  href?: string;
+  /**
+   * A card that means somebody has something to do. It is the only thing on this
+   * page allowed to move, and only while its number is above zero.
+   *
+   * Every card used to animate: a bouncing box, a spinning clock, a truck
+   * driving past. On a screen people leave open all day that is not decoration,
+   * it is competition — the four figures that actually need chasing had no way
+   * to stand out from the eleven that were merely present.
+   */
+  alert?: boolean;
+}
+
+/**
+ * Where a card sends you: the Orders screen, filtered to what the card counted.
+ *
+ * The id is the view's, not a status — several of these cards are a set of
+ * statuses, or a condition no status describes at all. See lib/orderViews.ts.
+ */
+/**
+ * Whether the insights block is open, remembered per browser.
+ *
+ * Twelve secondary figures are worth having and are not worth the top half of
+ * the screen every morning, so the block starts folded down to one dense row
+ * and stays however it was left. Local to the browser on purpose: this is a
+ * preference about a screen, not a company setting, and it is not worth a
+ * document read to answer.
+ */
+const INSIGHTS_KEY = 'ttms.dashboard.insightsOpen';
+
+function ordersView(view: OrderViewId): string {
+  return `/dashboard/orders?view=${view}`;
 }
 
 function orderToItem(o: Order, badge?: string): TooltipItem {
@@ -75,43 +111,77 @@ function orderToItem(o: Order, badge?: string): TooltipItem {
   };
 }
 
-function StatCardGrid({ cards, loading }: { cards: StatCard[]; loading: boolean }) {
+function StatCardGrid({
+  cards, loading, compact = false,
+}: {
+  cards: StatCard[];
+  loading: boolean;
+  /** The dense form: the same cards, six to a row, for a section folded away. */
+  compact?: boolean;
+}) {
   const [hovered, setHovered] = useState<string | null>(null);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className={compact
+      ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2'
+      : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'}
+    >
       {cards.map((card) => {
         const isHovered = hovered === card.label;
         const items = card.items ?? [];
+        // Only a number can be above zero. A card reading "$1,000" or "0 (0%)" is
+        // a figure to read, not a queue to work through.
+        const needsAction = !!card.alert && typeof card.value === 'number' && card.value > 0;
+
+        const face = (
+          <>
+            <div className="flex items-start justify-between gap-2">
+              <p className={`font-semibold uppercase tracking-wide opacity-70 ${
+                compact ? 'text-[10px] leading-tight' : 'text-xs'
+              }`}>
+                {card.label}
+              </p>
+              <card.icon
+                size={compact ? 15 : 32}
+                className={`shrink-0 opacity-60 ${needsAction ? 'animate-pulse' : ''}`}
+              />
+            </div>
+
+            {loading ? (
+              <div className={`mt-2 rounded bg-current opacity-20 animate-pulse ${
+                compact ? 'h-5 w-10' : 'h-8 w-16'
+              }`} />
+            ) : (
+              <p className={`font-bold ${
+                compact
+                  ? 'mt-0.5 text-xl'
+                  : typeof card.value === 'string' ? 'mt-1 text-2xl' : 'mt-1 text-3xl'
+              }`}>
+                {card.value}
+              </p>
+            )}
+          </>
+        );
 
         return (
           <div
             key={card.label}
             style={{ zIndex: isHovered ? 30 : 0 }}
-            className={`relative rounded-xl border px-5 py-5 ${card.color} cursor-default transition-shadow ${isHovered ? 'shadow-lg' : ''}`}
+            className={`relative rounded-xl border ${card.color} transition-shadow ${
+              compact ? 'px-3 py-2.5' : 'px-5 py-5'
+            } ${isHovered ? 'shadow-lg' : ''}`}
             onMouseEnter={() => setHovered(card.label)}
             onMouseLeave={() => setHovered(null)}
           >
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide opacity-70">{card.label}</p>
-              {card.truckPass ? (
-                <div className="w-10 overflow-hidden">
-                  <card.icon size={32} className={`opacity-60 ${card.anim}`} />
-                </div>
-              ) : (
-                <card.icon
-                  size={32}
-                  className={`opacity-60 transition-transform ${isHovered ? (card.hoverAnim ?? card.anim) : card.anim}`}
-                />
-              )}
-            </div>
-
-            {loading ? (
-              <div className="mt-2 h-8 w-16 rounded bg-current opacity-20 animate-pulse" />
+            {/* The link wraps the card's face, never the whole tile: the hover
+                list below is full of links of its own, and an anchor inside an
+                anchor is invalid HTML that browsers resolve by dropping one. */}
+            {card.href ? (
+              <Link href={card.href} className="block" title={`See all: ${card.label}`}>
+                {face}
+              </Link>
             ) : (
-              <p className={`font-bold mt-1 ${typeof card.value === 'string' ? 'text-2xl' : 'text-3xl'}`}>
-                {card.value}
-              </p>
+              <div className="cursor-default">{face}</div>
             )}
 
             {isHovered && !loading && card.items !== undefined && (
@@ -119,7 +189,14 @@ function StatCardGrid({ cards, loading }: { cards: StatCard[]; loading: boolean 
                 style={{ zIndex: 50 }}>
                 <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{card.label}</p>
-                  <span className="text-xs text-gray-400">{items.length} item{items.length !== 1 ? 's' : ''}</span>
+                  {/* What the card counted, not what this list holds. The list is
+                      the newest five; saying "5 items" beneath a card reading 112
+                      would look like one of the two numbers was wrong. */}
+                  <span className="text-xs text-gray-400">
+                    {typeof card.value === 'number' && card.value > items.length
+                      ? `newest ${items.length} of ${card.value}`
+                      : `${items.length} item${items.length !== 1 ? 's' : ''}`}
+                  </span>
                 </div>
 
                 {items.length === 0 ? (
@@ -157,6 +234,17 @@ function StatCardGrid({ cards, loading }: { cards: StatCard[]; loading: boolean 
                     })}
                   </div>
                 )}
+
+                {/* The way to the rest. The hover list is five rows now, so it
+                    stopped being the place you go to see everything. */}
+                {card.href && (
+                  <Link
+                    href={card.href}
+                    className="block border-t border-gray-100 bg-gray-50 px-3 py-2 text-xs font-medium text-brand-600 hover:bg-gray-100 transition"
+                  >
+                    See all {card.label.toLowerCase()} &rarr;
+                  </Link>
+                )}
               </div>
             )}
           </div>
@@ -172,6 +260,14 @@ export default function DashboardPage() {
   const { formatDate } = useDateFormatters();
   const { user, isAdmin } = useAuth();
   const firstName = user?.displayName?.split(' ')[0] ?? 'there';
+
+  /* Shut until told otherwise, and read after mount rather than during it:
+     localStorage does not exist on the server, and seeding state from it
+     directly would render one thing on the server and another in the browser. */
+  const [insightsOpen, setInsightsOpen] = useState(false);
+  useEffect(() => {
+    try { setInsightsOpen(localStorage.getItem(INSIGHTS_KEY) === 'open'); } catch { /* private window */ }
+  }, []);
 
   const [summary,  setSummary]  = useState<DashboardSummary | null>(null);
   /**
@@ -291,7 +387,8 @@ export default function DashboardPage() {
       label: 'Active Orders',
       value: activeOrders.count,
       color: 'bg-blue-50 border-blue-200 text-blue-700',
-      icon: PackageOpen, anim: 'animate-bounce', hoverAnim: 'animate-pop',
+      icon: PackageOpen,
+      href: ordersView('active'),
       items: as(activeOrders.items).map((o) => orderToItem(o, STATUS_LABEL[o.status])),
       emptyMsg: 'No active orders',
     },
@@ -299,7 +396,8 @@ export default function DashboardPage() {
       label: 'Pending Pick-ups',
       value: pendingPickupOrders.count,
       color: 'bg-yellow-50 border-yellow-200 text-yellow-700',
-      icon: Clock, anim: 'animate-spin [animation-duration:3s]', hoverAnim: 'animate-spin [animation-duration:0.8s]',
+      icon: Clock,
+      href: ordersView('pending_pickup'),
       items: as(pendingPickupOrders.items).map((o) => orderToItem(o, formatDate(o.pickupDate as TS))),
       emptyMsg: 'No pending pick-ups',
     },
@@ -307,7 +405,8 @@ export default function DashboardPage() {
       label: 'In Transit',
       value: inTransitOrders.count,
       color: 'bg-purple-50 border-purple-200 text-purple-700',
-      icon: Truck, anim: 'animate-truck-pass', truckPass: true,
+      icon: Truck,
+      href: ordersView('in_transit'),
       items: as(inTransitOrders.items).map((o) => orderToItem(o, formatDate(o.pickupDate as TS))),
       emptyMsg: 'No loads in transit',
     },
@@ -315,7 +414,8 @@ export default function DashboardPage() {
       label: 'Delivered Today',
       value: deliveredToday.count,
       color: 'bg-green-50 border-green-200 text-green-700',
-      icon: PackageCheck, anim: '', hoverAnim: 'animate-bounce',
+      icon: PackageCheck,
+      href: ordersView('delivered_today'),
       items: as(deliveredToday.items).map((o) => orderToItem(o, formatCurrency(o.agreedRate))),
       emptyMsg: 'No deliveries today yet',
     },
@@ -326,7 +426,8 @@ export default function DashboardPage() {
       label: 'Revenue This Month',
       value: formatCurrency(revenueThisMonth),
       color: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-      icon: DollarSign, anim: '', hoverAnim: 'animate-bounce',
+      icon: DollarSign,
+      href: ordersView('this_month'),
       items: as(thisMonthActive.items).map((o) => orderToItem(o, formatCurrency(o.agreedRate))),
       emptyMsg: 'No revenue this month',
     },
@@ -334,7 +435,8 @@ export default function DashboardPage() {
       label: 'Total Tariff',
       value: formatCurrency(totalTariff),
       color: 'bg-teal-50 border-teal-200 text-teal-700',
-      icon: TrendingUp, anim: '', hoverAnim: 'animate-pulse',
+      icon: TrendingUp,
+      href: ordersView('this_month'),
       items: as(thisMonthActive.items).map((o) => orderToItem(o, formatCurrency(o.brokerFee))),
       emptyMsg: 'No tariff this month',
     },
@@ -342,7 +444,8 @@ export default function DashboardPage() {
       label: 'Loads Booked Today',
       value: bookedToday.count,
       color: 'bg-sky-50 border-sky-200 text-sky-700',
-      icon: FilePlus, anim: '', hoverAnim: 'animate-bounce',
+      icon: FilePlus,
+      href: ordersView('booked_today'),
       items: as(bookedToday.items).map((o) => orderToItem(o, STATUS_LABEL[o.status])),
       emptyMsg: 'No loads booked today',
     },
@@ -350,7 +453,8 @@ export default function DashboardPage() {
       label: 'Cancelled This Month',
       value: `${cancelledThisMonth.count} (${cancelRate}%)`,
       color: 'bg-red-50 border-red-200 text-red-700',
-      icon: XCircle, anim: '', hoverAnim: 'animate-spin [animation-duration:1.5s]',
+      icon: XCircle,
+      href: ordersView('cancelled_month'),
       items: as(cancelledThisMonth.items).map((o) => orderToItem(o, formatDate(o.updatedAt as TS))),
       emptyMsg: 'No cancellations this month',
     },
@@ -358,7 +462,8 @@ export default function DashboardPage() {
       label: 'Overdue Invoices',
       value: overdueInvoices.count,
       color: 'bg-orange-50 border-orange-200 text-orange-700',
-      icon: ReceiptText, anim: overdueInvoices.count > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-bounce',
+      icon: ReceiptText,
+      href: ordersView('overdue_invoices'), alert: true,
       items: as(overdueInvoices.items).map((o) => orderToItem(o, STATUS_LABEL[o.status])),
       emptyMsg: 'All invoices uploaded',
     },
@@ -366,7 +471,8 @@ export default function DashboardPage() {
       label: 'Unsigned Agreements',
       value: unsignedOrders.count,
       color: 'bg-amber-50 border-amber-200 text-amber-700',
-      icon: PenLine, anim: unsignedOrders.count > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-wiggle',
+      icon: PenLine,
+      href: ordersView('unsigned'), alert: true,
       items: as(unsignedOrders.items).map((o) => {
         const missing: string[] = [];
         if (!o.carrierSignedAt) missing.push('Carrier');
@@ -382,7 +488,8 @@ export default function DashboardPage() {
       label: 'Stale Quotes',
       value: staleQuotes.count,
       color: 'bg-lime-50 border-lime-200 text-lime-700',
-      icon: Hourglass, anim: '', hoverAnim: 'animate-spin [animation-duration:2s]',
+      icon: Hourglass,
+      href: ordersView('stale_quotes'), alert: true,
       items: as(staleQuotes.items).map((o) => {
         const updated = (o.updatedAt as any)?.toDate?.() as Date | undefined;
         const days = updated ? Math.floor((Date.now() - updated.getTime()) / 86_400_000) : null;
@@ -396,7 +503,8 @@ export default function DashboardPage() {
       // confident zero that corrects itself a moment later.
       value: activeClientCount === null ? '…' : activeClientCount,
       color: 'bg-indigo-50 border-indigo-200 text-indigo-700',
-      icon: Building2, anim: '', hoverAnim: 'animate-pulse',
+      icon: Building2,
+      href: '/dashboard/clients',
       // The busiest twenty-five, named by the server.
       items: topClients.map((c) => ({
         id:    c.id,
@@ -411,7 +519,8 @@ export default function DashboardPage() {
       label: 'Delivered This Month',
       value: deliveredThisMonth.count,
       color: 'bg-violet-50 border-violet-200 text-violet-700',
-      icon: FlagTriangleRight, anim: '', hoverAnim: 'animate-bounce',
+      icon: FlagTriangleRight,
+      href: ordersView('delivered_month'),
       items: as(deliveredThisMonth.items).map((o) => orderToItem(o, formatDate(o.deliveredAt as TS))),
       emptyMsg: 'No deliveries this month yet',
     },
@@ -419,7 +528,8 @@ export default function DashboardPage() {
       label: 'New Clients This Month',
       value: newClientsThisMonth.count,
       color: 'bg-cyan-50 border-cyan-200 text-cyan-700',
-      icon: UserPlus, anim: '', hoverAnim: 'animate-bounce',
+      icon: UserPlus,
+      href: '/dashboard/clients',
       items: newClientsThisMonth.items.map((c) => ({
         id:    String(c.id),
         label: String(c.companyName || c.contactName || c.id),
@@ -433,7 +543,8 @@ export default function DashboardPage() {
       label: 'Expiring Insurance',
       value: expiringCarriers.count,
       color: 'bg-rose-50 border-rose-200 text-rose-700',
-      icon: ShieldAlert, anim: expiringCarriers.count > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-pop',
+      icon: ShieldAlert,
+      href: '/dashboard/carriers', alert: true,
       items: expiringCarriers.items.map((c) => {
         const expiry  = c.insuranceExpiration as TS;
         const expDate = formatDate(expiry);
@@ -452,7 +563,8 @@ export default function DashboardPage() {
       label: 'Documents Missing',
       value: documentsMissing.count,
       color: 'bg-pink-50 border-pink-200 text-pink-700',
-      icon: Paperclip, anim: documentsMissing.count > 0 ? 'animate-pulse' : '', hoverAnim: 'animate-wiggle',
+      icon: Paperclip,
+      href: ordersView('documents_missing'), alert: true,
       items: as(documentsMissing.items).map((o) => {
         const missing: string[] = [];
         if (['in_transit', 'delivered', 'completed'].includes(o.status) && !o.bolStoragePath) missing.push('BOL');
@@ -488,8 +600,23 @@ export default function DashboardPage() {
       </div>
 
       <div className="mb-10">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Performance &amp; Insights</p>
-        <StatCardGrid cards={SECONDARY_CARDS} loading={loading} />
+        <button
+          type="button"
+          onClick={() => setInsightsOpen((was) => {
+            const next = !was;
+            try { localStorage.setItem(INSIGHTS_KEY, next ? 'open' : 'closed'); } catch { /* private window */ }
+            return next;
+          })}
+          aria-expanded={insightsOpen}
+          className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 transition hover:text-gray-600"
+        >
+          Performance &amp; Insights
+          {insightsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          <span className="font-medium normal-case tracking-normal">
+            {insightsOpen ? 'Show less' : 'Show more'}
+          </span>
+        </button>
+        <StatCardGrid cards={SECONDARY_CARDS} loading={loading} compact={!insightsOpen} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">

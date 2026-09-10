@@ -27,21 +27,28 @@ import { canSeeAllOrders } from './accessControl';
 import { listVisibleOrdersPage } from './orderAccess';
 import { listVisibleParties } from './partyAccess';
 import type { Caller } from './partyAccess';
+import { viewClock, viewQuery, type ViewClock } from './orderViews';
+import { PENDING_PICKUP, SIGNABLE, INVOICEABLE } from '@/types/orderView';
 
 const COL = 'orders';
 
-/** How many orders a card's hover list shows before it says "and N more". */
-const TOOLTIP_LIMIT = 25;
+/**
+ * How many orders a card's hover list shows before it says "and N more".
+ *
+ * Five, not twenty-five. Every card fetches its sample up front, on a page
+ * load, whether or not anybody hovers it — so this number is multiplied by
+ * thirteen cards on every visit to the dashboard, and it was the most
+ * expensive thing on the page: about ten times what all the counts cost
+ * together. Five is what a glance takes in anyway, and the card links to the
+ * full filtered list now, so the hover no longer has to be the way to see the
+ * rest. See lib/orderViews.ts.
+ */
+const TOOLTIP_LIMIT = 5;
 
-/** Statuses that count as work still in progress. */
-const PENDING_PICKUP = ['booked', 'carrier_assigned', 'carrier_signed', 'shipper_signed'] as const;
-/** Statuses at or past the point where both signatures should exist. */
-const SIGNABLE = [
-  'carrier_assigned', 'carrier_signed', 'shipper_signed',
-  'in_transit', 'delivered', 'completed',
-] as const;
-/** Statuses where an invoice is owed. */
-const INVOICEABLE = ['delivered', 'completed'] as const;
+/* The status sets and the filters behind each card live in one place now —
+   see src/types/orderView.ts and src/lib/orderViews.ts. A card counts the same
+   query the list behind it runs, so clicking a number cannot show a different
+   set of loads than the number promised. */
 
 /** One card's worth of answer: the true total, and a sample to show on hover. */
 export interface SummaryStat {
@@ -87,11 +94,10 @@ const CARD_FIELDS = [
 ] as const;
 
 export async function buildDashboardSummary(caller: Caller): Promise<DashboardSummary> {
-  const now        = new Date();
-  const dayStart   = Timestamp.fromDate(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
-  const monthStart = Timestamp.fromDate(new Date(now.getFullYear(), now.getMonth(), 1));
-  // A quote nobody has touched in a week is the one worth chasing.
-  const staleBefore = Timestamp.fromMillis(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  // The same clock the views are measured against, so a card and the list it
+  // links to agree on where midnight and the first of the month fall.
+  const clock: ViewClock = viewClock();
+  const { dayStart, monthStart, staleBefore } = clock;
 
   if (!canSeeAllOrders(caller.profile)) {
     return summariseInMemory(caller, { dayStart, monthStart, staleBefore });
@@ -157,11 +163,11 @@ export async function buildDashboardSummary(caller: Caller): Promise<DashboardSu
 
     // "Not finished" — `not-in` rather than six separate counts, and it is the
     // one place a negative filter is genuinely the cheapest way to ask.
-    stat((q) => q.where('status', 'not-in', ['completed', 'cancelled']), null),
-    stat((q) => q.where('status', 'in', [...PENDING_PICKUP]), null),
-    stat((q) => q.where('status', '==', 'in_transit')),
-    stat((q) => q.where('status', '==', 'delivered').where('deliveredAt', '>=', dayStart), 'deliveredAt', true),
-    stat((q) => q.where('createdAt', '>=', dayStart), 'createdAt', true),
+    stat((q) => viewQuery('active', q, clock), null),
+    stat((q) => viewQuery('pending_pickup', q, clock), null),
+    stat((q) => viewQuery('in_transit', q, clock)),
+    stat((q) => viewQuery('delivered_today', q, clock), 'deliveredAt', true),
+    stat((q) => viewQuery('booked_today', q, clock), 'createdAt', true),
 
     // This month's book is small enough to total exactly. Firestore's sum()
     // would need its own index per field, and this set is one month of orders
@@ -171,12 +177,12 @@ export async function buildDashboardSummary(caller: Caller): Promise<DashboardSu
       .select(...CARD_FIELDS)
       .get(),
 
-    stat((q) => q.where('deliveredAt', '>=', monthStart), 'deliveredAt', true),
-    stat((q) => q.where('status', 'in', [...INVOICEABLE]).where('invoiceStoragePath', '==', null), null),
+    stat((q) => viewQuery('delivered_month', q, clock), 'deliveredAt', true),
+    stat((q) => viewQuery('overdue_invoices', q, clock), null),
 
     unsignedStat(col),
 
-    stat((q) => q.where('status', '==', 'quote').where('updatedAt', '<=', staleBefore), 'updatedAt', true),
+    stat((q) => viewQuery('stale_quotes', q, clock), 'updatedAt', true),
     missingDocumentsStat(col),
     newClientsStat(monthStart),
     expiringCarriersStat(),
