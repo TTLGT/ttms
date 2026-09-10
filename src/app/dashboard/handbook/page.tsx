@@ -181,7 +181,7 @@ const CHAPTERS: Chapter[] = [
             <Row cells={[
               <strong key="vc">Vercel</strong>,
               <>Google — <Mono>it@</Mono></>,
-              'Website hosting. The account exists, but TTMS is not deployed on it yet.',
+              'Website hosting. Live on the Pro plan — this is what serves ttms.totaltransportlogistics.us.',
             ]} />
             <Row cells={[
               <strong key="tt">TTMS itself</strong>,
@@ -748,8 +748,8 @@ const CHAPTERS: Chapter[] = [
           ]} />
           <Row cells={[
             <>A signing link sent to a carrier points at &ldquo;localhost&rdquo;</>,
-            'Expected until TTMS is properly deployed.',
-            <>The carrier cannot use it. <strong>Call for help.</strong></>,
+            'The agreement was sent from a copy of TTMS running on somebody’s own computer, not from the website.',
+            <>The carrier cannot use it. Send it again from the website. If that does the same, <strong>call for help.</strong></>,
           ]} />
         </tbody>
       </Table>
@@ -1112,19 +1112,22 @@ export default function HandbookPage() {
       </div>
 
       <div className="mb-4">
-        <Callout tone="critical" title="TTMS is not on the internet yet">
+        <Callout tone="good" title="TTMS is on the internet">
           <p>
-            TTMS <strong>only runs on the one computer you start it on.</strong> Nobody else in the
-            company can open it, and you cannot reach it from your phone or from home.
+            Open it anywhere at <Mono>https://ttms.totaltransportlogistics.us</Mono> — any computer,
+            any phone. You no longer have to start it on a particular machine for other people to
+            use it.
           </p>
           <p>
-            <strong>But the data is real and shared.</strong> The orders, carriers and clients you
-            see are the live company records. Anything you change is changed for good, immediately.
-            There is no practice mode and no undo.
+            <strong>Being able to open it still grants nothing.</strong> Anyone can reach the
+            sign-in page, and they get no further. Access is given one email address at a time in
+            Settings → Team Access.
           </p>
           <p>
-            Putting TTMS on a real web address is the biggest outstanding job on this project. It
-            needs a developer — see <Mono>docs/admin-handbook.md</Mono> in the repository.
+            <strong>The data is real and shared.</strong> The orders, carriers and clients you see
+            are the live company records. Anything you change is changed for good, immediately.
+            There is no practice mode and no undo — and that is true from the website and from any
+            computer running TTMS locally, because both read and write the same records.
           </p>
         </Callout>
       </div>
@@ -1178,7 +1181,7 @@ export default function HandbookPage() {
         </h2>
         <p className="mt-1.5 text-sm text-gray-600">
           The technical half — architecture, the security rules deploy, the maintenance scripts, the
-          data model and the outstanding deployment work — lives with the code, where it stays in
+          data model and how the site is deployed — lives with the code, where it stays in
           step with what it describes.
         </p>
         <ul className="mt-3 space-y-1 text-sm text-gray-600">

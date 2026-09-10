@@ -11,7 +11,7 @@ This handbook has **three parts**. Start with whichever describes you.
 **A note on who takes this over.** This project does not need a full-time
 developer to keep running — a non-technical person can do everything in Part 1
 unaided. But it does need someone technical for the outstanding work in
-[Deployment](#deployment--prepared-not-yet-done), and for anything that
+[Deployment](#deployment--live), and for anything that
 changes behaviour. If that person is you and you code with an AI assistant,
 Part 3 is written for you and the repo is already set up for it.
 
@@ -40,22 +40,26 @@ out to be signed, collect the paperwork, and close the load.
 
 Before anything else, understand this:
 
-> ### ⚠️ TTMS is not on the internet yet.
+> ### ✅ TTMS is on the internet, at `https://ttms.totaltransportlogistics.us`
 >
-> Right now TTMS **only runs on one computer at a time — the one you start it
-> on.** When you start it, only *you* can use it, in a browser on that same
-> computer. Nobody else in the company can open it, and you cannot open it from
-> your phone or from home.
+> Confirmed working on **9 September 2026**. Anyone on the team can open that
+> address from any computer or phone. You no longer have to start it on a
+> particular machine for other people to use it.
 >
-> **But the data is real and shared.** The orders, carriers and clients you see
-> are the live company records, stored with Google. Anything you change is
-> changed for good, immediately. There is no practice mode and no undo.
+> **Being able to open it still grants nothing.** Anyone in the world can reach
+> the sign-in page — that is true of every website — and they get no further.
+> Access is given one email address at a time in **Settings → Team Access**, and
+> an account that is not on that list is signed straight back out.
 >
-> Getting TTMS onto a real web address so the whole team can use it is the
-> biggest outstanding job on this project. **The instructions for doing it are
-> written out step by step in [`docs/deployment.md`](deployment.md)** — it does
-> not need a developer, but it does need the Namecheap login and about $20 a
-> month. See also [Part 2, Deployment](#deployment--prepared-not-yet-done).
+> **The data is real and shared.** The orders, carriers and clients you see are
+> the live company records, stored with Google. Anything you change is changed
+> for good, immediately. There is no practice mode and no undo — and that is now
+> true from the website *and* from any computer running it locally, because both
+> read and write the same records.
+>
+> **Agreement emails are a separate, still-unfinished job.** The website being
+> live does not fix them — see
+> [Email sending](#email-sending--not-yet-provisioned). Everything else works.
 
 ---
 
@@ -87,7 +91,7 @@ and most of the rest opens up.
 |---|---|---|
 | **GitHub** (org `TTLGT`) | **Sign in with Google**, using `it@totaltransportlogistics.us` | Where the TTMS code lives |
 | **Firebase Console** (`ttms-59aa5`) | Google — `it@totaltransportlogistics.us` | The database, uploaded files, sign-in, and security rules |
-| **Vercel** | Google — `it@totaltransportlogistics.us` | Website hosting. **Set up and building** on the Pro plan; the project is called `ttms`. What is missing is the DNS record, not the hosting — see [Deployment](#deployment--prepared-not-yet-done). |
+| **Vercel** | Google — `it@totaltransportlogistics.us` | Website hosting. **Live** on the Pro plan; the project is called `ttms` and serves `https://ttms.totaltransportlogistics.us`. Every push to `main` deploys — see [Deployment](#deployment--live). |
 | **TTMS itself** | Google — your own company address | The app. Being in the allowlist is what grants access, not the Google login itself. |
 | **Resend** | **Continue with GitHub** — which is itself Google, `it@totaltransportlogistics.us` | Sends the agreement emails. Account is owned by the `it@` role account. **Not yet usable — no verified domain, no API key.** See [Email sending](#email-sending--not-yet-provisioned). |
 | **Claude Code** | ⚠️ **No company account exists** — see below | Optional AI assistant for code work |
@@ -926,7 +930,7 @@ escalate rather than experiment — because the data is live.
 | **"Missing or insufficient permissions"** | A technical settings change hasn't been published to Google. | **Call for help.** A developer must run the rules deploy — [Part 2, section 07](#security-rules--the-trap-that-already-cost-five-weeks). |
 | **Nobody in the company can sign in** | Something has gone wrong with the access list. | **Call for help immediately.** The recovery account is `it@totaltransportlogistics.us` — do not remove or change it. |
 | **Agreement emails aren't arriving** | The email service key has expired, or the sending domain lost verification. | Check the junk folder first. Then **call for help** — see [Part 2, Troubleshooting](#troubleshooting). |
-| **A signing link sent to a carrier points at "localhost"** | Expected until TTMS is properly deployed. | The carrier cannot use that link. **Call for help** — this needs [Deployment](#deployment--prepared-not-yet-done) resolved. |
+| **A signing link sent to a carrier points at "localhost"** | The agreement was sent from a copy of TTMS running on somebody's own computer, not from the website. | The carrier cannot use that link. Send the agreement again from `https://ttms.totaltransportlogistics.us`. If it happens from the website too, **call for help** — see [Deployment](#deployment--live). |
 | Red text mentioning a **"missing index"** | A search needs a database setting Google has to create. | **Call for help.** It's a two-minute fix for a developer. |
 
 ---
@@ -1020,8 +1024,12 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
   agreement emails will fail at send time. See
   [Email sending](#email-sending--not-yet-provisioned).
 
-> ⚠️ `NEXT_PUBLIC_APP_URL` is still `http://localhost:3000`. Every e-sign link
-> emailed to a carrier or shipper is built from it.
+> ⚠️ `NEXT_PUBLIC_APP_URL` is `http://localhost:3000` in `.env.local`, and on a
+> staff machine it **should stay that way**. Only the Vercel deployment carries
+> the real address, `https://ttms.totaltransportlogistics.us`. Every e-sign link
+> emailed to a carrier or shipper is built from whichever copy sent it, so an
+> agreement sent from somebody's laptop mails a link to that laptop. Send
+> agreements from the website.
 
 > ⚠️ A service-account JSON (`ttms-59aa5-firebase-adminsdk-*.json`) sits in the
 > project root. Correctly gitignored, but it is a live credential on disk.
@@ -1371,26 +1379,43 @@ Two things worth deciding while you are in there:
   for one — switching TTMS to it is a code change in both send routes, not a
   settings change, so decide before rather than after.
 
-## Deployment — prepared, not yet done
+## Deployment — live
 
 > **The step-by-step instructions are in [`docs/deployment.md`](deployment.md).**
 > That document is the runbook — follow it rather than this section, which only
 > explains where things stand and what the decisions were.
 
-**TTMS is deployed on Vercel already — it just has no address.** This was
-discovered on 8 September 2026, and earlier versions of this handbook said the
-opposite. A Vercel project called `ttms` exists on the Pro plan, connected to
-the `TTLGT/ttms` code, and it rebuilds the site every time code is pushed. It
-has been doing that for some time.
+**TTMS is live at `https://ttms.totaltransportlogistics.us`.** Confirmed on
+9 September 2026: the address resolves to Vercel, serves the site over HTTPS
+with a valid certificate, and `http://` redirects to `https://` by itself.
 
-What was never done is the **DNS record** — the line that tells the internet
-where `ttms.totaltransportlogistics.us` lives. Without it the address answers
-nothing, which is why nobody has ever been able to use TTMS from a browser.
+Getting here took two things, and both are done. A Vercel project called `ttms`
+on the Pro plan, connected to the `TTLGT/ttms` code, rebuilds the site every
+time code is pushed — that had quietly been running for months before anyone
+noticed, and was found on 8 September 2026. The missing piece was the **DNS
+record**, the line that tells the internet where the address lives; that has
+since been added at Namecheap as a CNAME on the `ttms` name.
 
-So the remaining work is **one record at Namecheap**, plus telling Firebase to
-accept sign-ins on the new address. Do not create a second Vercel project.
+**Do not create a second Vercel project, and do not add another DNS record.**
+Both exist. Two projects racing to build the same code is a mess to unpick, and
+the DNS zone in question also carries the public website and all company email.
 
-**What is now ready.** The repo has been prepared for a deployment:
+**What to check if something is wrong.** It is all clicking, not coding:
+
+- **Google sign-in opens a window that closes with no message** → the address is
+  missing from Firebase → Authentication → Settings → Authorized domains. That
+  list was set up on 8 September 2026 and holds both
+  `ttms.totaltransportlogistics.us` and the fallback `ttms-iota.vercel.app`, so
+  check it has not been changed. Nothing else produces this symptom.
+- **A signing link in an email points at `localhost`** → Vercel is missing
+  `NEXT_PUBLIC_APP_URL`, or it was added after the last build. Set it to
+  `https://ttms.totaltransportlogistics.us` and **redeploy** — that value is
+  stamped in when the site is built, not read while it runs.
+- **Every page says "Missing or insufficient permissions"** → nothing to do with
+  the address. The Firestore security rules are not deployed. See
+  [Security rules](#security-rules--the-trap-that-already-cost-five-weeks).
+
+**What the repo side contributed**, for the record:
 
 - The public address is defined once, in `src/lib/appUrl.ts`, instead of being
   copied into both agreement routes.
@@ -1399,18 +1424,46 @@ accept sign-ins on the new address. Do not create a second Vercel project.
   omitted.
 - `npm run build` passes.
 
-**What is left, and it is all clicking, not coding.** Two consoles now that
-Vercel is done: Namecheap (one CNAME record for the `ttms` name) and Firebase
-(add the address under Authentication → Authorized domains, or Google sign-in
-is rejected on it). Check on the way past that Vercel holds a
-`NEXT_PUBLIC_APP_URL` of `https://ttms.totaltransportlogistics.us`, and
-redeploy if you change it. `docs/deployment.md` walks through each, with the
-traps called out.
-
 **The name is `ttms`, with two t's** — matching the product name and the address
-written into the code. A one-t `tms.` variant was showing on the Vercel project
-in September 2026; if you meet it, the Vercel entry is what changes, not the
-code.
+written into the code. That is the record that exists; a one-t `tms.` variant
+was showing on the Vercel project card in September 2026, and has no DNS record.
+If you meet it, the Vercel entry is what changes, not the code.
+
+**Every push to `main` is now a release.** Vercel builds and publishes it to the
+whole company within minutes. There is no separate publish step and no
+confirmation prompt.
+
+### The next thing to watch: Firebase is on the free plan
+
+Checked 9 September 2026: the `ttms-59aa5` project is on Firebase's **Spark**
+plan, which costs nothing and is capped. Google's published Spark limits are
+**50,000 database reads and 20,000 writes per day**, and 1 GB of stored data.
+
+That was comfortable when TTMS ran on one computer at a time. It is much less
+comfortable now that everyone can open it at once. Chat keeps a live connection
+open for every person in a conversation, so reads add up with *hours people
+spend in TTMS*, not with pages they open.
+
+**What happens if you hit the cap:** TTMS stops working — for everybody — until
+midnight Pacific time, roughly 3am Eastern. It does not slow down or warn you
+first. In the middle of a working day that is a serious outage.
+
+**What to do:**
+
+1. Watch the usage for the first few weeks. Firebase Console → **Firestore
+   Database** → **Usage** tab shows reads and writes per day.
+2. If daily reads get anywhere near 25,000 — half the cap — upgrade to the
+   **Blaze** plan before they get closer.
+3. Blaze is pay-as-you-go and includes the same free allowance every month, so a
+   small company often still pays little or nothing. **Set a budget alert when
+   you upgrade** — Blaze removes the cap, which means it also removes the thing
+   that was protecting you from a surprise bill.
+
+**Decided 9 September 2026:** stay on the free plan for now and watch what real
+use actually looks like, rather than paying for capacity nobody has measured.
+The Usage tab is how that decision gets revisited.
+
+This is not urgent today. It is the thing most likely to bite next.
 
 **Two decisions already made**, so nobody has to reopen them:
 
@@ -1541,6 +1594,8 @@ and changes nothing.
 That is a legitimate choice, and most of the day-to-day does not require it.
 Everything in [Part 1](#part-1--running-ttms) — access, imports, sites, work
 groups — is done through the browser. What genuinely needs a technical person
-is the deployment work in [Deployment](#deployment--prepared-not-yet-done).
-That is a one-off project, and a contractor could do it in a few days using
-Part 2 and `CLAUDE.md` as the brief.
+is [Email sending](#email-sending--not-yet-provisioned) and separating
+development from live data. The deployment itself is done — see
+[Deployment](#deployment--live). Those remaining jobs are one-off projects, and
+a contractor could do them in a few days using Part 2 and `CLAUDE.md` as the
+brief.

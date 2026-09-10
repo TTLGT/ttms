@@ -59,8 +59,22 @@ rather than implying separate per-service credentials.
 
 **Vercel is set up and building.** Team `TTL IT's projects`, on the Pro plan,
 with a project `ttms` connected to `TTLGT/ttms` that deploys on every push to
-`main` and has been doing so for some time. Do not create a second project.
-What is missing is DNS, not hosting — see the gotcha near the end of this file.
+`main`. Do not create a second project. The site is live at
+`https://ttms.totaltransportlogistics.us` — see the gotcha near the end of this
+file.
+
+**Firebase is on the no-cost Spark plan** (checked 2026-09-09), which is a
+capacity risk now that the whole company reaches the site rather than one
+machine. Spark caps Firestore at **50,000 document reads and 20,000 writes a
+day** and 1 GiB stored; over the cap, requests fail with `resource-exhausted`
+until midnight Pacific. Chat's `onSnapshot` listeners and `AuthContext`'s
+per-user listener make reads scale with people-hours, not page views, so this is
+reachable. Nothing in the code degrades gracefully when it happens — the app
+just breaks mid-day. Upgrading to Blaze with a budget alert is the fix.
+
+**Decided 2026-09-09: stay on Spark until a live test shows what real usage
+is.** Don't re-open that; do say plainly if the Usage tab shows reads climbing
+toward the cap, and don't engineer around the limit in code without asking.
 
 ## Environment
 
@@ -506,11 +520,13 @@ assignment is held in `assignedToEmails` / `memberEmails` and converted by
   - Distances are looked up once and stored on the order (`laneMiles` + `laneMilesSource`). Don't add code that re-derives them on render — under `routes` that bills on every page view.
   - An estimate is labelled as one everywhere it appears. Keep it that way; it must never be billed per mile against.
 - **The public address lives in `src/lib/appUrl.ts`, nowhere else.** `APP_URL` reads `NEXT_PUBLIC_APP_URL` and falls back to `PRODUCTION_APP_URL`; `signUrl(token)` builds every e-sign link. That constant and the DNS record must match exactly, character for character — a link built from the wrong one 404s on a legal signature page. Don't reintroduce an inline `process.env.NEXT_PUBLIC_APP_URL ?? '...'`; that duplication is what the module replaced.
-  - `NEXT_PUBLIC_APP_URL` is **not set** in `.env.local`, and `ttms.totaltransportlogistics.us` does not resolve yet (checked 2026-09-04: no DNS record), so no e-sign link works today. `docs/deployment.md` is the runbook that fixes both.
+  - `ttms.totaltransportlogistics.us` **resolves and serves the app** (checked 2026-09-09: CNAME to `c8d7304de8e54a70.vercel-dns-017.com`, valid certificate, `http` redirects to `https`). E-sign links built from `APP_URL` reach a real page now.
+  - `NEXT_PUBLIC_APP_URL` is `http://localhost:3000` in `.env.local` and **should stay that way on every staff machine** — only the Vercel deployment carries the real address. A developer machine that sets the production host would mail carriers links to a site it cannot itself change.
   - `NEXT_PUBLIC_*` is inlined at **build** time, not read at run time. Setting it on the host after a deploy changes nothing until the next build — which is why the fallback is the production host rather than localhost.
   - Documents that **leave the company** — the BOL and invoice PDFs, and the two agreement email footers — deliberately show the public site `totaltransportlogistics.us`, not this subdomain. A carrier holding an invoice cannot sign in to a staff tool, so printing its address there is noise.
-- **It is deployed on Vercel, and has been for a while — but no domain resolves to it.** A push to `main` builds and goes live on the project's `.vercel.app` address right now, so **a push to `main` is already a production release**; say so before pushing. What was never finished is DNS: as of 2026-09-08 neither `ttms.` nor `tms.totaltransportlogistics.us` has any record at Namecheap, so the address in `appUrl.ts` answers nothing and every e-sign link is dead. Adding one CNAME is the whole of the remaining work. The repo side is done: security headers in `next.config.ts`, the address centralised in `src/lib/appUrl.ts`, [`docs/deployment.md`](docs/deployment.md) as the runbook.
-  - **`ttms` with two t's is the agreed spelling** (2026-09-08), matching `PRODUCTION_APP_URL` and the product name. A Vercel project card was showing a one-t `tms.` variant; if that reappears it is the thing to change, not the code.
+- **It is deployed on Vercel and live at `https://ttms.totaltransportlogistics.us`** (DNS added and verified 2026-09-09). A push to `main` builds and goes live for the whole company within minutes, so **a push to `main` is a production release**; say so before pushing. The repo side is done: security headers in `next.config.ts`, the address centralised in `src/lib/appUrl.ts`, [`docs/deployment.md`](docs/deployment.md) as the runbook.
+  - **Firebase → Authentication → Settings → Authorized domains** holds both `ttms.totaltransportlogistics.us` and the fallback `ttms-iota.vercel.app` (confirmed 2026-09-09). Firebase refuses to sign anyone in on a host it has not been told about, and the failure is silent — the Google popup opens and closes with no error on the page — so that list is still the first thing to check if anyone reports it.
+  - **`ttms` with two t's is the agreed spelling** (2026-09-08), and the record that exists at Namecheap is the two-t one; `tms.totaltransportlogistics.us` has no record and should not be given one. A Vercel project card was showing a one-t `tms.` variant; if that reappears it is the thing to change, not the code.
   - Deliberately absent: no `vercel.json` (Vercel's Next.js defaults are correct and each route declares its own `maxDuration`), no `.github/workflows/` (Vercel builds on push), no Hosting block in `firebase.json`.
 - Firestore composite indexes are listed in `docs/schema-guide.md`. A missing-index error links to a one-click creator in the Console.
 

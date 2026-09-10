@@ -4,6 +4,18 @@
 anyone on the team can open it from any computer or phone, instead of only on
 the one machine it was started on.
 
+> ## ✅ This is done. It is live.
+>
+> Checked on **9 September 2026**: the address resolves to Vercel, serves TTMS
+> with a valid padlock, and `http://` redirects to `https://` on its own.
+>
+> **Parts A, B and C are all finished — do not redo them.** What is left is the
+> `NEXT_PUBLIC_APP_URL` check at the end of Part A, and the **Part D** checks
+> before you tell staff the address. Skip to **Part D**.
+>
+> The rest is kept as the record of how it was done, and for the day somebody
+> has to build it again from nothing.
+
 **Written for someone who has never deployed anything.** Do the parts in order.
 Where a step says "you should see", check that you see it before moving on.
 
@@ -22,6 +34,10 @@ Where a step says "you should see", check that you see it before moving on.
 ---
 
 ## Before you start
+
+> Now that Parts A, B and C are done, the only one of these three you still
+> need is the first. Items 2 and 3 were the dead stops for the domain and the
+> hosting bill; both are settled.
 
 You need three things. Get them first — each one is a dead stop.
 
@@ -66,7 +82,7 @@ app, and an account already exists.
 >    redeploy — see the note at the end of A3.
 > 3. **Settings → General → Node.js Version** is 22.x.
 >
-> Then skip to Part B. The rest of Part A is kept for the day somebody has to
+> Then skip to Part D. The rest of Part A is kept for the day somebody has to
 > build this project again from nothing.
 
 > ### This costs about $20 a month, and the free plan is not allowed
@@ -181,8 +197,21 @@ usual cause is a mistyped or missing variable from A3.
 
 ## Part B — Let Google sign-in work on the new address
 
+> ### ✅ Done on 8 September 2026 — confirmed
+>
+> The authorized-domains list holds `ttms.totaltransportlogistics.us` and the
+> fallback `ttms-iota.vercel.app`, alongside the three Firebase defaults.
+> Nothing to do here.
+>
+> This is still the **first thing to check** if anyone ever reports the symptom
+> below, because nothing else produces it.
+
 Firebase refuses to sign anyone in on an address it has not been told about.
 That is a safety feature, and it is why A5 ends with a broken sign-in.
+
+**How this failure looks:** you press "Sign in with Google", a window opens and
+closes again, and the page sits there saying nothing. There is no error message.
+If anyone reports that, this list is the first thing to check.
 
 1. Go to **`console.firebase.google.com`**, sign in with Google as `it@`, and
    open the project **`ttms-59aa5`**.
@@ -195,7 +224,7 @@ That is a safety feature, and it is why A5 ends with a broken sign-in.
 
 4. Click **Add domain** again and add the temporary Vercel address too — the
    `something.vercel.app` one from A5. That gives you a working way in while DNS
-   is still spreading in Part C, and a useful fallback later if the domain is
+   is still spreading, and a useful fallback now if the domain is
    ever misconfigured.
 
 **You should see** both addresses listed alongside `localhost`.
@@ -208,6 +237,20 @@ is the allowlist, not the deployment — your address needs adding in
 ---
 
 ## Part C — Point the address at it
+
+> ### ✅ Done on or before 9 September 2026 — do not redo this
+>
+> The record exists and works. `ttms.totaltransportlogistics.us` is a **CNAME**
+> to `c8d7304de8e54a70.vercel-dns-017.com`, which is Vercel, and the site
+> answers there over HTTPS.
+>
+> **Do not add, edit or delete anything in Namecheap for TTMS.** There is
+> nothing left to do in this part, and the DNS zone that record sits in also
+> runs the public website and all company email. The steps below are the record
+> of what was done.
+>
+> One-t `tms.totaltransportlogistics.us` has **no** record, which is correct.
+> Do not create one.
 
 This is the part that needs Namecheap, and the part people are right to be
 careful about. Read the warning, then it is two form fields.
@@ -263,6 +306,8 @@ careful about. Read the warning, then it is two form fields.
 
 ### C3 — Wait
 
+*(This finished long ago — the certificate is issued and the site answers.)*
+
 Go back to the Vercel Domains tab and reload it every few minutes. It usually
 turns to **Valid Configuration** within 10 to 30 minutes, though it can take a
 few hours. There is nothing to do but wait — Vercel gets the HTTPS certificate
@@ -275,11 +320,12 @@ padlock in the address bar.
 
 ## Part D — Check it properly
 
-Do all of these before telling anyone the address.
+Do all of these before telling anyone the address. The first two were confirmed
+on 9 September 2026; everything below them still needs a person to do it.
 
-- [ ] `https://ttms.totaltransportlogistics.us` loads the sign-in page, with a padlock.
-- [ ] `http://` (no s) redirects to `https://` on its own.
-- [ ] You can **sign in** with your company Google account and reach the dashboard.
+- [x] `https://ttms.totaltransportlogistics.us` loads the sign-in page, with a padlock. ✅ 2026-09-09
+- [x] `http://` (no s) redirects to `https://` on its own. ✅ 2026-09-09
+- [ ] You can **sign in** with your company Google account and reach the dashboard. ← **this is the one that proves Part B**
 - [ ] The **public website** `totaltransportlogistics.us` still loads. Part C should not have touched it. Check anyway.
 - [ ] **Company email still arrives.** Send yourself one from an outside address.
 - [ ] Someone else, on a different computer and a different network, can sign in.
