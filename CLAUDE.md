@@ -110,10 +110,25 @@ What to do about cost now:
   screens count or list them, and what made the dashboard safe again was the
   data shrinking, not the code changing. If open orders climb back into the
   thousands, those screens become expensive again.
-- The Firestore client cache is not configured — `src/lib/firebase.ts` calls
-  plain `getFirestore(app)`, so the default is memory-only and every full page
-  reload re-reads every watched document from the server. Enabling
-  `persistentLocalCache` is the standing easy win if reads ever matter again.
+- **The Firestore client cache is on disk** (2026-09-10). `src/lib/firebase.ts`
+  calls `initializeFirestore` with `persistentLocalCache` and the *multi-tab*
+  manager, not plain `getFirestore(app)`. The default was memory-only, so every
+  full page reload re-read every watched document from the server — and
+  `ChatProvider` sits in the dashboard layout, so its listeners start on every
+  page, not just the chat one. Keep the multi-tab manager: with the single-tab
+  default, persistence works in whichever tab claimed it first and fails in the
+  rest, and people here keep chat open in one tab and work in another. It falls
+  back to the memory cache when the browser refuses IndexedDB (a private
+  window, site data blocked) and on the server, where client components are
+  also rendered.
+- **What that fixed, and what it did not.** It only helps documents the browser
+  watches — the chat listeners and `AuthContext`'s own profile. It does nothing
+  for the dashboard cards: those go through `/api/orders/summary` and the Admin
+  SDK, server-side, where a browser cache cannot reach. The most expensive
+  thing left on a dashboard load is the busiest-clients card, which reads one
+  document per *open* order because "how many distinct clients" is not an
+  aggregation Firestore offers — see `lib/orderSummary.ts`. That is another
+  reason to watch the open-order count rather than the code.
 
 **There is still no development environment** — see the warning at the top of
 this file. The Emulator Suite is the outstanding task, and it matters more than
