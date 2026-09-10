@@ -9,6 +9,7 @@ import ConversationList from './ConversationList';
 import MessageThread from './MessageThread';
 import NewConversationDialog from './NewConversationDialog';
 import RoomSettingsDialog from './RoomSettingsDialog';
+import RoomAvatar from './RoomAvatar';
 import ThreadList from './ThreadList';
 import ThreadPanel from './ThreadPanel';
 import {
@@ -204,12 +205,17 @@ function Header({
         </button>
       )}
 
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-gray-900">
-          {conversationTitle(conversation, myUid, nameOf)}
-        </p>
-        <p className="truncate text-xs text-gray-500">{subtitle(conversation, myUid, nameOf)}</p>
-      </div>
+      {/* The picture and the name open the settings on a named room, because
+          that is where people go looking for them — a gear in the far corner
+          is the second place you try. Only a named room has anything to
+          change, so on every other kind this stays plain text rather than
+          becoming a button that does nothing. */}
+      <Identity
+        conversation={conversation}
+        myUid={myUid}
+        nameOf={nameOf}
+        onSettings={conversation.kind === 'group' ? onSettings : undefined}
+      />
 
       {/* The record this room is about, one click away. A conversation about a
           load is only worth having here if the load is always to hand — the
@@ -241,6 +247,48 @@ function Header({
         </button>
       )}
     </div>
+  );
+}
+
+/** The picture and the title — a button on a room you can edit, plain text otherwise. */
+function Identity({
+  conversation, myUid, nameOf, onSettings,
+}: {
+  conversation: Conversation;
+  myUid: string;
+  nameOf: (uid: string) => string;
+  /** Absent on the kinds of conversation that have no settings to open. */
+  onSettings?: () => void;
+}) {
+  const inside = (
+    <>
+      <RoomAvatar conversation={conversation} size={32} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-gray-900">
+          {conversationTitle(conversation, myUid, nameOf)}
+        </span>
+        <span className="block truncate text-xs text-gray-500">
+          {subtitle(conversation, myUid, nameOf)}
+        </span>
+      </span>
+    </>
+  );
+
+  if (!onSettings) {
+    return <div className="flex min-w-0 flex-1 items-center gap-2">{inside}</div>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onSettings}
+      title="Room settings"
+      // Negative margin so the hover panel lines the text up exactly where it
+      // sat before, rather than the header shifting when this became a button.
+      className="-mx-2 flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left transition hover:bg-gray-100"
+    >
+      {inside}
+    </button>
   );
 }
 

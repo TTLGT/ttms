@@ -2,19 +2,17 @@
 
 import { useState } from 'react';
 import {
-  AtSign, Bell, BellOff, Hash, LogOut, MessagesSquare, MoreVertical, Pin, PinOff, Plus, Truck,
-  Users,
+  AtSign, Bell, BellOff, LogOut, MessagesSquare, MoreVertical, Pin, PinOff, Plus,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { leaveConversation, millis } from '@/lib/chat';
-import { UserAvatar } from '@/components/settings/UserAvatar';
 import ActionMenu, { type MenuAction } from './ActionMenu';
+import RoomAvatar from './RoomAvatar';
 import NotifyMenu from './NotifyMenu';
 import {
   conversationTitle,
   notifyLevel,
-  otherMemberUid,
   type Conversation,
   type ConversationNotify,
 } from '@/types/conversation';
@@ -35,7 +33,7 @@ export default function ConversationList({
   const { user } = useAuth();
   const {
     conversations, unreadIds, mentionIds, threadIds, unreadCounts, activeId, setActiveId,
-    nameOf, profileOf, loading, myThreads, threadReadAt,
+    nameOf, loading, myThreads, threadReadAt,
     notify, setNotifyFor, pinnedConversations, togglePinnedConversation,
   } = useChat();
   const myUid = user?.uid ?? '';
@@ -153,7 +151,6 @@ export default function ConversationList({
           const answered  = threadIds.includes(c.id);
           const waiting   = unreadCounts[c.id] ?? 0;
           const title     = conversationTitle(c, myUid, nameOf);
-          const other     = otherMemberUid(c, myUid);
           const pinned    = pinnedConversations.includes(c.id);
           const level     = notifyLevel(notify, c.id);
 
@@ -164,7 +161,7 @@ export default function ConversationList({
                 activeId === c.id ? 'bg-brand-50' : 'hover:bg-gray-50'
               }`}
             >
-              <Icon conversation={c} other={other} photoPath={other ? profileOf(other)?.photoPath : null} title={title} />
+              <RoomAvatar conversation={c} size={32} />
 
               <button
                 type="button"
@@ -265,32 +262,6 @@ export default function ConversationList({
         })}
       </div>
     </div>
-  );
-}
-
-/** A face for a direct thread, a symbol for a room — the fastest thing to scan. */
-function Icon({
-  conversation, other, photoPath, title,
-}: {
-  conversation: Conversation;
-  other: string | null;
-  photoPath: string | null | undefined;
-  title: string;
-}) {
-  if (conversation.kind === 'direct' && other) {
-    return <UserAvatar photoPath={photoPath} fallback={title.charAt(0).toUpperCase()} size={32} />;
-  }
-  return (
-    <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
-      {conversation.kind === 'company'
-        ? <Users size={15} />
-        // A room about a load is not a room somebody made, and the symbol says
-        // so: it is the one kind of room that appears in your list without
-        // anybody having invited you to it.
-        : conversation.kind === 'record'
-          ? <Truck size={15} />
-          : <Hash size={15} />}
-    </span>
   );
 }
 

@@ -869,6 +869,7 @@ gated on `assignedToUids`, work groups or roles.
 |---|---|---|
 | `kind` | `'company' \| 'direct' \| 'group' \| 'record'` | See below |
 | `name` | string | Group rooms only; `''` for direct threads |
+| `photoPath` | string \| null | Group rooms only: a picture for the room, as a storage path — see below |
 | `memberUids` | string[] | Empty on the company room — see below |
 | `createdBy` | string | uid, or `'system'` for the company room |
 | `createdAt` / `updatedAt` | Timestamp | `updatedAt` is bumped by each message and is what the list is ordered by |
@@ -891,7 +892,7 @@ Four shapes, one document type:
   the uids sorted. Derived rather than random so two colleagues who open each
   other simultaneously land on one thread instead of two half-threads.
 - **`group`** — a named room with an explicit membership. Any member may
-  rename it, change who is in it, or leave.
+  rename it, give it a picture, change who is in it, or leave.
 - **`record`** — the room about one order, at the derived id
   `rec_order_<orderId>`. Nobody is invited to it: anyone who can see the order
   is entitled to be in it, and pressing **Discuss** on the order is what joins
@@ -910,6 +911,21 @@ pinning at once cannot lose each other's work. Anybody in the room may pin or
 unpin anybody's message. The cap of 10 is enforced in `MAX_PINNED` and again in
 `firestore.rules` — **keep the two in step**. `at` inside a pin is plain millis,
 because Firestore refuses a server timestamp inside a map value.
+
+`photoPath` is the room's own picture, drawn in place of the `#` in the
+conversation list and at the top of the room. It is a **storage path, not a
+download URL** — a URL carries a token that can be regenerated, so a stored one
+goes stale — and every upload writes a new random name under the room's own
+`chat/{conversationId}/` folder rather than overwriting the last one, because
+the URL cache in `useStorageUrl` is keyed by path.
+
+It is the one field on a conversation that a member can set but the rules do
+not allow them to write. `PATCH /api/chat/conversations/{id}` stores it, and
+checks first that the path is inside that room's own folder: storage rules
+cannot read Firestore, so every staff account can read the whole `chat/` and
+`driver-licenses/` prefixes, and an unchecked path would let a member set their
+room's picture to any file in the bucket whose path they knew. See
+`roomPhotoBelongsTo()` in `src/lib/chatServer.ts`.
 
 `lastMessage` is a preview line and nothing is decided from it. It exists so a
 list of a dozen conversations does not cost a dozen extra queries per page

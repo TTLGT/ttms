@@ -1,8 +1,8 @@
 'use client';
 
-import { deleteObject, getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
+import { deleteObject, getDownloadURL, ref, uploadBytes, uploadBytesResumable } from 'firebase/storage';
 import { storage } from './firebase';
-import { MAX_ATTACHMENT_BYTES, type Attachment } from '@/types/conversation';
+import { MAX_ATTACHMENT_BYTES, MAX_ROOM_PHOTO_BYTES, type Attachment } from '@/types/conversation';
 
 /**
  * Photos and files sent in a conversation.
@@ -109,6 +109,32 @@ export async function discardAttachment(path: string): Promise<void> {
     // Already gone, or never finished uploading. Either way there is nothing
     // to do and nothing worth telling anyone about.
   });
+}
+
+/**
+ * Uploads a room's picture and resolves to the path to store on it.
+ *
+ * It lands under the room's own `chat/{conversationId}/` folder, which is what
+ * the PATCH route checks before it will store the path — a room may only wear
+ * a picture uploaded to itself. **Keep that prefix in step with
+ * roomPhotoBelongsTo() in src/lib/chatServer.ts**, which cannot import this.
+ *
+ * A new random name every time rather than a fixed `room.jpg`: the URL cache
+ * in useStorageUrl is keyed by path, so a picture replaced in place would keep
+ * showing the old one until everybody reloaded.
+ */
+export async function uploadRoomPhoto(conversationId: string, file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Pick an image file.');
+  }
+  if (file.size > MAX_ROOM_PHOTO_BYTES) {
+    throw new Error(`That picture is larger than ${readableSize(MAX_ROOM_PHOTO_BYTES)}.`);
+  }
+
+  const safe = file.name.replace(/[^\w.\- ]+/g, '_').slice(-80);
+  const path = `chat/${conversationId}/room-${crypto.randomUUID()}-${safe}`;
+  await uploadBytes(ref(storage, path), file, { contentType: file.type });
+  return path;
 }
 
 /** A one-off URL, for opening a file that is not rendered inline. */

@@ -993,10 +993,10 @@ export async function createGroupConversation(name: string, memberUids: string[]
   return id;
 }
 
-/** Renames a room or changes who is in it. Members only. */
+/** Renames a room, sets its picture, or changes who is in it. Members only. */
 export async function updateGroupConversation(
   conversationId: string,
-  patch: { name?: string; memberUids?: string[] },
+  patch: { name?: string; memberUids?: string[]; photoPath?: string | null },
 ): Promise<void> {
   await unwrap(await fetch(`/api/chat/conversations/${conversationId}`, {
     method:  'PATCH',

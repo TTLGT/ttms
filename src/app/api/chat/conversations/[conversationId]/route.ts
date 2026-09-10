@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
-import { MAX_ROOM_NAME, validMembers } from '@/lib/chatServer';
+import { MAX_ROOM_NAME, roomPhotoBelongsTo, validMembers } from '@/lib/chatServer';
 import { CONVERSATIONS_COLLECTION } from '@/types/conversation';
 
 const COL = CONVERSATIONS_COLLECTION;
 
 /**
- * Renaming a room and changing who is in it.
+ * Renaming a room, giving it a picture, and changing who is in it.
  *
  * Only for `group` rooms. The company room belongs to everyone and has no
  * membership to edit; a direct thread is defined by its two people, and
@@ -54,6 +54,21 @@ export async function PATCH(
       const name = body.name.trim().slice(0, MAX_ROOM_NAME);
       if (!name) return NextResponse.json({ error: 'Give the room a name.' }, { status: 400 });
       patch.name = name;
+    }
+
+    // The room's picture. A path in the room's own storage folder, or null to
+    // go back to the `#`. It is checked rather than trusted because every
+    // staff account can read the whole bucket prefix — see roomPhotoBelongsTo.
+    if (body.photoPath === null) {
+      patch.photoPath = null;
+    } else if (typeof body.photoPath === 'string') {
+      if (!roomPhotoBelongsTo(body.photoPath, conversationId)) {
+        return NextResponse.json(
+          { error: 'That picture does not belong to this room.' },
+          { status: 400 },
+        );
+      }
+      patch.photoPath = body.photoPath;
     }
 
     if (Array.isArray(body.memberUids)) {

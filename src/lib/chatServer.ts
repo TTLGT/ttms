@@ -33,3 +33,26 @@ export async function validMembers(raw: unknown, callerUid: string): Promise<str
   }
   return Array.from(new Set([callerUid, ...checked]));
 }
+
+/**
+ * Whether a room picture path is one of this room's own files.
+ *
+ * The picture is uploaded straight to Storage from the browser, so the path
+ * arrives here as a string somebody typed as easily as picked. Every allowed
+ * account can read the whole `chat/` and `driver-licenses/` prefixes — storage
+ * rules cannot read Firestore, so they cannot be narrower — which means an
+ * unchecked path would let a member set their room's picture to any file in
+ * the bucket whose path they know, and have it rendered for everyone in the
+ * room. Confining it to the room's own folder makes the picture no more
+ * reachable than the messages already in it.
+ *
+ * **Keep in sync with uploadRoomPhoto() in src/lib/chatUploads.ts**, which
+ * builds the path and cannot be imported from a route.
+ */
+export function roomPhotoBelongsTo(path: string, conversationId: string): boolean {
+  const prefix = `chat/${conversationId}/`;
+  return path.startsWith(prefix)
+    // No traversal back out of the folder, and no second path smuggled in on
+    // the end of the first.
+    && !path.slice(prefix.length).includes('..');
+}

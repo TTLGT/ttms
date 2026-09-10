@@ -191,6 +191,23 @@ export interface Conversation {
    */
   pinned?: Record<string, PinnedMessage>;
 
+  /**
+   * Group rooms only: a picture standing in for the `#` the room is drawn
+   * with otherwise. A storage path, never a download URL — a URL carries a
+   * token that can be regenerated, so a stored one goes stale. It is resolved
+   * at render time by useStorageUrl, whose per-session cache is only correct
+   * because every upload writes a fresh random path instead of overwriting the
+   * one before it.
+   *
+   * Written through PATCH /api/chat/conversations/{id}, the same way the name
+   * and the membership are, and deliberately not from the browser: allowing a
+   * free-text path here would let any member point their room at any file in
+   * the bucket — a driver's licence, say — and have every other member's list
+   * render it. The route checks the prefix; see roomPhotoBelongsTo() in
+   * src/lib/chatServer.ts.
+   */
+  photoPath?: string | null;
+
   /* --------------------------------------------------------- record rooms */
 
   /** Record rooms only: what kind of record this room is about. */
@@ -437,6 +454,15 @@ export interface Attachment {
 
 /** Biggest file we accept. Enforced in the browser — see the note in chatUploads. */
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Biggest room picture we accept.
+ *
+ * Far below the attachment cap on purpose: this one is drawn at 32 pixels in a
+ * list that redraws all day, so a 25 MB photo would be downloaded in full by
+ * everyone in the room to fill a circle the size of a thumbnail.
+ */
+export const MAX_ROOM_PHOTO_BYTES = 5 * 1024 * 1024;
 
 /**
  * The reactions people can leave, as a fixed set.

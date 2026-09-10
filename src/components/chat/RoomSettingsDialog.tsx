@@ -1,15 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { LogOut, X } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
+import { Hash, ImagePlus, LogOut, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { leaveConversation, updateGroupConversation } from '@/lib/chat';
+import { discardAttachment, uploadRoomPhoto } from '@/lib/chatUploads';
+import { useStorageUrl } from '@/lib/useStorageUrl';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import type { Conversation } from '@/types/conversation';
 
 /**
- * Renaming a room and changing who is in it.
+ * Renaming a room, giving it a picture, and changing who is in it.
  *
  * Open to any member, not only whoever created it. A room is a working space,
  * not an owned record — the person who happened to open it is often not the
@@ -29,8 +32,49 @@ export default function RoomSettingsDialog({
 
   const [name, setName]       = useState(conversation.name);
   const [members, setMembers] = useState<string[]>(conversation.memberUids);
+  const [photo, setPhoto]     = useState<string | null>(conversation.photoPath ?? null);
   const [busy, setBusy]       = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError]     = useState('');
+
+  const picker = useRef<HTMLInputElement>(null);
+  const photoUrl = useStorageUrl(photo);
+
+  /**
+   * Every picture uploaded while this dialog has been open.
+   *
+   * A picture is in the bucket the moment it is chosen, but the room does not
+   * point at it until Save. Without this list, choosing three pictures before
+   * settling on one would leave two files nothing points at and nothing will
+   * ever clean up — the same bookkeeping the composer does for attachments.
+   */
+  const uploaded = useRef<string[]>([]);
+
+  /** Deletes every uploaded file except the one the room ends up wearing. */
+  function tidyUp(keep: string | null) {
+    const original = conversation.photoPath ?? null;
+    for (const path of uploaded.current) {
+      if (path !== keep) void discardAttachment(path);
+    }
+    // The picture being replaced, once the replacement is safely stored.
+    if (original && keep !== original) void discardAttachment(original);
+    uploaded.current = [];
+  }
+
+  async function pick(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      const path = await uploadRoomPhoto(conversation.id, file);
+      uploaded.current.push(path);
+      setPhoto(path);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not upload that picture.');
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const others = useMemo(
     () => people
@@ -43,7 +87,13 @@ export default function RoomSettingsDialog({
     setBusy(true);
     setError('');
     try {
-      await updateGroupConversation(conversation.id, { name: name.trim(), memberUids: members });
+      await updateGroupConversation(conversation.id, {
+        name: name.trim(), memberUids: members, photoPath: photo,
+      });
+      // Only after the room is pointing at the new picture: deleting the old
+      // one first would leave the room showing a broken image if the save
+      // then failed.
+      tidyUp(photo);
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save those changes.');
@@ -56,6 +106,8 @@ export default function RoomSettingsDialog({
     setError('');
     try {
       await leaveConversation(conversation.id);
+      // Anything picked and not saved goes with them — they are leaving.
+      tidyUp(conversation.photoPath ?? null);
       // Cleared before closing: the conversation is about to vanish from the
       // list, and a panel still pointing at it would sit there on a thread the
       // rules have just stopped allowing.
@@ -74,15 +126,72 @@ export default function RoomSettingsDialog({
           <div>
             <h2 className="text-lg font-bold text-gray-900">Room settings</h2>
             <p className="mt-1 text-xs text-gray-500">
-              Anyone in the room can rename it or change who is in it.
+              Anyone in the room can rename it, give it a picture, or change who is in it.
             </p>
           </div>
-          <button type="button" onClick={onClose} title="Close" className="text-gray-400 hover:text-gray-700">
+          <button
+            type="button"
+            onClick={() => { tidyUp(conversation.photoPath ?? null); onClose(); }}
+            title="Close"
+            className="text-gray-400 hover:text-gray-700"
+          >
             <X size={18} />
           </button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {/* The picture and the name together: they are the two halves of
+              what a room is recognised by in the list, and a picker parked at
+              the bottom of the dialog reads as an afterthought. */}
+          <p className="mb-1 text-xs font-medium text-gray-600">Picture</p>
+          <div className="mb-4 flex items-center gap-3">
+            <span className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-brand-700">
+              {photoUrl
+                ? <Image src={photoUrl} alt="" fill unoptimized sizes="56px" className="object-cover" />
+                : <Hash size={22} />}
+            </span>
+
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => picker.current?.click()}
+                  disabled={uploading || busy}
+                  className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <ImagePlus size={14} />
+                  {uploading ? 'Uploading…' : photo ? 'Replace' : 'Add a picture'}
+                </button>
+
+                {photo && !uploading && (
+                  <button
+                    type="button"
+                    onClick={() => setPhoto(null)}
+                    disabled={busy}
+                    className="text-sm text-gray-500 transition hover:text-red-600 disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-gray-400">
+                Shown instead of the # beside the room. Everyone in the room sees it.
+              </p>
+            </div>
+
+            <input
+              ref={picker}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                void pick(e.target.files?.[0]);
+                // Cleared so choosing the same file twice in a row still fires.
+                e.target.value = '';
+              }}
+            />
+          </div>
+
           <label className="mb-1 block text-xs font-medium text-gray-600">Name</label>
           <input
             value={name}
@@ -147,7 +256,7 @@ export default function RoomSettingsDialog({
           <button
             type="button"
             onClick={() => void save()}
-            disabled={busy || !name.trim() || members.length === 0}
+            disabled={busy || uploading || !name.trim() || members.length === 0}
             className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-40"
           >
             {busy ? 'Saving…' : 'Save'}
