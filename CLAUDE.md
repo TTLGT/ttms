@@ -20,8 +20,16 @@ operations, written for non-technical staff too) and
 
 **There is no development environment.** `.env.local` points at the **live
 production Firebase project**. `npm run dev` on this machine reads and writes
-the real company's orders, carriers and clients. There is no seeded test data
-and no staging copy.
+the real company's orders, carriers and clients. There is no staging copy.
+
+What is in that project as of 2026-09-10 is a **small sample, not a full book**:
+122 orders, 16 parties, 12 carriers, kept back when the BATS import was cleared
+out. Two of those orders were entered by hand through the app and are the only
+records carrying a carrier, a shipper and a consignee — the import linked none
+of them — so they are the only ones that exercise the whole model. **Treat all
+of it as production data anyway.** It is small and it is re-importable from
+BATS, but it is still the live project the deployed site serves, and the
+allowlist and settings alongside it are not re-creatable.
 
 Consequences for you:
 
@@ -63,18 +71,54 @@ with a project `ttms` connected to `TTLGT/ttms` that deploys on every push to
 `https://ttms.totaltransportlogistics.us` — see the gotcha near the end of this
 file.
 
-**Firebase is on the no-cost Spark plan** (checked 2026-09-09), which is a
-capacity risk now that the whole company reaches the site rather than one
-machine. Spark caps Firestore at **50,000 document reads and 20,000 writes a
-day** and 1 GiB stored; over the cap, requests fail with `resource-exhausted`
-until midnight Pacific. Chat's `onSnapshot` listeners and `AuthContext`'s
-per-user listener make reads scale with people-hours, not page views, so this is
-reachable. Nothing in the code degrades gracefully when it happens — the app
-just breaks mid-day. Upgrading to Blaze with a budget alert is the fix.
+**Firebase is on the Blaze pay-as-you-go plan** (moved 2026-09-10). It was on
+Spark until then, and the swap is worth understanding rather than just noting,
+because it changes what a read costs from "a step toward an outage" to "a
+fraction of a cent".
 
-**Decided 2026-09-09: stay on Spark until a live test shows what real usage
-is.** Don't re-open that; do say plainly if the Usage tab shows reads climbing
-toward the cap, and don't engineer around the limit in code without asking.
+Blaze keeps the same no-cost daily allowance — **50,000 document reads, 20,000
+writes, 20,000 deletes** and 1 GiB stored — and bills only above it, at roughly
+**$0.06 per 100,000 reads** (about half that if the database is single-region).
+The difference is what happens at the cap: on Spark, requests started failing
+with `resource-exhausted` until midnight Pacific, and nothing in this codebase
+degrades gracefully when that happens — `/api/auth/session` needs a read to
+check the allowlist, so the whole app locks everyone out rather than slowing
+down. On Blaze it just carries on and costs pennies.
+
+That is a real failure this project had, not a hypothetical: on 2026-09-09 five
+views of the dashboard spent the day's 50,000 reads by mid-evening and nobody
+could sign in. One card was reading the entire open-order book — about ten
+thousand documents a mount — because roughly nine thousand imported BATS loads
+were parked in `carrier_assigned` and still counted as open.
+
+**Both halves of that are fixed.** The imported records were cleared down to a
+small test sample on 2026-09-10 (`scripts/purge-records.js`, 28,739 documents
+removed, leaving 122 orders / 16 parties / 12 carriers), and the dashboard card
+went back to loading on its own because it now reads ~122 documents instead of
+~10,000.
+
+What to do about cost now:
+
+- **Do not engineer around the read limit in code without asking.** It is a
+  budget line, not a wall, and the app is nowhere near it — a working day of
+  development runs in the low thousands of reads.
+- **Do say plainly if the Usage tab shows reads climbing**, and name the query
+  responsible. Reads scale with people-hours here, not page views: chat's
+  `onSnapshot` listeners and `AuthContext`'s per-user listener are live for
+  everyone signed in.
+- **The thing actually worth watching is the number of open orders.** Several
+  screens count or list them, and what made the dashboard safe again was the
+  data shrinking, not the code changing. If open orders climb back into the
+  thousands, those screens become expensive again.
+- The Firestore client cache is not configured — `src/lib/firebase.ts` calls
+  plain `getFirestore(app)`, so the default is memory-only and every full page
+  reload re-reads every watched document from the server. Enabling
+  `persistentLocalCache` is the standing easy win if reads ever matter again.
+
+**There is still no development environment** — see the warning at the top of
+this file. The Emulator Suite is the outstanding task, and it matters more than
+any of the above: essentially all usage of this project today is one person
+building it, against live production data.
 
 ## Environment
 
