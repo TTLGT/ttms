@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   PackageOpen, Clock, Truck, PackageCheck,
@@ -60,15 +60,6 @@ interface StatCard {
   truckPass?: boolean;
   items?: TooltipItem[];
   emptyMsg?: string;
-  /**
-   * Shown in place of the number for a figure too expensive to fetch unasked.
-   *
-   * Every other card on this page is a count() the database answers for a few
-   * reads. One is not — see `action` on Active Clients below — and a card that
-   * costs ten thousand reads must not be paid for by everyone who opens the
-   * home page to look at something else.
-   */
-  action?: { label: string; onClick: () => void };
 }
 
 function orderToItem(o: Order, badge?: string): TooltipItem {
@@ -117,14 +108,6 @@ function StatCardGrid({ cards, loading }: { cards: StatCard[]; loading: boolean 
 
             {loading ? (
               <div className="mt-2 h-8 w-16 rounded bg-current opacity-20 animate-pulse" />
-            ) : card.action ? (
-              <button
-                type="button"
-                onClick={card.action.onClick}
-                className="mt-2 rounded-lg border border-current px-3 py-1.5 text-sm font-semibold opacity-80 transition-opacity hover:opacity-100"
-              >
-                {card.action.label}
-              </button>
             ) : (
               <p className={`font-bold mt-1 ${typeof card.value === 'string' ? 'text-2xl' : 'text-3xl'}`}>
                 {card.value}
@@ -192,27 +175,28 @@ export default function DashboardPage() {
 
   const [summary,  setSummary]  = useState<DashboardSummary | null>(null);
   /**
-   * Fetched only when somebody asks for it, which is why it is not in the
-   * effect below with everything else.
+   * Loaded on its own, after the rest — it is the one figure that reads every
+   * open order instead of counting them. null means "still coming".
    *
-   * "Open loads per client" is not an aggregation Firestore offers, so it is
-   * the one figure on this page that reads every open order rather than
-   * counting them — about ten thousand documents a call, against a Spark-plan
-   * allowance of fifty thousand reads a day. Loading it automatically meant
-   * five views of this page exhausted the company's daily quota and nobody
-   * could sign in, because /api/auth/session needs a read too. That is exactly
-   * what happened on 2026-09-09.
+   * That read is what makes this card worth watching. "Open loads per client"
+   * is not an aggregation Firestore offers, so the cost is one document per
+   * open order, on every mount, for everyone. It stopped being loaded at all
+   * for a day in September 2026: nine thousand imported BATS loads were parked
+   * in `carrier_assigned` and still counted as open, so this call read about
+   * ten thousand documents and five views of this page spent the whole daily
+   * quota — after which nobody could sign in, because /api/auth/session needs
+   * a read of its own and got RESOURCE_EXHAUSTED instead.
    *
-   * The real cure is the data — roughly nine thousand imported loads are
-   * parked in `carrier_assigned` and still count as open — but until those are
-   * closed out, the honest thing is to let the person who wants this number
-   * ask for it. `null` means "not asked for yet", not "still coming".
+   * The imported book was cleared on 2026-09-10 and the card went back to
+   * loading on its own. What made it safe was the data, not this code, so the
+   * thing to watch is the number of open orders rather than this line: if it
+   * climbs back into the thousands, this becomes the most expensive thing on
+   * the page again and should go back to being asked for.
    */
   const [clientLoads, setClientLoads] = useState<{
     loads: Record<string, number>;
     top: ActiveClient[];
   } | null>(null);
-  const [clientLoadsState, setClientLoadsState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [orders,   setOrders]   = useState<Order[]>([]);
   const [alerts,   setAlerts]   = useState<OrderAlert[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -252,23 +236,14 @@ export default function DashboardPage() {
     }).catch((e: unknown) => {
       setError(e instanceof Error ? e.message : 'Could not load the dashboard.');
     }).finally(() => setLoading(false));
-  }, []);
 
-  /**
-   * Count the open loads per client, on request.
-   *
-   * Not in the effect above on purpose — see the state declaration for what
-   * this one call costs and what it cost us. Once fetched it stays for the
-   * life of the page; re-reading ten thousand documents because somebody
-   * clicked twice would defeat the point.
-   */
-  const loadClientLoads = useCallback(() => {
-    if (clientLoads || clientLoadsState === 'loading') return;
-    setClientLoadsState('loading');
+    // Deliberately not awaited with the rest: it takes roughly eight times as
+    // long as every other card combined, and one slow card should not hold up
+    // eleven fast ones.
     fetchActiveClientLoads()
-      .then((res) => { setClientLoads(res); setClientLoadsState('idle'); })
-      .catch(() => setClientLoadsState('error'));
-  }, [clientLoads, clientLoadsState]);
+      .then(setClientLoads)
+      .catch(() => setClientLoads({ loads: {}, top: [] }));
+  }, []);
 
   /*
     Every figure below is a number the server counted, not a length the browser
@@ -417,29 +392,19 @@ export default function DashboardPage() {
     },
     {
       label: 'Active Clients',
-      value: clientLoadsState === 'loading' ? 'Counting…'
-           : clientLoadsState === 'error'   ? 'Unavailable'
-           : activeClientCount === null     ? '—'
-           : activeClientCount,
-      // Asked for rather than loaded — this is the expensive card. It reverts
-      // to a plain number the moment the count is in.
-      action: clientLoadsState === 'idle' && activeClientCount === null
-        ? { label: 'Count clients', onClick: loadClientLoads }
-        : undefined,
+      // Its own request is still in flight — say so rather than flash a
+      // confident zero that corrects itself a moment later.
+      value: activeClientCount === null ? '…' : activeClientCount,
       color: 'bg-indigo-50 border-indigo-200 text-indigo-700',
       icon: Building2, anim: '', hoverAnim: 'animate-pulse',
-      // Undefined rather than empty until the count has run: an empty list
-      // renders as "No active clients", which is a different claim from "we
-      // have not looked yet" and the wrong one to make on an untouched page.
-      items: clientLoads
-        ? topClients.map((c) => ({
-            id:    c.id,
-            label: c.name,
-            sub:   c.contactName,
-            badge: `${c.loads} load${c.loads !== 1 ? 's' : ''}`,
-            href:  `/dashboard/parties/${c.id}`,
-          }))
-        : undefined,
+      // The busiest twenty-five, named by the server.
+      items: topClients.map((c) => ({
+        id:    c.id,
+        label: c.name,
+        sub:   c.contactName,
+        badge: `${c.loads} load${c.loads !== 1 ? 's' : ''}`,
+        href:  `/dashboard/parties/${c.id}`,
+      })),
       emptyMsg: 'No active clients',
     },
     {
