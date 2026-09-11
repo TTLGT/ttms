@@ -6,8 +6,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { isOrderView, orderViewLabel, viewIsSorted } from '@/types/orderView';
 import { listOrdersPage, countOrdersByStatus } from '@/lib/orders';
 import type { Order, OrderStatus } from '@/types/order';
-import { orderDisplayNumber } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
+import OrderLink from '@/components/orders/OrderLink';
 import ResizableTh from '@/components/table/ResizableTh';
 import { useColumnWidths, type ColumnWidths } from '@/lib/useColumnWidths';
 import { personHref } from '@/lib/directoryProfile';
@@ -412,8 +412,8 @@ function OrdersList() {
                     neighbour instead of resizing it. Free text wraps so a wider
                     column reveals more of it; short fixed values truncate.
                   */}
-                  <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700 break-words">
-                    {orderDisplayNumber(order)}
+                  <td className="px-4 py-3 text-sm break-words">
+                    <OrderLink order={order} />
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-800 break-words">{order.clientName || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 break-words">{order.shipperName || '—'}</td>
