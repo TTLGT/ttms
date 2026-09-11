@@ -168,6 +168,24 @@ const VIEWS: Record<OrderViewId, OrderView> = {
 };
 
 /**
+ * Every field the `matches` half above reads.
+ *
+ * The union path fetches a projection rather than whole documents, and a view
+ * judged on a field that was not sent matches nothing — silently, because an
+ * absent field and an empty one look alike here. So this is the list that
+ * comes back whenever a view is asked for.
+ *
+ * ⚠️ KEEP IN SYNC with the `matches` functions in VIEWS. A new view reading a
+ * field missing from this list returns an empty list to every broker while
+ * looking correct to every admin, whose filters run in Firestore instead.
+ */
+export const VIEW_MATCH_FIELDS = [
+  'status', 'createdAt', 'deliveredAt', 'updatedAt',
+  'invoiceStoragePath', 'bolStoragePath', 'podStoragePath',
+  'carrierSignedAt', 'shipperSignedAt', 'signatureWaivedAt',
+] as const;
+
+/**
  * The field a view's list is sorted by, or null where Firestore cannot sort it.
  *
  * The table lives in `@/types/orderView` with the ids and labels, because the

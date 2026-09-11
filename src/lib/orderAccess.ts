@@ -22,7 +22,7 @@ import { ownerLabel } from './partyAccess';
 import type { Caller } from './partyAccess';
 import type { OwnerFilter } from './ownerFilter';
 import {
-  matchesView, viewClock, viewOrderField, viewQueries,
+  matchesView, viewClock, viewOrderField, viewQueries, VIEW_MATCH_FIELDS,
   type OrderViewId, type ViewClock,
 } from './orderViews';
 
@@ -237,7 +237,57 @@ export async function listVisibleOrdersPage(
     return toPage(hits, query.limit);
   }
 
-  return pageInMemory(await unionForCaller(caller), query, projection);
+  return pageInMemory(
+    await unionForCaller(caller, unionFields(query, projection)),
+    query,
+    projection,
+  );
+}
+
+/**
+ * What the union path has to fetch: what the screen renders, plus what the
+ * filters read.
+ *
+ * The privileged branch pushes its filters into Firestore and so can select the
+ * projection alone. The union cannot — a broker's list is six queries merged
+ * and then filtered in memory — so every field matchesFilters() and
+ * matchesView() touch has to come back as well. Without that the projection
+ * would be a silent bug rather than a saving: a filter reading a field that was
+ * never sent excludes every row, and only for the accounts that take this path.
+ *
+ * Each field is added only where this particular query actually uses it, which
+ * is what keeps `searchTerms` — several hundred fragments per order, and
+ * nothing renders it — out of the overwhelming majority of requests. It is the
+ * same conditional the privileged branch makes for `needsTerms`.
+ *
+ * null means send whole documents, and `fields: 'full'` still does: the
+ * dashboard summary reads a dozen fields off these rows and returns samples of
+ * them straight to the page, so narrowing it is a separate question from this
+ * one.
+ */
+function unionFields(
+  query: OrderQuery,
+  projection: readonly string[] | null,
+): readonly string[] | null {
+  if (!projection) return null;
+
+  // createdAt unconditionally: it is the sort key the union merges on and the
+  // value encodeCursor() writes into the cursor, both of which happen whatever
+  // was filtered.
+  const fields = new Set<string>([...projection, 'createdAt']);
+
+  if (query.status)      fields.add('status');
+  if (query.carrierId)   fields.add('carrierId');
+  if (query.clientId)    fields.add('clientId');
+  if (query.shipperId)   fields.add('shipperId');
+  if (query.consigneeId) fields.add('consigneeId');
+  if (query.hasDocument) fields.add(query.hasDocument);
+  if (query.search)      fields.add('searchTerms');
+  if (query.pickupFrom)  fields.add('pickupDate');
+  if (query.parentOrderId != null) fields.add('parentOrderId');
+  if (query.view) for (const f of VIEW_MATCH_FIELDS) fields.add(f);
+
+  return [...fields];
 }
 
 /**
@@ -453,22 +503,44 @@ export async function countVisibleOrdersByStatus(
 
   // The union path already holds every row it can see in memory, so counting
   // them there is free and avoids four aggregations per status.
-  const all = (await unionForCaller(caller)).filter((o) => !o.parentOrderId);
+  //
+  // Two fields, because counting is all this does: the tab labels on the Orders
+  // screen used to cost a second full-width copy of the caller's whole book,
+  // fetched alongside the one the list itself had just read.
+  const all = (await unionForCaller(caller, ['status', 'parentOrderId']))
+    .filter((o) => !o.parentOrderId);
   return Object.fromEntries(
     statuses.map((s) => [s, all.filter((o) => o.status === s).length]),
   );
 }
 
-/** The union of queries that stands in for a query the rules could approve. */
-async function unionForCaller(caller: Caller): Promise<Record<string, unknown>[]> {
+/**
+ * The union of queries that stands in for a query the rules could approve.
+ *
+ * `fields` trims each of those queries to the columns the caller will actually
+ * read — see unionFields() for how that list is worked out, and why it is wider
+ * than the projection alone. null fetches whole documents.
+ *
+ * Visibility does not depend on it: every branch below is an ownership query,
+ * so a row is here because Firestore matched it, not because a field was
+ * inspected afterwards. That is the difference from ordersOwnedBy(), which
+ * re-checks canSeeOrder() on what comes back and therefore must keep reading
+ * whole documents.
+ */
+async function unionForCaller(
+  caller: Caller,
+  fields: readonly string[] | null = null,
+): Promise<Record<string, unknown>[]> {
   const col = adminDb.collection(COL);
+  /** Applied to every branch, so none of them can quietly stay full-width. */
+  const sel = (q: FirebaseFirestore.Query) => (fields ? q.select(...fields) : q);
   const groupIds = caller.profile.groupIds ?? [];
   // array-contains-any caps at 30 values, far more work groups than one person
   // would ever belong to.
   const someGroups = groupIds.slice(0, 30);
   const byGroup = (field: string) =>
     someGroups.length
-      ? col.where(field, 'array-contains-any', someGroups).get()
+      ? sel(col.where(field, 'array-contains-any', someGroups)).get()
       : Promise.resolve({ docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] });
 
   /*
@@ -484,17 +556,17 @@ async function unionForCaller(caller: Caller): Promise<Record<string, unknown>[]
   const managedEmails = caller.profile.managedEmails ?? [];
   const teamQueries = [
     ...inChunks(managed).flatMap((batch) => [
-      col.where('assignedToUids',  'array-contains-any', batch).get(),
-      col.where('clientOwnerUids', 'array-contains-any', batch).get(),
+      sel(col.where('assignedToUids',  'array-contains-any', batch)).get(),
+      sel(col.where('clientOwnerUids', 'array-contains-any', batch)).get(),
     ]),
     ...inChunks(managedEmails).map((batch) =>
-      col.where('assignedToEmails', 'array-contains-any', batch).get()),
+      sel(col.where('assignedToEmails', 'array-contains-any', batch)).get()),
   ];
 
   const [mine, viaGroup, viaClient, viaClientGroup, granted, viaTeam] = await Promise.all([
-    col.where('assignedToUids', 'array-contains', caller.uid).get(),
+    sel(col.where('assignedToUids', 'array-contains', caller.uid)).get(),
     byGroup('assignedToGroupIds'),
-    col.where('clientOwnerUids', 'array-contains', caller.uid).get(),
+    sel(col.where('clientOwnerUids', 'array-contains', caller.uid)).get(),
     byGroup('clientOwnerGroupIds'),
     approvedOrderIds(caller.uid),
     Promise.all(teamQueries),
@@ -515,8 +587,12 @@ async function unionForCaller(caller: Caller): Promise<Record<string, unknown>[]
   const lent = granted.filter((id) => !byId.has(id));
   if (lent.length) {
     // getAll takes the ids in one round trip; an order deleted since the
-    // approval simply does not come back.
-    const docs = await adminDb.getAll(...lent.map((id) => col.doc(id)));
+    // approval simply does not come back. Narrowed the same way as the queries
+    // above — a lent load is one of these rows and is read by the same code.
+    const docs = await adminDb.getAll(
+      ...lent.map((id) => col.doc(id)),
+      ...(fields ? [{ fieldMask: [...fields] }] : []),
+    );
     for (const d of docs) if (d.exists) byId.set(d.id, { id: d.id, ...d.data()! });
   }
 
