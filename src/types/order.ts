@@ -1,4 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
+import type { PhoneRegion } from '@/lib/phone';
 import type { OrderPartyApproval } from './accessRequest';
 
 export type OrderStatus =
@@ -429,6 +430,12 @@ export interface Order {
   driverId?: string | null;
   driverName: string;
   driverPhone: string;
+  /**
+   * Which country `driverPhone` is in, copied from the driver record along
+   * with the number. Absent on every load written before the picker existed —
+   * read it through `phoneRegionOf()`, which answers US.
+   */
+  driverPhoneRegion?: PhoneRegion;
   driverLicenseStoragePath: string | null;
   bolStoragePath: string | null;
   invoiceStoragePath: string | null;

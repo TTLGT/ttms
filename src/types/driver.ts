@@ -1,4 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
+import type { PhoneRegion } from '@/lib/phone';
 
 /**
  * A driver who runs loads for a carrier.
@@ -29,6 +30,11 @@ export interface Driver {
    */
   nameKey?: string;
   phone: string;
+  /**
+   * Which country `phone` is in. Absent on a driver the backfill created from
+   * order history — read it through `phoneRegionOf()`, which answers US.
+   */
+  phoneRegion?: PhoneRegion;
   /** CDL number as printed on the licence. Not validated; states differ. */
   licenseNumber: string;
   licenseExpiration: Timestamp | null;

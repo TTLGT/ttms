@@ -1,7 +1,7 @@
 'use client';
 
 import CopyValue from '@/components/CopyValue';
-import { telHref } from '@/lib/phone';
+import { telHref, phoneRegionOf } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
 
 /**
@@ -25,20 +25,20 @@ import type { PhoneRegion } from '@/lib/phone';
  * every one of these sits in a different table, card or definition list, and a
  * missing `group` fails silently by never showing the button at all.
  *
- * Region defaults to US because none of these records carries one. Parties and
- * carriers store whatever was typed, with no country field beside it — unlike
- * a staff profile, which has an explicit `otherPhoneRegion`. A number written
- * with its own country code still dials correctly; see telHref.
+ * The region comes off the record, and is read through `phoneRegionOf()` so a
+ * number saved before the country picker existed — or by a script — still
+ * dials as a US one rather than as nothing.
  */
 export default function PhoneValue({
   value,
   label = 'phone number',
-  region = 'US',
+  region,
   className = '',
 }: {
   value: string | null | undefined;
   /** What it is, for the copy tooltip: "Copy dispatcher phone". */
   label?: string;
+  /** Undefined on a record saved before the country picker — read as US. */
   region?: PhoneRegion;
   className?: string;
 }) {
@@ -51,7 +51,7 @@ export default function PhoneValue({
     <span className="group inline-flex min-w-0 align-bottom">
       <CopyValue value={phone} label={label}>
         <a
-          href={telHref(phone, region)}
+          href={telHref(phone, phoneRegionOf(region))}
           className={`hover:text-brand-700 hover:underline ${className}`}
         >
           {phone}

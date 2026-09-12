@@ -188,7 +188,7 @@ export interface ProfileUpdateRequest {
 export const MAX_REASON = 500;
 
 /**
- * What a request is asking for, as one line: "Work phone (US): +(469) 935-4100
+ * What a request is asking for, as one line: "Work phone (US): +1 (469) 935-4100
  * → +(214) 555-0100".
  *
  * Built here rather than in the inbox so the profile page and the approvals

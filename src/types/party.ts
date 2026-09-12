@@ -1,5 +1,7 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { Address } from './order';
+import { PHONE_COUNTRY_CODE, PHONE_NATIONAL_LENGTH, RECORD_PHONE_REGIONS, phoneRegionOf } from '@/lib/phone';
+import type { PhoneRegion } from '@/lib/phone';
 
 /**
  * A party is any company or individual we do business with. The same party may
@@ -35,17 +37,24 @@ export interface Party {
   nameKey: string;
   contacts: Contact[];
   phone: string;
+  /**
+   * Which country `phone` is in. Absent on every party written before the
+   * picker existed — read it through `phoneRegionOf()`, which answers US for
+   * those, rather than reading the field directly.
+   */
+  phoneRegion?: PhoneRegion;
   email: string;
   /** A second number for the same contact — a mobile beside a switchboard. */
   phone2: string;
+  /** Which country `phone2` is in. Same contract as `phoneRegion`. */
+  phone2Region?: PhoneRegion;
   /** A second address for the same contact — an AP inbox beside a personal one. */
   email2: string;
   /**
-   * Both phone numbers reduced to `toPhoneKey()`, so a party can be found by
-   * dialling code. Stored as an array because Firestore can only match a whole
-   * field value: `array-contains` is the only way one query reaches either
-   * number. Kept in step by everything that writes a phone — see the note on
-   * toPhoneKey().
+   * Both phone numbers reduced to digits, so a party can be found by dialling
+   * code. Stored as an array because Firestore can only match a whole field
+   * value, and because one number now contributes more than one key — see
+   * phoneKeysFor(). Kept in step by everything that writes a phone.
    */
   phoneKeys: string[];
   address: Address;
@@ -112,11 +121,91 @@ export interface Party {
  * reduce to `4695769974`. Anything shorter than seven digits is not a number
  * anybody could dial and returns empty, which is what stops a half-typed
  * search from matching every extension in the database.
+ *
+ * **This is the US/Canada/Mexico shape, and it is wrong for Guatemala** — an
+ * 8-digit number carrying its country code is eleven digits, so the last ten
+ * start inside the `502`. It survives as the length test the forms and the
+ * combobox use ("is this long enough to be a number at all") and as one of the
+ * keys stored, so nothing that was findable before this file learned about
+ * countries became unfindable. What actually matches is phoneKeysFor() and
+ * phoneSearchKeys() below.
  */
 export function toPhoneKey(raw: string | null | undefined): string {
   const digits = (raw ?? '').replace(/\D/g, '');
   if (digits.length < 7) return '';
   return digits.slice(-10);
+}
+
+/** Just the digits, with nothing thrown away. */
+function digitsOf(raw: string | null | undefined): string {
+  return (raw ?? '').replace(/\D/g, '');
+}
+
+/**
+ * Every key one number should be stored under.
+ *
+ * A number is filed twice — as the national number and as the international
+ * one — because those are the two ways it gets typed into a search box, and
+ * which one somebody reaches for depends on where they are standing. A
+ * Guatemalan client is `4874-0227` to the person who rings it every week and
+ * `+502 4874 0227` to whoever copied it off an email.
+ *
+ * The legacy last-ten key goes in as well. For a US number it is already the
+ * national form, so this changes nothing for the records that existed before
+ * countries did; for the others it costs one array entry and guarantees that
+ * re-keying can only add matches, never remove one.
+ */
+export function phoneKeysFor(
+  raw: string | null | undefined,
+  region: PhoneRegion | undefined,
+): string[] {
+  const digits = digitsOf(raw);
+  if (digits.length < 7) return [];
+
+  const r        = phoneRegionOf(region);
+  const code     = PHONE_COUNTRY_CODE[r];
+  const national = PHONE_NATIONAL_LENGTH[r];
+
+  // Strip the country code only when what is left is exactly a national
+  // number, the same rule normalizePhone() uses — so a ten-digit US number
+  // that happens to start with 1 is not shortened into nonsense.
+  const bare = digits.length === code.length + national && digits.startsWith(code)
+    ? digits.slice(code.length)
+    : digits;
+
+  return [...new Set([bare, code + bare, toPhoneKey(raw)].filter(Boolean))];
+}
+
+/**
+ * The keys a typed search should be matched against.
+ *
+ * The search box has no country beside it and never will — somebody reading a
+ * number off a rate confirmation does not know or care which of our records it
+ * is filed under. So instead of deciding, this offers every reading of what
+ * was typed and lets `array-contains-any` find whichever one a record holds:
+ * the digits as given, the last ten, each country code stripped off the front,
+ * and each country code added to it.
+ *
+ * The list is short by construction — a set of at most a handful after
+ * deduplication, because a reading only appears when the digit count fits it —
+ * but it is capped anyway: Firestore rejects an `array-contains-any` of more
+ * than ten values, and a query that throws is worse than one that looks under
+ * nine of ten stones.
+ */
+export function phoneSearchKeys(typed: string | null | undefined): string[] {
+  const digits = digitsOf(typed);
+  if (digits.length < 7) return [];
+
+  const keys = new Set<string>([digits, toPhoneKey(typed)]);
+  for (const region of RECORD_PHONE_REGIONS) {
+    const code     = PHONE_COUNTRY_CODE[region];
+    const national = PHONE_NATIONAL_LENGTH[region];
+    if (digits.length === code.length + national && digits.startsWith(code)) {
+      keys.add(digits.slice(code.length));
+    }
+    if (digits.length === national) keys.add(code + digits);
+  }
+  return [...keys].filter(Boolean).slice(0, 10);
 }
 
 /**
@@ -127,11 +216,26 @@ export function toPhoneKey(raw: string | null | undefined): string {
  * `createParty` (via /api/parties), `updateParty` and the BATS importers all
  * do. A party saved without it exists but cannot be found by phone, and
  * nothing fails loudly. Same contract as `nameKey`, for the same reason.
+ *
+ * ⚠️ It must be given the regions too. Passing the numbers alone files a
+ * Guatemalan number as though it were American, which is findable only by
+ * somebody who types it the one way it happens to have been stored.
  */
 export function partyPhoneKeys(
-  p: Pick<Party, 'phone' | 'phone2'> | { phone?: string; phone2?: string },
+  p: Pick<Party, 'phone' | 'phone2'> & {
+    phoneRegion?: PhoneRegion;
+    phone2Region?: PhoneRegion;
+  } | {
+    phone?: string;
+    phone2?: string;
+    phoneRegion?: PhoneRegion;
+    phone2Region?: PhoneRegion;
+  },
 ): string[] {
-  return [...new Set([toPhoneKey(p.phone), toPhoneKey(p.phone2)].filter(Boolean))];
+  return [...new Set([
+    ...phoneKeysFor(p.phone,  p.phoneRegion),
+    ...phoneKeysFor(p.phone2, p.phone2Region),
+  ])];
 }
 
 /**

@@ -23,12 +23,55 @@
  * the digits could tell those two apart. The field a number was typed into is
  * the only thing that says which country it is.
  *
- * If a fourth country is ever added, add it to REGIONS, to the format switch,
- * and — if it is a second number rather than a work line — to
- * OTHER_PHONE_REGIONS. Nothing else needs to know.
+ * Adding a country is three edits and no migration: an entry in REGIONS, a
+ * branch in the format switch, and a line in each of the label/name/example/
+ * code/length tables below the compiler will demand anyway. Then add it to
+ * whichever list should offer it — RECORD_PHONE_REGIONS for a client, carrier
+ * or driver, OTHER_PHONE_REGIONS for a colleague's home-country line.
+ * Nothing else needs to know.
  */
 
-export type PhoneRegion = 'US' | 'GT' | 'MX';
+export type PhoneRegion = 'US' | 'CA' | 'MX' | 'GT';
+
+/**
+ * The countries a record's phone number can be in — a client, a shipper, a
+ * consignee, a carrier, a driver.
+ *
+ * Wider than the staff list below because it answers a different question.
+ * That one is "where is this colleague from"; this one is "where is this
+ * company", and the company is a freight brokerage running cross-border, so
+ * Mexico and Canada are ordinary rather than exceptional.
+ *
+ * The order is the order the picker offers them in: the two we have most of,
+ * then the two we do not.
+ */
+export const RECORD_PHONE_REGIONS: PhoneRegion[] = ['US', 'MX', 'CA', 'GT'];
+
+/**
+ * What a record's phone starts on.
+ *
+ * US, and it must stay a country we have far more of than any other: it is the
+ * value every number typed by somebody who never looks at the picker will get,
+ * and a default that is usually wrong is worse than no picker at all.
+ */
+export const DEFAULT_RECORD_REGION: PhoneRegion = 'US';
+
+/** Narrow an unknown — a Firestore field, a request body — to a real region. */
+export function isPhoneRegion(value: unknown): value is PhoneRegion {
+  return value === 'US' || value === 'CA' || value === 'MX' || value === 'GT';
+}
+
+/**
+ * The region to use for a stored value that has none.
+ *
+ * Every record written before the picker existed is in this position, and so
+ * is anything a script wrote. They are US numbers — see the backfill — so this
+ * is not a guess so much as the fact, but it is written down in one place
+ * rather than defaulted separately at each of the dozen read sites.
+ */
+export function phoneRegionOf(value: unknown): PhoneRegion {
+  return isPhoneRegion(value) ? value : DEFAULT_RECORD_REGION;
+}
 
 /**
  * The countries the *second* number can be in.
@@ -65,6 +108,11 @@ const REGIONS: Record<PhoneRegion, {
   legacyPrefixes?: string[];
 }> = {
   US: { code: '1',   nationalLength: 10, label: 'a 10-digit US number' },
+  // Canada shares the North American plan with the US: same +1, same ten
+  // digits, same grouping. Nothing about dialling it differs, and it is a
+  // separate region only because the record should say which country the
+  // company is in — a broker arranging a Toronto delivery wants to know.
+  CA: { code: '1',   nationalLength: 10, label: 'a 10-digit Canada number' },
   GT: { code: '502', nationalLength: 8,  label: 'an 8-digit Guatemala number' },
   MX: {
     code: '52', nationalLength: 10, label: 'a 10-digit Mexico number',
@@ -92,13 +140,19 @@ export interface PhoneResult {
 }
 
 /**
- * `+(469) 935-4100` for the US, `+(502) 4874-0227` for Guatemala,
+ * `+1 (469) 935-4100` for the US and Canada, `+(502) 4874-0227` for Guatemala,
  * `+(52) 55 1234-5678` for Mexico.
  *
- * The US form is not the same pattern as the other two, and that is
- * intentional: it puts the *area* code in the brackets and drops the `1`
- * entirely, where the international forms put the *country* code in them.
- * This is the shape the office asked for.
+ * One rule across all four: the `+` is always followed by the country code.
+ * North American numbers put theirs outside the brackets and the *area* code
+ * inside, which is how anybody here writes one; the other two put the country
+ * code in the brackets, which is how those are written at home.
+ *
+ * The US form used to be `+(469) 935-4100` — a `+` with no country code after
+ * it, and the area code sitting where `(52)` sits on a Mexican number. It read
+ * as though 469 were a country code, and a carrier in Monterrey could not dial
+ * it as printed. Changed once Canada and Mexico became ordinary rather than
+ * exceptional on these records.
  *
  * Mexican grouping is presentation only, but it is not uniform: four area
  * codes are two digits and every other one is three, so a flat 3-3-4 split
@@ -120,8 +174,10 @@ const MX_TWO_DIGIT_AREAS = ['55', '56', '33', '81'];
 
 function format(national: string, region: PhoneRegion): string {
   switch (region) {
+    // One case for both: see the note beside CA in REGIONS.
     case 'US':
-      return `+(${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}`;
+    case 'CA':
+      return `+1 (${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}`;
     case 'MX': {
       // `55 1234 5678` behind a two-digit area code, `998 123 4567` behind a
       // three-digit one — the eight or seven digits left over are split the
@@ -194,6 +250,7 @@ export function normalizePhone(value: unknown, region: PhoneRegion): PhoneResult
 /** The label the spreadsheet columns, the importer and the handbook all use. */
 export const PHONE_LABEL: Record<PhoneRegion, string> = {
   US: 'Work phone (US)',
+  CA: 'Canada phone',
   GT: 'Guatemala phone',
   MX: 'Mexico phone',
 };
@@ -209,13 +266,15 @@ export const OTHER_PHONE_LABEL = 'Other phone';
 /** The country names the picker shows. */
 export const PHONE_REGION_NAME: Record<PhoneRegion, string> = {
   US: 'United States',
+  CA: 'Canada',
   GT: 'Guatemala',
   MX: 'Mexico',
 };
 
 /** An example of the accepted shape, for placeholders and error messages. */
 export const PHONE_EXAMPLE: Record<PhoneRegion, string> = {
-  US: '+(469) 935-4100',
+  US: '+1 (469) 935-4100',
+  CA: '+1 (416) 555-0142',
   GT: '+(502) 4874-0227',
   MX: '+(52) 55 1234-5678',
 };
@@ -223,6 +282,7 @@ export const PHONE_EXAMPLE: Record<PhoneRegion, string> = {
 /** The country code a region's stored numbers carry, without the `+`. */
 export const PHONE_COUNTRY_CODE: Record<PhoneRegion, string> = {
   US: '1',
+  CA: '1',
   GT: '502',
   MX: '52',
 };
@@ -230,6 +290,7 @@ export const PHONE_COUNTRY_CODE: Record<PhoneRegion, string> = {
 /** How many digits a region's number has once its country code is off. */
 export const PHONE_NATIONAL_LENGTH: Record<PhoneRegion, number> = {
   US: 10,
+  CA: 10,
   GT: 8,
   MX: 10,
 };
@@ -296,7 +357,7 @@ export function phoneSkipMessage(raw: string, region: PhoneRegion, kept: boolean
 /**
  * A number the browser can actually dial.
  *
- * What is stored is the readable form — `+(469) 935-4100` — so the digits are
+ * What is stored is the readable form — `+1 (469) 935-4100` — so the digits are
  * pulled back out and the country code put on the front, which is the only
  * shape a phone app takes reliably. The prefix test is safe in both
  * directions: a ten-digit US number never starts with 1, and a national

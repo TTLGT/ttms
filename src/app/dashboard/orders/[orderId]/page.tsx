@@ -38,6 +38,8 @@ import DriverLicenseUpload from '@/components/orders/DriverLicenseUpload';
 import QuickAddCarrierModal from '@/components/carriers/QuickAddCarrierModal';
 import DriverPicker from '@/components/carriers/DriverPicker';
 import PhoneValue from '@/components/PhoneValue';
+import { phoneRegionOf } from '@/lib/phone';
+import type { PhoneRegion } from '@/lib/phone';
 import type { DriverChoice } from '@/components/carriers/DriverPicker';
 import PartyLink from '@/components/parties/PartyLink';
 import PersonNameFields from '@/components/PersonNameFields';
@@ -209,6 +211,7 @@ export default function OrderDetailPage() {
   const [driverId, setDriverId]       = useState<string | null>(null);
   const [driverName, setDriverName]   = useState('');
   const [driverPhone, setDriverPhone] = useState('');
+  const [driverPhoneRegion, setDriverPhoneRegion] = useState<PhoneRegion | undefined>(undefined);
   const [driverLicensePath, setDriverLicensePath] = useState<string | null>(null);
   const [savingCarrier, setSavingCarrier] = useState(false);
   const [addingCarrier, setAddingCarrier] = useState(false);
@@ -440,6 +443,7 @@ export default function OrderDetailPage() {
     setDriverId(order?.driverId ?? null);
     setDriverName(order?.driverName ?? '');
     setDriverPhone(order?.driverPhone ?? '');
+    setDriverPhoneRegion(order?.driverPhoneRegion);
     setDriverLicensePath(order?.driverLicenseStoragePath ?? null);
     setPrefill(null);
     setPrefillSource('');
@@ -513,6 +517,7 @@ export default function OrderDetailPage() {
     if (!choice.driverId) return;
     setDriverName(choice.driverName);
     setDriverPhone(choice.driverPhone);
+    setDriverPhoneRegion(choice.driverPhoneRegion);
     // Only if the record has one — a driver with no licence on file must not
     // wipe a licence already uploaded against this load.
     if (choice.driverLicenseStoragePath) setDriverLicensePath(choice.driverLicenseStoragePath);
@@ -545,6 +550,7 @@ export default function OrderDetailPage() {
         driverId:    driverId && driverName.trim() ? driverId : null,
         driverName:  driverName.trim(),
         driverPhone: driverPhone.trim(),
+        driverPhoneRegion: phoneRegionOf(driverPhoneRegion),
         driverLicenseStoragePath: driverLicensePath,
       };
       await updateOrder(orderId, patch);
@@ -1310,7 +1316,7 @@ export default function OrderDetailPage() {
                     : null
                 } />
                 <DetailRow label="Driver" value={order.driverName} />
-                <DetailRow label="Driver Phone" value={<PhoneValue value={order.driverPhone} label="driver phone" />} />
+                <DetailRow label="Driver Phone" value={<PhoneValue value={order.driverPhone} region={order.driverPhoneRegion} label="driver phone" />} />
                 <DetailRow label="Driver License" value={
                   order.driverLicenseStoragePath
                     ? <DriverLicenseUpload orderId={orderId} existingPath={order.driverLicenseStoragePath} onUploaded={() => {}} readOnly />

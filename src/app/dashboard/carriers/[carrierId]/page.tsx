@@ -11,6 +11,9 @@ import type { Carrier } from '@/types/carrier';
 import type { Order } from '@/types/order';
 import OrderLink from '@/components/orders/OrderLink';
 import PhoneValue from '@/components/PhoneValue';
+import PhoneField from '@/components/PhoneField';
+import { phoneRegionOf } from '@/lib/phone';
+import type { PhoneRegion } from '@/lib/phone';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
 import InsuranceFileUpload from '@/components/carriers/InsuranceFileUpload';
 import DriverFormModal from '@/components/carriers/DriverFormModal';
@@ -61,15 +64,18 @@ export default function CarrierDetailPage() {
   const [contactName, setContactName]           = useState('');
   const [email, setEmail]                       = useState('');
   const [phone, setPhone]                       = useState('');
+  const [phoneRegion, setPhoneRegion]           = useState<PhoneRegion | undefined>(undefined);
   const [address, setAddress]                   = useState('');
   const [fax, setFax]                           = useState('');
   const [dot, setDot]                           = useState('');
   const [mc, setMc]                             = useState('');
   const [dispatcher, setDispatcher]             = useState('');
   const [dispatcherPhone, setDispatcherPhone]   = useState('');
+  const [dispatcherRegion, setDispatcherRegion] = useState<PhoneRegion | undefined>(undefined);
   const [dispatcherEmail, setDispatcherEmail]   = useState('');
   const [billingContact, setBillingContact]     = useState('');
   const [billingPhone, setBillingPhone]         = useState('');
+  const [billingRegion, setBillingRegion]       = useState<PhoneRegion | undefined>(undefined);
   const [billingEmail, setBillingEmail]         = useState('');
   const [insProvider, setInsProvider]           = useState('');
   const [insPolicyNo, setInsPolicyNo]           = useState('');
@@ -87,15 +93,18 @@ export default function CarrierDetailPage() {
     setContactName(c.contactName ?? '');
     setEmail(c.email ?? '');
     setPhone(c.phone ?? '');
+    setPhoneRegion(c.phoneRegion);
     setAddress(c.address ?? '');
     setFax(c.fax ?? '');
     setDot(c.dot ?? '');
     setMc(c.mc ?? '');
     setDispatcher(c.dispatcher ?? '');
     setDispatcherPhone(c.dispatcherPhone ?? '');
+    setDispatcherRegion(c.dispatcherPhoneRegion);
     setDispatcherEmail(c.dispatcherEmail ?? '');
     setBillingContact(c.billingContact ?? '');
     setBillingPhone(c.billingPhone ?? '');
+    setBillingRegion(c.billingPhoneRegion);
     setBillingEmail(c.billingEmail ?? '');
     setInsProvider(c.insuranceProvider ?? '');
     setInsPolicyNo(c.insurancePolicyNumber ?? '');
@@ -171,15 +180,18 @@ export default function CarrierDetailPage() {
         contactName:          contactName.trim(),
         email:                email.trim(),
         phone:                phone.trim(),
+        phoneRegion:          phoneRegionOf(phoneRegion),
         address:              address.trim(),
         fax:                  fax.trim(),
         dot:                  dot.trim(),
         mc:                   mc.trim(),
         dispatcher:           dispatcher.trim(),
         dispatcherPhone:      dispatcherPhone.trim(),
+        dispatcherPhoneRegion: phoneRegionOf(dispatcherRegion),
         dispatcherEmail:      dispatcherEmail.trim(),
         billingContact:       billingContact.trim(),
         billingPhone:         billingPhone.trim(),
+        billingPhoneRegion:   phoneRegionOf(billingRegion),
         billingEmail:         billingEmail.trim(),
         insuranceProvider:    insProvider.trim(),
         insurancePolicyNumber: insPolicyNo.trim(),
@@ -288,7 +300,7 @@ export default function CarrierDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {[
                   ['Contact', carrier.contactName],
-                  ['Phone', <PhoneValue key="phone" value={carrier.phone} />],
+                  ['Phone', <PhoneValue key="phone" value={carrier.phone} region={carrier.phoneRegion} />],
                   ['Email', carrier.email],
                   ['Address', carrier.address],
                   ['Fax', carrier.fax],
@@ -308,10 +320,12 @@ export default function CarrierDetailPage() {
                 <div className="col-span-1 sm:col-span-2">
                   <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-                  <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
-                </div>
+                <PhoneField
+                  label="Phone"
+                  value={phone}
+                  region={phoneRegion}
+                  onChange={(v, r) => { setPhone(v); setPhoneRegion(r); }}
+                />
                 <div className="col-span-1 sm:col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
                   <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
@@ -364,7 +378,7 @@ export default function CarrierDetailPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {[
                     ['Name', carrier.dispatcher],
-                    ['Phone', <PhoneValue key="phone" value={carrier.dispatcherPhone} label="dispatcher phone" />],
+                    ['Phone', <PhoneValue key="phone" value={carrier.dispatcherPhone} region={carrier.dispatcherPhoneRegion} label="dispatcher phone" />],
                     ['Email', carrier.dispatcherEmail],
                   ].map(([label, val]) => (
                     <div key={label as string}>
@@ -378,10 +392,12 @@ export default function CarrierDetailPage() {
                   <div className="col-span-1 sm:col-span-2">
                     <PersonNameFields label="Dispatcher" value={dispatcher} onChange={setDispatcher} />
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Dispatcher Phone</label>
-                    <input type="tel" value={dispatcherPhone} onChange={(e) => setDispatcherPhone(e.target.value)} className={inputCls} />
-                  </div>
+                  <PhoneField
+                    label="Dispatcher Phone"
+                    value={dispatcherPhone}
+                    region={dispatcherRegion}
+                    onChange={(v, r) => { setDispatcherPhone(v); setDispatcherRegion(r); }}
+                  />
                   <div className="col-span-1 sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">Dispatcher Email</label>
                     <input type="email" value={dispatcherEmail} onChange={(e) => setDispatcherEmail(e.target.value)} className={inputCls} />
@@ -399,7 +415,7 @@ export default function CarrierDetailPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {[
                     ['Name', carrier.billingContact],
-                    ['Phone', <PhoneValue key="phone" value={carrier.billingPhone} label="billing phone" />],
+                    ['Phone', <PhoneValue key="phone" value={carrier.billingPhone} region={carrier.billingPhoneRegion} label="billing phone" />],
                     ['Email', carrier.billingEmail],
                   ].map(([label, val]) => (
                     <div key={label as string}>
@@ -413,10 +429,12 @@ export default function CarrierDetailPage() {
                   <div className="col-span-1 sm:col-span-2">
                     <PersonNameFields label="Billing Contact" value={billingContact} onChange={setBillingContact} />
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Billing Phone</label>
-                    <input type="tel" value={billingPhone} onChange={(e) => setBillingPhone(e.target.value)} className={inputCls} />
-                  </div>
+                  <PhoneField
+                    label="Billing Phone"
+                    value={billingPhone}
+                    region={billingRegion}
+                    onChange={(v, r) => { setBillingPhone(v); setBillingRegion(r); }}
+                  />
                   <div className="col-span-1 sm:col-span-2">
                     <label className="block text-xs font-medium text-gray-600 mb-1">Billing Email</label>
                     <input type="email" value={billingEmail} onChange={(e) => setBillingEmail(e.target.value)} className={inputCls} />
@@ -541,7 +559,7 @@ export default function CarrierDetailPage() {
                           {!d.isActive && <span className="ml-2 text-xs font-normal text-gray-500">retired</span>}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700">
-                          <PhoneValue value={d.phone} label="driver phone" />
+                          <PhoneValue value={d.phone} region={d.phoneRegion} label="driver phone" />
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600">{d.licenseNumber || '—'}</td>
                         <td className="px-4 py-3 text-sm text-gray-600">

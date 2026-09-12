@@ -12,6 +12,7 @@ import CarrierCombobox from '@/components/carriers/CarrierCombobox';
 import type { CarrierSelection } from '@/components/carriers/CarrierCombobox';
 import DriverPicker from '@/components/carriers/DriverPicker';
 import type { DriverChoice } from '@/components/carriers/DriverPicker';
+import { DEFAULT_RECORD_REGION } from '@/lib/phone';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
@@ -94,7 +95,8 @@ function NewOrderForm() {
   const [consignee, setConsignee] = useState<PartySelection>({ id: '', name: '' });
   const [carrier, setCarrier]     = useState<CarrierSelection>({ id: '', name: '' });
   const [driver, setDriver]       = useState<DriverChoice>({
-    driverId: null, driverName: '', driverPhone: '', driverLicenseStoragePath: null,
+    driverId: null, driverName: '', driverPhone: '',
+    driverPhoneRegion: DEFAULT_RECORD_REGION, driverLicenseStoragePath: null,
   });
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
@@ -140,7 +142,10 @@ function NewOrderForm() {
   /** A driver belongs to one carrier, so changing the carrier drops the driver. */
   function handleCarrierPicked(selection: CarrierSelection) {
     setCarrier(selection);
-    setDriver({ driverId: null, driverName: '', driverPhone: '', driverLicenseStoragePath: null });
+    setDriver({
+      driverId: null, driverName: '', driverPhone: '',
+      driverPhoneRegion: DEFAULT_RECORD_REGION, driverLicenseStoragePath: null,
+    });
   }
 
   function cacheParty(p: Party) {
@@ -230,6 +235,7 @@ function NewOrderForm() {
         driverId:     driver.driverId,
         driverName:   driver.driverName,
         driverPhone:  driver.driverPhone,
+        driverPhoneRegion: driver.driverPhoneRegion,
         driverLicenseStoragePath: driver.driverLicenseStoragePath,
         bolStoragePath: null,
         invoiceStoragePath: null,

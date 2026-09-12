@@ -7,6 +7,9 @@ import type { Driver } from '@/types/driver';
 import PersonNameFields from '@/components/PersonNameFields';
 import DateField from '@/components/DateField';
 import FileUploadField from '@/components/FileUploadField';
+import PhoneField from '@/components/PhoneField';
+import { phoneRegionOf } from '@/lib/phone';
+import type { PhoneRegion } from '@/lib/phone';
 
 interface Props {
   carrierId: string;
@@ -47,6 +50,7 @@ export default function DriverFormModal({
 
   const [name, setName]               = useState(driver?.name ?? prefillName);
   const [phone, setPhone]             = useState(driver?.phone ?? '');
+  const [phoneRegion, setPhoneRegion] = useState<PhoneRegion | undefined>(driver?.phoneRegion);
   const [licenseNumber, setLicenseNo] = useState(driver?.licenseNumber ?? '');
   const [licenseExpiration, setExpiry] = useState(toDateInput(driver?.licenseExpiration));
   const [licenseStoragePath, setLicensePath] = useState<string | null>(driver?.licenseStoragePath ?? null);
@@ -62,6 +66,7 @@ export default function DriverFormModal({
         carrierId,
         name:  name.trim(),
         phone: phone.trim(),
+        phoneRegion: phoneRegionOf(phoneRegion),
         licenseNumber: licenseNumber.trim(),
         licenseExpiration: licenseExpiration
           ? Timestamp.fromDate(new Date(licenseExpiration))
@@ -105,11 +110,12 @@ export default function DriverFormModal({
             <div className="col-span-1 sm:col-span-2">
               <PersonNameFields label="Driver Name" value={name} onChange={setName} required />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-                placeholder="(555) 555-5555" className={inputCls} />
-            </div>
+            <PhoneField
+              label="Phone"
+              value={phone}
+              region={phoneRegion}
+              onChange={(v, r) => { setPhone(v); setPhoneRegion(r); }}
+            />
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">CDL Number</label>
               <input value={licenseNumber} onChange={(e) => setLicenseNo(e.target.value)}

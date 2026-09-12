@@ -7,6 +7,9 @@ import type { Carrier } from '@/types/carrier';
 import PersonNameFields from '@/components/PersonNameFields';
 import DateField from '@/components/DateField';
 import InsuranceFileUpload from './InsuranceFileUpload';
+import PhoneField from '@/components/PhoneField';
+import { phoneRegionOf } from '@/lib/phone';
+import type { PhoneRegion } from '@/lib/phone';
 
 /**
  * Quick-add carrier, used from the carrier dropdown on an order.
@@ -37,6 +40,7 @@ export default function QuickAddCarrierModal({
   const [companyName, setCompanyName]       = useState(prefillName);
   const [contactName, setContactName]       = useState('');
   const [phone, setPhone]                   = useState('');
+  const [phoneRegion, setPhoneRegion]       = useState<PhoneRegion | undefined>(undefined);
   const [email, setEmail]                   = useState('');
   const [dot, setDot]                       = useState('');
   const [mc, setMc]                         = useState('');
@@ -54,6 +58,7 @@ export default function QuickAddCarrierModal({
         contactName:           contactName.trim(),
         email:                 email.trim(),
         phone:                 phone.trim(),
+        phoneRegion:           phoneRegionOf(phoneRegion),
         dot:                   dot.trim(),
         mc:                    mc.trim(),
         address:               '',
@@ -107,11 +112,12 @@ export default function QuickAddCarrierModal({
             <div className="col-span-1 sm:col-span-2">
               <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-                placeholder="(555) 555-5555" className={inputCls} />
-            </div>
+            <PhoneField
+              label="Phone"
+              value={phone}
+              region={phoneRegion}
+              onChange={(v, r) => { setPhone(v); setPhoneRegion(r); }}
+            />
             <div className="col-span-1 sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}

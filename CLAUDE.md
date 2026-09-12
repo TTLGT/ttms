@@ -317,7 +317,7 @@ scripts cannot import TypeScript either:
 
 | `src/types/party.ts` | mirrored in |
 |---|---|
-| `toPhoneKey()` + `partyPhoneKeys()` | `scripts/import-bats.js`, `scripts/backfill-party-phone-keys.js` |
+| `phoneKeysFor()` + `partyPhoneKeys()` | `scripts/import-bats.js`, `scripts/backfill-party-phone-keys.js` |
 
 | `src/lib/orderViews.ts` | mirrored in |
 |---|---|
@@ -601,6 +601,7 @@ assignment is held in `assignedToEmails` / `memberEmails` and converted by
 - **Comments explain why, not what.** This codebase is unusually well commented on non-obvious decisions, and that is the main reason it is handoverable. Match that density. When you make a non-obvious call, leave the reasoning.
 - Data access belongs in `src/lib/`, never inline in a page component.
 - **Every date shown on screen goes through `src/lib/dateFormat.ts`** — in a component, via `useDateFormatters()`. The format is a company-wide setting (`appSettings/general.dateFormat`, Settings → Operations → Date Format), so a page that formats its own dates silently ignores the setting. That is exactly what the old per-page `formatDate` copies did. The PDFs, the agreement emails and the public `sign/[token]` page deliberately stay on the spelled-out "March 4, 2020": they leave the company, and a slashed date is two different days depending on the reader.
+- **Phone numbers are typed into `src/components/PhoneField.tsx`, and shown through `src/components/PhoneValue.tsx`.** The field carries the country beside the number (US, Mexico, Canada, Guatemala — `RECORD_PHONE_REGIONS` in `src/lib/phone.ts`, defaulting to US); the display dials it and offers a copy button. **The country is never guessed from the digits** — Mexican and US numbers are both ten digits and Canada shares the US country code, so the field a number was typed into is the only thing that says which country it is. A record with no region reads as US through `phoneRegionOf()`; do not read the raw field. Adding a country is an entry in `REGIONS`, a branch in the format switch, and a line in each table below it.
 - **Dates are typed into `src/components/DateField.tsx`, never `<input type="date">`.** A native date input takes its format from the browser's language, which is neither the setting nor anything the app can read. `DateField` keeps the same `YYYY-MM-DD` in/out contract, so it drops straight in, and its calendar button still opens the native picker. `parseDateInput()` in `dateFormat.ts` resolves a typed `3/4/2020` using the company setting, and refuses it as ambiguous when the setting is the spelled-month one — same rule as the spreadsheet importer, for the same reason.
 - Types in `src/types/`, one file per domain object, with domain helpers (`toNameKey`, `partyDisplayName`, `isUnowned`, `isBroker`) beside them.
 - Tailwind only; brand colors are `brand-*` tokens in `tailwind.config.ts`. Rajdhani is the display face for TTMS branding, Inter for body.

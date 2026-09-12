@@ -11,6 +11,7 @@ import type { RoleFlags } from '@/lib/accessControl';
 import { resolveOwnerFilter } from '@/lib/ownerFilter';
 import { callerIp, labelOwners, ownerTargets, writeOwnerEvents } from '@/lib/ownership';
 import { toNameKey, partyPhoneKeys } from '@/types/party';
+import { phoneRegionOf } from '@/lib/phone';
 
 /**
  * The parties the caller may see. Filtering happens here, never in the browser.
@@ -123,6 +124,11 @@ export async function POST(req: NextRequest) {
     const roles  = Array.isArray(body.roles) ? body.roles : [];
     const phone  = String(body.phone  ?? '').trim();
     const phone2 = String(body.phone2 ?? '').trim();
+    // Checked against the catalog rather than trusted: an unknown string here
+    // would file the number under a country that has no code or length, and
+    // phoneKeysFor() would key it as though it were American.
+    const phoneRegion  = phoneRegionOf(body.phoneRegion);
+    const phone2Region = phoneRegionOf(body.phone2Region);
 
     // Co-owners named on the creation form. Validated rather than trusted; see
     // coOwnersFrom() for what a caller is and is not allowed to name.
@@ -152,14 +158,16 @@ export async function POST(req: NextRequest) {
       nameKey:        key,
       contacts:       [],
       phone,
+      phoneRegion,
       email:          String(body.email ?? '').trim(),
       // A second number and address for the same contact — a mobile beside a
       // switchboard, an AP inbox beside a personal one.
       phone2,
+      phone2Region,
       email2:         String(body.email2 ?? '').trim(),
       // Written at creation rather than backfilled, so a party is findable by
       // phone from its first save. See partyPhoneKeys() for the contract.
-      phoneKeys:      partyPhoneKeys({ phone, phone2 }),
+      phoneKeys:      partyPhoneKeys({ phone, phone2, phoneRegion, phone2Region }),
       address:        body.address ?? { street: '', city: '', state: '', zip: '', country: 'US' },
       roles,
       defaultOrigin:  null,

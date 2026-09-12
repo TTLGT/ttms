@@ -171,7 +171,7 @@ function CarriersList() {
                     {!c.dot && !c.mc && '—'}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700">{c.contactName || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600"><PhoneValue value={c.phone} /></td>
+                  <td className="px-4 py-3 text-sm text-gray-600"><PhoneValue value={c.phone} region={c.phoneRegion} /></td>
                   <td className="px-4 py-3">
                     <InsuranceBadge expiration={c.insuranceExpiration} />
                   </td>

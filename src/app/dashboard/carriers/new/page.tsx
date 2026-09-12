@@ -7,6 +7,9 @@ import { createCarrier } from '@/lib/carriers';
 import PersonNameFields from '@/components/PersonNameFields';
 import DateField from '@/components/DateField';
 import InsuranceFileUpload from '@/components/carriers/InsuranceFileUpload';
+import PhoneField from '@/components/PhoneField';
+import { phoneRegionOf } from '@/lib/phone';
+import type { PhoneRegion } from '@/lib/phone';
 
 export default function NewCarrierPage() {
   const router = useRouter();
@@ -17,6 +20,7 @@ export default function NewCarrierPage() {
   const [contactName, setContactName]           = useState('');
   const [email, setEmail]                       = useState('');
   const [phone, setPhone]                       = useState('');
+  const [phoneRegion, setPhoneRegion]           = useState<PhoneRegion | undefined>(undefined);
   const [dot, setDot]                           = useState('');
   const [mc, setMc]                             = useState('');
   const [insuranceProvider, setInsProvider]     = useState('');
@@ -37,6 +41,7 @@ export default function NewCarrierPage() {
         contactName:          contactName.trim(),
         email:                email.trim(),
         phone:                phone.trim(),
+        phoneRegion:          phoneRegionOf(phoneRegion),
         dot:                  dot.trim(),
         mc:                   mc.trim(),
         address:              '',
@@ -87,11 +92,12 @@ export default function NewCarrierPage() {
             <div className="col-span-1 sm:col-span-2">
               <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-                placeholder="(555) 555-5555" className={inputCls} />
-            </div>
+            <PhoneField
+              label="Phone"
+              value={phone}
+              region={phoneRegion}
+              onChange={(v, r) => { setPhone(v); setPhoneRegion(r); }}
+            />
             <div className="col-span-1 sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}

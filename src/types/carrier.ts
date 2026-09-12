@@ -1,4 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
+import type { PhoneRegion } from '@/lib/phone';
 
 export interface Carrier {
   id: string;
@@ -13,15 +14,24 @@ export interface Carrier {
   contactName: string;
   email: string;
   phone: string;
+  /**
+   * Which country `phone` is in. Absent on every carrier written before the
+   * picker existed — read it through `phoneRegionOf()`, which answers US.
+   */
+  phoneRegion?: PhoneRegion;
   dot: string;
   mc: string;
   address: string;
   fax: string;
   dispatcher: string;
   dispatcherPhone: string;
+  /** Which country `dispatcherPhone` is in. Same contract as `phoneRegion`. */
+  dispatcherPhoneRegion?: PhoneRegion;
   dispatcherEmail: string;
   billingContact: string;
   billingPhone: string;
+  /** Which country `billingPhone` is in. Same contract as `phoneRegion`. */
+  billingPhoneRegion?: PhoneRegion;
   billingEmail: string;
   insuranceExpiration: Timestamp | null;
   insuranceProvider: string;

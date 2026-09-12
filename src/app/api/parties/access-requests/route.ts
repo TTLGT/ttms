@@ -3,7 +3,7 @@ import { FieldValue, adminDb, AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller, ownerLabel, ownersFor } from '@/lib/partyAccess';
 import { canSeeParty } from '@/lib/accessControl';
 import { pendingForDecider } from '@/lib/accessRequests';
-import { PARTY_ROLES, toNameKey, toPhoneKey } from '@/types/party';
+import { PARTY_ROLES, toNameKey, phoneSearchKeys } from '@/types/party';
 import type { PartyRole } from '@/types/party';
 
 const COL = 'partyAccessRequests';
@@ -80,14 +80,14 @@ export async function POST(req: NextRequest) {
       if (!doc.exists) return bad('That record no longer exists.', 404);
       snap = doc;
     } else if (phone) {
-      const key = toPhoneKey(phone);
-      if (!key) return bad('That is too short to be a phone number.');
+      const keys = phoneSearchKeys(phone);
+      if (keys.length === 0) return bad('That is too short to be a phone number.');
       // The caller never received an id from the lookup — deliberately, so a
       // number cannot be turned into a record they can attach to an order — so
       // the number is resolved again here. Only a record they cannot already
       // see is worth asking about; one they can is not a request at all.
       const found = await adminDb.collection('parties')
-        .where('phoneKeys', 'array-contains', key)
+        .where('phoneKeys', 'array-contains-any', keys)
         .limit(8)
         .get();
       const locked = found.docs.filter((d) => !canSeeParty(d.data(), caller.uid, caller.profile));

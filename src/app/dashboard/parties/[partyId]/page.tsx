@@ -18,6 +18,8 @@ import OrderLink from '@/components/orders/OrderLink';
 import NoAccessPanel from '@/components/access/NoAccessPanel';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import PhoneValue from '@/components/PhoneValue';
+import PhoneField from '@/components/PhoneField';
+import type { PhoneRegion } from '@/lib/phone';
 import LeadSourceField from '@/components/orders/LeadSourceField';
 import { canEditSource } from '@/lib/accessControl';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
@@ -109,8 +111,10 @@ export default function PartyDetailPage() {
   const [companyName, setCompanyName] = useState('');
   const [contactName, setContactName] = useState('');
   const [phone, setPhone]             = useState('');
+  const [phoneRegion, setPhoneRegion] = useState<PhoneRegion | undefined>(undefined);
   const [email, setEmail]             = useState('');
   const [phone2, setPhone2]           = useState('');
+  const [phone2Region, setPhone2Region] = useState<PhoneRegion | undefined>(undefined);
   const [email2, setEmail2]           = useState('');
   const [address, setAddress]         = useState<Address>(BLANK_ADDRESS);
   const [defaultOrigin, setOrigin]    = useState<Address>(BLANK_ADDRESS);
@@ -171,8 +175,10 @@ export default function PartyDetailPage() {
     setCompanyName(party.companyName ?? '');
     setContactName(party.contactName ?? '');
     setPhone(party.phone ?? '');
+    setPhoneRegion(party.phoneRegion);
     setEmail(party.email ?? '');
     setPhone2(party.phone2 ?? '');
+    setPhone2Region(party.phone2Region);
     setEmail2(party.email2 ?? '');
     setAddress(party.address ?? BLANK_ADDRESS);
     setOrigin(party.defaultOrigin ?? BLANK_ADDRESS);
@@ -225,11 +231,15 @@ export default function PartyDetailPage() {
         companyName,
         contactName,
         phone,
+        // Sent with the number so updateParty re-keys against the right
+        // country — the same digits filed as Guatemalan are different keys.
+        phoneRegion,
         email,
         // Sent even when unchanged so updateParty rebuilds phoneKeys off the
         // pair. A number edited without its key rewritten leaves the record
         // findable only under the number it used to have.
         phone2,
+        phone2Region,
         email2,
         address,
         defaultOrigin: hasAny(defaultOrigin) ? defaultOrigin : null,
@@ -357,23 +367,25 @@ export default function PartyDetailPage() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
               <p className="text-xs text-gray-400 mt-1">Used as the display name when there is no company.</p>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-            </div>
+            <PhoneField
+              label="Phone"
+              value={phone}
+              region={phoneRegion}
+              onChange={(v, r) => { setPhone(v); setPhoneRegion(r); }}
+            />
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
               <p className="text-xs text-gray-400 mt-1">Agreements and load confirmations are sent here.</p>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Secondary phone</label>
-              <input value={phone2} onChange={(e) => setPhone2(e.target.value)} inputMode="tel"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              <p className="text-xs text-gray-400 mt-1">Searchable the same way the main number is.</p>
-            </div>
+            <PhoneField
+              label="Secondary phone"
+              value={phone2}
+              region={phone2Region}
+              onChange={(v, r) => { setPhone2(v); setPhone2Region(r); }}
+              hint="Searchable the same way the main number is."
+            />
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Secondary email</label>
               <input type="email" value={email2} onChange={(e) => setEmail2(e.target.value)}
@@ -472,9 +484,9 @@ export default function PartyDetailPage() {
         <section className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
           <dl className="grid grid-cols-1 sm:grid-cols-3 gap-y-4 gap-x-6 text-sm">
             <Detail label="Contact"  value={party.contactName} />
-            <Detail label="Phone"    value={<PhoneValue value={party.phone} />} />
+            <Detail label="Phone"    value={<PhoneValue value={party.phone} region={party.phoneRegion} />} />
             <Detail label="Email"    value={party.email} />
-            <Detail label="Secondary phone" value={<PhoneValue value={party.phone2} label="secondary phone" />} />
+            <Detail label="Secondary phone" value={<PhoneValue value={party.phone2} region={party.phone2Region} label="secondary phone" />} />
             <Detail label="Secondary email" value={party.email2} />
             <Detail label="Address"  value={formatAddress(party.address)} />
             <Detail label="Default pickup"   value={formatAddress(party.defaultOrigin)} />

@@ -372,6 +372,32 @@ function toPhoneKey(raw) {
   return digits.slice(-10);
 }
 
+/**
+ * Mirror of phoneKeysFor() in src/types/party.ts. Keep the two identical.
+ *
+ * One number is filed under several keys — the national form, the
+ * international one, and the legacy last-ten — because those are the ways it
+ * gets typed into a search box. The region defaults to US here: every record
+ * this script touches is American, and anything else is set in the app.
+ */
+const PHONE_CODES   = { US: '1', CA: '1', MX: '52', GT: '502' };
+const PHONE_LENGTHS = { US: 10,  CA: 10,  MX: 10,   GT: 8 };
+
+function phoneKeysFor(raw, region) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length < 7) return [];
+
+  const r        = PHONE_CODES[region] ? region : 'US';
+  const code     = PHONE_CODES[r];
+  const national = PHONE_LENGTHS[r];
+
+  const bare = digits.length === code.length + national && digits.startsWith(code)
+    ? digits.slice(code.length)
+    : digits;
+
+  return Array.from(new Set([bare, code + bare, toPhoneKey(raw)].filter(Boolean)));
+}
+
 function toNameKey(raw) {
   let out = String(raw || '')
     .toLowerCase()
@@ -971,9 +997,10 @@ async function flushParties(reg, now) {
       phone:         d.phone,
       email:         d.email,
       // The party phone lookup queries this, the same way the search box
-      // queries searchTerms. BATS gives a party one number, so there is only
-      // ever the one key; a second number added in the app joins it there.
-      phoneKeys:     [toPhoneKey(d.phone)].filter(Boolean),
+      // queries searchTerms. BATS gives a party one number, and no country
+      // with it — the records are American, which is what phoneKeysFor's
+      // default says. A second number added in the app joins these keys.
+      phoneKeys:     phoneKeysFor(d.phone),
       address:       d.address || { street: '', city: '', state: '', zip: '', country: '' },
       roles:         [...merged].sort(),
       defaultOrigin: d.defaultOrigin,

@@ -345,7 +345,10 @@ export async function updateParty(
   const patch: Record<string, unknown> = { ...data, updatedAt: serverTimestamp() };
   for (const field of OWNERSHIP_FIELDS) delete patch[field];
 
-  const touchesPhone = data.phone !== undefined || data.phone2 !== undefined;
+  // A country changing without the number changing still re-keys: the same
+  // digits filed as Guatemalan rather than American are different keys.
+  const touchesPhone = data.phone !== undefined || data.phone2 !== undefined
+    || data.phoneRegion !== undefined || data.phone2Region !== undefined;
   const touchesName  = data.companyName !== undefined || data.contactName !== undefined;
 
   // Both derived keys are built from a pair of fields and a patch may carry
@@ -363,8 +366,10 @@ export async function updateParty(
     // Same contract as nameKey: a phone changed without its key rewritten
     // leaves the party findable only under the number it used to have.
     patch.phoneKeys = partyPhoneKeys({
-      phone:  data.phone  ?? saved?.phone  ?? '',
-      phone2: data.phone2 ?? saved?.phone2 ?? '',
+      phone:        data.phone        ?? saved?.phone        ?? '',
+      phone2:       data.phone2       ?? saved?.phone2       ?? '',
+      phoneRegion:  data.phoneRegion  ?? saved?.phoneRegion,
+      phone2Region: data.phone2Region ?? saved?.phone2Region,
     });
   }
 

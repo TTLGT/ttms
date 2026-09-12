@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     const entry = entrySnap.data() ?? {};
 
     // The stored form of what they asked for, so the inbox compares like with
-    // like — "+(469) 935-4100 → +(469) 935-4100" is a request for nothing, and
+    // like — "+1 (469) 935-4100 → +1 (469) 935-4100" is a request for nothing, and
     // it only reads that way once both sides have been through the formatter.
     const normalized = String(plan.patch[field] ?? '');
     const current    = String(entry[field] ?? '');

@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { listDriversForCarrier } from '@/lib/drivers';
 import { driverDisplayName, getLicenseStatus } from '@/types/driver';
+import { phoneRegionOf } from '@/lib/phone';
+import type { PhoneRegion } from '@/lib/phone';
 import type { Driver } from '@/types/driver';
 import DriverFormModal from './DriverFormModal';
 
@@ -11,6 +13,8 @@ export interface DriverChoice {
   driverId: string | null;
   driverName: string;
   driverPhone: string;
+  /** Copied with the number so the load dials it as the right country. */
+  driverPhoneRegion: PhoneRegion;
   /** Only offered when the driver record carries one; never clears the load's own. */
   driverLicenseStoragePath: string | null;
 }
@@ -68,7 +72,10 @@ export default function DriverPicker({ carrierId, value, onPick, hint }: Props) 
     if (picked === ONE_OFF) {
       // Unlinks without wiping what is already typed on the load — the name
       // in the box is usually right, it just is not one of these records.
-      onPick({ driverId: null, driverName: '', driverPhone: '', driverLicenseStoragePath: null });
+      onPick({
+        driverId: null, driverName: '', driverPhone: '',
+        driverPhoneRegion: phoneRegionOf(undefined), driverLicenseStoragePath: null,
+      });
       return;
     }
     const driver = drivers.find((d) => d.id === picked);
@@ -77,6 +84,7 @@ export default function DriverPicker({ carrierId, value, onPick, hint }: Props) 
       driverId:    driver.id,
       driverName:  driver.name,
       driverPhone: driver.phone,
+      driverPhoneRegion: phoneRegionOf(driver.phoneRegion),
       driverLicenseStoragePath: driver.licenseStoragePath ?? null,
     });
   }
@@ -88,6 +96,7 @@ export default function DriverPicker({ carrierId, value, onPick, hint }: Props) 
       driverId:    driver.id,
       driverName:  driver.name,
       driverPhone: driver.phone,
+      driverPhoneRegion: phoneRegionOf(driver.phoneRegion),
       driverLicenseStoragePath: driver.licenseStoragePath ?? null,
     });
   }

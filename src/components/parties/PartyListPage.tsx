@@ -233,7 +233,13 @@ function PartyList({ role, title, blurb }: Props) {
                     <td className="px-4 py-3 text-sm font-semibold text-gray-900">{partyDisplayName(p)}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{p.contactName || primary?.name || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">
-                      <PhoneValue value={p.phone || primary?.phone} />
+                      <PhoneValue
+                        value={p.phone || primary?.phone}
+                        // A contact's own number has no country beside it, so
+                        // it falls back to the record's — the right guess when
+                        // a contact sits at the company they belong to.
+                        region={p.phoneRegion}
+                      />
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{p.email || primary?.email || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">

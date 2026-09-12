@@ -1,5 +1,6 @@
 /**
- * Give every party a `phoneKeys` array — its phone numbers reduced to digits —
+ * Give every party a `phoneKeys` array — its phone numbers reduced to digits,
+ * one number filing several keys since countries arrived —
  * so a client, shipper or consignee can be found by the number that rang in.
  *
  * Why this is needed: Firestore can only match a whole field value, so
@@ -70,10 +71,38 @@ function toPhoneKey(raw) {
   return digits.slice(-10);
 }
 
+/**
+ * Mirror of phoneKeysFor() in src/types/party.ts. Keep the two identical.
+ *
+ * One number is filed under several keys — the national form, the
+ * international one, and the legacy last-ten — because those are the ways it
+ * gets typed into a search box. The region defaults to US here: every record
+ * this script touches is American, and anything else is set in the app.
+ */
+const PHONE_CODES   = { US: '1', CA: '1', MX: '52', GT: '502' };
+const PHONE_LENGTHS = { US: 10,  CA: 10,  MX: 10,   GT: 8 };
+
+function phoneKeysFor(raw, region) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length < 7) return [];
+
+  const r        = PHONE_CODES[region] ? region : 'US';
+  const code     = PHONE_CODES[r];
+  const national = PHONE_LENGTHS[r];
+
+  const bare = digits.length === code.length + national && digits.startsWith(code)
+    ? digits.slice(code.length)
+    : digits;
+
+  return Array.from(new Set([bare, code + bare, toPhoneKey(raw)].filter(Boolean)));
+}
+
 /** Mirror of partyPhoneKeys() in src/types/party.ts. */
 function partyPhoneKeys(data) {
-  const keys = [toPhoneKey(data.phone), toPhoneKey(data.phone2)].filter(Boolean);
-  return Array.from(new Set(keys));
+  return Array.from(new Set([
+    ...phoneKeysFor(data.phone,  data.phoneRegion),
+    ...phoneKeysFor(data.phone2, data.phone2Region),
+  ]));
 }
 
 const sameKeys = (a, b) =>

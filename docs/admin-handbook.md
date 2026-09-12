@@ -277,7 +277,7 @@ they are allowed to open.
    rest can be added later.
    - **Phone numbers tidy themselves up.** Type a US number any way you like —
      `4699354100`, `(469) 935-4100`, `+1 469-935-4100` — and it is saved as
-     **+(469) 935-4100**. You will see the field change as you tab out of it.
+     **+1 (469) 935-4100**. You will see the field change as you tab out of it.
    - **Other phone** is for someone's number in their home country. Pick the
      country from the dropdown beside the box, then type the number: Guatemala
      saves as **+(502) 4874-0227** and Mexico as **+(52) 55 1234-5678**. Change
@@ -822,7 +822,7 @@ typing each person in.
    | First name, Last name | The name the office uses. |
    | **Full legal name** | The payroll name, if it differs. Admin and HR only. Leave blank when it is just their first and last name. |
    | Personal email | Any address. Admin and HR only. |
-   | Work phone (US) | Typed however you like — `4699354100`, `(469) 935-4100` and `+1 469-935-4100` all save as `+(469) 935-4100`. Needs 10 digits. |
+   | Work phone (US) | Typed however you like — `4699354100`, `(469) 935-4100` and `+1 469-935-4100` all save as `+1 (469) 935-4100`. Needs 10 digits. |
    | Guatemala phone, Mexico phone | The person's home-country number. A spreadsheet has no dropdown, so there is a column per country and the **heading** is what says which country the digits are. Fill in the one that applies and leave the other blank — a row with something in both is refused, because a person has one of these, not two. Guatemala needs 8 digits, Mexico 10. |
    | Extension | Typed however you like. Keep it out of the phone columns — a number with an extension stuck on the end has too many digits and will be left out. |
    | Site | The site's **name**, spelled as it appears under Sites. Write `None` to clear it. |

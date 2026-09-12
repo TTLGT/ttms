@@ -55,6 +55,9 @@ carriers/{carrierId}
   contactName           : string
   email                 : string
   phone                 : string
+  phoneRegion           : 'US'|'CA'|'MX'|'GT'   // absent = US; see phoneRegionOf()
+  dispatcherPhoneRegion : 'US'|'CA'|'MX'|'GT'
+  billingPhoneRegion    : 'US'|'CA'|'MX'|'GT'
   dot                   : string          // DOT number
   mc                    : string          // MC/FF number
   insuranceExpiration   : Timestamp       // drive the expiry-alert badge
@@ -87,6 +90,7 @@ drivers/{driverId}
   name               : string
   nameKey            : string          // name lowercased, for matching — see driverNameKey()
   phone              : string
+  phoneRegion        : 'US'|'CA'|'MX'|'GT'   // absent = US; see phoneRegionOf()
   licenseNumber      : string          // CDL as printed; not validated, states differ
   licenseExpiration  : Timestamp | null
   licenseStoragePath : string | null   // under driver-licenses/, same prefix orders use
@@ -147,6 +151,7 @@ orders/{orderId}
   driverId        : string | null   // the drivers/{id} record, when picked from the carrier's list
   driverName      : string
   driverPhone     : string
+  driverPhoneRegion : 'US'|'CA'|'MX'|'GT'  // copied from the driver record with the number
   driverLicenseStoragePath : string | null  // Firebase Storage path for DL upload
   agreedRate      : number          // USD
   brokerFee       : number          // USD
@@ -568,18 +573,36 @@ Consequences worth knowing:
 A broker takes a call and types the number that rang in — the habit BATS built.
 Firestore can only match a whole field value, so `4695769974` typed against a
 `phone` saved as `+1 (469) 576-9974` matches nothing. Each party therefore
-stores `phoneKeys`: both of its numbers reduced to their last ten digits by
-`toPhoneKey()` in `src/types/party.ts`. The lookup is then one `array-contains`
-query, which needs no composite index — Firestore indexes array fields for
-`array-contains` on its own.
+stores `phoneKeys`: both of its numbers reduced to digits by `phoneKeysFor()`
+in `src/types/party.ts`. The lookup is then one `array-contains-any` query,
+which needs no composite index — Firestore indexes array fields for those on
+its own.
 
 - **An array, not a field, because a party has two numbers.** `phone` and
   `phone2` both feed it, so either finds the record.
-- **Ten digits, and never a prefix.** Ten is a US number without its country
-  code, so the same person is found however the number was written down. A
-  prefix search would turn the endpoint into a way to walk the customer list an
-  area code at a time, which is exactly what the name endpoint refuses to be;
-  seven digits is the floor and shorter input returns nothing.
+- **Several keys per number, since numbers gained a country.** A number is
+  filed as its national form *and* its international one, because those are the
+  two ways it gets typed: a Guatemalan client is `4874-0227` to whoever rings it
+  weekly and `+502 4874 0227` to whoever copied it off an email. The old
+  last-ten key is stored too — for a US number it already *is* the national
+  form, so re-keying can only add matches, never remove one.
+- **The search side offers every reading, because the box has no country.**
+  `phoneSearchKeys()` turns what was typed into the digits as given, the last
+  ten, each country code stripped, and each country code added, then matches on
+  any of them. Capped at ten values: Firestore rejects a longer
+  `array-contains-any`, and a query that throws is worse than one that looks
+  under nine stones instead of ten.
+- **Never a prefix.** A prefix search would turn the endpoint into a way to
+  walk the customer list an area code at a time, which is exactly what the name
+  endpoint refuses to be; seven digits is the floor and shorter input returns
+  nothing.
+- **The country is stored beside the number, never inferred.** `phoneRegion`
+  and `phone2Region` on a party (and the equivalents on a carrier, a driver and
+  an order's driver phone). Mexican and US numbers are both ten digits and
+  Canada shares the US country code, so the digits cannot say which country
+  they are — see the note at the top of `src/lib/phone.ts`. A record with no
+  region reads as US via `phoneRegionOf()`, which is what every record written
+  before the picker existed relies on.
 - **Anything that writes a party's phone must refresh it.** `/api/parties`
   computes it on create; `updateParty` rebuilds it whenever `phone` or `phone2`
   is in the patch, reading back the half it was not given. A party saved
@@ -592,7 +615,9 @@ query, which needs no composite index — Firestore indexes array fields for
   the owner's name to go and ask — never the record or its id. Near misses are
   logged to `partyAccessProbes` with `via: 'phone'`, beside the name probes.
 - Existing parties predate the field; `scripts/backfill-party-phone-keys.js`
-  fills them in (`--dry-run` first).
+  fills them in (`--dry-run` first), and `scripts/backfill-phone-regions.js`
+  stamps `US` on the numbers stored before a country could be chosen. Run the
+  region one first, so the keys are rebuilt from a region the record carries.
 
 **Adding an index is about adding a new *way of asking*, not a bigger
 collection.** These serve the app at any size; a new filter or a new

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller, toVisibleParty, ownerLabel } from '@/lib/partyAccess';
 import { canSeeParty } from '@/lib/accessControl';
-import { toPhoneKey } from '@/types/party';
+import { phoneSearchKeys } from '@/types/party';
 
 /** Enough to show a chooser; a number matching more than this is a shared line. */
 const MAX_MATCHES = 8;
@@ -35,15 +35,18 @@ export async function POST(req: NextRequest) {
     const caller = await requireCaller(req);
     const body   = await req.json().catch(() => ({}));
     const typed  = String(body.phone ?? '').trim();
-    const key    = toPhoneKey(typed);
+    // Every reading of what was typed — the number as given, and with each
+    // country code taken off or put on. A record is filed under several keys
+    // for the same reason; see phoneKeysFor().
+    const keys = phoneSearchKeys(typed);
 
-    if (!key) {
+    if (keys.length === 0) {
       return NextResponse.json({ matches: [], owned: [], searched: false });
     }
 
     const snap = await adminDb
       .collection('parties')
-      .where('phoneKeys', 'array-contains', key)
+      .where('phoneKeys', 'array-contains-any', keys)
       .limit(MAX_MATCHES)
       .get();
 

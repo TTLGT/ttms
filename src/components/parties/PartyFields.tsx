@@ -11,6 +11,9 @@ import type { Address } from '@/types/order';
 import type { UserProfile } from '@/types/userProfile';
 import type { WorkGroup } from '@/types/workGroup';
 import PersonNameFields from '@/components/PersonNameFields';
+import PhoneField from '@/components/PhoneField';
+import { DEFAULT_RECORD_REGION } from '@/lib/phone';
+import type { PhoneRegion } from '@/lib/phone';
 import LeadSourceField from '@/components/orders/LeadSourceField';
 
 const US_STATES = [
@@ -31,8 +34,12 @@ export interface PartyDraft {
   companyName: string;
   contactName: string;
   phone: string;
+  /** Which country `phone` is in. Defaults to US; see lib/phone.ts. */
+  phoneRegion: PhoneRegion;
   email: string;
   phone2: string;
+  /** Which country `phone2` is in. */
+  phone2Region: PhoneRegion;
   email2: string;
   address: Address;
   roles: PartyRole[];
@@ -48,8 +55,10 @@ export function blankPartyDraft(role: PartyRole): PartyDraft {
     companyName: '',
     contactName: '',
     phone: '',
+    phoneRegion: DEFAULT_RECORD_REGION,
     email: '',
     phone2: '',
+    phone2Region: DEFAULT_RECORD_REGION,
     email2: '',
     address: { ...BLANK_ADDRESS },
     roles: [role],
@@ -218,11 +227,15 @@ export default function PartyFields({
           {errors.contactName && <p className="text-xs text-red-600 mt-1">{errors.contactName}</p>}
         </div>
 
-        <Field label="Phone" error={errors.phone}>
-          <input value={value.phone} onChange={(e) => set('phone', e.target.value)}
-            inputMode="tel" placeholder="(469) 576-9974"
-            className={errors.phone ? badCls : inputCls} />
-        </Field>
+        <div className="col-span-1">
+          <PhoneField
+            label="Phone"
+            value={value.phone}
+            region={value.phoneRegion}
+            onChange={(v, r) => onChange({ ...value, phone: v, phoneRegion: r })}
+          />
+          {errors.phone && <p className="text-xs text-red-600 mt-1">{errors.phone}</p>}
+        </div>
 
         <Field label="Email" error={errors.email}
           hint="Agreements and load confirmations are sent here.">
@@ -230,10 +243,14 @@ export default function PartyFields({
             className={errors.email ? badCls : inputCls} />
         </Field>
 
-        <Field label="Secondary phone (optional)">
-          <input value={value.phone2} onChange={(e) => set('phone2', e.target.value)}
-            inputMode="tel" className={inputCls} />
-        </Field>
+        <div className="col-span-1">
+          <PhoneField
+            label="Secondary phone (optional)"
+            value={value.phone2}
+            region={value.phone2Region}
+            onChange={(v, r) => onChange({ ...value, phone2: v, phone2Region: r })}
+          />
+        </div>
 
         <Field label="Secondary email (optional)">
           <input type="email" value={value.email2} onChange={(e) => set('email2', e.target.value)}
