@@ -418,6 +418,15 @@ export interface Order {
   pickedUpAt: Timestamp | null;
   carrierId: string | null;
   carrierName: string;
+  /**
+   * The driver record this load was run with, when it was picked from the
+   * carrier's drivers rather than typed in. Optional and nullable on purpose:
+   * every order written before `drivers` existed has no such field, and a
+   * one-off driver typed straight onto a load is still valid — see the note at
+   * the top of src/types/driver.ts for why the name and phone below stay on
+   * the order regardless.
+   */
+  driverId?: string | null;
   driverName: string;
   driverPhone: string;
   driverLicenseStoragePath: string | null;

@@ -60,13 +60,62 @@ carriers/{carrierId}
   insuranceExpiration   : Timestamp       // drive the expiry-alert badge
   insuranceProvider     : string
   insurancePolicyNumber : string
+  insuranceStoragePath  : string | null   // certificate of insurance in Storage, under carrier-insurance/
   isActive              : boolean
   notes                 : string
   createdAt             : Timestamp
   updatedAt             : Timestamp
 ```
 
-> **Subcollection:** `carriers/{carrierId}/documents` — carrier-level docs (insurance certs, W-9s)
+> **Subcollection:** `carriers/{carrierId}/documents` — described here but never built, like the
+> order-level one. The certificate of insurance is a Storage file instead, and the carrier document
+> holds its path in `insuranceStoragePath`. Anything else a carrier needs to carry (a W-9, say)
+> should follow the same shape rather than reviving the subcollection.
+
+---
+
+## Collection: `drivers`
+
+The people a carrier sends. Each record belongs to exactly one carrier; a driver
+who runs for two carriers is two records, because that is what a broker is
+actually tracking — this carrier's roster, not a person's employment history.
+
+```
+drivers/{driverId}
+  id                 : string
+  carrierId          : string          // the carrier this driver runs for
+  name               : string
+  nameKey            : string          // name lowercased, for matching — see driverNameKey()
+  phone              : string
+  licenseNumber      : string          // CDL as printed; not validated, states differ
+  licenseExpiration  : Timestamp | null
+  licenseStoragePath : string | null   // under driver-licenses/, same prefix orders use
+  isActive           : boolean         // false = retired; never deleted, so old loads still name them
+  notes              : string
+  createdAt          : Timestamp
+  updatedAt          : Timestamp
+```
+
+**The order keeps its own `driverName` and `driverPhone`.** `orders.driverId`
+is the link back to this record, and it is nullable: a one-off driver typed
+straight onto a load is still valid, and every order predating this collection
+has no link at all. The name and phone are copied onto the load on purpose — a
+BOL, an agreement and a signed PDF record what was true on the day, so
+correcting a typo in a driver's phone number must not rewrite paperwork that
+has already left the building.
+
+Gated by the **carrier** permissions (`carriers.view` / `carriers.edit`) rather
+than ones of their own: a driver is part of the answer to "who is this carrier
+and can they haul this", and a second pair of keys would mean re-granting every
+role that can already open a carrier. Written from the browser through
+`src/lib/drivers.ts`, like carriers and for the same reason — drivers are not
+owned records, so there is no visibility union for a server to work out.
+
+`scripts/backfill-drivers.js` seeds this collection from the drivers already
+named on existing orders, grouping by carrier and normalized name, and sets
+`driverId` on those orders (`--dry-run` first). It deliberately does not merge
+"M. Delgado" into "Mike Delgado" — filing a licence against the wrong driver is
+worse than a duplicate row somebody can retire.
 
 ---
 
@@ -95,6 +144,7 @@ orders/{orderId}
   pickupDate      : Timestamp | null
   deliveryDate    : Timestamp | null
   carrierId       : string | null   // → carriers/{carrierId}; null until assigned
+  driverId        : string | null   // the drivers/{id} record, when picked from the carrier's list
   driverName      : string
   driverPhone     : string
   driverLicenseStoragePath : string | null  // Firebase Storage path for DL upload
@@ -450,6 +500,7 @@ page boundary and be served twice or skipped.
 |------------|------------------------------|----------|
 | carriers | `isActive` ASC + `companyName` ASC | Browsing carriers with "show inactive" off |
 | carriers | `isActive` ASC + `nameKey` ASC | Carrier name search with "show inactive" off |
+| drivers  | `carrierId` ASC + `name` ASC | A carrier's drivers, on its Drivers tab and in the picker on a load |
 | orders   | `carrierId` ASC + `createdAt` DESC | A carrier's loads; the driver prefill lookup |
 | orders   | `clientId` ASC + `createdAt` DESC | A party's orders, as client |
 | orders   | `consigneeId` ASC + `createdAt` DESC | A party's orders, as consignee |
@@ -544,7 +595,7 @@ query, which needs no composite index — Firestore indexes array fields for
   fills them in (`--dry-run` first).
 
 **Adding an index is about adding a new *way of asking*, not a bigger
-collection.** These sixteen serve the app at any size; a new filter or a new
+collection.** These serve the app at any size; a new filter or a new
 sort column is what would need a seventeenth.
 
 ### Recommended — not currently required by any code path
@@ -848,7 +899,7 @@ evidence behind "this campaign brought in these loads".
 - `allowedUsers` and `users` are never writable from the client — all changes go through the Admin SDK, so nobody can self-promote to admin.
 - `agreements` documents may be written by unauthenticated signers **only** via a secure Cloud Function that validates a one-time token — never directly from the client SDK.
 - Storage rules cannot read Firestore, so they gate on the `ttlAccess` custom claim that `/api/auth/session` stamps at sign-in.
-- Because of that, the rules cannot tell one staff account from another. Order paperwork — `bols/`, `invoices/`, `pods/` — is therefore **write-only** in `storage.rules` and read only through `GET /api/orders/{id}/document`, which applies `canSeeOrder()` with the Admin SDK and returns a signed URL good for two hours. `driver-licenses/` stays readable to any allowlisted account on purpose: a licence is checked at pickup and delivery by people who are not on the load.
+- Because of that, the rules cannot tell one staff account from another. Order paperwork — `bols/`, `invoices/`, `pods/` — is therefore **write-only** in `storage.rules` and read only through `GET /api/orders/{id}/document`, which applies `canSeeOrder()` with the Admin SDK and returns a signed URL good for two hours. `driver-licenses/` stays readable to any allowlisted account on purpose: a licence is checked at pickup and delivery by people who are not on the load. `carrier-insurance/` is readable on the same argument — a certificate is the carrier's own document, with no rate or client on it — and both prefixes exclude interns, the one role that cannot open a load or a carrier at all.
 - A `partyAccessRequests` approval takes one of two forms, `grantKind`. `once` (the default, and every request decided before the field existed) lends the record for a single order and then expires. `ownership` adds the requester to the party's owners via `changeOwners()` + `syncClientOwners()`, so they get every order it is the **client** on — admins and dispatchers only, and deliberately ignored by `approvedPartyIds()`/`findApproval()` so that removing them from the record actually removes their access.
 - `orderAccessRequests` is the order-side twin of `partyAccessRequests`: same shape, same closed writes, same read rule. An approved one lends a read of one load for a period the approver picks — 24 hours through 30 days, or no expiry — applied in `/api/orders` only and invisible to `orderVisible()` in the rules. It can be revoked early from Approvals, and never makes the requester an owner. Expiry is enforced at read time via `isGrantLive()`, so a lapsed grant still stores `status: 'approved'`; nothing should read that field to decide access.
 - Because licences are open to everyone, `GET /api/documents/licenses` lists them company-wide — the one listing that deliberately reaches past `canSeeOrder()`. Rows for loads the caller cannot see carry the order number, the licence and the owner's name, chat uid and US work number, and **no shipper, client, rate or dates**. It is the only route that redacts rather than filters, so widening its field list is a decision, not a tidy-up.

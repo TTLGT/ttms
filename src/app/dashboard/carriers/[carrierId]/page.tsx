@@ -9,8 +9,14 @@ import PersonNameFields from '@/components/PersonNameFields';
 import { listOrders } from '@/lib/orders';
 import type { Carrier } from '@/types/carrier';
 import type { Order } from '@/types/order';
-import { orderDisplayNumber } from '@/types/order';
+import OrderLink from '@/components/orders/OrderLink';
+import PhoneValue from '@/components/PhoneValue';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
+import InsuranceFileUpload from '@/components/carriers/InsuranceFileUpload';
+import DriverFormModal from '@/components/carriers/DriverFormModal';
+import { listDriversForCarrier } from '@/lib/drivers';
+import { driverDisplayName, driverNameKey, getLicenseStatus } from '@/types/driver';
+import type { Driver } from '@/types/driver';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import StatusBadge from '@/components/orders/StatusBadge';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -42,7 +48,13 @@ export default function CarrierDetailPage() {
   const [editing, setEditing]   = useState(false);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState('');
-  const [tab, setTab]           = useState<'details' | 'orders'>('details');
+  const [tab, setTab]           = useState<'details' | 'drivers' | 'orders'>('details');
+
+  // Drivers on file for this carrier. Loaded alongside the record rather than
+  // when the tab is opened, so the tab label can carry the count.
+  const [drivers, setDrivers]           = useState<Driver[]>([]);
+  const [editingDriver, setEditDriver]  = useState<Driver | null>(null);
+  const [addingDriver, setAddingDriver] = useState(false);
 
   // edit fields
   const [companyName, setCompanyName]           = useState('');
@@ -62,6 +74,11 @@ export default function CarrierDetailPage() {
   const [insProvider, setInsProvider]           = useState('');
   const [insPolicyNo, setInsPolicyNo]           = useState('');
   const [insExpiry, setInsExpiry]               = useState('');
+  // Not part of the edit buffer below: the certificate saves the moment it is
+  // uploaded, because the file is already in the bucket by then and a Cancel
+  // that dropped the reference would leave it there unreachable.
+  const [insFile, setInsFile]                   = useState<string | null>(null);
+  const [insFileError, setInsFileError]         = useState('');
   const [isActive, setIsActive]                 = useState(true);
   const [notes, setNotes]                       = useState('');
 
@@ -83,6 +100,7 @@ export default function CarrierDetailPage() {
     setInsProvider(c.insuranceProvider ?? '');
     setInsPolicyNo(c.insurancePolicyNumber ?? '');
     setInsExpiry(toDateInput(c.insuranceExpiration));
+    setInsFile(c.insuranceStoragePath ?? null);
     setIsActive(c.isActive ?? true);
     setNotes(c.notes ?? '');
   }
@@ -97,6 +115,7 @@ export default function CarrierDetailPage() {
         // in the company to show one carrier's loads took about seventeen
         // seconds; this is a single indexed query.
         setOrders(await listOrders({ carrierId }));
+        setDrivers(await listDriversForCarrier(carrierId).catch(() => []));
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Failed to load');
       } finally {
@@ -106,6 +125,42 @@ export default function CarrierDetailPage() {
     load();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carrierId]);
+
+  /**
+   * How many of this carrier's loads a driver has run.
+   *
+   * Counted off the orders already loaded for the Orders tab, so it costs no
+   * further reads. Matched on `driverId` where the load has one, and on the
+   * name otherwise — every load written before drivers existed names its
+   * driver in text only, and those are exactly the loads worth showing here.
+   */
+  function loadCount(driver: Driver): number {
+    const key = driverNameKey(driver.name);
+    return orders.filter((o) => (
+      o.driverId ? o.driverId === driver.id : driverNameKey(o.driverName ?? '') === key
+    )).length;
+  }
+
+  function handleDriverSaved(saved: Driver) {
+    setDrivers((prev) => {
+      const without = prev.filter((d) => d.id !== saved.id);
+      return [...without, saved].sort((a, b) => a.name.localeCompare(b.name));
+    });
+    setAddingDriver(false);
+    setEditDriver(null);
+  }
+
+  /** Writes the certificate straight through — see the state note above. */
+  async function handleInsuranceFile(path: string | null) {
+    setInsFile(path);
+    setInsFileError('');
+    try {
+      await updateCarrier(carrierId, { insuranceStoragePath: path });
+      setCarrier((prev) => (prev ? { ...prev, insuranceStoragePath: path } : prev));
+    } catch (e: unknown) {
+      setInsFileError(e instanceof Error ? e.message : 'Failed to save the certificate');
+    }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -211,12 +266,14 @@ export default function CarrierDetailPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
-        {(['details', 'orders'] as const).map((t) => (
+        {(['details', 'drivers', 'orders'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition ${
               tab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}>
-            {t === 'orders' ? `Orders (${orders.length})` : 'Details'}
+            {t === 'orders'  ? `Orders (${orders.length})`
+              : t === 'drivers' ? `Drivers (${drivers.length})`
+              : 'Details'}
           </button>
         ))}
       </div>
@@ -231,7 +288,7 @@ export default function CarrierDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {[
                   ['Contact', carrier.contactName],
-                  ['Phone', carrier.phone],
+                  ['Phone', <PhoneValue key="phone" value={carrier.phone} />],
                   ['Email', carrier.email],
                   ['Address', carrier.address],
                   ['Fax', carrier.fax],
@@ -307,7 +364,7 @@ export default function CarrierDetailPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {[
                     ['Name', carrier.dispatcher],
-                    ['Phone', carrier.dispatcherPhone],
+                    ['Phone', <PhoneValue key="phone" value={carrier.dispatcherPhone} label="dispatcher phone" />],
                     ['Email', carrier.dispatcherEmail],
                   ].map(([label, val]) => (
                     <div key={label as string}>
@@ -342,7 +399,7 @@ export default function CarrierDetailPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {[
                     ['Name', carrier.billingContact],
-                    ['Phone', carrier.billingPhone],
+                    ['Phone', <PhoneValue key="phone" value={carrier.billingPhone} label="billing phone" />],
                     ['Email', carrier.billingEmail],
                   ].map(([label, val]) => (
                     <div key={label as string}>
@@ -414,6 +471,18 @@ export default function CarrierDetailPage() {
                 </div>
               </div>
             )}
+
+            {/* Shown in both modes, and saved on the spot rather than with the
+                rest of the form. */}
+            <div className="mt-6 pt-4 border-t border-gray-100">
+              <p className="text-xs text-gray-500 mb-1.5">Certificate of Insurance</p>
+              <InsuranceFileUpload
+                carrierId={carrierId}
+                value={insFile}
+                onChange={handleInsuranceFile}
+              />
+              {insFileError && <p className="text-xs text-red-500 mt-1">{insFileError}</p>}
+            </div>
           </section>
 
           {/* Notes */}
@@ -429,6 +498,87 @@ export default function CarrierDetailPage() {
             </section>
           ) : null}
         </div>
+      )}
+
+      {/* Drivers tab */}
+      {tab === 'drivers' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-500">
+              The people this carrier sends. Picking one on a load copies their name and phone
+              onto it, so paperwork already sent stays as it was.
+            </p>
+            <button onClick={() => setAddingDriver(true)}
+              className="px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition flex-shrink-0 ml-4">
+              + Add Driver
+            </button>
+          </div>
+
+          {drivers.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+              <p className="text-sm text-gray-400">No drivers on file for this carrier yet.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                You can also add one while assigning this carrier to a load.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-100">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {['Driver', 'Phone', 'CDL', 'Licence Expires', 'Loads', ''].map((h) => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {drivers.map((d) => {
+                    const status = getLicenseStatus(d.licenseExpiration);
+                    return (
+                      <tr key={d.id} className={`hover:bg-gray-50 transition ${d.isActive ? '' : 'opacity-60'}`}>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                          {driverDisplayName(d)}
+                          {!d.isActive && <span className="ml-2 text-xs font-normal text-gray-500">retired</span>}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          <PhoneValue value={d.phone} label="driver phone" />
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{d.licenseNumber || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          <span className="flex items-center gap-2">
+                            {formatDate(d.licenseExpiration as { toDate: () => Date } | null)}
+                            {status === 'expired' && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700">Expired</span>
+                            )}
+                            {status === 'expiring_soon' && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">Expiring</span>
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{loadCount(d)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <button onClick={() => setEditDriver(d)}
+                            className="text-xs text-brand-600 hover:underline font-medium">
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(addingDriver || editingDriver) && (
+        <DriverFormModal
+          carrierId={carrierId}
+          driver={editingDriver}
+          onSaved={handleDriverSaved}
+          onCancel={() => { setAddingDriver(false); setEditDriver(null); }}
+        />
       )}
 
       {/* Orders tab */}
@@ -451,7 +601,7 @@ export default function CarrierDetailPage() {
                 <tbody className="divide-y divide-gray-100">
                   {orders.map((o) => (
                     <tr key={o.id} className="hover:bg-gray-50 transition">
-                      <td className="px-4 py-3 text-sm font-mono font-medium text-brand-700">{orderDisplayNumber(o)}</td>
+                      <td className="px-4 py-3 text-sm"><OrderLink order={o} /></td>
                       <td className="px-4 py-3 text-sm text-gray-700">{o.shipperName || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {o.origin?.city}, {o.origin?.state} → {o.destination?.city}, {o.destination?.state}

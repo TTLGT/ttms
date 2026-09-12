@@ -9,6 +9,7 @@ import { viewAllPermission } from '@/lib/accessControl';
 import { personHref } from '@/lib/directoryProfile';
 import { partyDisplayName, ROLE_LABEL } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
+import PhoneValue from '@/components/PhoneValue';
 
 interface Props {
   role: PartyRole;
@@ -231,7 +232,9 @@ function PartyList({ role, title, blurb }: Props) {
                   <tr key={p.id} className="hover:bg-gray-50 transition">
                     <td className="px-4 py-3 text-sm font-semibold text-gray-900">{partyDisplayName(p)}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{p.contactName || primary?.name || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{p.phone || primary?.phone || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      <PhoneValue value={p.phone || primary?.phone} />
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-600">{p.email || primary?.email || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {p.address?.city && p.address?.state ? `${p.address.city}, ${p.address.state}` : p.address?.city || '—'}

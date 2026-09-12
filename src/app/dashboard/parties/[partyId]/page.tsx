@@ -17,6 +17,7 @@ import StatusBadge from '@/components/orders/StatusBadge';
 import OrderLink from '@/components/orders/OrderLink';
 import NoAccessPanel from '@/components/access/NoAccessPanel';
 import CopyLinkButton from '@/components/CopyLinkButton';
+import PhoneValue from '@/components/PhoneValue';
 import LeadSourceField from '@/components/orders/LeadSourceField';
 import { canEditSource } from '@/lib/accessControl';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
@@ -471,9 +472,9 @@ export default function PartyDetailPage() {
         <section className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
           <dl className="grid grid-cols-1 sm:grid-cols-3 gap-y-4 gap-x-6 text-sm">
             <Detail label="Contact"  value={party.contactName} />
-            <Detail label="Phone"    value={party.phone} />
+            <Detail label="Phone"    value={<PhoneValue value={party.phone} />} />
             <Detail label="Email"    value={party.email} />
-            <Detail label="Secondary phone" value={party.phone2} />
+            <Detail label="Secondary phone" value={<PhoneValue value={party.phone2} label="secondary phone" />} />
             <Detail label="Secondary email" value={party.email2} />
             <Detail label="Address"  value={formatAddress(party.address)} />
             <Detail label="Default pickup"   value={formatAddress(party.defaultOrigin)} />
@@ -551,7 +552,7 @@ export default function PartyDetailPage() {
   );
 }
 
-function Detail({ label, value }: { label: string; value: string | null | undefined }) {
+function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <dt className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</dt>

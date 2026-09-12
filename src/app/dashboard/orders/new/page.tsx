@@ -8,6 +8,10 @@ import { createOrder } from '@/lib/orders';
 import { listParties, tagPartyRole, recordPartyApproval } from '@/lib/parties';
 import PartyCombobox from '@/components/parties/PartyCombobox';
 import type { PartySelection } from '@/components/parties/PartyCombobox';
+import CarrierCombobox from '@/components/carriers/CarrierCombobox';
+import type { CarrierSelection } from '@/components/carriers/CarrierCombobox';
+import DriverPicker from '@/components/carriers/DriverPicker';
+import type { DriverChoice } from '@/components/carriers/DriverPicker';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
@@ -88,6 +92,10 @@ function NewOrderForm() {
   const [client, setClient]       = useState<PartySelection>({ id: '', name: '' });
   const [shipper, setShipper]     = useState<PartySelection>({ id: '', name: '' });
   const [consignee, setConsignee] = useState<PartySelection>({ id: '', name: '' });
+  const [carrier, setCarrier]     = useState<CarrierSelection>({ id: '', name: '' });
+  const [driver, setDriver]       = useState<DriverChoice>({
+    driverId: null, driverName: '', driverPhone: '', driverLicenseStoragePath: null,
+  });
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
 
@@ -129,6 +137,12 @@ function NewOrderForm() {
     }
   }, [parties, searchParams]);
 
+  /** A driver belongs to one carrier, so changing the carrier drops the driver. */
+  function handleCarrierPicked(selection: CarrierSelection) {
+    setCarrier(selection);
+    setDriver({ driverId: null, driverName: '', driverPhone: '', driverLicenseStoragePath: null });
+  }
+
   function cacheParty(p: Party) {
     setParties((prev) => (prev.some((x) => x.id === p.id) ? prev : [...prev, p]));
   }
@@ -157,6 +171,13 @@ function NewOrderForm() {
       ['client', client], ['shipper', shipper], ['consignee', consignee],
     ] as const);
     if (unbound.length) { setError(unboundMessage(unbound)); return; }
+    // Same rule for the carrier, for the same reason: a name with no record
+    // behind it has no email for the agreement and no insurance date to check.
+    if (!carrier.id && carrier.name.trim()) {
+      setError(`Carrier "${carrier.name.trim()}" is not on file yet. Pick one from the list, `
+        + 'or add it with its details.');
+      return;
+    }
 
     setError('');
     setSaving(true);
@@ -197,11 +218,19 @@ function NewOrderForm() {
         firstAvailablePickup: firstAvailable ? (new Date(firstAvailable) as unknown as import('firebase/firestore').Timestamp) : null,
         pickupDate:   pickupDate   ? (new Date(pickupDate)   as unknown as import('firebase/firestore').Timestamp) : null,
         deliveryDate: deliveryDate ? (new Date(deliveryDate) as unknown as import('firebase/firestore').Timestamp) : null,
-        carrierId:    null,
-        carrierName:  '',
-        driverName:   '',
-        driverPhone:  '',
-        driverLicenseStoragePath: null,
+        // Booking the truck at the same time as the load is normal here, so
+        // the carrier can be set now. The status still starts at quote: a
+        // carrier lined up is not the client agreeing to the rate, and
+        // advancing to carrier_assigned would skip booked and report the load
+        // as further along than it is.
+        carrierId:    carrier.id || null,
+        carrierName:  carrier.name.trim(),
+        // Only ever set from a driver record here — the free-text driver
+        // fields stay on the load screen, where the licence upload is.
+        driverId:     driver.driverId,
+        driverName:   driver.driverName,
+        driverPhone:  driver.driverPhone,
+        driverLicenseStoragePath: driver.driverLicenseStoragePath,
         bolStoragePath: null,
         invoiceStoragePath: null,
         podStoragePath: null,
@@ -358,6 +387,35 @@ function NewOrderForm() {
               value={routeMapUrl}
               onChange={setRouteMapUrl}
             />
+          </section>
+
+          {/* Carrier */}
+          <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Carrier</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Optional. Set it now if the truck is already lined up, or leave it and assign one
+                from the load afterwards. Choosing a carrier lets you name the driver too; the
+                licence upload and the rate confirmation are handled on the load itself.
+              </p>
+            </div>
+            <div className="sm:max-w-md">
+              <CarrierCombobox
+                label="Carrier"
+                value={carrier}
+                onChange={handleCarrierPicked}
+              />
+            </div>
+            {carrier.id && (
+              <div className="sm:max-w-md">
+                <DriverPicker
+                  carrierId={carrier.id}
+                  value={driver.driverId}
+                  onPick={setDriver}
+                  hint="Optional. The driver's licence is uploaded on the load itself."
+                />
+              </div>
+            )}
           </section>
 
           {/* Financials */}

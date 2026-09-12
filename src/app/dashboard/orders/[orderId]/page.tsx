@@ -36,6 +36,9 @@ import type { Timestamp } from 'firebase/firestore';
 import StatusBadge from '@/components/orders/StatusBadge';
 import DriverLicenseUpload from '@/components/orders/DriverLicenseUpload';
 import QuickAddCarrierModal from '@/components/carriers/QuickAddCarrierModal';
+import DriverPicker from '@/components/carriers/DriverPicker';
+import PhoneValue from '@/components/PhoneValue';
+import type { DriverChoice } from '@/components/carriers/DriverPicker';
 import PartyLink from '@/components/parties/PartyLink';
 import PersonNameFields from '@/components/PersonNameFields';
 import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload';
@@ -85,6 +88,8 @@ function formatCurrency(n: number | undefined): string {
 }
 
 interface DriverDetails {
+  /** The driver record the previous load was linked to, when it had one. */
+  driverId: string | null;
   driverName: string;
   driverPhone: string;
   driverLicenseStoragePath: string | null;
@@ -95,10 +100,15 @@ interface DriverDetails {
 /**
  * Driver details from the most recent other order run with this carrier.
  *
- * There is no drivers collection — a driver only exists as three fields on an
- * order — so "the driver we used last time" has to be read back out of order
- * history. The page arrives sorted by createdAt desc, so the first hit is the
- * most recent one.
+ * Kept now that `drivers` exists, rather than replaced by it: the answer to
+ * "who drove this carrier's last load" is a fact about the load, and the
+ * carrier's driver list cannot say which of five drivers it was. What changed
+ * is that the previous load usually carries a `driverId` too, so the link
+ * comes along with the name instead of having to be picked again. Loads
+ * predating the drivers collection have none, and prefill the text alone.
+ *
+ * The page arrives sorted by createdAt desc, so the first hit is the most
+ * recent one.
  *
  * Asks for that carrier's recent loads rather than scanning every order in the
  * company — this used to read the whole collection, which is ten thousand
@@ -116,6 +126,7 @@ async function lastDriverForCarrier(
   );
   if (!prev) return null;
   return {
+    driverId:    prev.driverId ?? null,
     driverName:  prev.driverName ?? '',
     driverPhone: prev.driverPhone ?? '',
     driverLicenseStoragePath: prev.driverLicenseStoragePath ?? null,
@@ -193,6 +204,9 @@ export default function OrderDetailPage() {
   // carrier assignment state
   const [assigningCarrier, setAssigningCarrier] = useState(false);
   const [selectedCarrierId, setSelectedCarrierId] = useState('');
+  // The driver record this load is linked to, when one was picked. The name
+  // and phone below stay the load's own — see the note in src/types/driver.ts.
+  const [driverId, setDriverId]       = useState<string | null>(null);
   const [driverName, setDriverName]   = useState('');
   const [driverPhone, setDriverPhone] = useState('');
   const [driverLicensePath, setDriverLicensePath] = useState<string | null>(null);
@@ -423,6 +437,7 @@ export default function OrderDetailPage() {
 
   function openCarrierAssign() {
     setSelectedCarrierId(order?.carrierId ?? '');
+    setDriverId(order?.driverId ?? null);
     setDriverName(order?.driverName ?? '');
     setDriverPhone(order?.driverPhone ?? '');
     setDriverLicensePath(order?.driverLicenseStoragePath ?? null);
@@ -440,6 +455,10 @@ export default function OrderDetailPage() {
     }
     const carrierId = e.target.value;
     setSelectedCarrierId(carrierId);
+    // A driver belongs to one carrier, so the link cannot survive the carrier
+    // changing. The typed name and phone are left alone — applyDriverPrefill
+    // decides those, and they may well be right.
+    if (carrierId !== selectedCarrierId) setDriverId(null);
     if (!carrierId) {
       applyDriverPrefill(null);
       return;
@@ -465,6 +484,10 @@ export default function OrderDetailPage() {
 
     if (isOursOrEmpty(driverName, prefill?.driverName)) {
       setDriverName(next?.driverName ?? '');
+      // The link travels with the name, never on its own: a driverId beside a
+      // name the user typed themselves would file this load under the wrong
+      // driver.
+      setDriverId(next?.driverId ?? null);
     }
     if (isOursOrEmpty(driverPhone, prefill?.driverPhone)) {
       setDriverPhone(next?.driverPhone ?? '');
@@ -475,6 +498,26 @@ export default function OrderDetailPage() {
 
     setPrefill(next);
     setPrefillSource(next?.sourceOrderNumber ?? '');
+  }
+
+  /**
+   * Fill the driver fields from a record on the carrier.
+   *
+   * Overwrites whatever is in them, unlike the prefill above: this one is an
+   * explicit choice rather than a guess, so the guess-preserving rules would
+   * only get in the way. Choosing "not from this carrier's list" clears the
+   * link and leaves the text for whoever is typing it.
+   */
+  function handleDriverPick(choice: DriverChoice) {
+    setDriverId(choice.driverId);
+    if (!choice.driverId) return;
+    setDriverName(choice.driverName);
+    setDriverPhone(choice.driverPhone);
+    // Only if the record has one — a driver with no licence on file must not
+    // wipe a licence already uploaded against this load.
+    if (choice.driverLicenseStoragePath) setDriverLicensePath(choice.driverLicenseStoragePath);
+    setPrefill(null);
+    setPrefillSource('');
   }
 
   function handleCarrierCreated(carrier: Carrier) {
@@ -493,21 +536,19 @@ export default function OrderDetailPage() {
     setError('');
     try {
       const carrier = carriers.find((c) => c.id === selectedCarrierId);
-      await updateOrder(orderId, {
+      const patch = {
         carrierId:   selectedCarrierId || null,
         carrierName: carrier?.companyName ?? '',
+        // Kept only while the name still matches the record it came from.
+        // Typing over the name means a different person is driving, and a
+        // stale link would put this load on the wrong driver's history.
+        driverId:    driverId && driverName.trim() ? driverId : null,
         driverName:  driverName.trim(),
         driverPhone: driverPhone.trim(),
         driverLicenseStoragePath: driverLicensePath,
-      });
-      setOrder({
-        ...order,
-        carrierId:   selectedCarrierId || null,
-        carrierName: carrier?.companyName ?? '',
-        driverName:  driverName.trim(),
-        driverPhone: driverPhone.trim(),
-        driverLicenseStoragePath: driverLicensePath,
-      });
+      };
+      await updateOrder(orderId, patch);
+      setOrder({ ...order, ...patch });
       setAssigningCarrier(false);
       // The carrier is the single most asked-about fact on a load, so it is
       // the one worth the room hearing without anybody having to say it.
@@ -1221,7 +1262,14 @@ export default function OrderDetailPage() {
                     </button>
                   </div>
                 </div>
-                <PersonNameFields label="Driver" value={driverName} onChange={setDriverName} />
+                <DriverPicker
+                  carrierId={selectedCarrierId}
+                  value={driverId}
+                  onPick={handleDriverPick}
+                  hint="Pick one of the carrier's drivers, or type a name below for a one-off."
+                />
+                <PersonNameFields label="Driver" value={driverName}
+                  onChange={(v) => { setDriverName(v); setDriverId(null); }} />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Driver Phone</label>
@@ -1262,7 +1310,7 @@ export default function OrderDetailPage() {
                     : null
                 } />
                 <DetailRow label="Driver" value={order.driverName} />
-                <DetailRow label="Driver Phone" value={order.driverPhone} />
+                <DetailRow label="Driver Phone" value={<PhoneValue value={order.driverPhone} label="driver phone" />} />
                 <DetailRow label="Driver License" value={
                   order.driverLicenseStoragePath
                     ? <DriverLicenseUpload orderId={orderId} existingPath={order.driverLicenseStoragePath} onUploaded={() => {}} readOnly />

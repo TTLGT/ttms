@@ -71,6 +71,17 @@ service firebase.storage {
       allow write: if isAllowedUser() && !isIntern();
     }
 
+    // Carrier certificates of insurance. Readable, unlike the order paperwork
+    // above: a certificate is the carrier's own document and carries no rate,
+    // no client and no margin, and anybody covering a load may have to prove
+    // the truck is insured. That is the same argument the licence prefix makes,
+    // and the same exclusion applies for the same reason — an intern cannot
+    // open Carriers at all, so the bucket should not be a way around it.
+    match /carrier-insurance/{allPaths=**} {
+      allow read:  if isAllowedUser() && !isIntern();
+      allow write: if isAllowedUser() && !isIntern();
+    }
+
     // Chat attachments and profile photos. Both are already gated by what
     // points at them: an attachment path is only written on a message document,
     // which Firestore gates on room membership, and every path carries a random

@@ -26,6 +26,15 @@ export interface Carrier {
   insuranceExpiration: Timestamp | null;
   insuranceProvider: string;
   insurancePolicyNumber: string;
+  /**
+   * Path in the bucket to the certificate of insurance, under
+   * `carrier-insurance/`. Optional because every carrier written before this
+   * field existed — the whole BATS import — has no such key, and a required
+   * `string | null` would be a lie about what comes back from Firestore.
+   * Uploaded and cleared by InsuranceFileUpload; see storage.rules for who may
+   * read it.
+   */
+  insuranceStoragePath?: string | null;
   isActive: boolean;
   notes: string;
   createdAt: Timestamp;

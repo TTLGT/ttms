@@ -7,6 +7,7 @@ import { listCarriersPage, countCarriers } from '@/lib/carriers';
 import type { Carrier } from '@/types/carrier';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
+import PhoneValue from '@/components/PhoneValue';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 
 /** See the orders list for why fifty. */
@@ -170,7 +171,7 @@ function CarriersList() {
                     {!c.dot && !c.mc && '—'}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700">{c.contactName || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{c.phone || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600"><PhoneValue value={c.phone} /></td>
                   <td className="px-4 py-3">
                     <InsuranceBadge expiration={c.insuranceExpiration} />
                   </td>

@@ -6,6 +6,7 @@ import { createCarrier } from '@/lib/carriers';
 import type { Carrier } from '@/types/carrier';
 import PersonNameFields from '@/components/PersonNameFields';
 import DateField from '@/components/DateField';
+import InsuranceFileUpload from './InsuranceFileUpload';
 
 /**
  * Quick-add carrier, used from the carrier dropdown on an order.
@@ -21,22 +22,26 @@ import DateField from '@/components/DateField';
  * because an order should not quietly get a carrier with unknown coverage.
  */
 export default function QuickAddCarrierModal({
+  prefillName = '',
   onCreated,
   onCancel,
 }: {
+  /** The name already typed into the picker that opened this. */
+  prefillName?: string;
   onCreated: (carrier: Carrier) => void;
   onCancel: () => void;
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
 
-  const [companyName, setCompanyName]       = useState('');
+  const [companyName, setCompanyName]       = useState(prefillName);
   const [contactName, setContactName]       = useState('');
   const [phone, setPhone]                   = useState('');
   const [email, setEmail]                   = useState('');
   const [dot, setDot]                       = useState('');
   const [mc, setMc]                         = useState('');
   const [insuranceExpiration, setInsExpiry] = useState('');
+  const [insuranceStoragePath, setInsFile]  = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -64,6 +69,7 @@ export default function QuickAddCarrierModal({
         insuranceExpiration:   insuranceExpiration
           ? Timestamp.fromDate(new Date(insuranceExpiration))
           : null,
+        insuranceStoragePath,
         isActive: true,
         notes:    '',
       };
@@ -126,6 +132,12 @@ export default function QuickAddCarrierModal({
               <label className="block text-xs font-medium text-gray-600 mb-1">Insurance Expiration</label>
               <DateField value={insuranceExpiration} onChange={setInsExpiry}
                 className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Certificate of Insurance</label>
+              {/* No carrier id yet — the file is filed under a draft key and
+                  the path saved with the record below. */}
+              <InsuranceFileUpload carrierId={null} value={insuranceStoragePath} onChange={setInsFile} />
             </div>
           </div>
 

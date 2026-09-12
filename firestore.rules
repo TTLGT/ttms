@@ -563,6 +563,18 @@ service cloud.firestore {
       allow create, update, delete: if can('carriers.edit');
     }
 
+    // Drivers hang off a carrier and are gated by the carrier permissions
+    // rather than ones of their own. A driver is part of the answer to "who is
+    // this carrier and can they haul this" — the same question `carriers.view`
+    // already opens — and minting a second pair of keys would mean every role
+    // that can open a carrier today has to be granted them again before the
+    // Drivers tab works. Deleting stays with `carriers.edit`; the app clears
+    // `isActive` instead, so a past load can still name its driver.
+    match /drivers/{driverId} {
+      allow read: if can('carriers.view');
+      allow create, update, delete: if can('carriers.edit');
+    }
+
     // Orders are owned records, like parties — but closed by default. See
     // orderVisible() above for why an order with no owner stays with the
     // privileged roles instead of falling open to everyone.

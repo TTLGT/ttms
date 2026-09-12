@@ -6,6 +6,7 @@ import { Timestamp } from 'firebase/firestore';
 import { createCarrier } from '@/lib/carriers';
 import PersonNameFields from '@/components/PersonNameFields';
 import DateField from '@/components/DateField';
+import InsuranceFileUpload from '@/components/carriers/InsuranceFileUpload';
 
 export default function NewCarrierPage() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function NewCarrierPage() {
   const [insuranceProvider, setInsProvider]     = useState('');
   const [insurancePolicyNumber, setInsPolicyNo] = useState('');
   const [insuranceExpiration, setInsExpiry]     = useState('');
+  const [insuranceStoragePath, setInsFile]      = useState<string | null>(null);
   const [isActive, setIsActive]                 = useState(true);
   const [notes, setNotes]                       = useState('');
 
@@ -50,6 +52,7 @@ export default function NewCarrierPage() {
         insuranceExpiration:  insuranceExpiration
           ? Timestamp.fromDate(new Date(insuranceExpiration))
           : null,
+        insuranceStoragePath,
         isActive,
         notes: notes.trim(),
       });
@@ -132,6 +135,13 @@ export default function NewCarrierPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Expiration Date</label>
               <DateField value={insuranceExpiration} onChange={setInsExpiry}
                 className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Certificate of Insurance</label>
+              {/* The carrier does not exist yet, so the file is filed under a
+                  draft key and its path saved with the record. */}
+              <InsuranceFileUpload carrierId={null} value={insuranceStoragePath} onChange={setInsFile} />
+              <p className="text-xs text-gray-500 mt-1">PDF or photo, up to 10 MB.</p>
             </div>
           </div>
         </section>

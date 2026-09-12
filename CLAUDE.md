@@ -311,6 +311,10 @@ scripts cannot import TypeScript either:
 |---|---|
 | `carrierNameKey()` | `scripts/import-bats.js`, `scripts/backfill-carrier-name-keys.js` |
 
+| `src/types/driver.ts` | mirrored in |
+|---|---|
+| `driverNameKey()` | `scripts/backfill-drivers.js` |
+
 | `src/types/party.ts` | mirrored in |
 |---|---|
 | `toPhoneKey()` + `partyPhoneKeys()` | `scripts/import-bats.js`, `scripts/backfill-party-phone-keys.js` |
@@ -471,6 +475,15 @@ the shipper on another, the consignee on a third — **the role lives on the
 order, not on the party.** Ownership (`assignedToUids` / `assignedToGroupIds` /
 legacy `assignedToName`) determines visibility; unowned parties are shared
 reference data.
+
+`drivers` hang off a carrier — one record per carrier per person, gated by the
+**carrier** permissions rather than ones of their own. **An order keeps its own
+`driverName` and `driverPhone`**; `driverId` is only a link back, and is null
+for a one-off driver and for every load predating the collection. Do not make
+the order read its driver through the record: a BOL, an agreement and a signed
+PDF are what was true on the day, and correcting a phone number must not
+rewrite paperwork that has already left the building. `scripts/backfill-drivers.js`
+seeds the collection from drivers already named on orders.
 
 `orders` follow `quote → booked → carrier_assigned → shipper_signed →
 carrier_signed → in_transit → delivered → completed`, with `cancelled` a
