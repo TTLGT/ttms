@@ -295,6 +295,11 @@ Changing one without the other creates a silent security hole:
 | `NON_DELEGABLE` in `/api/admin/users` | the same array in `settings/people/page.tsx` |
 | `isConversationMember()` in `src/types/conversation.ts` | `inConversation()` |
 | `MAX_PINNED` in `src/types/conversation.ts` | the count in the `pinned` branch of the conversation update rule |
+| `roomAdminUids()` in `src/types/conversation.ts` | `roomAdmins()` — the `createdBy` fallback, written out |
+| `isRoomAdmin()` in `src/types/conversation.ts` | `isRoomBoss()` — including the `kind == 'group'` test |
+| `roomAllows()` + the `RoomPolicy` keys | `roomAllows()` — the keys and the `everyone` default, written out |
+| `isMuted()` / `mutedUntil` | `notMuted()` |
+| `containsLink()` in `src/types/conversation.ts` | the link pattern in `maySay()`, in RE2 |
 
 The owner matcher is duplicated three ways for the same reason — plain node
 scripts cannot import TypeScript either:
@@ -545,6 +550,54 @@ through `/api/chat/conversations`. Chat crosses none of the ownership
 boundaries: everyone on the allowlist is staff, and staff can talk to staff.
 Nothing else in the app should copy the live-read pattern without the same
 argument.
+
+**A room can be governed, and half of that lives in the rules because it has
+to.** A `group` room names its `adminUids` and carries a `policy` of six
+switches (`post`, `membership`, `details`, `files`, `links`, `pins`), each
+`everyone` or `admins`, plus `mutedUntil` — one deadline per silenced person.
+**Every key is optional and absent means `everyone`**, which is what let this
+ship onto live rooms with no backfill and no deploy order.
+
+The split in where each switch is enforced is not arbitrary and must be kept:
+
+- `post`, `files`, `links`, `pins` and every mute are enforced in
+  `firestore.rules` (`maySay()`, `notMuted()`, `roomAllows()`), because
+  messages are written from the browser. A check that lives only in the
+  composer is a suggestion.
+- `membership` and `details` are enforced in
+  `PATCH /api/chat/conversations/{id}`, which is the only thing allowed to
+  write `memberUids`, `adminUids`, `policy` or `mutedUntil` at all.
+
+Two invariants the rules lean on, kept by that route rather than hoped for:
+**`adminUids` never names a non-member**, so an empty list means "nobody left
+who runs this" and opens the room to everybody in it; and **it is never empty
+while the room has members** — the last admin cannot leave without naming a
+successor (`DELETE` answers 409 with the candidates). A room from before this
+existed has no `adminUids` at all and falls back to `createdBy`; the route
+normalises it on the first save.
+
+**A mute always has a deadline**, applied when it is read rather than by
+anything scheduled — there is no scheduler here, and the worst failure this
+could have is a mute that outlived its clock because a job did not fire. Same
+shape and same reason as `isGrantLive()` on an order access grant. Never add a
+mute with no expiry.
+
+The **Everyone room** has no membership to name admins in, so `policy.post` on
+it is gated by the `chat.announce` permission — admin and HR by default. It is
+the only policy key that reaches that room, and the route reads nothing else
+from the body for it.
+
+A **room admin can take back somebody else's message**, and only take it back:
+the rules let `text` go to empty and nowhere else down that branch, so it can
+never become a way to rewrite what a colleague said. The tombstone records
+`deletedByUid` / `deletedByName` and says "Removed by X", because an author who
+sees a bare "Message deleted" assumes they did it themselves.
+
+Changes to any of this write a `memberEvents` entry beside the membership ones
+and post one line in the room — **except a mute, which is recorded but never
+announced.** Saying "Vivian muted Tom until Friday" in front of eleven
+colleagues is a larger and different act from stopping Tom writing for a day,
+and not the one the admin chose.
 
 **An approved access request lends visibility that the rules cannot see.**
 `partyAccessRequests` and `orderAccessRequests` each grant a read that

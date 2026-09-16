@@ -3,7 +3,7 @@ import { FieldValue, adminDb, AdminAuthError, requireCompanyUser } from '@/lib/f
 import { requireCaller } from '@/lib/partyAccess';
 import { readOrder } from '@/lib/orderAccess';
 import { openedAlert, postOrderAlert } from '@/lib/chatAlerts';
-import { MAX_ROOM_NAME, validMembers, writeMembershipChange } from '@/lib/chatServer';
+import { MAX_ROOM_NAME, validMembers, writeRoomChange } from '@/lib/chatServer';
 import { orderDisplayNumber } from '@/types/order';
 import {
   COMPANY_CONVERSATION_ID,
@@ -220,12 +220,39 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Add at least one other person.' }, { status: 400 });
       }
 
+      /*
+       * An announcements room, set up in one decision instead of five.
+       *
+       * It is not a fifth kind of conversation — it is an ordinary room whose
+       * policy is written at birth, which is the whole reason the policy is a
+       * set of switches rather than a room type. Somebody who turns the post
+       * switch back to everyone a month later has an ordinary room again, with
+       * its history intact, and nothing anywhere has to know that it used to
+       * be something else.
+       *
+       * Nobody is muted to achieve it. A mute is about one person; "only
+       * admins write here" is about the room, and doing it with a list of
+       * mutes would mean a list that has to be extended by hand every time
+       * somebody joins — and a new hire who could post for the ten minutes
+       * before anybody noticed.
+       *
+       * Pinning goes with it: an announcements room whose pin bar anybody can
+       * rewrite is only half quiet.
+       */
+      const announcements = body.announcements === true;
+
       const ref   = adminDb.collection(COL).doc();
       const batch = adminDb.batch();
       batch.set(ref, {
         kind:        'group',
         name,
         memberUids,
+        // Whoever opened the room runs it until they say otherwise. Written
+        // outright rather than left to the `createdBy` fallback in
+        // roomAdminUids(), which exists for the rooms that predate this.
+        adminUids:   [caller.uid],
+        policy:      announcements ? { post: 'admins', pins: 'admins' } : {},
+        mutedUntil:  {},
         createdBy:   caller.uid,
         createdAt:   FieldValue.serverTimestamp(),
         updatedAt:   FieldValue.serverTimestamp(),
@@ -233,8 +260,8 @@ export async function POST(req: NextRequest) {
       });
       // The membership the room opened with, so its history starts where the
       // room did rather than at whatever the first edit happened to be. Silent
-      // — see writeMembershipChange.
-      await writeMembershipChange(
+      // — see writeRoomChange.
+      await writeRoomChange(
         batch, ref,
         { created: memberUids },
         { uid: caller.uid, name: caller.displayName },

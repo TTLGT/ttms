@@ -24,8 +24,12 @@ import MessageBubble from './MessageBubble';
 import MessageComposer from './MessageComposer';
 import PinnedBar from './PinnedBar';
 import SystemMessage from './SystemMessage';
+import { can } from '@/lib/accessControl';
 import {
+  isRoomAdmin,
   isThreadUnread,
+  postingBlock,
+  roomAllows,
   type Attachment,
   type ChatMessage,
   type Conversation,
@@ -110,6 +114,25 @@ export default function MessageThread({ conversation }: { conversation: Conversa
     uid:         myUid,
     displayName: profile?.displayName || user?.displayName || user?.email || 'Someone',
   };
+
+  /*
+   * What this room lets this person do.
+   *
+   * Every one of these is decided again by `firestore.rules`, which is where
+   * it counts — messages go to Firestore straight from the browser, so none of
+   * this is a gate. It is here so the screen tells the truth: a Send button
+   * that works and then fails, or a Pin that silently does nothing, teaches
+   * people that the app is broken rather than that the room has rules.
+   *
+   * `announcer` is only ever consulted for the Everyone room; see
+   * `chat.announce` in src/types/permission.ts.
+   */
+  const asAdmin   = { announcer: can(profile, 'chat.announce') };
+  const iAmAdmin  = isRoomAdmin(conversation, myUid, asAdmin);
+  const blocked   = postingBlock(conversation, myUid, asAdmin);
+  const mayAttach = roomAllows(conversation, 'files', myUid, asAdmin);
+  const mayLink   = roomAllows(conversation, 'links', myUid, asAdmin);
+  const mayPin    = roomAllows(conversation, 'pins',  myUid, asAdmin);
 
   /** Which messages this room has pinned, read off the live conversation. */
   const pinnedHere = Object.keys(conversation.pinned ?? {});
@@ -326,9 +349,14 @@ export default function MessageThread({ conversation }: { conversation: Conversa
         Icon: Link2,
         onSelect: () => void copyMessageLink(m.id),
       },
-      // Anybody in the room, on anybody's message: what is worth keeping at
-      // the top of a room is rarely something you said yourself.
-      {
+    ];
+
+    // Anybody in the room, on anybody's message: what is worth keeping at the
+    // top of a room is rarely something you said yourself. Unless the room's
+    // admins have said otherwise — in which case it is not offered at all,
+    // rather than offered and refused by the rules.
+    if (mayPin) {
+      actions.push({
         key:   'pin',
         label: pinnedHere.includes(m.id) ? 'Unpin from room' : 'Pin to room',
         Icon:  pinnedHere.includes(m.id) ? PinOff : Pin,
@@ -340,8 +368,8 @@ export default function MessageThread({ conversation }: { conversation: Conversa
               .catch((e) => setError(e instanceof Error ? e.message : 'That did not pin.'));
           }
         },
-      },
-    ];
+      });
+    }
 
     // Only from a room, and only on someone else's message: a private reply is
     // addressed to whoever wrote it, so there is nobody to address on your own,
@@ -368,6 +396,27 @@ export default function MessageThread({ conversation }: { conversation: Conversa
           }).catch(() => {}),
         },
       );
+    } else if (iAmAdmin) {
+      /*
+       * A room admin taking somebody else's message down.
+       *
+       * Taking down, never editing: the admin branch in the rules lets `text`
+       * go to empty and nowhere else, so this cannot become a way to put words
+       * in a colleague's mouth. The tombstone names who did it, which is why
+       * the caller's identity is passed rather than inferred — a message that
+       * just said "deleted" would leave its author assuming they had done it.
+       *
+       * The reason this exists at all is the load rate pasted into the wrong
+       * room, where the person who has to act is whoever saw it rather than
+       * whoever typed it.
+       */
+      actions.push({
+        key: 'remove', label: 'Remove this message', Icon: Trash2, danger: true,
+        onSelect: () => void deleteMessage(conversationId, m.id, {
+          isLastMessage: messages[messages.length - 1]?.id === m.id,
+          as: senderIdentity,
+        }).catch(() => setError('That message could not be removed.')),
+      });
     }
     return actions;
   }
@@ -569,6 +618,9 @@ export default function MessageThread({ conversation }: { conversation: Conversa
         replyingTo={replyingTo}
         onCancelReply={() => setReplyingTo(null)}
         notice={error}
+        blocked={blocked}
+        allowFiles={mayAttach}
+        allowLinks={mayLink}
         onSend={handleSend}
       />
 

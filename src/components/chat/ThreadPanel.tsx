@@ -21,7 +21,11 @@ import PersonCard from './PersonCard';
 import ActionMenu, { type MenuAction } from './ActionMenu';
 import MessageBubble from './MessageBubble';
 import MessageComposer from './MessageComposer';
+import { can } from '@/lib/accessControl';
 import {
+  isRoomAdmin,
+  postingBlock,
+  roomAllows,
   type Attachment,
   type ChatMessage,
   type Conversation,
@@ -103,6 +107,21 @@ export default function ThreadPanel({
     uid:         myUid,
     displayName: profile?.displayName || user?.displayName || user?.email || 'Someone',
   };
+
+  /*
+   * The room's rules, applied inside its threads.
+   *
+   * A thread is not a quieter room with a law of its own: somebody muted in a
+   * room who could still answer in a thread under it has not been muted, and
+   * the rules take the same view — see the `replies` create rule, which calls
+   * the same maySay() the room's messages do.
+   */
+  const asAdmin   = { announcer: can(profile, 'chat.announce') };
+  const iAmAdmin  = isRoomAdmin(conversation, myUid, asAdmin);
+  const blocked   = postingBlock(conversation, myUid, asAdmin);
+  const mayAttach = roomAllows(conversation, 'files', myUid, asAdmin);
+  const mayLink   = roomAllows(conversation, 'links', myUid, asAdmin);
+  const mayPin    = roomAllows(conversation, 'pins',  myUid, asAdmin);
 
   /* --------------------------------------------------------------- loading */
 
@@ -229,9 +248,26 @@ export default function ThreadPanel({
           ).catch((e) => setError(e instanceof Error ? e.message : 'That did not pin.')),
         };
 
-    if (m.senderUid !== myUid) return [pin];
+    // Not offered at all in a room whose admins keep the pin bar to
+    // themselves, rather than offered and then refused by the rules.
+    const base = mayPin ? [pin] : [];
+
+    if (m.senderUid !== myUid) {
+      // A room admin can take a reply down as well as a message. What is said
+      // inside a thread is as reachable as what is said in the room, and an
+      // admin who could clear one but not the other would have to ask where a
+      // message was before knowing whether they could act on it.
+      return iAmAdmin
+        ? [...base, {
+            key: 'remove', label: 'Remove this message', Icon: Trash2, danger: true,
+            onSelect: () => void deleteMessage(conversationId, m.id, {
+              isLastMessage: false, isReply, as: senderIdentity,
+            }).catch(() => setError('That message could not be removed.')),
+          }]
+        : base;
+    }
     return [
-      pin,
+      ...base,
       {
         key: 'edit', label: 'Edit', Icon: Pencil,
         onSelect: () => { setEditingId(m.id); setEditDraft(m.text); },
@@ -366,6 +402,9 @@ export default function ThreadPanel({
         focusKey={`${conversationId}:${rootId}`}
         placeholder="Reply in this thread…"
         notice={error}
+        blocked={blocked}
+        allowFiles={mayAttach}
+        allowLinks={mayLink}
         onSend={handleSend}
       />
 

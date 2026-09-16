@@ -954,6 +954,9 @@ gated on `assignedToUids`, work groups or roles.
 | `reactionPings` | `{ [uid]: ReactionPing }` | The last reaction on each person's own messages here |
 | `threadPings` | `{ [uid]: ThreadPing }` | The last thread reply aimed at each person — see Threads below |
 | `pinned` | `{ [messageId]: PinnedMessage }` | Messages pinned to the top of the room, max 10 — see below |
+| `adminUids` | string[] | Group rooms only: who runs the room. Absent on rooms made before admins existed — see below |
+| `policy` | `{ [key]: 'everyone' \| 'admins' }` | What the room lets everybody else do. Absent, or an absent key, means `everyone` |
+| `mutedUntil` | `{ [uid]: millis }` | When each silenced person may write again. A past value is a lapsed mute |
 | `recordType` / `recordId` / `recordLabel` | string | Record rooms only: which order the room is about, and what it is called |
 
 Four shapes, one document type:
@@ -967,8 +970,10 @@ Four shapes, one document type:
 - **`direct`** — two people, at the deterministic id `dm_<uidA>_<uidB>` with
   the uids sorted. Derived rather than random so two colleagues who open each
   other simultaneously land on one thread instead of two half-threads.
-- **`group`** — a named room with an explicit membership. Any member may
-  rename it, give it a picture, change who is in it, or leave.
+- **`group`** — a named room with an explicit membership, and the only kind
+  that has admins. By default any member may rename it, give it a picture,
+  change who is in it, or leave; its admins can narrow each of those. See
+  **Who runs a room** below.
 - **`record`** — the room about one order, at the derived id
   `rec_order_<orderId>`. Nobody is invited to it: anyone who can see the order
   is entitled to be in it, and pressing **Discuss** on the order is what joins
@@ -1007,6 +1012,49 @@ room's picture to any file in the bucket whose path they knew. See
 list of a dozen conversations does not cost a dozen extra queries per page
 load, and so the unread badge has a timestamp to compare against.
 
+#### Who runs a room
+
+`adminUids` names the people who run a named room. **Read it through
+`roomAdminUids()` in `src/types/conversation.ts`, never directly**, because it
+answers three cases the raw field does not: a room made since admins existed
+names them outright; a room made before has no field at all and falls back to
+its `createdBy`; and a room whose admins have all gone reads as empty, which
+means everybody in it is an admin until somebody sorts it out.
+
+Two invariants make that work, and `PATCH /api/chat/conversations/{id}` keeps
+both rather than hoping for them:
+
+- **`adminUids` never names somebody who is not in the room.** That is what
+  lets an empty list mean "nobody left who runs this".
+- **It is never empty while the room still has people in it.** The last admin
+  cannot leave without naming a successor: `DELETE` answers `409` with
+  `needsSuccessor` and the candidates, and the second call carries
+  `successorUid` and promotes them in the same batch. The empty case is still
+  handled because an account deleted in Settings → People never passes through
+  that route.
+
+`policy` is six switches, each `everyone` or `admins`: `post`, `membership`,
+`details`, `files`, `links`, `pins`. **An absent key is `everyone`**, which is
+why no room had to be backfilled. Where each one is enforced is not
+interchangeable — `post`, `files`, `links` and `pins` live in
+`firestore.rules`, because messages are written straight from the browser, and
+`membership` and `details` live in the route, because those two already go
+through it. The rules refuse all four fields to the client outright.
+
+`mutedUntil` holds one deadline per silenced person. **A mute always has one.**
+The expiry is applied where the mute is read — by `isMuted()` and by
+`notMuted()` in the rules, both comparing against the current time — because
+nothing in this project runs on a schedule, and a mute that outlived its own
+deadline because a job did not fire is the worst failure it could have. It is
+the same shape and the same reasoning as `isGrantLive()` on an order access
+grant. Lifting a mute sets the value to `0` rather than deleting the key: it is
+the record that it happened, and it costs one number.
+
+The **Everyone room** has no membership array to name admins in, so
+`policy.post` on it is decided by the `chat.announce` permission instead —
+admin and HR by default, and grantable one person at a time in Settings →
+People. It is the only key that reaches that room.
+
 ### `conversations/{conversationId}/messages/{messageId}`
 
 | Field | Type | Notes |
@@ -1015,7 +1063,8 @@ load, and so the unread badge has a timestamp to compare against.
 | `senderUid` | string | Pinned to the caller by the rules |
 | `senderName` | string | Copied at send time, so an old message keeps the name that was on it |
 | `createdAt` | Timestamp | Pinned to `request.time` by the rules |
-| `deletedAt` | Timestamp \| null | Set when the sender takes it back |
+| `deletedAt` | Timestamp \| null | Set when it is taken back |
+| `deletedByUid` / `deletedByName` | string \| null | Set **only** when a room admin took back somebody else's message |
 | `editedAt` | Timestamp \| null | Set when the sender corrects the wording |
 | `mentions` | string[] | Uids named with an @ in this message |
 | `replyTo` | `MessageQuote \| null` | The message this one answers, quoted above it |
@@ -1048,6 +1097,16 @@ original objection was that a message somebody has acted on should not
 message that has been taken back is emptied rather than deleted, so the thread
 does not reshuffle around a hole, and it cannot then be edited back into
 existence.
+
+**A room admin can take back somebody else's message — and only take it back.**
+The rules let `text` go to empty down that branch and nowhere else, so it can
+never become a way to rewrite what a colleague said; that is the line between
+removing a message and putting words in somebody's mouth. The commonest reason
+it is needed is a client's rate pasted into the wrong room, where the person
+who has to act is whoever noticed rather than whoever typed it. The tombstone
+reads "Removed by X" from `deletedByUid` / `deletedByName`, which the rules pin
+to the caller: a bare "Message deleted" leaves the author assuming they did it
+themselves or that the app lost it.
 
 Attachments keep the **storage path**, never the download URL — a download URL
 carries a token that can be regenerated, so a stored one goes stale. Paths are
@@ -1113,20 +1172,33 @@ machinery to get wrong on a live database for no gain.
 
 | Field | Type | Notes |
 |---|---|---|
-| `action` | `'created' \| 'added' \| 'removed' \| 'left'` | What happened |
-| `uid` | string | Who it happened to |
+| `action` | `'created' \| 'added' \| 'removed' \| 'left' \| 'admin_added' \| 'admin_removed' \| 'muted' \| 'unmuted' \| 'policy'` | What happened |
+| `uid` | string | Who it happened to. `''` on `policy`, which is about the room |
 | `name` | string | Their name **as it stood then**, copied like `senderName` on a message |
 | `byUid` | string | Who did it. The same person as `uid` for `left` and `created` |
 | `byName` | string | Their name at the time |
 | `at` | Timestamp | Server time |
+| `until` | number \| null | `muted` only: when the mute was set to lift |
+| `detail` | string \| null | `policy` only: which switch moved and to what, **already worded** |
 
-Who has been in a room, and who put them there. A room's membership is the only
-thing deciding who can read what is said in it, and any member may change it —
-so "who took Tom out of this room, and when" has to be answerable a month later.
-The same argument as `ownerEvents` one floor down, and the same shape: a
+What has been done to a room, and who did it. Its membership is the only thing
+deciding who can read what is said in it, and by default any member may change
+it — so "who took Tom out of this room, and when" has to be answerable a month
+later. The same argument as `ownerEvents` one floor down, and the same shape: a
 subcollection rather than an array on the room, because an array would be
 rewritable by anything that can write the parent and a room running for years
 would grow the document without bound.
+
+The last five actions are not membership and live here anyway. Making somebody
+an admin, muting them, or locking the room down are changes of the same weight
+— they decide what colleagues may do in a shared space — and the question
+somebody asks weeks later is one question, not two. A second collection would
+answer half of it and order badly against the other half.
+
+`detail` is written out as a sentence fragment rather than stored as a key and
+a value, so a line about a switch that has since been renamed or retired still
+reads as what it was. Everything else here copies its names for the same
+reason.
 
 **Group rooms only, deliberately.** A direct thread is defined by its two people
 and cannot change, the company room has no membership to change, and a record
@@ -1141,9 +1213,20 @@ the silent one this trail exists to rule out. The rules let the room's members
 read and close writes outright.
 
 Each change also posts an ordinary system message into the room ("Erwin Dank
-added Vivian De Leon."), drawn as the same centred line an order alert is. A
-`created` entry is the exception and is silent: the room is empty at that moment
-and an opening line naming the people already in the header would say nothing.
+added Vivian De Leon."), drawn as the same centred line an order alert is. One
+line per save rather than one per person: three lines in a row from TTMS reads
+as an outage.
+
+Two actions are the exception and post nothing. A `created` entry is silent
+because the room is empty at that moment and an opening line naming the people
+already in the header would say nothing. **A mute is silent because announcing
+it is a punishment of its own** — "Vivian muted Tom until Friday" in front of
+eleven colleagues is a different and much larger act than stopping Tom writing
+for a day, and not the one the admin chose. It is still recorded here, which
+every member can read, and the muted person is told plainly in their own
+composer, so it is on the record and never a mystery to the one person it is
+about.
+
 Rooms that existed before this was recorded have no entries, and the panel says
 so rather than showing an empty list.
 

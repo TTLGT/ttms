@@ -45,6 +45,7 @@ import {
   type MessageQuote,
   type PinnedMessage,
   type RecordKind,
+  type RoomPolicy,
   type ThreadEntry,
 } from '@/types/conversation';
 
@@ -523,12 +524,29 @@ export async function editMessage(
 export async function deleteMessage(
   conversationId: string,
   messageId: string,
-  options: { isLastMessage: boolean; isReply?: boolean } = { isLastMessage: false },
+  options: {
+    isLastMessage: boolean;
+    isReply?: boolean;
+    /**
+     * Set when a room admin is taking back somebody else's message rather than
+     * their own. It is recorded on the tombstone and shown there, because the
+     * two are not the same event and must not read as one — see
+     * ChatMessage.deletedByUid.
+     *
+     * The rules pin this to the caller, so it cannot name anybody else.
+     */
+    as?: { uid: string; displayName: string };
+  } = { isLastMessage: false },
 ): Promise<void> {
   const batch = writeBatch(db);
   batch.update(messageRef(conversationId, messageId, options.isReply), {
     text:      '',
     deletedAt: serverTimestamp(),
+    // Only on an admin's take-back. The rules allow this branch exactly one
+    // set of fields, so an ordinary delete must not carry them.
+    ...(options.as
+      ? { deletedByUid: options.as.uid, deletedByName: options.as.displayName }
+      : {}),
   });
   // A reply taken back leaves the count on the message alone. The tombstone is
   // still in the thread, so a count that dropped would disagree with what the
@@ -985,21 +1003,53 @@ export async function openRecordConversation(
   return id;
 }
 
-/** Creates a named room. The creator is always in it. */
-export async function createGroupConversation(name: string, memberUids: string[]): Promise<string> {
+/**
+ * Creates a named room. The creator is always in it, and always runs it.
+ *
+ * `announcements` opens it with the post and pin switches already set to
+ * admins — see the note in /api/chat/conversations. It is a preset, not a
+ * different kind of room.
+ */
+export async function createGroupConversation(
+  name: string,
+  memberUids: string[],
+  options: { announcements?: boolean } = {},
+): Promise<string> {
   const res = await fetch('/api/chat/conversations', {
     method:  'POST',
     headers: await authHeaders(),
-    body:    JSON.stringify({ kind: 'group', name, memberUids }),
+    body:    JSON.stringify({
+      kind: 'group', name, memberUids, announcements: options.announcements === true,
+    }),
   });
   const { id } = await unwrap<{ id: string }>(res);
   return id;
 }
 
-/** Renames a room, sets its picture, or changes who is in it. Members only. */
-export async function updateGroupConversation(
+/**
+ * Changes something about a room that is not somebody speaking in it.
+ *
+ * One function for all of it because it is one route and one save: Room
+ * settings sends whatever the admin touched, and the server decides which
+ * parts they were allowed to touch. Splitting it into a function per field
+ * would mean a dialog that can half-save.
+ *
+ * Only the fields present are read, so a save that carries `name` alone cannot
+ * accidentally clear the membership.
+ */
+export async function updateRoom(
   conversationId: string,
-  patch: { name?: string; memberUids?: string[]; photoPath?: string | null },
+  patch: {
+    name?: string;
+    memberUids?: string[];
+    photoPath?: string | null;
+    adminUids?: string[];
+    policy?: Partial<RoomPolicy>;
+    /** Silence one person until a moment. Both halves are required. */
+    mute?: { uid: string; until: number };
+    /** Lift a mute early, by uid. */
+    unmute?: string;
+  },
 ): Promise<void> {
   await unwrap(await fetch(`/api/chat/conversations/${conversationId}`, {
     method:  'PATCH',
@@ -1008,12 +1058,48 @@ export async function updateGroupConversation(
   }));
 }
 
-/** Removes you from a room. The messages stay for everyone still in it. */
-export async function leaveConversation(conversationId: string): Promise<void> {
-  await unwrap(await fetch(`/api/chat/conversations/${conversationId}`, {
+/**
+ * Thrown when the last admin tries to leave a room somebody else is still in.
+ *
+ * A class rather than a message, because the caller has to do something with
+ * it rather than show it: the room needs a new admin named, and `candidates`
+ * is who is available. See the note on DELETE in the route.
+ */
+export class NeedsSuccessorError extends Error {
+  constructor(message: string, readonly candidates: string[]) {
+    super(message);
+    this.name = 'NeedsSuccessorError';
+  }
+}
+
+/**
+ * Removes you from a room. The messages stay for everyone still in it.
+ *
+ * `successorUid` answers the one case this can refuse: the last admin walking
+ * out of a room that still has people in it has to say who takes over, or the
+ * room is left with nobody able to change anything about it.
+ */
+export async function leaveConversation(
+  conversationId: string,
+  successorUid?: string,
+): Promise<void> {
+  const res = await fetch(`/api/chat/conversations/${conversationId}`, {
     method:  'DELETE',
     headers: await authHeaders(),
-  }));
+    body:    JSON.stringify({ successorUid: successorUid ?? null }),
+  });
+  if (res.status === 409) {
+    const data = await res.json().catch(() => ({})) as {
+      error?: string; needsSuccessor?: boolean; candidates?: string[];
+    };
+    if (data.needsSuccessor) {
+      throw new NeedsSuccessorError(
+        data.error ?? 'Choose who takes over before you leave.',
+        data.candidates ?? [],
+      );
+    }
+  }
+  await unwrap(res);
 }
 
 /**

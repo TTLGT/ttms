@@ -1,18 +1,21 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Paperclip, Send, X } from 'lucide-react';
+import { Lock, MicOff, Paperclip, Send, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { discardAttachment, readableSize, uploadAttachment } from '@/lib/chatUploads';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import {
   MAX_ATTACHMENT_BYTES,
   MAX_MESSAGE_LENGTH,
+  containsLink,
   findMentions,
   type Attachment,
   type MentionCandidate,
   type MessageQuote,
+  type PostingBlock,
 } from '@/types/conversation';
 
 /**
@@ -50,6 +53,9 @@ export default function MessageComposer({
   replyingTo,
   onCancelReply,
   notice,
+  blocked,
+  allowFiles = true,
+  allowLinks = true,
   onSend,
 }: {
   /** Where attachments are uploaded to. A thread shares its room's folder. */
@@ -67,10 +73,23 @@ export default function MessageComposer({
   onCancelReply?: () => void;
   /** Something the caller wants said here — a failed reaction, a copied link. */
   notice?: string;
+  /**
+   * Why this person cannot write here, if they cannot — muted, or a room set
+   * to admins only. The box is replaced by the reason rather than disabled in
+   * place: a text box that silently refuses to send is the worst version of
+   * this, and the rules will refuse the write anyway with "Missing or
+   * insufficient permissions", which explains nothing to anybody.
+   */
+  blocked?: PostingBlock;
+  /** Whether this room lets this person attach a photo or a file. */
+  allowFiles?: boolean;
+  /** Whether this room lets this person post a link. */
+  allowLinks?: boolean;
   onSend: (text: string, mentions: string[], attachments: Attachment[]) => Promise<void>;
 }) {
   const { user } = useAuth();
   const { profileOf } = useChat();
+  const { formatDateTime } = useDateFormatters();
   const myUid = user?.uid ?? '';
 
   const [draft, setDraft]     = useState('');
@@ -222,6 +241,24 @@ export default function MessageComposer({
       setError('Wait for the upload to finish.');
       return;
     }
+    /*
+     * The room's own rules, checked here so they can be explained.
+     *
+     * `firestore.rules` is what actually enforces both of these — see
+     * RoomPolicy — and it would refuse the write a moment later. What it
+     * cannot do is say why: a refused write comes back as "Missing or
+     * insufficient permissions", which sends somebody to ask IT about a room
+     * setting a colleague changed. So the same two questions are asked here
+     * first, in words, with the draft still in the box.
+     */
+    if (!allowLinks && containsLink(text)) {
+      setError('Only this room’s admins can post links here.');
+      return;
+    }
+    if (!allowFiles && ready.length > 0) {
+      setError('Only this room’s admins can attach files here.');
+      return;
+    }
     setSending(true);
     setError('');
     // Cleared before the write, not after: the message is going to appear from
@@ -246,18 +283,57 @@ export default function MessageComposer({
 
   const shown = notice || error;
 
+  /*
+   * A room this person may not write in says so where the box was.
+   *
+   * Drawn instead of the composer rather than as a disabled one, because a
+   * greyed-out text box invites somebody to keep clicking it to find out what
+   * is wrong. The reason is the whole content: what stopped them, and — for a
+   * mute — when it stops.
+   *
+   * The date goes through the company setting like every other date on screen.
+   */
+  if (blocked) {
+    return (
+      <div className="flex flex-shrink-0 items-center gap-2.5 border-t border-gray-200 bg-gray-50 px-4 py-3.5">
+        {blocked.reason === 'muted'
+          ? <MicOff size={15} className="flex-shrink-0 text-gray-400" />
+          : <Lock   size={15} className="flex-shrink-0 text-gray-400" />}
+        <p className="text-xs text-gray-600">
+          {blocked.reason === 'muted' ? (
+            <>
+              An admin has muted you in this room.{' '}
+              <span className="text-gray-500">
+                You can write here again after {formatDateTime(new Date(blocked.until), '')}.
+              </span>
+            </>
+          ) : (
+            <>
+              Only this room’s admins can post here.{' '}
+              <span className="text-gray-500">You can still read everything in it.</span>
+            </>
+          )}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div
       className="relative flex-shrink-0 border-t border-gray-200 bg-white px-4 py-3"
       // Dropping anywhere over the composer counts. Aiming at a small target
-      // while dragging a file is a nuisance nobody needs.
-      onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+      // while dragging a file is a nuisance nobody needs. In a room that does
+      // not take attachments the drop is ignored outright rather than accepted
+      // and then refused at Send — a 12 MB upload that was never going to be
+      // allowed is a waste of somebody's morning and of the bucket.
+      onDragOver={(e) => { if (!allowFiles) return; e.preventDefault(); setDragging(true); }}
       onDragLeave={(e) => {
         // Only when the pointer has actually left the footer, not when it
         // crosses onto a child element inside it.
         if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false);
       }}
       onDrop={(e) => {
+        if (!allowFiles) return;
         e.preventDefault();
         setDragging(false);
         attachFiles(Array.from(e.dataTransfer.files));
@@ -366,14 +442,19 @@ export default function MessageComposer({
             e.target.value = '';
           }}
         />
-        <button
-          type="button"
-          onClick={() => filePicker.current?.click()}
-          title="Attach a photo or file"
-          className="flex-shrink-0 rounded-lg p-2.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
-        >
-          <Paperclip size={16} />
-        </button>
+        {/* Taken away rather than disabled in a room that does not take
+            attachments: a paperclip that opens a file picker and then refuses
+            the file is worse than no paperclip. */}
+        {allowFiles && (
+          <button
+            type="button"
+            onClick={() => filePicker.current?.click()}
+            title="Attach a photo or file"
+            className="flex-shrink-0 rounded-lg p-2.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+          >
+            <Paperclip size={16} />
+          </button>
+        )}
 
         <textarea
           ref={composer}
@@ -381,6 +462,7 @@ export default function MessageComposer({
           // arrives. Only when the clipboard actually holds files — pasting
           // text has to stay ordinary pasting.
           onPaste={(e) => {
+            if (!allowFiles) return;
             const files = Array.from(e.clipboardData.files);
             if (files.length === 0) return;
             e.preventDefault();

@@ -686,6 +686,92 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/conversations/$(convId)).data;
     }
 
+    // ── Who runs a room, and what it lets everybody else do ──────────────
+    //
+    // These four are the half of RoomPolicy that has to live here. A room can
+    // say only admins may post, only admins may attach a file, only admins may
+    // post a link, and it can mute one person until a stated moment — and none
+    // of that would be worth anything if it were only in the composer, because
+    // messages are written to Firestore straight from the browser. The other
+    // two switches, who may change the membership and who may rename the room,
+    // are enforced in /api/chat/conversations, which is the only thing allowed
+    // to write either.
+    //
+    // Keep in sync with src/types/conversation.ts: roomAdminUids(),
+    // isRoomAdmin(), roomAllows(), isMuted() and containsLink().
+
+    // Who runs this room. A room from before admins existed carries no
+    // `adminUids`, so its creator is treated as its admin — which is what
+    // saves this from needing a backfill on a live database.
+    function roomAdmins(convData) {
+      return convData.get('adminUids', [convData.get('createdBy', '')]);
+    }
+
+    // Does the caller run this room?
+    //
+    // The company room has no membership array to name admins in, so the one
+    // permission answers it — see `chat.announce` in src/types/permission.ts.
+    //
+    // For a named room, `hasAny` is this dialect's way of asking the question
+    // roomAdminUids() answers by filtering: is any admin still in the room? If
+    // none is, the room would otherwise be frozen in whatever state it was
+    // locked into with nobody able to unlock it, so everybody in it is an
+    // admin until somebody sorts it out. Leaving is supposed to make that
+    // unreachable — the route refuses to let the last admin walk out without
+    // naming a successor — but an account deleted in Settings → People never
+    // passes through that route.
+    // `kind == 'group'` is load-bearing, not tidiness. Without it the
+    // `createdBy` fallback above would make whoever opened a direct thread its
+    // admin — and able to take back the other person's messages — and the
+    // first person to press Discuss on a load the admin of the room about it.
+    // Only a named room has admins. Keep in sync with isRoomAdmin().
+    function isRoomBoss(convData) {
+      return convData.kind == 'company'
+        ? can('chat.announce')
+        : (
+          convData.kind == 'group'
+          && (
+            !roomAdmins(convData).hasAny(convData.get('memberUids', []))
+            || request.auth.uid in roomAdmins(convData)
+          )
+        );
+    }
+
+    // An absent policy, or an absent key in one, is 'everyone'. That default
+    // is what lets every room written before this existed go on working
+    // untouched. Keep it in step with roomAllows().
+    function roomAllows(convData, key) {
+      return convData.get('policy', {}).get(key, 'everyone') == 'everyone'
+        || isRoomBoss(convData);
+    }
+
+    // Muted until a stated moment, compared against the clock on this request.
+    //
+    // The expiry is applied on the way past rather than by anything that
+    // sweeps, because nothing in this project runs on a schedule — a mute that
+    // outlived its own deadline because a job did not fire is the failure this
+    // shape rules out rather than mitigates. Same reasoning as isGrantLive()
+    // on an order access grant.
+    function notMuted(convData) {
+      return convData.get('mutedUntil', {}).get(request.auth.uid, 0)
+        <= request.time.toMillis();
+    }
+
+    // May the caller say this here?
+    //
+    // `[\\s\\S]*` rather than `.*` around the link pattern because matches() is
+    // a full-string match and `.` does not cross a newline in RE2 — a link on
+    // the second line of a message would otherwise walk straight through.
+    function maySay(convData, data) {
+      return notMuted(convData)
+        && roomAllows(convData, 'post')
+        && (data.get('attachments', []).size() == 0 || roomAllows(convData, 'files'))
+        && (
+          roomAllows(convData, 'links')
+          || !data.text.lower().matches('[\\s\\S]*(https?://|www[.])[\\s\\S]*')
+        );
+    }
+
     match /conversations/{conversationId} {
       // `resource` is null when the document does not exist, and dereferencing
       // it there would deny the read rather than report it missing. That matters
@@ -739,6 +825,14 @@ service cloud.firestore {
         (
           request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['lastMessage', 'updatedAt', 'mentionedAt'])
+          // The preview line is written in the same batch as the message, so
+          // in ordinary use the create rule has already decided this. It is
+          // repeated because this branch can be sent on its own: without it,
+          // somebody muted or barred from posting could still put a line of
+          // their own text at the top of everybody's conversation list, which
+          // is most of what sending a message looks like from the list.
+          && notMuted(resource.data)
+          && roomAllows(resource.data, 'post')
           && request.resource.data.lastMessage.senderUid == request.auth.uid
           && request.resource.data.lastMessage.text is string
           && request.resource.data.lastMessage.text.size() <= 4000
@@ -747,6 +841,23 @@ service cloud.firestore {
               || request.resource.data.updatedAt == resource.data.updatedAt)
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['mentionedAt'])
               || request.resource.data.mentionedAt is map)
+        )
+        // A room admin taking back somebody else's message has to clear the
+        // preview line with it, or the conversation list goes on quoting text
+        // the room no longer shows — which is the one place a removed message
+        // would still be readable, and the reason it was removed is usually
+        // that it should not be readable.
+        //
+        // The branch above cannot serve: it pins `lastMessage.senderUid` to
+        // the caller, and the whole point here is that somebody else wrote it.
+        // So this one pins the sender to whoever it already was and lets the
+        // text go to empty and nowhere else. Nothing down here can write a
+        // preview line, only blank one.
+        || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage'])
+          && isRoomBoss(resource.data)
+          && request.resource.data.lastMessage.text == ''
+          && request.resource.data.lastMessage.senderUid == resource.data.lastMessage.senderUid
         )
         // Reacting to somebody's message. `updatedAt` is deliberately not in
         // this list: a thumbs-up is not new activity, and letting it move the
@@ -773,10 +884,15 @@ service cloud.firestore {
         )
         // Pinning a message to the top of the room, and unpinning one.
         //
-        // Anybody in the room may do either, on anybody's message. These are
-        // working rooms with no admin to appeal to — the same reasoning that
-        // lets any member rename one — and a pin only its author could remove
-        // is a pin that outlives them leaving the company.
+        // Anybody in the room may do either, on anybody's message, unless the
+        // room's admins have said otherwise. A pin only its author could
+        // remove is a pin that outlives them leaving the company, so even a
+        // locked-down room keeps unpinning open to whoever may pin.
+        //
+        // The default is still open. This used to read "these are working
+        // rooms with no admin to appeal to", which was true until rooms had
+        // admins — now there is somebody to appeal to, and a room that wants
+        // its pin bar left alone can say so.
         //
         // `updatedAt` is deliberately absent from the list, like the ping
         // branches above: pinning is not somebody speaking, and letting it
@@ -797,6 +913,7 @@ service cloud.firestore {
         // with MAX_PINNED in src/types/conversation.ts.
         || (
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinned'])
+          && roomAllows(resource.data, 'pins')
           && request.resource.data.get('pinned', {}) is map
           && request.resource.data.get('pinned', {}).keys().size() <= 10
         )
@@ -813,7 +930,13 @@ service cloud.firestore {
         // Sending. Pinned to the caller and to the server clock for the same
         // reasons as the preview above: nobody speaks in somebody else's name,
         // and nobody writes a message into last week.
+        //
+        // maySay() is the room's own rules on top of that — muted, admins
+        // only, no attachments, no links. It is here rather than only in the
+        // composer because this is the write itself: everything else about
+        // this feature is a courtesy, and this line is the part that is true.
         allow create: if inConversation(conversationData(conversationId))
+          && maySay(conversationData(conversationId), request.resource.data)
           && request.resource.data.senderUid == request.auth.uid
           && request.resource.data.text is string
           && request.resource.data.text.size() <= 4000
@@ -895,6 +1018,30 @@ service cloud.firestore {
                   && request.resource.data.editedAt == request.time
                   && request.resource.data.get('deletedAt', null) == null)
             )
+          )
+          // A room admin taking back somebody else's message.
+          //
+          // Taking back only: `text` may go to empty and nowhere else, so
+          // nothing down this branch can put words in a colleague's mouth.
+          // That is the line between removing a message and rewriting one, and
+          // it is the reason an admin gets the first and not the second.
+          //
+          // The commonest reason this is needed is a client rate pasted into
+          // the wrong room, where the person who has to act is whoever noticed
+          // rather than whoever typed it.
+          //
+          // `deletedByUid` is pinned to the caller so the tombstone cannot
+          // name somebody else as having done it, and it is what makes the
+          // removal legible to the author — see ChatMessage.deletedByUid.
+          || (
+            inConversation(conversationData(conversationId))
+            && isRoomBoss(conversationData(conversationId))
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['text', 'deletedAt', 'deletedByUid', 'deletedByName'])
+            && request.resource.data.text == ''
+            && request.resource.data.deletedAt == request.time
+            && request.resource.data.deletedByUid == request.auth.uid
+            && request.resource.data.deletedByName is string
           );
 
         // The emptied document stays, so the thread does not reshuffle around
@@ -915,6 +1062,10 @@ service cloud.firestore {
         allow read: if inConversation(conversationData(conversationId));
 
         allow create: if inConversation(conversationData(conversationId))
+          // The room's rules reach into its threads. A thread is not a quieter
+          // room with its own law — somebody muted in a room who could still
+          // answer in a thread under it has not been muted.
+          && maySay(conversationData(conversationId), request.resource.data)
           && request.resource.data.senderUid == request.auth.uid
           // The message this hangs under. Its existence is not checked: that
           // would be a second document read on every reply to prove something
@@ -957,6 +1108,21 @@ service cloud.firestore {
                   && request.resource.data.editedAt == request.time
                   && request.resource.data.get('deletedAt', null) == null)
             )
+          )
+          // A room admin taking back somebody else's reply. Mirrors the branch
+          // on /messages exactly — see the note there. A thing said inside a
+          // thread is as reachable as a thing said in the room, and an admin
+          // who could clear one but not the other would have to ask the room
+          // where a message was before knowing whether they could act on it.
+          || (
+            inConversation(conversationData(conversationId))
+            && isRoomBoss(conversationData(conversationId))
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['text', 'deletedAt', 'deletedByUid', 'deletedByName'])
+            && request.resource.data.text == ''
+            && request.resource.data.deletedAt == request.time
+            && request.resource.data.deletedByUid == request.auth.uid
+            && request.resource.data.deletedByName is string
           );
 
         allow delete: if false;

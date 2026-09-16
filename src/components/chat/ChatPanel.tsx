@@ -12,6 +12,7 @@ import RoomSettingsDialog from './RoomSettingsDialog';
 import RoomAvatar from './RoomAvatar';
 import ThreadList from './ThreadList';
 import ThreadPanel from './ThreadPanel';
+import { can } from '@/lib/accessControl';
 import {
   COMPANY_CONVERSATION_ID,
   conversationTitle,
@@ -28,7 +29,7 @@ import {
  * about what the thing does.
  */
 export default function ChatPanel({ compact = false }: { compact?: boolean }) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const {
     conversations, activeId, setActiveId, nameOf, error, loading, openThread, setOpenThread,
   } = useChat();
@@ -43,6 +44,22 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
 
   const myUid  = user?.uid ?? '';
   const active = conversations.find((c) => c.id === activeId) ?? null;
+
+  /*
+   * Which conversations have a settings panel worth opening.
+   *
+   * A named room always does — anybody in it can at least read who is in it
+   * and what it allows. The Everyone room does too, but only for the people
+   * who could change the one thing it has: whether it is open to everyone or
+   * turned down to announcements. For anybody else there is nothing on that
+   * page they could act on, so the gear is not offered.
+   *
+   * A direct thread and a record room have nothing to settle either way.
+   */
+  const hasSettings = active !== null && (
+    active.kind === 'group'
+    || (active.kind === 'company' && can(profile, 'chat.announce'))
+  );
 
   // Guarded against the conversation rather than trusted on its own: the
   // provider clears a thread when its room closes, but this renders in the
@@ -111,7 +128,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
               myUid={myUid}
               nameOf={nameOf}
               onBack={() => setActiveId(null)}
-              onSettings={() => setSettingsOpen(true)}
+              onSettings={hasSettings ? () => setSettingsOpen(true) : undefined}
             />
             <div className="min-h-0 flex-1">
               <MessageThread conversation={active} />
@@ -124,7 +141,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
         )}
 
         {newOpen && <NewConversationDialog onClose={() => setNewOpen(false)} />}
-        {settingsOpen && active?.kind === 'group' && (
+        {settingsOpen && active && hasSettings && (
           <RoomSettingsDialog conversation={active} onClose={() => setSettingsOpen(false)} />
         )}
       </div>
@@ -148,7 +165,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
               conversation={active}
               myUid={myUid}
               nameOf={nameOf}
-              onSettings={() => setSettingsOpen(true)}
+              onSettings={hasSettings ? () => setSettingsOpen(true) : undefined}
             />
             <div className="min-h-0 flex-1">
               <MessageThread conversation={active} />
@@ -176,7 +193,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
       )}
 
       {newOpen && <NewConversationDialog onClose={() => setNewOpen(false)} />}
-      {settingsOpen && active?.kind === 'group' && (
+      {settingsOpen && active && hasSettings && (
         <RoomSettingsDialog conversation={active} onClose={() => setSettingsOpen(false)} />
       )}
     </div>
@@ -190,7 +207,8 @@ function Header({
   myUid: string;
   nameOf: (uid: string) => string;
   onBack?: () => void;
-  onSettings: () => void;
+  /** Absent on the conversations that have nothing this reader could change. */
+  onSettings?: () => void;
 }) {
   return (
     <div className="flex flex-shrink-0 items-center gap-2 border-b border-gray-200 px-4 py-3">
@@ -214,7 +232,7 @@ function Header({
         conversation={conversation}
         myUid={myUid}
         nameOf={nameOf}
-        onSettings={conversation.kind === 'group' ? onSettings : undefined}
+        onSettings={onSettings}
       />
 
       {/* The record this room is about, one click away. A conversation about a
@@ -233,10 +251,11 @@ function Header({
         </Link>
       )}
 
-      {/* Only named rooms have anything to change. The company room belongs to
-          everyone, a direct thread is defined by its two people, and a record
-          room is titled by its record. */}
-      {conversation.kind === 'group' && (
+      {/* A named room always has something to change. The Everyone room has one
+          switch, and only for the people who can flip it. A direct thread is
+          defined by its two people and a record room is titled by its record,
+          so neither ever gets a gear. */}
+      {onSettings && (
         <button
           type="button"
           onClick={onSettings}

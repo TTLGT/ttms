@@ -31,6 +31,16 @@ export default function NewConversationDialog({ onClose }: { onClose: () => void
   const [picked, setPicked]   = useState<string[]>([]);
   const [busy, setBusy]       = useState(false);
   const [error, setError]     = useState('');
+  /**
+   * An announcements room — everybody reads, only admins write.
+   *
+   * Offered here rather than left to be assembled from switches afterwards
+   * because it is a decision about what the room is *for*, and somebody
+   * setting up a notices room knows that before they pick anybody. It is still
+   * only a preset: the room is an ordinary one with two switches already set,
+   * and turning them back makes it an ordinary room with its history intact.
+   */
+  const [announcements, setAnnouncements] = useState(false);
 
   // Never yourself: a thread with one participant is not a conversation, and
   // the server refuses it anyway.
@@ -65,7 +75,7 @@ export default function NewConversationDialog({ onClose }: { onClose: () => void
     setBusy(true);
     setError('');
     try {
-      setActiveId(await createGroupConversation(roomName, picked));
+      setActiveId(await createGroupConversation(roomName, picked, { announcements }));
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not create that room.');
@@ -95,12 +105,35 @@ export default function NewConversationDialog({ onClose }: { onClose: () => void
 
         <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
           {mode === 'room' && (
-            <input
-              value={roomName}
-              onChange={(e) => setRoom(e.target.value)}
-              placeholder="Room name — Dispatch, Night shift, Acme move…"
-              className="mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
-            />
+            <>
+              <input
+                value={roomName}
+                onChange={(e) => setRoom(e.target.value)}
+                placeholder="Room name — Dispatch, Night shift, Acme move…"
+                className="mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+              />
+
+              {/* Above the people rather than below them: what the room is for
+                  changes who you would put in it. A notices room is everybody
+                  on a shift; an ordinary one is the three people on a load. */}
+              <label className="mb-3 flex cursor-pointer items-start gap-2.5 rounded-lg border border-gray-200 px-3 py-2.5">
+                <input
+                  type="checkbox"
+                  checked={announcements}
+                  onChange={(e) => setAnnouncements(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-gray-300 text-brand-500 focus:ring-brand-400"
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-gray-900">
+                    Announcements only
+                  </span>
+                  <span className="block text-[11px] text-gray-500">
+                    Everybody in the room can read it; only its admins can write or pin.
+                    You are its first admin. This can be turned off later.
+                  </span>
+                </span>
+              </label>
+            </>
           )}
 
           <div className="relative mb-3">

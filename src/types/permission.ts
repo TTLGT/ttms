@@ -148,6 +148,23 @@ export const PERMISSIONS = [
 
   // ── Everything else ──────────────────────────────────────────────────────
   'chat.use',
+  /**
+   * Write in the Everyone room once it has been set to announcements only.
+   *
+   * A permission rather than a room admin list, because the Everyone room has
+   * no membership array to name admins in — everybody allowed into TTMS is in
+   * it, and the rules grant it on `kind`. "Who may address the whole company"
+   * is a question the access list already answers, so it is answered there.
+   *
+   * Admin and HR by default: between them they are who sends a company-wide
+   * notice. Anybody else can be handed it one person at a time, which is the
+   * point of it being a permission — an office manager who does the holiday
+   * rota does not need to become HR.
+   *
+   * It decides nothing until an admin actually turns the room down in Room
+   * settings. Left as it is, the Everyone room stays open to everyone.
+   */
+  'chat.announce',
   /** The intern's own area: their guide, their onboarding survey, their tasks. */
   'intern.section',
 ] as const;
@@ -245,6 +262,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     title: 'Other',
     permissions: [
       { key: 'chat.use',       label: 'Use chat',            detail: 'Message colleagues. Everyone has this already.' },
+      { key: 'chat.announce',  label: 'Post in the Everyone room', detail: 'Write to the whole company when that room is set to announcements only. Admin and HR have this already.' },
       { key: 'intern.section', label: 'See the intern area', detail: 'Their guide, their onboarding survey and their task list.' },
     ],
   },
@@ -358,7 +376,10 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
   // would make the role read-only in name and useless in practice. It still
   // cannot reach a role, a permission or a suspension — see the note on the
   // key in the catalog above.
-  isHr: [...BASE_PERMISSIONS, 'people.view', 'directory.export', 'profile.decideUpdates'],
+  // `chat.announce` widens HR: a company-wide notice is the sort of thing they
+  // send, and locking the Everyone room down would otherwise shut out the one
+  // team whose job is to address everybody in it.
+  isHr: [...BASE_PERMISSIONS, 'people.view', 'directory.export', 'profile.decideUpdates', 'chat.announce'],
 
   /**
    * Sales Manager: a broker, plus admin-level power over their own team.

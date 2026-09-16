@@ -191,6 +191,47 @@ export interface Conversation {
    */
   pinned?: Record<string, PinnedMessage>;
 
+  /* --------------------------------------------- who runs it, and what it
+                                                    lets everybody else do */
+
+  /**
+   * Group rooms only: who runs the room.
+   *
+   * **Read it through roomAdminUids(), never directly.** The raw field is
+   * absent on every room that existed before admins did, and can be left
+   * naming somebody who is no longer in the room — that function is where both
+   * of those are answered.
+   *
+   * Written only through /api/chat/conversations, like the membership itself
+   * and for a sharper version of the same reason: this decides who may change
+   * the membership, so a browser that could write it could make itself an
+   * admin, let itself into the room and lock everybody else out of it.
+   */
+  adminUids?: string[];
+  /**
+   * What the admins have decided everybody else may do here. Absent — or an
+   * absent key — means `everyone`. See RoomPolicy.
+   */
+  policy?: Partial<RoomPolicy>;
+  /**
+   * People an admin has stopped from writing here, as `{ [uid]: millis }`,
+   * holding the moment the mute lifts.
+   *
+   * **A deadline, not a list of names**, and that is the whole design. A mute
+   * with no clock on it is somebody quietly silenced until an admin who has
+   * since left the company remembers to undo it — and nothing in this project
+   * runs on a schedule that could sweep them up. So the expiry is applied
+   * where the mute is read, by isMuted() and by `firestore.rules`, both of
+   * which compare it against the time of the request. That is exactly how an
+   * order access grant expires and for exactly the same reason; see
+   * isGrantLive() in src/types/orderAccessRequest.ts.
+   *
+   * A timestamp in the past is a mute that has lapsed. It is left in place
+   * rather than tidied away: it is the record that the mute happened, and it
+   * costs one number.
+   */
+  mutedUntil?: Record<string, number>;
+
   /**
    * Group rooms only: a picture standing in for the `#` the room is drawn
    * with otherwise. A storage path, never a download URL — a URL carries a
@@ -373,6 +414,22 @@ export interface ChatMessage {
    * people who already read it are not left arguing with a ghost.
    */
   deletedAt?: Timestamp | null;
+  /**
+   * Set only when the person who took it back was **not** the person who wrote
+   * it — a room admin removing somebody else's message.
+   *
+   * Recorded, and shown on the tombstone, because the two are not the same
+   * event and must not look the same. A message that simply says "Message
+   * deleted" invites its author to assume they did it, or that the software
+   * ate it; the commonest reason an admin removes one is that it had a client
+   * rate in the wrong room, which is exactly the situation where the author
+   * needs to know it happened.
+   *
+   * The name is copied like `senderName` for the usual reason: a line about
+   * somebody who has since left the company still has to read as a name.
+   */
+  deletedByUid?: string | null;
+  deletedByName?: string | null;
   /**
    * Set when the sender corrects the text, and shown as "(edited)".
    *
@@ -664,6 +721,229 @@ export function isConversationMember(c: Conversation, uid: string): boolean {
   return c.kind === 'company' || c.memberUids.includes(uid);
 }
 
+/* ------------------------------------------------ who runs a room, and what
+                                                     the rest of it may do */
+
+/**
+ * Who a room allows to do one particular thing.
+ *
+ * Two values rather than a boolean, because the pair has to read as a sentence
+ * in the settings panel — "Who can send messages: everyone / admins only" —
+ * and because a third is plausible for at least one of these later. A boolean
+ * called `postLocked` would have to be renamed on the day that happens, and by
+ * then it is sitting on live rooms, which makes it a migration.
+ */
+export type RoomAudience = 'everyone' | 'admins';
+
+/**
+ * What a room's admins have decided everybody else may do.
+ *
+ * **Every key is optional, and absent means `everyone`.** That default is what
+ * makes this safe to put on a live database with no migration and no deploy
+ * order to get right: a room written before any of this existed carries no
+ * `policy` at all and goes on behaving exactly as it did. Nothing has to be
+ * backfilled, and a room that is never locked down never grows the field.
+ *
+ * **Where each one is actually enforced is not the same, and the split is not
+ * arbitrary.** `post`, `files`, `links` and `pins` are enforced in
+ * `firestore.rules`, because messages are written to Firestore straight from
+ * the browser — see the note at the top of src/lib/chat.ts — so a check that
+ * lived only in the composer would be a suggestion rather than a rule.
+ * `membership` and `details` are enforced in
+ * /api/chat/conversations/{id}, because those two already go through it and
+ * the rules refuse them to the client outright.
+ *
+ * **Keep the keys and the `everyone` default in sync with firestore.rules**,
+ * which cannot import this and carries both written out.
+ */
+export interface RoomPolicy {
+  /** Who may send messages here, in the room and in its threads. */
+  post: RoomAudience;
+  /** Who may add people to the room and take them out of it. */
+  membership: RoomAudience;
+  /** Who may rename the room or change its picture. */
+  details: RoomAudience;
+  /** Who may attach a photo or a file. */
+  files: RoomAudience;
+  /** Who may post a link. */
+  links: RoomAudience;
+  /** Who may pin a message to the top of the room. */
+  pins: RoomAudience;
+}
+
+/**
+ * The policy switches as they are drawn in Room settings, in the order they
+ * are drawn.
+ *
+ * Beside the type rather than in the dialog, for the same reason
+ * PERMISSION_GROUPS sits beside the permission catalog: a switch that decides
+ * what colleagues may do cannot be added without somebody having to write down
+ * what it does. `restricted` is the whole of what the admin is turning on, in
+ * the words the room will read it in.
+ */
+export const ROOM_POLICY_SETTINGS: {
+  key: keyof RoomPolicy;
+  label: string;
+  /** What "admins only" means here, said as the consequence. */
+  restricted: string;
+}[] = [
+  { key: 'post',       label: 'Send messages',        restricted: 'Only admins can write here. Everybody else can read.' },
+  { key: 'membership', label: 'Add and remove people', restricted: 'Only admins can change who is in the room.' },
+  { key: 'details',    label: 'Rename and set the picture', restricted: 'Only admins can change the name or the picture.' },
+  { key: 'files',      label: 'Attach photos and files', restricted: 'Only admins can attach anything. Text still goes through.' },
+  { key: 'links',      label: 'Post links',           restricted: 'Only admins can post a link.' },
+  { key: 'pins',       label: 'Pin messages',         restricted: 'Only admins can pin a message to the top of the room.' },
+];
+
+/**
+ * Who runs this room.
+ *
+ * Three cases, and the order they are answered in matters:
+ *
+ *  - A room made since this shipped names its admins outright.
+ *  - A room made before it has no `adminUids` at all, so whoever created it is
+ *    treated as its admin. That is what saves this from needing a backfill
+ *    against the live database, and it names the person the room would have
+ *    named anyway.
+ *  - A room whose admins have all gone would otherwise be frozen in whatever
+ *    state it was last locked into, with nobody able to unlock it and nobody
+ *    to appeal to. So an empty result means everybody in the room is an admin
+ *    until somebody sorts it out.
+ *
+ * That third case is meant to be unreachable — /api/chat/conversations refuses
+ * to let the last admin leave without naming a successor — but an account
+ * deleted in Settings → People never passes through that route, so it stays.
+ *
+ * The filter is what makes the empty case mean "nobody left who runs it"
+ * rather than "the admins are elsewhere": the routes keep `adminUids` inside
+ * `memberUids`, and this catches the one case they cannot, a legacy room whose
+ * creator has since left it.
+ *
+ * **Keep in sync with roomAdmins() in firestore.rules**, which cannot filter a
+ * list and asks `hasAny` instead — the same question, phrased the only way a
+ * rule can phrase it.
+ */
+export function roomAdminUids(
+  c: Pick<Conversation, 'kind' | 'createdBy' | 'adminUids' | 'memberUids'>,
+): string[] {
+  // Only a named room has admins. The company room is run by whoever holds
+  // `chat.announce` (see isRoomAdmin), a direct thread is two equals, and a
+  // record room is joined by whoever can open the load.
+  if (c.kind !== 'group') return [];
+  const stored = c.adminUids ?? (c.createdBy ? [c.createdBy] : []);
+  return stored.filter((uid) => c.memberUids.includes(uid));
+}
+
+/**
+ * Does this person run this room?
+ *
+ * `announcer` is whether they hold `chat.announce` — admin and HR by default.
+ * It is passed in rather than read here because this module is imported by the
+ * browser, the API routes and nothing that can reach a user profile; the
+ * caller already has the answer.
+ *
+ * The company room is the one place that permission decides it outright.
+ * There is no membership array to name admins in, and "who may address the
+ * whole company" is a question the access list already answers.
+ *
+ * **Keep in sync with isRoomBoss() in firestore.rules.**
+ */
+export function isRoomAdmin(
+  c: Pick<Conversation, 'kind' | 'createdBy' | 'adminUids' | 'memberUids'>,
+  uid: string,
+  opts: { announcer?: boolean } = {},
+): boolean {
+  if (c.kind === 'company') return opts.announcer === true;
+  if (c.kind !== 'group')   return false;
+  const admins = roomAdminUids(c);
+  return admins.length === 0 ? c.memberUids.includes(uid) : admins.includes(uid);
+}
+
+/**
+ * Does this room let this person do this?
+ *
+ * The one place the default lives on this side: an absent policy, or an absent
+ * key in one, is `everyone`. Ask this rather than reading `c.policy` — a
+ * screen that reads the field directly is a screen that breaks the day a room
+ * that predates all of this is opened in it.
+ */
+export function roomAllows(
+  c: Pick<Conversation, 'kind' | 'createdBy' | 'adminUids' | 'memberUids' | 'policy'>,
+  key: keyof RoomPolicy,
+  uid: string,
+  opts: { announcer?: boolean } = {},
+): boolean {
+  return (c.policy?.[key] ?? 'everyone') === 'everyone' || isRoomAdmin(c, uid, opts);
+}
+
+/** When this person's mute lifts, as millis. 0 when they have never been muted. */
+export function mutedUntilFor(
+  c: Pick<Conversation, 'mutedUntil'>,
+  uid: string,
+): number {
+  return c.mutedUntil?.[uid] ?? 0;
+}
+
+/**
+ * Is this person muted here *right now*?
+ *
+ * The expiry is applied on the way out, not by anything that sweeps. See the
+ * note on `mutedUntil` — there is no scheduler in this project, and a mute
+ * that outlived its own deadline because nothing ran is the failure this
+ * shape rules out rather than mitigates.
+ */
+export function isMuted(
+  c: Pick<Conversation, 'mutedUntil'>,
+  uid: string,
+  now: number = Date.now(),
+): boolean {
+  return mutedUntilFor(c, uid) > now;
+}
+
+/**
+ * Why this person cannot write here, or null when they can.
+ *
+ * Returned as a shape rather than a sentence because the mute has a date in
+ * it, and every date on screen in this app goes through
+ * src/lib/dateFormat.ts — a sentence built here would be a date formatted
+ * outside the company setting. The composer turns this into the line it shows.
+ *
+ * The mute is tested first: somebody muted in a room that also only lets
+ * admins post should be told the thing that is about them.
+ */
+export type PostingBlock =
+  | { reason: 'muted'; until: number }
+  | { reason: 'adminsOnly' }
+  | null;
+
+export function postingBlock(
+  c: Pick<Conversation, 'kind' | 'createdBy' | 'adminUids' | 'memberUids' | 'policy' | 'mutedUntil'>,
+  uid: string,
+  opts: { announcer?: boolean } = {},
+): PostingBlock {
+  if (isMuted(c, uid)) return { reason: 'muted', until: mutedUntilFor(c, uid) };
+  if (!roomAllows(c, 'post', uid, opts)) return { reason: 'adminsOnly' };
+  return null;
+}
+
+/**
+ * Does this text carry a link?
+ *
+ * **Keep in sync with the `links` branch of the message create rule in
+ * firestore.rules**, which carries the same pattern written out in RE2 and is
+ * the half that actually enforces it. This copy exists so the composer can say
+ * no before the write rather than after it — a rule refusing a message returns
+ * "Missing or insufficient permissions", which is not an explanation.
+ *
+ * Deliberately coarse. It is a house rule about what a room is for, not a
+ * filter anybody is trying to defeat; somebody who writes "totaltransport dot
+ * com" has got past it, and has also made their point in a way a link ban was
+ * never going to stop.
+ */
+export function containsLink(text: string): boolean {
+  return /https?:\/\/|www\./i.test(text);
+}
+
 /* ------------------------------------------------- who has been in a room */
 
 /**
@@ -698,12 +978,26 @@ export const MEMBER_EVENTS_COLLECTION = 'memberEvents';
  * `left` is somebody removing themselves, which is a different act from being
  * removed and reads as one.
  */
-export type MemberEventAction = 'created' | 'added' | 'removed' | 'left';
+/**
+ * The last five are not membership, and they are kept in this collection
+ * anyway.
+ *
+ * Making somebody an admin, muting them, or locking the room down are changes
+ * of exactly the same weight as adding and removing people — they decide what
+ * colleagues may do in a shared space — and the question somebody asks weeks
+ * later is one question, not two: "what happened to this room?" A second
+ * collection would answer half of it and order badly against the other half.
+ */
+export type MemberEventAction =
+  | 'created' | 'added' | 'removed' | 'left'
+  | 'admin_added' | 'admin_removed'
+  | 'muted' | 'unmuted'
+  | 'policy';
 
 export interface MemberEvent {
   id: string;
   action: MemberEventAction;
-  /** Who it happened to. */
+  /** Who it happened to. Empty on `policy`, which is about the room itself. */
   uid: string;
   /**
    * Their name as it stood at the time, copied like `senderName` on a message.
@@ -715,6 +1009,18 @@ export interface MemberEvent {
   byUid: string;
   byName: string;
   at: Timestamp;
+  /**
+   * `policy` only: what was changed and to what, already worded — "Send
+   * messages: admins only".
+   *
+   * Written out at the time rather than stored as a key and a value, so a line
+   * about a switch that has since been renamed or retired still reads as the
+   * sentence it was. Everything else in this collection copies its names for
+   * the same reason.
+   */
+  detail?: string;
+  /** `muted` only: when the mute was set to lift. */
+  until?: number;
 }
 
 /**
@@ -724,7 +1030,16 @@ export interface MemberEvent {
  * point of copying them at write time: a line about somebody who has since
  * left the company still reads as a sentence.
  */
-export function memberEventLine(event: MemberEvent): string {
+export function memberEventLine(
+  event: MemberEvent,
+  /**
+   * How to write the moment a mute lifts. Passed in because every date on
+   * screen goes through the company date setting, which this module cannot
+   * reach — see useDateFormatters(). Without one the line simply stops at the
+   * mute rather than naming a date in the wrong format.
+   */
+  formatDateTime?: (millis: number) => string,
+): string {
   switch (event.action) {
     case 'created':
       // One entry per opening member, so the creator's own reads as the room
@@ -735,6 +1050,20 @@ export function memberEventLine(event: MemberEvent): string {
     case 'added':   return `${event.byName} added ${event.name}`;
     case 'removed': return `${event.byName} removed ${event.name}`;
     case 'left':    return `${event.name} left`;
+    case 'admin_added':   return `${event.byName} made ${event.name} an admin`;
+    case 'admin_removed':
+      // Said as itself rather than as "removed X as an admin", because an
+      // admin standing down is the commoner of the two and reads oddly in the
+      // passive.
+      return event.uid === event.byUid
+        ? `${event.name} stood down as an admin`
+        : `${event.byName} took ${event.name}'s admin away`;
+    case 'muted':
+      return event.until && formatDateTime
+        ? `${event.byName} muted ${event.name} until ${formatDateTime(event.until)}`
+        : `${event.byName} muted ${event.name}`;
+    case 'unmuted': return `${event.byName} unmuted ${event.name}`;
+    case 'policy':  return `${event.byName} changed ${event.detail ?? 'the room settings'}`;
   }
 }
 

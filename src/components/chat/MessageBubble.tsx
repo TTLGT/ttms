@@ -177,7 +177,15 @@ export default function MessageBubble({
                 }`}
               >
                 {message.deletedAt
-                  ? 'Message deleted'
+                  // Who took it down, when it was not the person who wrote it.
+                  // The two are different events and must not read as one: a
+                  // bare "Message deleted" leaves the author assuming they did
+                  // it themselves, or that the app lost it — and the reason an
+                  // admin removes one is usually something the author needs to
+                  // know happened. See ChatMessage.deletedByUid.
+                  ? (message.deletedByUid && message.deletedByUid !== message.senderUid
+                      ? `Removed by ${message.deletedByName || 'an admin'}`
+                      : 'Message deleted')
                   : (
                     <MessageText
                       message={message}
