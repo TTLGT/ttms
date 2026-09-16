@@ -8,6 +8,7 @@ import {
   deleteField,
   doc,
   getCountFromServer,
+  getDocs,
   increment,
   limit as limitTo,
   onSnapshot,
@@ -30,6 +31,7 @@ import {
   MAX_MESSAGE_LENGTH,
   notifyLevel,
   MAX_PINNED,
+  MEMBER_EVENTS_COLLECTION,
   MESSAGES_COLLECTION,
   REPLIES_COLLECTION,
   THREAD_PAGE_SIZE,
@@ -39,6 +41,7 @@ import {
   type ChatReads,
   type Conversation,
   type ConversationNotify,
+  type MemberEvent,
   type MessageQuote,
   type PinnedMessage,
   type RecordKind,
@@ -1011,4 +1014,28 @@ export async function leaveConversation(conversationId: string): Promise<void> {
     method:  'DELETE',
     headers: await authHeaders(),
   }));
+}
+
+/**
+ * Who has been in a room, newest first.
+ *
+ * Read once when Room settings opens rather than watched: a membership change
+ * is rare, and the person reading the history is the one who just made it or
+ * is looking into one that happened weeks ago. A listener would cost a read
+ * per room for a panel nobody has open.
+ *
+ * Bounded like every other list here. A room that has run past two hundred
+ * membership changes has a bigger problem than a truncated panel, and the
+ * entries are ordered so that the truncation drops the oldest.
+ */
+export async function listMemberEvents(
+  conversationId: string,
+  max = 200,
+): Promise<MemberEvent[]> {
+  const snap = await getDocs(query(
+    collection(db, CONVERSATIONS_COLLECTION, conversationId, MEMBER_EVENTS_COLLECTION),
+    orderBy('at', 'desc'),
+    limitTo(max),
+  ));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MemberEvent);
 }

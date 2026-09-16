@@ -3,7 +3,7 @@ import { FieldValue, adminDb, AdminAuthError, requireCompanyUser } from '@/lib/f
 import { requireCaller } from '@/lib/partyAccess';
 import { readOrder } from '@/lib/orderAccess';
 import { openedAlert, postOrderAlert } from '@/lib/chatAlerts';
-import { MAX_ROOM_NAME, validMembers } from '@/lib/chatServer';
+import { MAX_ROOM_NAME, validMembers, writeMembershipChange } from '@/lib/chatServer';
 import { orderDisplayNumber } from '@/types/order';
 import {
   COMPANY_CONVERSATION_ID,
@@ -220,8 +220,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Add at least one other person.' }, { status: 400 });
       }
 
-      const ref = adminDb.collection(COL).doc();
-      await ref.set({
+      const ref   = adminDb.collection(COL).doc();
+      const batch = adminDb.batch();
+      batch.set(ref, {
         kind:        'group',
         name,
         memberUids,
@@ -230,6 +231,15 @@ export async function POST(req: NextRequest) {
         updatedAt:   FieldValue.serverTimestamp(),
         lastMessage: null,
       });
+      // The membership the room opened with, so its history starts where the
+      // room did rather than at whatever the first edit happened to be. Silent
+      // — see writeMembershipChange.
+      await writeMembershipChange(
+        batch, ref,
+        { created: memberUids },
+        { uid: caller.uid, name: caller.displayName },
+      );
+      await batch.commit();
       return NextResponse.json({ id: ref.id }, { status: 201 });
     }
 

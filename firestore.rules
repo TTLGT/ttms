@@ -961,6 +961,25 @@ service cloud.firestore {
 
         allow delete: if false;
       }
+
+      // Who has been in this room, who put them there, and when.
+      //
+      // Readable by the room's members and nobody else — the same gate the
+      // messages carry, because the history says who was in a room and that is
+      // no more anybody else's business than what was said in it. It is shown
+      // in Room settings, which is why this is read from the browser rather
+      // than routed: "the memberEvents of a room I am in" is a subcollection
+      // of a document the rules can already test, so there is nothing here a
+      // rule cannot express.
+      //
+      // Closed to writes outright. Only the membership routes know a change
+      // happened, and an entry a member could write — or delete — would record
+      // nothing worth reading. See MEMBER_EVENTS_COLLECTION in
+      // src/types/conversation.ts.
+      match /memberEvents/{eventId} {
+        allow read:  if inConversation(conversationData(conversationId));
+        allow write: if false; // Admin SDK only
+      }
     }
 
     // What each person has read, one document per user, keyed by their uid.

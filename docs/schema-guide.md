@@ -1109,6 +1109,47 @@ unread. The rules check it for type and nothing more: it drives a badge on the
 reader's own screen, grants no access, and a stricter rule would be more
 machinery to get wrong on a live database for no gain.
 
+### `conversations/{conversationId}/memberEvents/{eventId}`
+
+| Field | Type | Notes |
+|---|---|---|
+| `action` | `'created' \| 'added' \| 'removed' \| 'left'` | What happened |
+| `uid` | string | Who it happened to |
+| `name` | string | Their name **as it stood then**, copied like `senderName` on a message |
+| `byUid` | string | Who did it. The same person as `uid` for `left` and `created` |
+| `byName` | string | Their name at the time |
+| `at` | Timestamp | Server time |
+
+Who has been in a room, and who put them there. A room's membership is the only
+thing deciding who can read what is said in it, and any member may change it —
+so "who took Tom out of this room, and when" has to be answerable a month later.
+The same argument as `ownerEvents` one floor down, and the same shape: a
+subcollection rather than an array on the room, because an array would be
+rewritable by anything that can write the parent and a room running for years
+would grow the document without bound.
+
+**Group rooms only, deliberately.** A direct thread is defined by its two people
+and cannot change, the company room has no membership to change, and a record
+room is joined by whoever opens the load — a row per reader would record nothing
+but who has looked at it. Room settings, where the history is shown, is itself
+group-only.
+
+Written only by `POST` and `PATCH /api/chat/conversations` and by `DELETE
+/api/chat/conversations/{id}`, in the **same batch as the membership write and
+the line announcing it** — a membership change that saved without its entry is
+the silent one this trail exists to rule out. The rules let the room's members
+read and close writes outright.
+
+Each change also posts an ordinary system message into the room ("Erwin Dank
+added Vivian De Leon."), drawn as the same centred line an order alert is. A
+`created` entry is the exception and is silent: the room is empty at that moment
+and an opening line naming the people already in the header would say nothing.
+Rooms that existed before this was recorded have no entries, and the panel says
+so rather than showing an empty list.
+
+No index is needed — the panel orders by `at` within one subcollection, which
+automatic single-field indexes already cover.
+
 ### `chatReads/{uid}`
 
 | Field | Type | Notes |

@@ -1,15 +1,16 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Hash, ImagePlus, LogOut, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
-import { leaveConversation, updateGroupConversation } from '@/lib/chat';
+import { leaveConversation, listMemberEvents, updateGroupConversation } from '@/lib/chat';
 import { discardAttachment, uploadRoomPhoto } from '@/lib/chatUploads';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 import { useStorageUrl } from '@/lib/useStorageUrl';
 import { UserAvatar } from '@/components/settings/UserAvatar';
-import type { Conversation } from '@/types/conversation';
+import { memberEventLine, type Conversation, type MemberEvent } from '@/types/conversation';
 
 /**
  * Renaming a room, giving it a picture, and changing who is in it.
@@ -39,6 +40,28 @@ export default function RoomSettingsDialog({
 
   const picker = useRef<HTMLInputElement>(null);
   const photoUrl = useStorageUrl(photo);
+
+  const [history, setHistory] = useState<MemberEvent[] | null>(null);
+  const { formatDateTime } = useDateFormatters();
+
+  /*
+   * The history is read once, when the dialog opens.
+   *
+   * Not refreshed after a save, and deliberately: saving closes the dialog, so
+   * the only way to see the entry a change just wrote is to open it again —
+   * where it is read fresh. A listener would cost a read per room for a panel
+   * that is shut almost all of the time.
+   */
+  useEffect(() => {
+    let live = true;
+    void listMemberEvents(conversation.id)
+      .then((rows) => { if (live) setHistory(rows); })
+      // An empty list rather than an error: the history is the least important
+      // thing in this dialog, and a room that cannot show it is still a room
+      // that can be renamed and have its members changed.
+      .catch(() => { if (live) setHistory([]); });
+    return () => { live = false; };
+  }, [conversation.id]);
 
   /**
    * Every picture uploaded while this dialog has been open.
@@ -240,6 +263,35 @@ export default function RoomSettingsDialog({
             Removing someone stops them seeing the room from now on. What they already
             wrote stays in it.
           </p>
+
+          {/* Who has been in the room and who put them there. Anybody in a room
+              can change who else is in it, so the answer to "who took Tom out
+              of this?" has to be somewhere, and this is it. */}
+          <p className="mb-2 mt-5 border-t border-gray-100 pt-4 text-xs font-medium text-gray-600">
+            History
+          </p>
+
+          {history === null ? (
+            <p className="text-[11px] text-gray-400">Loading…</p>
+          ) : history.length === 0 ? (
+            // Said rather than left blank: every room that existed before this
+            // was recorded shows nothing here, and an empty panel with no
+            // explanation reads as a room nobody has ever touched.
+            <p className="text-[11px] text-gray-400">
+              Nothing recorded yet. Changes to who is in the room show here from now on.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {history.map((event) => (
+                <li key={event.id} className="flex items-baseline justify-between gap-3 text-xs">
+                  <span className="min-w-0 text-gray-700">{memberEventLine(event)}</span>
+                  <span className="flex-shrink-0 text-[11px] text-gray-400">
+                    {formatDateTime(event.at, '')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {error && <p className="flex-shrink-0 px-5 text-xs text-red-500">{error}</p>}

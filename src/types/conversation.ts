@@ -664,6 +664,80 @@ export function isConversationMember(c: Conversation, uid: string): boolean {
   return c.kind === 'company' || c.memberUids.includes(uid);
 }
 
+/* ------------------------------------------------- who has been in a room */
+
+/**
+ * Who has been in a room, who put them there, and when.
+ *
+ * A room's membership is the only thing deciding who can read what is said in
+ * it, and until this existed a change to it left no trace at all: anybody in a
+ * room could add or remove anybody else, and a month later there was nothing
+ * to say who had done it or that it had happened. The same argument as
+ * `ownerEvents` on an order, one floor down — see src/types/ownerEvent.ts.
+ *
+ * Kept at `conversations/{id}/memberEvents/{eventId}`, a subcollection rather
+ * than an array on the room, for the reasons that file gives: an array would
+ * be rewritable by anything that can write the parent, and a room that runs
+ * for years would grow the document without bound.
+ *
+ * **Group rooms only, deliberately.** A direct thread is defined by its two
+ * people and cannot change; the company room has no membership to change; and
+ * a record room is joined by whoever opens the load, so a row per reader would
+ * record nothing but who has looked at it. The history is shown in Room
+ * settings, which is itself group-only.
+ *
+ * Written only through /api/chat/conversations — the routes that change
+ * membership are the only things that know a change happened. `firestore.rules`
+ * closes writes outright and lets the room's members read.
+ */
+export const MEMBER_EVENTS_COLLECTION = 'memberEvents';
+
+/**
+ * `created` is the membership the room opened with, written when it is made,
+ * so the history starts where the room did rather than at the first edit.
+ * `left` is somebody removing themselves, which is a different act from being
+ * removed and reads as one.
+ */
+export type MemberEventAction = 'created' | 'added' | 'removed' | 'left';
+
+export interface MemberEvent {
+  id: string;
+  action: MemberEventAction;
+  /** Who it happened to. */
+  uid: string;
+  /**
+   * Their name as it stood at the time, copied like `senderName` on a message.
+   * Resolved once rather than on read so somebody who has since left the
+   * company still reads as a name years later instead of a dangling uid.
+   */
+  name: string;
+  /** Who did it. The same person as `uid` for `left` and for `created`. */
+  byUid: string;
+  byName: string;
+  at: Timestamp;
+}
+
+/**
+ * One entry as a line of English, for the history in Room settings.
+ *
+ * Both names come off the entry rather than being looked up, which is the
+ * point of copying them at write time: a line about somebody who has since
+ * left the company still reads as a sentence.
+ */
+export function memberEventLine(event: MemberEvent): string {
+  switch (event.action) {
+    case 'created':
+      // One entry per opening member, so the creator's own reads as the room
+      // being made and everybody else's as being in it from the start.
+      return event.uid === event.byUid
+        ? `${event.byName} made the room`
+        : `${event.byName} made the room with ${event.name}`;
+    case 'added':   return `${event.byName} added ${event.name}`;
+    case 'removed': return `${event.byName} removed ${event.name}`;
+    case 'left':    return `${event.name} left`;
+  }
+}
+
 /* ---------------------------------------------------------------- threads */
 
 /**

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
-import { MAX_ROOM_NAME, roomPhotoBelongsTo, validMembers } from '@/lib/chatServer';
+import { MAX_ROOM_NAME, roomPhotoBelongsTo, validMembers, writeMembershipChange } from '@/lib/chatServer';
 import { CONVERSATIONS_COLLECTION } from '@/types/conversation';
 
 const COL = CONVERSATIONS_COLLECTION;
@@ -71,6 +71,13 @@ export async function PATCH(
       patch.photoPath = body.photoPath;
     }
 
+    // Who came and who went, worked out before the write so the history can
+    // say it. An empty pair means the save touched the name or the picture
+    // only, and nothing is recorded — a room is not a different room because
+    // somebody renamed it.
+    let added:   string[] = [];
+    let removed: string[] = [];
+
     if (Array.isArray(body.memberUids)) {
       // The caller is added back by validMembers, so nobody can edit
       // themselves out of a room here and leave it unreachable. Leaving is a
@@ -80,16 +87,31 @@ export async function PATCH(
         return NextResponse.json({ error: 'A room needs at least two people.' }, { status: 400 });
       }
       patch.memberUids = next;
+      added   = next.filter((uid) => !memberUids.includes(uid));
+      removed = memberUids.filter((uid) => !next.includes(uid));
     }
 
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: 'Nothing to change.' }, { status: 400 });
     }
 
-    // Not `updatedAt`: that field orders the conversation list by when someone
-    // last spoke, and renaming a room is not somebody speaking in it. Bumping
-    // it here would shove a quiet room to the top of everyone's list.
-    await ref.update(patch);
+    // The membership, its history entries and the line announcing it, in one
+    // batch. A membership change that saved without its entry is the silent
+    // one this trail exists to rule out.
+    //
+    // `updatedAt` is left alone by the patch itself: that field orders the
+    // conversation list by when someone last spoke, and renaming a room is not
+    // somebody speaking in it. A membership change does bump it, but through
+    // the line it posts rather than from here — see systemLine, and the note
+    // there about an announcement nobody is shown.
+    const batch = adminDb.batch();
+    Object.assign(patch, await writeMembershipChange(
+      batch, ref,
+      { added, removed },
+      { uid: caller.uid, name: caller.displayName },
+    ));
+    batch.update(ref, patch);
+    await batch.commit();
     return NextResponse.json({ id: conversationId });
   } catch (e) {
     if (e instanceof AdminAuthError) {
@@ -135,7 +157,22 @@ export async function DELETE(
       );
     }
 
-    await ref.update({ memberUids: FieldValue.arrayRemove(caller.uid) });
+    const batch = adminDb.batch();
+    // Named rooms only. A record room is joined by whoever opens the load, so
+    // a room about a busy order would fill with entries recording who had
+    // looked at it — and there is no history panel on one to read them back.
+    // See MEMBER_EVENTS_COLLECTION.
+    const announced = snap.data()!.kind === 'group'
+      ? await writeMembershipChange(
+          batch, ref,
+          { left: true },
+          { uid: caller.uid, name: caller.displayName },
+        )
+      : {};
+    // One write to the room, carrying both: a commit may not touch the same
+    // document twice.
+    batch.update(ref, { memberUids: FieldValue.arrayRemove(caller.uid), ...announced });
+    await batch.commit();
     return NextResponse.json({ left: conversationId });
   } catch (e) {
     if (e instanceof AdminAuthError) {

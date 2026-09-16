@@ -47,10 +47,37 @@ export async function postOrderAlert(orderId: string, text: string): Promise<voi
   const snap = await room.get();
   if (!snap.exists) return;
 
-  const batch   = adminDb.batch();
-  const message = room.collection(MESSAGES_COLLECTION).doc();
+  const batch = adminDb.batch();
+  batch.update(room, systemLine(batch, room, text));
+  await batch.commit();
+}
 
-  batch.set(message, {
+/**
+ * Queues one line from TTMS into a room, and hands back the bump that belongs
+ * with it for the caller to write onto the room.
+ *
+ * Takes a batch rather than writing on its own because a caller may have
+ * something that has to land with the line or not at all — a membership change
+ * has the membership itself and its history entries, and a line announcing a
+ * change that then failed to save would be worse than no line.
+ *
+ * **The bump is returned rather than written**, which is the one awkward part
+ * of this signature and is not a style choice: one commit may not write the
+ * same document twice, and every caller that posts a line about a room is
+ * already updating that room. So the fields are merged into the update the
+ * caller was making anyway.
+ *
+ * Bumping at all is not optional. An alert that landed without moving its room
+ * up the list — and without marking it unread — is an alert nobody is told
+ * about. Whether it interrupts anybody is then the reader's own setting, like
+ * any other message in the room.
+ */
+export function systemLine(
+  batch: FirebaseFirestore.WriteBatch,
+  room: FirebaseFirestore.DocumentReference,
+  text: string,
+): Record<string, unknown> {
+  batch.set(room.collection(MESSAGES_COLLECTION).doc(), {
     text,
     // Not a uid, and never one: no account can hold it, so nothing signed in
     // can write a message that claims to be this. See SYSTEM_SENDER_UID.
@@ -67,12 +94,7 @@ export async function postOrderAlert(orderId: string, text: string): Promise<voi
     reactions:  {},
   });
 
-  // The same conversation bump an ordinary message carries, and for the same
-  // reason: an alert that landed without moving its room up the list — and
-  // without marking it unread — is an alert nobody is told about. Whether it
-  // interrupts anybody is then the reader's own setting, like any other
-  // message in the room.
-  batch.update(room, {
+  return {
     lastMessage: {
       text,
       senderUid:  SYSTEM_SENDER_UID,
@@ -80,9 +102,7 @@ export async function postOrderAlert(orderId: string, text: string): Promise<voi
       at:         FieldValue.serverTimestamp(),
     },
     updatedAt: FieldValue.serverTimestamp(),
-  });
-
-  await batch.commit();
+  };
 }
 
 /* ---------------------------------------------------------------- wording */
