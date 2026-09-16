@@ -46,17 +46,25 @@ export default function PersonNameFields({
 
   const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
+  // The caller's label heads the pair rather than being glued to the first
+  // box. It used to read "{label} — First Name", which stayed level with a
+  // bare "Last Name" only while the label was one short word: "Contact
+  // (optional) — First Name" wraps to two lines and drops its own input below
+  // the other one, leaving the two boxes on different rows.
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">{label} — First Name</label>
-        <input value={first} onChange={(e) => update(e.target.value, last)}
-          required={required} autoFocus={autoFocus} placeholder="First" className={inputCls} />
-      </div>
-      <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Last Name</label>
-        <input value={last} onChange={(e) => update(first, e.target.value)}
-          required={required} placeholder="Last" className={inputCls} />
+    <div>
+      <p className="block text-xs font-medium text-gray-600 mb-1">{label}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">First Name</label>
+          <input value={first} onChange={(e) => update(e.target.value, last)}
+            required={required} autoFocus={autoFocus} placeholder="First" className={inputCls} />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Last Name</label>
+          <input value={last} onChange={(e) => update(first, e.target.value)}
+            required={required} placeholder="Last" className={inputCls} />
+        </div>
       </div>
     </div>
   );
