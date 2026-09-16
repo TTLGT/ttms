@@ -1,5 +1,6 @@
 import type { Order } from '@/types/order';
 import { orderDisplayNumber } from '@/types/order';
+import { toDate, type DateLike } from '@/lib/dateFormat';
 
 export type AlertSeverity = 'critical' | 'warning';
 
@@ -11,9 +12,20 @@ export interface OrderAlert {
   message: string;
 }
 
-function hoursFromNow(ts: { toDate?: () => Date } | null | undefined): number | null {
-  if (!ts || typeof ts.toDate !== 'function') return null;
-  return (ts.toDate().getTime() - Date.now()) / (1000 * 60 * 60);
+/**
+ * Hours between now and `ts` — negative for a date that has already passed.
+ *
+ * Read through `toDate()` rather than calling `ts.toDate()` here, because these
+ * orders no longer come from the client SDK. They are the samples off
+ * /api/orders/summary, so every Timestamp has been through JSON and arrives as
+ * `{_seconds, _nanoseconds}` with no methods on it — see the note on `DateLike`
+ * in dateFormat.ts. The old `typeof ts.toDate === 'function'` test returned
+ * null for all of them, which meant every rule below was skipped and the panel
+ * rendered nothing for anybody rather than failing in a way somebody could see.
+ */
+function hoursFromNow(ts: DateLike): number | null {
+  const d = toDate(ts);
+  return d === null ? null : (d.getTime() - Date.now()) / (1000 * 60 * 60);
 }
 
 export function getAlerts(orders: Order[]): OrderAlert[] {
@@ -23,8 +35,8 @@ export function getAlerts(orders: Order[]): OrderAlert[] {
     if (o.parentOrderId != null) continue;
     if (o.status === 'cancelled' || o.status === 'completed') continue;
 
-    const pickup   = hoursFromNow(o.pickupDate   as { toDate: () => Date } | null);
-    const delivery = hoursFromNow(o.deliveryDate as { toDate: () => Date } | null);
+    const pickup   = hoursFromNow(o.pickupDate);
+    const delivery = hoursFromNow(o.deliveryDate);
 
     // No carrier assigned — warn at 48h, critical at 24h
     if ((o.status === 'quote' || o.status === 'booked') && pickup !== null && pickup >= 0 && pickup <= 48) {
@@ -72,7 +84,7 @@ export function getAlerts(orders: Order[]): OrderAlert[] {
 
     // Delivered but invoice not uploaded after 24h
     if (o.status === 'delivered' && !o.invoiceStoragePath) {
-      const deliveredHrs = hoursFromNow(o.deliveredAt as { toDate: () => Date } | null);
+      const deliveredHrs = hoursFromNow(o.deliveredAt);
       if (deliveredHrs !== null && deliveredHrs <= -24) {
         const daysAgo = Math.round(Math.abs(deliveredHrs) / 24);
         alerts.push({
@@ -86,7 +98,7 @@ export function getAlerts(orders: Order[]): OrderAlert[] {
 
     // Stale quote — no action taken in 7+ days
     if (o.status === 'quote') {
-      const createdHrs = hoursFromNow(o.createdAt as { toDate: () => Date });
+      const createdHrs = hoursFromNow(o.createdAt);
       if (createdHrs !== null && createdHrs <= -(7 * 24)) {
         const daysOld = Math.round(Math.abs(createdHrs) / 24);
         alerts.push({

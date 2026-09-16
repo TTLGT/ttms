@@ -85,12 +85,29 @@ export interface DashboardSummary {
   documentsMissing: SummaryStat;
 }
 
+/**
+ * What a card's hover sample carries — and, because the dashboard raises its
+ * "Needs Attention" alerts from these same samples rather than from a second
+ * read of the book, everything `getAlerts()` in lib/alerts.ts tests.
+ *
+ * A field this list omits does not read as missing there, it reads as
+ * `undefined`, and each rule then quietly decides the opposite of what it
+ * should — `invoiceStoragePath` absent made every delivered load look
+ * uninvoiced. Check that file before removing anything here.
+ *
+ * Cost is not a reason to keep it short — this is a `select()` over at most
+ * TOOLTIP_LIMIT documents per card, and a projection reads the same whether it
+ * names five fields or twenty.
+ */
 const CARD_FIELDS = [
   'orderNumber', 'batsId', 'status', 'origin', 'destination', 'shipperName',
   'clientId', 'agreedRate', 'brokerFee', 'pickupDate', 'updatedAt', 'deliveredAt',
   // So the unsigned-agreements hover list can say which signature is missing,
   // and say "waived" rather than "missing" where somebody decided that.
   'carrierSignedAt', 'shipperSignedAt', 'signatureWaivedAt',
+  // Read only by the alerts: whether a load is late, whether the invoice
+  // landed, and how long a quote has been sitting.
+  'deliveryDate', 'invoiceStoragePath', 'createdAt',
 ] as const;
 
 export async function buildDashboardSummary(caller: Caller): Promise<DashboardSummary> {

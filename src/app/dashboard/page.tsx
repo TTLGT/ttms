@@ -258,7 +258,7 @@ export default function DashboardPage() {
   // Dates are written the way the company setting says — see Settings →
   // Operations → Date Format.
   const { formatDate } = useDateFormatters();
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const firstName = user?.displayName?.split(' ')[0] ?? 'there';
 
   /* Shut until told otherwise, and read after mount rather than during it:
@@ -319,16 +319,21 @@ export default function DashboardPage() {
       // Alerts are raised from the loads that still need attention, which is
       // what the summary's samples already are — the full book is not needed
       // and never was, since an alert about a load closed last year is noise.
+      //
+      // Nothing is filtered by owner here, deliberately. The samples arrive
+      // already narrowed to what this person may see: an admin or dispatcher
+      // gets the whole book, and everybody else comes back through
+      // summariseInMemory(), which counts only the orders canSeeOrder() allows
+      // — their own, their groups', and their clients'. Re-filtering on
+      // `createdBy` on top of that used to drop a load the moment it was
+      // assigned to somebody rather than raised by them, which is most of them.
       const attention = [
         ...sum.overdueInvoices.items, ...sum.unsignedOrders.items,
         ...sum.staleQuotes.items, ...sum.documentsMissing.items,
         ...sum.pendingPickup.items, ...sum.inTransit.items,
       ] as unknown as Order[];
       const byId = new Map(attention.map((o) => [o.id, o]));
-      const alertOrders = isAdmin
-        ? [...byId.values()]
-        : [...byId.values()].filter((o) => o.createdBy === user?.uid);
-      setAlerts(getAlerts(alertOrders));
+      setAlerts(getAlerts([...byId.values()]));
     }).catch((e: unknown) => {
       setError(e instanceof Error ? e.message : 'Could not load the dashboard.');
     }).finally(() => setLoading(false));
