@@ -75,14 +75,48 @@ export type PartyField =
   | 'street' | 'city' | 'state' | 'zip' | 'sourceId';
 
 /**
+ * Whether a named person and an email may be left off this record.
+ *
+ * A shipper or a consignee is a facility. The broker booking the load often
+ * has its address and a phone for the gate and nothing else — no named
+ * contact, no inbox — and nothing we send leaves for either of them: the load
+ * confirmation goes to the client and the rate confirmation to the carrier.
+ * Requiring the two anyway meant a made-up name typed into the box to get past
+ * the form, which is worse than an empty one.
+ *
+ * A client is still held to both, because an agreement has to be addressed to
+ * somebody — so a record that is a client as well as a dock stays strict.
+ */
+export function contactOptionalFor(roles: PartyRole[]): boolean {
+  return (roles.includes('shipper') || roles.includes('consignee'))
+    && !roles.includes('client');
+}
+
+/**
+ * The line under the heading on both forms that says what has to be filled in.
+ *
+ * Exported so the standalone page and the quick-add dialog cannot drift: the
+ * rule it describes is contactOptionalFor, and a form that promised something
+ * different from what validatePartyDraft enforces would be worse than no line
+ * at all.
+ */
+export function partyRequirementNote(roles: PartyRole[]): string {
+  return contactOptionalFor(roles)
+    ? 'A company name, phone and address are required. The contact name and email are optional on a shipper or consignee — nothing we send goes there.'
+    : 'Everything except the second phone, second email and comments is required — this record is what agreements and load confirmations are addressed to.';
+}
+
+/**
  * What is still missing before this record may be saved.
  *
  * Everything except the second phone, the second email and the comments is
- * required, for all three roles. That is a deliberate tightening: the old
- * order form accepted a name typed into one box and created the record from
- * that alone, so a client could reach the point of needing an agreement sent
- * with no email on file and nobody aware of it until that moment. A shipper
- * with no phone number is the same problem at the dock.
+ * required — plus, on a shipper, the contact name and email; see
+ * contactOptionalFor. That baseline is a deliberate tightening: the old order
+ * form accepted a name typed into one box and created the record from that
+ * alone, so a client could reach the point of needing an agreement sent with
+ * no email on file and nobody aware of it until that moment. A shipper with no
+ * phone number is the same problem at the dock, which is why the phone stays
+ * required even there.
  *
  * The lead source is asked for on a client only. A shipper or consignee is a
  * facility on somebody's route, not a lead — the same split the party pages
@@ -94,10 +128,13 @@ export type PartyField =
 export function validatePartyDraft(draft: PartyDraft): Partial<Record<PartyField, string>> {
   const errors: Partial<Record<PartyField, string>> = {};
   const has = (v: string) => v.trim().length > 0;
+  const optional = contactOptionalFor(draft.roles);
 
   if (!has(draft.companyName)) errors.companyName = 'Company name is required.';
-  if (!has(draft.contactName)) errors.contactName = 'A first and last name are required.';
-  else if (draft.contactName.trim().split(/\s+/).length < 2) {
+  // Optional or not, half a name is still a mistake worth catching.
+  if (!has(draft.contactName)) {
+    if (!optional) errors.contactName = 'A first and last name are required.';
+  } else if (draft.contactName.trim().split(/\s+/).length < 2) {
     errors.contactName = 'Enter both a first and a last name.';
   }
 
@@ -106,8 +143,9 @@ export function validatePartyDraft(draft: PartyDraft): Partial<Record<PartyField
   if (!has(draft.phone))            errors.phone = 'A phone number is required.';
   else if (!toPhoneKey(draft.phone)) errors.phone = 'That is too short to be a phone number.';
 
-  if (!has(draft.email))                       errors.email = 'An email address is required.';
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) {
+  if (!has(draft.email)) {
+    if (!optional) errors.email = 'An email address is required.';
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) {
     errors.email = 'That does not look like an email address.';
   }
 
@@ -171,6 +209,11 @@ export default function PartyFields({
   const [people, setPeople] = useState<UserProfile[]>([]);
   const [groups, setGroups] = useState<WorkGroup[]>([]);
 
+  // Labelled from the roles ticked below, not from the role the form opened
+  // on: ticking Client on a dock makes both required again, and the labels
+  // have to say so before the save does.
+  const contactOptional = contactOptionalFor(value.roles);
+
   const set = <K extends keyof PartyDraft>(key: K, v: PartyDraft[K]) =>
     onChange({ ...value, [key]: v });
 
@@ -222,7 +265,8 @@ export default function PartyFields({
         </Field>
 
         <div className="col-span-1">
-          <PersonNameFields label="Contact" value={value.contactName}
+          <PersonNameFields label={contactOptional ? 'Contact (optional)' : 'Contact'}
+            value={value.contactName}
             onChange={(v) => set('contactName', v)} />
           {errors.contactName && <p className="text-xs text-red-600 mt-1">{errors.contactName}</p>}
         </div>
@@ -237,8 +281,10 @@ export default function PartyFields({
           {errors.phone && <p className="text-xs text-red-600 mt-1">{errors.phone}</p>}
         </div>
 
-        <Field label="Email" error={errors.email}
-          hint="Agreements and load confirmations are sent here.">
+        <Field label={contactOptional ? 'Email (optional)' : 'Email'} error={errors.email}
+          hint={contactOptional
+            ? 'Nothing is emailed to a shipper or consignee — leave it blank if the facility has no inbox.'
+            : 'Agreements and load confirmations are sent here.'}>
           <input type="email" value={value.email} onChange={(e) => set('email', e.target.value)}
             className={errors.email ? badCls : inputCls} />
         </Field>

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createParty, PartyOwnedError } from '@/lib/parties';
 import { ROLE_LABEL } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
-import PartyFields, { blankPartyDraft, validatePartyDraft } from '@/components/parties/PartyFields';
+import PartyFields, { blankPartyDraft, validatePartyDraft, partyRequirementNote } from '@/components/parties/PartyFields';
 import type { PartyDraft, PartyField } from '@/components/parties/PartyFields';
 
 /**
@@ -85,10 +85,7 @@ function NewPartyForm() {
           ← Back
         </button>
         <h1 className="text-2xl font-bold text-gray-900">New {ROLE_LABEL[initialRole]}</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Everything except the second phone, second email and comments is required — this record
-          is what agreements and load confirmations are addressed to.
-        </p>
+        <p className="text-sm text-gray-500 mt-0.5">{partyRequirementNote(draft.roles)}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">

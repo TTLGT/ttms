@@ -5,7 +5,7 @@ import { X } from 'lucide-react';
 import { createParty, getParty, PartyOwnedError } from '@/lib/parties';
 import { ROLE_LABEL, looksLikePhone } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
-import PartyFields, { blankPartyDraft, validatePartyDraft } from './PartyFields';
+import PartyFields, { blankPartyDraft, validatePartyDraft, partyRequirementNote } from './PartyFields';
 import type { PartyDraft, PartyField } from './PartyFields';
 
 /**
@@ -98,10 +98,7 @@ export default function PartyQuickCreate({
         <div className="flex items-start justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <h2 className="text-lg font-bold text-gray-900">New {ROLE_LABEL[role]}</h2>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Everything except the second phone, second email and comments is required — this
-              record is what agreements and load confirmations are addressed to.
-            </p>
+            <p className="text-sm text-gray-500 mt-0.5">{partyRequirementNote(draft.roles)}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close"
             className="text-gray-400 hover:text-gray-600 transition">
