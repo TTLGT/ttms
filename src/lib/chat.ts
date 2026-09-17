@@ -781,6 +781,37 @@ export async function setThreadPinned(
 }
 
 /**
+ * Writes this person's pinned rooms back in a new order.
+ *
+ * The one place the two functions above cannot help: an order is a statement
+ * about the whole list, and there is no arrayUnion for "these, in this order",
+ * so the array has to be written whole. That is the read-then-write those two
+ * were written to avoid, and the risk is real but small — a pin made in
+ * another tab in the moment between the list being read here and this landing
+ * is lost, and losing it costs one re-pin, not a message.
+ *
+ * It is kept small by passing the list the live listener is already holding
+ * rather than reading the document again: the window is one round trip, not
+ * however long the menu was open.
+ */
+export async function setPinnedConversationOrder(uid: string, ids: string[]): Promise<void> {
+  await setDoc(
+    doc(db, CHAT_READS_COLLECTION, uid),
+    { uid, pinnedConversations: ids },
+    { merge: true },
+  );
+}
+
+/** The same, for the threads list. */
+export async function setPinnedThreadOrder(uid: string, ids: string[]): Promise<void> {
+  await setDoc(
+    doc(db, CHAT_READS_COLLECTION, uid),
+    { uid, pinnedThreads: ids },
+    { merge: true },
+  );
+}
+
+/**
  * Marks a conversation read up to now.
  *
  * The clock here is the browser's, not the server's: a serverTimestamp cannot

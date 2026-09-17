@@ -20,6 +20,8 @@ import {
   millis,
   setConversationNotify,
   setConversationPinned,
+  setPinnedConversationOrder,
+  setPinnedThreadOrder,
   setThreadPinned,
   unreadConversationIds,
   unreadMentionIds,
@@ -40,6 +42,8 @@ import {
 import { listUserProfiles } from '@/lib/userProfiles';
 import {
   conversationTitle,
+  movePinnedBy,
+  movePinnedOnto,
   notifyLevel,
   reactionGlyph,
   type Conversation,
@@ -178,12 +182,23 @@ interface ChatContextValue {
    */
   notify: Record<string, ConversationNotify>;
   setNotifyFor: (conversationId: string, level: ConversationNotify) => void;
-  /** Conversations this person keeps at the top of the list. */
+  /** Conversations this person keeps at the top of the list, in their order. */
   pinnedConversations: string[];
   togglePinnedConversation: (conversationId: string) => void;
-  /** Threads this person keeps at the top of the threads list. */
+  /**
+   * Moves a pinned room one place up (-1) or down (1) — the menu's arrows.
+   * A room that is not pinned, or is already at the end it is moving towards,
+   * is left alone.
+   */
+  movePinnedConversation: (conversationId: string, delta: number) => void;
+  /** Puts a dragged room where another pinned room currently sits. */
+  dropPinnedConversation: (movedId: string, ontoId: string) => void;
+  /** Threads this person keeps at the top of the threads list, in their order. */
   pinnedThreads: string[];
   togglePinnedThread: (rootId: string) => void;
+  /** The same two, for the threads list. */
+  movePinnedThread: (rootId: string, delta: number) => void;
+  dropPinnedThread: (movedId: string, ontoId: string) => void;
   /** Set when the listeners themselves fail — almost always undeployed rules. */
   error: string;
   loading: boolean;
@@ -287,8 +302,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [uid]);
 
   /**
-   * The list as it is drawn: pinned rooms at the top, in the order they were
-   * pinned, then everything else by whoever spoke last.
+   * The list as it is drawn: pinned rooms at the top, in the order this person
+   * put them in, then everything else by whoever spoke last.
    *
    * The pin has to beat the activity sort rather than merely tie-break it —
    * the reason to pin the room about a load you are working is precisely that
@@ -328,6 +343,60 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       void setThreadPinned(uid, rootId, !pinnedThreads.includes(rootId)).catch(() => {});
     },
     [uid, pinnedThreads],
+  );
+
+  /**
+   * Reordering, for both lists and both ways of doing it.
+   *
+   * Nothing is held locally while the write is in flight: the Firestore SDK
+   * applies a write to its own cache before it leaves the browser, so the
+   * listener above hands the new order straight back and the row moves under
+   * the cursor. A second copy of the order in React state would only be a
+   * chance for the two to disagree.
+   *
+   * An order that has not changed — a row dropped back where it started, an
+   * arrow at the end of the list — is dropped here rather than written.
+   * `movePinnedTo` returns the same array when it declines, which is what
+   * these compare against.
+   */
+  const writePinnedConversations = useCallback(
+    (next: string[]) => {
+      if (!uid || next === pinnedConversations) return;
+      void setPinnedConversationOrder(uid, next).catch(() => {});
+    },
+    [uid, pinnedConversations],
+  );
+
+  const movePinnedConversation = useCallback(
+    (conversationId: string, delta: number) =>
+      writePinnedConversations(movePinnedBy(pinnedConversations, conversationId, delta)),
+    [pinnedConversations, writePinnedConversations],
+  );
+
+  const dropPinnedConversation = useCallback(
+    (movedId: string, ontoId: string) =>
+      writePinnedConversations(movePinnedOnto(pinnedConversations, movedId, ontoId)),
+    [pinnedConversations, writePinnedConversations],
+  );
+
+  const writePinnedThreads = useCallback(
+    (next: string[]) => {
+      if (!uid || next === pinnedThreads) return;
+      void setPinnedThreadOrder(uid, next).catch(() => {});
+    },
+    [uid, pinnedThreads],
+  );
+
+  const movePinnedThread = useCallback(
+    (rootId: string, delta: number) =>
+      writePinnedThreads(movePinnedBy(pinnedThreads, rootId, delta)),
+    [pinnedThreads, writePinnedThreads],
+  );
+
+  const dropPinnedThread = useCallback(
+    (movedId: string, ontoId: string) =>
+      writePinnedThreads(movePinnedOnto(pinnedThreads, movedId, ontoId)),
+    [pinnedThreads, writePinnedThreads],
   );
 
   const byUid = useMemo(() => {
@@ -697,7 +766,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       notifyPrefs, setNotifyPrefs,
       notify, setNotifyFor,
       pinnedConversations, togglePinnedConversation,
+      movePinnedConversation, dropPinnedConversation,
       pinnedThreads, togglePinnedThread,
+      movePinnedThread, dropPinnedThread,
       error, loading,
     }),
     [
@@ -709,7 +780,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       notifyPrefs, setNotifyPrefs,
       notify, setNotifyFor,
       pinnedConversations, togglePinnedConversation,
+      movePinnedConversation, dropPinnedConversation,
       pinnedThreads, togglePinnedThread,
+      movePinnedThread, dropPinnedThread,
       error, loading,
     ],
   );

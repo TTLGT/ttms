@@ -629,11 +629,49 @@ export interface ChatReads {
    *
    * Per person, for the same reason as `notify`: which rooms matter is a fact
    * about who is reading, not about the room. Order within the list is the
-   * order they were pinned in, which is the only order the reader chose.
+   * order the reader put them in — pinning appends, and dragging a row or
+   * moving it with the menu rewrites the array. See `movePinned` below.
    */
   pinnedConversations?: string[];
   /** The same, for rows in the threads list. Keyed by the thread's root id. */
   pinnedThreads?: string[];
+}
+
+/**
+ * Moves one id to a new place in a pinned list, and hands back the whole list.
+ *
+ * Pure, and shared by both pinned lists and by both ways of reordering them —
+ * the drag and the menu's Move up / Move down — so a row dropped onto the
+ * second place and a row moved up once land in exactly the same order. Doing
+ * this maths twice is how the drag and the arrows drift apart.
+ *
+ * An id that is not in the list, or a move that would run off either end, is
+ * returned unchanged rather than clamped: the caller is asking to move
+ * something that has since been unpinned in another tab, and quietly putting
+ * it somewhere is worse than doing nothing.
+ */
+export function movePinnedTo(list: string[], id: string, index: number): string[] {
+  const from = list.indexOf(id);
+  if (from === -1 || index < 0 || index >= list.length || index === from) return list;
+  const next = [...list];
+  next.splice(from, 1);
+  next.splice(index, 0, id);
+  return next;
+}
+
+/** Moves an id one place up (-1) or down (1). Off either end is a no-op. */
+export function movePinnedBy(list: string[], id: string, delta: number): string[] {
+  return movePinnedTo(list, id, list.indexOf(id) + delta);
+}
+
+/**
+ * Moves an id to where another one currently sits — what a drop means.
+ *
+ * Taken against the list as it stands, before the dragged row is lifted out,
+ * which is the order the person can see while they are dragging.
+ */
+export function movePinnedOnto(list: string[], id: string, ontoId: string): string[] {
+  return movePinnedTo(list, id, list.indexOf(ontoId));
 }
 
 /**

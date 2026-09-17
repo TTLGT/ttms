@@ -1,10 +1,13 @@
 'use client';
 
-import { ArrowLeft, AtSign, MessagesSquare, Pin, PinOff, X } from 'lucide-react';
+import {
+  ArrowDown, ArrowLeft, ArrowUp, AtSign, MessagesSquare, Pin, PinOff, X,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { dismissThread, millis } from '@/lib/chat';
+import { usePinnedDrag } from '@/lib/usePinnedDrag';
 import { whenLabel } from '@/lib/chatFormat';
 import { conversationTitle } from '@/types/conversation';
 
@@ -24,9 +27,14 @@ export default function ThreadList({ onBack }: { onBack: () => void }) {
   const { user } = useAuth();
   const {
     myThreads, conversations, threadReadAt, nameOf, setActiveId, setOpenThread,
-    pinnedThreads, togglePinnedThread,
+    pinnedThreads, togglePinnedThread, movePinnedThread, dropPinnedThread,
   } = useChat();
   const { formatDate } = useDateFormatters();
+
+  // The same drag as the room list, and the arrows on a pinned row below are
+  // the same move without a mouse. A row with no menu to hang them in is why
+  // they are buttons here and menu items there.
+  const { rowProps, dragClass } = usePinnedDrag(dropPinnedThread);
 
   const myUid = user?.uid ?? '';
 
@@ -41,8 +49,8 @@ export default function ThreadList({ onBack }: { onBack: () => void }) {
     return conversation ? [{ entry, conversation }] : [];
   });
 
-  // Pinned threads first, in the order they were pinned, then the rest by
-  // newest reply — the same bargain the room list makes. A thread is pinned
+  // Pinned threads first, in the order this person put them in, then the rest
+  // by newest reply — the same bargain the room list makes. A thread is pinned
   // precisely because it matters more than its last reply time says: the load
   // you are working on is often the one nobody has answered about yet.
   const pinnedRank = new Map(pinnedThreads.map((rootId, i) => [rootId, i]));
@@ -94,11 +102,17 @@ export default function ThreadList({ onBack }: { onBack: () => void }) {
             ? 'You'
             : entry.lastReplyByName.split(' ')[0];
           const pinned = pinnedThreads.includes(entry.rootId);
+          const rank   = pinnedThreads.indexOf(entry.rootId);
 
           return (
             <div
               key={entry.rootId}
-              className="group relative mb-0.5 flex w-full items-start gap-2.5 rounded-lg px-2 py-2 transition hover:bg-gray-50"
+              // Pinned rows only, and only onto each other — the rest of this
+              // list is ordered by newest reply. See usePinnedDrag.
+              {...rowProps(entry.rootId, pinned)}
+              className={`group relative mb-0.5 flex w-full items-start gap-2.5 rounded-lg px-2 py-2 transition hover:bg-gray-50 ${
+                pinned ? 'cursor-grab active:cursor-grabbing' : ''
+              } ${dragClass(entry.rootId)}`}
             >
               <span
                 className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
@@ -140,6 +154,34 @@ export default function ThreadList({ onBack }: { onBack: () => void }) {
 
               {unread && !named && (
                 <span className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-brand-500" />
+              )}
+
+              {/* Where a pinned row sits among the other pinned ones, for
+                  anyone not dragging. Both arrows are drawn whenever the row
+                  is pinned and the one that cannot move is greyed rather than
+                  removed: four small icons that change places between rows
+                  read as a different row, not a different state. */}
+              {pinned && (
+                <span className="mt-0.5 flex flex-shrink-0 items-center">
+                  <button
+                    type="button"
+                    onClick={() => movePinnedThread(entry.rootId, -1)}
+                    disabled={rank <= 0}
+                    title="Move up"
+                    className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-200 hover:text-gray-600 disabled:pointer-events-none disabled:opacity-25"
+                  >
+                    <ArrowUp size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => movePinnedThread(entry.rootId, 1)}
+                    disabled={rank >= pinnedThreads.length - 1}
+                    title="Move down"
+                    className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-200 hover:text-gray-600 disabled:pointer-events-none disabled:opacity-25"
+                  >
+                    <ArrowDown size={14} />
+                  </button>
+                </span>
               )}
 
               {/* Keeps the row at the top of this list, for this person only.

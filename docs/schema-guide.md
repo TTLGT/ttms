@@ -1240,7 +1240,7 @@ automatic single-field indexes already cover.
 | `lastReadAt` | `{ [conversationId]: millis }` | How far this person has read each room |
 | `threadReadAt` | `{ [rootMessageId]: millis }` | The same per thread — see below |
 | `notify` | `{ [conversationId]: 'all' \| 'mentions' \| 'none' }` | How loud each room is for this person. An absent key is `all` |
-| `pinnedConversations` | string[] | Rooms this person keeps at the top of their list, in pin order |
+| `pinnedConversations` | string[] | Rooms this person keeps at the top of their list, in the order they put them in — pinning appends, dragging a pinned row or the menu's Move up / Move down rewrites the array |
 | `pinnedThreads` | string[] | The same for rows in the threads list, keyed by root message id |
 
 One document per user rather than a marker per conversation: the unread badge

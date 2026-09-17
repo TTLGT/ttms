@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import {
-  AtSign, Bell, BellOff, LogOut, MessagesSquare, MoreVertical, Pin, PinOff, Plus,
+  ArrowDown, ArrowUp, AtSign, Bell, BellOff, LogOut, MessagesSquare, MoreVertical,
+  Pin, PinOff, Plus,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { leaveConversation, millis } from '@/lib/chat';
+import { usePinnedDrag } from '@/lib/usePinnedDrag';
 import ActionMenu, { type MenuAction } from './ActionMenu';
 import RoomAvatar from './RoomAvatar';
 import NotifyMenu from './NotifyMenu';
@@ -35,8 +37,14 @@ export default function ConversationList({
     conversations, unreadIds, mentionIds, threadIds, unreadCounts, activeId, setActiveId,
     nameOf, loading, myThreads, threadReadAt,
     notify, setNotifyFor, pinnedConversations, togglePinnedConversation,
+    movePinnedConversation, dropPinnedConversation,
   } = useChat();
   const myUid = user?.uid ?? '';
+
+  // Dragging a pinned room to a different place. The arrows in the menu below
+  // do the same thing without a mouse, and both go through the same helper, so
+  // a room dropped one place up and a room moved up once land identically.
+  const { rowProps, dragClass } = usePinnedDrag(dropPinnedConversation);
 
   /** The room whose menu is open, and where its button is on screen. */
   const [menuFor, setMenuFor] = useState<{ id: string; anchor: DOMRect } | null>(null);
@@ -57,6 +65,7 @@ export default function ConversationList({
    */
   function actionsOn(c: Conversation): MenuAction[] {
     const pinned = pinnedConversations.includes(c.id);
+    const rank   = pinnedConversations.indexOf(c.id);
     const level  = notifyLevel(notify, c.id);
 
     const levelAction = (value: ConversationNotify, label: string, Icon: typeof Bell): MenuAction => ({
@@ -74,6 +83,22 @@ export default function ConversationList({
         Icon:  pinned ? PinOff : Pin,
         onSelect: () => togglePinnedConversation(c.id),
       },
+      // The keyboard's way of doing what the drag does. Each one is left out
+      // when it would do nothing — an unpinned room has no place in the order,
+      // and the room at the top of the pins has no further up to go — because
+      // a menu item that is present and inert reads as broken.
+      ...(pinned && rank > 0 ? [{
+        key:   'move-up',
+        label: 'Move up',
+        Icon:  ArrowUp,
+        onSelect: () => movePinnedConversation(c.id, -1),
+      }] : []),
+      ...(pinned && rank > -1 && rank < pinnedConversations.length - 1 ? [{
+        key:   'move-down',
+        label: 'Move down',
+        Icon:  ArrowDown,
+        onSelect: () => movePinnedConversation(c.id, 1),
+      }] : []),
       { ...levelAction('all', 'All messages', Bell), section: 'Notify me about' },
       levelAction('mentions', 'Only when named', AtSign),
       levelAction('none', 'Nothing — mute', BellOff),
@@ -157,9 +182,13 @@ export default function ConversationList({
           return (
             <div
               key={c.id}
+              // Only a pinned row is draggable, and only onto another pinned
+              // row — see usePinnedDrag. The rest of the list is sorted by who
+              // spoke last, so there is nothing there for a row to hold on to.
+              {...rowProps(c.id, pinned)}
               className={`group relative mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 transition ${
                 activeId === c.id ? 'bg-brand-50' : 'hover:bg-gray-50'
-              }`}
+              } ${pinned ? 'cursor-grab active:cursor-grabbing' : ''} ${dragClass(c.id)}`}
             >
               <RoomAvatar conversation={c} size={32} />
 
