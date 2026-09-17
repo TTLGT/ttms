@@ -2,19 +2,27 @@
 
 import { useState } from 'react';
 import {
-  ArrowDown, ArrowUp, AtSign, Bell, BellOff, LogOut, MessagesSquare, MoreVertical,
-  Pin, PinOff, Plus,
+  ArrowDown, ArrowUp, AtSign, Bell, BellOff, ListPlus, LogOut, MessagesSquare, MoreVertical,
+  Pin, PinOff, Plus, Star, StarOff, Tag,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { leaveConversation, millis } from '@/lib/chat';
 import { usePinnedDrag } from '@/lib/usePinnedDrag';
 import ActionMenu, { type MenuAction } from './ActionMenu';
+import ChatFilterBar from './ChatFilterBar';
+import ChatListDialog from './ChatListDialog';
 import RoomAvatar from './RoomAvatar';
 import NotifyMenu from './NotifyMenu';
 import {
+  chatListIdOf,
+  chatListsInOrder,
   conversationTitle,
+  inChatFilter,
   notifyLevel,
+  MAX_CHAT_LISTS,
+  type ChatFilterId,
+  type ChatList,
   type Conversation,
   type ConversationNotify,
 } from '@/types/conversation';
@@ -38,6 +46,7 @@ export default function ConversationList({
     nameOf, loading, myThreads, threadReadAt,
     notify, setNotifyFor, pinnedConversations, togglePinnedConversation,
     movePinnedConversation, dropPinnedConversation,
+    chatFilter, favorites, toggleFavorite, lists, addChatList, renameList, setInList,
   } = useChat();
   const myUid = user?.uid ?? '';
 
@@ -48,6 +57,31 @@ export default function ConversationList({
 
   /** The room whose menu is open, and where its button is on screen. */
   const [menuFor, setMenuFor] = useState<{ id: string; anchor: DOMRect } | null>(null);
+
+  /**
+   * The list dialog, when it is open: naming a new list - with the chat it was
+   * started from, if it came off a row's menu - or renaming one that exists.
+   */
+  const [listDialog, setListDialog] = useState<
+    | { mode: 'create'; seedId?: string }
+    | { mode: 'rename'; listId: string }
+    | null
+  >(null);
+
+  // What the chip row is showing. Rooms that fall outside it are only hidden,
+  // not unwatched: they are the same live conversations, and the chip they sit
+  // under carries their unread count.
+  //
+  // The conversation being read stays whatever the filter says. Opening one
+  // marks it read on the spot, so under Unread its own row would slide out of
+  // the column the moment it was clicked — taking its menu with it, and
+  // leaving "Nothing unread" printed beside a thread that is plainly open. The
+  // same goes for unticking a list from inside it. It drops out as soon as
+  // attention moves elsewhere, which is the moment it stops being disorienting.
+  const shown = conversations.filter(
+    (c) => c.id === activeId || inChatFilter(c, chatFilter, { favorites, lists, unreadIds }),
+  );
+  const listRows = chatListsInOrder(lists);
 
   // Whether the threads list is worth opening, in one dot. Counted across
   // every room, which is the thing the per-room thread marks below cannot say.
@@ -83,6 +117,16 @@ export default function ConversationList({
         Icon:  pinned ? PinOff : Pin,
         onSelect: () => togglePinnedConversation(c.id),
       },
+      // Favourite and pin sit together and do different things, the way they
+      // do in WhatsApp: a pin holds a room at the top of the whole list, a
+      // favourite puts it behind a chip. Somebody with four pinned rooms has
+      // used up the top of their list; somebody with a Favorites chip has not.
+      {
+        key:   'favorite',
+        label: favorites.includes(c.id) ? 'Remove from Favorites' : 'Add to Favorites',
+        Icon:  favorites.includes(c.id) ? StarOff : Star,
+        onSelect: () => toggleFavorite(c.id),
+      },
       // The keyboard's way of doing what the drag does. Each one is left out
       // when it would do nothing — an unpinned room has no place in the order,
       // and the room at the top of the pins has no further up to go — because
@@ -99,6 +143,26 @@ export default function ConversationList({
         Icon:  ArrowDown,
         onSelect: () => movePinnedConversation(c.id, 1),
       }] : []),
+      // Each list as a tick rather than a submenu, for the reason the notify
+      // levels are: a 288px column has nowhere for a submenu to open to. The
+      // last item is what somebody filing the first chat of a new category
+      // actually wants, and saves them making the list and then coming back
+      // here to put this chat in it.
+      ...listRows.map(({ id, list }, i): MenuAction => ({
+        key:     `list-${id}`,
+        label:   list.name,
+        Icon:    Tag,
+        checked: list.conversationIds.includes(c.id),
+        ...(i === 0 ? { section: 'Lists' } : {}),
+        onSelect: () => setInList(id, c.id, !list.conversationIds.includes(c.id)),
+      })),
+      {
+        key:     'new-list',
+        label:   'New list with this chat…',
+        Icon:    ListPlus,
+        ...(listRows.length === 0 ? { section: 'Lists' } : {}),
+        onSelect: () => setListDialog({ mode: 'create', seedId: c.id }),
+      },
       { ...levelAction('all', 'All messages', Bell), section: 'Notify me about' },
       levelAction('mentions', 'Only when named', AtSign),
       levelAction('none', 'Nothing — mute', BellOff),
@@ -161,16 +225,21 @@ export default function ConversationList({
         </div>
       </div>
 
+      <ChatFilterBar
+        onNewList={() => setListDialog({ mode: 'create' })}
+        onRenameList={(listId) => setListDialog({ mode: 'rename', listId })}
+      />
+
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {loading && <p className="px-2 py-3 text-sm text-gray-400">Loading…</p>}
 
-        {!loading && conversations.length === 0 && (
+        {!loading && shown.length === 0 && (
           <p className="px-2 py-3 text-sm text-gray-400">
-            Nothing here yet. Use + to message someone.
+            {emptyText(chatFilter, lists, conversations.length === 0)}
           </p>
         )}
 
-        {conversations.map((c) => {
+        {shown.map((c) => {
           const unread    = unreadIds.includes(c.id);
           const mentioned = mentionIds.includes(c.id);
           const answered  = threadIds.includes(c.id);
@@ -290,8 +359,53 @@ export default function ConversationList({
           );
         })}
       </div>
+
+      {listDialog && (
+        <ChatListDialog
+          mode={listDialog.mode}
+          initialName={listDialog.mode === 'rename' ? lists[listDialog.listId]?.name ?? '' : ''}
+          atCap={listRows.length >= MAX_CHAT_LISTS}
+          onSubmit={(name) => {
+            if (listDialog.mode === 'rename') renameList(listDialog.listId, name);
+            else addChatList(name, listDialog.seedId ? [listDialog.seedId] : []);
+          }}
+          onClose={() => setListDialog(null)}
+        />
+      )}
     </div>
   );
+}
+
+/**
+ * What an empty column says, which depends entirely on why it is empty.
+ *
+ * A filter with nothing under it is the one moment somebody can be looking at
+ * a chat list that does not have their chats in it, so each of these has to
+ * say which filter is doing the hiding and how a room gets in.
+ */
+function emptyText(
+  filter: ChatFilterId,
+  lists: Record<string, ChatList>,
+  noConversationsAtAll: boolean,
+): string {
+  if (noConversationsAtAll) return 'Nothing here yet. Use + to message someone.';
+  switch (filter) {
+    case 'favorites':
+      return 'No favorites yet. Open the menu on a chat and choose Add to Favorites.';
+    case 'unread':
+      return 'Nothing unread.';
+    case 'rooms':
+      return 'You are not in any rooms yet.';
+    case 'loads':
+      return 'No load rooms yet. Press Discuss on an order to start one.';
+    default: {
+      const listId = chatListIdOf(filter);
+      const name = listId ? lists[listId]?.name : null;
+      return name
+        ? `Nothing in ${name} yet. Open the menu on a chat and tick ${name}.`
+        : 'Nothing here.';
+    }
+  }
 }
 
 /** The last thing said, prefixed with who said it once there is more than one of you. */

@@ -1242,6 +1242,8 @@ automatic single-field indexes already cover.
 | `notify` | `{ [conversationId]: 'all' \| 'mentions' \| 'none' }` | How loud each room is for this person. An absent key is `all` |
 | `pinnedConversations` | string[] | Rooms this person keeps at the top of their list, in the order they put them in — pinning appends, dragging a pinned row or the menu's Move up / Move down rewrites the array |
 | `pinnedThreads` | string[] | The same for rows in the threads list, keyed by root message id |
+| `favorites` | string[] | Conversations this person marked a favourite — what the Favorites chip shows |
+| `lists` | `{ [listId]: { name, createdAt, conversationIds } }` | The filter groups this person made for themselves — see below |
 
 One document per user rather than a marker per conversation: the unread badge
 needs every conversation's state at once, and a live listener on one document
@@ -1250,14 +1252,37 @@ about themselves, and it says nothing about access — only which conversations
 still show a dot.
 
 Everything here is a fact about the *reader*, not about the room, which is why
-per-room notification settings and both pin lists live here rather than on the
-conversation: two people in the same room want different things from it, and the
+per-room notification settings, both pin lists and the filter chips live here
+rather than on the conversation: two people in the same room want different things from it, and the
 busiest room in the company is the one nobody may leave. It also means none of
 those three features needed a rules change — this document is already the one
 thing a user may write about themselves. `mentions` still lets an @, a reply in
 a thread they are in, and a reaction on something they said through; only `none`
 is silent. Opening a room marks it read whatever it is set to, so unmuting one
 months later does not present the whole intervening conversation as unread.
+
+**The filter chips** (`favorites` and `lists`) are the same bargain again. The
+chip row above the conversation list — All, Favorites, Unread, Rooms, Loads,
+then whatever lists somebody made — filters conversations the browser is
+already holding. Nothing in it is a query, so a person can press every chip in
+the row all day at no cost, and no chip may ever become a reason to fetch a
+conversation that was not going to be fetched.
+
+Favorites is its own field rather than one of the lists: it is always there,
+cannot be renamed and cannot be deleted, so it has no name or creation date to
+store. Lists are a map keyed by list id, not an array, so that adding one chat
+to one list writes `lists.<id>.conversationIds` and nothing else — an array is
+sent whole, and two tabs would overwrite each other's lists. `createdAt` is
+what orders the chips, so the row does not reshuffle when somebody files a
+chat.
+
+An id in a list can outlive the conversation it names, and nothing tidies up
+after a room somebody left. That is deliberate: a dead id draws nothing,
+because a list is applied by filtering the live conversations, not by looking
+each id up.
+
+Lists are private to the person who made them. Putting a chat in one changes
+nothing for anybody else in that chat, and nobody else can see the list exists.
 
 `threadReadAt` is keyed on the message a thread hangs under, not on the room,
 and that separation is the point. Opening a room marks the room read; if that

@@ -37,6 +37,7 @@ import {
   THREAD_PAGE_SIZE,
   threadFollowers,
   type Attachment,
+  type ChatList,
   type ChatMessage,
   type ChatReads,
   type Conversation,
@@ -700,6 +701,8 @@ export interface ChatMarks {
   notify: Record<string, ConversationNotify>;
   pinnedConversations: string[];
   pinnedThreads: string[];
+  favorites: string[];
+  lists: Record<string, ChatList>;
 }
 
 export function watchReads(
@@ -717,6 +720,8 @@ export function watchReads(
         notify:              data?.notify              ?? {},
         pinnedConversations: data?.pinnedConversations ?? [],
         pinnedThreads:       data?.pinnedThreads       ?? [],
+        favorites:           data?.favorites           ?? [],
+        lists:               data?.lists               ?? {},
       });
     },
     (err) => onError?.(err),
@@ -807,6 +812,107 @@ export async function setPinnedThreadOrder(uid: string, ids: string[]): Promise<
   await setDoc(
     doc(db, CHAT_READS_COLLECTION, uid),
     { uid, pinnedThreads: ids },
+    { merge: true },
+  );
+}
+
+/**
+ * Marks a conversation a favourite for this person, or takes the mark off.
+ *
+ * arrayUnion/arrayRemove rather than writing the array back, for the reason
+ * setConversationPinned gives: chat is open in more than one tab here, and a
+ * read-then-write would let one tab undo what another had just done.
+ *
+ * Order is arrival order and is not offered for rearranging, unlike the pinned
+ * list. Favorites is a filter over the list, and inside it the rooms are still
+ * sorted by who spoke last — which is the sort somebody picking a filter is
+ * asking for. A second, hand-made order underneath that one would only be
+ * visible if the filter were also a list, which it is not.
+ */
+export async function setConversationFavorite(
+  uid: string,
+  conversationId: string,
+  favorite: boolean,
+): Promise<void> {
+  await setDoc(
+    doc(db, CHAT_READS_COLLECTION, uid),
+    { uid, favorites: favorite ? arrayUnion(conversationId) : arrayRemove(conversationId) },
+    { merge: true },
+  );
+}
+
+/**
+ * Makes one of this person's own filter groups, and hands back its id.
+ *
+ * The id is generated here rather than taken from Firestore, because the whole
+ * list lives inside one document and there is no collection to mint a key
+ * from. crypto.randomUUID is not available on an http:// origin other than
+ * localhost, so this uses the same cheap random suffix as blankCommodityItem —
+ * safe here for a stronger reason than that one: the only ids it has to differ
+ * from are the handful in this one person's own document.
+ */
+export async function createChatList(
+  uid: string,
+  name: string,
+  conversationIds: string[] = [],
+): Promise<string> {
+  const id = `cl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  await setDoc(
+    doc(db, CHAT_READS_COLLECTION, uid),
+    { uid, lists: { [id]: { name, createdAt: Date.now(), conversationIds } } },
+    { merge: true },
+  );
+  return id;
+}
+
+/**
+ * Renames one list, touching nothing else — not its members, not the other
+ * lists. A nested merge writes `lists.<id>.name` on its own, which is what
+ * keeps a rename in one tab from reverting an add in another.
+ */
+export async function renameChatList(uid: string, listId: string, name: string): Promise<void> {
+  await setDoc(
+    doc(db, CHAT_READS_COLLECTION, uid),
+    { uid, lists: { [listId]: { name } } },
+    { merge: true },
+  );
+}
+
+/**
+ * Deletes a list. The conversations in it are untouched — a list is a view of
+ * them, and this is the one place that has to say so out loud, because
+ * deleting something that contains chats is the reading to be afraid of.
+ */
+export async function deleteChatList(uid: string, listId: string): Promise<void> {
+  await setDoc(
+    doc(db, CHAT_READS_COLLECTION, uid),
+    { uid, lists: { [listId]: deleteField() } },
+    { merge: true },
+  );
+}
+
+/**
+ * Puts one conversation in one of this person's lists, or takes it out.
+ *
+ * The write reaches exactly `lists.<listId>.conversationIds`, which is the
+ * entire reason lists are a map keyed by id rather than an array of them.
+ */
+export async function setConversationInList(
+  uid: string,
+  listId: string,
+  conversationId: string,
+  inList: boolean,
+): Promise<void> {
+  await setDoc(
+    doc(db, CHAT_READS_COLLECTION, uid),
+    {
+      uid,
+      lists: {
+        [listId]: {
+          conversationIds: inList ? arrayUnion(conversationId) : arrayRemove(conversationId),
+        },
+      },
+    },
     { merge: true },
   );
 }

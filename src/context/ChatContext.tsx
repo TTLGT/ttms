@@ -14,10 +14,15 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthContext';
 import {
   countUnreadMessages,
+  createChatList,
+  deleteChatList,
   ensureChatReady,
   markConversationRead,
   markThreadRead,
   millis,
+  renameChatList,
+  setConversationFavorite,
+  setConversationInList,
   setConversationNotify,
   setConversationPinned,
   setPinnedConversationOrder,
@@ -41,11 +46,16 @@ import {
 } from '@/lib/chatNotify';
 import { listUserProfiles } from '@/lib/userProfiles';
 import {
+  chatListFilterId,
+  chatListIdOf,
   conversationTitle,
+  MAX_CHAT_LISTS,
   movePinnedBy,
   movePinnedOnto,
   notifyLevel,
   reactionGlyph,
+  type ChatFilterId,
+  type ChatList,
   type Conversation,
   type ConversationNotify,
   type MessageQuote,
@@ -193,6 +203,29 @@ interface ChatContextValue {
   movePinnedConversation: (conversationId: string, delta: number) => void;
   /** Puts a dragged room where another pinned room currently sits. */
   dropPinnedConversation: (movedId: string, ontoId: string) => void;
+  /**
+   * The filter chips: which slice of the list is showing, this person's
+   * favourites, and the groups they made for themselves.
+   *
+   * The selected filter is here rather than in the list component so that the
+   * page and the popup agree — switching to Favorites in the corner popup and
+   * then opening chat properly should not land back on All. It is the one
+   * piece of this that is not persisted: which rooms are favourites follows
+   * the person between machines, but which chip they last pressed is where
+   * they are right now, and a filter still applied tomorrow morning is a list
+   * with rooms mysteriously missing from it.
+   */
+  chatFilter: ChatFilterId;
+  setChatFilter: (filter: ChatFilterId) => void;
+  favorites: string[];
+  toggleFavorite: (conversationId: string) => void;
+  lists: Record<string, ChatList>;
+  /** Makes a list, optionally with one chat already in it, and selects it. */
+  addChatList: (name: string, conversationIds?: string[]) => void;
+  renameList: (listId: string, name: string) => void;
+  /** Deletes the list. The conversations in it are not touched. */
+  removeList: (listId: string) => void;
+  setInList: (listId: string, conversationId: string, inList: boolean) => void;
   /** Threads this person keeps at the top of the threads list, in their order. */
   pinnedThreads: string[];
   togglePinnedThread: (rootId: string) => void;
@@ -218,6 +251,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [notify, setNotify]               = useState<Record<string, ConversationNotify>>({});
   const [pinnedConversations, setPinnedConversations] = useState<string[]>([]);
   const [pinnedThreads, setPinnedThreads] = useState<string[]>([]);
+  const [favorites, setFavorites]         = useState<string[]>([]);
+  const [lists, setLists]                 = useState<Record<string, ChatList>>({});
+  const [chatFilter, setChatFilter]       = useState<ChatFilterId>('all');
   const [activeId, setActiveId]           = useState<string | null>(null);
   const [openThread, setOpenThread]       = useState<OpenThread | null>(null);
   const [popupOpen, setPopupOpen]         = useState(false);
@@ -266,6 +302,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           setNotify(marks.notify);
           setPinnedConversations(marks.pinnedConversations);
           setPinnedThreads(marks.pinnedThreads);
+          setFavorites(marks.favorites);
+          setLists(marks.lists);
         }, () => {
           // Read marks failing is not worth an error banner — the worst of it
           // is a badge that will not clear.
@@ -343,6 +381,62 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       void setThreadPinned(uid, rootId, !pinnedThreads.includes(rootId)).catch(() => {});
     },
     [uid, pinnedThreads],
+  );
+
+  /**
+   * The filter chips. Nothing is held in React state while a write is in
+   * flight, for the reason the reordering block below gives: the SDK applies a
+   * write to its own cache first, so the listener hands the change straight
+   * back and the chip updates under the cursor.
+   */
+  const toggleFavorite = useCallback(
+    (conversationId: string) => {
+      if (!uid) return;
+      void setConversationFavorite(uid, conversationId, !favorites.includes(conversationId))
+        .catch(() => {});
+    },
+    [uid, favorites],
+  );
+
+  const addChatList = useCallback(
+    (name: string, conversationIds: string[] = []) => {
+      if (!uid || Object.keys(lists).length >= MAX_CHAT_LISTS) return;
+      // Selected as soon as it exists, because somebody who has just made a
+      // list wants to see it — and when it was made from a chat's own menu,
+      // seeing it is how they know the chat went in.
+      void createChatList(uid, name, conversationIds)
+        .then((id) => setChatFilter(chatListFilterId(id)))
+        .catch(() => {});
+    },
+    [uid, lists],
+  );
+
+  const renameList = useCallback(
+    (listId: string, name: string) => {
+      if (!uid) return;
+      void renameChatList(uid, listId, name).catch(() => {});
+    },
+    [uid],
+  );
+
+  const removeList = useCallback(
+    (listId: string) => {
+      if (!uid) return;
+      // Off the chip first. The list is about to stop existing, and a filter
+      // still naming it would leave the column showing everything with a chip
+      // selected that is no longer in the row.
+      setChatFilter((current) => (chatListIdOf(current) === listId ? 'all' : current));
+      void deleteChatList(uid, listId).catch(() => {});
+    },
+    [uid],
+  );
+
+  const setInList = useCallback(
+    (listId: string, conversationId: string, inList: boolean) => {
+      if (!uid) return;
+      void setConversationInList(uid, listId, conversationId, inList).catch(() => {});
+    },
+    [uid],
   );
 
   /**
@@ -769,6 +863,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       movePinnedConversation, dropPinnedConversation,
       pinnedThreads, togglePinnedThread,
       movePinnedThread, dropPinnedThread,
+      chatFilter, setChatFilter, favorites, toggleFavorite,
+      lists, addChatList, renameList, removeList, setInList,
       error, loading,
     }),
     [
@@ -783,6 +879,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       movePinnedConversation, dropPinnedConversation,
       pinnedThreads, togglePinnedThread,
       movePinnedThread, dropPinnedThread,
+      chatFilter, favorites, toggleFavorite,
+      lists, addChatList, renameList, removeList, setInList,
       error, loading,
     ],
   );

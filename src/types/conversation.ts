@@ -635,6 +635,150 @@ export interface ChatReads {
   pinnedConversations?: string[];
   /** The same, for rows in the threads list. Keyed by the thread's root id. */
   pinnedThreads?: string[];
+  /**
+   * Conversations this person has marked a favourite.
+   *
+   * Its own field rather than one of the lists below, because Favorites is not
+   * a list anybody made. It is always there, cannot be renamed and cannot be
+   * deleted, so a name and a creation date to carry around would be two facts
+   * nothing ever reads. Written with arrayUnion for the same reason as the
+   * pinned lists: this document is open in every tab the person has TTMS in.
+   */
+  favorites?: string[];
+  /**
+   * The filter groups this person made for themselves, as `{ [listId]: list }`.
+   *
+   * A map rather than an array, for the same reason as `pinned` on the
+   * conversation: adding one chat to one list has to touch that list alone. An
+   * array is sent whole, so dropping a chat into one list from the popup would
+   * put back whatever the other tab had just changed about every other list.
+   * Keyed, the write is `lists.<id>.conversationIds` and nothing else moves.
+   */
+  lists?: Record<string, ChatList>;
+}
+
+/**
+ * One filter group: a name, and the conversations somebody put in it.
+ *
+ * The membership is ids and nothing else. Unlike a pinned message, none of the
+ * room is copied in here — a list is only ever drawn from conversations that
+ * are already loaded and live, so a copy of a name would be a second version
+ * of it to go stale.
+ *
+ * An id in here can outlive the conversation it names: rooms are left and
+ * record rooms are cleared out, and nothing hunts through every list to tidy
+ * up after them. That is deliberate. A dead id draws nothing — the list is
+ * applied by filtering conversations that are in the list, not by looking each
+ * id up — and chasing them would mean writing this document from the code path
+ * that leaves a room, for no visible difference.
+ *
+ * `createdAt` is what orders the chips, so the row does not reshuffle itself
+ * every time somebody adds a chat to a list. Millis rather than a Timestamp
+ * because this sits inside a map, where a serverTimestamp cannot be written —
+ * the same limit `lastReadAt` runs into.
+ */
+export interface ChatList {
+  name: string;
+  createdAt: number;
+  conversationIds: string[];
+}
+
+/**
+ * How many lists one person may keep, and how long a name may be.
+ *
+ * Both are kindnesses rather than boundaries — this document is the person's
+ * own and the rules do not count anything in it — so there is nothing here to
+ * keep in sync with firestore.rules. The cap on the name is what keeps a chip
+ * a chip: the row scrolls sideways in a 288px column, and one list called
+ * after a whole sentence pushes every other list off the end of it.
+ */
+export const MAX_CHAT_LISTS = 20;
+export const CHAT_LIST_NAME_MAX = 24;
+
+/**
+ * Which slice of the list is being shown: a built-in id, or `list:<listId>`.
+ *
+ * One namespace for both, so the chip row, the selected filter and the empty
+ * state are one value and not a pair of "which built-in" and "which list" that
+ * can both be set at once.
+ */
+export type ChatFilterId = string;
+
+/**
+ * The built-in chips, in the order they sit in the row.
+ *
+ * `always` is whether the chip is drawn when it would match nothing. All,
+ * Favorites and Unread are: the first two are where the feature is explained
+ * to somebody who has never used it, and an Unread chip that comes and goes as
+ * messages arrive is a row that moves under the cursor. Rooms and Loads are
+ * not, because a broker who has never been added to a named room has no use
+ * for a chip that is permanently empty.
+ */
+export const BUILT_IN_CHAT_FILTERS: { id: ChatFilterId; label: string; always: boolean }[] = [
+  { id: 'all',       label: 'All',       always: true  },
+  { id: 'favorites', label: 'Favorites', always: true  },
+  { id: 'unread',    label: 'Unread',    always: true  },
+  { id: 'rooms',     label: 'Rooms',     always: false },
+  { id: 'loads',     label: 'Loads',     always: false },
+];
+
+/** The filter id for one of this person's own lists. */
+export function chatListFilterId(listId: string): string {
+  return `list:${listId}`;
+}
+
+/** The list id a filter names, or null when it is a built-in one. */
+export function chatListIdOf(filter: ChatFilterId): string | null {
+  return filter.startsWith('list:') ? filter.slice(5) : null;
+}
+
+/**
+ * This person's lists as rows, oldest first — the order of the chips.
+ *
+ * Sorted on `createdAt` with the id as the tie-break, because two lists made
+ * in the same millisecond would otherwise swap places between renders, and a
+ * chip that moves while you are reaching for it is worse than either order.
+ */
+export function chatListsInOrder(
+  lists: Record<string, ChatList>,
+): { id: string; list: ChatList }[] {
+  return Object.entries(lists)
+    .map(([id, list]) => ({ id, list }))
+    .sort((a, b) => (a.list.createdAt - b.list.createdAt) || a.id.localeCompare(b.id));
+}
+
+/**
+ * Whether one conversation belongs in the slice being shown.
+ *
+ * Every filter here is answered from what the browser already holds — the
+ * conversations are loaded, the favourites and lists ride on `chatReads`, and
+ * the unread ids are already worked out for the badges. None of it is a query,
+ * which is the whole reason this feature costs nothing to run: a filter must
+ * never become a reason to read a conversation that was not going to be read.
+ *
+ * An unknown filter falls through to everything rather than to nothing: it can
+ * only be reached by a list that has since been deleted in another tab, and
+ * showing the full list is a better answer to that than an empty column.
+ */
+export function inChatFilter(
+  c: Conversation,
+  filter: ChatFilterId,
+  ctx: { favorites: string[]; lists: Record<string, ChatList>; unreadIds: string[] },
+): boolean {
+  switch (filter) {
+    case 'all':       return true;
+    case 'favorites': return ctx.favorites.includes(c.id);
+    case 'unread':    return ctx.unreadIds.includes(c.id);
+    // The company room counts as a room. It is the one nobody chose to be in,
+    // but somebody filtering to Rooms is asking for "not a private message",
+    // and leaving the busiest one of those out would read as a bug.
+    case 'rooms':     return c.kind === 'group' || c.kind === 'company';
+    case 'loads':     return c.kind === 'record';
+    default: {
+      const listId = chatListIdOf(filter);
+      return listId ? (ctx.lists[listId]?.conversationIds.includes(c.id) ?? false) : true;
+    }
+  }
 }
 
 /**
