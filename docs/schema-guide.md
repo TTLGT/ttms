@@ -525,6 +525,8 @@ page boundary and be served twice or skipped.
 | orders   | `parentOrderId` ASC + `searchTerms` ARRAY + `createdAt` DESC | The Orders search box |
 | orders   | `parentOrderId` ASC + `status` ASC + `searchTerms` ARRAY + `createdAt` DESC | Searching within a status tab |
 | orders   | `shipperId` ASC + `createdAt` DESC | A party's orders, as shipper |
+| messages (collection id, any conversation) | `searchTerms` ARRAY + `createdAt` DESC | The chat search box |
+| replies (collection id, any conversation)  | `searchTerms` ARRAY + `createdAt` DESC | The same, reaching inside threads |
 
 Anything not listed is single-field and automatic: the status-tab `count()`s,
 carrier DOT/MC search, the carrier `count()`s, the analytics pickup-date range,
@@ -1141,6 +1143,35 @@ walk a map of arrays, so they do not prove the caller only added their own uid;
 among trusted staff the worst case is a name appearing under a thumbs-up they did
 not leave, and the check that matters is that no message text can be touched
 down that branch.
+
+`searchTerms` is what the chat search box looks up: the words of the message,
+the sender's name as it stood, and any file names, lowercased and deduped. It
+exists for the reason `orderSearchTerms` does — Firestore cannot look inside a
+string, so the words are worked out on save and the search is an
+`array-contains`. Four things about it are worth knowing:
+
+- **Whole words, not fragments.** An order is filed under every fragment of
+  every word, so "orris" finds Morris. A 4,000-character message treated the
+  same way would produce hundreds of thousands of index entries and hit
+  Firestore's limit of 40,000 per document. So chat search finds "invoice" and
+  not "invoic", and the results panel says so when it finds nothing.
+- **Anything that writes a message must write them.** `sendMessage` and
+  `sendThreadReply` compute them; `editMessage` rebuilds them from the new text;
+  `deleteMessage` sets them to `[]`, so a message somebody took back cannot be
+  read out of a search result. The rules name `searchTerms` alongside `text` on
+  every branch that can move it.
+- **A message written before this existed has no such field at all**, and an
+  `array-contains` query skips a document missing the field rather than failing.
+  Until `scripts/backfill-chat-search-terms.js` has run, search finds only what
+  has been said since, and nothing anywhere says why.
+- **The search itself runs server-side**, at `GET /api/chat/search`. It spans
+  rooms, which as a client query would mean a collection-group query over
+  `messages` — and a collection-group rule cannot work out which conversation a
+  document belongs to, so no rule could gate one. The route resolves the
+  caller's rooms from their own uid and takes nothing about scope from the
+  request. It searches rooms the caller is **in**: a record room nobody on that
+  account has opened has no uid in `memberUids` and is not searched, even where
+  the load itself is visible.
 
 `replyTo` carries a **copy** of the quoted message rather than only its id.
 Three reasons point the same way: a reply carried privately out of a room quotes

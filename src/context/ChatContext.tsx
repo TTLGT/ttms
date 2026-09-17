@@ -21,6 +21,7 @@ import {
   markThreadRead,
   millis,
   renameChatList,
+  searchChat,
   setConversationFavorite,
   setConversationInList,
   setConversationNotify,
@@ -44,6 +45,7 @@ import {
   showMessageNotification,
   type NotifyPrefs,
 } from '@/lib/chatNotify';
+import type { ChatSearchHit } from '@/lib/chatSearch';
 import { listUserProfiles } from '@/lib/userProfiles';
 import {
   chatListFilterId,
@@ -88,6 +90,40 @@ export interface PendingReply {
 export interface OpenThread {
   conversationId: string;
   rootId: string;
+}
+
+/**
+ * A message to scroll to once its room is open.
+ *
+ * `at` is when it was sent, and is what makes a jump to an old message
+ * possible: the thread loads only the newest messages, so reaching something
+ * said in March means widening that window, and knowing how far to widen it
+ * means knowing where the message sits in time.
+ *
+ * Null where the caller does not have it to hand — a link carrying only a
+ * message id, or a reaction whose own timestamp is not the message's. The
+ * thread fetches the message itself in that case rather than guessing, which
+ * is one read on a jump somebody explicitly asked for.
+ */
+export interface FocusMessage {
+  messageId: string;
+  at: number | null;
+}
+
+/**
+ * A search of what has been said, once it has been run.
+ *
+ * `query` is the text the results belong to rather than what is in the box
+ * now: the box goes on being typed in while a search is on screen, and results
+ * headed by the wrong words are worse than no heading at all.
+ */
+export interface ChatSearchState {
+  query: string;
+  hits: ChatSearchHit[];
+  loading: boolean;
+  error: string;
+  /** True when the search stopped early — see ChatSearchResult.truncated. */
+  truncated: boolean;
 }
 
 /**
@@ -174,11 +210,27 @@ interface ChatContextValue {
   setPendingReply: (reply: PendingReply | null) => void;
   /**
    * A message to scroll to and ring once its thread is open, set by following
-   * a link to one message. Claimed and cleared by the thread, like a pending
-   * reply — the conversation has to switch before anything can scroll.
+   * a link to one message or by opening a search result. Claimed and cleared
+   * by the thread, like a pending reply — the conversation has to switch
+   * before anything can scroll.
    */
-  focusMessageId: string | null;
-  setFocusMessageId: (messageId: string | null) => void;
+  focusMessage: FocusMessage | null;
+  setFocusMessage: (focus: FocusMessage | null) => void;
+  /**
+   * What is typed in the chat search box.
+   *
+   * Held here rather than in the box because it does two different jobs in two
+   * places: it filters the conversation list as it is typed, which costs
+   * nothing, and on Enter it goes to the server as a search of everything
+   * said. The results replace the room on screen, so both columns have to know
+   * about it.
+   */
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  /** The last search that was run, or null when none is on screen. */
+  search: ChatSearchState | null;
+  runSearch: () => void;
+  clearSearch: () => void;
   /** Desktop notification and sound settings, per browser. */
   notifyPrefs: NotifyPrefs;
   setNotifyPrefs: (prefs: NotifyPrefs) => void;
@@ -261,7 +313,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading]             = useState(true);
   const [notifyPrefs, setPrefs]           = useState<NotifyPrefs>(DEFAULT_NOTIFY_PREFS);
   const [pendingReply, setPendingReply]   = useState<PendingReply | null>(null);
-  const [focusMessageId, setFocusMessageId] = useState<string | null>(null);
+  const [focusMessage, setFocusMessage]   = useState<FocusMessage | null>(null);
+  const [searchQuery, setSearchQuery]     = useState('');
+  const [search, setSearch]               = useState<ChatSearchState | null>(null);
   const [myThreads, setMyThreads]         = useState<ThreadEntry[]>([]);
 
   // Read in an effect, not in useState: the server renders this too and has no
@@ -580,6 +634,41 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return mentionIds.length > 0 ? `@${text}` : text;
   }, [unreadIds, mentionIds, unreadCounts]);
 
+  /* ---------------------------------------------------------------- search */
+
+  /**
+   * Runs the search box against everything this person can see.
+   *
+   * On Enter rather than on every keystroke, which is the one design decision
+   * in here worth defending. Filtering the room list as you type is free — the
+   * browser already holds it — but this goes to the server and queries every
+   * room, so a search-as-you-type would run the whole thing five times on the
+   * way to a five-letter word.
+   *
+   * The results carry the words they belong to, so a box that has been typed
+   * in since cannot mislabel them.
+   */
+  const runSearch = useCallback(() => {
+    const q = searchQuery.trim();
+    if (!q) { setSearch(null); return; }
+
+    setSearch({ query: q, hits: [], loading: true, error: '', truncated: false });
+    void searchChat(q)
+      .then((result) => setSearch({
+        query: q, hits: result.hits, loading: false, error: '', truncated: result.truncated,
+      }))
+      .catch(() => setSearch({
+        query: q, hits: [], loading: false, truncated: false,
+        error: 'That search could not be run.',
+      }));
+  }, [searchQuery]);
+
+  /** Closes the results and empties the box. Opening a result calls it too. */
+  const clearSearch = useCallback(() => {
+    setSearch(null);
+    setSearchQuery('');
+  }, []);
+
   const markRead = useCallback(
     (conversationId: string) => {
       if (!uid) return;
@@ -756,7 +845,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             // A reaction on a thread reply opens the thread. Jumping to the
             // reply in the room would find nothing — it was never in the room.
             if (ping.rootId) setOpenThread({ conversationId: c.id, rootId: ping.rootId });
-            else setFocusMessageId(ping.messageId);
+            // No timestamp: `ping.at` is when the reaction was left, not when
+            // the message was sent, and widening the window to the wrong one
+            // would look like a jump that missed. The thread looks the message
+            // up when it needs to — see FocusMessage.
+            else setFocusMessage({ messageId: ping.messageId, at: null });
             router.push('/dashboard/chat');
           },
         });
@@ -856,7 +949,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       unreadCounts, unreadBadge, lastReadAt, threadReadAt,
       activeId, setActiveId, popupOpen, setPopupOpen, markRead,
       openThread, setOpenThread, markThreadSeen,
-      pendingReply, setPendingReply, focusMessageId, setFocusMessageId,
+      pendingReply, setPendingReply, focusMessage, setFocusMessage,
+      searchQuery, setSearchQuery, search, runSearch, clearSearch,
       notifyPrefs, setNotifyPrefs,
       notify, setNotifyFor,
       pinnedConversations, togglePinnedConversation,
@@ -872,7 +966,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       myThreads,
       unreadCounts, unreadBadge, lastReadAt, threadReadAt,
       activeId, popupOpen, markRead, openThread, markThreadSeen,
-      pendingReply, focusMessageId,
+      pendingReply, focusMessage,
+      searchQuery, search, runSearch, clearSearch,
       notifyPrefs, setNotifyPrefs,
       notify, setNotifyFor,
       pinnedConversations, togglePinnedConversation,

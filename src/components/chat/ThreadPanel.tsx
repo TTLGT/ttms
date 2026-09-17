@@ -208,7 +208,7 @@ export default function ThreadPanel({
     try {
       // Never the room's preview line: the root of a thread is only the last
       // message in the room by coincidence, and a reply never is at all.
-      await editMessage(conversationId, message.id, text, { isLastMessage: false, isReply });
+      await editMessage(conversationId, message, text, { isLastMessage: false, isReply });
       setEditingId(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'That edit did not save.');

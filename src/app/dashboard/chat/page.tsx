@@ -61,7 +61,7 @@ export default function ChatPage() {
  */
 function OpenFromLink() {
   const params = useSearchParams();
-  const { setActiveId, setFocusMessageId } = useChat();
+  const { setActiveId, setFocusMessage } = useChat();
 
   const conversationId = params.get('c');
   const messageId      = params.get('m');
@@ -69,8 +69,10 @@ function OpenFromLink() {
   useEffect(() => {
     if (!conversationId) return;
     setActiveId(conversationId);
-    setFocusMessageId(messageId);
-  }, [conversationId, messageId, setActiveId, setFocusMessageId]);
+    // No timestamp in the link, so the thread looks the message up if it has
+    // to reach back for it — see FocusMessage.
+    setFocusMessage(messageId ? { messageId, at: null } : null);
+  }, [conversationId, messageId, setActiveId, setFocusMessage]);
 
   return null;
 }

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import {
   ArrowDown, ArrowUp, AtSign, Bell, BellOff, ListPlus, LogOut, MessagesSquare, MoreVertical,
-  Pin, PinOff, Plus, Star, StarOff, Tag,
+  Pin, PinOff, Plus, Search, Star, StarOff, Tag, X,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
@@ -44,6 +44,7 @@ export default function ConversationList({
   const {
     conversations, unreadIds, mentionIds, threadIds, unreadCounts, activeId, setActiveId,
     nameOf, loading, myThreads, threadReadAt,
+    searchQuery, setSearchQuery, search, runSearch, clearSearch,
     notify, setNotifyFor, pinnedConversations, togglePinnedConversation,
     movePinnedConversation, dropPinnedConversation,
     chatFilter, favorites, toggleFavorite, lists, addChatList, renameList, setInList,
@@ -78,9 +79,33 @@ export default function ConversationList({
   // leaving "Nothing unread" printed beside a thread that is plainly open. The
   // same goes for unticking a list from inside it. It drops out as soon as
   // attention moves elsewhere, which is the moment it stops being disorienting.
-  const shown = conversations.filter(
-    (c) => c.id === activeId || inChatFilter(c, chatFilter, { favorites, lists, unreadIds }),
-  );
+  /*
+   * What is typed in the search box, as words.
+   *
+   * Names are matched by prefix here, unlike the words inside messages, which
+   * are matched whole. The two are different questions: a room list is a
+   * couple of dozen short strings the browser already holds, so narrowing it
+   * on every keystroke costs nothing and "viv" finding Vivian is the whole
+   * point. Searching what was *said* goes to the server against every room,
+   * where per-keystroke prefix matching is neither free nor indexable.
+   */
+  const nameWords = searchQuery.toLowerCase().split(/\s+/).filter(Boolean);
+
+  /** A room's name, and the names of the people in it. */
+  const searchableName = (c: Conversation): string =>
+    [conversationTitle(c, myUid, nameOf), ...c.memberUids.map(nameOf)].join(' ').toLowerCase();
+
+  const shown = nameWords.length > 0
+    // While there is something in the box it decides the list, chips and all.
+    // A chip that went on hiding rooms matching what somebody had just typed
+    // would read as the search being broken rather than as a filter being on.
+    ? conversations.filter((c) => {
+        const haystack = searchableName(c).split(/[^a-z0-9]+/).filter(Boolean);
+        return nameWords.every((w) => haystack.some((word) => word.startsWith(w)));
+      })
+    : conversations.filter(
+        (c) => c.id === activeId || inChatFilter(c, chatFilter, { favorites, lists, unreadIds }),
+      );
   const listRows = chatListsInOrder(lists);
 
   // Whether the threads list is worth opening, in one dot. Counted across
@@ -225,17 +250,71 @@ export default function ConversationList({
         </div>
       </div>
 
-      <ChatFilterBar
-        onNewList={() => setListDialog({ mode: 'create' })}
-        onRenameList={(listId) => setListDialog({ mode: 'rename', listId })}
-      />
+      {/* Above the chips rather than below them, because it overrules them:
+          anything typed here decides what the list shows. */}
+      <div className="px-2 pb-1.5">
+        <div className="relative">
+          <Search
+            size={14}
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+          />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            // Enter is what sends it to the server. The list below has already
+            // narrowed as they typed — see the note on nameWords — so Enter is
+            // for the other question: not which room, but what was said in it.
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); runSearch(); }
+              if (e.key === 'Escape') clearSearch();
+            }}
+            placeholder="Search rooms, people, messages"
+            aria-label="Search chat"
+            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-8 pr-8 text-xs text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-200"
+          />
+          {(searchQuery || search) && (
+            <button
+              type="button"
+              onClick={clearSearch}
+              title="Clear search"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-gray-400 transition hover:bg-gray-200 hover:text-gray-700"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        {/* Said rather than left to be discovered. Pressing Enter is the only
+            way to search what was said, and a box that had already narrowed
+            the list looks finished. */}
+        {searchQuery.trim() !== '' && !search && (
+          <p className="px-0.5 pt-1 text-[11px] text-gray-400">
+            Press Enter to search what was said.
+          </p>
+        )}
+      </div>
+
+      {/* Hidden while the box is in use: the chips filter the same list the
+          box has just taken over, so leaving them on screen would offer two
+          contradictory answers to what the column is showing. */}
+      {nameWords.length === 0 && (
+        <ChatFilterBar
+          onNewList={() => setListDialog({ mode: 'create' })}
+          onRenameList={(listId) => setListDialog({ mode: 'rename', listId })}
+        />
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {loading && <p className="px-2 py-3 text-sm text-gray-400">Loading…</p>}
 
         {!loading && shown.length === 0 && (
           <p className="px-2 py-3 text-sm text-gray-400">
-            {emptyText(chatFilter, lists, conversations.length === 0)}
+            {nameWords.length > 0
+              // Never a dead end: no room by that name does not mean nothing
+              // was said by it, and the search that answers that is one key
+              // away.
+              ? 'No room or person by that name. Press Enter to search what was said.'
+              : emptyText(chatFilter, lists, conversations.length === 0)}
           </p>
         )}
 

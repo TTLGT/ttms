@@ -460,6 +460,17 @@ export interface ChatMessage {
   attachments?: Attachment[];
   /** Who reacted with what, as `{ [reactionKey]: uid[] }`. */
   reactions?: Record<string, string[]>;
+  /**
+   * The words this message can be found by — see chatSearchTerms. Derived on
+   * save from the text, the sender's name and any file names; never edited by
+   * hand and never shown.
+   *
+   * Absent on every message sent before search existed, and an `array-contains`
+   * query skips a document missing the field entirely rather than failing — so
+   * until scripts/backfill-chat-search-terms.js has run, the old history is
+   * invisible to search and nothing says so.
+   */
+  searchTerms?: string[];
 
   /* ------------------------------------------------------------- threads */
 
@@ -544,6 +555,93 @@ export const REACTIONS: { key: string; glyph: string; label: string }[] = [
 
 export function reactionGlyph(key: string): string {
   return REACTIONS.find((r) => r.key === key)?.glyph ?? key;
+}
+
+/* ----------------------------------------------------------------- search */
+
+/**
+ * Shortest word worth filing. One letter matches half the room, and "a", "to"
+ * and "in" match all of it.
+ */
+const MIN_CHAT_TERM = 2;
+/**
+ * Most distinct words we file for one message.
+ *
+ * A guard on two limits at once. Firestore allows 40,000 index entries per
+ * document and every element of an indexed array is one, and a message can be
+ * 4,000 characters — somebody pasting a rate sheet into a room must not be
+ * able to write a document that is refused, because the refusal would land on
+ * them as "your message could not be sent".
+ *
+ * Six hundred distinct words is longer than anything anybody types by hand,
+ * and a paste that runs past it is still findable by its first six hundred.
+ */
+const MAX_CHAT_TERMS = 600;
+
+/**
+ * The words one message can be found by.
+ *
+ * Firestore cannot search inside a string — there is no `LIKE '%invoice%'` —
+ * so the words are worked out when the message is saved and stored beside it,
+ * and searching becomes `array-contains`, a single indexed lookup however many
+ * messages the company has said.
+ *
+ * **Whole words, not fragments**, which is the one place this deliberately
+ * differs from orderSearchTerms. An order files every fragment of every word,
+ * so "orris" finds Morris; doing that to a 4,000-character message would
+ * produce hundreds of thousands of index entries and blow the per-document
+ * limit. So chat search finds "invoice" and not "invoic", and the search box
+ * says so rather than leaving people to work it out.
+ *
+ * The **sender's name is filed with the words**, which is what makes
+ * "vivian invoice" narrow to what Vivian said about invoices rather than
+ * needing a separate author filter. It is the name as it stood when the
+ * message was sent, like senderName itself — a message from last year is
+ * found under the name that was on it.
+ *
+ * Attachment file names are filed too. "Did somebody send the signed rate con"
+ * is a question about a file, and the file name is the only text there is.
+ */
+export function chatSearchTerms(message: {
+  text?: string | null;
+  senderName?: string | null;
+  attachments?: { name: string }[] | null;
+}): string[] {
+  const words = (value: string | null | undefined): string[] =>
+    (value ?? '')
+      .toLowerCase()
+      // Punctuation out, but digits kept joined to letters: an order number is
+      // one word here, and "ttl22001218" is exactly what somebody pastes.
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter((w) => w.length >= MIN_CHAT_TERM);
+
+  const terms = new Set<string>();
+  for (const word of words(message.text))       terms.add(word);
+  for (const word of words(message.senderName)) terms.add(word);
+  for (const file of message.attachments ?? []) {
+    for (const word of words(file.name)) terms.add(word);
+  }
+  return [...terms].slice(0, MAX_CHAT_TERMS);
+}
+
+/**
+ * The words a search box full of typing is asking for.
+ *
+ * The same reduction as the stored side, so a query and the thing it is
+ * matched against are shaped identically. Deduped, because typing a word twice
+ * is not a narrower search.
+ */
+export function chatSearchWords(query: string): string[] {
+  return [...new Set(
+    (query ?? '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter((w) => w.length >= MIN_CHAT_TERM),
+  )];
 }
 
 /**

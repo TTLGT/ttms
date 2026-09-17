@@ -8,6 +8,7 @@ import {
   deleteField,
   doc,
   getCountFromServer,
+  getDoc,
   getDocs,
   increment,
   limit as limitTo,
@@ -23,9 +24,11 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import type { ChatSearchResult } from './chatSearch';
 import {
   CHAT_READS_COLLECTION,
   CHAT_THREADS_COLLECTION,
+  chatSearchTerms,
   COMPANY_CONVERSATION_ID,
   CONVERSATIONS_COLLECTION,
   MAX_MESSAGE_LENGTH,
@@ -282,6 +285,12 @@ export async function sendMessage(
     mentions,
     attachments,
     reactions: {},
+    // Worked out here rather than by anything watching the write: there is no
+    // Cloud Function in this project, so a message not carrying its own words
+    // is a message search will never find. See chatSearchTerms.
+    searchTerms: chatSearchTerms({
+      text: body, senderName: sender.displayName, attachments,
+    }),
     // Firestore rejects `undefined` outright, so every optional field on the
     // quote is written as an explicit null rather than left off.
     replyTo: replyTo
@@ -392,6 +401,12 @@ export async function sendThreadReply(
     mentions,
     attachments,
     reactions: {},
+    // A reply is searched exactly like a message, which is most of why replies
+    // live in a collection of their own — one query reaches every reply in a
+    // room. See REPLIES_COLLECTION.
+    searchTerms: chatSearchTerms({
+      text: body, senderName: sender.displayName, attachments,
+    }),
   });
 
   // `increment` rather than a read and a put back: two people answering the
@@ -487,7 +502,12 @@ export async function sendThreadReply(
  */
 export async function editMessage(
   conversationId: string,
-  messageId: string,
+  // The whole message rather than its id: the search terms are rebuilt from
+  // scratch here, and they are drawn from the sender's name and the file names
+  // as well as the text. Rebuilt rather than patched, because a word removed
+  // from a message that went on answering to it would be worse than one that
+  // could not be found at all.
+  message: Pick<ChatMessage, 'id' | 'senderName' | 'attachments'>,
   text: string,
   options: { isLastMessage: boolean; isReply?: boolean },
 ): Promise<void> {
@@ -498,9 +518,14 @@ export async function editMessage(
   }
 
   const batch = writeBatch(db);
-  batch.update(messageRef(conversationId, messageId, options.isReply), {
+  batch.update(messageRef(conversationId, message.id, options.isReply), {
     text:     body,
     editedAt: serverTimestamp(),
+    searchTerms: chatSearchTerms({
+      text: body,
+      senderName:  message.senderName,
+      attachments: message.attachments,
+    }),
   });
   // Only the preview text, and only when this *is* the preview. `updatedAt` is
   // left alone on purpose: fixing a typo is not new activity, and bumping it
@@ -543,6 +568,10 @@ export async function deleteMessage(
   batch.update(messageRef(conversationId, messageId, options.isReply), {
     text:      '',
     deletedAt: serverTimestamp(),
+    // Emptied with the text. A message somebody took back that still answered
+    // to its own words would be readable from the search results — the one
+    // place a deleted message could still be read.
+    searchTerms: [],
     // Only on an admin's take-back. The rules allow this branch exactly one
     // set of fields, so an ordinary delete must not carry them.
     ...(options.as
@@ -1065,6 +1094,60 @@ export function unreadThreadIds(
       return millis(ping.at) > (threadReadAt[ping.rootId] ?? 0);
     })
     .map((c) => c.id);
+}
+
+/**
+ * When one message was sent, in millis, or null if it is not there any more.
+ *
+ * Only ever called on a jump somebody explicitly asked for, where the caller
+ * has an id and no timestamp — a link built as `?c=&m=`, or a notification
+ * about a reaction, whose own clock is not the message's. One read to make a
+ * jump work beats a jump that quietly does nothing.
+ */
+export async function messageSentAt(
+  conversationId: string,
+  messageId: string,
+): Promise<number | null> {
+  const snap = await getDoc(doc(messagesCol(conversationId), messageId));
+  if (!snap.exists()) return null;
+  return millis(snap.data().createdAt as Timestamp);
+}
+
+/**
+ * How far back in a room one message sits, counted in messages.
+ *
+ * Used to open the window wide enough to reach a search result. The thread
+ * loads the newest 200 messages, and almost everything worth searching for is
+ * older than that — so the window is grown to take the message in rather than
+ * a second, static view of the room being built beside the live one. One
+ * renderer, one set of scroll rules, one place where a bubble is drawn.
+ *
+ * The count is an aggregation, so working out *whether* the jump is affordable
+ * costs a single read however far back the message is. Loading the messages
+ * themselves is what costs — a read each — which is what JUMP_LIMIT in
+ * MessageThread is weighed against.
+ */
+export async function messagesSince(conversationId: string, at: number): Promise<number> {
+  const snap = await getCountFromServer(
+    query(messagesCol(conversationId), where('createdAt', '>=', Timestamp.fromMillis(at))),
+  );
+  return snap.data().count;
+}
+
+/**
+ * Searches everything said in every room this person is in.
+ *
+ * The one read in chat that goes through an API route rather than straight to
+ * Firestore. A search spans rooms, which as a client query would have to be a
+ * collection-group query over `messages` — and no rule can gate one of those,
+ * because a collection-group rule cannot tell which conversation a document
+ * belongs to. See src/lib/chatSearch.ts.
+ */
+export async function searchChat(text: string): Promise<ChatSearchResult> {
+  const res = await fetch(`/api/chat/search?q=${encodeURIComponent(text)}`, {
+    headers: await authHeaders(),
+  });
+  return unwrap<ChatSearchResult>(res);
 }
 
 /**

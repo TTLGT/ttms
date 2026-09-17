@@ -9,6 +9,7 @@ import ConversationList from './ConversationList';
 import MessageThread from './MessageThread';
 import NewConversationDialog from './NewConversationDialog';
 import RoomSettingsDialog from './RoomSettingsDialog';
+import SearchResults from './SearchResults';
 import RoomAvatar from './RoomAvatar';
 import ThreadList from './ThreadList';
 import ThreadPanel from './ThreadPanel';
@@ -32,6 +33,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
   const { user, profile } = useAuth();
   const {
     conversations, activeId, setActiveId, nameOf, error, loading, openThread, setOpenThread,
+    search, clearSearch,
   } = useChat();
 
   const [newOpen, setNewOpen]           = useState(false);
@@ -115,7 +117,9 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
         {/* One thing at a time here too: an open thread replaces the room
             rather than sitting beside it, and closing it comes straight back.
             Its own header carries the way out. */}
-        {active && thread ? (
+        {search ? (
+          <SearchResults myUid={myUid} onClose={clearSearch} />
+        ) : active && thread ? (
           <ThreadPanel
             conversation={active}
             rootId={thread.rootId}
@@ -159,7 +163,13 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
-        {active ? (
+        {/* Over the room rather than beside it. Every result is somewhere to
+            go, and going there replaces what is on screen anyway — so a third
+            column would be one the reader has to close again the moment they
+            use it. Closing comes straight back to the room. */}
+        {search ? (
+          <SearchResults myUid={myUid} onClose={clearSearch} />
+        ) : active ? (
           <>
             <Header
               conversation={active}
@@ -182,7 +192,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
           that the room carries on without it, and a panel covering the room
           would take that away at the moment it is most wanted — somebody
           answering one question while watching for the next. */}
-      {active && thread && (
+      {!search && active && thread && (
         <div className="w-[360px] flex-shrink-0 border-l border-gray-200 xl:w-[420px]">
           <ThreadPanel
             conversation={active}

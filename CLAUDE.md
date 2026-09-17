@@ -324,6 +324,10 @@ scripts cannot import TypeScript either:
 |---|---|
 | `phoneKeysFor()` + `partyPhoneKeys()` | `scripts/import-bats.js`, `scripts/backfill-party-phone-keys.js` |
 
+| `src/types/conversation.ts` | mirrored in |
+|---|---|
+| `chatSearchTerms()` | `scripts/backfill-chat-search-terms.js` |
+
 | `src/lib/orderViews.ts` | mirrored in |
 |---|---|
 | the `unsigned` and `documents_missing` queries | `unsignedStat()` / `missingDocumentsStat()` in `src/lib/orderSummary.ts` |
@@ -550,6 +554,29 @@ through `/api/chat/conversations`. Chat crosses none of the ownership
 boundaries: everyone on the allowlist is staff, and staff can talk to staff.
 Nothing else in the app should copy the live-read pattern without the same
 argument.
+
+**Searching chat is the one read that does not go direct**, through
+`GET /api/chat/search` and `src/lib/chatSearch.ts`. A search spans rooms, so as
+a client query it would be a collection-group query over `messages` — and a
+collection-group rule has no way to work out which conversation a document
+belongs to, so there is no rule that could gate one. The route works out which
+rooms the caller is in from their own uid and never takes that list from the
+request.
+
+What it searches is `searchTerms`, a list of the words in each message worked
+out on save — the same trick as `orderSearchTerms`, because Firestore cannot
+look inside a string. Three things follow, and all three fail quietly:
+
+- **Anything that writes a message must write its terms.** `sendMessage` and
+  `sendThreadReply` do; `editMessage` rebuilds them; `deleteMessage` empties
+  them, so a message somebody took back cannot be read out of the results.
+- **Whole words, not fragments**, unlike an order — a 4,000-character message
+  indexed by every fragment would blow Firestore's 40,000 index entries per
+  document. So chat search finds "invoice" and not "invoic", and the empty
+  state on the results panel says so.
+- A message written before this existed has no such field, and an
+  `array-contains` query **skips** a document missing the field rather than
+  failing. `scripts/backfill-chat-search-terms.js` is what fills them in.
 
 **A room can be governed, and half of that lives in the rules because it has
 to.** A `group` room names its `adminUids` and carries a `policy` of six

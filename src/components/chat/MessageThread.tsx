@@ -8,6 +8,8 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   deleteMessage,
   editMessage,
+  messageSentAt,
+  messagesSince,
   millis,
   openDirectConversation,
   pinMessage,
@@ -41,6 +43,27 @@ import {
 const PAGE_SIZE = 200;
 
 /**
+ * How far back a jump will open the window.
+ *
+ * Reaching a search result means loading everything between it and now — the
+ * thread has one window on the room and it grows from the newest end, which is
+ * what makes "load earlier messages" and a jump the same mechanism rather than
+ * two views of the same room drawn by two different pieces of code.
+ *
+ * So this is a budget, in document reads, for one jump: 1,500 of them is a
+ * fraction of a cent on Blaze and about a second of loading. Past it the room
+ * opens at the bottom and says the message is too far back, which is honest
+ * and rare — at the traffic this company's chat carries, 1,500 messages is
+ * most of a room's history.
+ *
+ * If somebody starts hitting it, the fix is not a bigger number: it is loading
+ * a window *around* the message instead of everything after it, which is a
+ * second, static view of the room and all the scroll rules that come with it.
+ * Worth doing then, not now.
+ */
+const JUMP_LIMIT = 1500;
+
+/**
  * One conversation, live.
  *
  * The listener is opened here rather than in ChatContext because only one
@@ -58,7 +81,7 @@ export default function MessageThread({ conversation }: { conversation: Conversa
   const { user, profile } = useAuth();
   const {
     people, lastReadAt, threadReadAt, setActiveId, setOpenThread,
-    pendingReply, setPendingReply, focusMessageId, setFocusMessageId,
+    pendingReply, setPendingReply, focusMessage, setFocusMessage,
   } = useChat();
   const { formatDate } = useDateFormatters();
 
@@ -430,16 +453,84 @@ export default function MessageThread({ conversation }: { conversation: Conversa
     window.setTimeout(() => setFlashId((was) => (was === messageId ? null : was)), 1600);
   }, []);
 
-  // A link to one message lands here once the conversation has switched and the
-  // thread has drawn. Claimed and cleared, so coming back later does not jump
-  // again. A message older than the loaded window simply is not found — the
-  // conversation still opens, which is most of what the link was for.
+  /**
+   * A search result or a link to one message, once the conversation has
+   * switched and the thread has drawn. Claimed and cleared, so coming back
+   * later does not jump again.
+   *
+   * Three outcomes, in order:
+   *
+   *  - it is in the loaded window, so scroll to it and ring it;
+   *  - it is further back, so widen the window until it is in — see
+   *    JUMP_LIMIT, and note the cost of asking is one aggregation read
+   *    however far back the message is;
+   *  - it is further back than the budget allows, so the room opens where it
+   *    normally would and says so. Silence here would read as a broken link.
+   */
+  const [tooFarBack, setTooFarBack] = useState(false);
+  /**
+   * The message this thread has already gone looking for.
+   *
+   * Without it, widening the window re-runs this effect against a target still
+   * absent from the messages it has — and it would widen again, and again,
+   * until it had read the room. One attempt per target.
+   */
+  const reachingFor = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!focusMessageId || loading) return;
-    if (!messages.some((m) => m.id === focusMessageId)) return;
-    jumpTo(focusMessageId);
-    setFocusMessageId(null);
-  }, [focusMessageId, loading, messages, jumpTo, setFocusMessageId]);
+    if (!focusMessage || loading) return;
+    const { messageId } = focusMessage;
+
+    if (messages.some((m) => m.id === messageId)) {
+      jumpTo(messageId);
+      reachingFor.current = null;
+      setTooFarBack(false);
+      setFocusMessage(null);
+      return;
+    }
+
+    if (reachingFor.current === messageId) return;
+    reachingFor.current = messageId;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        // A caller that had the timestamp passed it. One that did not — a
+        // `?m=` link, a reaction — costs one read to find out.
+        const at = focusMessage.at ?? await messageSentAt(conversationId, messageId);
+        if (cancelled) return;
+        if (at === null) { setFocusMessage(null); return; }
+
+        const behind = await messagesSince(conversationId, at);
+        if (cancelled) return;
+
+        if (behind > JUMP_LIMIT) {
+          setTooFarBack(true);
+          setFocusMessage(null);
+          return;
+        }
+        // A margin above the count so the message lands with something under
+        // it rather than pinned to the very top of the window.
+        setWindowSize((was) => Math.max(was, behind + 20));
+      } catch {
+        // A jump that cannot be worked out leaves the room open where it is,
+        // which is most of what was being asked for anyway.
+        setFocusMessage(null);
+      }
+    })();
+
+    return () => { cancelled = true; };
+    // setWindowSize is rebuilt every render and is not a dependency worth
+    // chasing — it only ever calls setState.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusMessage, loading, messages, jumpTo, setFocusMessage, conversationId]);
+
+  // Cleared by moving rooms, so a notice about one room's history is never
+  // read over another's.
+  useEffect(() => {
+    setTooFarBack(false);
+    reachingFor.current = null;
+  }, [conversationId]);
 
   /* ------------------------------------------------------------- mentions */
 
@@ -479,7 +570,7 @@ export default function MessageThread({ conversation }: { conversation: Conversa
     if (!text) return;
     if (text === message.text) { setEditingId(null); return; }
     try {
-      await editMessage(conversationId, message.id, text, {
+      await editMessage(conversationId, message, text, {
         isLastMessage: messages[messages.length - 1]?.id === message.id,
       });
       setEditingId(null);
@@ -502,6 +593,16 @@ export default function MessageThread({ conversation }: { conversation: Conversa
         className="flex-1 min-h-0 overflow-y-auto bg-gray-50 px-4 py-4 space-y-1.5"
       >
         {loading && <p className="text-sm text-gray-400">Loading…</p>}
+
+        {/* Said rather than left as a jump that appeared to do nothing. The
+            room is open at the right place for reading it; it is only the
+            scroll that could not be afforded. See JUMP_LIMIT. */}
+        {tooFarBack && (
+          <div className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            That message is too far back in this room to jump to. Keep loading earlier
+            messages to reach it.
+          </div>
+        )}
 
         {!loading && older === 'loading' && (
           <p className="py-2 text-center text-xs text-gray-400">Loading earlier messages…</p>
