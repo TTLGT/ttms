@@ -250,7 +250,7 @@ through the whole system to reach one thing.
 | Tab | What is on it |
 |---|---|
 | **Overview** | Every panel on one screen, each showing what it is currently set to. A map, not a page you change things on. |
-| **People** | Add People · People With Access · Removed People |
+| **People** | Add People · People With Access · Removed People · Access History |
 | **Organization** | Sites · Teams · Work Groups |
 | **Operations** | Date Format · Lane Distance · Lead Sources |
 | **Data** | BATS Data Import |
@@ -353,7 +353,7 @@ next time they load a page.
 | | What it does | Use it when |
 |---|---|---|
 | **Suspend** | Blocks them from signing in but keeps their roles. Reversible. | Someone is on leave, or you need to stop access while you check something. |
-| **Remove** (trash icon) | Deletes their entry completely. | Someone has left the company. |
+| **Remove** (trash icon) | Deletes their entry completely, but keeps a full record of it. Can be undone — see the removal log below. | Someone has left the company. |
 
 > **One thing to know about removing someone.** They lose access to the records
 > immediately. But a file they already had open — a PDF, a scanned document —
@@ -365,15 +365,39 @@ next time they load a page.
 Removing someone deletes their entry, so the list below stops showing them
 entirely. **Settings → People → Removed People** is the record that they were ever here:
 click it open to see everyone who has been removed, when, and **which admin did
-it** — along with the name, full legal name, phones, site, team, roles, start
-date and personal email they had at the time.
+it** — along with their photo, name, full legal name, phones, site, team, roles,
+start date and personal email they had at the time.
 
 Two things it is good for:
 
 - **Answering "who took Ana off the system?"** — every removal is stamped with
   the admin's address and the date and time.
-- **Undoing a mistake.** Removing someone does not keep their details anywhere
-  else, so if they have to be set up again, this is where to copy them from.
+- **Undoing a mistake**, with the **Put back** button on the row.
+
+#### Putting someone back
+
+**Put back** rebuilds their entry exactly as it was: name, phones, extension,
+birthday, start date, site, team, roles, any extra permissions they had been
+given individually, and their photo. You are asked to confirm first, and the
+question names the roles they are coming back with — worth reading, because
+putting an admin back hands them the whole system again.
+
+Three things to know:
+
+- **They come back as *Pending* until they sign in.** That is normal. Their
+  access is real from the moment you confirm; the badge just means nobody has
+  signed in against the entry yet. It turns to *Active* on their first sign-in,
+  and everything they used to own — their clients, their loads — is theirs
+  again at that moment.
+- **They are never put back suspended**, even if they were suspended before
+  they were removed. If you want them blocked again, suspend them afterwards.
+- **A site or team that has been deleted since is left blank**, because it no
+  longer exists to put them back into. Everything else comes back.
+
+The removal row does not disappear when you put someone back — it stays, and
+says "put back on the 5th" beside "removed on the 3rd". That is the point of a
+log. If the same person is removed again later, that is a new row with its own
+**Put back** button.
 
 There is an **Export CSV** button, same as the main list. Nothing here can be
 edited or deleted from inside TTMS — it is a record, not a list you manage.
@@ -382,6 +406,29 @@ edited or deleted from inside TTMS — it is a record, not a list you manage.
 > oversight: the log is the only evidence someone was ever on the system, and
 > the only place their details survive if a removal turns out to have been a
 > mistake. Nothing in TTMS will ever delete from it.
+
+### The access history
+
+**Settings → People → Access History** is the other half of the same story, and
+a shorter read: one line every time somebody was **added**, **removed** or **put
+back**, newest first, with the admin who did it and the roles the person held at
+the time. The chips at the top narrow it to one kind of change, and there is an
+**Export CSV** button for the whole thing.
+
+The two logs answer different questions, so it is worth knowing which to open:
+
+| | Open it for |
+|---|---|
+| **Removed People** | "Who was Ana, what could she do, and can I put her back?" — one detailed record per departure. |
+| **Access History** | "What has been done to the access list, and in what order?" — including people being **added**, which nothing else records. |
+
+It also says where each change came from: a person added one at a time in
+Settings reads plainly, while one that arrived in a spreadsheet import says so.
+
+> **This starts from the day it was switched on (22 September 2026).** Anyone
+> already on the system has no "added" line — they appear the first time
+> something happens to their access. Like the removal log, nothing in TTMS ever
+> deletes from it.
 
 ### Three ways to look at the list
 
@@ -1117,7 +1164,16 @@ both, then deploy.
 
 **Revocation** deletes both documents, clears claims, revokes refresh tokens and
 disables the Auth account. Firestore cuts off immediately; Storage gates on the
-custom claim, so it lags up to one hour.
+custom claim, so it lags up to one hour. The entry is copied to `removedUsers`
+first — a failure there aborts the removal — and the profile photo is left in
+Storage so the record can show it and a restore can put it back.
+
+**Restoring** (`POST /api/admin/users/restore`, `people.manage`) rebuilds the
+entry from that archived row and re-enables the Auth account. It comes back
+with `uid: null`, so the profile is provisioned at the next sign-in like any
+pending invite; Google reissues the same uid, so owned records are unaffected.
+The archive row is marked `restoredAt`, never deleted, and cannot be restored
+twice. See the `removedUsers` and `peopleEvents` sections of the Schema Guide.
 
 ## API routes
 
@@ -1128,6 +1184,9 @@ All under `src/app/api/`. Each guards itself with a helper from
 |---|---|---|
 | `POST /api/auth/session` | Verify sign-in, provision profile, set claims | Token only |
 | `/api/admin/users` | Manage the allowlist | `requireAdmin` |
+| `/api/admin/users/removed` | The removal log | `people.manage` |
+| `/api/admin/users/restore` | Put a removed person back | `people.manage` |
+| `/api/admin/users/events` | The access history | `people.manage` |
 | `/api/admin/import-bats` | Run the BATS import | `requireAdmin` |
 | `/api/orders/[id]/bol` | BOL PDF | authenticated |
 | `/api/orders/[id]/invoice` | Invoice PDF | authenticated |

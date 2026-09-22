@@ -8,6 +8,7 @@ import type {
   InviteResult,
 } from '@/types/allowedUser';
 import type { RemovedUser } from '@/types/removedUser';
+import type { PeopleEvent } from '@/types/peopleEvent';
 import type { RoleFlagSet } from '@/types/permission';
 
 /**
@@ -210,4 +211,35 @@ export async function listRemovedUsers(): Promise<{
     '/api/admin/users/removed',
   );
   return { users: data.users ?? [], truncated: data.truncated === true };
+}
+
+/**
+ * Put somebody back, from the removal record the admin is looking at.
+ *
+ * Keyed by the removal id rather than the address — somebody can have been
+ * removed more than once, and each row is a different set of roles to come
+ * back with. See /api/admin/users/restore.
+ */
+export async function restoreRemovedUser(id: string): Promise<{ email: string }> {
+  const data = await authedFetch<{ email: string }>('/api/admin/users/restore', {
+    method: 'POST',
+    body: JSON.stringify({ id }),
+  });
+  return { email: data.email };
+}
+
+/**
+ * The access history — added, removed and restored, newest first.
+ *
+ * Routed like the removal log and for the same reason: the collection is
+ * closed to the client SDK outright.
+ */
+export async function listPeopleEvents(): Promise<{
+  events: PeopleEvent[];
+  truncated: boolean;
+}> {
+  const data = await authedFetch<{ events: PeopleEvent[]; truncated: boolean }>(
+    '/api/admin/users/events',
+  );
+  return { events: data.events ?? [], truncated: data.truncated === true };
 }

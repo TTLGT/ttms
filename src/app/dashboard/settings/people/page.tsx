@@ -66,6 +66,7 @@ import PersonPermissions from '@/components/settings/PersonPermissions';
 import StatusChip from '@/components/settings/StatusChip';
 import CollapsibleSection from '@/components/settings/CollapsibleSection';
 import RemovedPeoplePanel from '@/components/settings/RemovedPeoplePanel';
+import AccessHistoryPanel from '@/components/settings/AccessHistoryPanel';
 import { personAnchorId } from '@/components/settings/settingsSections';
 import { AvatarUploader, UserAvatar } from '@/components/settings/UserAvatar';
 import DateField from '@/components/DateField';
@@ -1435,8 +1436,15 @@ They will be signed out immediately and cannot sign in until you restore them. T
 
       {/* The archive holds date of birth and personal email for people who
           have left, so it stays admin-only — HR reads the live directory
-          above and nothing else. */}
-      {canManageAll && <RemovedPeoplePanel sites={sites} teams={teams} />}
+          above and nothing else. Putting someone back adds them to the list
+          above, so it reloads it. */}
+      {canManageAll && (
+        <RemovedPeoplePanel sites={sites} teams={teams} onRestored={load} />
+      )}
+
+      {/* Same audience, and last on the page: it is the record of the two
+          panels above rather than something to act on. */}
+      {canManageAll && <AccessHistoryPanel />}
     </div>
   );
 }

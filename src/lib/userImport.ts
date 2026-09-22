@@ -14,6 +14,7 @@ import { isCalendarDate } from '@/types/allowedUser';
 import { ROLE_LABELS, ROLE_ORDER, type RoleKey } from '@/types/permission';
 import { syncPermissionsFor } from './userSync';
 import { syncManagedScopes } from './teamScope';
+import { personName, recordPeopleEvent, rolesHeld } from './peopleEvents';
 import {
   DEFAULT_OTHER_REGION,
   PHONE_LABEL,
@@ -750,6 +751,19 @@ async function applyPlan(plan: Plan, actor: Actor): Promise<void> {
     // has to lift that or they get an allowlist entry they cannot use.
     const authUser = await adminAuth.getUserByEmail(plan.email).catch(() => null);
     if (authUser?.disabled) await adminAuth.updateUser(authUser.uid, { disabled: false });
+
+    // The access history records an arrival however it happened, and a row out
+    // of a spreadsheet of forty is exactly the kind an admin later asks about.
+    // `source: 'import'` is what tells the two apart on screen.
+    await recordPeopleEvent({
+      action:     'added',
+      email:      plan.email,
+      name:       personName(plan.patch),
+      roles:      rolesHeld(plan.patch),
+      actorEmail: actor.email || actor.uid,
+      actorUid:   actor.uid,
+      source:     'import',
+    });
     return;
   }
 

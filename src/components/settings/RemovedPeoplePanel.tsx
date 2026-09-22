@@ -1,16 +1,17 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { Download, History } from 'lucide-react';
-import { listRemovedUsers } from '@/lib/allowedUsers';
+import { Download, History, RotateCcw } from 'lucide-react';
+import { listRemovedUsers, restoreRemovedUser } from '@/lib/allowedUsers';
 import { downloadCsv, toCsv } from '@/lib/csv';
 import { PHONE_LABEL, otherPhone } from '@/lib/phone';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { removedUserName, removedUserRoles } from '@/types/removedUser';
+import { isRestored, removedUserName, removedUserRoles } from '@/types/removedUser';
 import type { RemovedUser } from '@/types/removedUser';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
 import CollapsibleSection from './CollapsibleSection';
+import { UserAvatar } from './UserAvatar';
 
 /**
  * The removal log — who was taken off the system, when, and by whom.
@@ -38,9 +39,16 @@ function csvWhen(iso: string | null): string {
 export default function RemovedPeoplePanel({
   sites,
   teams,
+  onRestored,
 }: {
   sites: Site[];
   teams: Team[];
+  /**
+   * Called after somebody is put back, so the access list above this panel
+   * shows them again without a reload. The panel cannot refresh that list
+   * itself — it does not own it.
+   */
+  onRestored: () => void;
 }) {
   const { formatCalendarDate, formatDateTime } = useDateFormatters();
   /** `null` when the row predates the field or the write never landed. */
@@ -50,6 +58,14 @@ export default function RemovedPeoplePanel({
   const [truncated, setTruncated] = useState(false);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState('');
+  /** The removal id currently being put back, so only its button spins. */
+  const [restoring, setRestoring] = useState<string | null>(null);
+  /**
+   * A restore that would not go through. Kept apart from `error`, which means
+   * "the log itself could not be read" and replaces the whole panel with a
+   * retry — a failed restore must not take the list it happened in off screen.
+   */
+  const [restoreError, setRestoreError] = useState('');
 
   const siteName = (id: string | null | undefined) =>
     sites.find((s) => s.id === id)?.name ?? null;
@@ -80,6 +96,48 @@ export default function RemovedPeoplePanel({
     if (users === null && !loading) load();
   }, [users, loading, load]);
 
+  /**
+   * Put one person back from their removal record.
+   *
+   * Confirmed in words rather than with a bare "are you sure": restoring hands
+   * somebody the roles they had, which on an admin is the whole system, and
+   * the dialog is the last place to notice that before it happens.
+   *
+   * The row is updated in place rather than dropped from the list. A restore
+   * does not undo the removal — it is another thing that happened, and the log
+   * says both.
+   */
+  async function handleRestore(u: RemovedUser) {
+    const roles = removedUserRoles(u);
+    const ok = window.confirm(
+      `Put ${removedUserName(u)} back on the system?
+
+` +
+      `They will be added again as ${roles.length ? roles.join(', ') : 'a Broker'}, ` +
+      'with their details, permissions and photo exactly as they were. ' +
+      'They can sign in as soon as you say yes.',
+    );
+    if (!ok) return;
+
+    setRestoring(u.id);
+    setRestoreError('');
+    try {
+      await restoreRemovedUser(u.id);
+      // Marked here as well as on the server, so the button turns into
+      // "restored" without a second round trip for the whole log.
+      setUsers((prev) =>
+        (prev ?? []).map((row) =>
+          row.id === u.id ? { ...row, restoredAt: new Date().toISOString() } : row,
+        ),
+      );
+      onRestored();
+    } catch (e) {
+      setRestoreError(e instanceof Error ? e.message : 'Could not put them back.');
+    } finally {
+      setRestoring(null);
+    }
+  }
+
   function handleExport() {
     if (!users) return;
 
@@ -89,6 +147,7 @@ export default function RemovedPeoplePanel({
       'Date of birth', 'Start date',
       'Roles held',
       'Was suspended', 'Added', 'Added by', 'Last sign-in', 'Removed', 'Removed by',
+      'Put back', 'Put back by',
     ];
 
     const rows = users.map((u) => {
@@ -118,6 +177,10 @@ export default function RemovedPeoplePanel({
         csvWhen(u.lastLoginAt),
         csvWhen(u.removedAt),
         u.removedBy,
+        // Blank on a removal that still stands, which is what a reader
+        // scanning the column is looking for.
+        csvWhen(u.restoredAt ?? null),
+        u.restoredBy ?? '',
       ];
     });
 
@@ -136,7 +199,7 @@ export default function RemovedPeoplePanel({
         <>
           Everyone whose access has been revoked, with the date and the admin who did it.
           Removing someone deletes their entry — this log is the only record that they were
-          ever here.
+          ever here, and the one place to put them back with everything they had.
         </>
       }
       /* Only once it has been opened: a count of nothing, or of a log that has
@@ -197,17 +260,39 @@ export default function RemovedPeoplePanel({
               entry except the two that make up the first row, and a left
               edge on the right-hand column. Below lg it is one column
               again and the same rules draw the same list as before. */}
+          {restoreError && (
+            <p className="border-b border-red-100 bg-red-50 px-6 py-2.5 text-xs text-red-700">
+              {restoreError}
+            </p>
+          )}
+
           <ul className="grid lg:grid-cols-2">
             {users.map((u) => {
               const roles = removedUserRoles(u);
               const name  = removedUserName(u);
+              const back  = isRestored(u);
               return (
                 <li
                   key={u.id}
                   className="px-6 py-4 border-t border-gray-100 first:border-t-0 lg:[&:nth-child(2)]:border-t-0 lg:even:border-l lg:even:border-gray-100"
                 >
                   <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
+                    {/* The photo survives the removal — see RemovedUser.photoPath.
+                        Greyed unless they have been put back, because this is a
+                        record of somebody who is gone and a full-colour face
+                        among the live cards above reads as though they are not.
+                        Rows archived before the photo was kept fall back to the
+                        initial, exactly as they did before. */}
+                    <UserAvatar
+                      photoPath={u.photoPath}
+                      fallback={name.charAt(0).toUpperCase()}
+                      muted={!back}
+                      size={40}
+                      expandable
+                      name={name}
+                    />
+
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-gray-700 truncate">{name}</p>
                       {name !== u.email && (
                         <p className="text-xs text-gray-500 truncate">{u.email}</p>
@@ -258,6 +343,27 @@ export default function RemovedPeoplePanel({
                         <p className="text-[11px] text-gray-400 mt-0.5">
                           was suspended first
                         </p>
+                      )}
+
+                      {/* Either the button or what happened to it. A row that
+                          has been put back keeps saying so rather than going
+                          quiet, so the log reads as a sequence: removed on the
+                          3rd, back on the 5th. */}
+                      {back ? (
+                        <p className="mt-2 text-[11px] font-medium text-green-700">
+                          Put back {formatWhen(u.restoredAt ?? null)}
+                          {u.restoredBy ? ` by ${u.restoredBy}` : ''}
+                        </p>
+                      ) : (
+                        <button
+                          onClick={() => handleRestore(u)}
+                          disabled={restoring !== null}
+                          title={`Put ${name} back with the roles and details they had`}
+                          className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:border-green-200 hover:bg-green-50 hover:text-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <RotateCcw size={12} />
+                          {restoring === u.id ? 'Putting back…' : 'Put back'}
+                        </button>
                       )}
                     </div>
                   </div>

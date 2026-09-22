@@ -493,7 +493,7 @@ const CHAPTERS: Chapter[] = [
             ]} />
             <Row cells={[
               <strong key="r">Remove</strong>,
-              'Deletes their entry completely.',
+              'Deletes their entry, but keeps a full record of it. Can be undone.',
               'Someone has left the company.',
             ]} />
           </tbody>
@@ -512,14 +512,37 @@ const CHAPTERS: Chapter[] = [
           Removing someone deletes their entry, so they vanish from the list.{' '}
           <strong>Settings → People → Removed People</strong> is the record that they were ever here —
           click it open for everyone who has been removed, when, and <strong>which admin did
-          it</strong>, with the name, phones, site, roles, start date and personal email they had
-          at the time. It exports to CSV like the main list, and nothing in TTMS can edit or
-          delete it.
+          it</strong>, with their photo, name, phones, site, roles, start date and personal email
+          they had at the time. It exports to CSV like the main list, and nothing in TTMS can edit
+          or delete it.
         </p>
         <Callout tone="info" title="Also how you undo a mistake">
           <p>
-            Removing someone keeps their details nowhere else. If they have to be set up again,
-            the log is where to copy the details back from.
+            <strong>Put back</strong> on a removal rebuilds their entry exactly as it was — roles,
+            extra permissions, details and photo. You confirm first, and the question names the
+            roles they are coming back with.
+          </p>
+          <p>
+            They read as <strong>Pending</strong> until they sign in, which is normal: their access
+            is real from the moment you confirm, and everything they owned is theirs again on their
+            first sign-in. They are never put back suspended. The removal row stays in the log and
+            says they were put back — a log records both.
+          </p>
+        </Callout>
+
+        <h3 className="pt-2 text-sm font-semibold text-gray-900">The access history</h3>
+        <p>
+          <strong>Settings → People → Access History</strong> is the shorter read: one line every
+          time somebody was <strong>added</strong>, <strong>removed</strong> or{' '}
+          <strong>put back</strong>, newest first, with the admin who did it and the roles they
+          held at the time. Use the removal log to ask who somebody was; use this to ask what has
+          been done to the access list, and in what order. Adding somebody is recorded nowhere
+          else.
+        </p>
+        <Callout tone="info" title="It starts from 22 September 2026">
+          <p>
+            Anyone already on the system has no &ldquo;added&rdquo; line — they appear the first
+            time something happens to their access.
           </p>
         </Callout>
 

@@ -43,6 +43,8 @@ export async function GET(req: NextRequest) {
       invitedAt:   iso(data.invitedAt),
       lastLoginAt: iso(data.lastLoginAt),
       removedAt:   iso(data.removedAt),
+      // Null on a row nobody has put back, which is what isRestored() reads.
+      restoredAt:  iso(data.restoredAt),
     };
   });
 

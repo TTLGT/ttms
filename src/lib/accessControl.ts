@@ -95,6 +95,12 @@ export const WORK_GROUPS_COLLECTION = 'workGroups';
  * /api/admin/users and read only through the Admin SDK — see RemovedUser.
  */
 export const REMOVED_USERS_COLLECTION = 'removedUsers';
+/**
+ * Append-only history of people arriving on the system and leaving it — see
+ * PeopleEvent. The removal log above is the archive of one departure; this is
+ * the order things happened in, additions included. Admin SDK only.
+ */
+export const PEOPLE_EVENTS_COLLECTION = 'peopleEvents';
 
 // ── The profile every question below is asked about ──────────────────────────
 

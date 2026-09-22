@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  FieldValue, adminAuth, adminDb, adminStorage, requireCompanyUser, AdminAuthError,
+  FieldValue, adminAuth, adminDb, requireCompanyUser, AdminAuthError,
 } from '@/lib/firebase-admin';
 import {
   ALLOWED_EMAIL_DOMAIN,
@@ -21,6 +21,7 @@ import { normalizeCalendarDate } from '@/types/allowedUser';
 import { isPermission, ROLE_ORDER, type Permission, type RoleKey } from '@/types/permission';
 import { applyClaims, claimsFor, syncPermissionsFor } from '@/lib/userSync';
 import { syncManagedScopes } from '@/lib/teamScope';
+import { personName, recordPeopleEvent, rolesHeld } from '@/lib/peopleEvents';
 import {
   DEFAULT_OTHER_REGION,
   PHONE_LABEL,
@@ -163,11 +164,13 @@ type NewPersonDetails = Record<string, string>;
 async function invite(
   email: string,
   roles: Roles,
-  invitedBy: string,
+  caller: Guard,
   siteId: string | null,
   teamId: string | null,
   details: NewPersonDetails | null,
 ): Promise<InviteResult> {
+  const invitedBy = caller.email ?? caller.uid;
+
   if (!EMAIL_RE.test(email)) {
     return { email, status: 'invalid', message: 'Not a valid email address.' };
   }
@@ -234,6 +237,18 @@ async function invite(
       await adminAuth.updateUser(existing.uid, { disabled: false });
     }
 
+    // One line in the access history. Never allowed to fail the add — see the
+    // note in lib/peopleEvents.
+    await recordPeopleEvent({
+      action:     'added',
+      email,
+      name:       personName(details ?? {}),
+      roles:      rolesHeld(roles),
+      actorEmail: invitedBy,
+      actorUid:   caller.uid,
+      source:     'settings',
+    });
+
     return { email, status: 'added', message: 'Access granted.' };
   } catch {
     return { email, status: 'error', message: 'Could not be added — try again.' };
@@ -278,7 +293,6 @@ export async function POST(req: NextRequest) {
   }
 
   const roles = rolesFrom(body);
-  const invitedBy = caller.email ?? caller.uid;
 
   // One site for the whole batch — a paste is normally one office's worth of
   // people. Rejected up front rather than silently dropped, so a stale picker
@@ -305,7 +319,7 @@ export async function POST(req: NextRequest) {
   // Firestore/Auth rate limits even at the batch cap.
   const results: InviteResult[] = [];
   for (const email of emails) {
-    results.push(await invite(email, roles, invitedBy, siteId, teamId, details));
+    results.push(await invite(email, roles, caller, siteId, teamId, details));
   }
 
   const added = results.filter((r) => r.status === 'added').length;
@@ -759,10 +773,10 @@ async function archiveRemoval(
   entry: FirebaseFirestore.DocumentData,
   email: string,
   caller: Guard,
-) {
+): Promise<string> {
   const archivedOther = otherPhone(entry);
 
-  await adminDb.collection(REMOVED_USERS_COLLECTION).add({
+  const written = await adminDb.collection(REMOVED_USERS_COLLECTION).add({
     email,
     firstName:     entry.firstName ?? '',
     lastName:      entry.lastName ?? '',
@@ -793,13 +807,25 @@ async function archiveRemoval(
     // active one is the case someone may later need to ask about.
     wasSuspended:  entry.suspended === true,
     uid:           entry.uid ?? null,
+    // Kept, and the file is left in Storage to match — the log shows a face
+    // rather than an initial, and a restore puts the photo back with the
+    // person. See RemovedUser.photoPath.
+    photoPath:     typeof entry.photoPath === 'string' ? entry.photoPath : null,
     invitedBy:     entry.invitedBy ?? '',
     invitedAt:     entry.invitedAt ?? null,
     lastLoginAt:   entry.lastLoginAt ?? null,
     removedAt:     FieldValue.serverTimestamp(),
     removedBy:     caller.email ?? caller.uid,
     removedByUid:  caller.uid,
+    // Written explicitly rather than left absent, so "has this removal been
+    // undone?" is one field read on every row instead of two shapes to tell
+    // apart — see isRestored().
+    restoredAt:    null,
+    restoredBy:    '',
+    restoredByUid: '',
   });
+
+  return written.id;
 }
 
 /** Revoke access entirely: removes the invite, the profile, and the live session. */
@@ -836,9 +862,10 @@ export async function DELETE(req: NextRequest) {
   // added to close, so it must not be possible to get one by having the log
   // write fail. Skipped when there is no entry to copy: a repeat DELETE on an
   // address that is already gone should not add a second, emptier row.
+  let removalId: string | null = null;
   if (snap.exists) {
     try {
-      await archiveRemoval(snap.data() ?? {}, email, caller);
+      removalId = await archiveRemoval(snap.data() ?? {}, email, caller);
     } catch {
       return NextResponse.json(
         { error: 'Could not record the removal, so nothing was removed. Try again.' },
@@ -847,13 +874,14 @@ export async function DELETE(req: NextRequest) {
     }
   }
 
-  // Removing the person should not leave their photo sitting in the bucket.
-  // The archive stores no photoPath as a result — it would only point at a
-  // file that no longer exists.
-  const photoPath = snap.data()?.photoPath;
-  if (typeof photoPath === 'string' && photoPath) {
-    await adminStorage.bucket().file(photoPath).delete().catch(() => {});
-  }
+  // The photo is deliberately left in the bucket. It used to be deleted here,
+  // which made every removal record a name and a date with nobody's face on
+  // it, and made putting a mistaken removal right a job of asking the person
+  // for their photo again. An avatar is a few dozen kilobytes; the archive
+  // row points at it and outlives the account.
+  //
+  // Nothing new is exposed by keeping it: `avatars/` has always been readable
+  // by every allowlisted account, and the removal log itself is admin-only.
 
   await ref.delete();
 
@@ -892,6 +920,22 @@ export async function DELETE(req: NextRequest) {
   await syncManagedScopes().catch((e) => {
     console.error('[admin/users] refreshing managed scopes failed', email, e);
   });
+
+  // The timeline entry, pointed at the archive row so the two read as one
+  // thing. Written after the removal rather than before it: unlike the
+  // archive, a missing line here must not stop somebody being taken off.
+  if (snap.exists) {
+    await recordPeopleEvent({
+      action:     'removed',
+      email,
+      name:       personName(snap.data() ?? {}),
+      roles:      rolesHeld(snap.data() ?? {}),
+      actorEmail: caller.email ?? caller.uid,
+      actorUid:   caller.uid,
+      source:     'settings',
+      removalId,
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

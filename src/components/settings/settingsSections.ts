@@ -66,8 +66,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     id: 'removed-people',
     label: 'Removed People',
     tab: 'people',
-    blurb: 'Everyone whose access has been revoked, and who revoked it.',
-    keywords: 'revoked deleted former left offboard archive history log',
+    blurb: 'Everyone whose access has been revoked, and who revoked it. Put someone back from here.',
+    keywords: 'revoked deleted former left offboard archive history log restore recover undo put back photo',
+    adminOnly: true,
+  },
+  {
+    id: 'access-history',
+    label: 'Access History',
+    tab: 'people',
+    blurb: 'Every addition, removal and restore, in order.',
+    keywords: 'audit trail timeline added removed restored who when log record changes',
     adminOnly: true,
   },
   {

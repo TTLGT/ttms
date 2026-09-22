@@ -779,7 +779,9 @@ be edited and re-imported.
 **Revocation** (Settings → trash icon) deletes both documents, clears the custom
 claims, revokes refresh tokens and disables the Auth account. Firestore cuts off
 on the next request; Storage relies on the claim, so it lags until the current
-ID token expires (max one hour).
+ID token expires (max one hour). **The profile photo is deliberately left in
+Storage** — the removal record points at it, so the log shows a face and a
+restore puts the photo back with the person.
 
 **Removals are logged.** Before the entry is deleted, a copy of it plus
 `removedAt`, `removedBy` and `removedByUid` is appended to `removedUsers` — the
@@ -792,6 +794,26 @@ The log carries the departed person's date of birth and personal email, so
 `firestore.rules` denies `removedUsers` to the client SDK outright; admins read
 it through `GET /api/admin/users/removed`.
 
+**A removal can be undone** (Settings → People → Removed People → *Put back*,
+`POST /api/admin/users/restore`, `people.manage` only). It rebuilds
+`allowedUsers/{email}` out of the archived row: name, phones, extension,
+birthday, start date, site, team, roles, individual permissions and the photo.
+Three deliberate differences from what was archived:
+
+| Field | On restore | Why |
+|---|---|---|
+| `uid` | `null` | The `users/{uid}` profile was deleted with the account. An entry naming a uid with no profile behind it has no `permissions` array for the rules to read. It comes back as a pending invite and `/api/auth/session` provisions the profile at their next sign-in — Google hands the same account the same uid, so everything they own still names them. |
+| `suspended` | `false` | An admin restoring somebody means "let them work", not "put them back behind the same locked door". |
+| `siteId` / `teamId` | dropped if deleted meanwhile | A dangling id on a live entry renders as a blank where a place should be. |
+
+`invitedAt` and `invitedBy` are kept as they were: when somebody joined is a
+fact about them, and when a removal was undone is a fact about the removal —
+recorded on the archive row as `restoredAt` / `restoredBy` / `restoredByUid`.
+
+The archive row is **marked, never deleted**. A restored removal still reads
+"removed on the 3rd, put back on the 5th", and the same row cannot be restored
+twice (409). Restoring is refused outright if the address is live again.
+
 **Retention is permanent, by decision of the business owner (2026-08-26).**
 Removal records are never aged out, purged or trimmed. Nothing in the app
 deletes from this collection and nothing should be added that does — not a
@@ -800,6 +822,51 @@ the only evidence a person was ever on the system and the only place their
 details survive a mistaken removal, so shortening its life defeats both reasons
 it exists. If a future legal obligation forces expiry, that is a decision for
 the owner, not a maintenance task.
+
+## Collection: `peopleEvents`
+
+The access history: one append-only row each time somebody is **added**,
+**removed** or **restored**. Shown in Settings → People → Access History.
+
+`removedUsers` and this answer different questions, which is why both exist.
+That one is the full archive of a single departure — who the person was, what
+they could do. This one is the *sequence*, additions included: somebody added
+in March, removed in June, put back in July and removed again in September is
+four rows here and two there, and only these read as a story. An addition
+leaves no record anywhere else at all.
+
+| Field | Notes |
+|---|---|
+| `action` | `added` \| `removed` \| `restored` |
+| `email` | The address, which is what stays constant across a removal |
+| `name` | Their name **at that moment**, resolved on write — after a removal there is no entry left to look one up in |
+| `roles` | Role labels held at that moment; empty means a plain broker |
+| `actorEmail` / `actorUid` | The admin who did it |
+| `source` | `settings`, `import` (a spreadsheet row) or `restore` |
+| `removalId` | The `removedUsers` row behind a removal or restore; `null` on an add |
+| `at` | Server timestamp |
+
+Deliberately thinner than the removal log: no birthday, no personal email, no
+phone. Those live in `removedUsers` and nowhere else, so there is one answer to
+"where do a departed employee's details live".
+
+Written only by `src/lib/peopleEvents.ts` through the Admin SDK, from
+`/api/admin/users` (POST and DELETE), `/api/admin/users/restore` and
+`src/lib/userImport.ts`. **A failed write never fails the operation** — the
+opposite of the removal archive, which aborts a removal it cannot log. Each
+event already has its own record elsewhere; refusing to add somebody because a
+timeline write failed would be worse than a gap in the timeline.
+
+`firestore.rules` denies the collection to the client SDK; admins read it
+through `GET /api/admin/users/events`, which serves the most recent 500,
+unfiltered — the panel filters in the browser, so no composite index is needed.
+
+**Retention is permanent**, on the same standing decision as `removedUsers`. Do
+not add a purge, a TTL or a delete path.
+
+**The history starts the day it shipped (2026-09-22).** People already on the
+system have no `added` row; they appear the first time something happens to
+their access. The empty state says so.
 
 ## Collection: `profileUpdateRequests`
 
