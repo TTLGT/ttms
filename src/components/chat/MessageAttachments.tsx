@@ -90,11 +90,15 @@ function FileRow({ attachment }: { attachment: Attachment }) {
  * A photo at full size.
  *
  * A bubble is big enough to tell that a BOL is a BOL and too small to read the
- * weight on it, which is the whole reason this exists. Closes on Escape, on the
- * backdrop and on the button — three ways out, because a picture covering the
- * screen with no visible exit is alarming.
+ * weight on it, which is the whole reason this exists. Exported because the
+ * Files panel opens photos the same way — a second lightbox that closed on two
+ * of the three ways out would be the kind of difference nobody notices until
+ * it is theirs.
+ *
+ * Closes on Escape, on the backdrop and on the button — three ways out, because
+ * a picture covering the screen with no visible exit is alarming.
  */
-function Lightbox({ attachment, onClose }: { attachment: Attachment; onClose: () => void }) {
+export function Lightbox({ attachment, onClose }: { attachment: Attachment; onClose: () => void }) {
   const url = useStorageUrl(attachment.path);
 
   return (

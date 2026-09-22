@@ -327,6 +327,7 @@ scripts cannot import TypeScript either:
 | `src/types/conversation.ts` | mirrored in |
 |---|---|
 | `chatSearchTerms()` | `scripts/backfill-chat-search-terms.js` |
+| `contentKindsFor()` + `linksIn()` | `scripts/backfill-chat-content-kinds.js` |
 
 | `src/lib/celebrations.ts` | mirrored in |
 |---|---|
@@ -581,6 +582,30 @@ look inside a string. Three things follow, and all three fail quietly:
 - A message written before this existed has no such field, and an
   `array-contains` query **skips** a document missing the field rather than
   failing. `scripts/backfill-chat-search-terms.js` is what fills them in.
+
+**Every conversation's files and links are listed in one panel**, opened from
+the paperclip in the chat header (every kind of conversation) and from a row in
+Room settings. `listSharedItems()` in `src/lib/chat.ts` reads it, and it leans
+on the same trick as search one paragraph up: Firestore cannot ask whether an
+array is non-empty or whether a string holds a link, so `contentKindsFor()`
+works the answer out on save and files it as `contentKinds` — `media`, `doc`,
+`link` — which an `array-contains` can reach.
+
+- **Anything that writes a message must write its kinds.** `sendMessage` and
+  `sendThreadReply` do; `editMessage` rebuilds them, because a link can be
+  typed into a message or out of one; `deleteMessage` empties them, so a photo
+  somebody took back stops being listed.
+- The field is a **coarse filter, not the answer**. What the panel shows is
+  read off the document that came back, so a message edited to drop its link
+  matches the query and contributes no rows. Tombstones are skipped on the way
+  through for the same belt-and-braces reason search does it.
+- A message written before this existed has no such field and an
+  `array-contains` **skips** it rather than failing.
+  `scripts/backfill-chat-content-kinds.js` fills them in, and until it has run
+  the panel shows only what has been sent since.
+- It needs a composite index per collection (`contentKinds` + `createdAt`) on
+  both `messages` and `replies` — a file sent in a thread is a file the room
+  was sent, so both are read. A missing index fails the query outright.
 
 **A room can be governed, and half of that lives in the rules because it has
 to.** A `group` room names its `adminUids` and carries a `policy` of six

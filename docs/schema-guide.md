@@ -529,6 +529,8 @@ page boundary and be served twice or skipped.
 | orders   | `shipperId` ASC + `createdAt` DESC | A party's orders, as shipper |
 | messages (collection id, any conversation) | `searchTerms` ARRAY + `createdAt` DESC | The chat search box |
 | replies (collection id, any conversation)  | `searchTerms` ARRAY + `createdAt` DESC | The same, reaching inside threads |
+| messages (collection id, any conversation) | `contentKinds` ARRAY + `createdAt` DESC | The Files and links panel |
+| replies (collection id, any conversation)  | `contentKinds` ARRAY + `createdAt` DESC | The same, reaching inside threads |
 
 Anything not listed is single-field and automatic: the status-tab `count()`s,
 carrier DOT/MC search, the carrier `count()`s, the analytics pickup-date range,
@@ -1241,6 +1243,27 @@ string, so the words are worked out on save and the search is an
   request. It searches rooms the caller is **in**: a record room nobody on that
   account has opened has no uid in `memberUids` and is not searched, even where
   the load itself is visible.
+
+`contentKinds` is the same trick one floor over, and is what the **Files and
+links** panel reads. It holds up to three words — `media`, `doc`, `link` —
+worked out on save by `contentKindsFor()`, because Firestore can ask neither
+whether `attachments` is non-empty nor whether `text` holds a link. The panel
+is opened from the paperclip in the chat header on every kind of conversation,
+and from a row in Room settings; `listSharedItems()` in `src/lib/chat.ts` runs
+one `array-contains` per tab against both `messages` and `replies`, since a
+file sent in a thread is a file the room was sent.
+
+- It is a **coarse filter, not the answer.** The rows shown are read off the
+  documents that came back, so a message edited to remove its link matches the
+  query and contributes nothing. Tombstones are skipped on the way through.
+- **Anything that writes a message must write it**, and on the same branches as
+  `searchTerms`: `sendMessage` and `sendThreadReply` compute it, `editMessage`
+  rebuilds it (a link can be typed in or out), `deleteMessage` empties it so a
+  photo somebody took back stops being listed. The rules name it alongside
+  `searchTerms` on every branch that can move either.
+- **A message written before this existed has no such field**, and the query
+  skips it rather than failing — `scripts/backfill-chat-content-kinds.js` fills
+  them in. Each tab is bounded at 60 messages and says so when it truncates.
 
 `replyTo` carries a **copy** of the quoted message rather than only its id.
 Three reasons point the same way: a reply carried privately out of a room quotes

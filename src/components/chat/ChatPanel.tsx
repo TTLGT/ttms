@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Settings2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Paperclip, Settings2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
+import ChatFilesDialog from './ChatFilesDialog';
 import ConversationList from './ConversationList';
 import MessageThread from './MessageThread';
 import NewConversationDialog from './NewConversationDialog';
@@ -54,6 +55,11 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
 
   const [newOpen, setNewOpen]           = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Separate from the settings, and offered on every kind of conversation:
+  // unlike a name, a membership or a policy, what has been sent somewhere is
+  // something a direct thread and a load room have as much as a named room
+  // does.
+  const [filesOpen, setFilesOpen]       = useState(false);
   // Which list the left column is showing. Local rather than in ChatContext:
   // the page and the popup are two different places to be looking, and having
   // one flip the other to a list the reader did not ask for is worse than
@@ -210,6 +216,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
               nameOf={nameOf}
               onBack={() => setActiveId(null)}
               onSettings={hasSettings ? () => setSettingsOpen(true) : undefined}
+              onFiles={() => setFilesOpen(true)}
             />
             <div className="min-h-0 flex-1">
               <MessageThread conversation={active} />
@@ -223,7 +230,14 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
 
         {newOpen && <NewConversationDialog onClose={() => setNewOpen(false)} />}
         {settingsOpen && active && hasSettings && (
-          <RoomSettingsDialog conversation={active} onClose={() => setSettingsOpen(false)} />
+          <RoomSettingsDialog
+            conversation={active}
+            onClose={() => setSettingsOpen(false)}
+            onShowFiles={() => { setSettingsOpen(false); setFilesOpen(true); }}
+          />
+        )}
+        {filesOpen && active && (
+          <ChatFilesDialog conversation={active} onClose={() => setFilesOpen(false)} />
         )}
       </div>
     );
@@ -277,6 +291,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
               myUid={myUid}
               nameOf={nameOf}
               onSettings={hasSettings ? () => setSettingsOpen(true) : undefined}
+              onFiles={() => setFilesOpen(true)}
             />
             <div className="min-h-0 flex-1">
               <MessageThread conversation={active} />
@@ -305,14 +320,21 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
 
       {newOpen && <NewConversationDialog onClose={() => setNewOpen(false)} />}
       {settingsOpen && active && hasSettings && (
-        <RoomSettingsDialog conversation={active} onClose={() => setSettingsOpen(false)} />
+        <RoomSettingsDialog
+          conversation={active}
+          onClose={() => setSettingsOpen(false)}
+          onShowFiles={() => { setSettingsOpen(false); setFilesOpen(true); }}
+        />
+      )}
+      {filesOpen && active && (
+        <ChatFilesDialog conversation={active} onClose={() => setFilesOpen(false)} />
       )}
     </div>
   );
 }
 
 function Header({
-  conversation, myUid, nameOf, onBack, onSettings,
+  conversation, myUid, nameOf, onBack, onSettings, onFiles,
 }: {
   conversation: Conversation;
   myUid: string;
@@ -320,6 +342,8 @@ function Header({
   onBack?: () => void;
   /** Absent on the conversations that have nothing this reader could change. */
   onSettings?: () => void;
+  /** Every conversation has been sent something, or could have been. */
+  onFiles: () => void;
 }) {
   return (
     <div className="flex flex-shrink-0 items-center gap-2 border-b border-gray-200 px-4 py-3">
@@ -361,6 +385,18 @@ function Header({
           <ExternalLink size={12} />
         </Link>
       )}
+
+      {/* Offered everywhere, unlike the gear beside it: a direct thread and a
+          load room both collect photos and rate sheets, and the reason this
+          exists is that finding one by scrolling is minutes of work. */}
+      <button
+        type="button"
+        onClick={onFiles}
+        title="Files and links"
+        className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+      >
+        <Paperclip size={16} />
+      </button>
 
       {/* A named room always has something to change. The Everyone room has one
           switch, and only for the people who can flip it. A direct thread is

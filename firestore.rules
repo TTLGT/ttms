@@ -961,7 +961,11 @@ service cloud.firestore {
           // Defaulted like the two above, so a client that has not been
           // reloaded since this shipped still sends successfully — it simply
           // writes a message search cannot find.
-          && request.resource.data.get('searchTerms', []) is list;
+          && request.resource.data.get('searchTerms', []) is list
+          // Same shape, same defaulting, same failure: a message written
+          // without it sends, and simply never appears in the room's Files
+          // panel. See ChatMessage.contentKinds.
+          && request.resource.data.get('contentKinds', []) is list;
 
         // Taking a message back, or correcting it — the sender only, either way.
         //
@@ -1023,8 +1027,14 @@ service cloud.firestore {
                  // leave the message answering to something it no longer says,
                  // and a take-back that left them would keep an emptied
                  // message in the search results — see chatSearchTerms.
-                 .hasOnly(['text', 'deletedAt', 'editedAt', 'searchTerms'])
+                 //
+                 // `contentKinds` rides along for the same reason, one floor
+                 // over: a link typed out of a message, or a photo taken back,
+                 // must stop the message answering to the Files panel.
+                 .hasOnly(['text', 'deletedAt', 'editedAt', 'searchTerms',
+                           'contentKinds'])
             && request.resource.data.get('searchTerms', []) is list
+            && request.resource.data.get('contentKinds', []) is list
             && (
               // Taking it back.
               (request.resource.data.text == ''
@@ -1057,8 +1067,9 @@ service cloud.firestore {
             && isRoomBoss(conversationData(conversationId))
             && request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['text', 'deletedAt', 'deletedByUid', 'deletedByName',
-                           'searchTerms'])
+                           'searchTerms', 'contentKinds'])
             && request.resource.data.get('searchTerms', []) is list
+            && request.resource.data.get('contentKinds', []) is list
             && request.resource.data.text == ''
             && request.resource.data.deletedAt == request.time
             && request.resource.data.deletedByUid == request.auth.uid
@@ -1105,7 +1116,11 @@ service cloud.firestore {
           // Defaulted like the two above, so a client that has not been
           // reloaded since this shipped still sends successfully — it simply
           // writes a message search cannot find.
-          && request.resource.data.get('searchTerms', []) is list;
+          && request.resource.data.get('searchTerms', []) is list
+          // Same shape, same defaulting, same failure: a message written
+          // without it sends, and simply never appears in the room's Files
+          // panel. See ChatMessage.contentKinds.
+          && request.resource.data.get('contentKinds', []) is list;
 
         allow update: if
           // Reacting — anybody in the conversation, on anybody's reply.
@@ -1127,8 +1142,14 @@ service cloud.firestore {
                  // leave the message answering to something it no longer says,
                  // and a take-back that left them would keep an emptied
                  // message in the search results — see chatSearchTerms.
-                 .hasOnly(['text', 'deletedAt', 'editedAt', 'searchTerms'])
+                 //
+                 // `contentKinds` rides along for the same reason, one floor
+                 // over: a link typed out of a message, or a photo taken back,
+                 // must stop the message answering to the Files panel.
+                 .hasOnly(['text', 'deletedAt', 'editedAt', 'searchTerms',
+                           'contentKinds'])
             && request.resource.data.get('searchTerms', []) is list
+            && request.resource.data.get('contentKinds', []) is list
             && (
               (request.resource.data.text == ''
                && request.resource.data.deletedAt == request.time)
@@ -1150,8 +1171,9 @@ service cloud.firestore {
             && isRoomBoss(conversationData(conversationId))
             && request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['text', 'deletedAt', 'deletedByUid', 'deletedByName',
-                           'searchTerms'])
+                           'searchTerms', 'contentKinds'])
             && request.resource.data.get('searchTerms', []) is list
+            && request.resource.data.get('contentKinds', []) is list
             && request.resource.data.text == ''
             && request.resource.data.deletedAt == request.time
             && request.resource.data.deletedByUid == request.auth.uid

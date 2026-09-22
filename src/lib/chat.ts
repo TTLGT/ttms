@@ -30,12 +30,14 @@ import {
   CHAT_THREADS_COLLECTION,
   chatSearchTerms,
   COMPANY_CONVERSATION_ID,
+  contentKindsFor,
   CONVERSATIONS_COLLECTION,
   MAX_MESSAGE_LENGTH,
   notifyLevel,
   MAX_PINNED,
   MEMBER_EVENTS_COLLECTION,
   MESSAGES_COLLECTION,
+  linksIn,
   REPLIES_COLLECTION,
   THREAD_PAGE_SIZE,
   threadFollowers,
@@ -50,6 +52,8 @@ import {
   type PinnedMessage,
   type RecordKind,
   type RoomPolicy,
+  type SharedItem,
+  type SharedKind,
   type ThreadEntry,
 } from '@/types/conversation';
 
@@ -291,6 +295,10 @@ export async function sendMessage(
     searchTerms: chatSearchTerms({
       text: body, senderName: sender.displayName, attachments,
     }),
+    // Worked out on the same write and for the same reason: the Files panel
+    // cannot ask Firestore whether a message has a photo on it. See
+    // contentKindsFor.
+    contentKinds: contentKindsFor({ text: body, attachments }),
     // Firestore rejects `undefined` outright, so every optional field on the
     // quote is written as an explicit null rather than left off.
     replyTo: replyTo
@@ -407,6 +415,9 @@ export async function sendThreadReply(
     searchTerms: chatSearchTerms({
       text: body, senderName: sender.displayName, attachments,
     }),
+    // A file sent inside a thread is a file the room was sent, so it is filed
+    // exactly like one — the Files panel reads both collections.
+    contentKinds: contentKindsFor({ text: body, attachments }),
   });
 
   // `increment` rather than a read and a put back: two people answering the
@@ -526,6 +537,14 @@ export async function editMessage(
       senderName:  message.senderName,
       attachments: message.attachments,
     }),
+    // Rebuilt with the terms, because a link can be typed into a message or
+    // taken out of one — and a correction that removed the only link while the
+    // message went on answering to `link` would leave a row in the Files panel
+    // pointing at an address nobody can see any more. The files themselves
+    // cannot change on an edit; the text is the half that moves.
+    contentKinds: contentKindsFor({
+      text: body, attachments: message.attachments,
+    }),
   });
   // Only the preview text, and only when this *is* the preview. `updatedAt` is
   // left alone on purpose: fixing a typo is not new activity, and bumping it
@@ -572,6 +591,12 @@ export async function deleteMessage(
     // to its own words would be readable from the search results — the one
     // place a deleted message could still be read.
     searchTerms: [],
+    // Emptied for the same reason, one floor along: the Files panel is the
+    // other place a message nobody can see any more could still be looked at,
+    // and a photo somebody took back must go from it too. The rows are drawn
+    // from the document anyway, so this is belt and braces — it also stops the
+    // tombstone being read back at all.
+    contentKinds: [],
     // Only on an admin's take-back. The rules allow this branch exactly one
     // set of fields, so an ordinary delete must not carry them.
     ...(options.as
@@ -1344,4 +1369,96 @@ export async function listMemberEvents(
     limitTo(max),
   ));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as MemberEvent);
+}
+
+
+/* --------------------------------------------- what a room has been sent */
+
+/**
+ * How many messages one tab of the Files panel reaches back through.
+ *
+ * A budget in document reads for a panel somebody opened on purpose, the same
+ * shape of trade as the jump window in MessageThread. Sixty photo-carrying
+ * messages is a long way back in a room that mostly talks — and the panel says
+ * what it is showing rather than implying it is everything.
+ */
+const SHARED_PAGE_SIZE = 60;
+
+/** One message or reply, turned into the rows the panel draws from it. */
+function itemsFrom(
+  id: string,
+  data: ChatMessage,
+  kind: SharedKind,
+): SharedItem[] {
+  // A message that was taken back has its kinds emptied in the same write, so
+  // this should never fire. It is here for the same reason chatSearch checks
+  // it: history written before contentKinds existed is backfilled by a script,
+  // and the one thing worse than a panel that misses a file is a panel that
+  // shows one somebody removed.
+  if (data.deletedAt) return [];
+
+  const common = {
+    messageId:  id,
+    rootId:     data.rootId ?? null,
+    senderUid:  data.senderUid,
+    senderName: data.senderName,
+    at:         data.createdAt?.toMillis?.() ?? 0,
+    text:       data.text ?? '',
+  };
+
+  if (kind === 'link') {
+    return linksIn(data.text).map((url) => ({ ...common, kind, url }));
+  }
+  // One row per file, not per message: four photos sent together are four
+  // things to look at, and a grid that showed the first of each group would
+  // hide three of them behind nothing.
+  return (data.attachments ?? [])
+    .filter((a) => (kind === 'media' ? a.isImage : !a.isImage))
+    .map((attachment) => ({ ...common, kind, attachment }));
+}
+
+/**
+ * Every photo, document or link a conversation has been sent, newest first.
+ *
+ * Read on demand when the panel opens rather than watched, and only for the
+ * tab being looked at: this is history, it does not move while it is being
+ * read, and a listener would cost a room's worth of reads to a panel that is
+ * shut almost all of the time.
+ *
+ * **Both collections**, because a file sent inside a thread is a file the room
+ * was sent — somebody looking for the signed rate con does not remember
+ * whether it was pasted in the room or under a message in it.
+ *
+ * The query is an `array-contains` on `contentKinds`, which is a coarse
+ * filter: what a row actually says is read off the document that came back.
+ * So a message that has since been edited to remove its link contributes
+ * nothing, quietly and correctly — see contentKindsFor.
+ */
+export async function listSharedItems(
+  conversationId: string,
+  kind: SharedKind,
+  max = SHARED_PAGE_SIZE,
+): Promise<{ items: SharedItem[]; truncated: boolean }> {
+  const inCollection = (col: ReturnType<typeof messagesCol>) => getDocs(query(
+    col,
+    where('contentKinds', 'array-contains', kind),
+    orderBy('createdAt', 'desc'),
+    limitTo(max),
+  ));
+
+  const [messages, replies] = await Promise.all([
+    inCollection(messagesCol(conversationId)),
+    inCollection(repliesCol(conversationId)),
+  ]);
+
+  const items = [...messages.docs, ...replies.docs]
+    .flatMap((d) => itemsFrom(d.id, d.data() as ChatMessage, kind))
+    .sort((a, b) => b.at - a.at);
+
+  return {
+    items,
+    // What was asked for, not what came back: a message carrying three photos
+    // makes three rows, so counting the rows would call a half-full panel full.
+    truncated: messages.size >= max || replies.size >= max,
+  };
 }

@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import {
-  Hash, ImagePlus, LogOut, MicOff, Search, Shield, UserMinus, Volume2, X,
+  ChevronRight, Hash, ImagePlus, LogOut, MicOff, Paperclip, Search, Shield,
+  UserMinus, Volume2, X,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
@@ -49,9 +50,16 @@ import {
 export default function RoomSettingsDialog({
   conversation,
   onClose,
+  onShowFiles,
 }: {
   conversation: Conversation;
   onClose: () => void;
+  /**
+   * Opens what the room has been sent. It replaces this dialog rather than
+   * stacking over it — two panels deep is where somebody loses track of which
+   * Close they are about to press.
+   */
+  onShowFiles: () => void;
 }) {
   const { user, profile } = useAuth();
   const { people, setActiveId } = useChat();
@@ -492,6 +500,28 @@ export default function RoomSettingsDialog({
               </div>
             </>
           )}
+
+          {/* The way into what the room has been sent, as a row rather than
+              the files themselves.
+
+              No count and no thumbnails beside it, deliberately: both would
+              mean reading the room's history on every open of this dialog,
+              for a panel most people open to change a name. The row is a door;
+              the reads happen when somebody walks through it. */}
+          <button
+            type="button"
+            onClick={onShowFiles}
+            className="mt-5 flex w-full items-center gap-2.5 border-t border-gray-100 pt-4 text-left"
+          >
+            <Paperclip size={16} className="flex-shrink-0 text-gray-400" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm text-gray-900">Files and links</span>
+              <span className="block text-[11px] text-gray-500">
+                Every photo, document and link sent here.
+              </span>
+            </span>
+            <ChevronRight size={16} className="flex-shrink-0 text-gray-400" />
+          </button>
 
           {/* Who has been in the room, who put them there, and what was
               changed. Anybody in a room can open this, which is the point:

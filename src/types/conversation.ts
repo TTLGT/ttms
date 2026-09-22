@@ -471,6 +471,25 @@ export interface ChatMessage {
    * invisible to search and nothing says so.
    */
   searchTerms?: string[];
+  /**
+   * What this message is carrying, as a short list — see contentKindsFor.
+   *
+   * Exists for one reason: the Files panel asks "every photo in this room,
+   * newest first", and Firestore cannot ask whether an array is non-empty or
+   * whether a string holds a link. So the question is answered on save and
+   * filed as words an `array-contains` can reach — the same trick as
+   * `searchTerms` one field up.
+   *
+   * It is a **coarse filter, not the answer**: what the panel shows is read off
+   * the document the query pulled back, so a message whose link was edited out
+   * still matches and simply contributes no rows.
+   *
+   * Absent on everything said before this shipped, and an `array-contains`
+   * skips a document missing the field rather than failing — so until
+   * scripts/backfill-chat-content-kinds.js has run, the panel shows only what
+   * has been sent since and nothing says so.
+   */
+  contentKinds?: SharedKind[];
 
   /* ------------------------------------------------------------- threads */
 
@@ -1223,6 +1242,93 @@ export function postingBlock(
 export function containsLink(text: string): boolean {
   return /https?:\/\/|www\./i.test(text);
 }
+
+/* ------------------------------------------- what a room has been sent */
+
+/**
+ * The three things the Files panel sorts a room's history into.
+ *
+ * Photos and documents are split rather than listed together because they are
+ * looked for differently: a photo is recognised by seeing it, so media is a
+ * grid, and a document is recognised by its name, so documents are rows. Links
+ * are neither — they are the thing somebody pasted three weeks ago and now
+ * needs again.
+ */
+export type SharedKind = 'media' | 'doc' | 'link';
+
+/**
+ * Every link in a message, in the order they were written.
+ *
+ * Deliberately stricter than containsLink(), which is a house rule about what
+ * a room is for and is allowed to be coarse. This one produces something that
+ * has to open in a browser, so a bare `www.` is given the scheme it is missing
+ * and trailing punctuation is left behind — "see https://x.com/a." ends in a
+ * full stop belonging to the sentence, not to the address.
+ */
+export function linksIn(text: string | null | undefined): string[] {
+  const found = String(text ?? '').match(/(?:https?:\/\/|www\.)[^\s<>"']+/gi) ?? [];
+  const out: string[] = [];
+  for (const raw of found) {
+    const trimmed = raw.replace(/[.,;:!?)\]}'"]+$/, '');
+    if (!trimmed) continue;
+    const url = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    // The same address pasted twice in one message is one link.
+    if (!out.includes(url)) out.push(url);
+  }
+  return out;
+}
+
+/**
+ * What a message is carrying, filed as words a query can reach — see
+ * ChatMessage.contentKinds for why this is stored rather than asked.
+ *
+ * Written on send, rebuilt on an edit and emptied on a take-back, exactly like
+ * `searchTerms`: a message whose link was removed must stop answering to one,
+ * and a photo somebody took back must not go on hanging in the panel where the
+ * room can still see it.
+ *
+ * `isImage` decides media rather than the content type being re-sniffed here,
+ * because that flag is what the thread itself drew the message from — a file
+ * shown inline in the bubble and listed under Documents in the panel would be
+ * two answers to the same question.
+ */
+export function contentKindsFor(message: {
+  text?: string | null;
+  attachments?: { isImage?: boolean }[] | null;
+}): SharedKind[] {
+  const kinds = new Set<SharedKind>();
+  for (const file of message.attachments ?? []) {
+    kinds.add(file?.isImage ? 'media' : 'doc');
+  }
+  if (linksIn(message.text).length > 0) kinds.add('link');
+  return [...kinds];
+}
+
+/**
+ * One thing a room has been sent: a file, or a link somebody pasted.
+ *
+ * Carries where it was said as well as what it was, because the answer to
+ * "what is this rate sheet" is nearly always the conversation around it — so
+ * every row in the panel is a way back to the message it came from.
+ */
+export interface SharedItem {
+  kind: SharedKind;
+  /** The message or reply it was sent in. */
+  messageId: string;
+  /** Set when it was sent inside a thread, which is what opens it. */
+  rootId: string | null;
+  senderUid: string;
+  senderName: string;
+  /** Milliseconds, like every other `at` the chat passes around. */
+  at: number;
+  /** Set on `media` and `doc`. */
+  attachment?: Attachment;
+  /** Set on `link`. */
+  url?: string;
+  /** The message text, shown under a link so the paste has its sentence. */
+  text: string;
+}
+
 
 /* ------------------------------------------------- who has been in a room */
 
