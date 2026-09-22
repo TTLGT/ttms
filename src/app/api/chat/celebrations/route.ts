@@ -59,10 +59,12 @@ export async function GET(req: NextRequest) {
 /**
  * What the message would say, without sending it.
  *
- * `settings.manage` rather than a lighter guard because the preview names
+ * `celebrations.manage` rather than a lighter guard because the preview names
  * people and the reason they are being named — which is the payroll data this
- * feature is careful with everywhere else. Whoever can turn the feature on is
- * the right audience for seeing what it will do.
+ * feature is careful with everywhere else. It is the same permission that edits
+ * the wording and holds the switch, so whoever can change what this says can
+ * see what it will say. Admin and HR hold it, and HR can already read the
+ * birthdays it is built from.
  *
  * `today` is accepted so the wording can be checked against a date that is not
  * this one — a leap day, a morning with four people on it — without waiting
@@ -70,7 +72,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    await requirePermission(req, 'settings.manage');
+    await requirePermission(req, 'celebrations.manage');
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

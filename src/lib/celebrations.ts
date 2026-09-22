@@ -7,11 +7,15 @@ import {
   CONVERSATIONS_COLLECTION,
 } from '@/types/conversation';
 import {
+  COMPANY_NAME,
+  DEFAULT_CELEBRATION_TEMPLATES,
   celebrationMessage,
   celebrationsToday,
   officeToday,
+  validateTemplate,
   type Celebration,
   type CelebrationCandidate,
+  type CelebrationTemplates,
 } from '@/types/celebration';
 
 /**
@@ -73,9 +77,10 @@ export async function runCelebrations(
   const date    = options.today ?? officeToday();
   const preview = options.preview === true;
 
-  const enabled = await celebrationsEnabled();
+  const settings     = await celebrationSettings();
+  const enabled      = settings.enabled;
   const celebrations = enabled ? celebrationsToday(await candidates(), date) : [];
-  const message = celebrationMessage(celebrations);
+  const message      = celebrationMessage(celebrations, settings.templates);
 
   const result = (outcome: CelebrationOutcome): CelebrationRun =>
     ({ outcome, date, celebrations, message });
@@ -105,7 +110,14 @@ export async function runCelebrations(
 
   try {
     const batch = adminDb.batch();
-    batch.update(room, systemLine(batch, room, message));
+    batch.update(room, systemLine(batch, room, message, {
+      // Signed with the company's name, not "TTMS". A birthday greeting from
+      // an initialism is a birthday greeting from the software.
+      senderName: COMPANY_NAME,
+      // Drawn as a card somebody is meant to read rather than as the thin
+      // grey line a load alert gets — see SystemMessage.
+      systemKind: 'announcement',
+    }));
     await batch.commit();
   } catch (e) {
     // Hand the day back. The claim exists to stop a second invocation posting
@@ -149,11 +161,33 @@ async function claimDay(date: string, celebrations: Celebration[]): Promise<bool
   }
 }
 
-/** The company-wide switch, defaulting the same way every other setting does. */
-async function celebrationsEnabled(): Promise<boolean> {
-  const snap = await adminDb.collection('appSettings').doc('general').get();
-  const stored = snap.exists ? snap.data()?.celebrations : undefined;
-  return typeof stored === 'boolean' ? stored : DEFAULT_APP_SETTINGS.celebrations;
+/**
+ * The switch and the wording, in one read, defaulted the same way every other
+ * setting is.
+ *
+ * **A stored template is re-checked here rather than trusted.** The route that
+ * saved it validated it, but a document edited by hand in the Firebase Console
+ * has been through nothing at all — and the cost of a bad one is a message
+ * reading `Congratulations to {Name}` going out to the whole company on
+ * somebody's anniversary, once, with no way to take it back. Falling back to
+ * the default wording is a far better failure than that.
+ */
+async function celebrationSettings(): Promise<{ enabled: boolean; templates: CelebrationTemplates }> {
+  const snap   = await adminDb.collection('appSettings').doc('general').get();
+  const stored = snap.exists ? snap.data() : undefined;
+
+  const raw = (stored?.celebrationTemplates ?? {}) as Partial<CelebrationTemplates>;
+  const pick = (kind: keyof CelebrationTemplates): string => {
+    const value = typeof raw[kind] === 'string' ? raw[kind] : '';
+    return validateTemplate(kind, value) === '' ? value.trim() : DEFAULT_CELEBRATION_TEMPLATES[kind];
+  };
+
+  return {
+    enabled: typeof stored?.celebrations === 'boolean'
+      ? stored.celebrations
+      : DEFAULT_APP_SETTINGS.celebrations,
+    templates: { birthday: pick('birthday'), anniversary: pick('anniversary') },
+  };
 }
 
 /**

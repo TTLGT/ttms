@@ -235,21 +235,34 @@ function listOf(items: string[]): string {
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
+/* ------------------------------------------------------- what it says */
+
 /**
- * The same, with a comma before the "and".
+ * The wording, which HR and admins own rather than this file.
  *
- * Used for the anniversary clauses, which contain commas of their own — so
- * "Ana Cruz, 10 years at Total Transport Logistics today and to Beto Diaz,
- * 1 year" runs the two people together into one sentence that has to be read
- * twice. The comma is what separates them.
+ * Kept as two editable templates in Settings → Operations → Celebrations,
+ * because the people who should decide how this sounds are not the people who
+ * deploy. The shape of each one is the part that is not negotiable, and it
+ * follows from what actually differs between the two:
+ *
+ *  - **One birthday line for everybody**, because two birthdays differ only in
+ *    the name — so `{names}` is a joined list and three people on one day is
+ *    still one sentence.
+ *  - **One anniversary line per person**, because the number of years is
+ *    different for each of them and there is no honest way to fold that into a
+ *    single clause an editor can still read.
+ *
+ * It is all still one message. Several lines in one message is one
+ * notification; several messages in a row from the same sender reads as an
+ * outage.
  */
-function listOfClauses(items: string[]): string {
-  if (items.length <= 1) return items[0] ?? '';
-  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+export interface CelebrationTemplates {
+  birthday: string;
+  anniversary: string;
 }
 
 /**
- * The message, or '' when there is nothing to say today.
+ * What it says before anybody edits it.
  *
  * **This is the one place TTMS is allowed to sound pleased**, and it is worth
  * saying why, because every other automated line in this app is written the
@@ -257,35 +270,136 @@ function listOfClauses(items: string[]): string {
  * flat statements of fact — the moment an automated line starts sounding like
  * a person, people start reading past all of them. That argument holds for a
  * load moving to delivered and does not hold here: a congratulation that
- * reads like a status change is worse than no congratulation, because it
- * tells eleven colleagues that the company could not be bothered.
- *
- * It is still one message rather than one per person. Three lines in a row
- * from TTMS reads as an outage, and on a day with four birthdays it would be
- * four notifications for everybody.
+ * reads like a status change is worse than no congratulation, because it tells
+ * eleven colleagues that the company could not be bothered.
  */
-export function celebrationMessage(list: Celebration[]): string {
+export const DEFAULT_CELEBRATION_TEMPLATES: CelebrationTemplates = {
+  birthday:    'Happy birthday to {names}.',
+  anniversary: 'Congratulations to {name}, {years} at {company} today.',
+};
+
+/** Longest a template may be. The rendered message is capped separately. */
+export const MAX_TEMPLATE_LENGTH = 300;
+
+/**
+ * What may be written in each template, and what each one turns into.
+ *
+ * The catalog is the validation as well as the help text under the editor:
+ * `validateTemplate` refuses a token that is not in here rather than printing
+ * it literally, because `{Name}` in place of `{name}` would otherwise go out
+ * to the whole company reading exactly like that, once, on somebody's
+ * anniversary.
+ */
+export const TEMPLATE_PLACEHOLDERS: Record<CelebrationKind, { token: string; detail: string }[]> = {
+  birthday: [
+    { token: '{names}',      detail: 'Everyone with a birthday today — “Tom Reed”, or “Tom Reed and Ana Cruz”. Two or more names are joined with “and”.' },
+    { token: '{firstNames}', detail: 'The same, first names only — “Tom”, or “Tom and Ana”.' },
+    { token: '{company}',    detail: `“${COMPANY_NAME}”.` },
+  ],
+  anniversary: [
+    { token: '{name}',    detail: 'The person’s full name — “Vivian De León”. One line is written for each person.' },
+    { token: '{first}',   detail: 'Their first name only — “Vivian”.' },
+    { token: '{years}',   detail: 'How long they have been here — “3 years”, or “1 year”.' },
+    { token: '{count}',   detail: 'Just the number — “3”. Use this and write the word yourself if the message is not in English.' },
+    { token: '{company}', detail: `“${COMPANY_NAME}”. Worth removing if several people share a day — it reads twice.` },
+  ],
+};
+
+/** A template with no name in it names nobody, which is not a message. */
+const NAME_TOKENS: Record<CelebrationKind, string[]> = {
+  birthday:    ['{names}', '{firstNames}'],
+  anniversary: ['{name}', '{first}'],
+};
+
+/**
+ * Why a template cannot be saved, or '' when it can.
+ *
+ * Returns the sentence shown to whoever is editing, so each one says what to
+ * do rather than what is wrong. Checked again server-side — this runs in the
+ * browser, and the browser is not where a rule lives.
+ */
+export function validateTemplate(kind: CelebrationKind, template: string): string {
+  const text = template.trim();
+  if (!text) return 'Say what the message should be.';
+  if (text.length > MAX_TEMPLATE_LENGTH) {
+    return `Keep it under ${MAX_TEMPLATE_LENGTH} characters. This one is ${text.length}.`;
+  }
+
+  const allowed = TEMPLATE_PLACEHOLDERS[kind].map((p) => p.token);
+  const used    = text.match(/\{[^}]*\}/g) ?? [];
+
+  const unknown = used.find((token) => !allowed.includes(token));
+  if (unknown) {
+    return `TTMS does not know what ${unknown} means. You can use ${allowed.join(', ')}.`;
+  }
+
+  if (!NAME_TOKENS[kind].some((token) => text.includes(token))) {
+    return `The message has to name somebody — put ${NAME_TOKENS[kind][0]} in it.`;
+  }
+
+  return '';
+}
+
+/** Substitutes the tokens. Anything not supplied is left exactly as typed. */
+function render(template: string, values: Record<string, string>): string {
+  return template.replace(/\{[^}]*\}/g, (token) => values[token] ?? token);
+}
+
+/** "3 years", "1 year". The unit is written here so no editor can produce "1 years". */
+function yearsPhrase(years: number): string {
+  return `${years} ${years === 1 ? 'year' : 'years'}`;
+}
+
+/** The first word of a name, which is close enough to a first name here. */
+function firstNameOf(name: string): string {
+  return name.split(' ')[0];
+}
+
+/**
+ * The message, or '' when there is nothing to say today.
+ *
+ * A template that fails validation is not rendered — the stored one is trusted
+ * because the route that stored it checked, but a document edited by hand in
+ * the Firebase Console has been through nothing at all, and the default
+ * wording going out is a far better failure than `{Name}` going out.
+ */
+export function celebrationMessage(
+  list: Celebration[],
+  templates: CelebrationTemplates = DEFAULT_CELEBRATION_TEMPLATES,
+): string {
+  const usable = (kind: CelebrationKind): string =>
+    validateTemplate(kind, templates[kind] ?? '') === ''
+      ? templates[kind].trim()
+      : DEFAULT_CELEBRATION_TEMPLATES[kind];
+
   const birthdays     = list.filter((c) => c.kind === 'birthday');
   const anniversaries = list.filter((c) => c.kind === 'anniversary');
 
-  const lines: string[] = [];
+  const blocks: string[] = [];
 
   if (birthdays.length > 0) {
-    lines.push(`Happy birthday to ${listOf(birthdays.map((c) => c.name))}.`);
+    blocks.push(render(usable('birthday'), {
+      '{names}':      listOf(birthdays.map((c) => c.name)),
+      '{firstNames}': listOf(birthdays.map((c) => firstNameOf(c.name))),
+      '{company}':    COMPANY_NAME,
+    }));
   }
 
   if (anniversaries.length > 0) {
-    // The "at <company> today" tail is carried by the first clause only, so a
-    // day with three anniversaries does not repeat the company's own name
-    // three times in one sentence.
-    const clauses = anniversaries.map((c, i) => {
-      const years = `${c.years} ${c.years === 1 ? 'year' : 'years'}`;
-      return i === 0
-        ? `${c.name}, ${years} at ${COMPANY_NAME} today`
-        : `to ${c.name}, ${years}`;
-    });
-    lines.push(`Congratulations to ${listOfClauses(clauses)}.`);
+    // One line each, on consecutive lines — the two kinds are separated by a
+    // blank line below, but a run of anniversaries is one list and reads as
+    // one.
+    blocks.push(anniversaries.map((c) => render(usable('anniversary'), {
+      '{name}':    c.name,
+      '{first}':   firstNameOf(c.name),
+      '{years}':   yearsPhrase(c.years),
+      // The bare number, for a message written in a language where the unit
+      // does not go where an English one does. `{years}` carries the word and
+      // its plural; this carries neither, so whoever uses it writes both.
+      '{count}':   String(c.years),
+      '{company}': COMPANY_NAME,
+    })).join('\n'));
   }
 
-  return lines.join('\n\n');
+  return blocks.join('\n\n');
 }

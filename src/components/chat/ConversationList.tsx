@@ -21,6 +21,7 @@ import {
   inChatFilter,
   notifyLevel,
   MAX_CHAT_LISTS,
+  SYSTEM_SENDER_UID,
   type ChatFilterId,
   type ChatList,
   type Conversation,
@@ -491,6 +492,14 @@ function emptyText(
 function preview(c: Conversation, myUid: string): string {
   const last = c.lastMessage;
   if (!last) return 'No messages yet';
+
+  // The server's own lines carry no prefix. They already say what they are
+  // ("Status moved to Delivered", "Happy birthday to Tom Reed"), and the
+  // first-word shortening below reads as somebody's name — which for the
+  // celebrations post, signed "Total Transport Logistics", would put "Total:"
+  // in front of it.
+  if (last.senderUid === SYSTEM_SENDER_UID) return last.text || 'Message deleted';
+
   const who = last.senderUid === myUid ? 'You' : last.senderName.split(' ')[0];
   const body = last.text || 'Message deleted';
   return c.kind === 'direct' && last.senderUid !== myUid ? body : `${who}: ${body}`;

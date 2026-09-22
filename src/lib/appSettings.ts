@@ -1,7 +1,7 @@
 import { auth } from './firebase';
 import { DEFAULT_APP_SETTINGS } from '@/types/appSettings';
 import type { AppSettings, DateFormat, LaneDistanceMode } from '@/types/appSettings';
-import type { Celebration } from '@/types/celebration';
+import type { Celebration, CelebrationTemplates } from '@/types/celebration';
 
 /**
  * Client access to the company-wide settings document.
@@ -80,6 +80,11 @@ export async function saveDateFormat(format: DateFormat): Promise<void> {
 
 export async function saveCelebrations(on: boolean): Promise<void> {
   await saveSetting({ celebrations: on });
+}
+
+/** Both templates together — they are one edit in one panel. */
+export async function saveCelebrationTemplates(templates: CelebrationTemplates): Promise<void> {
+  await saveSetting({ celebrationTemplates: templates });
 }
 
 /** What the daily celebrations post would say today, without sending it. */

@@ -107,6 +107,25 @@ export const MAX_MESSAGE_LENGTH = 4000;
 export const SYSTEM_SENDER_UID  = 'system';
 export const SYSTEM_SENDER_NAME = 'TTMS';
 
+/**
+ * Two things the server says, which are not the same kind of thing.
+ *
+ * - `alert` is the load telling you about itself — "Carrier signed", "BOL
+ *   added". Drawn as a thin line across the room, because it is furniture.
+ * - `announcement` is the company addressing the room, which today means the
+ *   daily birthday and work-anniversary post. It is signed with the company's
+ *   name, drawn at a size somebody is meant to read, and never truncated.
+ *
+ * Absent means `alert`, so every line written before this existed keeps the
+ * shape it already had and nothing needed backfilling.
+ *
+ * The distinction is on the message rather than worked out from its sender
+ * name, because the name is editable and the shape must not be: a room whose
+ * layout changed because somebody retitled something is a room nobody can
+ * predict.
+ */
+export type SystemMessageKind = 'alert' | 'announcement';
+
 export interface Conversation {
   id: string;
   kind: ConversationKind;
@@ -452,6 +471,11 @@ export interface ChatMessage {
    * Only the server can write one — see SYSTEM_SENDER_UID.
    */
   system?: boolean;
+  /**
+   * Which kind of server message this is — see SystemMessageKind. Meaningless
+   * unless `system` is true, and absent means `alert`.
+   */
+  systemKind?: SystemMessageKind;
   /** Uids named with an @ in this message. Drives the stronger unread mark. */
   mentions?: string[];
   /** The message this one is answering, quoted above it. */

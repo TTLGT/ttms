@@ -5,6 +5,7 @@ import {
   SYSTEM_SENDER_NAME,
   SYSTEM_SENDER_UID,
   recordConversationId,
+  type SystemMessageKind,
 } from '@/types/conversation';
 import { STATUS_LABEL, type OrderStatus } from '@/types/order';
 
@@ -76,16 +77,29 @@ export function systemLine(
   batch: FirebaseFirestore.WriteBatch,
   room: FirebaseFirestore.DocumentReference,
   text: string,
+  /**
+   * How it should read, for the one caller that is not a load alert.
+   *
+   * `senderName` is what the room shows it as. It is a label and nothing more
+   * — `senderUid` stays SYSTEM_SENDER_UID whatever is passed, so a different
+   * name cannot become a different identity. The daily celebrations post signs
+   * itself with the company's name rather than "TTMS", because a birthday
+   * greeting from an initialism is a birthday greeting from the software.
+   */
+  options: { senderName?: string; systemKind?: SystemMessageKind } = {},
 ): Record<string, unknown> {
+  const senderName = options.senderName?.trim() || SYSTEM_SENDER_NAME;
+
   batch.set(room.collection(MESSAGES_COLLECTION).doc(), {
     text,
     // Not a uid, and never one: no account can hold it, so nothing signed in
     // can write a message that claims to be this. See SYSTEM_SENDER_UID.
     senderUid:  SYSTEM_SENDER_UID,
-    senderName: SYSTEM_SENDER_NAME,
+    senderName,
     // The flag the thread renders on. Without it an alert would be drawn as a
     // bubble from a colleague nobody can find in the directory.
     system:     true,
+    systemKind: options.systemKind ?? 'alert',
     createdAt:  FieldValue.serverTimestamp(),
     deletedAt:  null,
     editedAt:   null,
@@ -98,7 +112,7 @@ export function systemLine(
     lastMessage: {
       text,
       senderUid:  SYSTEM_SENDER_UID,
-      senderName: SYSTEM_SENDER_NAME,
+      senderName,
       at:         FieldValue.serverTimestamp(),
     },
     updatedAt: FieldValue.serverTimestamp(),

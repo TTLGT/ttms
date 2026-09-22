@@ -6,6 +6,7 @@ import { Search, X } from 'lucide-react';
 import { listAllowedUsers } from '@/lib/allowedUsers';
 import { fullName } from '@/types/allowedUser';
 import type { AllowedUser } from '@/types/allowedUser';
+import type { Permission } from '@/types/permission';
 import {
   SETTINGS_SECTIONS,
   personAnchorId,
@@ -41,7 +42,14 @@ function matches(haystack: string, terms: string[]): boolean {
   return terms.every((t) => hay.includes(t));
 }
 
-export default function SettingsSearch({ isAdmin }: { isAdmin: boolean }) {
+export default function SettingsSearch({
+  isAdmin,
+  can,
+}: {
+  isAdmin: boolean;
+  /** From AuthContext, so a section gated on one permission is findable. */
+  can: (permission: Permission) => boolean;
+}) {
   const router = useRouter();
   const [query, setQuery]   = useState('');
   const [open, setOpen]     = useState(false);
@@ -73,7 +81,11 @@ export default function SettingsSearch({ isAdmin }: { isAdmin: boolean }) {
     if (terms.length === 0) return [];
 
     const sections: Result[] = SETTINGS_SECTIONS
-      .filter((s) => isAdmin || !s.adminOnly)
+      // A section is reachable if you are an admin, if it is open to
+      // everybody who gets this far, or if you hold the one permission it
+      // names. Without the last of those, HR could open the Celebrations panel
+      // from the tab bar and still not find it by typing "birthday".
+      .filter((s) => isAdmin || !s.adminOnly || (s.permission !== undefined && can(s.permission)))
       .filter((s) => matches(`${s.label} ${s.blurb} ${s.keywords}`, terms))
       .slice(0, 6)
       .map((s) => ({
@@ -96,7 +108,7 @@ export default function SettingsSearch({ isAdmin }: { isAdmin: boolean }) {
       }));
 
     return [...sections, ...persons];
-  }, [terms, people, isAdmin]);
+  }, [terms, people, isAdmin, can]);
 
   // Keep the highlight on a row that still exists as the list narrows.
   useEffect(() => setActive(0), [query]);

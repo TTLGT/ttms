@@ -47,6 +47,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     managesPeople
     || can('people.view')
     || can('settings.manage')
+    || can('celebrations.manage')
     || profile?.isSalesManager === true;
 
   useEffect(() => {
@@ -65,10 +66,20 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   if (loading || !allowed) return null;
 
   // The admin-only tabs are the ones about the company rather than about a
-  // person: offices, teams, lane distance, the import. HR and a Sales Manager
-  // both land on People alone, for opposite reasons — one reads everybody, the
-  // other writes their own team.
-  const tabs = SETTINGS_TABS.filter((t) => !t.adminOnly || managesPeople || can('settings.manage'));
+  // person: offices, teams, lane distance, the import. A Sales Manager lands
+  // on People alone — they write their own team and nothing else.
+  //
+  // HR gets People for the same reason in reverse (they read everybody), and
+  // now Operations as well, because the Celebrations panel is theirs. A tab
+  // reached on a single permission still shows only the panels that permission
+  // covers — the page below it filters its own — so this opens a door, not a
+  // tab full of controls that answer 403.
+  const tabs = SETTINGS_TABS.filter((t) =>
+    !t.adminOnly
+    || managesPeople
+    || can('settings.manage')
+    || (t.permission !== undefined && can(t.permission)),
+  );
 
   /**
    * Every tab but Data gets the whole screen, because every one of them lays
@@ -105,7 +116,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                 : 'The company directory. Read-only — ask an admin to change anything here.'}
             </p>
           </div>
-          <SettingsSearch isAdmin={isAdmin} />
+          <SettingsSearch isAdmin={isAdmin} can={can} />
         </div>
 
         {/* One tab is not a tab bar. HR sees only People, so they get the

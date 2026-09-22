@@ -295,6 +295,10 @@ appSettings/general
   laneDistanceMode : "off" | "estimate" | "routes"   // default "estimate"
   dateFormat       : "d-mmm-yyyy" | "mm/dd/yyyy" | "dd/mm/yyyy"  // default "d-mmm-yyyy"
   celebrations     : boolean         // default true — see celebrationRuns below
+  celebrationTemplates : {           // the wording of that post, edited by HR
+    birthday    : string             // "Happy birthday to {names}."
+    anniversary : string             // "Congratulations to {name}, {years} at {company} today."
+  }
   updatedAt        : Timestamp
   updatedBy        : string          // email or uid of the admin who changed it
 ```
@@ -1542,6 +1546,32 @@ fields on an allowlist entry a person may write on their own record, through
 and the answer to "I would rather you did not" has to be actionable at the
 moment somebody thinks of it rather than queued behind an approval. Everything
 else on that entry still goes through `profileUpdateRequests`.
+
+### What it is signed with, and who writes the words
+
+The post is a system message — `senderUid: "system"`, which no account can hold
+— carrying two fields the order alerts do not use:
+
+```
+conversations/company/messages/{id}
+  senderName : "Total Transport Logistics"   // a label; the uid is still "system"
+  systemKind : "announcement"                // vs "alert" (absent means "alert")
+```
+
+`systemKind` decides the shape it is drawn in, not its wording: an `alert` is
+the thin truncated pill a load status gets, an `announcement` is a card with the
+sender written out and the full text. The distinction is stored rather than
+inferred from the sender name, because the name is editable and the layout must
+not be.
+
+The wording lives in `appSettings/general.celebrationTemplates` and is edited in
+Settings → Operations → Celebrations by anyone holding `celebrations.manage`
+(admin and HR). Placeholders are `{names}`, `{firstNames}`, `{company}` for the
+birthday line, and `{name}`, `{first}`, `{years}`, `{count}`, `{company}` for
+the anniversary line. **An unrecognised placeholder is refused rather than
+printed** — checked in the editor, again in `PUT /api/app-settings`, and again
+when the message is built, because a template edited by hand in the Console has
+been through neither of the first two.
 
 ### The schedule
 

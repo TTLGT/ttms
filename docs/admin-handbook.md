@@ -797,12 +797,47 @@ At **8am Guatemala time**, on a day when somebody has a birthday or has been
 here another year, TTMS posts one message in the **Everyone** room naming them.
 It looks like this:
 
-> **TTMS** — Happy birthday to Tom Reed.
+> **TOTAL TRANSPORT LOGISTICS**
+>
+> Happy birthday to Tom Reed.
 >
 > Congratulations to Vivian De León, 3 years at Total Transport Logistics
 > today.
 
-One message, however many people are celebrating — not one each.
+It is signed **Total Transport Logistics**, not TTMS — it is the company
+speaking, not the software. One message, however many people are celebrating.
+
+### Changing what it says
+
+**Settings → Operations → Celebrations**, which administrators and **HR** can
+both open. There are two boxes, and you can write whatever this company would
+actually say:
+
+| Box | What it is | What it looks like |
+|---|---|---|
+| **Birthdays** | One line, however many people share the day | `Happy birthday to {names}.` |
+| **Work anniversaries** | One line for *each* person, because the number of years is different for each of them | `Congratulations to {name}, {years} at {company} today.` |
+
+The words in braces are filled in when the message is sent. Everything else
+goes out exactly as you typed it. Click a box under the editor to drop one in
+rather than typing it:
+
+- **Birthdays** — `{names}` (“Tom Reed and Ana Cruz”), `{firstNames}` (“Tom and
+  Ana”), `{company}`.
+- **Work anniversaries** — `{name}`, `{first}`, `{years}` (“3 years”, “1 year”
+  — it gets the plural right on its own), `{count}` (just “3”, for writing the
+  message in Spanish), `{company}`.
+
+**If you type a word in braces that TTMS does not know**, it tells you and will
+not let you save. That is on purpose: a typo like `{Name}` would otherwise go
+out to the whole company, on somebody's anniversary, reading exactly like that.
+
+Under the editor is **today's message, as it would be sent**. Save first — that
+box shows what is saved, not what is typed. **Back to the standard wording**
+puts both boxes back how they came.
+
+There is no approval step and nothing is announced: whoever saves it is who
+changed it, and the next message uses the new words.
 
 **What it never says.** A birthday message is a name and nothing else. It does
 not give the date, the year somebody was born, or their age. A work anniversary
@@ -816,11 +851,9 @@ with two tickboxes, one for your birthday and one for your work anniversary.
 Untick either and TTMS stops naming you from then on. It saves straight away,
 and **nobody is told you changed it.** Everyone starts out ticked.
 
-**Turning it off for the whole company** is in **Settings → Operations →
-Celebrations**, which only an administrator can open. That panel also shows you
-what would go out *today*, so you can see it working without waiting for 8am.
-Switching it off leaves everybody's personal choice alone, so switching it back
-on puts everything back as it was.
+**Turning it off for the whole company** is the On/Off switch at the top of
+that same panel. Switching it off leaves everybody's personal choice alone, so
+switching it back on puts everything back as it was.
 
 **Nobody is named** if their birthday or start date is not on file, if they are
 suspended, or if they have been invited but have never signed in.

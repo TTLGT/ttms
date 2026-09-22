@@ -706,6 +706,41 @@ is the worst failure either could have. That argument does not reach here: the
 worst failure this one has is a quiet morning. Do not read it as permission to
 put access on a schedule.
 
+**It is signed by the company, not by TTMS**, and that is a second shape of
+system message rather than a different string. `systemLine()` takes a
+`senderName` and a `systemKind`; `SYSTEM_SENDER_UID` never changes, so the name
+is a label and can never become an identity. An `announcement` is drawn by
+`SystemMessage.tsx` as a card with the sender written out and the text
+un-truncated — the `alert` shape is an 11px pill with `truncate` on it, which
+would cut a greeting off mid-name. **Add a new kind rather than restyling
+either**, and keep both inert: no reactions, no thread. "Happy birthday" belongs
+to colleagues, and the post exists to prompt it, not to stand in for it.
+
+**The wording is HR's, not the code's.** Two templates in
+`appSettings/general.celebrationTemplates`, edited in the same panel, gated on
+`celebrations.manage` — a permission held by admin and HR. Their shapes differ
+for a reason and must not be made uniform: the birthday line is **one line for
+everybody** (`{names}` is a joined list) because two birthdays differ only in
+the name, while the anniversary line is **one per person** because the number of
+years is not the same for each of them.
+
+- **An unknown placeholder is refused, never printed.** `{Name}` for `{name}`
+  would otherwise go out to the whole company, once, reading exactly like that.
+  `validateTemplate()` is the single definition, run in the editor so somebody
+  is told before they save, again in `PUT /api/app-settings`, and **again when
+  the message is built** — a document edited by hand in the Console has been
+  through neither of the first two, and the default wording going out is a far
+  better failure than a literal brace.
+- **Pluralisation is the code's job.** `{years}` renders "1 year" / "3 years",
+  so no editor can produce "1 years". `{count}` is the bare number for a
+  message written in another language.
+
+**`celebrations.manage` is the first permission that opens a Settings tab to a
+non-admin.** `SettingsTab.permission` is additive and never a narrowing, and a
+tab reached that way **must have its page filter its own panels** — the
+Operations page does. A control drawn for somebody whose save will 403 is worse
+than one that is hidden.
+
 Wording note: this is the **one place TTMS is allowed to sound pleased.** Every
 other automated line (`src/lib/chatAlerts.ts`) is a flat statement of fact, and
 for a good reason — but a congratulation that reads like a status change tells

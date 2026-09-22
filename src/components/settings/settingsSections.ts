@@ -1,3 +1,5 @@
+import type { Permission } from '@/types/permission';
+
 /**
  * The one description of what Settings contains.
  *
@@ -16,6 +18,18 @@ export interface SettingsTab {
   href: string;
   /** HR reads the people directory and nothing else — see CLAUDE.md. */
   adminOnly: boolean;
+  /**
+   * A second way in, for somebody who is not an admin and holds one panel on
+   * the tab.
+   *
+   * Additive, never a narrowing: an admin-only tab stays open to admins
+   * whatever is written here. It exists because ability in this app is a
+   * permission rather than a role, and "the Operations tab is for admins" had
+   * become the one place that still said otherwise. **A tab opened this way
+   * must have its page filter its own panels** — the tab being reachable is
+   * not permission to use everything on it. See the Operations page.
+   */
+  permission?: Permission;
 }
 
 export const SETTINGS_TABS: SettingsTab[] = [
@@ -25,7 +39,8 @@ export const SETTINGS_TABS: SettingsTab[] = [
   // People is who is here, Permissions is what each of them can do.
   { id: 'permissions',  label: 'Permissions',  href: '/dashboard/settings/permissions',  adminOnly: true  },
   { id: 'organization', label: 'Organization', href: '/dashboard/settings/organization', adminOnly: true  },
-  { id: 'operations',   label: 'Operations',   href: '/dashboard/settings/operations',   adminOnly: true  },
+  // HR reaches this tab for the Celebrations panel and nothing else on it.
+  { id: 'operations',   label: 'Operations',   href: '/dashboard/settings/operations',   adminOnly: true, permission: 'celebrations.manage' },
   { id: 'data',         label: 'Data',         href: '/dashboard/settings/data',         adminOnly: true  },
 ];
 
@@ -43,6 +58,8 @@ export interface SettingsSection {
    */
   keywords: string;
   adminOnly: boolean;
+  /** As on SettingsTab: a second way in, never a narrowing. */
+  permission?: Permission;
 }
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -130,9 +147,10 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     id: 'celebrations',
     label: 'Celebrations',
     tab: 'operations',
-    blurb: 'The daily birthday and work-anniversary message in the Everyone room.',
-    keywords: 'birthday birthdays anniversary anniversaries congratulations chat everyone room daily 8am announcement',
+    blurb: 'The daily birthday and work-anniversary message in the Everyone room, and its wording.',
+    keywords: 'birthday birthdays anniversary anniversaries congratulations chat everyone room daily 8am announcement message wording template greeting hr',
     adminOnly: true,
+    permission: 'celebrations.manage',
   },
   {
     id: 'lead-sources',

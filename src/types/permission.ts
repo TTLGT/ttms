@@ -165,6 +165,19 @@ export const PERMISSIONS = [
    * settings. Left as it is, the Everyone room stays open to everyone.
    */
   'chat.announce',
+  /**
+   * Edit the daily birthday and work-anniversary post, and switch it off.
+   *
+   * Its own permission rather than `settings.manage`, because the wording of a
+   * company greeting is not a company setting in the sense the rest of that
+   * permission covers — lane mileage, offices, lead sources. It belongs with
+   * whoever owns how the company speaks to its staff, which here is HR.
+   *
+   * Admin and HR by default, and handed to anybody else one person at a time.
+   * It is the only thing that lets a non-admin open a panel on the Operations
+   * tab, and it reaches nothing else on it.
+   */
+  'celebrations.manage',
   /** The intern's own area: their guide, their onboarding survey, their tasks. */
   'intern.section',
 ] as const;
@@ -263,6 +276,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     permissions: [
       { key: 'chat.use',       label: 'Use chat',            detail: 'Message colleagues. Everyone has this already.' },
       { key: 'chat.announce',  label: 'Post in the Everyone room', detail: 'Write to the whole company when that room is set to announcements only. Admin and HR have this already.' },
+      { key: 'celebrations.manage', label: 'Edit the celebrations message', detail: 'The wording of the daily birthday and work-anniversary post, and whether it is sent at all. Admin and HR have this already.' },
       { key: 'intern.section', label: 'See the intern area', detail: 'Their guide, their onboarding survey and their task list.' },
     ],
   },
@@ -379,7 +393,14 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
   // `chat.announce` widens HR: a company-wide notice is the sort of thing they
   // send, and locking the Everyone room down would otherwise shut out the one
   // team whose job is to address everybody in it.
-  isHr: [...BASE_PERMISSIONS, 'people.view', 'directory.export', 'profile.decideUpdates', 'chat.announce'],
+  // `celebrations.manage` for the same reason and one more: HR already holds
+  // the birthdays and start dates the daily post is built from, so it adds no
+  // reach at all — only the wording of something already going out in their
+  // name.
+  isHr: [
+    ...BASE_PERMISSIONS, 'people.view', 'directory.export', 'profile.decideUpdates',
+    'chat.announce', 'celebrations.manage',
+  ],
 
   /**
    * Sales Manager: a broker, plus admin-level power over their own team.

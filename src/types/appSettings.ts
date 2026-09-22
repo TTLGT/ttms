@@ -1,3 +1,8 @@
+import {
+  DEFAULT_CELEBRATION_TEMPLATES,
+  type CelebrationTemplates,
+} from './celebration';
+
 /**
  * Company-wide settings an admin controls from the Settings page.
  *
@@ -43,6 +48,12 @@ export interface AppSettings {
    * turning it back on puts every preference back exactly as it was.
    */
   celebrations: boolean;
+  /**
+   * What that message says. Edited in the same panel, by the same people — see
+   * `CelebrationTemplates` in src/types/celebration.ts for the two templates
+   * and why they are shaped differently from each other.
+   */
+  celebrationTemplates: CelebrationTemplates;
 }
 
 /**
@@ -67,6 +78,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   laneDistanceMode: 'estimate',
   dateFormat: 'd-mmm-yyyy',
   celebrations: true,
+  celebrationTemplates: DEFAULT_CELEBRATION_TEMPLATES,
 };
 
 export const LANE_DISTANCE_MODES: LaneDistanceMode[] = ['off', 'estimate', 'routes'];
