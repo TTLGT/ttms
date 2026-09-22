@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react';
+import {
+  ChevronDown, ChevronLeft, ChevronRight, Filter, ListFilter, Pencil, Plus, Trash2,
+} from 'lucide-react';
 import { useChat } from '@/context/ChatContext';
 import ActionMenu, { type MenuAction } from './ActionMenu';
 import {
@@ -27,6 +29,12 @@ import {
  * something waiting in it is the failure this feature could have: the count
  * says "there are three you are not looking at" without giving up the filter.
  */
+/**
+ * Roughly how much of the row an arrow covers — its icon plus the padding it
+ * fades out over. Kept in step with the classes on Arrow below.
+ */
+const ARROW_WIDTH = 30;
+
 export default function ChatFilterBar({
   onNewList, onRenameList,
 }: {
@@ -56,6 +64,24 @@ export default function ChatFilterBar({
     (f) => f.always || f.id === chatFilter || matching(f.id).length > 0,
   );
 
+  // One array behind both the row and the menu, so a chip that has scrolled
+  // out of reach turns up in the menu under the same name and the same count
+  // it was wearing on the row.
+  const chips = [
+    ...builtIns.map((f) => ({
+      id:    f.id,
+      label: f.label,
+      // The count is left off All: it would be the same number as the Unread
+      // chip beside it, on the one chip that hides nothing.
+      count: f.id === 'all' ? 0 : unreadIn(f.id),
+    })),
+    ...rows.map(({ id, list }) => ({
+      id:    chatListFilterId(id),
+      label: list.name,
+      count: unreadIn(chatListFilterId(id)),
+    })),
+  ];
+
   /*
    * The row scrolls sideways, and on a desktop that has to be said out loud.
    * A touch screen finds it by pushing it; a mouse has no way in — the
@@ -66,6 +92,8 @@ export default function ChatFilterBar({
    */
   const scroller = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState({ left: false, right: false });
+  /** Chips the row is not currently showing, in row order — for the menu. */
+  const [offScreen, setOffScreen] = useState<string[]>([]);
 
   const measure = useCallback(() => {
     const el = scroller.current;
@@ -73,7 +101,35 @@ export default function ChatFilterBar({
     const max = el.scrollWidth - el.clientWidth;
     // A pixel of slack either side: fractional widths leave scrollLeft a hair
     // short of the end, and an arrow pointing at nothing is worse than none.
-    setOverflow({ left: el.scrollLeft > 1, right: el.scrollLeft < max - 1 });
+    const atLeft  = el.scrollLeft > 1;
+    const atRight = el.scrollLeft < max - 1;
+    setOverflow({ left: atLeft, right: atRight });
+
+    // Read off rectangles rather than offsets: the row is a flex line inside
+    // a scroll container, and a rectangle is the one measurement that does not
+    // depend on which ancestor happens to be positioned.
+    const box = el.getBoundingClientRect();
+
+    // Each end is pulled in by whichever arrow is over it, because a chip
+    // under an arrow is as far out of reach as one past the edge — a click
+    // there lands on the arrow. Those count as off screen too, which is what
+    // puts the half-covered chip at the end of the row into the menu.
+    const from = box.left  + (atLeft  ? ARROW_WIDTH : 0);
+    const to   = box.right - (atRight ? ARROW_WIDTH : 0);
+
+    const out: string[] = [];
+    for (const node of Array.from(el.children)) {
+      const id = (node as HTMLElement).dataset.chipId;
+      if (!id) continue;
+      const rect = node.getBoundingClientRect();
+      if (rect.left < from - 1 || rect.right > to + 1) out.push(id);
+    }
+    // Swapped in only when it really changed. This runs on every scroll event,
+    // and handing back a new array each time would rebuild the open menu
+    // underneath somebody reading it.
+    setOffScreen((prev) => (
+      prev.length === out.length && prev.every((id, i) => id === out[i]) ? prev : out
+    ));
   }, []);
 
   // Both things that change the answer: the column being resized, and a chip
@@ -87,7 +143,7 @@ export default function ChatFilterBar({
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [measure, builtIns.length, rows.length]);
+  }, [measure, chips.length]);
 
   // Listened for here rather than through onWheel: React binds wheel at the
   // document root and binds it passively, so preventDefault from a React
@@ -113,6 +169,23 @@ export default function ChatFilterBar({
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
+  /**
+   * Picking a filter from the menu, which is how a chip that does not fit is
+   * still reachable. It is scrolled back into view as well as selected: a row
+   * that answers a menu by highlighting something off its own right edge
+   * looks like it ignored the click.
+   */
+  const chooseFilter = (id: string) => {
+    setChatFilter(id);
+    // After the row has re-rendered as selected, so the chip being scrolled to
+    // is the one the reader is about to look at.
+    requestAnimationFrame(() => {
+      scroller.current
+        ?.querySelector(`[data-chip-id="${CSS.escape(id)}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+    });
+  };
+
   /** One press of an arrow: most of the width, so a chip stays in view. */
   const nudge = (direction: -1 | 1) => {
     const el = scroller.current;
@@ -120,8 +193,33 @@ export default function ChatFilterBar({
     el.scrollBy({ left: direction * Math.max(80, el.clientWidth * 0.75), behavior: 'smooth' });
   };
 
+  const hiddenChips = chips.filter((c) => offScreen.includes(c.id));
+
   const menuActions: MenuAction[] = [
-    { key: 'new', label: 'New list…', Icon: Plus, onSelect: onNewList },
+    /*
+     * The chips the row has run out of room for, named in full.
+     *
+     * This button is already where somebody goes when the row looks like it is
+     * missing something, and the arrows only move the row — they never say
+     * what is along there. The count comes with them, because a filter nobody
+     * can see is exactly the one whose unread number is doing the work.
+     */
+    ...hiddenChips.map((c, i) => ({
+      key:      `chip:${c.id}`,
+      label:    c.count > 0 ? `${c.label} · ${c.count > 99 ? '99+' : c.count}` : c.label,
+      Icon:     chatListIdOf(c.id) ? ListFilter : Filter,
+      checked:  chatFilter === c.id,
+      section:  i === 0 ? 'Not on screen' : undefined,
+      onSelect: () => chooseFilter(c.id),
+    })),
+    {
+      key:   'new',
+      label: 'New list…',
+      Icon:  Plus,
+      // A heading only when there is a group above to be told apart from.
+      section: hiddenChips.length > 0 ? 'Lists' : undefined,
+      onSelect: onNewList,
+    },
     ...(selectedListId ? [
       {
         key:     'rename',
@@ -155,22 +253,14 @@ export default function ChatFilterBar({
           onScroll={measure}
           className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          {builtIns.map((f) => (
+          {chips.map((c) => (
             <Chip
-              key={f.id}
-              label={f.label}
-              count={f.id === 'all' ? 0 : unreadIn(f.id)}
-              selected={chatFilter === f.id}
-              onSelect={() => setChatFilter(f.id)}
-            />
-          ))}
-          {rows.map(({ id, list }) => (
-            <Chip
-              key={id}
-              label={list.name}
-              count={unreadIn(chatListFilterId(id))}
-              selected={selectedListId === id}
-              onSelect={() => setChatFilter(chatListFilterId(id))}
+              key={c.id}
+              id={c.id}
+              label={c.label}
+              count={c.count}
+              selected={chatFilter === c.id}
+              onSelect={() => setChatFilter(c.id)}
             />
           ))}
         </div>
@@ -184,8 +274,8 @@ export default function ChatFilterBar({
 
       <button
         type="button"
-        title="Lists"
-        aria-label="Manage lists"
+        title="Filters and lists"
+        aria-label="Filters and lists"
         onClick={(e) => setMenuAt(e.currentTarget.getBoundingClientRect())}
         className="flex-shrink-0 rounded-full border border-gray-300 p-1 text-gray-400 transition hover:bg-gray-50 hover:text-gray-700"
       >
@@ -231,8 +321,9 @@ function Arrow({ side, onPress }: { side: 'left' | 'right'; onPress: () => void 
  * as the Unread chip beside it, on the one chip that hides nothing.
  */
 function Chip({
-  label, count, selected, onSelect,
+  id, label, count, selected, onSelect,
 }: {
+  id: string;
   label: string;
   count: number;
   selected: boolean;
@@ -241,6 +332,10 @@ function Chip({
   return (
     <button
       type="button"
+      // How the row works out which chips are off its edges, and how the menu
+      // scrolls one back. Read straight off the element, so the answer comes
+      // from where the chip actually landed rather than from a second sum.
+      data-chip-id={id}
       onClick={onSelect}
       className={`flex flex-shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition ${
         selected
