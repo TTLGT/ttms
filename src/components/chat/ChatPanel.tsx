@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ExternalLink, Settings2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -19,6 +19,22 @@ import {
   conversationTitle,
   type Conversation,
 } from '@/types/conversation';
+
+/*
+ * How wide the conversation column can be dragged, and where it starts.
+ *
+ * The floor is about what a room row needs before names start being cut in
+ * the middle; the ceiling is about the thread beside it, which stops being a
+ * conversation once it is a column of three-word lines. The default is the
+ * width the column used to be fixed at.
+ */
+const LIST_MIN_WIDTH     = 240;
+const LIST_MAX_WIDTH     = 480;
+const LIST_DEFAULT_WIDTH = 288;
+const LIST_WIDTH_KEY     = 'ttms.chatListWidth';
+
+const clampListWidth = (px: number) =>
+  Math.min(LIST_MAX_WIDTH, Math.max(LIST_MIN_WIDTH, Math.round(px)));
 
 /**
  * The chat itself — the list beside a thread.
@@ -43,6 +59,67 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
   // one flip the other to a list the reader did not ask for is worse than
   // letting each remember its own.
   const [showThreads, setShowThreads]   = useState(false);
+
+  /*
+   * How wide the left column is, and it is the reader who says.
+   *
+   * At a fixed 288px the same column has to serve somebody with a dozen lists,
+   * who wants the chips on one line and load numbers whole, and somebody deep
+   * in one thread, who wants the list out of the way. The width is kept in
+   * this browser rather than on the person's record for the same reason the
+   * sound setting is: it is about the screen in front of them.
+   */
+  const [listWidth, setListWidth] = useState(LIST_DEFAULT_WIDTH);
+  const listWidthRef = useRef(LIST_DEFAULT_WIDTH);
+
+  const applyWidth = useCallback((px: number, remember: boolean) => {
+    const width = clampListWidth(px);
+    listWidthRef.current = width;
+    setListWidth(width);
+    if (!remember) return;
+    try {
+      window.localStorage.setItem(LIST_WIDTH_KEY, String(width));
+    } catch {
+      // Storage off, or private browsing. The width still holds for now.
+    }
+  }, []);
+
+  // Read in an effect, not in useState: the server renders this page too and
+  // has no localStorage, so a width read during the first render would have
+  // the two disagreeing about the markup.
+  useEffect(() => {
+    try {
+      const saved = Number(window.localStorage.getItem(LIST_WIDTH_KEY));
+      if (Number.isFinite(saved) && saved > 0) applyWidth(saved, false);
+    } catch {
+      // Nothing saved that can be read: the default is a fine place to start.
+    }
+  }, [applyWidth]);
+
+  /** Dragging the divider. Written to storage on release, not per pixel. */
+  const startResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    // Otherwise the drag selects the conversation names it passes over.
+    e.preventDefault();
+    const startX     = e.clientX;
+    const startWidth = listWidthRef.current;
+    const body       = document.body;
+    const priorCursor = body.style.cursor;
+    const priorSelect = body.style.userSelect;
+    body.style.cursor     = 'col-resize';
+    body.style.userSelect = 'none';
+
+    const onMove = (ev: PointerEvent) => applyWidth(startWidth + ev.clientX - startX, false);
+    const onUp   = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      body.style.cursor     = priorCursor;
+      body.style.userSelect = priorSelect;
+      applyWidth(listWidthRef.current, true);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, [applyWidth]);
 
   const myUid  = user?.uid ?? '';
   const active = conversations.find((c) => c.id === activeId) ?? null;
@@ -154,13 +231,37 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className="flex h-full min-h-0">
-      <div className="w-72 flex-shrink-0 border-r border-gray-200 bg-white">
+      <div style={{ width: listWidth }} className="min-w-0 flex-shrink-0 bg-white">
         {showThreads ? (
           <ThreadList onBack={() => setShowThreads(false)} />
         ) : (
           <ConversationList onNew={() => setNewOpen(true)} onShowThreads={() => setShowThreads(true)} />
         )}
       </div>
+
+      {/* The divider between the two is the handle, which is why resizing
+          costs the layout nothing: the edge had to be drawn anyway, and it is
+          where somebody reaches when they want the column wider. The line
+          stays a hairline; the pseudo-element around it is what the pointer
+          actually has to hit. Double-click puts it back to 288. */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize the conversation list"
+        aria-valuenow={listWidth}
+        aria-valuemin={LIST_MIN_WIDTH}
+        aria-valuemax={LIST_MAX_WIDTH}
+        tabIndex={0}
+        onPointerDown={startResize}
+        onDoubleClick={() => applyWidth(LIST_DEFAULT_WIDTH, true)}
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+          e.preventDefault();
+          applyWidth(listWidthRef.current + (e.key === 'ArrowLeft' ? -16 : 16), true);
+        }}
+        title="Drag to resize — double-click to reset"
+        className="relative z-10 w-px flex-shrink-0 cursor-col-resize bg-gray-200 transition hover:bg-brand-400 focus:bg-brand-500 focus:outline-none after:absolute after:inset-y-0 after:-left-1 after:-right-1 after:content-['']"
+      />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-white">
         {/* Over the room rather than beside it. Every result is somewhere to

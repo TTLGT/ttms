@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useChat } from '@/context/ChatContext';
 import ActionMenu, { type MenuAction } from './ActionMenu';
 import {
@@ -56,6 +56,70 @@ export default function ChatFilterBar({
     (f) => f.always || f.id === chatFilter || matching(f.id).length > 0,
   );
 
+  /*
+   * The row scrolls sideways, and on a desktop that has to be said out loud.
+   * A touch screen finds it by pushing it; a mouse has no way in — the
+   * scrollbar is hidden, and a wheel over a horizontal strip scrolls the page
+   * — so a chip past the right edge reads as unreachable rather than as
+   * further along. The arrows are that way in, and the wheel is turned
+   * sideways here so the gesture people try first does what they meant.
+   */
+  const scroller = useRef<HTMLDivElement>(null);
+  const [overflow, setOverflow] = useState({ left: false, right: false });
+
+  const measure = useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    // A pixel of slack either side: fractional widths leave scrollLeft a hair
+    // short of the end, and an arrow pointing at nothing is worse than none.
+    setOverflow({ left: el.scrollLeft > 1, right: el.scrollLeft < max - 1 });
+  }, []);
+
+  // Both things that change the answer: the column being resized, and a chip
+  // appearing or going (a new list, a built-in that stopped matching). The
+  // chip counts in the deps cover the second.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [measure, builtIns.length, rows.length]);
+
+  // Listened for here rather than through onWheel: React binds wheel at the
+  // document root and binds it passively, so preventDefault from a React
+  // handler is ignored and the page scrolls along with the row.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      // A trackpad already swiping sideways is doing the right thing.
+      if (e.deltaX !== 0) return;
+      const max = el.scrollWidth - el.clientWidth;
+      // At either end the wheel goes back to the page, so a row with nothing
+      // left to show does not swallow the scroll of the screen behind it.
+      if (max <= 0) return;
+      if (e.deltaY < 0 && el.scrollLeft <= 0) return;
+      if (e.deltaY > 0 && el.scrollLeft >= max) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  /** One press of an arrow: most of the width, so a chip stays in view. */
+  const nudge = (direction: -1 | 1) => {
+    const el = scroller.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * Math.max(80, el.clientWidth * 0.75), behavior: 'smooth' });
+  };
+
   const menuActions: MenuAction[] = [
     { key: 'new', label: 'New list…', Icon: Plus, onSelect: onNewList },
     ...(selectedListId ? [
@@ -85,25 +149,37 @@ export default function ChatFilterBar({
       {/* Scrolls sideways rather than wrapping: this sits in a 288px column in
           the popup, and a row that wraps to three lines would push the actual
           conversations below the fold. */}
-      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {builtIns.map((f) => (
-          <Chip
-            key={f.id}
-            label={f.label}
-            count={f.id === 'all' ? 0 : unreadIn(f.id)}
-            selected={chatFilter === f.id}
-            onSelect={() => setChatFilter(f.id)}
-          />
-        ))}
-        {rows.map(({ id, list }) => (
-          <Chip
-            key={id}
-            label={list.name}
-            count={unreadIn(chatListFilterId(id))}
-            selected={selectedListId === id}
-            onSelect={() => setChatFilter(chatListFilterId(id))}
-          />
-        ))}
+      <div className="relative flex min-w-0 flex-1 items-center">
+        <div
+          ref={scroller}
+          onScroll={measure}
+          className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {builtIns.map((f) => (
+            <Chip
+              key={f.id}
+              label={f.label}
+              count={f.id === 'all' ? 0 : unreadIn(f.id)}
+              selected={chatFilter === f.id}
+              onSelect={() => setChatFilter(f.id)}
+            />
+          ))}
+          {rows.map(({ id, list }) => (
+            <Chip
+              key={id}
+              label={list.name}
+              count={unreadIn(chatListFilterId(id))}
+              selected={selectedListId === id}
+              onSelect={() => setChatFilter(chatListFilterId(id))}
+            />
+          ))}
+        </div>
+
+        {/* Over the ends of the row rather than beside it: this column starts
+            at 288px, and two arrows holding their own space would cost it a
+            chip. Each shows only while there is something that way to reach. */}
+        {overflow.left  && <Arrow side="left"  onPress={() => nudge(-1)} />}
+        {overflow.right && <Arrow side="right" onPress={() => nudge(1)} />}
       </div>
 
       <button
@@ -120,6 +196,33 @@ export default function ChatFilterBar({
         <ActionMenu anchor={menuAt} onClose={() => setMenuAt(null)} actions={menuActions} />
       )}
     </div>
+  );
+}
+
+/**
+ * The arrow at one end of the row, over a fade of the background it sits on,
+ * so the chip beneath reads as carrying on rather than as cut off.
+ *
+ * Out of the tab order on purpose: the chips are buttons already, and tabbing
+ * onto one scrolls it into view by itself — so to a keyboard these would be
+ * two more stops that reach nothing new.
+ */
+function Arrow({ side, onPress }: { side: 'left' | 'right'; onPress: () => void }) {
+  const Icon = side === 'left' ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      aria-hidden="true"
+      onClick={onPress}
+      className={`absolute top-0 flex h-full items-center from-white via-white to-transparent text-gray-500 transition hover:text-gray-900 ${
+        side === 'left'
+          ? 'left-0 bg-gradient-to-r pr-4'
+          : 'right-0 bg-gradient-to-l pl-4'
+      }`}
+    >
+      <Icon size={14} />
+    </button>
   );
 }
 
