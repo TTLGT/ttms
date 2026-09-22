@@ -32,6 +32,17 @@ export type DateFormat = 'd-mmm-yyyy' | 'mm/dd/yyyy' | 'dd/mm/yyyy';
 export interface AppSettings {
   laneDistanceMode: LaneDistanceMode;
   dateFormat: DateFormat;
+  /**
+   * Whether TTMS posts the daily birthday and work-anniversary message in the
+   * Everyone room. See src/types/celebration.ts.
+   *
+   * A company-wide switch as well as the per-person one because the two answer
+   * different questions: a person deciding they would rather not be named is
+   * not the same as the company deciding it does not do this. Turning it off
+   * here stops the post for everybody without touching anyone's own choice, so
+   * turning it back on puts every preference back exactly as it was.
+   */
+  celebrations: boolean;
 }
 
 /**
@@ -45,10 +56,17 @@ export interface AppSettings {
  * as the wrong day. This office has US and Latin American staff entering the
  * same records, and 03/04 is March to one of them and April to the other — so
  * the default is the format that carries no assumption about who is reading.
+ *
+ * `celebrations: true` because the feature is nothing without it and nobody is
+ * named against their will: everyone can take themselves out of it from their
+ * own profile page, and the message never carries a birth year or an age. It
+ * is also inert until the cron in vercel.json is deployed, so this default
+ * cannot surprise anybody who has not already deployed the thing that calls it.
  */
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   laneDistanceMode: 'estimate',
   dateFormat: 'd-mmm-yyyy',
+  celebrations: true,
 };
 
 export const LANE_DISTANCE_MODES: LaneDistanceMode[] = ['off', 'estimate', 'routes'];

@@ -151,14 +151,24 @@ RESEND_API_KEY
 RESEND_FROM_EMAIL
 ```
 
-Then add this one, which is **not** in `.env.local` and must be typed by hand,
-exactly as written here:
+Then add these two, which are **not** in `.env.local` and must be typed by
+hand:
 
 | Name | Value |
 |---|---|
 | `NEXT_PUBLIC_APP_URL` | `https://ttms.totaltransportlogistics.us` |
+| `CRON_SECRET` | A long random string you make up — see below |
 
-No slash on the end. No `www.`. `https`, not `http`.
+For `NEXT_PUBLIC_APP_URL`: exactly as written above. No slash on the end. No
+`www.`. `https`, not `http`.
+
+For `CRON_SECRET`: any long random string, 32 characters or more, letters and
+numbers. Nobody ever types it again and nothing displays it, so make it
+unguessable rather than memorable. It is the password Vercel uses to prove to
+TTMS that the once-a-day birthday message really is coming from the schedule
+and not from a stranger who found the address. **If you leave it out, the
+birthday and work-anniversary messages simply never appear** — nothing else
+breaks, and nothing warns you.
 
 Two of these have a catch:
 

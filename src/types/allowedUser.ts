@@ -95,6 +95,24 @@ export interface AllowedUser {
   dateOfBirth?: string;
   startDate?: string;
   /**
+   * Whether the Everyone room congratulates this person on the two dates
+   * above. **Absent means yes**, so nothing had to be backfilled onto live
+   * entries and nobody had to opt in before the feature could work.
+   *
+   * These are the only two fields on an allowlist entry a person may write on
+   * their own record, through PATCH /api/me — see the note there for why that
+   * does not breach the rule that nobody edits their own entry. They are also
+   * the reason this feature is allowed to name somebody at all: a birthday is
+   * otherwise admin-and-HR-only, and the answer to "I would rather you did
+   * not" has to be something the person themselves can act on at the moment
+   * they think of it, not a request that waits on an approval queue.
+   *
+   * Never mirrored onto `users/{uid}` — they sit with the payroll fields above
+   * because they are about them, and nothing outside the daily post reads them.
+   */
+  announceBirthday?: boolean;
+  announceAnniversary?: boolean;
+  /**
    * Storage path of the profile photo, not a download URL — URLs expire and
    * change, the path does not. Resolved with getDownloadURL when displayed.
    */

@@ -30,6 +30,9 @@ export async function GET(req: NextRequest) {
       dateFormat: isDateFormat(stored?.dateFormat)
         ? stored.dateFormat
         : DEFAULT_APP_SETTINGS.dateFormat,
+      celebrations: typeof stored?.celebrations === 'boolean'
+        ? stored.celebrations
+        : DEFAULT_APP_SETTINGS.celebrations,
     },
     // Whether the Google Routes option can actually work, so the Settings page
     // can warn before an admin picks a mode that would silently do nothing.
@@ -78,6 +81,13 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Unknown date format.' }, { status: 400 });
     }
     patch.dateFormat = body.dateFormat;
+  }
+
+  if ('celebrations' in body) {
+    if (typeof body.celebrations !== 'boolean') {
+      return NextResponse.json({ error: 'Celebrations must be on or off.' }, { status: 400 });
+    }
+    patch.celebrations = body.celebrations;
   }
 
   if (Object.keys(patch).length === 0) {

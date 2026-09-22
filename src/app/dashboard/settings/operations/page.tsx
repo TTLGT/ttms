@@ -1,5 +1,6 @@
 'use client';
 
+import CelebrationsPanel from '@/components/settings/CelebrationsPanel';
 import DateFormatPanel from '@/components/settings/DateFormatPanel';
 import LaneDistancePanel from '@/components/settings/LaneDistancePanel';
 import LeadSourcesPanel from '@/components/settings/LeadSourcesPanel';
@@ -29,8 +30,13 @@ export default function SettingsOperationsPage() {
         </div>
       </div>
 
-      <div id="lead-sources" className="scroll-mt-44">
-        <LeadSourcesPanel />
+      <div className="space-y-6">
+        <div id="lead-sources" className="scroll-mt-44">
+          <LeadSourcesPanel />
+        </div>
+        <div id="celebrations" className="scroll-mt-44">
+          <CelebrationsPanel />
+        </div>
       </div>
     </div>
   );

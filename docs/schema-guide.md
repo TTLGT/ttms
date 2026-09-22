@@ -293,6 +293,8 @@ setting: there are few, they are read together, and one document is one read.
 ```
 appSettings/general
   laneDistanceMode : "off" | "estimate" | "routes"   // default "estimate"
+  dateFormat       : "d-mmm-yyyy" | "mm/dd/yyyy" | "dd/mm/yyyy"  // default "d-mmm-yyyy"
+  celebrations     : boolean         // default true — see celebrationRuns below
   updatedAt        : Timestamp
   updatedBy        : string          // email or uid of the admin who changed it
 ```
@@ -1461,3 +1463,72 @@ an interruption at the moment it lands rather than a list to be read back. It is
 needed for the same reason — nobody holds a listener on the replies of a thread
 they do not have open, so without a mark on the conversation the only person who
 could learn of an answer is the one already reading it.
+
+
+## Collection: `celebrationRuns`
+
+One document per day the Everyone room has been congratulated, at
+`celebrationRuns/{YYYY-MM-DD}` — the office's own date, not UTC. See
+`src/types/celebration.ts` and `src/lib/celebrations.ts`.
+
+```
+celebrationRuns/2026-09-22
+  at            : Timestamp        // when the post went out
+  birthdays     : number           // how many people, not who
+  anniversaries : number
+```
+
+**Written only by the Admin SDK, and closed to clients by default** — there is
+no rule for this path and there should not be one. Nothing in the app reads it
+back; it exists so a second invocation cannot post the same message twice.
+
+The document id *is* the lock. `create()` rather than `set()`, so two
+invocations racing each other both attempt the same id and exactly one wins —
+Vercel invokes a cron at least once rather than exactly once, and a retry after
+a timeout would otherwise wish the same person a happy birthday twice in the
+same room. A run whose message then fails to write deletes its own claim, so a
+retry five minutes later is not silently a no-op.
+
+Counts rather than names, deliberately. Nothing reads this except somebody
+working out why the room was quiet, and there is no reason to copy birthdays
+into a second collection to answer that.
+
+### What gets posted, and the privacy boundary it crosses
+
+`dateOfBirth` and `startDate` live on `allowedUsers` and are deliberately never
+mirrored onto `users/{uid}`, which every signed-in user can read — they are
+admin-and-HR-only. Naming somebody in the Everyone room is a deliberate,
+narrow loosening of that:
+
+- A **birthday** post carries a name and nothing else. No date, no year, no age.
+- A **work anniversary** carries a name and a count of completed years. The
+  start date itself is never printed.
+- Neither is posted for anybody suspended, anybody whose invite is still
+  pending (`uid: null`), or anybody with the matching field set to `false`:
+
+```
+allowedUsers/{email}
+  announceBirthday    : boolean?     // absent means yes
+  announceAnniversary : boolean?     // absent means yes
+```
+
+**Absent means yes**, the same trick a room's `policy` keys use, which is what
+let this ship onto live entries with no backfill. These two are the *only*
+fields on an allowlist entry a person may write on their own record, through
+`PATCH /api/me` — they grant nothing, are read by nothing but the daily post,
+and the answer to "I would rather you did not" has to be actionable at the
+moment somebody thinks of it rather than queued behind an approval. Everything
+else on that entry still goes through `profileUpdateRequests`.
+
+### The schedule
+
+A Vercel cron in `vercel.json` calls `GET /api/chat/celebrations` at `0 14 * * *`
+— 14:00 UTC, which is 8am in Guatemala permanently, because Guatemala is UTC−6
+year round and has not observed daylight saving since 2006. The route is
+authorized by `CRON_SECRET` alone and **refuses every request when that variable
+is unset**, rather than falling open.
+
+This is the first thing in TTMS that runs on a clock, and it is not a precedent.
+Mutes and order access grants both expire when they are *read*, because a grant
+that outlived its deadline because a job did not fire is the worst failure
+either could have. The worst failure this one can have is a quiet morning.

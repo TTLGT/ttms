@@ -12,6 +12,7 @@ import {
   fetchMyRecord,
   listProfileUpdateRequests,
   requestProfileUpdate,
+  saveCelebrationPreferences,
   type MyRecord,
 } from '@/lib/profileRequests';
 import { listSites } from '@/lib/sites';
@@ -337,6 +338,8 @@ export default function MyProfilePage() {
         ))}
       </div>
 
+      <CelebrationsCard me={me} onChange={(patch) => setMe({ ...me, ...patch })} />
+
       <p className="mt-5 text-xs text-gray-400">
         Everything you have asked for, decided or not, is under{' '}
         <Link href="/dashboard/approvals" className="text-brand-600 hover:underline">
@@ -344,6 +347,115 @@ export default function MyProfilePage() {
         </Link>.
       </p>
     </div>
+  );
+}
+
+/**
+ * The one thing on this page that saves rather than asks.
+ *
+ * It sits apart from the cards above for that reason, not for layout: every
+ * row up there is a request that somebody else decides, and a checkbox that
+ * looked the same but wrote immediately would be the sort of inconsistency
+ * people learn by being surprised once. The wording says which it is.
+ *
+ * Both boxes are ticked for anybody who has never touched them — see
+ * `announceBirthday` in src/types/allowedUser.ts. Somebody who does not want
+ * the room told unticks one, and the daily post stops naming them from the
+ * next morning.
+ */
+function CelebrationsCard({
+  me,
+  onChange,
+}: {
+  me: MyRecord;
+  onChange: (patch: Partial<MyRecord>) => void;
+}) {
+  const [saving, setSaving] = useState('');
+  const [error, setError]   = useState('');
+  const [saved, setSaved]   = useState(false);
+
+  const ROWS = [
+    {
+      key: 'announceBirthday' as const,
+      label: 'My birthday',
+      detail: me.dateOfBirth
+        ? 'Your name only. Never the date, the year or your age.'
+        : 'Nothing will be posted until your birthday is on file — ask an administrator to add it.',
+    },
+    {
+      key: 'announceAnniversary' as const,
+      label: 'My work anniversary',
+      detail: me.startDate
+        ? 'Your name and how many years you have been here.'
+        : 'Nothing will be posted until your start date is on file — ask an administrator to add it.',
+    },
+  ];
+
+  async function toggle(key: 'announceBirthday' | 'announceAnniversary', next: boolean) {
+    if (saving) return;
+    setError('');
+    setSaved(false);
+    setSaving(key);
+    // Moved first and put back on failure, the same way the Settings panels
+    // do: a box that stays where it was for a second reads as a dead control.
+    onChange({ [key]: next });
+    try {
+      await saveCelebrationPreferences({ [key]: next });
+      setSaved(true);
+    } catch (e) {
+      onChange({ [key]: !next });
+      setError(e instanceof Error ? e.message : 'Could not save that.');
+    } finally {
+      setSaving('');
+    }
+  }
+
+  return (
+    <section className="mt-5 rounded-xl border border-gray-200 bg-white">
+      <header className="border-b border-gray-100 bg-gray-50 px-4 py-2.5">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          Celebrations
+        </h2>
+        <p className="mt-0.5 text-[11px] text-gray-400">
+          What TTMS says about you in the Everyone room. Saved as you change it — this one is
+          not a request.
+        </p>
+      </header>
+
+      <ul className="divide-y divide-gray-100">
+        {ROWS.map((row) => (
+          <li key={row.key} className="px-4 py-3">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-0.5 accent-brand-600"
+                checked={me[row.key]}
+                disabled={!me.onAllowlist || Boolean(saving)}
+                onChange={(e) => void toggle(row.key, e.target.checked)}
+              />
+              <span className="min-w-0">
+                <span className="block text-sm text-gray-900">{row.label}</span>
+                <span className="mt-0.5 block text-xs text-gray-500">{row.detail}</span>
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+
+      <div className="border-t border-gray-100 px-4 py-2.5">
+        {error ? (
+          <p className="text-xs text-red-600">{error}</p>
+        ) : saved ? (
+          <p className="flex items-center gap-1.5 text-xs text-green-700">
+            <Check className="h-3.5 w-3.5" /> Saved.
+          </p>
+        ) : (
+          <p className="text-xs text-gray-400">
+            Posted at 8am Guatemala time on the day. Nobody is told you changed this.
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 

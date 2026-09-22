@@ -791,6 +791,45 @@ that line rather than at the bottom.
 - **A person has to have signed in at least once** before they can be messaged.
   Being on the access list is not enough on its own.
 
+### Birthdays and work anniversaries
+
+At **8am Guatemala time**, on a day when somebody has a birthday or has been
+here another year, TTMS posts one message in the **Everyone** room naming them.
+It looks like this:
+
+> **TTMS** — Happy birthday to Tom Reed.
+>
+> Congratulations to Vivian De León, 3 years at Total Transport Logistics
+> today.
+
+One message, however many people are celebrating — not one each.
+
+**What it never says.** A birthday message is a name and nothing else. It does
+not give the date, the year somebody was born, or their age. A work anniversary
+adds the number of years, which is the whole point of it; the start date itself
+is never shown. Birthdays and start dates stay what they were — visible to
+administrators and HR only.
+
+**Anyone can switch themselves off.** On **your own profile page** — your name,
+top right, then *My profile* — there is a **Celebrations** box at the bottom
+with two tickboxes, one for your birthday and one for your work anniversary.
+Untick either and TTMS stops naming you from then on. It saves straight away,
+and **nobody is told you changed it.** Everyone starts out ticked.
+
+**Turning it off for the whole company** is in **Settings → Operations →
+Celebrations**, which only an administrator can open. That panel also shows you
+what would go out *today*, so you can see it working without waiting for 8am.
+Switching it off leaves everybody's personal choice alone, so switching it back
+on puts everything back as it was.
+
+**Nobody is named** if their birthday or start date is not on file, if they are
+suspended, or if they have been invited but have never signed in.
+
+**If the messages never appear at all**, the likely cause is technical rather
+than anything on this page: the scheduled job needs `CRON_SECRET` set on
+Vercel. See [`docs/deployment.md`](deployment.md). Nothing warns you — the room
+is just quiet.
+
 ---
 
 ## 6a. Sites, Teams and Work Groups

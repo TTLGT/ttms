@@ -127,6 +127,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     adminOnly: true,
   },
   {
+    id: 'celebrations',
+    label: 'Celebrations',
+    tab: 'operations',
+    blurb: 'The daily birthday and work-anniversary message in the Everyone room.',
+    keywords: 'birthday birthdays anniversary anniversaries congratulations chat everyone room daily 8am announcement',
+    adminOnly: true,
+  },
+  {
     id: 'lead-sources',
     label: 'Lead Sources',
     tab: 'operations',

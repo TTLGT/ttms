@@ -328,6 +328,10 @@ scripts cannot import TypeScript either:
 |---|---|
 | `chatSearchTerms()` | `scripts/backfill-chat-search-terms.js` |
 
+| `src/lib/celebrations.ts` | mirrored in |
+|---|---|
+| `CelebrationRun` / `CelebrationOutcome` | `CelebrationRun` in `src/lib/appSettings.ts` — the browser needs the shape and must not pull in the Admin SDK |
+
 | `src/lib/orderViews.ts` | mirrored in |
 |---|---|
 | the `unsigned` and `documents_missing` queries | `unsignedStat()` / `missingDocumentsStat()` in `src/lib/orderSummary.ts` |
@@ -626,6 +630,62 @@ announced.** Saying "Vivian muted Tom until Friday" in front of eleven
 colleagues is a larger and different act from stopping Tom writing for a day,
 and not the one the admin chose.
 
+### Celebrations — the one thing here that runs on a clock
+
+TTMS posts one message in the Everyone room at **8am Guatemala time** on the
+days somebody has a birthday or a work anniversary. `src/types/celebration.ts`
+decides who and what it says and is pure — no Firestore, no clock;
+`src/lib/celebrations.ts` reads, decides whether to write, and writes.
+
+**This crosses a privacy boundary on purpose, and the narrowness is the
+feature.** `dateOfBirth` and `startDate` are payroll fields: admin-and-HR-only,
+deliberately never mirrored onto `users/{uid}`. So:
+
+- **A birthday post carries a name and nothing else** — no date, no year, no
+  age. Do not add one. A work anniversary adds a count of completed years,
+  which is the point of saying it; the start date itself is still never printed.
+- **Anybody can take themselves out**, per kind, from their own profile page.
+  `announceBirthday` / `announceAnniversary` on the allowlist entry, where
+  **absent means yes** — the same trick as a room's `policy` keys, and what let
+  this ship with no backfill.
+- **Those two fields are the only thing on an allowlist entry a person may
+  write on their own record**, through `PATCH /api/me`. That is not a hole in
+  "nobody edits their own entry": they grant nothing, nothing but the daily post
+  reads them, and an opt-out that waits two days in an approval queue arrives
+  after the birthday. **Do not widen that route.** It reads exactly two keys by
+  name, uses the verified email off the ID token, and uses `update` rather than
+  `set` so it can never bring an allowlist document into existence.
+- Nobody suspended and nobody whose invite is still pending is ever named.
+
+**The schedule is a Vercel cron**, `0 14 * * *` in `vercel.json` — 14:00 UTC is
+8am in Guatemala permanently, because Guatemala is UTC−6 year round with no
+daylight saving. The route is authorized by `CRON_SECRET` alone and **refuses
+every request when it is unset**, rather than falling open.
+
+**Two things are load-bearing and easy to break:**
+
+- **`celebrationRuns/{YYYY-MM-DD}` is the lock, and the id is the whole
+  mechanism.** Vercel invokes a cron at least once, not exactly once, so
+  `create()` — not `set()` — is what stops a retry congratulating the same
+  person twice. A run whose message then fails deletes its own claim.
+- **The date is the office's, not the server's.** Everything works on
+  `YYYY-MM-DD` strings taken through `officeToday()`. `yearsSince()` in
+  `src/types/allowedUser.ts` answers a similar question and is deliberately not
+  reused: it reads `new Date()`, which on Vercel is UTC, and this runs at 2pm
+  UTC. Around New Year those are different days.
+
+**It is also not a precedent.** Everything else in this codebase avoids the
+clock on purpose — a mute and an order access grant both expire when they are
+*read*, because a grant that outlived its deadline because a job did not fire
+is the worst failure either could have. That argument does not reach here: the
+worst failure this one has is a quiet morning. Do not read it as permission to
+put access on a schedule.
+
+Wording note: this is the **one place TTMS is allowed to sound pleased.** Every
+other automated line (`src/lib/chatAlerts.ts`) is a flat statement of fact, and
+for a good reason — but a congratulation that reads like a status change tells
+eleven colleagues the company could not be bothered.
+
 **An approved access request lends visibility that the rules cannot see.**
 `partyAccessRequests` and `orderAccessRequests` each grant a read that
 `canSeeParty()` / `canSeeOrder()` know nothing about — the grant is applied in
@@ -705,7 +765,9 @@ assignment is held in `assignedToEmails` / `memberEmails` and converted by
 - **It is deployed on Vercel and live at `https://ttms.totaltransportlogistics.us`** (DNS added and verified 2026-09-09). A push to `main` builds and goes live for the whole company within minutes, so **a push to `main` is a production release**; say so before pushing. The repo side is done: security headers in `next.config.ts`, the address centralised in `src/lib/appUrl.ts`, [`docs/deployment.md`](docs/deployment.md) as the runbook.
   - **Firebase → Authentication → Settings → Authorized domains** holds both `ttms.totaltransportlogistics.us` and the fallback `ttms-iota.vercel.app` (confirmed 2026-09-09). Firebase refuses to sign anyone in on a host it has not been told about, and the failure is silent — the Google popup opens and closes with no error on the page — so that list is still the first thing to check if anyone reports it.
   - **`ttms` with two t's is the agreed spelling** (2026-09-08), and the record that exists at Namecheap is the two-t one; `tms.totaltransportlogistics.us` has no record and should not be given one. A Vercel project card was showing a one-t `tms.` variant; if that reappears it is the thing to change, not the code.
-  - Deliberately absent: no `vercel.json` (Vercel's Next.js defaults are correct and each route declares its own `maxDuration`), no `.github/workflows/` (Vercel builds on push), no Hosting block in `firebase.json`.
+  - **`vercel.json` exists for one reason: the cron.** Vercel's Next.js defaults are otherwise correct and each route declares its own `maxDuration`, so nothing else belongs in it. It declares `GET /api/chat/celebrations` at `0 14 * * *` — see the Celebrations section below. Adding a build setting, a rewrite or a header there is almost certainly the wrong file; headers live in `next.config.ts`.
+  - **`CRON_SECRET` must be set on Vercel** or the daily post never happens. The route refuses every request without it, deliberately — an endpoint that writes to the whole company must not fall open because a variable is missing. It is set in Vercel → Settings → Environment Variables and nowhere else; Vercel sends it on every scheduled call by itself. It is not in `.env.local` and does not need to be.
+  - Deliberately absent: no `.github/workflows/` (Vercel builds on push), no Hosting block in `firebase.json`.
 - Firestore composite indexes are listed in `docs/schema-guide.md`. A missing-index error links to a one-click creator in the Console.
 
 ## Git

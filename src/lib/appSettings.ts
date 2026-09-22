@@ -1,6 +1,7 @@
 import { auth } from './firebase';
 import { DEFAULT_APP_SETTINGS } from '@/types/appSettings';
 import type { AppSettings, DateFormat, LaneDistanceMode } from '@/types/appSettings';
+import type { Celebration } from '@/types/celebration';
 
 /**
  * Client access to the company-wide settings document.
@@ -18,6 +19,18 @@ async function authHeaders(): Promise<HeadersInit> {
     'Authorization': `Bearer ${await user.getIdToken()}`,
   };
 }
+
+/**
+ * What /api/chat/celebrations reports back for a preview. Mirrors
+ * `CelebrationRun` in src/lib/celebrations.ts, which cannot be imported here:
+ * that module pulls in the Admin SDK and this one runs in the browser.
+ */
+export type CelebrationRun = {
+  outcome: 'posted' | 'preview' | 'disabled' | 'nobody' | 'already-posted' | 'no-room';
+  date: string;
+  celebrations: Celebration[];
+  message: string;
+};
 
 export type AppSettingsResponse = {
   settings: AppSettings;
@@ -63,6 +76,22 @@ export async function saveLaneDistanceMode(mode: LaneDistanceMode): Promise<void
 
 export async function saveDateFormat(format: DateFormat): Promise<void> {
   await saveSetting({ dateFormat: format });
+}
+
+export async function saveCelebrations(on: boolean): Promise<void> {
+  await saveSetting({ celebrations: on });
+}
+
+/** What the daily celebrations post would say today, without sending it. */
+export async function previewCelebrations(today?: string): Promise<CelebrationRun> {
+  const res = await fetch('/api/chat/celebrations', {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: JSON.stringify({ today }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not check today');
+  return (data as { run: CelebrationRun }).run;
 }
 
 /** Send one changed setting. Anything not named keeps its stored value. */

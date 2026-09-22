@@ -36,11 +36,33 @@ export interface MyRecord extends RoleFlagSet {
   personalEmail: string;
   dateOfBirth: string;
   startDate: string;
+  /** Whether the Everyone room congratulates you. Defaulted server-side. */
+  announceBirthday: boolean;
+  announceAnniversary: boolean;
 }
 
 export async function fetchMyRecord(): Promise<MyRecord> {
   const { me } = await apiGet<{ me: MyRecord }>('/api/me');
   return me;
+}
+
+/**
+ * Set whether the Everyone room congratulates you, on your own record.
+ *
+ * The one thing on this page that is a change rather than a request — see the
+ * note on PATCH /api/me for why these two fields are allowed to be, and why
+ * nothing else on the entry ever will be.
+ */
+export async function saveCelebrationPreferences(
+  patch: { announceBirthday?: boolean; announceAnniversary?: boolean },
+): Promise<void> {
+  const res = await fetch('/api/me', {
+    method: 'PATCH',
+    headers: await authHeaders(),
+    body: JSON.stringify(patch),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not save that');
 }
 
 /**
