@@ -37,6 +37,7 @@ import {
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
 import DateField from '@/components/DateField';
+import CelebrationBanner from '@/components/dashboard/CelebrationBanner';
 import RoleBadges from '@/components/people/RoleBadges';
 import { MAX_PHOTO_BYTES, UserAvatar } from '@/components/settings/UserAvatar';
 
@@ -227,6 +228,8 @@ export default function MyProfilePage() {
           inbox.
         </p>
       </div>
+
+      <CelebrationBanner record={me} />
 
       {error  && <Banner tone="error">{error}</Banner>}
       {notice && <Banner tone="ok">{notice}</Banner>}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Award, Cake, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { fetchMyRecord } from '@/lib/profileRequests';
+import { fetchMyRecord, type MyRecord } from '@/lib/profileRequests';
 import { COMPANY_NAME, completedYears, matchingMonthDays, type CelebrationKind } from '@/types/celebration';
 
 /**
@@ -49,7 +49,49 @@ function isDismissed(kind: CelebrationKind, today: string): boolean {
 
 const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-export default function CelebrationBanner() {
+type Dates = Pick<MyRecord, 'firstName' | 'displayName' | 'dateOfBirth' | 'startDate'>;
+
+function greetingsFor(me: Dates, today: string): Greeting[] {
+  // matchingMonthDays() is the room post's own rule, so somebody born or
+  // hired on the 29th of February gets theirs on the 28th in other years —
+  // the same day the room congratulates them.
+  const days = matchingMonthDays(today);
+  const first = me.firstName.trim() || me.displayName.trim().split(' ')[0] || '';
+  const to = first ? `, ${first}` : '';
+  const found: Greeting[] = [];
+
+  if (isDate(me.dateOfBirth) && days.includes(me.dateOfBirth.slice(5)) && !isDismissed('birthday', today)) {
+    found.push({
+      kind: 'birthday',
+      icon: Cake,
+      title: `Happy birthday${to}!`,
+      body: 'Thank you for everything you do for the team. We hope you have a great day.',
+    });
+  }
+
+  if (isDate(me.startDate) && days.includes(me.startDate.slice(5)) && !isDismissed('anniversary', today)) {
+    // Nought years is a first day, not an anniversary — same rule as the post.
+    const years = completedYears(me.startDate, today);
+    if (years >= 1) {
+      const span = `${years} ${years === 1 ? 'year' : 'years'}`;
+      found.push({
+        kind: 'anniversary',
+        icon: Award,
+        title: `Happy ${span} with us${to}!`,
+        body: `Thank you for ${span} of hard work. We're glad to have you on the team.`,
+      });
+    }
+  }
+
+  return found;
+}
+
+/**
+ * `record` is for a page that has already loaded the caller's own record — the
+ * profile page — so the banner costs it no second read. Without it, the banner
+ * fetches `/api/me` itself, as it does on the dashboard.
+ */
+export default function CelebrationBanner({ record }: { record?: Dates } = {}) {
   const [greetings, setGreetings] = useState<Greeting[]>([]);
   const [today] = useState(localToday);
 
@@ -57,47 +99,18 @@ export default function CelebrationBanner() {
     // Checked before fetching, so a day with both already closed costs no read.
     if (isDismissed('birthday', today) && isDismissed('anniversary', today)) return;
 
+    if (record) {
+      setGreetings(greetingsFor(record, today));
+      return;
+    }
+
     let cancelled = false;
     fetchMyRecord()
-      .then((me) => {
-        if (cancelled) return;
-        // matchingMonthDays() is the room post's own rule, so somebody born or
-        // hired on the 29th of February gets theirs on the 28th in other years —
-        // the same day the room congratulates them.
-        const days = matchingMonthDays(today);
-        const first = me.firstName.trim() || me.displayName.trim().split(' ')[0] || '';
-        const to = first ? `, ${first}` : '';
-        const found: Greeting[] = [];
-
-        if (isDate(me.dateOfBirth) && days.includes(me.dateOfBirth.slice(5)) && !isDismissed('birthday', today)) {
-          found.push({
-            kind: 'birthday',
-            icon: Cake,
-            title: `Happy birthday${to}!`,
-            body: 'Thank you for everything you do for the team. We hope you have a great day.',
-          });
-        }
-
-        if (isDate(me.startDate) && days.includes(me.startDate.slice(5)) && !isDismissed('anniversary', today)) {
-          // Nought years is a first day, not an anniversary — same rule as the post.
-          const years = completedYears(me.startDate, today);
-          if (years >= 1) {
-            const span = `${years} ${years === 1 ? 'year' : 'years'}`;
-            found.push({
-              kind: 'anniversary',
-              icon: Award,
-              title: `Happy ${span} with us${to}!`,
-              body: `Thank you for ${span} of hard work. We're glad to have you on the team.`,
-            });
-          }
-        }
-
-        setGreetings(found);
-      })
+      .then((me) => { if (!cancelled) setGreetings(greetingsFor(me, today)); })
       // No banner is the right failure: it is a greeting, not information.
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [today]);
+  }, [today, record]);
 
   if (greetings.length === 0) return null;
 
