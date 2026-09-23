@@ -275,7 +275,7 @@ export interface CelebrationTemplates {
  */
 export const DEFAULT_CELEBRATION_TEMPLATES: CelebrationTemplates = {
   birthday:    'Happy birthday to {names}.',
-  anniversary: 'Congratulations to {name}, {years} at {company} today.',
+  anniversary: 'Congratulations to {name} on {years} with us today.',
 };
 
 /** Longest a template may be. The rendered message is capped separately. */
@@ -301,7 +301,7 @@ export const TEMPLATE_PLACEHOLDERS: Record<CelebrationKind, { token: string; det
     { token: '{first}',   detail: 'Their first name only — “Vivian”.' },
     { token: '{years}',   detail: 'How long they have been here — “3 years”, or “1 year”.' },
     { token: '{count}',   detail: 'Just the number — “3”. Use this and write the word yourself if the message is not in English.' },
-    { token: '{company}', detail: `“${COMPANY_NAME}”. Worth removing if several people share a day — it reads twice.` },
+    { token: '{company}', detail: `“${COMPANY_NAME}”. The post is already signed with it, so it is rarely needed here.` },
   ],
 };
 

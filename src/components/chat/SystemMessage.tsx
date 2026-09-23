@@ -46,19 +46,20 @@ function Announcement({ message }: { message: ChatMessage }) {
   return (
     <div className="flex justify-center px-2 py-2.5">
       <div className="w-full max-w-md rounded-xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-center shadow-sm">
-        <p className="flex items-center justify-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-brand-700">
-          <PartyPopper size={12} className="flex-shrink-0" />
-          {/* Written out rather than shortened. The name is the point: this is
-              the company speaking, not the software it happens to run on. */}
-          <span className="truncate">{message.senderName}</span>
-        </p>
+        <PartyPopper size={16} className="mx-auto text-brand-500" aria-hidden />
         {/* `whitespace-pre-line` because the message is built from one line per
             person and a blank line between the two kinds — collapsed, it runs
             four people into one paragraph. Never truncated. */}
         <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-gray-800">
           {message.text}
         </p>
-        <p className="mt-1.5 text-[11px] text-gray-400">{clock(message)}</p>
+        {/* Signed at the foot, not headed at the top. As an uppercase heading
+            the company's name read like a label on a notice; as a sign-off it
+            reads like the company saying it. Written out rather than shortened
+            — the company is speaking, not the software it happens to run on. */}
+        <p className="mt-2.5 text-[12.5px] font-medium text-brand-700">
+          — {message.senderName} <span className="font-normal text-gray-400">· {clock(message)}</span>
+        </p>
       </div>
     </div>
   );

@@ -797,15 +797,20 @@ At **8am Guatemala time**, on a day when somebody has a birthday or has been
 here another year, TTMS posts one message in the **Everyone** room naming them.
 It looks like this:
 
-> **TOTAL TRANSPORT LOGISTICS**
->
 > Happy birthday to Tom Reed.
 >
-> Congratulations to Vivian De León, 3 years at Total Transport Logistics
-> today.
+> Congratulations to Vivian De León on 3 years with us today.
+>
+> — Total Transport Logistics
 
-It is signed **Total Transport Logistics**, not TTMS — it is the company
-speaking, not the software. One message, however many people are celebrating.
+It is signed **Total Transport Logistics** at the bottom, not TTMS — it is the
+company speaking, not the software. One message, however many people are
+celebrating.
+
+**On your own birthday you also get a banner at the top of your dashboard**,
+signed the same way. Only you see it. Close it with the ✕ and it stays closed
+for the rest of the day on that computer. It shows even if you turned the
+Everyone-room message off, because it tells nobody but you.
 
 ### Changing what it says
 
@@ -816,7 +821,7 @@ actually say:
 | Box | What it is | What it looks like |
 |---|---|---|
 | **Birthdays** | One line, however many people share the day | `Happy birthday to {names}.` |
-| **Work anniversaries** | One line for *each* person, because the number of years is different for each of them | `Congratulations to {name}, {years} at {company} today.` |
+| **Work anniversaries** | One line for *each* person, because the number of years is different for each of them | `Congratulations to {name} on {years} with us today.` |
 
 The words in braces are filled in when the message is sent. Everything else
 goes out exactly as you typed it. Click a box under the editor to drop one in

@@ -297,7 +297,7 @@ appSettings/general
   celebrations     : boolean         // default true — see celebrationRuns below
   celebrationTemplates : {           // the wording of that post, edited by HR
     birthday    : string             // "Happy birthday to {names}."
-    anniversary : string             // "Congratulations to {name}, {years} at {company} today."
+    anniversary : string             // "Congratulations to {name} on {years} with us today."
   }
   updatedAt        : Timestamp
   updatedBy        : string          // email or uid of the admin who changed it
