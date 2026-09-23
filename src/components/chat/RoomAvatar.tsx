@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { Hash, Truck } from 'lucide-react';
+import { BellRing, Hash, Truck } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { useStorageUrl } from '@/lib/useStorageUrl';
@@ -92,7 +92,9 @@ export default function RoomAvatar({
           anybody having invited you to it. */}
       {conversation.kind === 'record'
         ? <Truck size={Math.round(size * 0.47)} />
-        : <Hash size={Math.round(size * 0.47)} />}
+        : conversation.kind === 'notice'
+          ? <BellRing size={Math.round(size * 0.47)} />
+          : <Hash size={Math.round(size * 0.47)} />}
     </span>
   );
 }

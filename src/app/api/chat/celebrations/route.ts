@@ -1,7 +1,7 @@
-import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError, requirePermission } from '@/lib/firebase-admin';
 import { runCelebrations } from '@/lib/celebrations';
+import { isCron } from '@/lib/cronAuth';
 import { isCalendarDate } from '@/types/allowedUser';
 
 /**
@@ -12,37 +12,10 @@ import { isCalendarDate } from '@/types/allowedUser';
  * never writes anything.
  *
  * Guarded like every other route in this app, and for once the guard is not a
- * signed-in user: see below.
+ * signed-in user: see isCron() in src/lib/cronAuth.ts.
  */
 
 export const maxDuration = 30;
-
-/**
- * Whether this request really is the cron.
- *
- * Vercel sends `Authorization: Bearer $CRON_SECRET` on every scheduled
- * invocation when that variable is set on the project. Two things about this
- * are worth being explicit about, because getting either wrong turns the
- * Everyone room into something anybody on the internet can write to:
- *
- *  - **A missing secret refuses the request rather than allowing it.** An
- *    endpoint that posts to the whole company must not fall open because an
- *    environment variable was not set; the failure mode of refusing is a quiet
- *    morning, and the failure mode of allowing is a stranger in the room.
- *  - **The comparison is timing-safe**, which for a shared secret in a header
- *    is cheap enough that there is no reason to compare it any other way.
- */
-function isCron(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
-
-  const offered = req.headers.get('authorization') ?? '';
-  const expected = `Bearer ${secret}`;
-  // timingSafeEqual throws on a length mismatch, which would itself leak the
-  // length, so the lengths are settled first and the compare still runs.
-  if (offered.length !== expected.length) return false;
-  return timingSafeEqual(Buffer.from(offered), Buffer.from(expected));
-}
 
 export async function GET(req: NextRequest) {
   if (!isCron(req)) {

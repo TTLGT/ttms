@@ -307,6 +307,11 @@ export default function MessageComposer({
                 You can write here again after {formatDateTime(new Date(blocked.until), '')}.
               </span>
             </>
+          ) : blocked.reason === 'systemOnly' ? (
+            <>
+              Only TTMS writes here.{' '}
+              <span className="text-gray-500">Change what it sends you on the Celebrations page.</span>
+            </>
           ) : (
             <>
               Only this room’s admins can post here.{' '}

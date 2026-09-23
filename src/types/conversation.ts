@@ -25,8 +25,22 @@ import type { Timestamp } from 'firebase/firestore';
  *    check only the server can make, so /api/chat/conversations is the only
  *    way in. That is the whole point of chat living inside TTMS: every
  *    conversation about a load is reachable from the load, a year later.
+ *  - `notice` — TTMS talking to one person, and nobody else in it. Today that
+ *    is the birthday and anniversary reminders an admin or HR person sets up
+ *    for themselves (see src/lib/celebrationReminders.ts). Its id is derived from
+ *    the person (see noticeConversationId), it is created by the server the
+ *    first time there is something to say, and **nobody can write in it** —
+ *    not even its one member.
+ *
+ *    That last part needs no rule of its own, which is why this could ship
+ *    without a rules deploy: the room is born with every `policy` key set to
+ *    `admins`, and only a `group` (or the company room) has admins at all —
+ *    see isRoomBoss() in firestore.rules. So `maySay()` refuses every message
+ *    and every pin, and the PATCH route refuses to touch the policy of
+ *    anything that is not a group. What the room holds is HR's planning
+ *    data, so a member who could invite a colleague in would be a leak.
  */
-export type ConversationKind = 'company' | 'direct' | 'group' | 'record';
+export type ConversationKind = 'company' | 'direct' | 'group' | 'record' | 'notice';
 
 /**
  * What a record room is about. Only orders for now.
@@ -1011,6 +1025,27 @@ export function recordConversationId(kind: RecordKind, recordId: string): string
   return `rec_${kind}_${recordId}`;
 }
 
+/**
+ * The one person's notice room, from the person.
+ *
+ * Derived for the same reason a direct thread's id is: two reminder runs that
+ * race each other must land in the same room rather than make one each.
+ */
+export function noticeConversationId(uid: string): string {
+  return `notice_${uid}`;
+}
+
+/**
+ * Everything a notice room forbids, written onto it at birth.
+ *
+ * Every key, not only `post`, because a notice room is not a room anybody
+ * runs: there is nobody to pin for, nobody to rename it and nobody to invite.
+ */
+export const NOTICE_ROOM_POLICY: RoomPolicy = {
+  post: 'admins', membership: 'admins', details: 'admins',
+  files: 'admins', links: 'admins', pins: 'admins',
+};
+
 /** The other person in a direct thread, or null if it is not one. */
 export function otherMemberUid(c: Conversation, myUid: string): string | null {
   if (c.kind !== 'direct') return null;
@@ -1035,6 +1070,7 @@ export function conversationTitle(
   // looking for the conversation about a load have to arrive at the same name,
   // and the load already has one.
   if (c.kind === 'record')  return c.recordLabel || c.name || 'Record';
+  if (c.kind === 'notice')  return c.name || 'Reminders';
   const other = otherMemberUid(c, myUid);
   return other ? nameOf(other) : 'Just you';
 }
@@ -1237,6 +1273,8 @@ export function isMuted(
 export type PostingBlock =
   | { reason: 'muted'; until: number }
   | { reason: 'adminsOnly' }
+  /** A notice room, which only TTMS writes in. See ConversationKind. */
+  | { reason: 'systemOnly' }
   | null;
 
 export function postingBlock(
@@ -1244,6 +1282,9 @@ export function postingBlock(
   uid: string,
   opts: { announcer?: boolean } = {},
 ): PostingBlock {
+  // Before the policy test, which would also refuse — but with "only this
+  // room's admins", and a notice room has none to be.
+  if (c.kind === 'notice') return { reason: 'systemOnly' };
   if (isMuted(c, uid)) return { reason: 'muted', until: mutedUntilFor(c, uid) };
   if (!roomAllows(c, 'post', uid, opts)) return { reason: 'adminsOnly' };
   return null;

@@ -462,6 +462,7 @@ function Identity({
 function subtitle(c: Conversation, myUid: string, nameOf: (uid: string) => string): string {
   if (c.kind === 'company') return 'Everyone at Total Transport Logistics';
   if (c.kind === 'direct')  return 'Just the two of you';
+  if (c.kind === 'notice')  return 'From TTMS · only you can see this';
   // A record room says who is in it *so far*, because that is the honest
   // description: nobody was invited, and anybody who can see the order joins
   // by opening it. A count that read like a guest list would be misleading.

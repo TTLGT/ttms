@@ -1020,7 +1020,7 @@ gated on `assignedToUids`, work groups or roles.
 
 | Field | Type | Notes |
 |---|---|---|
-| `kind` | `'company' \| 'direct' \| 'group' \| 'record'` | See below |
+| `kind` | `'company' \| 'direct' \| 'group' \| 'record' \| 'notice'` | See below. `notice` is TTMS writing to one person — see `celebrationReminders` |
 | `name` | string | Group rooms only; `''` for direct threads |
 | `photoPath` | string \| null | Group rooms only: a picture for the room, as a storage path — see below |
 | `memberUids` | string[] | Empty on the company room — see below |
@@ -1491,6 +1491,57 @@ needed for the same reason — nobody holds a listener on the replies of a threa
 they do not have open, so without a mark on the conversation the only person who
 could learn of an answer is the one already reading it.
 
+
+## Collections: `celebrationReminderSettings`, `celebrationReminders`, `celebrationReminderRuns`
+
+The Celebrations calendar (`/dashboard/celebrations`) — birthdays, work
+anniversaries and public holidays — and the reminders set from it. Holidays
+(Guatemala and US) are computed from rules in `src/types/holidays.ts` and
+stored nowhere. Everything behind `people.view`
+(admin and HR), because Settings → People already shows those dates under that
+permission. The calendar shows the age somebody is turning and their years
+with the company; the Everyone-room post still shows neither age nor date. See
+`src/types/celebrationCalendar.ts` and `src/lib/celebrationReminders.ts`.
+
+**All three are Admin SDK only, with no rule in `firestore.rules`** — so the
+client SDK is refused on every one of them, and there should never be a rule.
+
+```
+celebrationReminderSettings/{uid}        // the caller's own standing rules
+  leadDays  : { birthday: (0|1|7)[], anniversary: (0|1|7)[] }   // [] = none
+  email     : boolean                    // default true
+  chat      : boolean                    // default true
+  updatedAt : Timestamp
+
+celebrationReminders/{ownerUid_kind_email_date_lead}   // one-off; deleted once sent
+  ownerUid     : string
+  kind         : 'birthday' | 'anniversary'
+  subjectEmail : string                  // the allowlist entry's id
+  subjectName  : string                  // for the list; re-read when sent
+  date         : string                  // YYYY-MM-DD, the day itself
+  leadDays     : 0 | 1 | 7
+  sendOn       : string                  // date − leadDays
+  createdAt    : Timestamp
+
+celebrationReminderRuns/{YYYY-MM-DD}_{uid}   // the lock, like celebrationRuns
+  at : Timestamp
+```
+
+Sent by the Vercel cron `GET /api/celebration-calendar/cron` at `5 14 * * *`
+(8:05am Guatemala), five minutes after the Everyone-room post. One email and
+one chat message per person per morning, however many names are in it. The run
+re-checks `people.view` at send time, so somebody who has left HR stops
+receiving birthdays the day they move. A one-off whose person's date has since
+been corrected on file is dropped rather than sent under the old date.
+
+The chat message goes into a `notice` conversation at `notice_{uid}` — one
+member, created by the server on first use, and born with every `policy` key
+set to `admins`. Only a `group` has admins, so nobody can post, pin or change
+anything in it, the member included. That uses rules that already exist; no
+rules deploy was needed.
+
+The one-off query is `sendOn <= today` — a single-field range, so no composite
+index — which also catches up any morning the cron missed.
 
 ## Collection: `celebrationRuns`
 

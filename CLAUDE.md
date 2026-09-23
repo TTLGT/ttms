@@ -706,6 +706,19 @@ is the worst failure either could have. That argument does not reach here: the
 worst failure this one has is a quiet morning. Do not read it as permission to
 put access on a schedule.
 
+**Celebration reminders are the second clock.** `/dashboard/celebrations` is a
+calendar of birthdays and work anniversaries for `people.view` (admin and HR),
+plus Guatemala and US public holidays computed in `src/types/holidays.ts` —
+no new permission, because Settings → People already shows those dates under
+it. It shows the age somebody is turning and their years with the company;
+that is fine *there* because of who is reading, and must never leak into the
+Everyone-room post, which stays name-only. It lists everyone, including people
+who opted out of the post (marked "Not announced"): that opt-out is about being
+named in public, not about HR knowing. Reminders (standing rules per kind, and
+one-offs) go out at 8:05am by email and into a `notice` chat room only TTMS can
+write in. The run re-checks the permission at send time. See
+`celebrationReminders` in the Schema Guide.
+
 **It is signed by the company, not by TTMS**, and that is a second shape of
 system message rather than a different string. `systemLine()` takes a
 `senderName` and a `systemKind`; `SYSTEM_SENDER_UID` never changes, so the name
@@ -825,7 +838,7 @@ assignment is held in `assignedToEmails` / `memberEmails` and converted by
 - **It is deployed on Vercel and live at `https://ttms.totaltransportlogistics.us`** (DNS added and verified 2026-09-09). A push to `main` builds and goes live for the whole company within minutes, so **a push to `main` is a production release**; say so before pushing. The repo side is done: security headers in `next.config.ts`, the address centralised in `src/lib/appUrl.ts`, [`docs/deployment.md`](docs/deployment.md) as the runbook.
   - **Firebase → Authentication → Settings → Authorized domains** holds both `ttms.totaltransportlogistics.us` and the fallback `ttms-iota.vercel.app` (confirmed 2026-09-09). Firebase refuses to sign anyone in on a host it has not been told about, and the failure is silent — the Google popup opens and closes with no error on the page — so that list is still the first thing to check if anyone reports it.
   - **`ttms` with two t's is the agreed spelling** (2026-09-08), and the record that exists at Namecheap is the two-t one; `tms.totaltransportlogistics.us` has no record and should not be given one. A Vercel project card was showing a one-t `tms.` variant; if that reappears it is the thing to change, not the code.
-  - **`vercel.json` exists for one reason: the cron.** Vercel's Next.js defaults are otherwise correct and each route declares its own `maxDuration`, so nothing else belongs in it. It declares `GET /api/chat/celebrations` at `0 14 * * *` — see the Celebrations section below. Adding a build setting, a rewrite or a header there is almost certainly the wrong file; headers live in `next.config.ts`.
+  - **`vercel.json` exists for one reason: the crons.** Vercel's Next.js defaults are otherwise correct and each route declares its own `maxDuration`, so nothing else belongs in it. It declares `GET /api/chat/celebrations` at `0 14 * * *` and `GET /api/celebration-calendar/cron` at `5 14 * * *` — see the Celebrations section below. Both share `isCron()` in `src/lib/cronAuth.ts`. Adding a build setting, a rewrite or a header there is almost certainly the wrong file; headers live in `next.config.ts`.
   - **`CRON_SECRET` must be set on Vercel** or the daily post never happens. The route refuses every request without it, deliberately — an endpoint that writes to the whole company must not fall open because a variable is missing. It is set in Vercel → Settings → Environment Variables and nowhere else; Vercel sends it on every scheduled call by itself. It is not in `.env.local` and does not need to be.
   - Deliberately absent: no `.github/workflows/` (Vercel builds on push), no Hosting block in `firebase.json`.
 - Firestore composite indexes are listed in `docs/schema-guide.md`. A missing-index error links to a one-click creator in the Console.

@@ -18,6 +18,7 @@ import {
   BarChart2,
   Settings,
   BookOpen,
+  CalendarHeart,
   GraduationCap,
   Menu,
   X,
@@ -80,6 +81,9 @@ const NAV_ITEMS: {
   // every permission, so they see it too — which is the only way to check what
   // an intern is actually being shown.
   { href: '/dashboard/intern',    label: 'My onboarding', Icon: GraduationCap, needs: 'intern.section' },
+  // Admin and HR: the birthdays and start dates behind it are the ones Settings → People
+  // already shows under the same permission. See src/types/celebrationCalendar.ts.
+  { href: '/dashboard/celebrations', label: 'Celebrations', Icon: CalendarHeart, needs: 'people.view' },
   { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart2,     needs: 'analytics.view' },
   // Also open to HR, who read the people directory there and nothing else —
   // the page itself renders read-only for them.

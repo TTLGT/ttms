@@ -145,10 +145,16 @@ export function matchingMonthDays(today: string): string[] {
  * those are the same day and on the 1st of January they are not — so the count
  * is taken from the office's own date, which the caller has already worked out,
  * rather than from the server's.
+ *
+ * A 29th-of-February start counts the 28th as its anniversary in a year with
+ * no 29th, matching `matchingMonthDays()` above. Without that, the post that
+ * congratulates a leap-day starter on the 28th would compare the 28th with the
+ * 29th, decide the anniversary had not come yet, and say one year too few.
  */
 export function completedYears(from: string, today: string): number {
   const a = parts(from);
   const b = parts(today);
+  if (a.m === 2 && a.d === 29 && !isLeapYear(b.y)) a.d = 28;
 
   let years = b.y - a.y;
   if (b.m < a.m || (b.m === a.m && b.d < a.d)) years -= 1;
