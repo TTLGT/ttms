@@ -807,10 +807,10 @@ It is signed **Total Transport Logistics** at the bottom, not TTMS — it is the
 company speaking, not the software. One message, however many people are
 celebrating.
 
-**On your own birthday you also get a banner at the top of your dashboard**,
-signed the same way. Only you see it. Close it with the ✕ and it stays closed
-for the rest of the day on that computer. It shows even if you turned the
-Everyone-room message off, because it tells nobody but you.
+**On your own birthday or work anniversary you also get a banner at the top of
+your dashboard**, signed the same way. Only you see it. Close it with the ✕ and
+it stays closed for the rest of the day on that computer. It shows even if you
+turned the Everyone-room message off, because it tells nobody but you.
 
 ### Changing what it says
 
