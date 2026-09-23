@@ -95,6 +95,9 @@ export default function PartyCombobox({
    */
   const [unsaved, setUnsaved]     = useState('');
   const [phoneHits, setPhoneHits] = useState<{ matches: Party[]; owned: { ownerName: string }[] } | null>(null);
+  const [focused, setFocused]     = useState(false);
+  /** The record last picked here — it may not be in `parties` (a phone hit, a new one). */
+  const [picked, setPicked]       = useState<Party | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   // Keep the visible text in step when the parent sets a selection (e.g. the
@@ -167,12 +170,33 @@ export default function PartyCombobox({
 
   const rowCount = matches.length + (canCreate ? 1 : 0);
 
+  /**
+   * A linked record reads "Name — ZIP" while the box is not being edited, so
+   * two facilities under one name can be told apart at a glance. The ZIP is
+   * display only: the selection handed to the order keeps the bare name,
+   * because that name is what the order stores and prints on its paperwork.
+   * Shipper and consignee fall back to their default pickup / delivery
+   * location when the record's own address has no ZIP.
+   */
+  const linked = value.id
+    ? (picked?.id === value.id ? picked : parties.find((p) => p.id === value.id) ?? null)
+    : null;
+  const linkedZip = linked
+    ? (linked.address?.zip
+        || (role === 'shipper' ? linked.defaultOrigin?.zip : role === 'consignee' ? linked.defaultDest?.zip : '')
+        || '').trim()
+    : '';
+  const shownText = !focused && linkedZip && queryText === value.name
+    ? `${queryText} — ${linkedZip}`
+    : queryText;
+
   function pick(party: Party) {
     const name = partyDisplayName(party);
     setQueryText(name);
     setOpen(false);
     setUnsaved('');
     setCollision(null);
+    setPicked(party);
     onChange({ id: party.id, name }, party);
   }
 
@@ -286,10 +310,10 @@ export default function PartyCombobox({
       <input
         type="text"
         required={required}
-        value={queryText}
+        value={shownText}
         onChange={handleInput}
-        onFocus={() => setOpen(true)}
-        onBlur={handleBlur}
+        onFocus={() => { setFocused(true); setOpen(true); }}
+        onBlur={() => { setFocused(false); handleBlur(); }}
         onKeyDown={handleKeyDown}
         placeholder={placeholder ?? 'Search by name or phone…'}
         autoComplete="off"
