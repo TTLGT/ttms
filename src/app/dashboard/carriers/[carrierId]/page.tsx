@@ -8,6 +8,7 @@ import { getCarrier, updateCarrier } from '@/lib/carriers';
 import PersonNameFields from '@/components/PersonNameFields';
 import { listOrders } from '@/lib/orders';
 import type { Carrier } from '@/types/carrier';
+import { formatCoverage, parseCoverageInput, carrierNumber } from '@/types/carrier';
 import type { Order } from '@/types/order';
 import OrderLink from '@/components/orders/OrderLink';
 import PhoneValue from '@/components/PhoneValue';
@@ -80,6 +81,7 @@ export default function CarrierDetailPage() {
   const [insProvider, setInsProvider]           = useState('');
   const [insPolicyNo, setInsPolicyNo]           = useState('');
   const [insExpiry, setInsExpiry]               = useState('');
+  const [insCoverage, setInsCoverage]           = useState('');
   // Not part of the edit buffer below: the certificate saves the moment it is
   // uploaded, because the file is already in the bucket by then and a Cancel
   // that dropped the reference would leave it there unreachable.
@@ -109,6 +111,7 @@ export default function CarrierDetailPage() {
     setInsProvider(c.insuranceProvider ?? '');
     setInsPolicyNo(c.insurancePolicyNumber ?? '');
     setInsExpiry(toDateInput(c.insuranceExpiration));
+    setInsCoverage(c.insuranceCoverage != null ? String(c.insuranceCoverage) : '');
     setInsFile(c.insuranceStoragePath ?? null);
     setIsActive(c.isActive ?? true);
     setNotes(c.notes ?? '');
@@ -183,8 +186,8 @@ export default function CarrierDetailPage() {
         phoneRegion:          phoneRegionOf(phoneRegion),
         address:              address.trim(),
         fax:                  fax.trim(),
-        dot:                  dot.trim(),
-        mc:                   mc.trim(),
+        dot:                  carrierNumber(dot),
+        mc:                   carrierNumber(mc),
         dispatcher:           dispatcher.trim(),
         dispatcherPhone:      dispatcherPhone.trim(),
         dispatcherPhoneRegion: phoneRegionOf(dispatcherRegion),
@@ -196,6 +199,7 @@ export default function CarrierDetailPage() {
         insuranceProvider:    insProvider.trim(),
         insurancePolicyNumber: insPolicyNo.trim(),
         insuranceExpiration:  insExpiry ? Timestamp.fromDate(new Date(insExpiry)) : null,
+        insuranceCoverage:    parseCoverageInput(insCoverage),
         isActive,
         notes:                notes.trim(),
       };
@@ -364,7 +368,7 @@ export default function CarrierDetailPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">MC / FF Number</label>
-                  <input value={mc} onChange={(e) => setMc(e.target.value)} placeholder="MC-123456" className={inputCls} />
+                  <input value={mc} onChange={(e) => setMc(e.target.value)} placeholder="123456" className={inputCls} />
                 </div>
               </div>
             )}
@@ -466,6 +470,10 @@ export default function CarrierDetailPage() {
                     <InsuranceBadge expiration={carrier.insuranceExpiration} />
                   </div>
                 </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Coverage Amount</p>
+                  <p className="text-sm text-gray-900">{formatCoverage(carrier.insuranceCoverage) || '—'}</p>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -480,6 +488,11 @@ export default function CarrierDetailPage() {
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Expiration Date</label>
                   <DateField value={insExpiry} onChange={setInsExpiry} className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Coverage Amount (USD)</label>
+                  <input type="text" inputMode="numeric" value={insCoverage} onChange={(e) => setInsCoverage(e.target.value)}
+                    placeholder="e.g. 1,000,000" className={inputCls} />
                 </div>
                 <div className="flex items-end">
                   <label className="flex items-center gap-2 cursor-pointer mb-2">

@@ -36,6 +36,7 @@ import type { Timestamp } from 'firebase/firestore';
 import StatusBadge from '@/components/orders/StatusBadge';
 import DriverLicenseUpload from '@/components/orders/DriverLicenseUpload';
 import QuickAddCarrierModal from '@/components/carriers/QuickAddCarrierModal';
+import CarrierCompliance from '@/components/carriers/CarrierCompliance';
 import DriverPicker from '@/components/carriers/DriverPicker';
 import PhoneValue from '@/components/PhoneValue';
 import { phoneRegionOf } from '@/lib/phone';
@@ -1300,6 +1301,17 @@ export default function OrderDetailPage() {
                     </button>
                   </div>
                 </div>
+                {selectedCarrierId && selectedCarrierId !== NEW_CARRIER && (
+                  <div>
+                    {/* Keyed so switching carriers in the dropdown re-reads the
+                        one now selected rather than showing the last one's. */}
+                    <CarrierCompliance key={selectedCarrierId} carrierId={selectedCarrierId} />
+                    <p className="text-xs text-gray-500 mt-2">
+                      Saved to the carrier, not this load — the certificate as soon as it uploads, the
+                      rest with its own button. Every load with this carrier shows the same.
+                    </p>
+                  </div>
+                )}
                 <DriverPicker
                   carrierId={selectedCarrierId}
                   value={driverId}
@@ -1354,6 +1366,13 @@ export default function OrderDetailPage() {
                     ? <DriverLicenseUpload orderId={orderId} existingPath={order.driverLicenseStoragePath} onUploaded={() => {}} readOnly />
                     : null
                 } />
+                {/* Not a DetailRow: that wraps its value in a <p>, and the
+                    upload field renders block elements a <p> cannot hold. */}
+                {order.carrierId && (
+                  <div className="sm:col-span-3 sm:max-w-xl">
+                    <CarrierCompliance key={order.carrierId} carrierId={order.carrierId} />
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -315,6 +315,7 @@ scripts cannot import TypeScript either:
 | `src/types/carrier.ts` | mirrored in |
 |---|---|
 | `carrierNameKey()` | `scripts/import-bats.js`, `scripts/backfill-carrier-name-keys.js` |
+| `carrierNumber()` | `scripts/import-bats.js`, `scripts/backfill-carrier-numbers.js` |
 
 | `src/types/driver.ts` | mirrored in |
 |---|---|

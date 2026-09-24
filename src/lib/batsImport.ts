@@ -5,7 +5,7 @@ import { adminDb } from './firebase-admin';
 import { parseCsv } from './csv';
 import { toNameKey } from '@/types/party';
 import { STATUS_RANK, orderSearchTerms } from '@/types/order';
-import { carrierNameKey } from '@/types/carrier';
+import { carrierNameKey, carrierNumber } from '@/types/carrier';
 import { loadOwnerDirectory, resolveOwner, hasOwner } from './ownerResolution';
 import { leadSourceDocId, toSourceKey } from '@/types/leadSource';
 import { labelOwners, ownerTargets, writeOwnerEvents } from './ownership';
@@ -697,7 +697,8 @@ export async function importCarriersCSV(text: string): Promise<ImportResult> {
     // the name is, or a renamed carrier stays searchable only under the name it
     // used to have. See carrierNameKey in src/types/carrier.ts.
     nameKey:                carrierNameKey(str(r[1])),
-    mc:                     str(r[2]),
+    // Digits only, like everything else that writes it — see carrierNumber.
+    mc:                     carrierNumber(str(r[2])),
     isActive:               str(r[3]).toLowerCase() === 'active',
     phone:                  str(r[4]),
     address:                str(r[5]),

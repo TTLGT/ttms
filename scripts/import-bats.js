@@ -362,6 +362,16 @@ function carrierNameKey(raw) {
 }
 
 /**
+ * Mirror of carrierNumber() in src/types/carrier.ts — an MC or DOT number as
+ * its digits alone, which is what the number search matches on.
+ *
+ * ⚠️  KEEP IN SYNC. Same reason as carrierNameKey above.
+ */
+function carrierNumber(raw) {
+  return (raw || '').replace(/\D+/g, '');
+}
+
+/**
  * Mirror of toPhoneKey() in src/types/party.ts. Keep the two identical — the
  * party phone lookup queries this key, so a party imported without one exists
  * but cannot be found by the number that rang in.
@@ -1058,7 +1068,8 @@ async function importCarriers() {
     // exists but cannot be found by name. Rewritten whenever the name is, or a
     // renamed carrier stays findable only under its old name.
     nameKey:               carrierNameKey(str(r[1])),
-    mc:                    str(r[2]),
+    // Digits only, like everything else that writes it — see carrierNumber.
+    mc:                    carrierNumber(str(r[2])),
     isActive:              str(r[3]).toLowerCase() === 'active',
     phone:                 str(r[4]),
     address:               str(r[5]),

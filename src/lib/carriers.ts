@@ -17,7 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import type { Carrier } from '@/types/carrier';
-import { carrierNameKey } from '@/types/carrier';
+import { carrierNameKey, carrierNumber } from '@/types/carrier';
 
 const COL = 'carriers';
 
@@ -36,6 +36,9 @@ export async function createCarrier(
     ...data,
     // Written on every save so search keeps working. See carrierNameKey.
     nameKey: carrierNameKey(data.companyName),
+    // Digits only, so the number search can find it. See carrierNumber.
+    mc:  carrierNumber(data.mc),
+    dot: carrierNumber(data.dot),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -83,12 +86,15 @@ export async function listCarriersPage(q: CarrierQuery = {}): Promise<CarrierPag
   const search = (q.search ?? '').trim();
   const constraints: QueryConstraint[] = [];
 
-  // A search that is all digits is a DOT or MC number. Both are tried, because
-  // a broker reading a number off a rate confirmation rarely says which it is.
-  if (/^\d+$/.test(search)) {
+  // A search that is a DOT or MC number. Both are tried, because a broker
+  // reading a number off a rate confirmation rarely says which it is. The
+  // number may be typed with its prefix — "MC-123456", "DOT# 1234567" — and is
+  // reduced to digits, which is how both are stored (see carrierNumber).
+  if (/^(?:us\s*dot|dot|mc|ff|mx)?[\s#:.-]*\d[\d\s-]*$/i.test(search)) {
+    const digits = carrierNumber(search);
     const [byDot, byMc] = await Promise.all([
-      getDocs(query(collection(db, COL), where('dot', '==', search), limitTo(25))),
-      getDocs(query(collection(db, COL), where('mc',  '==', search), limitTo(25))),
+      getDocs(query(collection(db, COL), where('dot', '==', digits), limitTo(25))),
+      getDocs(query(collection(db, COL), where('mc',  '==', digits), limitTo(25))),
     ]);
     const byId = new Map<string, Carrier>();
     for (const d of [...byDot.docs, ...byMc.docs]) {
@@ -165,6 +171,9 @@ export async function updateCarrier(
     // Only when the name actually changed — writing it unconditionally would
     // blank the key on every edit that does not touch companyName.
     ...(data.companyName !== undefined && { nameKey: carrierNameKey(data.companyName) }),
+    // Same guard, same reason: normalizing an absent key would blank it.
+    ...(data.mc  !== undefined && { mc:  carrierNumber(data.mc) }),
+    ...(data.dot !== undefined && { dot: carrierNumber(data.dot) }),
     updatedAt: serverTimestamp(),
   });
 }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { createCarrier } from '@/lib/carriers';
 import type { Carrier } from '@/types/carrier';
+import { parseCoverageInput, carrierNumber } from '@/types/carrier';
 import PersonNameFields from '@/components/PersonNameFields';
 import DateField from '@/components/DateField';
 import InsuranceFileUpload from './InsuranceFileUpload';
@@ -21,8 +22,9 @@ import type { PhoneRegion } from '@/lib/phone';
  *
  * It deliberately asks for less than the full Add Carrier page: everything
  * omitted here is editable later on the carrier record. Email is included
- * because the e-sign agreement is mailed to it, and insurance expiration
- * because an order should not quietly get a carrier with unknown coverage.
+ * because the e-sign agreement is mailed to it, and insurance expiration and
+ * coverage amount because an order should not quietly get a carrier with
+ * unknown coverage.
  */
 export default function QuickAddCarrierModal({
   prefillName = '',
@@ -46,6 +48,7 @@ export default function QuickAddCarrierModal({
   const [mc, setMc]                         = useState('');
   const [insuranceExpiration, setInsExpiry] = useState('');
   const [insuranceStoragePath, setInsFile]  = useState<string | null>(null);
+  const [insuranceCoverage, setInsCoverage] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -59,8 +62,8 @@ export default function QuickAddCarrierModal({
         email:                 email.trim(),
         phone:                 phone.trim(),
         phoneRegion:           phoneRegionOf(phoneRegion),
-        dot:                   dot.trim(),
-        mc:                    mc.trim(),
+        dot:                   carrierNumber(dot),
+        mc:                    carrierNumber(mc),
         address:               '',
         fax:                   '',
         dispatcher:            '',
@@ -75,6 +78,7 @@ export default function QuickAddCarrierModal({
           ? Timestamp.fromDate(new Date(insuranceExpiration))
           : null,
         insuranceStoragePath,
+        insuranceCoverage:     parseCoverageInput(insuranceCoverage),
         isActive: true,
         notes:    '',
       };
@@ -132,7 +136,7 @@ export default function QuickAddCarrierModal({
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">MC / FF Number</label>
               <input value={mc} onChange={(e) => setMc(e.target.value)}
-                placeholder="e.g. MC-123456" className={inputCls} />
+                placeholder="e.g. 123456" className={inputCls} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Insurance Expiration</label>
@@ -140,6 +144,11 @@ export default function QuickAddCarrierModal({
                 className={inputCls} />
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Coverage Amount (USD)</label>
+              <input type="text" inputMode="numeric" value={insuranceCoverage} onChange={(e) => setInsCoverage(e.target.value)}
+                placeholder="e.g. 1,000,000" className={inputCls} />
+            </div>
+            <div className="col-span-1 sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Certificate of Insurance</label>
               {/* No carrier id yet — the file is filed under a draft key and
                   the path saved with the record below. */}

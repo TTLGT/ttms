@@ -7,6 +7,7 @@ import { createCarrier } from '@/lib/carriers';
 import PersonNameFields from '@/components/PersonNameFields';
 import DateField from '@/components/DateField';
 import InsuranceFileUpload from '@/components/carriers/InsuranceFileUpload';
+import { parseCoverageInput, carrierNumber } from '@/types/carrier';
 import PhoneField from '@/components/PhoneField';
 import { phoneRegionOf } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
@@ -27,6 +28,7 @@ export default function NewCarrierPage() {
   const [insurancePolicyNumber, setInsPolicyNo] = useState('');
   const [insuranceExpiration, setInsExpiry]     = useState('');
   const [insuranceStoragePath, setInsFile]      = useState<string | null>(null);
+  const [insuranceCoverage, setInsCoverage]     = useState('');
   const [isActive, setIsActive]                 = useState(true);
   const [notes, setNotes]                       = useState('');
 
@@ -42,8 +44,8 @@ export default function NewCarrierPage() {
         email:                email.trim(),
         phone:                phone.trim(),
         phoneRegion:          phoneRegionOf(phoneRegion),
-        dot:                  dot.trim(),
-        mc:                   mc.trim(),
+        dot:                  carrierNumber(dot),
+        mc:                   carrierNumber(mc),
         address:              '',
         fax:                  '',
         dispatcher:           '',
@@ -58,6 +60,7 @@ export default function NewCarrierPage() {
           ? Timestamp.fromDate(new Date(insuranceExpiration))
           : null,
         insuranceStoragePath,
+        insuranceCoverage:    parseCoverageInput(insuranceCoverage),
         isActive,
         notes: notes.trim(),
       });
@@ -118,7 +121,7 @@ export default function NewCarrierPage() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">MC / FF Number</label>
               <input value={mc} onChange={(e) => setMc(e.target.value)}
-                placeholder="e.g. MC-123456" className={inputCls} />
+                placeholder="e.g. 123456" className={inputCls} />
             </div>
           </div>
         </section>
@@ -141,6 +144,11 @@ export default function NewCarrierPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Expiration Date</label>
               <DateField value={insuranceExpiration} onChange={setInsExpiry}
                 className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Coverage Amount (USD)</label>
+              <input type="text" inputMode="numeric" value={insuranceCoverage} onChange={(e) => setInsCoverage(e.target.value)}
+                placeholder="e.g. 1,000,000" className={inputCls} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Certificate of Insurance</label>

@@ -11,6 +11,7 @@ import type { PartySelection } from '@/components/parties/PartyCombobox';
 import CarrierCombobox from '@/components/carriers/CarrierCombobox';
 import type { CarrierSelection } from '@/components/carriers/CarrierCombobox';
 import DriverPicker from '@/components/carriers/DriverPicker';
+import CarrierCompliance from '@/components/carriers/CarrierCompliance';
 import type { DriverChoice } from '@/components/carriers/DriverPicker';
 import { DEFAULT_RECORD_REGION } from '@/lib/phone';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
@@ -419,6 +420,15 @@ function NewOrderForm() {
                 onChange={handleCarrierPicked}
               />
             </div>
+            {carrier.id && (
+              <div className="sm:max-w-md">
+                <CarrierCompliance key={carrier.id} carrierId={carrier.id} />
+                <p className="text-xs text-gray-500 mt-2">
+                  Saved to the carrier, not this load — the certificate as soon as it uploads, the
+                  rest with its own button. Every load with this carrier shows the same.
+                </p>
+              </div>
+            )}
             {carrier.id && (
               <div className="sm:max-w-md">
                 <DriverPicker
