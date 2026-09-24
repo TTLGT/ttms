@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { getCarrier, updateCarrier } from '@/lib/carriers';
-import { carrierNumber, formatCoverage, getInsuranceStatus, parseCoverageInput } from '@/types/carrier';
+import { carrierMainContact, carrierNumber, formatCoverage, getInsuranceStatus, parseCoverageInput } from '@/types/carrier';
 import type { Carrier } from '@/types/carrier';
 import { useAuth } from '@/context/AuthContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import DateField from '@/components/DateField';
 import CopyValue from '@/components/CopyValue';
+import PhoneValue from '@/components/PhoneValue';
 import InsuranceFileUpload from './InsuranceFileUpload';
 
 /** Same round trip the carrier page uses, so both screens agree on the day. */
@@ -22,6 +23,8 @@ function coverageInput(n: number | null | undefined): string {
 }
 
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1';
+/** The order screen's own label style, so these rows match its others. */
+const viewLabelCls = 'block text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5';
 const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
 /**
@@ -52,7 +55,17 @@ const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm foc
  * page's carrier list, which holds active carriers only; a load booked with a
  * carrier since deactivated still has to show what it ran under.
  */
-export default function CarrierCompliance({ carrierId }: { carrierId: string }) {
+export default function CarrierCompliance({
+  carrierId,
+  nameCell,
+  driverRow,
+}: {
+  carrierId: string;
+  /** The carrier's name, drawn first on the top row beside MC and DOT. */
+  nameCell?: React.ReactNode;
+  /** The load's driver, drawn between the carrier's contact and its insurance. */
+  driverRow?: React.ReactNode;
+}) {
   const { can } = useAuth();
   const { formatDate } = useDateFormatters();
   const [carrier, setCarrier] = useState<Carrier | null>(null);
@@ -128,8 +141,19 @@ export default function CarrierCompliance({ carrierId }: { carrierId: string }) 
     }
   }
 
-  if (!loaded) return <p className="text-sm text-gray-400">Loading…</p>;
-  if (!carrier) return <p className="text-sm text-gray-400">—</p>;
+  // The name and driver belong to the load, not to this read, so they are
+  // drawn even while the carrier is loading or could not be read at all.
+  if (!loaded || !carrier) {
+    const placeholder = <p className="text-sm text-gray-400">{loaded ? '—' : 'Loading…'}</p>;
+    if (nameCell === undefined && driverRow === undefined) return placeholder;
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">{nameCell}</div>
+        {placeholder}
+        {driverRow}
+      </div>
+    );
+  }
 
   const mcOnFile  = (carrier.mc  ?? '').trim();
   const dotOnFile = (carrier.dot ?? '').trim();
@@ -151,12 +175,21 @@ export default function CarrierCompliance({ carrierId }: { carrierId: string }) 
     if (dirty) handleSave();
   }
 
+  // Laid out as rows of three when the order screen hands over the carrier's
+  // name, so MC and DOT sit beside it and line up with the contact and driver
+  // rows below. Without one (the assign form, where the name is a dropdown
+  // above) the two numbers keep their pair of columns.
+  const wide = nameCell !== undefined;
+  const rowCls = wide ? 'grid grid-cols-1 sm:grid-cols-3 gap-6' : 'grid grid-cols-1 sm:grid-cols-2 gap-3';
+  const fieldLabelCls = wide ? viewLabelCls : labelCls;
+  const contact = carrierMainContact(carrier);
+
   function numberField(label: string, onFile: string, value: string, set: (v: string) => void, placeholder: string) {
     return (
       <div>
-        <label className={labelCls}>{label}</label>
+        <label className={fieldLabelCls}>{label}</label>
         {onFile ? (
-          <p className="text-sm text-gray-900 py-2">
+          <p className={`text-sm text-gray-900 ${wide ? '' : 'py-2'}`}>
             <span className="group inline-flex">
               <CopyValue value={onFile} label={`${label} number`}>{onFile}</CopyValue>
             </span>
@@ -165,65 +198,121 @@ export default function CarrierCompliance({ carrierId }: { carrierId: string }) 
           <input value={value} onChange={(e) => set(e.target.value)} onKeyDown={saveOnEnter}
             placeholder={placeholder} className={inputCls} />
         ) : (
-          <p className="text-sm text-gray-400 py-2">Not on record</p>
+          <p className={`text-sm text-gray-400 ${wide ? '' : 'py-2'}`}>Not on record</p>
         )}
       </div>
     );
   }
 
+  const certificate = (
+    <div>
+      <p className={fieldLabelCls}>Certificate of Insurance</p>
+      <InsuranceFileUpload
+        carrierId={carrierId}
+        value={carrier.insuranceStoragePath ?? null}
+        onChange={handleFile}
+        readOnly={!canEdit}
+      />
+    </div>
+  );
+
+  const insurance = canEdit ? (
+    <>
+      <div>
+        <label className={fieldLabelCls}>Insurance Expiration</label>
+        <DateField value={expiry} onChange={setExpiry} className={inputCls} />
+        {status === 'expired' && expiry === toDateInput(carrier.insuranceExpiration) && (
+          <p className="text-xs text-red-600 font-medium mt-1">Expired</p>
+        )}
+        {status === 'expiring_soon' && expiry === toDateInput(carrier.insuranceExpiration) && (
+          <p className="text-xs text-amber-700 mt-1">Expires within 30 days</p>
+        )}
+      </div>
+      <div>
+        <label className={fieldLabelCls}>Coverage Amount (USD)</label>
+        <input type="text" inputMode="numeric" value={coverage}
+          onChange={(e) => setCoverage(e.target.value)} onKeyDown={saveOnEnter}
+          placeholder="e.g. 1,000,000" className={inputCls} />
+      </div>
+    </>
+  ) : (
+    <>
+      <div className="text-sm">
+        <p className={fieldLabelCls}>Insurance Expiration</p>
+        <p className={statusCls}>
+          {carrier.insuranceExpiration
+            ? <>{formatDate(carrier.insuranceExpiration)}{status === 'expired' && ' — expired'}</>
+            : <span className="text-gray-400">Not on record</span>}
+        </p>
+      </div>
+      <div className="text-sm">
+        <p className={fieldLabelCls}>Coverage Amount</p>
+        <p className="text-gray-900">
+          {formatCoverage(carrier.insuranceCoverage) || <span className="text-gray-400">Not on record</span>}
+        </p>
+      </div>
+    </>
+  );
+
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className={wide ? 'space-y-6' : 'space-y-4'}>
+      <div className={rowCls}>
+        {wide && nameCell}
         {numberField('MC', mcOnFile, mc, setMc, 'Not on record — e.g. 123456')}
         {numberField('DOT', dotOnFile, dot, setDot, 'Not on record — e.g. 1234567')}
       </div>
 
-      <div>
-        <p className={labelCls}>Certificate of Insurance</p>
-        <InsuranceFileUpload
-          carrierId={carrierId}
-          value={carrier.insuranceStoragePath ?? null}
-          onChange={handleFile}
-          readOnly={!canEdit}
-        />
+      {/* Read off the carrier record rather than copied onto the load, for the
+          same reason as PartyContact: a phone number is only useful if it is
+          the current one. Edited on the carrier page. */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div>
+          <p className={viewLabelCls}>Main Contact</p>
+          {contact?.name ? (
+            <p className="text-sm text-gray-900 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span>{contact.name}</span>
+              {contact.title && (
+                <span className="inline-flex px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-medium">
+                  {contact.title}
+                </span>
+              )}
+            </p>
+          ) : <p className="text-sm text-gray-900">—</p>}
+        </div>
+        <div>
+          <p className={viewLabelCls}>Contact Phone</p>
+          <p className="text-sm text-gray-900">
+            {contact?.phone
+              ? <PhoneValue value={contact.phone} region={contact.phoneRegion} label="carrier contact phone" />
+              : '—'}
+          </p>
+        </div>
+        <div className="min-w-0">
+          <p className={viewLabelCls}>Contact Email</p>
+          {contact?.email ? (
+            <p className="text-sm text-gray-900 group flex min-w-0">
+              <CopyValue value={contact.email} label="email address">
+                <a href={`mailto:${contact.email}`} className="truncate text-brand-600 hover:underline">
+                  {contact.email}
+                </a>
+              </CopyValue>
+            </p>
+          ) : <p className="text-sm text-gray-900">—</p>}
+        </div>
       </div>
 
-      {canEdit ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls}>Insurance Expiration</label>
-            <DateField value={expiry} onChange={setExpiry} className={inputCls} />
-            {status === 'expired' && expiry === toDateInput(carrier.insuranceExpiration) && (
-              <p className="text-xs text-red-600 font-medium mt-1">Expired</p>
-            )}
-            {status === 'expiring_soon' && expiry === toDateInput(carrier.insuranceExpiration) && (
-              <p className="text-xs text-amber-700 mt-1">Expires within 30 days</p>
-            )}
-          </div>
-          <div>
-            <label className={labelCls}>Coverage Amount (USD)</label>
-            <input type="text" inputMode="numeric" value={coverage}
-              onChange={(e) => setCoverage(e.target.value)} onKeyDown={saveOnEnter}
-              placeholder="e.g. 1,000,000" className={inputCls} />
-          </div>
+      {driverRow}
+
+      {wide ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          {certificate}
+          {insurance}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-          <div>
-            <p className={labelCls}>Insurance Expiration</p>
-            <p className={statusCls}>
-              {carrier.insuranceExpiration
-                ? <>{formatDate(carrier.insuranceExpiration)}{status === 'expired' && ' — expired'}</>
-                : <span className="text-gray-400">Not on record</span>}
-            </p>
-          </div>
-          <div>
-            <p className={labelCls}>Coverage Amount</p>
-            <p className="text-gray-900">
-              {formatCoverage(carrier.insuranceCoverage) || <span className="text-gray-400">Not on record</span>}
-            </p>
-          </div>
-        </div>
+        <>
+          {certificate}
+          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${canEdit ? '' : 'text-sm'}`}>{insurance}</div>
+        </>
       )}
 
       {dirty && (

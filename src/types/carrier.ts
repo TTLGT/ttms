@@ -12,6 +12,12 @@ export interface Carrier {
    */
   nameKey?: string;
   contactName: string;
+  /**
+   * What the main contact does at the carrier — one of CARRIER_CONTACT_TITLES,
+   * or '' for not recorded. Optional because no carrier written before it has
+   * one; read it through carrierMainContact(), which treats absent as blank.
+   */
+  contactTitle?: string;
   email: string;
   phone: string;
   /**
@@ -79,6 +85,64 @@ export function carrierNameKey(raw: string): string {
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
     .replace(/\s+/g, ' ');
+}
+
+/**
+ * The jobs a carrier's main contact is offered as, in the order the picker
+ * lists them. Dispatcher first because it is what the contact usually is — the
+ * person a broker rings about a truck. A label and nothing more: it grants
+ * nothing and nothing branches on it, so adding one is safe and a stored value
+ * that has since left the list still shows (see ContactTitleSelect).
+ */
+export const CARRIER_CONTACT_TITLES = [
+  'Dispatcher',
+  'Owner',
+  'Owner-Operator',
+  'Manager',
+  'Operations Manager',
+  'Supervisor',
+  'Safety Manager',
+  'Fleet Manager',
+  'Accounting',
+  'Sales',
+  'Other',
+] as const;
+
+export interface CarrierContact {
+  name: string;
+  title: string;
+  phone: string;
+  phoneRegion?: PhoneRegion;
+  email: string;
+}
+
+/**
+ * Who to call at a carrier about a load: the main contact, or — when that is
+ * blank — the dispatcher block, which is where the BATS import put the name
+ * for many carriers. Null when neither has anything in it.
+ *
+ * The fallback is per record, not per field: mixing the contact's phone with
+ * the dispatcher's name would show a person beside somebody else's number.
+ */
+export function carrierMainContact(c: Carrier): CarrierContact | null {
+  const main: CarrierContact = {
+    name:        (c.contactName ?? '').trim(),
+    title:       (c.contactTitle ?? '').trim(),
+    phone:       (c.phone ?? '').trim(),
+    phoneRegion: c.phoneRegion,
+    email:       (c.email ?? '').trim(),
+  };
+  if (main.name || main.phone || main.email) return main;
+
+  const dispatch: CarrierContact = {
+    name:        (c.dispatcher ?? '').trim(),
+    title:       'Dispatcher',
+    phone:       (c.dispatcherPhone ?? '').trim(),
+    phoneRegion: c.dispatcherPhoneRegion,
+    email:       (c.dispatcherEmail ?? '').trim(),
+  };
+  if (dispatch.name || dispatch.phone || dispatch.email) return dispatch;
+  return null;
 }
 
 /**

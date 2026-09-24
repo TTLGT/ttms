@@ -1371,29 +1371,42 @@ export default function OrderDetailPage() {
                   </button>
                 </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            ) : (() => {
+              // Three rows of three: the carrier and its MC/DOT, the carrier's
+              // main contact, then this load's driver. The first two come off
+              // the carrier record, which CarrierCompliance already reads, so
+              // the rows it does not own are handed to it to place.
+              const carrierCell = (
                 <DetailRow label="Carrier" value={
                   order.carrierId
                     ? <Link href={`/dashboard/carriers/${order.carrierId}`} className="text-brand-600 hover:underline">{order.carrierName}</Link>
                     : null
                 } />
-                <DetailRow label="Driver" value={order.driverName} />
-                <DetailRow label="Driver Phone" value={<PhoneValue value={order.driverPhone} region={order.driverPhoneRegion} label="driver phone" />} />
-                <DetailRow label="Driver License" value={
-                  order.driverLicenseStoragePath
-                    ? <DriverLicenseUpload orderId={orderId} existingPath={order.driverLicenseStoragePath} onUploaded={() => {}} readOnly />
-                    : null
-                } />
-                {/* Not a DetailRow: that wraps its value in a <p>, and the
-                    upload field renders block elements a <p> cannot hold. */}
-                {order.carrierId && (
-                  <div className="sm:col-span-3 sm:max-w-xl">
-                    <CarrierCompliance key={order.carrierId} carrierId={order.carrierId} />
+              );
+              const driverRow = (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <DetailRow label="Driver" value={order.driverName} />
+                  <DetailRow label="Driver Phone" value={<PhoneValue value={order.driverPhone} region={order.driverPhoneRegion} label="driver phone" />} />
+                  {/* Not a DetailRow: that wraps its value in a <p>, and the
+                      upload field renders block elements a <p> cannot hold. */}
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Driver License</p>
+                    {order.driverLicenseStoragePath
+                      ? <DriverLicenseUpload orderId={orderId} existingPath={order.driverLicenseStoragePath} onUploaded={() => {}} readOnly />
+                      : <p className="text-sm text-gray-900">—</p>}
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              );
+              return order.carrierId ? (
+                <CarrierCompliance key={order.carrierId} carrierId={order.carrierId}
+                  nameCell={carrierCell} driverRow={driverRow} />
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">{carrierCell}</div>
+                  {driverRow}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Shared-record approvals */}

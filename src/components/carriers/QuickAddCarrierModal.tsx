@@ -5,6 +5,7 @@ import { Timestamp } from 'firebase/firestore';
 import { createCarrier } from '@/lib/carriers';
 import type { Carrier } from '@/types/carrier';
 import { parseCoverageInput, carrierNumber } from '@/types/carrier';
+import ContactTitleSelect from '@/components/carriers/ContactTitleSelect';
 import PersonNameFields from '@/components/PersonNameFields';
 import DateField from '@/components/DateField';
 import InsuranceFileUpload from './InsuranceFileUpload';
@@ -41,6 +42,7 @@ export default function QuickAddCarrierModal({
 
   const [companyName, setCompanyName]       = useState(prefillName);
   const [contactName, setContactName]       = useState('');
+  const [contactTitle, setContactTitle]      = useState('');
   const [phone, setPhone]                   = useState('');
   const [phoneRegion, setPhoneRegion]       = useState<PhoneRegion | undefined>(undefined);
   const [email, setEmail]                   = useState('');
@@ -59,6 +61,7 @@ export default function QuickAddCarrierModal({
         batsId:                null,
         companyName:           companyName.trim(),
         contactName:           contactName.trim(),
+        contactTitle,
         email:                 email.trim(),
         phone:                 phone.trim(),
         phoneRegion:           phoneRegionOf(phoneRegion),
@@ -116,6 +119,7 @@ export default function QuickAddCarrierModal({
             <div className="col-span-1 sm:col-span-2">
               <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />
             </div>
+            <ContactTitleSelect value={contactTitle} onChange={setContactTitle} className={inputCls} />
             <PhoneField
               label="Phone"
               value={phone}

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Timestamp } from 'firebase/firestore';
 import { getCarrier, updateCarrier } from '@/lib/carriers';
+import ContactTitleSelect from '@/components/carriers/ContactTitleSelect';
 import PersonNameFields from '@/components/PersonNameFields';
 import { listOrders } from '@/lib/orders';
 import type { Carrier } from '@/types/carrier';
@@ -63,6 +64,7 @@ export default function CarrierDetailPage() {
   // edit fields
   const [companyName, setCompanyName]           = useState('');
   const [contactName, setContactName]           = useState('');
+  const [contactTitle, setContactTitle]         = useState('');
   const [email, setEmail]                       = useState('');
   const [phone, setPhone]                       = useState('');
   const [phoneRegion, setPhoneRegion]           = useState<PhoneRegion | undefined>(undefined);
@@ -93,6 +95,7 @@ export default function CarrierDetailPage() {
   function syncFields(c: Carrier) {
     setCompanyName(c.companyName);
     setContactName(c.contactName ?? '');
+    setContactTitle(c.contactTitle ?? '');
     setEmail(c.email ?? '');
     setPhone(c.phone ?? '');
     setPhoneRegion(c.phoneRegion);
@@ -181,6 +184,7 @@ export default function CarrierDetailPage() {
       const updates: Partial<Omit<Carrier, 'id' | 'createdAt'>> = {
         companyName:          companyName.trim(),
         contactName:          contactName.trim(),
+        contactTitle,
         email:                email.trim(),
         phone:                phone.trim(),
         phoneRegion:          phoneRegionOf(phoneRegion),
@@ -304,6 +308,7 @@ export default function CarrierDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {[
                   ['Contact', carrier.contactName],
+                  ['Contact Title', carrier.contactTitle],
                   ['Phone', <PhoneValue key="phone" value={carrier.phone} region={carrier.phoneRegion} />],
                   ['Email', carrier.email],
                   ['Address', carrier.address],
@@ -324,6 +329,7 @@ export default function CarrierDetailPage() {
                 <div className="col-span-1 sm:col-span-2">
                   <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />
                 </div>
+                <ContactTitleSelect value={contactTitle} onChange={setContactTitle} className={inputCls} />
                 <PhoneField
                   label="Phone"
                   value={phone}

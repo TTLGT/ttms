@@ -53,6 +53,7 @@ carriers/{carrierId}
   id                    : string
   companyName           : string
   contactName           : string
+  contactTitle          : string          // optional; one of CARRIER_CONTACT_TITLES ('Dispatcher', 'Owner', …) or ''
   email                 : string
   phone                 : string
   phoneRegion           : 'US'|'CA'|'MX'|'GT'   // absent = US; see phoneRegionOf()

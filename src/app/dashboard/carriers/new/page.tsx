@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Timestamp } from 'firebase/firestore';
 import { createCarrier } from '@/lib/carriers';
+import ContactTitleSelect from '@/components/carriers/ContactTitleSelect';
 import PersonNameFields from '@/components/PersonNameFields';
 import DateField from '@/components/DateField';
 import InsuranceFileUpload from '@/components/carriers/InsuranceFileUpload';
@@ -19,6 +20,7 @@ export default function NewCarrierPage() {
 
   const [companyName, setCompanyName]           = useState('');
   const [contactName, setContactName]           = useState('');
+  const [contactTitle, setContactTitle]          = useState('');
   const [email, setEmail]                       = useState('');
   const [phone, setPhone]                       = useState('');
   const [phoneRegion, setPhoneRegion]           = useState<PhoneRegion | undefined>(undefined);
@@ -41,6 +43,7 @@ export default function NewCarrierPage() {
         batsId:               null,
         companyName:          companyName.trim(),
         contactName:          contactName.trim(),
+        contactTitle,
         email:                email.trim(),
         phone:                phone.trim(),
         phoneRegion:          phoneRegionOf(phoneRegion),
@@ -95,6 +98,7 @@ export default function NewCarrierPage() {
             <div className="col-span-1 sm:col-span-2">
               <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />
             </div>
+            <ContactTitleSelect value={contactTitle} onChange={setContactTitle} className={inputCls} />
             <PhoneField
               label="Phone"
               value={phone}
