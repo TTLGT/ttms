@@ -135,6 +135,40 @@ export function formatDate(
 }
 
 /**
+ * A day, or a window of days — "13-Sep-2026 – 15-Sep-2026". Shows the single
+ * date when there is no end, or when the end is the same day as the start, so
+ * a window somebody opened and never widened does not read as a range.
+ */
+export function formatDateRange(
+  start: DateLike,
+  end: DateLike,
+  format: DateFormat = DEFAULT_APP_SETTINGS.dateFormat,
+  fallback = '—',
+): string {
+  const from = formatDate(start, format, '');
+  const to = formatDate(end, format, '');
+  if (!from) return to || fallback;
+  if (!to || to === from) return from;
+  return `${from} – ${to}`;
+}
+
+/**
+ * The same, spelled out — "March 4, 2020 – March 6, 2020" — for what leaves
+ * the company: the agreement emails, the signing page, the BOL and invoice.
+ * Deliberately ignores the company setting, like the single-date formatters on
+ * those surfaces (see the Conventions note in CLAUDE.md).
+ */
+export function formatLongDateRange(start: DateLike, end: DateLike, fallback = '—'): string {
+  const long = (v: DateLike) =>
+    toDate(v)?.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) ?? '';
+  const from = long(start);
+  const to = long(end);
+  if (!from) return to || fallback;
+  if (!to || to === from) return from;
+  return `${from} – ${to}`;
+}
+
+/**
  * Same, with the time after it — for the "who did what, when" lines where the
  * hour is part of the answer.
  */

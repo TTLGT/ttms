@@ -460,8 +460,22 @@ export interface Order {
    * collapsed into one field.
    */
   firstAvailablePickup: Timestamp | null;
+  /**
+   * Scheduled pickup and delivery. When the date is a window rather than a
+   * day, these are its **first** day and the `…End` fields below its last.
+   */
   pickupDate: Timestamp | null;
   deliveryDate: Timestamp | null;
+  /**
+   * Last day of the pickup / delivery window, or null (or absent, on every
+   * order written before ranges existed) when it is a single day.
+   *
+   * Added beside the start rather than replacing it with a pair so that every
+   * sort, filter, index and alert that reads `pickupDate` keeps working on the
+   * start of the window unchanged. Show the pair through `formatDateRange()`.
+   */
+  pickupDateEnd?: Timestamp | null;
+  deliveryDateEnd?: Timestamp | null;
   dispatchedAt: Timestamp | null;
   pickedUpAt: Timestamp | null;
   carrierId: string | null;

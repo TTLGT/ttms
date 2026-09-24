@@ -24,6 +24,7 @@ import { canEditSource } from '@/lib/accessControl';
 import { toDate } from '@/lib/dateFormat';
 import { useAuth } from '@/context/AuthContext';
 import DateField from '@/components/DateField';
+import DateRangeField, { dateRangeProblem } from '@/components/DateRangeField';
 
 const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
 
@@ -113,6 +114,8 @@ export default function EditOrderPage() {
   const [firstAvailable, setFirstAvailable] = useState('');
   const [pickupDate, setPickupDate]     = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
+  const [pickupDateEnd, setPickupDateEnd]     = useState('');
+  const [deliveryDateEnd, setDeliveryDateEnd] = useState('');
   const [agreedRate, setAgreedRate]     = useState('');
   const [brokerFee, setBrokerFee]       = useState('');
   const [notes, setNotes]               = useState('');
@@ -168,6 +171,8 @@ export default function EditOrderPage() {
         setFirstAvailable(tsToDateStr(o.firstAvailablePickup));
         setPickupDate(tsToDateStr(o.pickupDate));
         setDeliveryDate(tsToDateStr(o.deliveryDate));
+        setPickupDateEnd(tsToDateStr(o.pickupDateEnd ?? null));
+        setDeliveryDateEnd(tsToDateStr(o.deliveryDateEnd ?? null));
         setAgreedRate(o.agreedRate ? String(o.agreedRate) : '');
         setBrokerFee(o.brokerFee ? String(o.brokerFee) : '');
         setNotes(o.notes ?? '');
@@ -199,6 +204,9 @@ export default function EditOrderPage() {
       ['client', client], ['shipper', shipper], ['consignee', consignee],
     ] as const);
     if (unbound.length) { setError(unboundMessage(unbound)); return; }
+    const badRange = dateRangeProblem('Pickup Date', pickupDate, pickupDateEnd)
+      || dateRangeProblem('Delivery Date', deliveryDate, deliveryDateEnd);
+    if (badRange) { setError(badRange); return; }
 
     setError('');
     setSaving(true);
@@ -239,6 +247,8 @@ export default function EditOrderPage() {
         firstAvailablePickup: firstAvailable ? Timestamp.fromDate(new Date(firstAvailable + 'T12:00:00')) : null,
         pickupDate:   pickupDate   ? Timestamp.fromDate(new Date(pickupDate + 'T12:00:00'))   : null,
         deliveryDate: deliveryDate ? Timestamp.fromDate(new Date(deliveryDate + 'T12:00:00')) : null,
+        pickupDateEnd:   pickupDateEnd   ? Timestamp.fromDate(new Date(pickupDateEnd + 'T12:00:00'))   : null,
+        deliveryDateEnd: deliveryDateEnd ? Timestamp.fromDate(new Date(deliveryDateEnd + 'T12:00:00')) : null,
         agreedRate:   parseFloat(agreedRate) || 0,
         brokerFee:    parseFloat(brokerFee)  || 0,
         carrierPay:   Math.max(0, carrierPay),
@@ -277,9 +287,9 @@ export default function EditOrderPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_20rem] gap-6 items-start">
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Shipment Info */}
+          {/* General */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Shipment Info</h2>
+            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">General</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Shipper and consignee sit in Route, above their addresses —
                   same layout as the new-order form. */}
@@ -293,16 +303,14 @@ export default function EditOrderPage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
                 <p className="text-xs text-gray-500 mt-1">Earliest the client says the freight can be collected.</p>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Pickup Date</label>
-                <DateField value={pickupDate} onChange={setPickupDate}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Delivery Date</label>
-                <DateField value={deliveryDate} onChange={setDeliveryDate}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              </div>
+              <DateRangeField label="Pickup Date"
+                start={pickupDate} end={pickupDateEnd}
+                onStartChange={setPickupDate} onEndChange={setPickupDateEnd}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+              <DateRangeField label="Delivery Date"
+                start={deliveryDate} end={deliveryDateEnd}
+                onStartChange={setDeliveryDate} onEndChange={setDeliveryDateEnd}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
               <LeadSourceField
                 value={sourceId}
                 onChange={setSourceId}

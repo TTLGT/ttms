@@ -1,4 +1,5 @@
 import { adminDb } from '@/lib/firebase-admin';
+import { formatLongDateRange } from '@/lib/dateFormat';
 import SignForm from './SignForm';
 
 type Props = { params: Promise<{ token: string }> };
@@ -105,8 +106,8 @@ export default async function SignPage({ params }: Props) {
         dimensions={data.dimensions || ''}
         originStr={data.originStr}
         destinationStr={data.destinationStr}
-        pickupDate={fmt(data.pickupDate)}
-        deliveryDate={fmt(data.deliveryDate)}
+        pickupDate={formatLongDateRange(data.pickupDate, data.pickupDateEnd)}
+        deliveryDate={formatLongDateRange(data.deliveryDate, data.deliveryDateEnd)}
         rate={fmtCurrency(data.type === 'shipper_agreement' ? data.agreedRate : data.carrierPay)}
         notes={data.notes || ''}
       />

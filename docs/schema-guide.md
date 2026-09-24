@@ -149,6 +149,8 @@ orders/{orderId}
   laneMilesAt     : Timestamp | null   // when laneMiles was worked out; see below
   pickupDate      : Timestamp | null
   deliveryDate    : Timestamp | null
+  pickupDateEnd   : Timestamp | null   // last day of a pickup window; null/absent = single day
+  deliveryDateEnd : Timestamp | null   // same, for delivery. pickupDate/deliveryDate stay the first day
   carrierId       : string | null   // → carriers/{carrierId}; null until assigned
   driverId        : string | null   // the drivers/{id} record, when picked from the carrier's list
   driverName      : string

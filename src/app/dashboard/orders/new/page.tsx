@@ -27,6 +27,7 @@ import type { Address, CommodityItem } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import LeadSourceField from '@/components/orders/LeadSourceField';
 import DateField from '@/components/DateField';
+import DateRangeField, { dateRangeProblem } from '@/components/DateRangeField';
 
 const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
 
@@ -113,6 +114,8 @@ function NewOrderForm() {
   const [firstAvailable, setFirstAvailable] = useState('');
   const [pickupDate, setPickupDate]     = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
+  const [pickupDateEnd, setPickupDateEnd]     = useState('');
+  const [deliveryDateEnd, setDeliveryDateEnd] = useState('');
   const [agreedRate, setAgreedRate]     = useState('');
   const [brokerFee, setBrokerFee]       = useState('');
   const [notes, setNotes]               = useState('');
@@ -187,6 +190,9 @@ function NewOrderForm() {
         + 'or add it with its details.');
       return;
     }
+    const badRange = dateRangeProblem('Pickup Date', pickupDate, pickupDateEnd)
+      || dateRangeProblem('Delivery Date', deliveryDate, deliveryDateEnd);
+    if (badRange) { setError(badRange); return; }
 
     setError('');
     setSaving(true);
@@ -228,6 +234,8 @@ function NewOrderForm() {
         firstAvailablePickup: firstAvailable ? (new Date(firstAvailable) as unknown as import('firebase/firestore').Timestamp) : null,
         pickupDate:   pickupDate   ? (new Date(pickupDate)   as unknown as import('firebase/firestore').Timestamp) : null,
         deliveryDate: deliveryDate ? (new Date(deliveryDate) as unknown as import('firebase/firestore').Timestamp) : null,
+        pickupDateEnd:   pickupDateEnd   ? (new Date(pickupDateEnd)   as unknown as import('firebase/firestore').Timestamp) : null,
+        deliveryDateEnd: deliveryDateEnd ? (new Date(deliveryDateEnd) as unknown as import('firebase/firestore').Timestamp) : null,
         // Booking the truck at the same time as the load is normal here, so
         // the carrier can be set now. The status still starts at quote: a
         // carrier lined up is not the client agreeing to the rate, and
@@ -314,9 +322,9 @@ function NewOrderForm() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_20rem] gap-6 items-start">
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Shipment Info */}
+          {/* General */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Shipment Info</h2>
+            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">General</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Shipper and consignee sit in Route, each above the address
                   it fills — picking one prefills that address, so the two
@@ -338,16 +346,14 @@ function NewOrderForm() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
                 <p className="text-xs text-gray-500 mt-1">Earliest the client says the freight can be collected.</p>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Pickup Date</label>
-                <DateField value={pickupDate} onChange={setPickupDate}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Delivery Date</label>
-                <DateField value={deliveryDate} onChange={setDeliveryDate}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              </div>
+              <DateRangeField label="Pickup Date"
+                start={pickupDate} end={pickupDateEnd}
+                onStartChange={setPickupDate} onEndChange={setPickupDateEnd}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+              <DateRangeField label="Delivery Date"
+                start={deliveryDate} end={deliveryDateEnd}
+                onStartChange={setDeliveryDate} onEndChange={setDeliveryDateEnd}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
               {/* Whoever writes an order is put on it as an owner, so the
                   creator can always set the source on their own new load. */}
               <LeadSourceField value={sourceId} onChange={setSourceId} canEdit

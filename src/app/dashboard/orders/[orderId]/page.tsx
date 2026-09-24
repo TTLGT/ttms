@@ -154,7 +154,7 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 export default function OrderDetailPage() {
   // Dates are written the way the company setting says — see Settings →
   // Operations → Date Format.
-  const { formatDate, formatDateTime } = useDateFormatters();
+  const { formatDate, formatDateTime, formatDateRange } = useDateFormatters();
   const params   = useParams();
   const orderId  = params.orderId as string;
   const router   = useRouter();
@@ -778,6 +778,8 @@ export default function OrderDetailPage() {
         firstAvailablePickup: order.firstAvailablePickup ?? null,
         pickupDate:   null,
         deliveryDate: null,
+        pickupDateEnd:   null,
+        deliveryDateEnd: null,
         carrierId:    null,
         carrierName:  '',
         driverName:   '',
@@ -976,17 +978,15 @@ export default function OrderDetailPage() {
       {/* Details tab */}
       {tab === 'details' && (
         <div className="space-y-4">
-          {/* Shipment */}
+          {/* General — pieces and weight live in Freight, per line */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Shipment</h3>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">General</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <DetailRow label="Client"    value={<><PartyLink id={order.clientId}    name={order.clientName} /><PartyContact party={partyById[order.clientId ?? '']} /></>} />
-              <DetailRow label="Pieces" value={order.pieces} />
-              <DetailRow label="Weight" value={order.weight ? `${order.weight.toLocaleString()} lbs` : '—'} />
               <DetailRow label="Lead Source" value={leadSourceLabel(leadSources, order.sourceId, order.sourceName)} />
               <DetailRow label="First Available" value={formatDate(order.firstAvailablePickup as { toDate: () => Date } | null)} />
-              <DetailRow label="Pickup Date" value={formatDate(order.pickupDate as { toDate: () => Date } | null)} />
-              <DetailRow label="Delivery Date" value={formatDate(order.deliveryDate as { toDate: () => Date } | null)} />
+              <DetailRow label="Pickup Date" value={formatDateRange(order.pickupDate, order.pickupDateEnd)} />
+              <DetailRow label="Delivery Date" value={formatDateRange(order.deliveryDate, order.deliveryDateEnd)} />
             </div>
           </div>
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { formatLongDateRange } from '@/lib/dateFormat';
 import { adminDb, requirePermission, AdminAuthError } from '@/lib/firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
@@ -67,13 +68,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const now       = Timestamp.now();
   const expiresAt = Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
 
-  const fmt = (ts: { toDate?: () => Date } | null | undefined) =>
-    ts?.toDate?.()?.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) ?? '—';
-
   const originStr      = [order.origin?.city, order.origin?.state].filter(Boolean).join(', ') || '—';
   const destinationStr = [order.destination?.city, order.destination?.state].filter(Boolean).join(', ') || '—';
-  const pickupStr      = fmt(order.pickupDate);
-  const deliveryStr    = fmt(order.deliveryDate);
+  // A window when dispatch gave one — a carrier held to a single day it was
+  // never promised is how a load gets refused at the dock.
+  const pickupStr      = formatLongDateRange(order.pickupDate, order.pickupDateEnd);
+  const deliveryStr    = formatLongDateRange(order.deliveryDate, order.deliveryDateEnd);
   const rateStr        = order.agreedRate
     ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(order.agreedRate)
     : '—';
@@ -103,6 +103,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     destinationStr,
     pickupDate:   order.pickupDate   || null,
     deliveryDate: order.deliveryDate || null,
+    pickupDateEnd:   order.pickupDateEnd   || null,
+    deliveryDateEnd: order.deliveryDateEnd || null,
     agreedRate:   order.agreedRate   || 0,
     clientName:   client.companyName || client.contactName,
     carrierName:  order.carrierName  || '',

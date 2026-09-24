@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { getAppSettingsOrDefaults } from './appSettings';
-import { formatCalendarDate, formatDate, formatDateTime } from './dateFormat';
+import { formatCalendarDate, formatDate, formatDateRange, formatDateTime } from './dateFormat';
 import type { DateLike } from './dateFormat';
 import { DEFAULT_APP_SETTINGS, isDateFormat } from '@/types/appSettings';
 import type { DateFormat } from '@/types/appSettings';
@@ -45,6 +45,8 @@ export interface DateFormatters {
   formatDate: (value: DateLike, fallback?: string) => string;
   /** The same, with the time after it. */
   formatDateTime: (value: DateLike, fallback?: string) => string;
+  /** A day or a window of days — a pickup or delivery date. `end` may be empty. */
+  formatDateRange: (start: DateLike, end: DateLike, fallback?: string) => string;
   /** A stored `YYYY-MM-DD` — a birthday or a start date. '' when it is not a real date. */
   formatCalendarDate: (value: string | null | undefined) => string;
 }
@@ -80,6 +82,7 @@ export function useDateFormatters(): DateFormatters {
       dateFormat: format,
       formatDate: (value, fallback) => formatDate(value, format, fallback),
       formatDateTime: (value, fallback) => formatDateTime(value, format, fallback),
+      formatDateRange: (start, end, fallback) => formatDateRange(start, end, format, fallback),
       formatCalendarDate: (value) => formatCalendarDate(value, format),
     }),
     [format],

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { formatLongDateRange } from '@/lib/dateFormat';
 import { adminDb, adminStorage, requirePermission, AdminAuthError } from '@/lib/firebase-admin';
 import { documentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { generateBolBuffer } from '@/lib/bol-pdf';
@@ -93,8 +94,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     destCity:         order.destination?.city  ?? '',
     destState:        order.destination?.state ?? '',
     destZip:          order.destination?.zip   ?? '',
-    pickupDate:       fmtDate(order.pickupDate),
-    deliveryDate:     fmtDate(order.deliveryDate),
+    pickupDate:       formatLongDateRange(order.pickupDate, order.pickupDateEnd),
+    deliveryDate:     formatLongDateRange(order.deliveryDate, order.deliveryDateEnd),
     agreedRate:       order.agreedRate         ?? 0,
     brokerFee:        order.brokerFee          ?? 0,
     carrierPay:       order.carrierPay         ?? 0,
