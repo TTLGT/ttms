@@ -10,7 +10,9 @@ import type { Address } from '@/types/order';
  *
  * Normal lookups never re-ask Google once a lane is written down — that is the
  * entire point of the cache. This is the deliberate exception, for when someone
- * believes a stored mileage has gone stale. It is **admin only**: the ordinary
+ * believes a stored mileage has gone stale. It is **admin and finance only**
+ * (`laneDistance.manage` — finance bills and pays against the mileage, so they
+ * are who questions it): the ordinary
  * `/api/route-distance` is open to every signed-in user and must stay that way,
  * but this one spends money on purpose and every call is logged with who made
  * it and what the number was before.
@@ -18,7 +20,7 @@ import type { Address } from '@/types/order';
 export async function POST(req: NextRequest) {
   let caller;
   try {
-    caller = await requirePermission(req, 'settings.manage');
+    caller = await requirePermission(req, ['settings.manage', 'laneDistance.manage']);
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

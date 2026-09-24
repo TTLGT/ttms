@@ -158,7 +158,7 @@ export default function OrderDetailPage() {
   const params   = useParams();
   const orderId  = params.orderId as string;
   const router   = useRouter();
-  const { user, isAdmin, can } = useAuth();
+  const { user, can } = useAuth();
 
   const [refreshingMiles, setRefreshingMiles] = useState(false);
   const [milesNote, setMilesNote]             = useState('');
@@ -1074,10 +1074,12 @@ export default function OrderDetailPage() {
                       from a lane looked up a year ago. Absent on orders that
                       predate the field. */}
                   {milesAtNote ? <p className="text-xs text-gray-500">{milesAtNote}</p> : null}
-                  {/* Admins only, and only on a Google figure: an estimate is
-                      recomputed from scratch every time, so there is nothing
-                      stale about it to refresh. */}
-                  {isAdmin && order.laneMilesSource === 'routes' ? (
+                  {/* Whoever owns lane mileage — admins, and finance through
+                      laneDistance.manage — and only on a Google figure: an
+                      estimate is recomputed from scratch every time, so there
+                      is nothing stale about it to refresh. Same test as the
+                      route's guard, so the button never draws for a 403. */}
+                  {(can('settings.manage') || can('laneDistance.manage')) && order.laneMilesSource === 'routes' ? (
                     <div className="mt-1 flex items-center gap-2">
                       <button
                         onClick={handleRefreshMiles}

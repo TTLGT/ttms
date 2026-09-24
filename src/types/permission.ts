@@ -285,7 +285,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'handbook.view',   label: 'See the handbook', detail: 'The admin handbook section.' },
       { key: 'settings.manage', label: 'Manage settings', detail: 'Company settings, offices, teams, work groups and lead sources.' },
       { key: 'leadSources.manage',  label: 'Manage lead sources',  detail: 'Add, rename and retire the lead sources offered on clients and loads. Dispatch has this already.' },
-      { key: 'laneDistance.manage', label: 'Manage lane distance', detail: 'Choose how order mileage is worked out, including the paid Google lookup. Finance has this already.' },
+      { key: 'laneDistance.manage', label: 'Manage lane distance', detail: 'Choose how order mileage is worked out, and recheck a load’s mileage with Google — each recheck is charged. Finance has this already.' },
       { key: 'paymentTerms.manage', label: 'Manage payment terms', detail: 'The payment methods and fee terms offered for clients and carriers, and the fee each one carries. Finance has this already.' },
     ],
   },
