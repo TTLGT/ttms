@@ -333,6 +333,14 @@ export default function EditOrderPage() {
             <CommodityItemsFields value={commodities} onChange={setCommodities} />
           </section>
 
+          <PriceAndTermsSection
+            agreedRate={agreedRate} onAgreedRate={setAgreedRate}
+            brokerFee={brokerFee} onBrokerFee={setBrokerFee}
+            carrierPay={carrierPay}
+            laneMiles={distance.laneMiles}
+            terms={priceTerms} onTerms={setPriceTerms}
+          />
+
           {/* Route */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
             <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Route</h2>
@@ -361,14 +369,6 @@ export default function EditOrderPage() {
               onChange={setRouteMapUrl}
             />
           </section>
-
-          <PriceAndTermsSection
-            agreedRate={agreedRate} onAgreedRate={setAgreedRate}
-            brokerFee={brokerFee} onBrokerFee={setBrokerFee}
-            carrierPay={carrierPay}
-            laneMiles={distance.laneMiles}
-            terms={priceTerms} onTerms={setPriceTerms}
-          />
 
           {/* Notes */}
           <section className="bg-white rounded-xl border border-gray-200 p-6">

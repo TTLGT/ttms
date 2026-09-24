@@ -1036,6 +1036,9 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
+          {/* Price and Terms */}
+          <PriceAndTermsCard order={order} />
+
           {/* Route */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Route</h3>
@@ -1442,9 +1445,6 @@ export default function OrderDetailPage() {
               </ul>
             </div>
           )}
-
-          {/* Price and Terms */}
-          <PriceAndTermsCard order={order} />
 
           {/* BOL */}
           {(['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed') && (
