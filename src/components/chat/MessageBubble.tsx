@@ -9,6 +9,7 @@ import { UserAvatar } from '@/components/settings/UserAvatar';
 import MessageAttachments from './MessageAttachments';
 import OrderCards from './OrderCards';
 import ReactionBar from './ReactionBar';
+import StickerMessage from './StickerMessage';
 import {
   MAX_MESSAGE_LENGTH,
   type ChatMessage,
@@ -75,6 +76,10 @@ export default function MessageBubble({
   const { nameOf, profileOf } = useChat();
   const myUid = user?.uid ?? '';
   const mine  = message.senderUid === myUid;
+  // A sticker stands on its own, without a bubble behind it — the way every
+  // chat app draws one. Only while it is still there: a sticker taken back
+  // is a tombstone like any other message, and needs the bubble to read as one.
+  const bare  = !!message.sticker && !message.deletedAt && !editing;
 
   return (
     <div className={`group flex items-end gap-2 ${mine ? 'justify-end' : ''}`}>
@@ -107,11 +112,13 @@ export default function MessageBubble({
           // than as an object with an edge. The two are told apart by hue —
           // neutral against blue — not by lightness, so neither side dominates
           // the column.
-          mine ? 'bg-brand-100 text-gray-900' : 'bg-gray-200 text-gray-800'
+          bare
+            ? 'bg-transparent shadow-none'
+            : mine ? 'bg-brand-100 text-gray-900' : 'bg-gray-200 text-gray-800'
         } ${
           // The tail only on the first of a run, with the matching corner
           // squared off so the two read as one shape.
-          grouped
+          grouped || bare
             ? ''
             : mine
               ? 'bubble-tail bubble-tail-right rounded-tr-none'
@@ -169,6 +176,8 @@ export default function MessageBubble({
             {!message.deletedAt && message.attachments && message.attachments.length > 0 && (
               <MessageAttachments attachments={message.attachments} />
             )}
+
+            {!message.deletedAt && message.sticker && <StickerMessage sticker={message.sticker} />}
 
             {(message.text || message.deletedAt) && (
               <p

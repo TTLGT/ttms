@@ -771,13 +771,39 @@ service cloud.firestore {
     // `[\\s\\S]*` rather than `.*` around the link pattern because matches() is
     // a full-string match and `.` does not cross a newline in RE2 — a link on
     // the second line of a message would otherwise walk straight through.
+    //
+    // A sticker counts as a file here. It is a picture landing in the room, and
+    // a room whose admins have kept pictures to themselves has not asked for
+    // them to arrive by another door.
     function maySay(convData, data) {
       return notMuted(convData)
         && roomAllows(convData, 'post')
-        && (data.get('attachments', []).size() == 0 || roomAllows(convData, 'files'))
+        && ((data.get('attachments', []).size() == 0 && data.get('sticker', null) == null)
+            || roomAllows(convData, 'files'))
         && (
           roomAllows(convData, 'links')
           || !data.text.lower().matches('[\\s\\S]*(https?://|www[.])[\\s\\S]*')
+        );
+    }
+
+    // The sticker a message carries, when it carries one. Keep in sync with
+    // StickerRef in src/types/sticker.ts.
+    //
+    // The path is held to the stickers/ prefix so a sticker message can only
+    // ever point at a sticker. storage.rules would refuse to hand anybody a
+    // BOL through one anyway, but a message should not be able to name one.
+    function stickerOk(data) {
+      return data.get('sticker', null) == null
+        || (
+          data.sticker is map
+          && data.sticker.keys().hasOnly(['id', 'path', 'name', 'width', 'height'])
+          && data.sticker.id is string
+          && data.sticker.path is string
+          && data.sticker.path.matches('stickers/[A-Za-z0-9_-]+[.](webp|png|gif|jpeg)')
+          && data.sticker.name is string
+          && data.sticker.name.size() <= 40
+          && data.sticker.width is number
+          && data.sticker.height is number
         );
     }
 
@@ -949,10 +975,12 @@ service cloud.firestore {
           && request.resource.data.senderUid == request.auth.uid
           && request.resource.data.text is string
           && request.resource.data.text.size() <= 4000
-          // A photo on its own is a message. Only an empty box with nothing
-          // attached to it is not, which is what this pair enforces.
+          // A photo or a sticker on its own is a message. Only an empty box
+          // with nothing attached to it is not, which is what this enforces.
           && (request.resource.data.text.size() > 0
-              || request.resource.data.get('attachments', []).size() > 0)
+              || request.resource.data.get('attachments', []).size() > 0
+              || request.resource.data.get('sticker', null) != null)
+          && stickerOk(request.resource.data)
           && request.resource.data.senderName is string
           && request.resource.data.createdAt == request.time
           // Defaulted, so a message written without the field still passes.
@@ -1108,7 +1136,9 @@ service cloud.firestore {
           && request.resource.data.text is string
           && request.resource.data.text.size() <= 4000
           && (request.resource.data.text.size() > 0
-              || request.resource.data.get('attachments', []).size() > 0)
+              || request.resource.data.get('attachments', []).size() > 0
+              || request.resource.data.get('sticker', null) != null)
+          && stickerOk(request.resource.data)
           && request.resource.data.senderName is string
           && request.resource.data.createdAt == request.time
           && request.resource.data.get('mentions', []) is list
@@ -1210,6 +1240,52 @@ service cloud.firestore {
     // stops one person clearing — or planting — another person's unread marks.
     match /chatReads/{uid} {
       allow read, write: if isAllowedUser() && request.auth.uid == uid;
+    }
+
+    // The company sticker set. Keep in sync with src/types/sticker.ts.
+    //
+    // Anybody may add one — the Slack arrangement — and it is pinned to the
+    // caller and the server clock so nobody adds one in somebody else's name.
+    // Taking one off is for whoever added it, or `chat.stickers.manage`.
+    // Nothing can edit one in place: a sticker whose picture or name changed
+    // under messages already sent would be a different sticker wearing the
+    // old one's id.
+    match /stickers/{stickerId} {
+      allow read: if isAllowedUser();
+      allow create: if isAllowedUser()
+        && request.resource.data.keys().hasOnly([
+             'name', 'path', 'contentType', 'width', 'height', 'animated',
+             'createdByUid', 'createdByName', 'createdAt'])
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdByName is string
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 40
+        // The file is named after the document, so a record cannot claim a
+        // picture somebody else uploaded.
+        && request.resource.data.path.matches('stickers/' + stickerId + '[.](webp|png|gif|jpeg)')
+        && request.resource.data.contentType is string
+        && request.resource.data.width is number
+        && request.resource.data.height is number
+        && request.resource.data.animated is bool;
+      allow update: if false;
+      allow delete: if isAllowedUser()
+        && (resource.data.createdByUid == request.auth.uid || can('chat.stickers.manage'));
+    }
+
+    // One person's favourite stickers and their folders. Self-service, for
+    // the same reason chatReads is: it says nothing about access, and the uid
+    // in the path is what stops anybody rearranging somebody else's. The
+    // sizes are capped so the document cannot be grown without bound.
+    // Keep in sync with ChatLibrary and the MAX_ numbers in src/types/sticker.ts.
+    match /chatLibraries/{uid} {
+      allow read, delete: if isAllowedUser() && request.auth.uid == uid;
+      allow create, update: if isAllowedUser() && request.auth.uid == uid
+        && request.resource.data.get('favorites', []) is list
+        && request.resource.data.get('favorites', []).size() <= 500
+        && request.resource.data.get('folders', []) is list
+        && request.resource.data.get('folders', []).size() <= 30;
     }
 
     // Every thread one person is in, kept as one document per thread at

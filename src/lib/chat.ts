@@ -38,6 +38,7 @@ import {
   MEMBER_EVENTS_COLLECTION,
   MESSAGES_COLLECTION,
   linksIn,
+  messageSummary,
   REPLIES_COLLECTION,
   THREAD_PAGE_SIZE,
   threadFollowers,
@@ -56,6 +57,7 @@ import {
   type SharedKind,
   type ThreadEntry,
 } from '@/types/conversation';
+import type { StickerRef } from '@/types/sticker';
 
 /**
  * Chat data access.
@@ -267,11 +269,12 @@ export async function sendMessage(
   mentions: string[] = [],
   replyTo: MessageQuote | null = null,
   attachments: Attachment[] = [],
+  sticker: StickerRef | null = null,
 ): Promise<void> {
   const body = text.trim();
-  // A photo on its own is a message. Only an empty box with nothing attached
-  // to it is not.
-  if (!body && attachments.length === 0) return;
+  // A photo or a sticker on its own is a message. Only an empty box with
+  // nothing attached to it is not.
+  if (!body && attachments.length === 0 && !sticker) return;
   if (body.length > MAX_MESSAGE_LENGTH) {
     throw new Error(`A message can be at most ${MAX_MESSAGE_LENGTH} characters.`);
   }
@@ -288,6 +291,10 @@ export async function sendMessage(
     editedAt:   null,
     mentions,
     attachments,
+    // Only when there is one. Written as a field only on sticker messages so
+    // every other message stays the shape it was, and so a client that has
+    // not been reloaded since this shipped writes exactly what it always did.
+    ...(sticker ? { sticker } : {}),
     reactions: {},
     // Worked out here rather than by anything watching the write: there is no
     // Cloud Function in this project, so a message not carrying its own words
@@ -317,7 +324,7 @@ export async function sendMessage(
     lastMessage: {
       // A photo with no caption still needs a preview line, or the conversation
       // list shows an empty row and reads as broken.
-      text:       body || attachments[0]?.name || '',
+      text:       messageSummary({ text: body, attachments, sticker }),
       senderUid:  sender.uid,
       senderName: sender.displayName,
       at:         serverTimestamp(),
@@ -353,10 +360,10 @@ export async function sendMessage(
  * file nobody named.
  */
 function rootLabel(
-  root: Pick<ChatMessage, 'text' | 'attachments' | 'deletedAt'>,
+  root: Pick<ChatMessage, 'text' | 'attachments' | 'sticker' | 'deletedAt'>,
 ): string {
   if (root.deletedAt) return 'Message deleted';
-  return (root.text || root.attachments?.[0]?.name || '').slice(0, 120);
+  return messageSummary(root).slice(0, 120);
 }
 
 /**
@@ -384,14 +391,16 @@ function rootLabel(
  */
 export async function sendThreadReply(
   conversationId: string,
-  root: Pick<ChatMessage, 'id' | 'text' | 'senderUid' | 'replyUids' | 'attachments' | 'deletedAt'>,
+  root: Pick<ChatMessage, 'id' | 'text' | 'senderUid' | 'replyUids' | 'attachments' | 'sticker' | 'deletedAt'>,
   text: string,
   sender: { uid: string; displayName: string },
   mentions: string[] = [],
   attachments: Attachment[] = [],
+  sticker: StickerRef | null = null,
 ): Promise<void> {
   const body = text.trim();
-  if (!body && attachments.length === 0) return;
+  if (!body && attachments.length === 0 && !sticker) return;
+  const summary = messageSummary({ text: body, attachments, sticker }).slice(0, 120);
   if (body.length > MAX_MESSAGE_LENGTH) {
     throw new Error(`A reply can be at most ${MAX_MESSAGE_LENGTH} characters.`);
   }
@@ -408,6 +417,7 @@ export async function sendThreadReply(
     editedAt:   null,
     mentions,
     attachments,
+    ...(sticker ? { sticker } : {}),
     reactions: {},
     // A reply is searched exactly like a message, which is most of why replies
     // live in a collection of their own — one query reaches every reply in a
@@ -447,7 +457,7 @@ export async function sendThreadReply(
         // Trimmed at the write rather than at render: this sits on a document
         // every member of the room reads, and it only has to fill one line of
         // a desktop notification.
-        text:     (body || attachments[0]?.name || '').slice(0, 120),
+        text:     summary,
         rootText: rootLabel(root),
         mention:  mentions.includes(uid),
       };
@@ -485,7 +495,7 @@ export async function sendThreadReply(
     lastReplyAt:     serverTimestamp(),
     lastReplyByUid:  sender.uid,
     lastReplyByName: sender.displayName,
-    lastReplyText:   (body || attachments[0]?.name || '').slice(0, 120),
+    lastReplyText:   summary,
   };
   for (const uid of [...followers, sender.uid]) {
     batch.set(
@@ -695,7 +705,7 @@ export async function toggleReaction(
  */
 export async function pinMessage(
   conversationId: string,
-  message: Pick<ChatMessage, 'id' | 'text' | 'senderUid' | 'senderName' | 'attachments' | 'rootId'>,
+  message: Pick<ChatMessage, 'id' | 'text' | 'senderUid' | 'senderName' | 'attachments' | 'sticker' | 'rootId'>,
   pinnedBy: { uid: string; displayName: string },
   alreadyPinned: number,
 ): Promise<void> {
@@ -708,7 +718,7 @@ export async function pinMessage(
     // A message may be nothing but a photo, so the file name is the label —
     // the same rule rootLabel follows, and for the same reason: an empty
     // string in a list reads as a message that was deleted.
-    text:         (message.text || message.attachments?.[0]?.name || '').slice(0, 200),
+    text:         messageSummary(message).slice(0, 200),
     senderUid:    message.senderUid,
     senderName:   message.senderName,
     pinnedByUid:  pinnedBy.uid,

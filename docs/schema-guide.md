@@ -1207,6 +1207,7 @@ People. It is the only key that reaches that room.
 | `mentions` | string[] | Uids named with an @ in this message |
 | `replyTo` | `MessageQuote \| null` | The message this one answers, quoted above it |
 | `attachments` | `Attachment[]` | Photos and files. A message may be nothing but these |
+| `sticker` | `StickerRef` | Present only on a sticker message, which has no text and no files. A copy of the sticker (`id`, `path`, `name`, `width`, `height`), not a lookup — see `stickers` below |
 | `reactions` | `{ [key]: uid[] }` | Who reacted with what. Keys are ASCII — see `reactionKeyFor()` |
 | `system` | boolean | Written by TTMS, not by a person — see below |
 
@@ -1556,6 +1557,63 @@ an interruption at the moment it lands rather than a list to be read back. It is
 needed for the same reason — nobody holds a listener on the replies of a thread
 they do not have open, so without a mark on the conversation the only person who
 could learn of an answer is the one already reading it.
+
+
+### `stickers/{stickerId}` and `chatLibraries/{uid}`
+
+WhatsApp-style stickers: a picture sent as a message of its own. Types and the
+reasoning are in `src/types/sticker.ts`; reads and writes in `src/lib/stickers.ts`.
+
+**`stickers/{stickerId}`** is the company set — one shelf everyone picks from.
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | 1–40 chars. What the picker's search matches |
+| `path` | string | `stickers/{stickerId}.{webp,png,gif}` — the rules require the file to be named after the document |
+| `contentType` | string | `image/webp` or `image/png` for a still, `image/gif` for an animated one |
+| `width` / `height` | number | After resizing. Copied onto each message so the thread can hold the space |
+| `animated` | boolean | A GIF, uploaded as it was so it still moves |
+| `createdByUid` / `createdByName` | string | Pinned to the caller by the rules |
+| `createdAt` | Timestamp | Pinned to `request.time` |
+
+Anyone may add one. Only the person who added it, or someone holding
+`chat.stickers.manage` (admin by default), may delete it. Nobody may edit one:
+a sticker whose picture changed under messages already sent would be a
+different sticker wearing the old one's id.
+
+**Deleting a sticker takes it off the shelf. It does not unsend it.** Each
+message carries its own copy (`sticker` above), and `storage.rules` allows no
+delete or overwrite under `stickers/`, so the picture goes on showing in every
+message it was sent in. A sticker that should not have been sent is taken back
+message by message, like anything else said in a room.
+
+Still pictures are resized in the browser to 512 px on the longest side and
+saved as WebP. GIFs cannot be resized there without losing the animation, so
+they go up unchanged. `storage.rules` caps the file at 2 MB and the type at
+WebP, PNG, GIF or JPEG — enforced there, unlike chat attachments, because
+nothing else shares the prefix.
+
+**`chatLibraries/{uid}`** is one person's arrangement of that shelf. Readable
+and writable by that person only. Absent until they first star something.
+
+| Field | Type | Notes |
+|---|---|---|
+| `favorites` | string[] | Items, newest first. At most 500 (rules) |
+| `folders` | `{ id, name, items: string[] }[]` | At most 30 (rules), 500 items each (browser) |
+| `updatedAt` | Timestamp | |
+
+An item is `s:<stickerId>`, a prefixed string rather than a bare id, so GIFs
+can join the same lists later as `g:<id>` without a migration. Anything that no
+longer resolves — a sticker since removed — is skipped on display and never
+cleaned up, because the person removing a sticker cannot write other people's
+libraries.
+
+A message's sticker counts as a **file** for a room's `policy.files`, in
+`maySay()` and in the composer: a room that has kept pictures to its admins
+has not asked for them to arrive by another door.
+
+No composite index: the shelf is read whole, ordered by `createdAt`, which the
+automatic single-field index covers.
 
 
 ## Collections: `celebrationReminderSettings`, `celebrationReminders`, `celebrationReminderRuns`

@@ -300,6 +300,9 @@ Changing one without the other creates a silent security hole:
 | `roomAllows()` + the `RoomPolicy` keys | `roomAllows()` — the keys and the `everyone` default, written out |
 | `isMuted()` / `mutedUntil` | `notMuted()` |
 | `containsLink()` in `src/types/conversation.ts` | the link pattern in `maySay()`, in RE2 |
+| `StickerRef` in `src/types/sticker.ts` | `stickerOk()` — the keys, the path pattern, the 40-char name |
+| `MAX_STICKER_BYTES` + the accepted types in `src/types/sticker.ts` | the `stickers/` block in `storage.rules` |
+| `MAX_LIBRARY_ITEMS` / `MAX_FOLDERS` in `src/types/sticker.ts` | the `chatLibraries` rule |
 
 The owner matcher is duplicated three ways for the same reason — plain node
 scripts cannot import TypeScript either:

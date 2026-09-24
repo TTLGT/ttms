@@ -30,6 +30,7 @@ import { can } from '@/lib/accessControl';
 import {
   isRoomAdmin,
   isThreadUnread,
+  messageSummary,
   postingBlock,
   roomAllows,
   type Attachment,
@@ -38,6 +39,7 @@ import {
   type MentionCandidate,
   type MessageQuote,
 } from '@/types/conversation';
+import type { StickerRef } from '@/types/sticker';
 
 /** How many messages a thread loads at a time. */
 const PAGE_SIZE = 200;
@@ -295,7 +297,9 @@ export default function MessageThread({ conversation }: { conversation: Conversa
   /** Snapshots a message as a quote. `from` is set only for a private reply. */
   const quoteOf = useCallback((m: ChatMessage): MessageQuote => ({
     messageId:  m.id,
-    text:       m.text,
+    // A photo or a sticker has no text to quote, and an empty quote reads as
+    // a deleted message.
+    text:       messageSummary(m),
     senderUid:  m.senderUid,
     senderName: m.senderName,
     fromConversationId:   null,
@@ -407,11 +411,14 @@ export default function MessageThread({ conversation }: { conversation: Conversa
     }
 
     if (mine) {
-      actions.push(
-        {
+      // A sticker has no words to correct. Taking it back is still offered.
+      if (!m.sticker) {
+        actions.push({
           key: 'edit', label: 'Edit', Icon: Pencil,
           onSelect: () => { setEditingId(m.id); setEditDraft(m.text); },
-        },
+        });
+      }
+      actions.push(
         {
           key: 'delete', label: 'Delete', Icon: Trash2, danger: true,
           onSelect: () => void deleteMessage(conversationId, m.id, {
@@ -551,12 +558,14 @@ export default function MessageThread({ conversation }: { conversation: Conversa
 
   /* -------------------------------------------------------------- sending */
 
-  async function handleSend(text: string, mentions: string[], attachments: Attachment[]) {
+  async function handleSend(
+    text: string, mentions: string[], attachments: Attachment[], sticker: StickerRef | null = null,
+  ) {
     const quote = replyingTo;
     setError('');
     setReplyingTo(null);
     try {
-      await sendMessage(conversationId, text, senderIdentity, mentions, quote, attachments);
+      await sendMessage(conversationId, text, senderIdentity, mentions, quote, attachments, sticker);
     } catch (e) {
       // Put the quote back with the draft, or the retry loses what it was
       // answering. The composer restores the rest of it off the throw.

@@ -1,13 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Lock, MicOff, Paperclip, Send, Smile, X } from 'lucide-react';
+import { Lock, MicOff, Paperclip, Send, Smile, Sticker as StickerIcon, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { discardAttachment, readableSize, uploadAttachment } from '@/lib/chatUploads';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import EmojiPicker from './EmojiPicker';
+import StickerPicker from './StickerPicker';
+import { stickerRefOf, type Sticker, type StickerRef } from '@/types/sticker';
 import {
   MAX_ATTACHMENT_BYTES,
   MAX_MESSAGE_LENGTH,
@@ -86,7 +88,13 @@ export default function MessageComposer({
   allowFiles?: boolean;
   /** Whether this room lets this person post a link. */
   allowLinks?: boolean;
-  onSend: (text: string, mentions: string[], attachments: Attachment[]) => Promise<void>;
+  /**
+   * `sticker` is set only for a sticker, which goes on its own the moment it
+   * is picked — with no text and no files, and without touching the draft.
+   */
+  onSend: (
+    text: string, mentions: string[], attachments: Attachment[], sticker?: StickerRef | null,
+  ) => Promise<void>;
 }) {
   const { user } = useAuth();
   const { profileOf } = useChat();
@@ -254,6 +262,30 @@ export default function MessageComposer({
     const at = start + glyph.length;
     window.requestAnimationFrame(() => el?.setSelectionRange(at, at));
   }, [draft]);
+
+  /* -------------------------------------------------------------- stickers */
+
+  const stickerButton = useRef<HTMLButtonElement>(null);
+  const [stickerAt, setStickerAt] = useState<DOMRect | null>(null);
+
+  /**
+   * Sends a sticker straight away, the way WhatsApp does — a sticker is a
+   * message on its own, never a caption's companion. Whatever is half-typed
+   * in the box stays exactly where it is.
+   */
+  async function sendSticker(sticker: Sticker) {
+    if (!allowFiles) {
+      setError('Only this room’s admins can send pictures here.');
+      return;
+    }
+    setError('');
+    try {
+      await onSend('', [], [], stickerRefOf(sticker));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'That sticker did not send.');
+    }
+    composer.current?.focus();
+  }
 
   /* --------------------------------------------------------------- sending */
 
@@ -498,6 +530,29 @@ export default function MessageComposer({
         >
           <Smile size={16} />
         </button>
+        {/* Gone rather than disabled where pictures are kept to admins, for the
+            same reason as the paperclip: a sticker is a picture, and the rules
+            treat it as one. */}
+        {allowFiles && (
+          <button
+            ref={stickerButton}
+            type="button"
+            onClick={() =>
+              setStickerAt((was) => (was ? null : stickerButton.current?.getBoundingClientRect() ?? null))
+            }
+            title="Stickers"
+            className="flex-shrink-0 rounded-lg p-2.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+          >
+            <StickerIcon size={16} />
+          </button>
+        )}
+        {stickerAt && (
+          <StickerPicker
+            anchor={stickerAt}
+            onPick={(s) => void sendSticker(s)}
+            onClose={() => setStickerAt(null)}
+          />
+        )}
         {emojiAt && (
           <EmojiPicker
             anchor={emojiAt}

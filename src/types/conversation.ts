@@ -1,4 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
+import type { StickerRef } from './sticker';
 
 /**
  * In-house chat between staff. Everyone on the allowlist can talk to everyone
@@ -496,6 +497,15 @@ export interface ChatMessage {
   replyTo?: MessageQuote | null;
   /** Photos and files sent with it. A message may be nothing but these. */
   attachments?: Attachment[];
+  /**
+   * A sticker, when that is what this message is. Always on its own — the
+   * composer sends it straight away, with no text and no files beside it.
+   *
+   * A copy rather than an id to look up: the sticker can be taken off the
+   * company shelf later, and the message must go on showing what was sent.
+   * See src/types/sticker.ts. Absent on everything else.
+   */
+  sticker?: StickerRef | null;
   /** Who reacted with what, as `{ [reactionKey]: uid[] }`. */
   reactions?: Record<string, string[]>;
   /**
@@ -575,6 +585,21 @@ export interface Attachment {
   size: number;
   /** Drawn inline rather than as a row with a paperclip. */
   isImage: boolean;
+}
+
+/**
+ * The one line that stands for a message where the message itself is not on
+ * screen — the conversation list, a notification, a pin, a quote.
+ *
+ * A message may be nothing but a photo or a sticker, and an empty string there
+ * reads as a deleted message, which it is not.
+ */
+export function messageSummary(
+  m: Pick<ChatMessage, 'text' | 'attachments' | 'sticker'>,
+): string {
+  if (m.text) return m.text;
+  if (m.sticker) return 'Sticker';
+  return m.attachments?.[0]?.name ?? '';
 }
 
 /** Biggest file we accept. Enforced in the browser — see the note in chatUploads. */

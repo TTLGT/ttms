@@ -181,6 +181,19 @@ export const PERMISSIONS = [
    */
   'chat.announce',
   /**
+   * Take any sticker off the company shelf, not only your own.
+   *
+   * Anybody can add a sticker and take back one they added — the Slack
+   * arrangement, which keeps the shelf growing without a queue in front of it.
+   * This is the other half of that bargain: somebody has to be able to remove
+   * the one that should not be there. Admin only by default (admin holds every
+   * permission), and grantable to anybody who looks after the chat.
+   *
+   * It removes a sticker from the picker. It does not unsend it from messages
+   * already sent — see src/types/sticker.ts.
+   */
+  'chat.stickers.manage',
+  /**
    * Edit the daily birthday and work-anniversary post, and switch it off.
    *
    * Its own permission rather than `settings.manage`, because the wording of a
@@ -294,6 +307,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     permissions: [
       { key: 'chat.use',       label: 'Use chat',            detail: 'Message colleagues. Everyone has this already.' },
       { key: 'chat.announce',  label: 'Post in the Everyone room', detail: 'Write to the whole company when that room is set to announcements only. Admin and HR have this already.' },
+      { key: 'chat.stickers.manage', label: 'Remove any sticker', detail: 'Take a sticker someone else added off the company set. Anyone can already remove their own.' },
       { key: 'celebrations.manage', label: 'Edit the celebrations message', detail: 'The wording of the daily birthday and work-anniversary post, and whether it is sent at all. Admin and HR have this already.' },
       { key: 'intern.section', label: 'See the intern area', detail: 'Their guide, their onboarding survey and their task list.' },
     ],

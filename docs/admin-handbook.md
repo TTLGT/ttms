@@ -752,6 +752,34 @@ The limit is **25 MB** per file. Anything bigger should go by email or a link.
 > risk — but it is the same as the BOLs and licences already in TTMS, and it is
 > the honest answer if anyone asks whether an attachment is truly private.
 
+### Stickers
+
+The sticker button beside the smiley opens the company's stickers. Click one to
+send it. It goes straight away as a message of its own, and anything you've
+half-typed stays in the box.
+
+**Making one.** Click **New**, choose a picture (or drop or paste one), give it a
+name people will search for, and click **Add sticker**. Pictures are shrunk to
+sticker size automatically. A GIF is kept as it is so it still moves, and can be
+up to 2 MB. Everyone at TTL can use a sticker as soon as it's added, and it
+goes straight into your favorites.
+
+**Keeping the ones you like.** Hover a sticker in the picker and click **⋯**, or
+click a sticker somebody sent you in a conversation. From there you can star it
+as a favorite, or put it in folders of your own ("Wins", "Monday", "Customers").
+Favorites and folders are yours alone. Nobody else sees how you've arranged
+them.
+
+**Removing one.** Whoever added a sticker can remove it from the company set,
+from the same **⋯** menu. Admins can remove anyone's; the **Remove any
+sticker** permission in Settings lets you hand that to somebody else.
+Removing a sticker stops it being offered. It does **not** unsend it from
+messages already sent. If one was sent that shouldn't have been, take that
+message back the usual way.
+
+In a room where only admins may attach files, only admins can send stickers
+too.
+
 ### Formatting a message
 
 The same marks as WhatsApp, so there is nothing new to learn:

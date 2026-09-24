@@ -87,6 +87,27 @@ service firebase.storage {
     // which Firestore gates on room membership, and every path carries a random
     // id so it cannot be walked. See the note at the top of src/lib/chatUploads.ts.
     match /chat/{allPaths=**}    { allow read, write: if isAllowedUser(); }
+
+    // Stickers. Keep in sync with src/types/sticker.ts.
+    //
+    // Readable by everybody who can sign in, because the whole point of the
+    // shelf is that everybody picks from it. Fetched one at a time only —
+    // no listing — so the bucket is not a second way to browse it.
+    //
+    // Written once and never again: no overwrite and no delete, for anybody.
+    // A message carries the path of the sticker it sent, so replacing or
+    // removing the file would change or blank a message somebody else sent.
+    // Taking a sticker off the shelf removes its Firestore record only.
+    //
+    // Unlike the chat prefix, the size and type are enforced here and not
+    // only in the browser: nothing else shares this prefix, so tightening it
+    // touches nothing else. 2 MB matches MAX_STICKER_BYTES.
+    match /stickers/{fileName} {
+      allow get: if isAllowedUser();
+      allow create: if isAllowedUser()
+        && request.resource.size <= 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/(webp|png|gif|jpeg)');
+    }
     match /avatars/{allPaths=**} { allow read, write: if isAllowedUser(); }
 
     // Everything else is denied by default. That is deliberate rather than an
