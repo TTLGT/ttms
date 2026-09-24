@@ -1022,7 +1022,7 @@ export default function OrderDetailPage() {
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Route</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-3">
-                <DetailRow label="Shipper" value={<><PartyLink id={order.shipperId} name={order.shipperName} /><PartyContact party={partyById[order.shipperId ?? '']} /></>} />
+                <DetailRow label="Shipper (Pick-Up Location)" value={<><PartyLink id={order.shipperId} name={order.shipperName} /><PartyContact party={partyById[order.shipperId ?? '']} /></>} />
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-1">Origin</p>
                   <p className="text-sm text-gray-900">
@@ -1031,7 +1031,7 @@ export default function OrderDetailPage() {
                 </div>
               </div>
               <div className="space-y-3">
-                <DetailRow label="Consignee" value={<><PartyLink id={order.consigneeId} name={order.consigneeName} /><PartyContact party={partyById[order.consigneeId ?? '']} /></>} />
+                <DetailRow label="Consignee (Delivery Location)" value={<><PartyLink id={order.consigneeId} name={order.consigneeName} /><PartyContact party={partyById[order.consigneeId ?? '']} /></>} />
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-1">Destination</p>
                   <p className="text-sm text-gray-900">
