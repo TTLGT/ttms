@@ -275,13 +275,11 @@ export default function EditOrderPage() {
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Shipment Info</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="col-span-1 sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Shipper and consignee sit in Route, above their addresses —
+                  same layout as the new-order form. */}
+              <div className="col-span-1 sm:col-span-2 sm:max-w-md">
                 <PartyCombobox role="client"    label="Client (signs the contract)" parties={parties}
                   value={client}    onChange={setClient}    onPartyCreated={cacheParty} required />
-                <PartyCombobox role="shipper"   label="Shipper (pickup)"           parties={parties}
-                  value={shipper}   onChange={setShipper}   onPartyCreated={cacheParty} />
-                <PartyCombobox role="consignee" label="Consignee (delivery)"       parties={parties}
-                  value={consignee} onChange={setConsignee} onPartyCreated={cacheParty} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">First Available Pickup</label>
@@ -325,8 +323,16 @@ export default function EditOrderPage() {
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
             <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Route</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <AddressFields label="Origin" value={origin} onChange={setOrigin} />
-              <AddressFields label="Destination" value={destination} onChange={setDest} />
+              <div className="space-y-4">
+                <PartyCombobox role="shipper"   label="Shipper (pickup)"     parties={parties}
+                  value={shipper}   onChange={setShipper}   onPartyCreated={cacheParty} />
+                <AddressFields label="Origin" value={origin} onChange={setOrigin} />
+              </div>
+              <div className="space-y-4">
+                <PartyCombobox role="consignee" label="Consignee (delivery)" parties={parties}
+                  value={consignee} onChange={setConsignee} onPartyCreated={cacheParty} />
+                <AddressFields label="Destination" value={destination} onChange={setDest} />
+              </div>
             </div>
             <RouteDistanceField
               origin={origin}

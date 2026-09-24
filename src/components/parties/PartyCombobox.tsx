@@ -8,6 +8,7 @@ import {
 import { partyDisplayName, toNameKey, toPhoneKey, looksLikePhone, ROLE_LABEL } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
 import PartyQuickCreate from './PartyQuickCreate';
+import PartyContact from './PartyContact';
 
 export interface PartySelection {
   id: string;
@@ -325,6 +326,10 @@ export default function PartyCombobox({
       {value.id && (
         <span className="absolute right-3 top-[30px] text-xs text-green-600" title="Linked to a saved record">✓</span>
       )}
+
+      {/* Shown once the box is bound to a record, so the broker can see there
+          is somewhere for the confirmation to go before saving the order. */}
+      {value.id && !collision && <PartyContact party={linked} />}
 
       {unsaved && !collision && (
         <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm">

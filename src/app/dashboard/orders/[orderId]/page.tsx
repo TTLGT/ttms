@@ -42,6 +42,9 @@ import { phoneRegionOf } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
 import type { DriverChoice } from '@/components/carriers/DriverPicker';
 import PartyLink from '@/components/parties/PartyLink';
+import PartyContact from '@/components/parties/PartyContact';
+import { getParty } from '@/lib/parties';
+import type { Party } from '@/types/party';
 import PersonNameFields from '@/components/PersonNameFields';
 import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload';
 import { useAuth } from '@/context/AuthContext';
@@ -176,6 +179,10 @@ export default function OrderDetailPage() {
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   const [suborders, setSuborders]   = useState<Order[]>([]);
   const [carriers, setCarriers]     = useState<Carrier[]>([]);
+  // The client, shipper and consignee records, keyed by id, for their phone
+  // and email. A record this reader may not open is simply absent: the name
+  // still shows and links to the profile, which names the owner to ask.
+  const [partyById, setPartyById]   = useState<Record<string, Party>>({});
   const [loading, setLoading]       = useState(true);
   const [advancing, setAdvancing]   = useState(false);
   const [splitting, setSplitting]   = useState(false);
@@ -308,6 +315,27 @@ export default function OrderDetailPage() {
     }
     load();
   }, [orderId, user]);
+
+  // Looked up by id rather than loaded with listParties(): three documents
+  // instead of every party this user can see. Keyed on the ids so an edit
+  // that swaps the consignee re-reads it. Each read goes through the same
+  // ownership check as the party page — seeing the load does not by itself
+  // entitle anyone to the client's contact details.
+  const clientId    = order?.clientId    ?? '';
+  const shipperId   = order?.shipperId   ?? '';
+  const consigneeId = order?.consigneeId ?? '';
+  useEffect(() => {
+    const ids = [...new Set([clientId, shipperId, consigneeId].filter(Boolean))];
+    if (!ids.length) { setPartyById({}); return; }
+    let cancelled = false;
+    Promise.all(ids.map((id) => getParty(id).catch(() => null))).then((results) => {
+      if (cancelled) return;
+      const next: Record<string, Party> = {};
+      for (const r of results) if (r?.status === 'ok') next[r.party.id] = r.party;
+      setPartyById(next);
+    });
+    return () => { cancelled = true; };
+  }, [clientId, shipperId, consigneeId]);
 
   /**
    * Fill in the distance for an order that has none — one created before this
@@ -949,9 +977,7 @@ export default function OrderDetailPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Shipment</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <DetailRow label="Client"    value={<PartyLink id={order.clientId}    name={order.clientName} />} />
-              <DetailRow label="Shipper"   value={<PartyLink id={order.shipperId}   name={order.shipperName} />} />
-              <DetailRow label="Consignee" value={<PartyLink id={order.consigneeId} name={order.consigneeName} />} />
+              <DetailRow label="Client"    value={<><PartyLink id={order.clientId}    name={order.clientName} /><PartyContact party={partyById[order.clientId ?? '']} /></>} />
               <DetailRow label="Pieces" value={order.pieces} />
               <DetailRow label="Weight" value={order.weight ? `${order.weight.toLocaleString()} lbs` : '—'} />
               <DetailRow label="Lead Source" value={leadSourceLabel(leadSources, order.sourceId, order.sourceName)} />
@@ -994,17 +1020,23 @@ export default function OrderDetailPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Route</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div>
-                <p className="text-xs font-medium text-gray-500 mb-1">Origin</p>
-                <p className="text-sm text-gray-900">
-                  {[order.origin?.street, order.origin?.city, order.origin?.state, order.origin?.zip].filter(Boolean).join(', ') || '—'}
-                </p>
+              <div className="space-y-3">
+                <DetailRow label="Shipper" value={<><PartyLink id={order.shipperId} name={order.shipperName} /><PartyContact party={partyById[order.shipperId ?? '']} /></>} />
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Origin</p>
+                  <p className="text-sm text-gray-900">
+                    {[order.origin?.street, order.origin?.city, order.origin?.state, order.origin?.zip].filter(Boolean).join(', ') || '—'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs font-medium text-gray-500 mb-1">Destination</p>
-                <p className="text-sm text-gray-900">
-                  {[order.destination?.street, order.destination?.city, order.destination?.state, order.destination?.zip].filter(Boolean).join(', ') || '—'}
-                </p>
+              <div className="space-y-3">
+                <DetailRow label="Consignee" value={<><PartyLink id={order.consigneeId} name={order.consigneeName} /><PartyContact party={partyById[order.consigneeId ?? '']} /></>} />
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-1">Destination</p>
+                  <p className="text-sm text-gray-900">
+                    {[order.destination?.street, order.destination?.city, order.destination?.state, order.destination?.zip].filter(Boolean).join(', ') || '—'}
+                  </p>
+                </div>
               </div>
             </div>
             {order.laneMiles !== null && order.laneMiles !== undefined ? (
