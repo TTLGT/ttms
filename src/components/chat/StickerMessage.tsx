@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { useStorageUrl } from '@/lib/useStorageUrl';
-import type { StickerRef } from '@/types/sticker';
+import { stickerItem, type StickerRef } from '@/types/sticker';
 import StickerLibraryMenu from './StickerLibraryMenu';
 
 /** Longest side of a sticker drawn in the thread. */
@@ -44,7 +44,7 @@ export default function StickerMessage({ sticker }: { sticker: StickerRef }) {
         )}
       </button>
       {menuAt && (
-        <StickerLibraryMenu stickerId={sticker.id} anchor={menuAt} onClose={() => setMenuAt(null)} />
+        <StickerLibraryMenu item={stickerItem(sticker.id)} anchor={menuAt} onClose={() => setMenuAt(null)} />
       )}
     </>
   );

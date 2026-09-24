@@ -39,6 +39,7 @@ import {
   MESSAGES_COLLECTION,
   linksIn,
   messageSummary,
+  type MessageMedia,
   REPLIES_COLLECTION,
   THREAD_PAGE_SIZE,
   threadFollowers,
@@ -57,7 +58,7 @@ import {
   type SharedKind,
   type ThreadEntry,
 } from '@/types/conversation';
-import type { StickerRef } from '@/types/sticker';
+import type { GifPage } from '@/types/gif';
 
 /**
  * Chat data access.
@@ -269,12 +270,13 @@ export async function sendMessage(
   mentions: string[] = [],
   replyTo: MessageQuote | null = null,
   attachments: Attachment[] = [],
-  sticker: StickerRef | null = null,
+  media: MessageMedia = {},
 ): Promise<void> {
   const body = text.trim();
-  // A photo or a sticker on its own is a message. Only an empty box with
-  // nothing attached to it is not.
-  if (!body && attachments.length === 0 && !sticker) return;
+  const { sticker = null, gif = null } = media;
+  // A photo, a sticker or a GIF on its own is a message. Only an empty box
+  // with nothing attached to it is not.
+  if (!body && attachments.length === 0 && !sticker && !gif) return;
   if (body.length > MAX_MESSAGE_LENGTH) {
     throw new Error(`A message can be at most ${MAX_MESSAGE_LENGTH} characters.`);
   }
@@ -295,6 +297,7 @@ export async function sendMessage(
     // every other message stays the shape it was, and so a client that has
     // not been reloaded since this shipped writes exactly what it always did.
     ...(sticker ? { sticker } : {}),
+    ...(gif ? { gif } : {}),
     reactions: {},
     // Worked out here rather than by anything watching the write: there is no
     // Cloud Function in this project, so a message not carrying its own words
@@ -324,7 +327,7 @@ export async function sendMessage(
     lastMessage: {
       // A photo with no caption still needs a preview line, or the conversation
       // list shows an empty row and reads as broken.
-      text:       messageSummary({ text: body, attachments, sticker }),
+      text:       messageSummary({ text: body, attachments, sticker, gif }),
       senderUid:  sender.uid,
       senderName: sender.displayName,
       at:         serverTimestamp(),
@@ -360,7 +363,7 @@ export async function sendMessage(
  * file nobody named.
  */
 function rootLabel(
-  root: Pick<ChatMessage, 'text' | 'attachments' | 'sticker' | 'deletedAt'>,
+  root: Pick<ChatMessage, 'text' | 'attachments' | 'sticker' | 'gif' | 'deletedAt'>,
 ): string {
   if (root.deletedAt) return 'Message deleted';
   return messageSummary(root).slice(0, 120);
@@ -391,16 +394,17 @@ function rootLabel(
  */
 export async function sendThreadReply(
   conversationId: string,
-  root: Pick<ChatMessage, 'id' | 'text' | 'senderUid' | 'replyUids' | 'attachments' | 'sticker' | 'deletedAt'>,
+  root: Pick<ChatMessage, 'id' | 'text' | 'senderUid' | 'replyUids' | 'attachments' | 'sticker' | 'gif' | 'deletedAt'>,
   text: string,
   sender: { uid: string; displayName: string },
   mentions: string[] = [],
   attachments: Attachment[] = [],
-  sticker: StickerRef | null = null,
+  media: MessageMedia = {},
 ): Promise<void> {
   const body = text.trim();
-  if (!body && attachments.length === 0 && !sticker) return;
-  const summary = messageSummary({ text: body, attachments, sticker }).slice(0, 120);
+  const { sticker = null, gif = null } = media;
+  if (!body && attachments.length === 0 && !sticker && !gif) return;
+  const summary = messageSummary({ text: body, attachments, sticker, gif }).slice(0, 120);
   if (body.length > MAX_MESSAGE_LENGTH) {
     throw new Error(`A reply can be at most ${MAX_MESSAGE_LENGTH} characters.`);
   }
@@ -418,6 +422,7 @@ export async function sendThreadReply(
     mentions,
     attachments,
     ...(sticker ? { sticker } : {}),
+    ...(gif ? { gif } : {}),
     reactions: {},
     // A reply is searched exactly like a message, which is most of why replies
     // live in a collection of their own — one query reaches every reply in a
@@ -705,7 +710,7 @@ export async function toggleReaction(
  */
 export async function pinMessage(
   conversationId: string,
-  message: Pick<ChatMessage, 'id' | 'text' | 'senderUid' | 'senderName' | 'attachments' | 'sticker' | 'rootId'>,
+  message: Pick<ChatMessage, 'id' | 'text' | 'senderUid' | 'senderName' | 'attachments' | 'sticker' | 'gif' | 'rootId'>,
   pinnedBy: { uid: string; displayName: string },
   alreadyPinned: number,
 ): Promise<void> {
@@ -1183,6 +1188,18 @@ export async function searchChat(text: string): Promise<ChatSearchResult> {
     headers: await authHeaders(),
   });
   return unwrap<ChatSearchResult>(res);
+}
+
+/**
+ * GIFs from Klipy: a search, or the trending page when `q` is empty. Goes
+ * through our own route so the Klipy key stays on the server — see
+ * src/lib/klipy.ts.
+ */
+export async function searchGifs(q: string, page = 1): Promise<GifPage> {
+  const params = new URLSearchParams({ page: String(page) });
+  if (q.trim()) params.set('q', q.trim());
+  const res = await fetch(`/api/chat/gifs?${params}`, { headers: await authHeaders() });
+  return unwrap<GifPage>(res);
 }
 
 /**

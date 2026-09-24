@@ -1208,6 +1208,7 @@ People. It is the only key that reaches that room.
 | `replyTo` | `MessageQuote \| null` | The message this one answers, quoted above it |
 | `attachments` | `Attachment[]` | Photos and files. A message may be nothing but these |
 | `sticker` | `StickerRef` | Present only on a sticker message, which has no text and no files. A copy of the sticker (`id`, `path`, `name`, `width`, `height`), not a lookup — see `stickers` below |
+| `gif` | `GifRef` | Present only on a GIF message, likewise on its own. Klipy's slug, title, the shown and preview addresses, and the size. The rules require both addresses to be on `klipy.com` — see GIFs below |
 | `reactions` | `{ [key]: uid[] }` | Who reacted with what. Keys are ASCII — see `reactionKeyFor()` |
 | `system` | boolean | Written by TTMS, not by a person — see below |
 
@@ -1600,13 +1601,13 @@ and writable by that person only. Absent until they first star something.
 |---|---|---|
 | `favorites` | string[] | Items, newest first. At most 500 (rules) |
 | `folders` | `{ id, name, items: string[] }[]` | At most 30 (rules), 500 items each (browser) |
+| `gifs` | `{ [slug]: GifRef }` | The details of every GIF the lists name, so the picker can draw favorites without asking Klipy. At most 1000 (rules). Dropped when nothing names it |
 | `updatedAt` | Timestamp | |
 
-An item is `s:<stickerId>`, a prefixed string rather than a bare id, so GIFs
-can join the same lists later as `g:<id>` without a migration. Anything that no
-longer resolves — a sticker since removed — is skipped on display and never
-cleaned up, because the person removing a sticker cannot write other people's
-libraries.
+An item is `s:<stickerId>` for a sticker or `g:<klipySlug>` for a GIF, so one
+list holds both. Anything that no longer resolves — a sticker since removed — is
+skipped on display and never cleaned up, because the person removing a sticker
+cannot write other people's libraries.
 
 A message's sticker counts as a **file** for a room's `policy.files`, in
 `maySay()` and in the composer: a room that has kept pictures to its admins
@@ -1614,6 +1615,16 @@ has not asked for them to arrive by another door.
 
 No composite index: the shelf is read whole, ordered by `createdAt`, which the
 automatic single-field index covers.
+
+**GIFs** come from Klipy and are not stored in Firestore or Storage at all. The
+picker asks `GET /api/chat/gifs` (guarded by `requireCompanyUser`), which calls
+Klipy with `KLIPY_API_KEY` from the server so the key never reaches a browser;
+`src/lib/klipy.ts` holds the call, a ten-minute in-memory cache, and the
+strictest `content_filter`. No `customer_id` is sent. A message keeps Klipy's
+address rather than a copy, so a GIF Klipy removes stops showing and the
+message falls back to its title. Klipy adverts (`type: "ad"` items) are dropped
+server-side and never rendered. A GIF counts as a file for `policy.files`, the
+same as a sticker.
 
 
 ## Collections: `celebrationReminderSettings`, `celebrationReminders`, `celebrationReminderRuns`

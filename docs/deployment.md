@@ -179,6 +179,9 @@ Two of these have a catch:
 - **`GOOGLE_MAPS_API_KEY`** — leave it out entirely, unless someone has decided
   to pay per lookup for exact mileage. Without it TTMS uses its free built-in
   estimate, which is the intended default.
+- **`KLIPY_API_KEY`** — optional and free; it turns on GIF search in chat. It is
+  read by the server only, so it takes effect after the next deploy (Deployments →
+  "..." → **Redeploy**) but does not need a rebuild of anything else.
 
 > **Why the order matters.** Anything whose name starts `NEXT_PUBLIC_` is
 > stamped into the site when it is *built*, not read while it runs. If you add

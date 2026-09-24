@@ -772,13 +772,15 @@ service cloud.firestore {
     // a full-string match and `.` does not cross a newline in RE2 — a link on
     // the second line of a message would otherwise walk straight through.
     //
-    // A sticker counts as a file here. It is a picture landing in the room, and
-    // a room whose admins have kept pictures to themselves has not asked for
-    // them to arrive by another door.
+    // A sticker or a GIF counts as a file here. It is a picture landing in the
+    // room, and a room whose admins have kept pictures to themselves has not
+    // asked for them to arrive by another door.
     function maySay(convData, data) {
       return notMuted(convData)
         && roomAllows(convData, 'post')
-        && ((data.get('attachments', []).size() == 0 && data.get('sticker', null) == null)
+        && ((data.get('attachments', []).size() == 0
+              && data.get('sticker', null) == null
+              && data.get('gif', null) == null)
             || roomAllows(convData, 'files'))
         && (
           roomAllows(convData, 'links')
@@ -804,6 +806,30 @@ service cloud.firestore {
           && data.sticker.name.size() <= 40
           && data.sticker.width is number
           && data.sticker.height is number
+        );
+    }
+
+    // The GIF a message carries, when it carries one. Keep in sync with GifRef
+    // and isKlipyUrl() in src/types/gif.ts.
+    //
+    // Both addresses must be Klipy's. A GIF is loaded straight from wherever
+    // its address points, by everybody who reads the message, so a "GIF" at
+    // an address somebody controls would tell them who read it and when.
+    function gifOk(data) {
+      return data.get('gif', null) == null
+        || (
+          data.gif is map
+          && data.gif.keys().hasOnly(['id', 'title', 'url', 'width', 'height', 'previewUrl'])
+          && data.gif.id is string
+          && data.gif.id.size() <= 200
+          && data.gif.title is string
+          && data.gif.title.size() <= 120
+          && data.gif.url is string
+          && data.gif.url.matches('https://([a-z0-9-]+[.])*klipy[.]com/.*')
+          && data.gif.previewUrl is string
+          && data.gif.previewUrl.matches('https://([a-z0-9-]+[.])*klipy[.]com/.*')
+          && data.gif.width is number
+          && data.gif.height is number
         );
     }
 
@@ -975,12 +1001,14 @@ service cloud.firestore {
           && request.resource.data.senderUid == request.auth.uid
           && request.resource.data.text is string
           && request.resource.data.text.size() <= 4000
-          // A photo or a sticker on its own is a message. Only an empty box
+          // A photo, a sticker or a GIF on its own is a message. Only an empty box
           // with nothing attached to it is not, which is what this enforces.
           && (request.resource.data.text.size() > 0
               || request.resource.data.get('attachments', []).size() > 0
-              || request.resource.data.get('sticker', null) != null)
+              || request.resource.data.get('sticker', null) != null
+              || request.resource.data.get('gif', null) != null)
           && stickerOk(request.resource.data)
+          && gifOk(request.resource.data)
           && request.resource.data.senderName is string
           && request.resource.data.createdAt == request.time
           // Defaulted, so a message written without the field still passes.
@@ -1137,8 +1165,10 @@ service cloud.firestore {
           && request.resource.data.text.size() <= 4000
           && (request.resource.data.text.size() > 0
               || request.resource.data.get('attachments', []).size() > 0
-              || request.resource.data.get('sticker', null) != null)
+              || request.resource.data.get('sticker', null) != null
+              || request.resource.data.get('gif', null) != null)
           && stickerOk(request.resource.data)
+          && gifOk(request.resource.data)
           && request.resource.data.senderName is string
           && request.resource.data.createdAt == request.time
           && request.resource.data.get('mentions', []) is list
@@ -1285,7 +1315,10 @@ service cloud.firestore {
         && request.resource.data.get('favorites', []) is list
         && request.resource.data.get('favorites', []).size() <= 500
         && request.resource.data.get('folders', []) is list
-        && request.resource.data.get('folders', []).size() <= 30;
+        && request.resource.data.get('folders', []).size() <= 30
+        // The saved GIFs' details, by slug. MAX_LIBRARY_GIFS.
+        && request.resource.data.get('gifs', {}) is map
+        && request.resource.data.get('gifs', {}).size() <= 1000;
     }
 
     // Every thread one person is in, kept as one document per thread at

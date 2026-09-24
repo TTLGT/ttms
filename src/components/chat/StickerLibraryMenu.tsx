@@ -6,28 +6,33 @@ import { useAuth } from '@/context/AuthContext';
 import {
   createFolder, removeSticker, setFavorite, setInFolder, useChatLibrary,
 } from '@/lib/stickers';
-import { MAX_FOLDER_NAME, stickerItem } from '@/types/sticker';
+import { MAX_FOLDER_NAME, stickerIdOf } from '@/types/sticker';
+import type { GifRef } from '@/types/gif';
 
 /**
- * Where one sticker is kept: starred or not, which folders it is in, and — for
- * whoever added it or holds `chat.stickers.manage` — taking it off the
- * company set.
+ * Where one sticker or GIF is kept: starred or not, which folders it is in,
+ * and — for a sticker, to whoever added it or holds `chat.stickers.manage` —
+ * taking it off the company set.
  *
- * The same menu whether it is opened from a tile in the picker or from a
- * sticker somebody sent, which is how "I want that one" works: click the
- * sticker in the thread, star it.
+ * The same menu whether it is opened from a tile in the picker or from
+ * something somebody sent, which is how "I want that one" works: click it in
+ * the thread, star it.
  *
  * Positioned against the viewport like every other popover in chat, for the
  * same reason: the thread and the popup both clip.
  */
 export default function StickerLibraryMenu({
-  stickerId,
+  item,
+  gif,
   anchor,
   onClose,
   canRemove = false,
   onRemoved,
 }: {
-  stickerId: string;
+  /** `s:<stickerId>` or `g:<slug>` — see LibraryItem. */
+  item: string;
+  /** Required for a GIF: its details are saved beside the lists. */
+  gif?: GifRef;
   anchor: DOMRect;
   onClose: () => void;
   canRemove?: boolean;
@@ -36,7 +41,7 @@ export default function StickerLibraryMenu({
   const { user } = useAuth();
   const uid = user?.uid ?? '';
   const library = useChatLibrary(uid);
-  const item = stickerItem(stickerId);
+  const stickerId = stickerIdOf(item);
 
   const box = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<{ left: number; top: number } | null>(null);
@@ -84,7 +89,7 @@ export default function StickerLibraryMenu({
       >
         <button
           type="button"
-          onClick={() => run(setFavorite(uid, item, !starred), 'That did not save.')}
+          onClick={() => run(setFavorite(uid, item, !starred, gif), 'That did not save.')}
           className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-gray-700 transition hover:bg-gray-50"
         >
           <Star size={15} className={starred ? 'fill-amber-400 text-amber-500' : 'text-gray-400'} />
@@ -104,7 +109,7 @@ export default function StickerLibraryMenu({
               <button
                 key={f.id}
                 type="button"
-                onClick={() => run(setInFolder(uid, f.id, item, !inIt), 'That did not save.')}
+                onClick={() => run(setInFolder(uid, f.id, item, !inIt, gif), 'That did not save.')}
                 className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-gray-700 transition hover:bg-gray-50"
               >
                 <span className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${
@@ -124,7 +129,7 @@ export default function StickerLibraryMenu({
             onSubmit={(e) => {
               e.preventDefault();
               run(
-                createFolder(uid, folderName, item).then(() => { setNaming(false); setFolderName(''); }),
+                createFolder(uid, folderName, item, gif).then(() => { setNaming(false); setFolderName(''); }),
                 'That folder did not save.',
               );
             }}
@@ -152,11 +157,11 @@ export default function StickerLibraryMenu({
             className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-gray-700 transition hover:bg-gray-50"
           >
             <FolderPlus size={15} className="text-gray-400" />
-            New folder with this sticker
+            New folder with this {gif ? 'GIF' : 'sticker'}
           </button>
         )}
 
-        {canRemove && (
+        {canRemove && stickerId && (
           <button
             type="button"
             onClick={() => {

@@ -1,4 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
+import type { GifRef } from './gif';
 
 /**
  * Stickers — a picture sent as a message of its own, the WhatsApp kind.
@@ -85,21 +86,28 @@ export function stickerRefOf(s: Sticker): StickerRef {
 /* ---------------------------------------------------------------- library */
 
 /**
- * An entry in somebody's favourites or folders.
- *
- * A prefixed string rather than a bare sticker id so the same lists can hold
- * GIFs when those arrive (`g:<id>`), without a migration of everything saved
- * before then. Only `s:` exists today.
+ * An entry in somebody's favourites or folders: `s:<stickerId>` for a sticker,
+ * `g:<klipySlug>` for a GIF. One list holds both, so a folder called "Wins"
+ * can have a sticker and a GIF side by side.
  */
-export type LibraryItem = `s:${string}`;
+export type LibraryItem = `s:${string}` | `g:${string}`;
 
 export function stickerItem(stickerId: string): LibraryItem {
   return `s:${stickerId}`;
 }
 
-/** The sticker id inside an item, or null for a kind this build does not know. */
+export function gifItem(slug: string): LibraryItem {
+  return `g:${slug}`;
+}
+
+/** The sticker id inside an item, or null when it is not a sticker. */
 export function stickerIdOf(item: string): string | null {
   return item.startsWith('s:') ? item.slice(2) : null;
+}
+
+/** The GIF slug inside an item, or null when it is not a GIF. */
+export function gifSlugOf(item: string): string | null {
+  return item.startsWith('g:') ? item.slice(2) : null;
 }
 
 export interface LibraryFolder {
@@ -113,6 +121,16 @@ export interface LibraryFolder {
 export interface ChatLibrary {
   favorites: string[];
   folders: LibraryFolder[];
+  /**
+   * Every GIF named in the lists above, by slug. A sticker can be looked up on
+   * the shelf; a GIF lives at Klipy, and asking Klipy for each favourite every
+   * time the picker opened would spend the hourly quota on showing people what
+   * they already chose. Removed once nothing names it any more.
+   */
+  gifs: Record<string, GifRef>;
 }
 
-export const EMPTY_LIBRARY: ChatLibrary = { favorites: [], folders: [] };
+export const EMPTY_LIBRARY: ChatLibrary = { favorites: [], folders: [], gifs: {} };
+
+/** At most this many GIFs remembered. Checked again by the rules. */
+export const MAX_LIBRARY_GIFS = 1000;

@@ -35,11 +35,11 @@ import {
   roomAllows,
   type Attachment,
   type ChatMessage,
+  type MessageMedia,
   type Conversation,
   type MentionCandidate,
   type MessageQuote,
 } from '@/types/conversation';
-import type { StickerRef } from '@/types/sticker';
 
 /** How many messages a thread loads at a time. */
 const PAGE_SIZE = 200;
@@ -411,8 +411,8 @@ export default function MessageThread({ conversation }: { conversation: Conversa
     }
 
     if (mine) {
-      // A sticker has no words to correct. Taking it back is still offered.
-      if (!m.sticker) {
+      // A sticker or a GIF has no words to correct. Taking it back is still offered.
+      if (!m.sticker && !m.gif) {
         actions.push({
           key: 'edit', label: 'Edit', Icon: Pencil,
           onSelect: () => { setEditingId(m.id); setEditDraft(m.text); },
@@ -559,13 +559,13 @@ export default function MessageThread({ conversation }: { conversation: Conversa
   /* -------------------------------------------------------------- sending */
 
   async function handleSend(
-    text: string, mentions: string[], attachments: Attachment[], sticker: StickerRef | null = null,
+    text: string, mentions: string[], attachments: Attachment[], media: MessageMedia = {},
   ) {
     const quote = replyingTo;
     setError('');
     setReplyingTo(null);
     try {
-      await sendMessage(conversationId, text, senderIdentity, mentions, quote, attachments, sticker);
+      await sendMessage(conversationId, text, senderIdentity, mentions, quote, attachments, media);
     } catch (e) {
       // Put the quote back with the draft, or the retry loses what it was
       // answering. The composer restores the rest of it off the throw.

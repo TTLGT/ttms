@@ -5,6 +5,7 @@ import {
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDocs,
   onSnapshot,
@@ -21,6 +22,9 @@ import { readableSize } from './chatUploads';
 import {
   CHAT_LIBRARIES_COLLECTION,
   EMPTY_LIBRARY,
+  gifSlugOf,
+  MAX_LIBRARY_GIFS,
+  stickerItem,
   MAX_FOLDER_NAME,
   MAX_FOLDERS,
   MAX_LIBRARY_ITEMS,
@@ -33,6 +37,7 @@ import {
   type LibraryFolder,
   type Sticker,
 } from '@/types/sticker';
+import type { GifRef } from '@/types/gif';
 
 /**
  * Stickers: the company shelf, adding to it, and each person's own favourites
@@ -243,6 +248,7 @@ export function watchLibrary(uid: string, onChange: (lib: ChatLibrary) => void):
       libraryValue = {
         favorites: Array.isArray(d?.favorites) ? d.favorites : [],
         folders:   Array.isArray(d?.folders) ? d.folders : [],
+        gifs:      d?.gifs && typeof d.gifs === 'object' ? d.gifs : {},
       };
       libraryListeners.forEach((fn) => fn(libraryValue));
     },
@@ -268,16 +274,54 @@ export function useChatLibrary(uid: string | null | undefined): ChatLibrary {
 }
 
 /**
+ * Whether anything in the library still names `item` once `change` is made —
+ * which decides whether a GIF's details are kept beside the lists or dropped.
+ */
+function stillNamed(item: string, favorites: string[], folders: LibraryFolder[]): boolean {
+  return favorites.includes(item) || folders.some((f) => f.items.includes(item));
+}
+
+/**
+ * The part of a write that keeps `gifs` in step with the lists: the GIF's
+ * details added when it is saved, removed once nothing names it any more.
+ * Nothing for a sticker, which is looked up on the shelf instead.
+ */
+function gifPatch(
+  item: string,
+  gif: GifRef | undefined,
+  named: boolean,
+): Record<string, unknown> {
+  const slug = gifSlugOf(item);
+  if (!slug) return {};
+  if (named) {
+    if (!gif) return {};
+    if (!(slug in libraryValue.gifs) && Object.keys(libraryValue.gifs).length >= MAX_LIBRARY_GIFS) {
+      throw new Error(`You can keep ${MAX_LIBRARY_GIFS} GIFs. Remove some first.`);
+    }
+    return { gifs: { [slug]: gif } };
+  }
+  return { gifs: { [slug]: deleteField() } };
+}
+
+/**
  * Stars or un-stars something. `arrayUnion` / `arrayRemove`, not a read and
  * a put back, so starring in two tabs at once does not lose one of them.
+ * `gif` is required when starring a GIF — it is what the picker draws later.
  */
-export async function setFavorite(uid: string, item: string, on: boolean): Promise<void> {
+export async function setFavorite(uid: string, item: string, on: boolean, gif?: GifRef): Promise<void> {
   if (on && libraryValue.favorites.length >= MAX_LIBRARY_ITEMS) {
     throw new Error(`You can keep ${MAX_LIBRARY_ITEMS} favorites. Remove one first.`);
   }
+  const favorites = on
+    ? [item, ...libraryValue.favorites.filter((i) => i !== item)]
+    : libraryValue.favorites.filter((i) => i !== item);
   await setDoc(
     libraryRef(uid),
-    { favorites: on ? arrayUnion(item) : arrayRemove(item), updatedAt: serverTimestamp() },
+    {
+      favorites: on ? arrayUnion(item) : arrayRemove(item),
+      ...gifPatch(item, gif, stillNamed(item, favorites, libraryValue.folders)),
+      updatedAt: serverTimestamp(),
+    },
     { merge: true },
   );
 }
@@ -288,9 +332,16 @@ export async function setFavorite(uid: string, item: string, on: boolean): Promi
  * person they belong to — the worst a race can do is lose a click made in
  * another tab at the same instant.
  */
-async function writeFolders(uid: string, change: (folders: LibraryFolder[]) => LibraryFolder[]) {
+async function writeFolders(
+  uid: string,
+  change: (folders: LibraryFolder[]) => LibraryFolder[],
+  touched?: { item: string; gif?: GifRef },
+) {
   const folders = change(libraryValue.folders.map((f) => ({ ...f, items: [...f.items] })));
-  await setDoc(libraryRef(uid), { folders, updatedAt: serverTimestamp() }, { merge: true });
+  const gifs = touched
+    ? gifPatch(touched.item, touched.gif, stillNamed(touched.item, libraryValue.favorites, folders))
+    : {};
+  await setDoc(libraryRef(uid), { folders, ...gifs, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 function cleanFolderName(name: string): string {
@@ -299,15 +350,24 @@ function cleanFolderName(name: string): string {
   return clean;
 }
 
-export async function createFolder(uid: string, name: string, firstItem?: string): Promise<void> {
+export async function createFolder(
+  uid: string,
+  name: string,
+  firstItem?: string,
+  gif?: GifRef,
+): Promise<void> {
   const clean = cleanFolderName(name);
   if (libraryValue.folders.length >= MAX_FOLDERS) {
     throw new Error(`You can have ${MAX_FOLDERS} folders. Delete one first.`);
   }
-  await writeFolders(uid, (folders) => [
-    ...folders,
-    { id: crypto.randomUUID(), name: clean, items: firstItem ? [firstItem] : [] },
-  ]);
+  await writeFolders(
+    uid,
+    (folders) => [
+      ...folders,
+      { id: crypto.randomUUID(), name: clean, items: firstItem ? [firstItem] : [] },
+    ],
+    firstItem ? { item: firstItem, gif } : undefined,
+  );
 }
 
 export async function renameFolder(uid: string, folderId: string, name: string): Promise<void> {
@@ -316,7 +376,12 @@ export async function renameFolder(uid: string, folderId: string, name: string):
     folders.map((f) => (f.id === folderId ? { ...f, name: clean } : f)));
 }
 
-/** Deletes the folder only. Whatever was in it stays on the shelf. */
+/**
+ * Deletes the folder only. Stickers stay on the shelf and anything also
+ * starred stays starred. A GIF that was only in this folder is left in
+ * `gifs` — tidied the next time it is saved or unsaved anywhere — rather than
+ * worked out here item by item; a few spare entries cost nothing.
+ */
 export async function deleteFolder(uid: string, folderId: string): Promise<void> {
   await writeFolders(uid, (folders) => folders.filter((f) => f.id !== folderId));
 }
@@ -326,40 +391,64 @@ export async function setInFolder(
   folderId: string,
   item: string,
   on: boolean,
+  gif?: GifRef,
 ): Promise<void> {
   const folder = libraryValue.folders.find((f) => f.id === folderId);
   if (on && folder && folder.items.length >= MAX_LIBRARY_ITEMS) {
-    throw new Error(`A folder can hold ${MAX_LIBRARY_ITEMS} stickers.`);
+    throw new Error(`A folder can hold ${MAX_LIBRARY_ITEMS} items.`);
   }
-  await writeFolders(uid, (folders) =>
-    folders.map((f) => {
+  await writeFolders(
+    uid,
+    (folders) => folders.map((f) => {
       if (f.id !== folderId) return f;
       const rest = f.items.filter((i) => i !== item);
       // Newest first, the same order as favourites and the shelf.
       return { ...f, items: on ? [item, ...rest] : rest };
-    }));
+    }),
+    { item, gif },
+  );
 }
 
 /* ------------------------------------------------------------------ recent */
 
-/* Kept in the browser, like recent emoji — one person's habit on one machine. */
-const RECENT_KEY = 'ttms.stickers.recent';
-const MAX_RECENT = 16;
+/*
+ * Kept in the browser, like recent emoji — one person's habit on one machine.
+ * A GIF is remembered with its details, for the same reason `gifs` exists on
+ * the library: nothing else could draw it without asking Klipy again.
+ */
+const RECENT_KEY = 'ttms.chat.recentMedia';
+/** Where recent stickers were kept before GIFs existed. Read once, then left. */
+const OLD_RECENT_KEY = 'ttms.stickers.recent';
+const MAX_RECENT = 24;
 
-export function recentStickerIds(): string[] {
+export interface RecentEntry {
+  item: string;
+  gif?: GifRef;
+}
+
+export function recentMedia(): RecentEntry[] {
   try {
-    const raw = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
-    return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
+    const raw = localStorage.getItem(RECENT_KEY);
+    if (raw === null) {
+      const old = JSON.parse(localStorage.getItem(OLD_RECENT_KEY) ?? '[]');
+      return Array.isArray(old)
+        ? old.filter((x): x is string => typeof x === 'string').map((id) => ({ item: stickerItem(id) }))
+        : [];
+    }
+    const list = JSON.parse(raw);
+    return Array.isArray(list)
+      ? list.filter((x): x is RecentEntry => !!x && typeof x.item === 'string')
+      : [];
   } catch {
     return [];
   }
 }
 
-export function rememberSticker(id: string): void {
+export function rememberMedia(entry: RecentEntry): void {
   try {
-    const next = [id, ...recentStickerIds().filter((x) => x !== id)].slice(0, MAX_RECENT);
+    const next = [entry, ...recentMedia().filter((x) => x.item !== entry.item)].slice(0, MAX_RECENT);
     localStorage.setItem(RECENT_KEY, JSON.stringify(next));
   } catch {
-    // Not remembered; the sticker was still sent.
+    // Not remembered; it was still sent.
   }
 }

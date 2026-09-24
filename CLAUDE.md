@@ -302,7 +302,8 @@ Changing one without the other creates a silent security hole:
 | `containsLink()` in `src/types/conversation.ts` | the link pattern in `maySay()`, in RE2 |
 | `StickerRef` in `src/types/sticker.ts` | `stickerOk()` — the keys, the path pattern, the 40-char name |
 | `MAX_STICKER_BYTES` + the accepted types in `src/types/sticker.ts` | the `stickers/` block in `storage.rules` |
-| `MAX_LIBRARY_ITEMS` / `MAX_FOLDERS` in `src/types/sticker.ts` | the `chatLibraries` rule |
+| `MAX_LIBRARY_ITEMS` / `MAX_FOLDERS` / `MAX_LIBRARY_GIFS` in `src/types/sticker.ts` | the `chatLibraries` rule |
+| `GifRef` + `isKlipyUrl()` in `src/types/gif.ts` | `gifOk()` — the keys, the Klipy-host pattern, the lengths |
 
 The owner matcher is duplicated three ways for the same reason — plain node
 scripts cannot import TypeScript either:

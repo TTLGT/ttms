@@ -9,7 +9,8 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import EmojiPicker from './EmojiPicker';
 import StickerPicker from './StickerPicker';
-import { stickerRefOf, type Sticker, type StickerRef } from '@/types/sticker';
+import { stickerRefOf, type Sticker } from '@/types/sticker';
+import type { GifRef } from '@/types/gif';
 import {
   MAX_ATTACHMENT_BYTES,
   MAX_MESSAGE_LENGTH,
@@ -17,6 +18,7 @@ import {
   findMentions,
   type Attachment,
   type MentionCandidate,
+  type MessageMedia,
   type MessageQuote,
   type PostingBlock,
 } from '@/types/conversation';
@@ -89,11 +91,12 @@ export default function MessageComposer({
   /** Whether this room lets this person post a link. */
   allowLinks?: boolean;
   /**
-   * `sticker` is set only for a sticker, which goes on its own the moment it
-   * is picked — with no text and no files, and without touching the draft.
+   * `media` is set only for a sticker or a GIF, which goes on its own the
+   * moment it is picked — with no text and no files, and without touching
+   * the draft.
    */
   onSend: (
-    text: string, mentions: string[], attachments: Attachment[], sticker?: StickerRef | null,
+    text: string, mentions: string[], attachments: Attachment[], media?: MessageMedia,
   ) => Promise<void>;
 }) {
   const { user } = useAuth();
@@ -269,20 +272,20 @@ export default function MessageComposer({
   const [stickerAt, setStickerAt] = useState<DOMRect | null>(null);
 
   /**
-   * Sends a sticker straight away, the way WhatsApp does — a sticker is a
-   * message on its own, never a caption's companion. Whatever is half-typed
+   * Sends a sticker or a GIF straight away, the way WhatsApp does — either is
+   * a message on its own, never a caption's companion. Whatever is half-typed
    * in the box stays exactly where it is.
    */
-  async function sendSticker(sticker: Sticker) {
+  async function sendMedia(media: MessageMedia) {
     if (!allowFiles) {
       setError('Only this room’s admins can send pictures here.');
       return;
     }
     setError('');
     try {
-      await onSend('', [], [], stickerRefOf(sticker));
+      await onSend('', [], [], media);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'That sticker did not send.');
+      setError(e instanceof Error ? e.message : `That ${media.gif ? 'GIF' : 'sticker'} did not send.`);
     }
     composer.current?.focus();
   }
@@ -540,7 +543,7 @@ export default function MessageComposer({
             onClick={() =>
               setStickerAt((was) => (was ? null : stickerButton.current?.getBoundingClientRect() ?? null))
             }
-            title="Stickers"
+            title="Stickers and GIFs"
             className="flex-shrink-0 rounded-lg p-2.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
           >
             <StickerIcon size={16} />
@@ -549,7 +552,8 @@ export default function MessageComposer({
         {stickerAt && (
           <StickerPicker
             anchor={stickerAt}
-            onPick={(s) => void sendSticker(s)}
+            onPickSticker={(s: Sticker) => void sendMedia({ sticker: stickerRefOf(s) })}
+            onPickGif={(g: GifRef) => void sendMedia({ gif: g })}
             onClose={() => setStickerAt(null)}
           />
         )}

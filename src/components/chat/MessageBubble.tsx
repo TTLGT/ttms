@@ -10,6 +10,7 @@ import MessageAttachments from './MessageAttachments';
 import OrderCards from './OrderCards';
 import ReactionBar from './ReactionBar';
 import StickerMessage from './StickerMessage';
+import GifMessage from './GifMessage';
 import {
   MAX_MESSAGE_LENGTH,
   type ChatMessage,
@@ -76,10 +77,10 @@ export default function MessageBubble({
   const { nameOf, profileOf } = useChat();
   const myUid = user?.uid ?? '';
   const mine  = message.senderUid === myUid;
-  // A sticker stands on its own, without a bubble behind it — the way every
-  // chat app draws one. Only while it is still there: a sticker taken back
+  // A sticker or a GIF stands on its own, without a bubble behind it — the
+  // way every chat app draws one. Only while it is still there: one taken back
   // is a tombstone like any other message, and needs the bubble to read as one.
-  const bare  = !!message.sticker && !message.deletedAt && !editing;
+  const bare  = !!(message.sticker || message.gif) && !message.deletedAt && !editing;
 
   return (
     <div className={`group flex items-end gap-2 ${mine ? 'justify-end' : ''}`}>
@@ -178,6 +179,7 @@ export default function MessageBubble({
             )}
 
             {!message.deletedAt && message.sticker && <StickerMessage sticker={message.sticker} />}
+            {!message.deletedAt && message.gif && <GifMessage gif={message.gif} />}
 
             {(message.text || message.deletedAt) && (
               <p

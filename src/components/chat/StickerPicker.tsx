@@ -3,43 +3,70 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import {
-  ArrowLeft, Clock, Folder, ImagePlus, LayoutGrid, Loader2, MoreHorizontal, Pencil, Search, Star, Trash2,
+  ArrowLeft, Clock, Folder, ImagePlus, LayoutGrid, Loader2, MoreHorizontal, Pencil, Search, Star,
+  Trash2, TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { can } from '@/lib/accessControl';
 import { useStorageUrl } from '@/lib/useStorageUrl';
 import { readableSize } from '@/lib/chatUploads';
+import { searchGifs } from '@/lib/chat';
 import {
-  cleanStickerName, createSticker, deleteFolder, listStickers, recentStickerIds, rememberSticker,
-  renameFolder, setFavorite, useChatLibrary,
+  cleanStickerName, createSticker, deleteFolder, listStickers, recentMedia, rememberMedia,
+  renameFolder, setFavorite, useChatLibrary, type RecentEntry,
 } from '@/lib/stickers';
 import {
-  MAX_FOLDER_NAME, MAX_STICKER_BYTES, MAX_STICKER_NAME, stickerIdOf, stickerItem, type Sticker,
+  gifItem, gifSlugOf, MAX_FOLDER_NAME, MAX_STICKER_BYTES, MAX_STICKER_NAME, stickerIdOf, stickerItem,
+  type ChatLibrary, type Sticker,
 } from '@/types/sticker';
+import type { GifRef } from '@/types/gif';
 import StickerLibraryMenu from './StickerLibraryMenu';
 
 /**
- * The sticker picker: the company set, and this person's own favourites,
- * recent picks and folders over the top of it.
+ * Stickers and GIFs, in one picker — the WhatsApp arrangement.
  *
- * A tab is a view of the shelf, never a copy of it. Favourites and folders
- * hold sticker ids, and anything that has since been taken off the shelf
- * simply stops appearing in them — see "Taking one off the shelf" in
- * src/types/sticker.ts.
+ * Two sources: the company sticker shelf, and Klipy for GIFs (through our own
+ * route, see src/lib/klipy.ts). The switch at the top decides which one the
+ * search box and the third tab reach. Favourites, Recent and folders are this
+ * person's own and hold both kinds side by side, so they show the same
+ * whichever side the switch is on.
+ *
+ * A tab is a view, never a copy. A sticker in favourites is looked up on the
+ * shelf and simply stops appearing once taken off it — see "Taking one off the
+ * shelf" in src/types/sticker.ts. A GIF is drawn from the details saved with it.
  */
 
 const WIDTH = 360;
-const HEIGHT = 440;
+const HEIGHT = 460;
 
+type Mode = 'stickers' | 'gifs';
 type Tab = 'favorites' | 'recent' | 'all' | `folder:${string}`;
+
+/** One tile in the grid. */
+type Entry =
+  | { kind: 'sticker'; item: string; sticker: Sticker }
+  | { kind: 'gif'; item: string; gif: GifRef };
+
+/** Which side of the switch the picker opens on — whichever was used last. */
+const MODE_KEY = 'ttms.chat.mediaMode';
+
+function savedMode(): Mode {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'gifs' ? 'gifs' : 'stickers';
+  } catch {
+    return 'stickers';
+  }
+}
 
 export default function StickerPicker({
   anchor,
-  onPick,
+  onPickSticker,
+  onPickGif,
   onClose,
 }: {
   anchor: DOMRect;
-  onPick: (sticker: Sticker) => void;
+  onPickSticker: (sticker: Sticker) => void;
+  onPickGif: (gif: GifRef) => void;
   onClose: () => void;
 }) {
   const { user, profile } = useAuth();
@@ -48,13 +75,14 @@ export default function StickerPicker({
   const library = useChatLibrary(uid);
 
   const [placement, setPlacement] = useState<{ left: number; top: number } | null>(null);
+  const [mode, setModeState] = useState<Mode>('stickers');
   const [shelf, setShelf]   = useState<Sticker[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [tab, setTab]       = useState<Tab | null>(null);
   const [query, setQuery]   = useState('');
   const [creating, setCreating] = useState(false);
-  const [menu, setMenu]     = useState<{ sticker: Sticker; anchor: DOMRect } | null>(null);
-  const [recent, setRecent] = useState<string[]>([]);
+  const [menu, setMenu]     = useState<{ entry: Entry; anchor: DOMRect } | null>(null);
+  const [recent, setRecent] = useState<RecentEntry[]>([]);
 
   const reload = useCallback(() => {
     listStickers()
@@ -64,8 +92,16 @@ export default function StickerPicker({
 
   useEffect(() => {
     reload();
-    setRecent(recentStickerIds());
+    setRecent(recentMedia());
+    setModeState(savedMode());
   }, [reload]);
+
+  function setMode(m: Mode) {
+    setModeState(m);
+    setQuery('');
+    setTab('all');
+    try { localStorage.setItem(MODE_KEY, m); } catch { /* remembered for this open only */ }
+  }
 
   // Opens on favourites once there are any — the whole point of starring
   // something is that it is the first thing you see next time.
@@ -95,14 +131,29 @@ export default function StickerPicker({
     };
   }, [onClose, menu]);
 
+  /* ------------------------------------------------------------- GIF feed */
+
+  // Klipy is only asked while its results are what is on screen: the GIF side
+  // of the switch, on the Trending tab or with something typed.
+  const onGifSource = mode === 'gifs' && (tab === 'all' || !!query.trim());
+  const gifs = useGifFeed(onGifSource, query);
+
+  /* -------------------------------------------------------------- entries */
+
   const byId = useMemo(() => new Map((shelf ?? []).map((s) => [s.id, s])), [shelf]);
 
-  /** Items to stickers, dropping anything no longer on the shelf. */
+  /** Library items to tiles, dropping anything that no longer resolves. */
   const resolve = useCallback(
-    (items: string[]) => items
-      .map((i) => stickerIdOf(i))
-      .map((id) => (id ? byId.get(id) : undefined))
-      .filter((s): s is Sticker => !!s),
+    (items: { item: string; gif?: GifRef }[], lib: ChatLibrary): Entry[] => items.flatMap(({ item, gif }): Entry[] => {
+      const sid = stickerIdOf(item);
+      if (sid) {
+        const sticker = byId.get(sid);
+        return sticker ? [{ kind: 'sticker', item, sticker }] : [];
+      }
+      const slug = gifSlugOf(item);
+      const ref = slug ? (lib.gifs[slug] ?? gif) : undefined;
+      return ref ? [{ kind: 'gif', item, gif: ref }] : [];
+    }),
     [byId],
   );
 
@@ -110,30 +161,45 @@ export default function StickerPicker({
     ? library.folders.find((f) => f.id === tab.slice('folder:'.length)) ?? null
     : null;
 
-  const shown: Sticker[] = useMemo(() => {
-    if (!shelf) return [];
+  const shown: Entry[] = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-    // A search looks across the whole shelf, whichever tab it was typed on.
-    if (words.length > 0) {
-      return shelf.filter((s) => words.every((w) => s.name.toLowerCase().includes(w)));
-    }
-    if (tab === 'favorites') return resolve(library.favorites);
-    if (tab === 'recent') return recent.map((id) => byId.get(id)).filter((s): s is Sticker => !!s);
-    if (folder) return resolve(folder.items);
-    return shelf;
-  }, [shelf, query, tab, library.favorites, recent, byId, folder, resolve]);
+    const stickerEntries = (list: Sticker[]): Entry[] =>
+      list.map((sticker) => ({ kind: 'sticker' as const, item: stickerItem(sticker.id), sticker }));
+    const gifEntries = (list: GifRef[]): Entry[] =>
+      list.map((gif) => ({ kind: 'gif' as const, item: gifItem(gif.id), gif }));
 
-  function pick(s: Sticker) {
-    rememberSticker(s.id);
-    onPick(s);
+    // A search reaches the whole source on the current side of the switch,
+    // whichever tab it was typed on.
+    if (words.length > 0) {
+      if (mode === 'gifs') return gifEntries(gifs.list);
+      return stickerEntries((shelf ?? []).filter((s) => words.every((w) => s.name.toLowerCase().includes(w))));
+    }
+    if (tab === 'favorites') return resolve(library.favorites.map((item) => ({ item })), library);
+    if (tab === 'recent') return resolve(recent, library);
+    if (folder) return resolve(folder.items.map((item) => ({ item })), library);
+    return mode === 'gifs' ? gifEntries(gifs.list) : stickerEntries(shelf ?? []);
+  }, [query, mode, gifs.list, shelf, tab, library, recent, folder, resolve]);
+
+  function pick(entry: Entry) {
+    if (entry.kind === 'sticker') {
+      rememberMedia({ item: entry.item });
+      onPickSticker(entry.sticker);
+    } else {
+      rememberMedia({ item: entry.item, gif: entry.gif });
+      onPickGif(entry.gif);
+    }
     onClose();
   }
 
+  const loading = onGifSource ? gifs.loading && gifs.list.length === 0 : !shelf && !failed;
+  const error = onGifSource ? gifs.error : failed ? 'The stickers did not load.' : '';
+
   const emptyText =
-    query ? `No stickers are called “${query}”.`
-    : tab === 'favorites' ? 'Star a sticker with ⋯ to keep it here.'
-    : tab === 'recent' ? 'Stickers you send will show here.'
-    : folder ? 'Nothing in this folder yet. Use ⋯ on any sticker to add it.'
+    query ? (mode === 'gifs' ? `No GIFs found for “${query}”.` : `No stickers are called “${query}”.`)
+    : tab === 'favorites' ? 'Star a sticker or GIF with ⋯ to keep it here.'
+    : tab === 'recent' ? 'Stickers and GIFs you send will show here.'
+    : folder ? 'Nothing in this folder yet. Use ⋯ on any sticker or GIF to add it.'
+    : mode === 'gifs' ? 'No GIFs to show.'
     : 'No stickers yet. Make the first one.';
 
   return (
@@ -141,7 +207,7 @@ export default function StickerPicker({
       <div className="fixed inset-0 z-30" onMouseDown={onClose} />
       <div
         role="dialog"
-        aria-label="Stickers"
+        aria-label="Stickers and GIFs"
         style={{
           left: placement?.left ?? anchor.left,
           top:  placement?.top ?? anchor.top,
@@ -167,25 +233,44 @@ export default function StickerPicker({
         ) : (
           <>
             <div className="flex-shrink-0 border-b border-gray-100 p-2">
-              <div className="flex items-center gap-1.5">
-                <div className="relative min-w-0 flex-1">
-                  <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    autoFocus
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search stickers"
-                    className="w-full rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-8 pr-2 text-sm focus:border-brand-400 focus:bg-white focus:outline-none"
-                  />
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <div className="flex rounded-lg bg-gray-100 p-0.5 text-xs font-medium">
+                  {(['stickers', 'gifs'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMode(m)}
+                      className={`rounded-md px-3 py-1 transition ${
+                        mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                      }`}
+                    >
+                      {m === 'stickers' ? 'Stickers' : 'GIFs'}
+                    </button>
+                  ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setCreating(true)}
-                  title="Make a sticker"
-                  className="flex flex-shrink-0 items-center gap-1 rounded-lg bg-brand-500 px-2.5 py-1.5 text-xs font-medium text-white transition hover:bg-brand-600"
-                >
-                  <ImagePlus size={14} /> New
-                </button>
+                <span className="flex-1" />
+                {mode === 'stickers' && (
+                  <button
+                    type="button"
+                    onClick={() => setCreating(true)}
+                    title="Make a sticker"
+                    className="flex flex-shrink-0 items-center gap-1 rounded-lg bg-brand-500 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-brand-600"
+                  >
+                    <ImagePlus size={14} /> New sticker
+                  </button>
+                )}
+              </div>
+
+              <div className="relative">
+                <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  autoFocus
+                  value={query}
+                  maxLength={100}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={mode === 'gifs' ? 'Search GIFs' : 'Search stickers'}
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-8 pr-2 text-sm focus:border-brand-400 focus:bg-white focus:outline-none"
+                />
               </div>
 
               <div className="mt-1.5 flex gap-1 overflow-x-auto pb-0.5">
@@ -196,7 +281,9 @@ export default function StickerPicker({
                   <Clock size={12} /> Recent
                 </Chip>
                 <Chip active={!query && tab === 'all'} onClick={() => { setQuery(''); setTab('all'); }}>
-                  <LayoutGrid size={12} /> All
+                  {mode === 'gifs'
+                    ? <><TrendingUp size={12} /> Trending</>
+                    : <><LayoutGrid size={12} /> All stickers</>}
                 </Chip>
                 {library.folders.map((f) => (
                   <Chip
@@ -221,36 +308,55 @@ export default function StickerPicker({
             )}
 
             <div className="min-h-0 flex-1 overflow-y-auto p-2">
-              {failed ? (
+              {error ? (
                 <div className="p-4 text-center text-xs text-gray-500">
-                  The stickers did not load.{' '}
-                  <button type="button" onClick={reload} className="font-medium text-brand-700 hover:underline">
+                  {error}{' '}
+                  <button
+                    type="button"
+                    onClick={onGifSource ? gifs.retry : reload}
+                    className="font-medium text-brand-700 hover:underline"
+                  >
                     Try again
                   </button>
                 </div>
-              ) : !shelf ? (
+              ) : loading ? (
                 <div className="flex h-full items-center justify-center text-gray-400">
                   <Loader2 size={18} className="animate-spin" />
                 </div>
               ) : shown.length === 0 ? (
                 <p className="p-4 text-center text-xs text-gray-500">{emptyText}</p>
               ) : (
-                <div className="grid grid-cols-4 gap-1.5">
-                  {shown.map((s) => (
-                    <Tile
-                      key={s.id}
-                      sticker={s}
-                      starred={library.favorites.includes(stickerItem(s.id))}
-                      onPick={() => pick(s)}
-                      onMenu={(at) => setMenu({ sticker: s, anchor: at })}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {shown.map((entry) => (
+                      <Tile
+                        key={entry.item}
+                        entry={entry}
+                        starred={library.favorites.includes(entry.item)}
+                        onPick={() => pick(entry)}
+                        onMenu={(at) => setMenu({ entry, anchor: at })}
+                      />
+                    ))}
+                  </div>
+                  {onGifSource && gifs.hasNext && (
+                    <button
+                      type="button"
+                      onClick={gifs.more}
+                      disabled={gifs.loading}
+                      className="mx-auto mt-2 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-brand-50 disabled:opacity-50"
+                    >
+                      {gifs.loading && <Loader2 size={12} className="animate-spin" />}
+                      More GIFs
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
             <p className="flex-shrink-0 border-t border-gray-100 px-3 py-1.5 text-[11px] text-gray-400">
-              Stickers are shared with everyone at TTL. Favorites and folders are yours alone.
+              {mode === 'gifs'
+                ? <>GIFs by <span className="font-semibold text-gray-500">KLIPY</span>. Your searches go to them; your name does not.</>
+                : 'Stickers are shared with everyone at TTL. Favorites and folders are yours alone.'}
             </p>
           </>
         )}
@@ -258,15 +364,82 @@ export default function StickerPicker({
 
       {menu && (
         <StickerLibraryMenu
-          stickerId={menu.sticker.id}
+          item={menu.entry.item}
+          gif={menu.entry.kind === 'gif' ? menu.entry.gif : undefined}
           anchor={menu.anchor}
           onClose={() => setMenu(null)}
-          canRemove={menu.sticker.createdByUid === uid || mayRemoveAny}
-          onRemoved={() => setShelf((was) => (was ?? []).filter((x) => x.id !== menu.sticker.id))}
+          canRemove={menu.entry.kind === 'sticker' && (menu.entry.sticker.createdByUid === uid || mayRemoveAny)}
+          onRemoved={() => {
+            const gone = menu.entry.kind === 'sticker' ? menu.entry.sticker.id : null;
+            setShelf((was) => (was ?? []).filter((x) => x.id !== gone));
+          }}
         />
       )}
     </>
   );
+}
+
+/**
+ * Klipy's trending page, or a search, a page at a time.
+ *
+ * Typing waits for a pause before asking: every request counts against an
+ * hourly allowance shared by the whole company, and "t", "tr", "tru",
+ * "truck" is four searches for one word.
+ */
+function useGifFeed(active: boolean, query: string) {
+  const [list, setList] = useState<GifRef[]>([]);
+  const [page, setPage] = useState(1);
+  const [hasNext, setHasNext] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [asked, setAsked] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const latest = useRef(0);
+
+  // The query actually sent: the typed one, once typing has paused. A new one
+  // starts again from the first page.
+  useEffect(() => {
+    if (!active) return;
+    const q = query.trim();
+    const wait = window.setTimeout(() => {
+      setAsked((was) => {
+        if (was !== q) { setPage(1); setList([]); }
+        return q;
+      });
+    }, q ? 450 : 0);
+    return () => window.clearTimeout(wait);
+  }, [active, query]);
+
+  useEffect(() => {
+    if (!active || asked === null) return;
+    const ticket = ++latest.current;
+    setLoading(true);
+    setError('');
+    searchGifs(asked, page)
+      .then((res) => {
+        // A slower, older answer must not land on top of the newer one.
+        if (ticket !== latest.current) return;
+        setList((was) => {
+          const merged = page === 1 ? res.gifs : [...was, ...res.gifs];
+          const seen = new Set<string>();
+          return merged.filter((g) => !seen.has(g.id) && !!seen.add(g.id));
+        });
+        setHasNext(res.hasNext);
+      })
+      .catch((e) => {
+        if (ticket === latest.current) setError(e instanceof Error ? e.message : 'GIFs did not load.');
+      })
+      .finally(() => { if (ticket === latest.current) setLoading(false); });
+  }, [active, asked, page, attempt]);
+
+  return {
+    list,
+    hasNext,
+    loading,
+    error,
+    more: () => setPage((p) => p + 1),
+    retry: () => setAttempt((n) => n + 1),
+  };
 }
 
 function Chip({
@@ -286,37 +459,41 @@ function Chip({
 }
 
 function Tile({
-  sticker, starred, onPick, onMenu,
+  entry, starred, onPick, onMenu,
 }: {
-  sticker: Sticker;
+  entry: Entry;
   starred: boolean;
   onPick: () => void;
   onMenu: (at: DOMRect) => void;
 }) {
-  const url = useStorageUrl(sticker.path);
+  const title = entry.kind === 'sticker' ? entry.sticker.name : entry.gif.title || 'GIF';
   return (
     <div className="group relative aspect-square">
       <button
         type="button"
         onClick={onPick}
-        title={`Send “${sticker.name}”`}
-        className="flex h-full w-full items-center justify-center rounded-lg p-1.5 transition hover:bg-gray-100"
+        title={`Send “${title}”`}
+        className={`flex h-full w-full items-center justify-center overflow-hidden rounded-lg transition ${
+          entry.kind === 'sticker' ? 'p-1.5 hover:bg-gray-100' : 'bg-gray-100 hover:opacity-90'
+        }`}
       >
-        {url ? (
-          <Image
-            src={url}
-            alt={sticker.name}
-            width={sticker.width}
-            height={sticker.height}
-            unoptimized
-            className="max-h-full max-w-full object-contain"
-          />
-        ) : (
-          <span className="h-full w-full animate-pulse rounded-md bg-gray-100" />
-        )}
+        {entry.kind === 'sticker'
+          ? <StickerThumb sticker={entry.sticker} />
+          : (
+            // A plain <img>: the file is Klipy's, and an animation is nothing
+            // next/image can improve on.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={entry.gif.previewUrl}
+              alt={title}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              className="h-full w-full object-cover"
+            />
+          )}
       </button>
       {starred && (
-        <Star size={11} className="pointer-events-none absolute left-1 top-1 fill-amber-400 text-amber-500" />
+        <Star size={11} className="pointer-events-none absolute left-1 top-1 fill-amber-400 text-amber-500 drop-shadow" />
       )}
       <button
         type="button"
@@ -327,6 +504,22 @@ function Tile({
         <MoreHorizontal size={14} />
       </button>
     </div>
+  );
+}
+
+function StickerThumb({ sticker }: { sticker: Sticker }) {
+  const url = useStorageUrl(sticker.path);
+  return url ? (
+    <Image
+      src={url}
+      alt={sticker.name}
+      width={sticker.width}
+      height={sticker.height}
+      unoptimized
+      className="max-h-full max-w-full object-contain"
+    />
+  ) : (
+    <span className="h-full w-full animate-pulse rounded-md bg-gray-100" />
   );
 }
 

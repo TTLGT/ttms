@@ -28,10 +28,10 @@ import {
   roomAllows,
   type Attachment,
   type ChatMessage,
+  type MessageMedia,
   type Conversation,
   type MentionCandidate,
 } from '@/types/conversation';
-import type { StickerRef } from '@/types/sticker';
 
 /**
  * Why a thread would not load, in words somebody can act on.
@@ -198,10 +198,10 @@ export default function ThreadPanel({
   /* --------------------------------------------------------------- writing */
 
   async function handleSend(
-    text: string, mentions: string[], attachments: Attachment[], sticker: StickerRef | null = null,
+    text: string, mentions: string[], attachments: Attachment[], media: MessageMedia = {},
   ) {
     if (!root) throw new Error('The message this thread belongs to is no longer there.');
-    await sendThreadReply(conversationId, root, text, senderIdentity, mentions, attachments, sticker);
+    await sendThreadReply(conversationId, root, text, senderIdentity, mentions, attachments, media);
   }
 
   async function saveEdit(message: ChatMessage, isReply: boolean) {
@@ -271,8 +271,8 @@ export default function ThreadPanel({
     }
     return [
       ...base,
-      // A sticker has no words to correct. Taking it back is still offered.
-      ...(m.sticker ? [] : [{
+      // A sticker or a GIF has no words to correct. Taking it back is still offered.
+      ...(m.sticker || m.gif ? [] : [{
         key: 'edit', label: 'Edit', Icon: Pencil,
         onSelect: () => { setEditingId(m.id); setEditDraft(m.text); },
       }]),

@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { StickerRef } from './sticker';
+import type { GifRef } from './gif';
 
 /**
  * In-house chat between staff. Everyone on the allowlist can talk to everyone
@@ -506,6 +507,12 @@ export interface ChatMessage {
    * See src/types/sticker.ts. Absent on everything else.
    */
   sticker?: StickerRef | null;
+  /**
+   * A GIF from Klipy, when that is what this message is. On its own, like a
+   * sticker. It holds Klipy's address rather than a copy — see
+   * src/types/gif.ts for why.
+   */
+  gif?: GifRef | null;
   /** Who reacted with what, as `{ [reactionKey]: uid[] }`. */
   reactions?: Record<string, string[]>;
   /**
@@ -595,11 +602,21 @@ export interface Attachment {
  * reads as a deleted message, which it is not.
  */
 export function messageSummary(
-  m: Pick<ChatMessage, 'text' | 'attachments' | 'sticker'>,
+  m: Pick<ChatMessage, 'text' | 'attachments' | 'sticker' | 'gif'>,
 ): string {
   if (m.text) return m.text;
   if (m.sticker) return 'Sticker';
+  if (m.gif) return 'GIF';
   return m.attachments?.[0]?.name ?? '';
+}
+
+/**
+ * A picture sent as a message on its own — a sticker or a GIF, never both,
+ * and never beside text or files. See sendMessage.
+ */
+export interface MessageMedia {
+  sticker?: StickerRef | null;
+  gif?: GifRef | null;
 }
 
 /** Biggest file we accept. Enforced in the browser — see the note in chatUploads. */

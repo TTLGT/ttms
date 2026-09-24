@@ -780,6 +780,25 @@ message back the usual way.
 In a room where only admins may attach files, only admins can send stickers
 too.
 
+### GIFs
+
+The same button opens GIFs. Switch to **GIFs** at the top of the picker; it opens
+on what's trending, and the search box finds anything else. Click one to send it.
+Favorites, Recent and your folders hold stickers and GIFs together, and saving a
+GIF works the same way: **⋯** in the picker, or click a GIF someone sent.
+
+GIFs come from **KLIPY**, a free GIF service. Worth knowing:
+
+- **What you type in the GIF search goes to KLIPY.** Your name, email and account
+  don't. Keep load numbers and client names out of the GIF search box.
+- The search is set to KLIPY's **strictest content filter**. If something
+  unsuitable still gets through, tell IT.
+- A GIF is shown from KLIPY's servers rather than saved in TTMS. If KLIPY ever
+  removes one, old messages show its title in a grey box instead.
+- The free key allows a limited number of searches an hour for **the whole
+  company**. If the picker says there have been too many, wait a few minutes.
+  Searches repeat a lot, so TTMS keeps recent answers for ten minutes.
+
 ### Formatting a message
 
 The same marks as WhatsApp, so there is nothing new to learn:
@@ -1175,8 +1194,15 @@ RESEND_FROM_EMAIL=noreply@totaltransportlogistics.us
 
 GOOGLE_MAPS_API_KEY=
 
+KLIPY_API_KEY=
+
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
+
+- `KLIPY_API_KEY` is **optional and free**. It turns on GIF search in chat.
+  Get it from the KLIPY Partner Panel, signed in as
+  `it@totaltransportlogistics.us`. Without it, chat works as normal and the GIFs
+  side of the sticker picker says GIF search isn't set up.
 
 - `GOOGLE_MAPS_API_KEY` is **optional and costs money**. Leave it blank unless
   someone has decided to pay for exact mileage. Orders work fine without it —
