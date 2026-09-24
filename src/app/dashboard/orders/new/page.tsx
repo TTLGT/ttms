@@ -20,7 +20,7 @@ import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
 import { partyDisplayName, ROLE_LABEL } from '@/types/party';
-import { blankCommodityItem, commoditySummary, totalPieces, totalWeightLb } from '@/types/order';
+import { blankCommodityItem, commoditySummary, totalPieces, totalWeightLb, totalCommodityValue } from '@/types/order';
 import type { Address, CommodityItem } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import LeadSourceField from '@/components/orders/LeadSourceField';
@@ -119,7 +119,7 @@ function NewOrderForm() {
 
   // The legacy single-value fields stay on the order, derived from the items,
   // so lists, PDFs and agreement emails keep working unchanged.
-  const commodityItems = commodities.filter((c) => c.description.trim() || c.weight || c.length || c.width || c.height);
+  const commodityItems = commodities.filter((c) => c.description.trim() || c.weight || c.length || c.width || c.height || c.value != null);
 
   useEffect(() => {
     listParties().then(setParties).catch(() => {});
@@ -211,6 +211,7 @@ function NewOrderForm() {
         status:       'quote',
         commodity:    commoditySummary(commodityItems),
         commodities:  commodityItems,
+        commodityValue: totalCommodityValue(commodityItems),
         pieces:       totalPieces(commodityItems) || 1,
         weight:       Math.round(totalWeightLb(commodityItems)),
         origin,
@@ -355,7 +356,7 @@ function NewOrderForm() {
             <div>
               <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Freight</h2>
               <p className="text-xs text-gray-500 mt-1">
-                One line per commodity, each with its own weight and dimensions. Pieces and total
+                One line per commodity, each with its own value, weight and dimensions. Pieces, total value and
                 weight are added up for you.
               </p>
             </div>

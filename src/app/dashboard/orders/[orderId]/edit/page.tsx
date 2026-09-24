@@ -13,7 +13,7 @@ import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
-import { commoditySummary, orderCommodityItems, totalPieces, totalWeightLb, orderDisplayNumber } from '@/types/order';
+import { commoditySummary, orderCommodityItems, totalPieces, totalWeightLb, totalCommodityValue, orderDisplayNumber } from '@/types/order';
 import type { Order, Address, CommodityItem } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import { ROLE_LABEL } from '@/types/party';
@@ -123,7 +123,7 @@ export default function EditOrderPage() {
 
   // The legacy single-value fields are kept in sync from the items — see the
   // note on Order.commodity.
-  const commodityItems = commodities.filter((c) => c.description.trim() || c.weight || c.length || c.width || c.height);
+  const commodityItems = commodities.filter((c) => c.description.trim() || c.weight || c.length || c.width || c.height || c.value != null);
 
   useEffect(() => {
     async function load() {
@@ -218,6 +218,7 @@ export default function EditOrderPage() {
         consigneeName: consignee.name.trim(),
         commodity:    commoditySummary(commodityItems),
         commodities:  commodityItems,
+        commodityValue: totalCommodityValue(commodityItems),
         pieces:       totalPieces(commodityItems) || 1,
         weight:       Math.round(totalWeightLb(commodityItems)),
         origin,
@@ -312,7 +313,7 @@ export default function EditOrderPage() {
             <div>
               <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Freight</h2>
               <p className="text-xs text-gray-500 mt-1">
-                One line per commodity, each with its own weight and dimensions. Pieces and total
+                One line per commodity, each with its own value, weight and dimensions. Pieces, total value and
                 weight are added up for you.
               </p>
             </div>

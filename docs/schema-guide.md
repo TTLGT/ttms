@@ -338,6 +338,12 @@ agreement emails read them directly. Orders written before this array existed
 have no `commodities` field — read them through `orderCommodityItems(order)`,
 which collapses the legacy fields into a single dimensionless line.
 
+Each line may also carry `value` (`number | null`, USD) — the declared worth
+of the goods on that line, for **all** its pieces (unlike `weight`, which is per
+piece). `order.commodityValue` is their sum, derived on save like `pieces` and
+`weight` (`totalCommodityValue`). Null or absent on either means nobody entered
+one; it is never written as 0 for "unknown". It is not the rate.
+
 ### `OrderStatus` enum
 ```
 "quote"          — initial quote, not yet accepted

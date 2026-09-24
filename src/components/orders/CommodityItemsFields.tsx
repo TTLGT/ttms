@@ -7,6 +7,7 @@ import {
   itemWeightLb,
   totalPieces,
   totalWeightLb,
+  totalCommodityValue,
   DIMENSION_UNITS,
   WEIGHT_UNITS,
   DIMENSION_UNIT_LABEL,
@@ -30,6 +31,16 @@ function num(v: string): number {
 /** Renders 0 as an empty box — a blank weight reads better than a false "0". */
 function str(v: number): string {
   return v ? String(v) : '';
+}
+
+/**
+ * Unlike the numbers above, a blank value box means "not declared" and stays
+ * null, not 0 — a line recorded as worth $0 would read as a real figure. A
+ * typed 0 is kept, so the rendering side (`value ?? ''`) round-trips it.
+ */
+function money(v: string): number | null {
+  const n = parseFloat(v);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
 }
 
 interface Props {
@@ -63,6 +74,7 @@ export default function CommodityItemsFields({ value, onChange }: Props) {
   const pieces = totalPieces(items);
   const weight = totalWeightLb(items);
   const volume = items.reduce((sum, it) => sum + itemVolumeFt3(it), 0);
+  const declared = totalCommodityValue(items);
 
   return (
     <div className="space-y-3">
@@ -87,13 +99,26 @@ export default function CommodityItemsFields({ value, onChange }: Props) {
             </div>
 
             <div className="grid grid-cols-6 sm:grid-cols-12 gap-3">
-              <div className="col-span-6 sm:col-span-9">
+              <div className="col-span-6">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Commodity</label>
                 <input
                   required={idx === 0}
                   value={item.description}
                   onChange={(e) => patch(item.id, { description: e.target.value })}
                   placeholder="e.g. Excavator, Crated parts"
+                  className={INPUT}
+                />
+              </div>
+              <div className="col-span-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Line value (USD)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={item.value ?? ''}
+                  onChange={(e) => patch(item.id, { value: money(e.target.value) })}
+                  placeholder="0.00"
+                  title="What the goods on this line are worth, all pieces together"
                   className={INPUT}
                 />
               </div>
@@ -206,6 +231,9 @@ export default function CommodityItemsFields({ value, onChange }: Props) {
           {' · '}
           {weight ? `${Math.round(weight).toLocaleString()} lbs total` : 'no weight yet'}
           {volume ? ` · ${volume.toFixed(1)} ft³` : ''}
+          {declared != null
+            ? ` · $${declared.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} declared`
+            : ''}
         </p>
       </div>
     </div>

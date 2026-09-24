@@ -48,6 +48,15 @@ export interface CommodityItem {
   /** Weight of ONE piece — the line total is `quantity * weight`. */
   weight: number;
   weightUnit: WeightUnit;
+  /**
+   * Declared value of the goods on this line, in USD — for ALL its pieces,
+   * unlike `weight`. A broker is quoted "the three crates are worth $30k", not
+   * a per-crate price, so the line figure is what gets typed in.
+   *
+   * Optional and null-for-unknown rather than 0: lines written before the
+   * field existed have no value on record, and "$0" would claim one.
+   */
+  value?: number | null;
 }
 
 const INCHES_PER: Record<DimensionUnit, number> = { in: 1, ft: 12, cm: 1 / 2.54, m: 100 / 2.54 };
@@ -91,6 +100,7 @@ export function blankCommodityItem(): CommodityItem {
     dimensionUnit: 'in',
     weight: 0,
     weightUnit: 'lb',
+    value: null,
   };
 }
 
@@ -114,6 +124,16 @@ export function totalPieces(items: CommodityItem[]): number {
 
 export function totalWeightLb(items: CommodityItem[]): number {
   return items.reduce((sum, i) => sum + itemWeightLb(i), 0);
+}
+
+/**
+ * Declared value of the whole load: the sum of the lines that have one, or
+ * null when none does — "nobody entered a value" must not read as "$0".
+ */
+export function totalCommodityValue(items: CommodityItem[]): number | null {
+  const valued = items.filter((i) => i.value != null);
+  if (!valued.length) return null;
+  return Math.round(valued.reduce((sum, i) => sum + (i.value ?? 0), 0) * 100) / 100;
 }
 
 /** "48 x 40 x 60 in", or '' when the line carries no dimensions. */
@@ -143,7 +163,7 @@ export function commoditySummary(items: CommodityItem[]): string {
  * detail page, BOL, invoice — can assume an array.
  */
 export function orderCommodityItems(
-  order: Partial<Pick<Order, 'commodities' | 'commodity' | 'pieces' | 'weight'>>,
+  order: Partial<Pick<Order, 'commodities' | 'commodity' | 'pieces' | 'weight' | 'commodityValue'>>,
 ): CommodityItem[] {
   if (order.commodities?.length) return order.commodities;
   const quantity = order.pieces || 0;
@@ -157,6 +177,7 @@ export function orderCommodityItems(
     // The legacy field held the whole load's weight; dividing it back out
     // keeps the line total identical to what the order has always shown.
     weight: quantity > 1 ? (order.weight ?? 0) / quantity : (order.weight ?? 0),
+    value: order.commodityValue ?? null,
   }];
 }
 
@@ -359,6 +380,16 @@ export interface Order {
   commodity: string;
   /** Itemised freight. The source of truth for pieces, weight and dimensions. */
   commodities: CommodityItem[];
+  /**
+   * Declared value of the whole load, in USD — what the freight is worth, not
+   * what it is billed at (that is `agreedRate`). Derived from
+   * `commodities[].value` on save — see `totalCommodityValue` — and stored so
+   * the load's total can be read without adding up the lines, the same as
+   * `pieces` and `weight`.
+   *
+   * Null or absent when no line has a value; never 0 for "unknown".
+   */
+  commodityValue?: number | null;
   vehicles: string;
   /** Sum of `commodities[].quantity`. Derived — see `totalPieces`. */
   pieces: number;

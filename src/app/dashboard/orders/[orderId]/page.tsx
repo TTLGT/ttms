@@ -21,6 +21,7 @@ import {
   formatDimensions,
   itemWeightLb,
   orderCommodityItems,
+  totalCommodityValue,
   buildRouteMapUrl,
   formatLaneMiles,
   isRoutableAddress,
@@ -998,7 +999,8 @@ export default function OrderDetailPage() {
                     <th className="pb-2 pr-4 font-medium">Commodity</th>
                     <th className="pb-2 pr-4 font-medium">Pieces</th>
                     <th className="pb-2 pr-4 font-medium">Dimensions (L × W × H)</th>
-                    <th className="pb-2 font-medium">Weight</th>
+                    <th className="pb-2 pr-4 font-medium">Weight</th>
+                    <th className="pb-2 font-medium text-right">Value</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1007,12 +1009,28 @@ export default function OrderDetailPage() {
                       <td className="py-2 pr-4 text-gray-900">{item.description || '—'}</td>
                       <td className="py-2 pr-4 text-gray-600">{item.quantity || '—'}</td>
                       <td className="py-2 pr-4 text-gray-600">{formatDimensions(item) || '—'}</td>
-                      <td className="py-2 text-gray-600">
+                      <td className="py-2 pr-4 text-gray-600">
                         {itemWeightLb(item) ? `${Math.round(itemWeightLb(item)).toLocaleString()} lbs` : '—'}
+                      </td>
+                      <td className="py-2 text-gray-600 text-right">
+                        {item.value != null ? formatCurrency(item.value) : '—'}
                       </td>
                     </tr>
                   ))}
                 </tbody>
+                {/* A total only means something across more than one line. */}
+                {orderCommodityItems(order).length > 1 && (
+                  <tfoot>
+                    <tr className="border-t border-gray-200">
+                      <td colSpan={4} className="pt-2 pr-4 text-xs font-medium text-gray-500 uppercase tracking-wide">Total value</td>
+                      <td className="pt-2 text-gray-900 font-medium text-right">
+                        {totalCommodityValue(orderCommodityItems(order)) != null
+                          ? formatCurrency(totalCommodityValue(orderCommodityItems(order)) as number)
+                          : '—'}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>
