@@ -107,15 +107,14 @@ export default function MessageBubble({
           // column.
           flashed ? 'ring-2 ring-amber-400' : ''
         } ${
-          // Both bubbles are tinted away from the ground rather than one of
-          // them being white. White on a near-white ground is about a two
-          // percent step in lightness, which the eye reads as a shadow rather
-          // than as an object with an edge. The two are told apart by hue —
-          // neutral against blue — not by lightness, so neither side dominates
-          // the column.
+          // Theirs white, yours blue, over the patterned ground (ChatWallpaper).
+          // White was ruled out while the ground was near-white gray-50 — a
+          // two percent step the eye read as a shadow — but the paper tone is
+          // dark enough for a white bubble to stand off it, and a white card
+          // is also what hides the drawings behind the text.
           bare
             ? 'bg-transparent shadow-none'
-            : mine ? 'bg-brand-100 text-gray-900' : 'bg-gray-200 text-gray-800'
+            : mine ? 'bg-brand-100 text-gray-900' : 'bg-white text-gray-800'
         } ${
           // The tail only on the first of a run, with the matching corner
           // squared off so the two read as one shape.

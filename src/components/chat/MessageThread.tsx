@@ -23,6 +23,7 @@ import { copyToClipboard } from '@/lib/clipboard';
 import PersonCard from './PersonCard';
 import ActionMenu, { type MenuAction } from './ActionMenu';
 import MessageBubble from './MessageBubble';
+import ChatWallpaper from './ChatWallpaper';
 import MessageComposer from './MessageComposer';
 import PinnedBar from './PinnedBar';
 import SystemMessage from './SystemMessage';
@@ -596,129 +597,131 @@ export default function MessageThread({ conversation }: { conversation: Conversa
           with the conversation would be a pin you have to go and look for. */}
       <PinnedBar conversation={conversation} onJump={jumpTo} />
 
-      <div
-        ref={scroller}
-        onScroll={onScroll}
-        className="flex-1 min-h-0 overflow-y-auto bg-gray-50 px-4 py-4 space-y-1.5"
-      >
-        {loading && <p className="text-sm text-gray-400">Loading…</p>}
+      <ChatWallpaper>
+        <div
+          ref={scroller}
+          onScroll={onScroll}
+          className="relative h-full overflow-y-auto px-4 py-4 space-y-1.5"
+        >
+          {loading && <p className="text-sm text-gray-400">Loading…</p>}
 
-        {/* Said rather than left as a jump that appeared to do nothing. The
-            room is open at the right place for reading it; it is only the
-            scroll that could not be afforded. See JUMP_LIMIT. */}
-        {tooFarBack && (
-          <div className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            That message is too far back in this room to jump to. Keep loading earlier
-            messages to reach it.
-          </div>
-        )}
-
-        {!loading && older === 'loading' && (
-          <p className="py-2 text-center text-xs text-gray-400">Loading earlier messages…</p>
-        )}
-        {!loading && older === 'end' && messages.length > 0 && (
-          <p className="py-2 text-center text-[11px] text-gray-400">
-            This is the beginning of the conversation.
-          </p>
-        )}
-
-        {!loading && messages.length === 0 && (
-          <p className="text-sm text-gray-400">
-            No messages yet. Say something to start it off.
-          </p>
-        )}
-
-        {messages.map((m, i) => {
-          const previous = messages[i - 1];
-          // A date line whenever the day changes, so a thread read in the
-          // morning does not present yesterday's argument as if it were new.
-          const newDay = !previous || dayOf(previous) !== dayOf(m);
-          // The unread line breaks a run too — a bubble tucked under the one
-          // above it would read as part of what came before the line.
-          const grouped = !newDay && m.id !== firstUnreadId && groupsWithPrevious(m, previous);
-          const mine    = m.senderUid === myUid;
-
-          return (
-            <div key={m.id} data-message={m.id}>
-              {/* Centred pills rather than a rule across the column: on a
-                  tinted ground a hairline with text in it reads as a broken
-                  border, and the bubbles either side already give the eye all
-                  the horizontal structure it needs. */}
-              {m.id === firstUnreadId && (
-                <div className="flex justify-center py-2.5">
-                  <span className="rounded-full bg-red-500 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
-                    New messages
-                  </span>
-                </div>
-              )}
-
-              {newDay && (
-                <div className="flex justify-center py-2.5">
-                  <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 shadow-sm">
-                    {dayLabel(m, formatDate)}
-                  </span>
-                </div>
-              )}
-
-              {/* A line from TTMS rather than from a person: no bubble, no
-                  menu, nothing to react to. See SystemMessage. */}
-              {m.system ? <SystemMessage message={m} /> : (
-              <MessageBubble
-                message={m}
-                grouped={grouped}
-                showSenderName={conversation.kind !== 'direct'}
-                flashed={flashId === m.id}
-                editing={editingId === m.id}
-                editDraft={editDraft}
-                onEditDraft={setEditDraft}
-                onSaveEdit={() => void saveEdit(m)}
-                onCancelEdit={() => setEditingId(null)}
-                onOpenActions={(anchor) => setActionsFor({ messageId: m.id, anchor })}
-                actionsOpen={actionsFor?.messageId === m.id}
-                onToggleReaction={(key, add) =>
-                  void toggleReaction(
-                    conversationId,
-                    { id: m.id, senderUid: m.senderUid, text: m.text },
-                    key,
-                    senderIdentity,
-                    add,
-                  ).catch(() => setError('That reaction did not save.'))
-                }
-                onOpenPerson={(uid, anchor) => setCard({ uid, anchor })}
-                // Preferred over the stored copy whenever the original is still
-                // in the loaded window, so a quote of something since deleted
-                // stops showing the text, and an edit is reflected. A quote
-                // carried in from another conversation has no original here and
-                // keeps its copy.
-                quoteLive={
-                  m.replyTo && !m.replyTo.fromConversationId
-                    ? messages.find((x) => x.id === m.replyTo?.messageId)
-                    : undefined
-                }
-                onJumpToQuoted={m.replyTo?.fromConversationId ? undefined : jumpTo}
-                thread={{
-                  // The mark on the conversation is passed in because it is the
-                  // only evidence that somebody pulled into this thread by an @
-                  // is in it — they have neither written it nor replied yet.
-                  unread: isThreadUnread(
-                    m, myUid, threadReadAt, conversation.threadPings?.[myUid]?.rootId,
-                  ),
-                  onOpen: () => setOpenThread({ conversationId, rootId: m.id }),
-                }}
-              />
-              )}
-
-              {!m.system && actionsFor?.messageId === m.id && (
-                <ActionMenu
-                  anchor={actionsFor.anchor}
-                  onClose={() => setActionsFor(null)}
-                  actions={actionsOn(m, mine)}
-                />
-              )}
+          {/* Said rather than left as a jump that appeared to do nothing. The
+              room is open at the right place for reading it; it is only the
+              scroll that could not be afforded. See JUMP_LIMIT. */}
+          {tooFarBack && (
+            <div className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              That message is too far back in this room to jump to. Keep loading earlier
+              messages to reach it.
             </div>
-          );
-        })}
-      </div>
+          )}
+
+          {!loading && older === 'loading' && (
+            <p className="py-2 text-center text-xs text-gray-400">Loading earlier messages…</p>
+          )}
+          {!loading && older === 'end' && messages.length > 0 && (
+            <p className="py-2 text-center text-[11px] text-gray-400">
+              This is the beginning of the conversation.
+            </p>
+          )}
+
+          {!loading && messages.length === 0 && (
+            <p className="text-sm text-gray-400">
+              No messages yet. Say something to start it off.
+            </p>
+          )}
+
+          {messages.map((m, i) => {
+            const previous = messages[i - 1];
+            // A date line whenever the day changes, so a thread read in the
+            // morning does not present yesterday's argument as if it were new.
+            const newDay = !previous || dayOf(previous) !== dayOf(m);
+            // The unread line breaks a run too — a bubble tucked under the one
+            // above it would read as part of what came before the line.
+            const grouped = !newDay && m.id !== firstUnreadId && groupsWithPrevious(m, previous);
+            const mine    = m.senderUid === myUid;
+
+            return (
+              <div key={m.id} data-message={m.id}>
+                {/* Centred pills rather than a rule across the column: on a
+                    tinted ground a hairline with text in it reads as a broken
+                    border, and the bubbles either side already give the eye all
+                    the horizontal structure it needs. */}
+                {m.id === firstUnreadId && (
+                  <div className="flex justify-center py-2.5">
+                    <span className="rounded-full bg-red-500 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                      New messages
+                    </span>
+                  </div>
+                )}
+
+                {newDay && (
+                  <div className="flex justify-center py-2.5">
+                    <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 shadow-sm">
+                      {dayLabel(m, formatDate)}
+                    </span>
+                  </div>
+                )}
+
+                {/* A line from TTMS rather than from a person: no bubble, no
+                    menu, nothing to react to. See SystemMessage. */}
+                {m.system ? <SystemMessage message={m} /> : (
+                <MessageBubble
+                  message={m}
+                  grouped={grouped}
+                  showSenderName={conversation.kind !== 'direct'}
+                  flashed={flashId === m.id}
+                  editing={editingId === m.id}
+                  editDraft={editDraft}
+                  onEditDraft={setEditDraft}
+                  onSaveEdit={() => void saveEdit(m)}
+                  onCancelEdit={() => setEditingId(null)}
+                  onOpenActions={(anchor) => setActionsFor({ messageId: m.id, anchor })}
+                  actionsOpen={actionsFor?.messageId === m.id}
+                  onToggleReaction={(key, add) =>
+                    void toggleReaction(
+                      conversationId,
+                      { id: m.id, senderUid: m.senderUid, text: m.text },
+                      key,
+                      senderIdentity,
+                      add,
+                    ).catch(() => setError('That reaction did not save.'))
+                  }
+                  onOpenPerson={(uid, anchor) => setCard({ uid, anchor })}
+                  // Preferred over the stored copy whenever the original is still
+                  // in the loaded window, so a quote of something since deleted
+                  // stops showing the text, and an edit is reflected. A quote
+                  // carried in from another conversation has no original here and
+                  // keeps its copy.
+                  quoteLive={
+                    m.replyTo && !m.replyTo.fromConversationId
+                      ? messages.find((x) => x.id === m.replyTo?.messageId)
+                      : undefined
+                  }
+                  onJumpToQuoted={m.replyTo?.fromConversationId ? undefined : jumpTo}
+                  thread={{
+                    // The mark on the conversation is passed in because it is the
+                    // only evidence that somebody pulled into this thread by an @
+                    // is in it — they have neither written it nor replied yet.
+                    unread: isThreadUnread(
+                      m, myUid, threadReadAt, conversation.threadPings?.[myUid]?.rootId,
+                    ),
+                    onOpen: () => setOpenThread({ conversationId, rootId: m.id }),
+                  }}
+                />
+                )}
+
+                {!m.system && actionsFor?.messageId === m.id && (
+                  <ActionMenu
+                    anchor={actionsFor.anchor}
+                    onClose={() => setActionsFor(null)}
+                    actions={actionsOn(m, mine)}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </ChatWallpaper>
 
       <MessageComposer
         conversationId={conversationId}

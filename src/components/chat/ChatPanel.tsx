@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink, Paperclip, Settings2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import ChatFilesDialog from './ChatFilesDialog';
+import ChatWallpaper from './ChatWallpaper';
 import ConversationList from './ConversationList';
 import MessageThread from './MessageThread';
 import NewConversationDialog from './NewConversationDialog';
@@ -298,9 +299,13 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
             </div>
           </>
         ) : (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-gray-400">Pick a conversation on the left.</p>
-          </div>
+          <ChatWallpaper>
+            <div className="relative flex h-full items-center justify-center">
+              <p className="rounded-full bg-white px-4 py-2 text-sm text-gray-500 shadow-sm">
+                Pick a conversation on the left.
+              </p>
+            </div>
+          </ChatWallpaper>
         )}
       </div>
 
@@ -346,15 +351,15 @@ function Header({
   onFiles: () => void;
 }) {
   return (
-    <div className="flex flex-shrink-0 items-center gap-2 border-b border-gray-200 px-4 py-3">
+    <div className="flex flex-shrink-0 items-center gap-1 border-b border-gray-200 px-4 py-2.5">
       {onBack && (
         <button
           type="button"
           onClick={onBack}
           title="Back to conversations"
-          className="-ml-1 rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+          className="-ml-2 rounded-full p-2 text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={20} />
         </button>
       )}
 
@@ -393,9 +398,9 @@ function Header({
         type="button"
         onClick={onFiles}
         title="Files and links"
-        className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+        className="rounded-full p-2 text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
       >
-        <Paperclip size={16} />
+        <Paperclip size={20} />
       </button>
 
       {/* A named room always has something to change. The Everyone room has one
@@ -407,9 +412,9 @@ function Header({
           type="button"
           onClick={onSettings}
           title="Room settings"
-          className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+          className="rounded-full p-2 text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
         >
-          <Settings2 size={16} />
+          <Settings2 size={20} />
         </button>
       )}
     </div>
@@ -428,9 +433,9 @@ function Identity({
 }) {
   const inside = (
     <>
-      <RoomAvatar conversation={conversation} size={32} />
+      <RoomAvatar conversation={conversation} size={40} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold text-gray-900">
+        <span className="block truncate text-base font-semibold text-gray-900">
           {conversationTitle(conversation, myUid, nameOf)}
         </span>
         <span className="block truncate text-xs text-gray-500">
@@ -441,7 +446,7 @@ function Identity({
   );
 
   if (!onSettings) {
-    return <div className="flex min-w-0 flex-1 items-center gap-2">{inside}</div>;
+    return <div className="flex min-w-0 flex-1 items-center gap-3">{inside}</div>;
   }
 
   return (
@@ -451,7 +456,7 @@ function Identity({
       title="Room settings"
       // Negative margin so the hover panel lines the text up exactly where it
       // sat before, rather than the header shifting when this became a button.
-      className="-mx-2 flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1 text-left transition hover:bg-gray-100"
+      className="-mx-2 flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1 text-left transition hover:bg-gray-100"
     >
       {inside}
     </button>

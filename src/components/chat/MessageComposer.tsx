@@ -516,9 +516,9 @@ export default function MessageComposer({
             type="button"
             onClick={() => filePicker.current?.click()}
             title="Attach a photo or file"
-            className="flex-shrink-0 rounded-lg p-2.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+            className="flex-shrink-0 rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
           >
-            <Paperclip size={16} />
+            <Paperclip size={22} />
           </button>
         )}
 
@@ -529,9 +529,9 @@ export default function MessageComposer({
             setEmojiAt((was) => (was ? null : emojiButton.current?.getBoundingClientRect() ?? null))
           }
           title="Emoji"
-          className="flex-shrink-0 rounded-lg p-2.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+          className="flex-shrink-0 rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
         >
-          <Smile size={16} />
+          <Smile size={22} />
         </button>
         {/* Gone rather than disabled where pictures are kept to admins, for the
             same reason as the paperclip: a sticker is a picture, and the rules
@@ -544,9 +544,9 @@ export default function MessageComposer({
               setStickerAt((was) => (was ? null : stickerButton.current?.getBoundingClientRect() ?? null))
             }
             title="Stickers and GIFs"
-            className="flex-shrink-0 rounded-lg p-2.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+            className="flex-shrink-0 rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
           >
-            <StickerIcon size={16} />
+            <StickerIcon size={22} />
           </button>
         )}
         {stickerAt && (
@@ -618,16 +618,16 @@ export default function MessageComposer({
           }}
           rows={1}
           placeholder={placeholder}
-          className="max-h-32 min-h-[38px] flex-1 resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+          className="max-h-32 min-h-[40px] flex-1 resize-y rounded-2xl border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
         />
         <button
           type="button"
           onClick={() => void handleSend()}
           disabled={(!draft.trim() && pendingFiles.length === 0) || sending}
           title="Send"
-          className="flex-shrink-0 rounded-lg bg-brand-500 p-2.5 text-white transition hover:bg-brand-600 disabled:opacity-40"
+          className="flex-shrink-0 rounded-full bg-brand-500 p-2.5 text-white shadow-sm transition hover:bg-brand-600 disabled:opacity-40"
         >
-          <Send size={16} />
+          <Send size={18} />
         </button>
       </div>
     </div>

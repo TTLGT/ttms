@@ -277,9 +277,9 @@ export default function ChatFilterBar({
         title="Filters and lists"
         aria-label="Filters and lists"
         onClick={(e) => setMenuAt(e.currentTarget.getBoundingClientRect())}
-        className="flex-shrink-0 rounded-full border border-gray-300 p-1 text-gray-400 transition hover:bg-gray-50 hover:text-gray-700"
+        className="flex-shrink-0 rounded-full border border-gray-300 p-1.5 text-gray-500 transition hover:bg-gray-50 hover:text-gray-800"
       >
-        <ChevronDown size={13} />
+        <ChevronDown size={14} />
       </button>
 
       {menuAt && (
@@ -337,7 +337,7 @@ function Chip({
       // from where the chip actually landed rather than from a second sum.
       data-chip-id={id}
       onClick={onSelect}
-      className={`flex flex-shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition ${
+      className={`flex flex-shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-[13px] font-medium transition ${
         selected
           ? 'border-brand-500 bg-brand-50 text-brand-700'
           : 'border-gray-300 text-gray-600 hover:bg-gray-50'

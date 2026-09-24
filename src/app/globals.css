@@ -114,6 +114,36 @@ html.app-shell-locked body {
 }
 
 /*
+ * The ground behind chat messages — see components/chat/ChatWallpaper.tsx.
+ *
+ * A warm paper tone with freight drawings scattered faintly over it, the way
+ * WhatsApp does it. The drawings are public/chat-wallpaper.svg, used as a
+ * *mask* over a flat colour rather than as a picture: an SVG drawn as a
+ * background image keeps whatever colour it was drawn in, so dark mode would
+ * need a second file. As a mask only its shape counts, and the colour is the
+ * variable below, which html.dark redefines like everything else.
+ *
+ * Kept deliberately faint. It is there so the column reads as a place rather
+ * than as a form, and it must never compete with a message for attention.
+ */
+:root {
+  --chat-ground: #efeae2;
+  --chat-doodle: #ddd4c6;
+}
+html.dark {
+  --chat-ground: #0e1319;
+  --chat-doodle: #1b232d;
+}
+.chat-ground {
+  background-color: var(--chat-ground);
+}
+.chat-wallpaper {
+  background-color: var(--chat-doodle);
+  -webkit-mask: url('/chat-wallpaper.svg') 0 0 / 480px 480px repeat;
+  mask: url('/chat-wallpaper.svg') 0 0 / 480px 480px repeat;
+}
+
+/*
  * Printing the extension sheet — see components/people/ExtensionSheet.tsx.
  *
  * The sheet is portalled to <body> and the class below is on <html> only while

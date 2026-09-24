@@ -20,6 +20,7 @@ import { dayLabel, dayOf, groupsWithPrevious } from '@/lib/chatFormat';
 import PersonCard from './PersonCard';
 import ActionMenu, { type MenuAction } from './ActionMenu';
 import MessageBubble from './MessageBubble';
+import ChatWallpaper from './ChatWallpaper';
 import MessageComposer from './MessageComposer';
 import { can } from '@/lib/accessControl';
 import {
@@ -350,53 +351,55 @@ export default function ThreadPanel({
         </button>
       </div>
 
-      <div
-        ref={scroller}
-        className="min-h-0 flex-1 overflow-y-auto bg-gray-50 px-4 py-4 space-y-1.5"
-      >
-        {missing && (
-          <p className="text-sm text-gray-400">
-            The message this thread belonged to is no longer there.
-          </p>
-        )}
+      <ChatWallpaper>
+        <div
+          ref={scroller}
+          className="relative h-full overflow-y-auto px-4 py-4 space-y-1.5"
+        >
+          {missing && (
+            <p className="text-sm text-gray-400">
+              The message this thread belonged to is no longer there.
+            </p>
+          )}
 
-        {root && bubbleFor(root, false, false)}
+          {root && bubbleFor(root, false, false)}
 
-        {/* A rule, not a pill: this one separates a message from its answers
-            rather than marking a point in time, and the count is the thing
-            worth reading in it. */}
-        {root && (
-          <div className="flex items-center gap-2 py-2">
-            <span className="h-px flex-1 bg-gray-200" />
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-              {loading
-                ? 'Loading replies…'
-                : replies.length === 0
-                  ? 'No replies yet'
-                  : `${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}`}
-            </span>
-            <span className="h-px flex-1 bg-gray-200" />
-          </div>
-        )}
-
-        {replies.map((m, i) => {
-          const previous = replies[i - 1];
-          const newDay   = !previous || dayOf(previous) !== dayOf(m);
-
-          return (
-            <div key={m.id}>
-              {newDay && (
-                <div className="flex justify-center py-2.5">
-                  <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 shadow-sm">
-                    {dayLabel(m, formatDate)}
-                  </span>
-                </div>
-              )}
-              {bubbleFor(m, true, !newDay && groupsWithPrevious(m, previous))}
+          {/* A rule, not a pill: this one separates a message from its answers
+              rather than marking a point in time, and the count is the thing
+              worth reading in it. */}
+          {root && (
+            <div className="flex items-center gap-2 py-2">
+              <span className="h-px flex-1 bg-gray-200" />
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                {loading
+                  ? 'Loading replies…'
+                  : replies.length === 0
+                    ? 'No replies yet'
+                    : `${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}`}
+              </span>
+              <span className="h-px flex-1 bg-gray-200" />
             </div>
-          );
-        })}
-      </div>
+          )}
+
+          {replies.map((m, i) => {
+            const previous = replies[i - 1];
+            const newDay   = !previous || dayOf(previous) !== dayOf(m);
+
+            return (
+              <div key={m.id}>
+                {newDay && (
+                  <div className="flex justify-center py-2.5">
+                    <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 shadow-sm">
+                      {dayLabel(m, formatDate)}
+                    </span>
+                  </div>
+                )}
+                {bubbleFor(m, true, !newDay && groupsWithPrevious(m, previous))}
+              </div>
+            );
+          })}
+        </div>
+      </ChatWallpaper>
 
       <MessageComposer
         conversationId={conversationId}

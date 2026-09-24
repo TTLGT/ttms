@@ -56,11 +56,11 @@ export default function NotifyMenu() {
         type="button"
         onClick={() => setOpen((was) => !was)}
         title={silent ? 'Alerts are off' : 'Alerts'}
-        className={`rounded-lg p-1.5 transition hover:bg-gray-100 ${
-          silent ? 'text-gray-300 hover:text-gray-600' : 'text-brand-500 hover:text-brand-700'
+        className={`rounded-full p-2 transition hover:bg-gray-100 ${
+          silent ? 'text-gray-400 hover:text-gray-700' : 'text-brand-500 hover:text-brand-700'
         }`}
       >
-        {silent ? <BellOff size={16} /> : <Bell size={16} />}
+        {silent ? <BellOff size={20} /> : <Bell size={20} />}
       </button>
 
       {open && (

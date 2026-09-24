@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import {
-  ArrowDown, ArrowUp, AtSign, Bell, BellOff, ListPlus, LogOut, MessagesSquare, MoreVertical,
-  Pin, PinOff, Plus, Search, Star, StarOff, Tag, X,
+  ArrowDown, ArrowUp, AtSign, Bell, BellOff, ListPlus, LogOut, MessageSquarePlus, MessagesSquare,
+  MoreVertical, Pin, PinOff, Search, Star, StarOff, Tag, X,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
@@ -220,11 +220,9 @@ export default function ConversationList({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2.5">
-        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-          Conversations
-        </span>
-        <div className="flex items-center gap-0.5">
+      <div className="flex flex-shrink-0 items-center justify-between px-4 pb-2 pt-3">
+        <h2 className="text-xl font-bold text-gray-900">Chats</h2>
+        <div className="flex items-center gap-1">
           {/* Threads are answers addressed to you, which is a different
               question from which room is busy — so its own way in, rather than
               a filter over the list below. */}
@@ -232,32 +230,37 @@ export default function ConversationList({
             type="button"
             onClick={onShowThreads}
             title="Threads you are in"
-            className="relative rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+            className="relative rounded-full p-2 text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
           >
-            <MessagesSquare size={16} />
+            <MessagesSquare size={20} />
             {threadsWaiting && (
-              <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand-500" />
+              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-brand-500 ring-2 ring-white" />
             )}
           </button>
           <NotifyMenu />
+          {/* Filled, where everything beside it is a plain icon, because it is
+              the one thing in this header that makes something new — the same
+              call WhatsApp makes with its green button. As a grey plus it was
+              the easiest control on the screen to miss. */}
           <button
             type="button"
             onClick={onNew}
             title="Start a conversation"
-            className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+            aria-label="Start a conversation"
+            className="ml-1 flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 text-white shadow-md transition hover:bg-brand-600 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300 focus-visible:ring-offset-2"
           >
-            <Plus size={16} />
+            <MessageSquarePlus size={20} />
           </button>
         </div>
       </div>
 
       {/* Above the chips rather than below them, because it overrules them:
           anything typed here decides what the list shows. */}
-      <div className="px-2 pb-1.5">
+      <div className="px-3 pb-2">
         <div className="relative">
           <Search
-            size={14}
-            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+            size={16}
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
           />
           <input
             type="search"
@@ -272,16 +275,16 @@ export default function ConversationList({
             }}
             placeholder="Search rooms, people, messages"
             aria-label="Search chat"
-            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-8 pr-8 text-xs text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-200"
+            className="w-full rounded-full border border-transparent bg-gray-100 py-2 pl-10 pr-9 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-200"
           />
           {(searchQuery || search) && (
             <button
               type="button"
               onClick={clearSearch}
               title="Clear search"
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-gray-400 transition hover:bg-gray-200 hover:text-gray-700"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-gray-400 transition hover:bg-gray-200 hover:text-gray-700"
             >
-              <X size={12} />
+              <X size={14} />
             </button>
           )}
         </div>
