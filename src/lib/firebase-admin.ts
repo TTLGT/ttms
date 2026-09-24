@@ -100,10 +100,15 @@ export async function requireAdmin(req: Request): Promise<{ uid: string; email: 
  * Reads the profile rather than the ID token on purpose. A permission removed
  * a minute ago has already been written to `users/{uid}`, whereas the token in
  * the caller's hand can be up to an hour old.
+ *
+ * A list means **any one of them** is enough. That is for a narrow permission
+ * carved out of a broad one — `leadSources.manage` out of `settings.manage` —
+ * where the broad one must keep working, or splitting it would quietly take
+ * the ability away from everybody who was granted it by hand.
  */
 export async function requirePermission(
   req: Request,
-  permission: Permission,
+  permission: Permission | readonly Permission[],
 ): Promise<{ uid: string; email: string | undefined }> {
   const decoded = await verifyRequestToken(req);
 
@@ -118,7 +123,8 @@ export async function requirePermission(
   // `can()` handles the profile written before permissions existed by deriving
   // the list from the role flags, so an old profile keeps exactly the access it
   // had rather than failing every guard until its owner signs in again.
-  if (!can(data as RoleFlags, permission)) {
+  const anyOf: readonly Permission[] = typeof permission === 'string' ? [permission] : permission;
+  if (!anyOf.some((p) => can(data as RoleFlags, p))) {
     throw new AdminAuthError('You do not have permission to perform this action', 403);
   }
 

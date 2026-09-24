@@ -86,9 +86,11 @@ const NAV_ITEMS: {
   { href: '/dashboard/celebrations', label: 'Celebrations', Icon: CalendarHeart, needs: 'people.view' },
   { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart2,     needs: 'analytics.view' },
   // Also open to HR, who read the people directory there and nothing else —
-  // the page itself renders read-only for them.
+  // the page itself renders read-only for them — and to dispatch and finance
+  // for their own panels on the Operations tab.
   { href: '/dashboard/settings',  label: 'Settings',  Icon: Settings,
-    anyOf: ['people.manage', 'people.view', 'settings.manage'] },
+    anyOf: ['people.manage', 'people.view', 'settings.manage',
+            'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage'] },
   { href: '/dashboard/handbook',  label: 'Handbook',  Icon: BookOpen,      needs: 'handbook.view' },
 ];
 

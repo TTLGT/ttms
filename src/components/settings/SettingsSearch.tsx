@@ -85,7 +85,7 @@ export default function SettingsSearch({
       // everybody who gets this far, or if you hold the one permission it
       // names. Without the last of those, HR could open the Celebrations panel
       // from the tab bar and still not find it by typing "birthday".
-      .filter((s) => isAdmin || !s.adminOnly || (s.permission !== undefined && can(s.permission)))
+      .filter((s) => isAdmin || !s.adminOnly || (s.permissions ?? []).some((p) => can(p)))
       .filter((s) => matches(`${s.label} ${s.blurb} ${s.keywords}`, terms))
       .slice(0, 6)
       .map((s) => ({

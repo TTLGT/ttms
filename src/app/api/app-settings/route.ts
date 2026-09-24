@@ -57,19 +57,26 @@ export async function GET(req: NextRequest) {
 /**
  * Which keys in this document each permission may write.
  *
- * Two owners, not one. `settings.manage` is how the company works — lane
+ * Several owners, not one. `settings.manage` is how the company works — lane
  * mileage, the date format; `celebrations.manage` is what the company says on
  * somebody's birthday, which is HR's and is deliberately not bundled with the
- * rest. An admin holds both, so nothing changes for them.
+ * rest. An admin holds all of them, so nothing changes for them.
+ *
+ * Each entry is a list of permissions, any one of which will do. Lane mileage
+ * and payment terms name a narrow permission beside `settings.manage` so
+ * finance can own them without the rest of the tab; the broad one still
+ * reaches them, so nobody granted it by hand lost anything in the split.
  *
  * The guard is per key rather than per request, so a body naming one of each
  * has to satisfy both. Nothing sends such a body today — each panel posts only
  * what it changed — but a request that could get one key in on the strength of
  * another is the kind of hole nobody finds by using the screen.
  */
-const SETTING_OWNERS: { permission: Permission; keys: string[] }[] = [
-  { permission: 'settings.manage',      keys: ['laneDistanceMode', 'dateFormat', 'clientPaymentMethods', 'carrierPaymentMethods', 'brokerFeeTermOptions'] },
-  { permission: 'celebrations.manage',  keys: ['celebrations', 'celebrationTemplates'] },
+const SETTING_OWNERS: { permission: readonly Permission[]; keys: string[] }[] = [
+  { permission: ['settings.manage'],                        keys: ['dateFormat'] },
+  { permission: ['settings.manage', 'laneDistance.manage'], keys: ['laneDistanceMode'] },
+  { permission: ['settings.manage', 'paymentTerms.manage'], keys: ['clientPaymentMethods', 'carrierPaymentMethods', 'brokerFeeTermOptions'] },
+  { permission: ['celebrations.manage'],                    keys: ['celebrations', 'celebrationTemplates'] },
 ];
 
 /** Stored wording, with the default substituted for anything unusable. */

@@ -82,12 +82,15 @@ const DATE_SAMPLE = '2020-03-04';
 type Values = Partial<Record<string, string>>;
 
 export default function SettingsOverviewPage() {
-  const { can } = useAuth();
+  const { can, profile } = useAuth();
 
   // Overview is the company's setup at a glance. HR and a Sales Manager both
   // belong on People instead — one reads the directory, the other manages a
   // team, and neither has anything to do on this page.
   const isAdmin = can('settings.manage') || can('people.manage');
+  // Dispatch and finance come in for their panels on Operations and cannot
+  // open People, so that is where they are sent instead.
+  const seesPeople = can('people.view') || profile?.isSalesManager === true;
   const router = useRouter();
   const [values, setValues] = useState<Values>({});
   const [loading, setLoading] = useState(true);
@@ -95,8 +98,8 @@ export default function SettingsOverviewPage() {
   // HR has one tab, so an overview of tabs they cannot open is nothing but a
   // wall of locked doors. Send them where they were going.
   useEffect(() => {
-    if (!isAdmin) router.replace('/dashboard/settings/people');
-  }, [isAdmin, router]);
+    if (!isAdmin) router.replace(seesPeople ? '/dashboard/settings/people' : '/dashboard/settings/operations');
+  }, [isAdmin, seesPeople, router]);
 
   useEffect(() => {
     if (!isAdmin) return;

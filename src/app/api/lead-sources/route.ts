@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const caller = await requirePermission(req, 'settings.manage');
+    const caller = await requirePermission(req, ['settings.manage', 'leadSources.manage']);
     const body   = await req.json().catch(() => ({}));
 
     const name = String(body.name ?? '').trim();

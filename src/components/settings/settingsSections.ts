@@ -28,8 +28,10 @@ export interface SettingsTab {
    * become the one place that still said otherwise. **A tab opened this way
    * must have its page filter its own panels** — the tab being reachable is
    * not permission to use everything on it. See the Operations page.
+   *
+   * Any one of the list opens it.
    */
-  permission?: Permission;
+  permissions?: readonly Permission[];
 }
 
 export const SETTINGS_TABS: SettingsTab[] = [
@@ -39,8 +41,11 @@ export const SETTINGS_TABS: SettingsTab[] = [
   // People is who is here, Permissions is what each of them can do.
   { id: 'permissions',  label: 'Permissions',  href: '/dashboard/settings/permissions',  adminOnly: true  },
   { id: 'organization', label: 'Organization', href: '/dashboard/settings/organization', adminOnly: true  },
-  // HR reaches this tab for the Celebrations panel and nothing else on it.
-  { id: 'operations',   label: 'Operations',   href: '/dashboard/settings/operations',   adminOnly: true, permission: 'celebrations.manage' },
+  // HR reaches this tab for the Celebrations panel, dispatch for Lead Sources
+  // and finance for Lane Distance and Payment Terms — each for its own panels
+  // and nothing else on it.
+  { id: 'operations',   label: 'Operations',   href: '/dashboard/settings/operations',   adminOnly: true,
+    permissions: ['celebrations.manage', 'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage'] },
   { id: 'data',         label: 'Data',         href: '/dashboard/settings/data',         adminOnly: true  },
 ];
 
@@ -59,7 +64,7 @@ export interface SettingsSection {
   keywords: string;
   adminOnly: boolean;
   /** As on SettingsTab: a second way in, never a narrowing. */
-  permission?: Permission;
+  permissions?: readonly Permission[];
 }
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -134,6 +139,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     blurb: 'How order mileage is worked out — free estimate or paid Google lookup.',
     keywords: 'miles mileage distance google routes estimate zip billing cost api',
     adminOnly: true,
+    permissions: ['laneDistance.manage'],
   },
   {
     id: 'date-format',
@@ -150,7 +156,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     blurb: 'The daily birthday and work-anniversary message in the Everyone room, and its wording.',
     keywords: 'birthday birthdays anniversary anniversaries congratulations chat everyone room daily 8am announcement message wording template greeting hr',
     adminOnly: true,
-    permission: 'celebrations.manage',
+    permissions: ['celebrations.manage'],
   },
   {
     id: 'payment-methods',
@@ -159,6 +165,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     blurb: 'How clients pay us, how carriers are paid and when our fee is collected, with any fee each option carries.',
     keywords: 'payment terms pay method cod cash check ach zelle wire credit card quick pay factoring fee surcharge carrier pay terms broker fee terms charge on dispatch',
     adminOnly: true,
+    permissions: ['paymentTerms.manage'],
   },
   {
     id: 'lead-sources',
@@ -167,6 +174,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     blurb: 'Where new clients came from, as offered on the client form.',
     keywords: 'lead source referral marketing origin how they found us',
     adminOnly: true,
+    permissions: ['leadSources.manage'],
   },
   {
     id: 'bats-import',

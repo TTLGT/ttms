@@ -145,6 +145,21 @@ export const PERMISSIONS = [
   'handbook.view',
   /** Company settings, offices, teams, work groups and lead sources. */
   'settings.manage',
+  /**
+   * The three Operations panels that belong to a department rather than to
+   * the company as a whole: the list of lead sources, how lane mileage is
+   * worked out, and the payment terms offered on an order.
+   *
+   * Each is a slice of `settings.manage`, which still covers all three — these
+   * are narrower ways in, never a replacement, so nobody who held the broad
+   * one lost anything when they were split out. They exist so dispatch can
+   * keep the lead-source list right and finance can own mileage and payment
+   * terms without either being handed offices, teams and work groups too —
+   * and work groups grant access to records.
+   */
+  'leadSources.manage',
+  'laneDistance.manage',
+  'paymentTerms.manage',
 
   // ── Everything else ──────────────────────────────────────────────────────
   'chat.use',
@@ -269,6 +284,9 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'analytics.view',  label: 'See analytics',   detail: 'The Analytics section — revenue, margin and volume across the company.' },
       { key: 'handbook.view',   label: 'See the handbook', detail: 'The admin handbook section.' },
       { key: 'settings.manage', label: 'Manage settings', detail: 'Company settings, offices, teams, work groups and lead sources.' },
+      { key: 'leadSources.manage',  label: 'Manage lead sources',  detail: 'Add, rename and retire the lead sources offered on clients and loads. Dispatch has this already.' },
+      { key: 'laneDistance.manage', label: 'Manage lane distance', detail: 'Choose how order mileage is worked out, including the paid Google lookup. Finance has this already.' },
+      { key: 'paymentTerms.manage', label: 'Manage payment terms', detail: 'The payment methods and fee terms offered for clients and carriers, and the fee each one carries. Finance has this already.' },
     ],
   },
   {
@@ -365,6 +383,9 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     // panel only saves them counting. It is how they decide who has room for
     // the next one.
     'directory.book',
+    // The lead-source list: dispatch hears where a new client came from
+    // first, and is who notices when the list is missing the answer.
+    'leadSources.manage',
   ],
 
   // Finance: every record, and the paperwork that bills for it.
@@ -375,6 +396,10 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     // Same reasoning as dispatch: finance sees every load already, and "how
     // much is still open against this broker" is a question they get asked.
     'directory.book',
+    // Lane mileage is what a load is priced and paid against, and the Google
+    // option carries a bill; payment terms are finance's own. Both belong to
+    // the people who answer for the money.
+    'laneDistance.manage', 'paymentTerms.manage',
   ],
 
   // HR: the access list and the payroll fields on it, on top of an ordinary
@@ -446,8 +471,8 @@ export const ROLE_LABELS: Record<RoleKey, string> = {
  */
 export const ROLE_DETAILS: Record<RoleKey, string> = {
   isAdmin:        'Everything, everywhere.',
-  isDispatcher:   'Every client and load, ownership changes, and the agreements.',
-  isFinance:      'Every client and load, plus BOLs and invoices.',
+  isDispatcher:   'Every client and load, ownership changes, the agreements, and lead sources.',
+  isFinance:      'Every client and load, BOLs and invoices, lane distance and payment terms.',
   isHr:           'The access list and payroll details. No operational access.',
   isSalesManager: 'A broker, plus everything an admin can do for the team they lead in Settings → Teams.',
   isIntern:       'Below a broker: the directory, chat and their own area. Nothing else unless it is granted.',

@@ -27,7 +27,7 @@ export async function PATCH(
 ) {
   try {
     const { sourceId } = await params;
-    await requirePermission(req, 'settings.manage');
+    await requirePermission(req, ['settings.manage', 'leadSources.manage']);
     const body = await req.json().catch(() => ({}));
 
     const ref  = adminDb.collection(COL).doc(sourceId);
@@ -85,7 +85,7 @@ export async function DELETE(
 ) {
   try {
     const { sourceId } = await params;
-    await requirePermission(req, 'settings.manage');
+    await requirePermission(req, ['settings.manage', 'leadSources.manage']);
 
     const ref  = adminDb.collection(COL).doc(sourceId);
     const snap = await ref.get();

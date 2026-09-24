@@ -36,6 +36,9 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
    *   they are here and the only reason.
    * - A Sales Manager: the People tab, writable for their own team and nobody
    *   else. That narrowing happens inside the page — see canEditPerson there.
+   * - Somebody holding one Operations panel — HR's Celebrations, dispatch's
+   *   Lead Sources, finance's Lane Distance and Payment Terms: that tab, with
+   *   only their panels on it.
    *
    * Anyone else is bounced, and the Firestore rules refuse them independently
    * of this. Gating in the layout rather than in each page means a new tab
@@ -48,6 +51,9 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     || can('people.view')
     || can('settings.manage')
     || can('celebrations.manage')
+    || can('leadSources.manage')
+    || can('laneDistance.manage')
+    || can('paymentTerms.manage')
     || profile?.isSalesManager === true;
 
   useEffect(() => {
@@ -74,11 +80,18 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   // reached on a single permission still shows only the panels that permission
   // covers — the page below it filters its own — so this opens a door, not a
   // tab full of controls that answer 403.
+  //
+  // People is the one tab open to "everybody who gets this far", which was
+  // true when everybody who got this far was there for People. Dispatch and
+  // finance now get in for an Operations panel, and a directory of payroll
+  // fields they have no permission to read is not a tab to show them.
+  const seesPeople = managesPeople || can('people.view') || can('settings.manage')
+    || profile?.isSalesManager === true;
   const tabs = SETTINGS_TABS.filter((t) =>
-    !t.adminOnly
+    (t.id === 'people' ? seesPeople : !t.adminOnly)
     || managesPeople
     || can('settings.manage')
-    || (t.permission !== undefined && can(t.permission)),
+    || (t.permissions ?? []).some((p) => can(p)),
   );
 
   /**
