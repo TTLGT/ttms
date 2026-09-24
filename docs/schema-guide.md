@@ -1207,7 +1207,7 @@ People. It is the only key that reaches that room.
 | `mentions` | string[] | Uids named with an @ in this message |
 | `replyTo` | `MessageQuote \| null` | The message this one answers, quoted above it |
 | `attachments` | `Attachment[]` | Photos and files. A message may be nothing but these |
-| `reactions` | `{ [key]: uid[] }` | Who reacted with what. Keys are ASCII — see REACTIONS |
+| `reactions` | `{ [key]: uid[] }` | Who reacted with what. Keys are ASCII — see `reactionKeyFor()` |
 | `system` | boolean | Written by TTMS, not by a person — see below |
 
 **System messages** carry `senderUid: 'system'`, `senderName: 'TTMS'` and
@@ -1269,9 +1269,14 @@ Admin SDK and returns a short-lived signed URL, plus a `chat/` prefix in
 the browser only, for the same reason: tightening the blanket bucket rule would
 touch every other upload in the app.
 
-Reaction keys are plain ASCII (`up`, `done`, `question`, `eyes`, `thanks`,
-`heart`) rather than emoji, because an emoji as a Firestore field name needs
-quoting on every path it appears in. Writes use `arrayUnion`/`arrayRemove` on a
+Reaction keys are plain ASCII rather than emoji, because an emoji as a
+Firestore field name needs quoting on every path it appears in. The six quick
+reactions keep their word keys (`up`, `done`, `question`, `eyes`, `thanks`,
+`heart`); any other emoji is spelled as its code points in hex, `u` first and
+joined by `_` — `u1f525` for 🔥, `u1f44d_1f3fd` for 👍🏽. `reactionKeyFor()` and
+`reactionGlyph()` in `src/types/conversation.ts` are the two directions, and a
+quick-row emoji picked from the full picker maps to its word key so it joins
+the same count. Writes use `arrayUnion`/`arrayRemove` on a
 dotted path so that several people reacting at once do not overwrite each other.
 The rules let **any member** update `reactions` on **anybody's** message — that
 is the point of a reaction — and check only that nothing else moved. Rules cannot

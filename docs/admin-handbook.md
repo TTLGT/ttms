@@ -712,9 +712,22 @@ acknowledging a dispatch note is twelve lines of noise in a room, or one small
 count under the note itself. Hovering a count lists who reacted, which answers
 the question actually worth asking: *who has seen this?*
 
-Click your own reaction again to take it back. There is no full emoji picker on
-purpose — hunting through three thousand faces is slower than typing "ok", which
-would defeat the point.
+Click your own reaction again to take it back. For anything else, the **+** at
+the end of the six opens every emoji, with a search box — "fire", "truck",
+"party". The six stay first on purpose: hunting through two thousand faces is
+slower than typing "ok", which would defeat the point.
+
+### Emoji in a message
+
+The smiley beside the paperclip opens the same picker and drops the emoji where
+your cursor is. It stays open so you can pick several; press Esc or click away
+to close it. Your recent picks and skin tone are remembered on that computer.
+
+Some newer emoji are hidden on older computers. Windows 10 can only draw emoji
+up to about 2019, and it shows country flags as two letters ("US"). The picker
+checks what your computer can draw and hides the rest, so it never offers an
+empty box. A colleague on a newer computer can still send one of those, and it
+will look like a box on yours.
 
 ### Sending photos and files
 

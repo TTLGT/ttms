@@ -342,7 +342,7 @@ export interface ReactionPing {
   at: Timestamp;
   byUid: string;
   byName: string;
-  /** The palette key, not the glyph — see REACTIONS and reactionGlyph. */
+  /** The reaction key, not the glyph — see reactionKeyFor and reactionGlyph. */
   key: string;
   messageId: string;
   /**
@@ -590,16 +590,17 @@ export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 export const MAX_ROOM_PHOTO_BYTES = 5 * 1024 * 1024;
 
 /**
- * The reactions people can leave, as a fixed set.
+ * The quick reactions: the row that opens first, one click from the message.
  *
- * A fixed palette rather than a full emoji picker, for two reasons. The whole
- * point of a reaction is that it is faster than typing "ok" — a picker with
- * three thousand faces in it is not faster than typing "ok". And the keys are
- * plain ASCII, which keeps them usable as Firestore field paths; an emoji as a
- * field name needs quoting every time it is written.
+ * Any emoji can be a reaction now (see reactionKeyFor), but this row is still
+ * what the picker leads with, and it is still short on purpose. The point of a
+ * reaction is that it is faster than typing "ok"; the full picker is one click
+ * further away for the rare "🔥", and these six are the ones a freight desk
+ * reaches for all day. Resist adding a seventh without one being taken away.
  *
- * These are the six a freight desk actually needs. Resist adding a seventh
- * without one being taken away.
+ * The keys are plain ASCII, which keeps them usable as Firestore field paths —
+ * an emoji as a field name needs quoting every time it is written. They also
+ * stay exactly as they were, because they are already stored on live messages.
  */
 export const REACTIONS: { key: string; glyph: string; label: string }[] = [
   { key: 'up',       glyph: '👍', label: 'Got it' },
@@ -610,8 +611,46 @@ export const REACTIONS: { key: string; glyph: string; label: string }[] = [
   { key: 'heart',    glyph: '❤️', label: 'Love it' },
 ];
 
+/**
+ * Emoji presentation selector. Picker data carries it on emoji that also exist
+ * as plain text symbols ("❤️" vs "❤"), and the palette above does not always —
+ * so it is ignored when asking whether two emoji are the same one.
+ */
+const VS16 = /️/g;
+
+/** `u` plus the code points in hex, joined by `_`: `u1f525`, `u1f44d_1f3fd`. */
+const CODEPOINT_KEY = /^u[0-9a-f]{2,6}(_[0-9a-f]{2,6})*$/;
+
+/**
+ * The reaction key for any emoji.
+ *
+ * One of the six quick reactions keeps its old word key, so a 👍 chosen from
+ * the full picker lands on the same count as a 👍 from the quick row rather
+ * than starting a second one beside it. Anything else is spelled out as its
+ * code points, which is ASCII, a legal unquoted field name, and turns straight
+ * back into the emoji with no table to look it up in. The code points are kept
+ * exactly as the picker gave them, selector included: some sequences (🏳️‍🌈)
+ * do not draw without it.
+ */
+export function reactionKeyFor(glyph: string): string {
+  const bare = glyph.replace(VS16, '');
+  const quick = REACTIONS.find((r) => r.glyph.replace(VS16, '') === bare);
+  if (quick) return quick.key;
+  return 'u' + Array.from(glyph, (c) => c.codePointAt(0)!.toString(16)).join('_');
+}
+
 export function reactionGlyph(key: string): string {
-  return REACTIONS.find((r) => r.key === key)?.glyph ?? key;
+  const quick = REACTIONS.find((r) => r.key === key);
+  if (quick) return quick.glyph;
+  if (CODEPOINT_KEY.test(key)) {
+    try {
+      return String.fromCodePoint(...key.slice(1).split('_').map((h) => parseInt(h, 16)));
+    } catch {
+      // Out of range. Rules check only that reactions are a map, so a key
+      // nobody's picker produced can exist; show it as written.
+    }
+  }
+  return key;
 }
 
 /* ----------------------------------------------------------------- search */

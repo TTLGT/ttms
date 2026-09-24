@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Lock, MicOff, Paperclip, Send, X } from 'lucide-react';
+import { Lock, MicOff, Paperclip, Send, Smile, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { discardAttachment, readableSize, uploadAttachment } from '@/lib/chatUploads';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { UserAvatar } from '@/components/settings/UserAvatar';
+import EmojiPicker from './EmojiPicker';
 import {
   MAX_ATTACHMENT_BYTES,
   MAX_MESSAGE_LENGTH,
@@ -227,6 +228,31 @@ export default function MessageComposer({
       el.focus();
       el.setSelectionRange(at, at);
     });
+  }, [draft]);
+
+  /* ----------------------------------------------------------------- emoji */
+
+  const emojiButton = useRef<HTMLButtonElement>(null);
+  const [emojiAt, setEmojiAt] = useState<DOMRect | null>(null);
+
+  /**
+   * Puts an emoji where the caret was, replacing any selection.
+   *
+   * The picker has focus while it is open (its search box), so the caret is
+   * read off the text box rather than the page: a textarea keeps its selection
+   * after it loses focus. The caret is moved past what was inserted without
+   * focusing the box, so a second pick lands after the first and the picker's
+   * search keeps the keyboard.
+   */
+  const insertEmoji = useCallback((glyph: string) => {
+    const el = composer.current;
+    const start = el?.selectionStart ?? draft.length;
+    const end   = el?.selectionEnd ?? start;
+    const next  = draft.slice(0, start) + glyph + draft.slice(end);
+    if (next.length > MAX_MESSAGE_LENGTH) return;
+    setDraft(next);
+    const at = start + glyph.length;
+    window.requestAnimationFrame(() => el?.setSelectionRange(at, at));
   }, [draft]);
 
   /* --------------------------------------------------------------- sending */
@@ -459,6 +485,29 @@ export default function MessageComposer({
           >
             <Paperclip size={16} />
           </button>
+        )}
+
+        <button
+          ref={emojiButton}
+          type="button"
+          onClick={() =>
+            setEmojiAt((was) => (was ? null : emojiButton.current?.getBoundingClientRect() ?? null))
+          }
+          title="Emoji"
+          className="flex-shrink-0 rounded-lg p-2.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+        >
+          <Smile size={16} />
+        </button>
+        {emojiAt && (
+          <EmojiPicker
+            anchor={emojiAt}
+            onPick={insertEmoji}
+            closeOnPick={false}
+            onClose={() => {
+              setEmojiAt(null);
+              composer.current?.focus();
+            }}
+          />
         )}
 
         <textarea

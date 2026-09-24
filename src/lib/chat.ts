@@ -625,7 +625,7 @@ export async function deleteMessage(
  * same moment is entirely normal, and a read-then-write would lose four of
  * them.
  *
- * Reaction keys are plain ASCII — see REACTIONS in types/conversation.ts. An
+ * Reaction keys are plain ASCII — see reactionKeyFor in types/conversation.ts. An
  * emoji as a Firestore field name would need quoting on every path it appears
  * in, and would be one bad escape away from writing to the wrong field.
  */

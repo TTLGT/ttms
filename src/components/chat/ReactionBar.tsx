@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { SmilePlus } from 'lucide-react';
+import { Plus, SmilePlus } from 'lucide-react';
 import { useChat } from '@/context/ChatContext';
-import { REACTIONS, reactionGlyph } from '@/types/conversation';
+import { REACTIONS, reactionGlyph, reactionKeyFor } from '@/types/conversation';
+import EmojiPicker from './EmojiPicker';
 
 /**
  * The reactions under a message, and the way to add one.
@@ -12,8 +13,9 @@ import { REACTIONS, reactionGlyph } from '@/types/conversation';
  * people acknowledging a dispatch note is twelve lines of noise in a room, or
  * one row of small counts under the note itself.
  *
- * The palette is fixed and short — see REACTIONS. A picker with three thousand
- * faces in it is not faster than typing "ok", which would defeat the point.
+ * The quick row stays short — see REACTIONS — because a picker with two
+ * thousand faces in it is not faster than typing "ok". Its last button opens
+ * the full picker for everything else.
  */
 export default function ReactionBar({
   reactions,
@@ -29,6 +31,9 @@ export default function ReactionBar({
   // The anchor rect, not a boolean: the picker hangs off the viewport, so
   // opening it means recording where the button was at that moment.
   const [pickerAt, setPickerAt] = useState<DOMRect | null>(null);
+  // The full picker, opened from the quick row. It takes over from the row
+  // rather than stacking on top of it.
+  const [fullAt, setFullAt] = useState<DOMRect | null>(null);
 
   // Empty keys are left behind by arrayRemove taking out the last person, so
   // the map holds `{ up: [] }` rather than dropping the key. Filtered here
@@ -87,9 +92,21 @@ export default function ReactionBar({
                 onToggle(key, !(reactions?.[key] ?? []).includes(myUid));
                 setPickerAt(null);
               }}
+              onMore={(at) => { setPickerAt(null); setFullAt(at); }}
               onClose={() => setPickerAt(null)}
             />
           </>
+        )}
+
+        {fullAt && (
+          <EmojiPicker
+            anchor={fullAt}
+            onPick={(glyph) => {
+              const key = reactionKeyFor(glyph);
+              onToggle(key, !(reactions?.[key] ?? []).includes(myUid));
+            }}
+            onClose={() => setFullAt(null)}
+          />
         )}
       </div>
     </div>
@@ -105,10 +122,13 @@ export default function ReactionBar({
 function Picker({
   anchor,
   onPick,
+  onMore,
   onClose,
 }: {
   anchor: DOMRect;
   onPick: (key: string) => void;
+  /** Opens the full picker, anchored where this row was. */
+  onMore: (at: DOMRect) => void;
   onClose: () => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
@@ -120,7 +140,7 @@ function Picker({
     const margin = 8;
 
     // Measured rather than assumed: the palette's width is however wide six
-    // glyphs render, which is not the same number in every browser.
+    // glyphs and a button render, which is not the same number in every browser.
     let left = Math.min(anchor.left, window.innerWidth - el.offsetWidth - margin);
     left = Math.max(margin, left);
 
@@ -167,6 +187,14 @@ function Picker({
           {glyph}
         </button>
       ))}
+      <button
+        type="button"
+        title="More emoji"
+        onClick={() => { if (box.current) onMore(box.current.getBoundingClientRect()); }}
+        className="ml-0.5 flex items-center rounded-full px-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+      >
+        <Plus size={15} />
+      </button>
     </div>
   );
 }
