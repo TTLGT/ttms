@@ -2,6 +2,8 @@ import { auth } from './firebase';
 import { DEFAULT_APP_SETTINGS } from '@/types/appSettings';
 import type { AppSettings, DateFormat, LaneDistanceMode } from '@/types/appSettings';
 import type { Celebration, CelebrationTemplates } from '@/types/celebration';
+import { PAYMENT_LIST_KEY } from '@/types/paymentMethod';
+import type { PaymentMethod, PaymentSide } from '@/types/paymentMethod';
 
 /**
  * Client access to the company-wide settings document.
@@ -85,6 +87,11 @@ export async function saveCelebrations(on: boolean): Promise<void> {
 /** Both templates together — they are one edit in one panel. */
 export async function saveCelebrationTemplates(templates: CelebrationTemplates): Promise<void> {
   await saveSetting({ celebrationTemplates: templates });
+}
+
+/** One side's whole list — the panel edits a list, not an entry. */
+export async function savePaymentMethods(side: PaymentSide, methods: PaymentMethod[]): Promise<void> {
+  await saveSetting({ [PAYMENT_LIST_KEY[side]]: methods });
 }
 
 /** What the daily celebrations post would say today, without sending it. */

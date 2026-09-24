@@ -7,6 +7,7 @@ import {
   type CelebrationTemplates,
 } from '@/types/celebration';
 import type { Permission } from '@/types/permission';
+import { readPaymentMethods, validatePaymentMethods } from '@/types/paymentMethod';
 
 const DOC = adminDb.collection('appSettings').doc('general');
 
@@ -42,6 +43,9 @@ export async function GET(req: NextRequest) {
       // Per template, not all-or-nothing: an entry that somehow holds a good
       // birthday line and a bad anniversary one should keep the good half.
       celebrationTemplates: readTemplates(stored?.celebrationTemplates),
+      clientPaymentMethods:  readPaymentMethods(stored?.clientPaymentMethods),
+      carrierPaymentMethods: readPaymentMethods(stored?.carrierPaymentMethods),
+      brokerFeeTermOptions:  readPaymentMethods(stored?.brokerFeeTermOptions),
     },
     // Whether the Google Routes option can actually work, so the Settings page
     // can warn before an admin picks a mode that would silently do nothing.
@@ -64,7 +68,7 @@ export async function GET(req: NextRequest) {
  * another is the kind of hole nobody finds by using the screen.
  */
 const SETTING_OWNERS: { permission: Permission; keys: string[] }[] = [
-  { permission: 'settings.manage',      keys: ['laneDistanceMode', 'dateFormat'] },
+  { permission: 'settings.manage',      keys: ['laneDistanceMode', 'dateFormat', 'clientPaymentMethods', 'carrierPaymentMethods', 'brokerFeeTermOptions'] },
   { permission: 'celebrations.manage',  keys: ['celebrations', 'celebrationTemplates'] },
 ];
 
@@ -155,6 +159,15 @@ export async function PUT(req: NextRequest) {
       templates[kind] = text.trim();
     }
     patch.celebrationTemplates = templates;
+  }
+
+  // Each side is saved whole, as one list: the panel edits a list, and a
+  // patch per entry would need ids the server trusts to address them by.
+  for (const key of ['clientPaymentMethods', 'carrierPaymentMethods', 'brokerFeeTermOptions'] as const) {
+    if (!(key in body)) continue;
+    const checked = validatePaymentMethods(body[key]);
+    if ('error' in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
+    patch[key] = checked.methods;
   }
 
   if (Object.keys(patch).length === 0) {

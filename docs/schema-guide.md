@@ -300,6 +300,9 @@ appSettings/general
     birthday    : string             // "Happy birthday to {names}."
     anniversary : string             // "Congratulations to {name} on {years} with us today."
   }
+  clientPaymentMethods  : PaymentMethod[]   // how the client pays us — default []
+  carrierPaymentMethods : PaymentMethod[]   // BATS "Carrier Pay Terms" — default []
+  brokerFeeTermOptions  : PaymentMethod[]   // BATS "Broker Fee Terms" — default []
   updatedAt        : Timestamp
   updatedBy        : string          // email or uid of the admin who changed it
 ```
@@ -308,6 +311,56 @@ Readable by any allowed user — a broker's order form has to know whether to
 show a distance. Written only through `PUT /api/app-settings`, admin-only, like
 every other collection that shapes app behaviour. The default is `"estimate"`
 and not `"routes"`: a default must never be the option that spends money.
+
+### Price and Terms: `PaymentMethod`, `OrderPaymentTerms`, `ComplexTerms`
+
+BATS's "Price and Terms" block, adapted. BATS's *Total Tariff* is `agreedRate`
+here; *Carrier Pay* and *Broker Fee* are the fields of the same names.
+
+```
+PaymentMethod {                     // one option in Settings → Operations → Payment Terms
+  id        : string                // client-generated, stable across renames
+  name      : string                // "COD - Cash", "Charge on Dispatch", "ACH"
+  feeType   : "none" | "flat" | "percent"
+  feeAmount : number                // dollars for flat, 3 = 3% for percent, 0 for none
+  feePayer  : "client" | "carrier" | "company"   // the default; "company" = TTL absorbs it
+}
+```
+
+Three lists of these, one per dropdown: `clientPaymentMethods` (how the client
+pays us — not in BATS), `carrierPaymentMethods` (BATS *Carrier Pay Terms*) and
+`brokerFeeTermOptions` (BATS *Broker Fee Terms*).
+
+On the order:
+
+```
+clientPayment  : OrderPaymentTerms | null
+carrierPayment : OrderPaymentTerms | null   // null while complex terms are on
+brokerFeeTerms : OrderPaymentTerms | null   // null while complex terms are on
+specialTerms   : string                     // free text, BATS "Special Terms"
+complexTerms   : ComplexTerms | null        // null unless enabled
+  enabled, customerPaysBroker, customerPaysBroker2, customerPaysCarrier,
+  carrierPaysBroker, brokerPaysCarrier       // each number | null (blank = nothing on that leg)
+```
+
+All optional — every order older than this has none of them.
+
+An `OrderPaymentTerms` (`methodId`, `methodName`, `feeType`, `feeAmount`,
+`feePayer`) is a **copy** of the option when it was picked, not a reference: an
+admin changing a fee or removing an option does not rewrite loads already
+booked. `feePayer` starts as the option's default and may be changed on the
+load; the fee itself may not. A percentage fee is taken of `agreedRate` (client
+side), `carrierPay` (carrier) or `brokerFee` (broker fee terms) — `feeBase()` —
+and worked out when shown, so a corrected rate cannot leave a stale fee behind.
+
+Complex terms replace the two terms dropdowns, as in BATS. "Remaining carrier
+pay" is `carrierPay − (customerPaysCarrier + brokerPaysCarrier − carrierPaysBroker)`
+and "remaining broker fee" is `brokerFee − (customerPaysBroker + customerPaysBroker2
++ carrierPaysBroker − brokerPaysCarrier)`; both are $0.00 when every dollar is
+accounted for. See `src/types/paymentMethod.ts`.
+
+The lists are validated by `validatePaymentMethods()` in the panel and again in
+`PUT /api/app-settings`, under `settings.manage`.
 
 ### `CommodityItem`
 

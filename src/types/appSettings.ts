@@ -2,6 +2,7 @@ import {
   DEFAULT_CELEBRATION_TEMPLATES,
   type CelebrationTemplates,
 } from './celebration';
+import type { PaymentMethod } from './paymentMethod';
 
 /**
  * Company-wide settings an admin controls from the Settings page.
@@ -54,6 +55,15 @@ export interface AppSettings {
    * and why they are shaped differently from each other.
    */
   celebrationTemplates: CelebrationTemplates;
+  /**
+   * The dropdowns on an order's Financials: how the client pays us, and how
+   * the carrier is paid. Kept by an admin — see src/types/paymentMethod.ts.
+   * Empty until somebody sets them up; nothing assumes a particular option.
+   */
+  clientPaymentMethods: PaymentMethod[];
+  carrierPaymentMethods: PaymentMethod[];
+  /** BATS's "Broker Fee Terms" — when our fee is collected. */
+  brokerFeeTermOptions: PaymentMethod[];
 }
 
 /**
@@ -79,6 +89,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   dateFormat: 'd-mmm-yyyy',
   celebrations: true,
   celebrationTemplates: DEFAULT_CELEBRATION_TEMPLATES,
+  clientPaymentMethods: [],
+  carrierPaymentMethods: [],
+  brokerFeeTermOptions: [],
 };
 
 export const LANE_DISTANCE_MODES: LaneDistanceMode[] = ['off', 'estimate', 'routes'];

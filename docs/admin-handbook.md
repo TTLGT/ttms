@@ -252,7 +252,7 @@ through the whole system to reach one thing.
 | **Overview** | Every panel on one screen, each showing what it is currently set to. A map, not a page you change things on. |
 | **People** | Add People · People With Access · Removed People · Access History |
 | **Organization** | Sites · Teams · Work Groups |
-| **Operations** | Date Format · Lane Distance · Lead Sources |
+| **Operations** | Date Format · Lane Distance · Lead Sources · Payment Terms |
 | **Data** | BATS Data Import |
 
 Each tab is its own web address, so you can bookmark one or send someone a link

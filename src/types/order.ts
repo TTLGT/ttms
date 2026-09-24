@@ -1,6 +1,7 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { PhoneRegion } from '@/lib/phone';
 import type { OrderPartyApproval } from './accessRequest';
+import type { ComplexTerms, OrderPaymentTerms } from './paymentMethod';
 
 export type OrderStatus =
   | 'quote'
@@ -390,6 +391,21 @@ export interface Order {
    * Null or absent when no line has a value; never 0 for "unknown".
    */
   commodityValue?: number | null;
+  /**
+   * How the client pays us, and how the carrier is paid — each a copy of the
+   * option chosen from Settings, fee and all. See `OrderPaymentTerms` for why
+   * it is copied rather than looked up. Optional and null when not chosen;
+   * every order predating the field has neither.
+   */
+  clientPayment?: OrderPaymentTerms | null;
+  /** BATS's "Carrier Pay Terms". Null while `complexTerms.enabled`. */
+  carrierPayment?: OrderPaymentTerms | null;
+  /** BATS's "Broker Fee Terms". Null while `complexTerms.enabled`. */
+  brokerFeeTerms?: OrderPaymentTerms | null;
+  /** Free text, as BATS's "Special Terms" — anything the dropdowns cannot say. */
+  specialTerms?: string;
+  /** Who pays whom, leg by leg, for a load that is not paid the simple way. */
+  complexTerms?: ComplexTerms | null;
   vehicles: string;
   /** Sum of `commodities[].quantity`. Derived — see `totalPieces`. */
   pieces: number;

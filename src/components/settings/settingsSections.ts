@@ -153,6 +153,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     permission: 'celebrations.manage',
   },
   {
+    id: 'payment-methods',
+    label: 'Payment Terms',
+    tab: 'operations',
+    blurb: 'How clients pay us, how carriers are paid and when our fee is collected, with any fee each option carries.',
+    keywords: 'payment terms pay method cod cash check ach zelle wire credit card quick pay factoring fee surcharge carrier pay terms broker fee terms charge on dispatch',
+    adminOnly: true,
+  },
+  {
     id: 'lead-sources',
     label: 'Lead Sources',
     tab: 'operations',

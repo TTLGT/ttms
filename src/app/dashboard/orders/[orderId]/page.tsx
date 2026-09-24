@@ -12,6 +12,7 @@ import NoAccessPanel from '@/components/access/NoAccessPanel';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import DiscussButton from '@/components/chat/DiscussButton';
 import { listCarriers } from '@/lib/carriers';
+import PriceAndTermsCard from '@/components/orders/PriceAndTermsCard';
 import type { Order, OrderStatus } from '@/types/order';
 import type { Carrier } from '@/types/carrier';
 import {
@@ -1427,15 +1428,8 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* Financials */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Financials</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <DetailRow label="Agreed Rate" value={formatCurrency(order.agreedRate)} />
-              <DetailRow label="Broker Fee" value={formatCurrency(order.brokerFee)} />
-              <DetailRow label="Carrier Pay" value={formatCurrency(order.carrierPay)} />
-            </div>
-          </div>
+          {/* Price and Terms */}
+          <PriceAndTermsCard order={order} />
 
           {/* BOL */}
           {(['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed') && (

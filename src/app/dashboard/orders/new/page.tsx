@@ -15,6 +15,8 @@ import CarrierCompliance from '@/components/carriers/CarrierCompliance';
 import type { DriverChoice } from '@/components/carriers/DriverPicker';
 import { DEFAULT_RECORD_REGION } from '@/lib/phone';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
+import PriceAndTermsSection, { blankPriceTerms, priceTermsForSave } from '@/components/orders/PriceAndTermsSection';
+import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
@@ -114,6 +116,7 @@ function NewOrderForm() {
   const [agreedRate, setAgreedRate]     = useState('');
   const [brokerFee, setBrokerFee]       = useState('');
   const [notes, setNotes]               = useState('');
+  const [priceTerms, setPriceTerms]     = useState<PriceTerms>(blankPriceTerms);
 
   const carrierPay = (parseFloat(agreedRate) || 0) - (parseFloat(brokerFee) || 0);
 
@@ -246,6 +249,7 @@ function NewOrderForm() {
         brokerFee:    parseFloat(brokerFee)  || 0,
         carrierPay,
         notes:        notes.trim(),
+        ...priceTermsForSave(priceTerms),
         batsId:             null,
         vehicles:           '',
         transportType:      '',
@@ -442,30 +446,13 @@ function NewOrderForm() {
             )}
           </section>
 
-          {/* Financials */}
-          <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Financials</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Agreed Rate (USD)</label>
-                <input type="number" min="0" step="0.01" value={agreedRate} onChange={(e) => setAgreedRate(e.target.value)} placeholder="0.00"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Broker Fee (USD)</label>
-                <input type="number" min="0" step="0.01" value={brokerFee} onChange={(e) => setBrokerFee(e.target.value)} placeholder="0.00"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Carrier Pay (auto)</label>
-                <div className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700">
-                  {carrierPay > 0
-                    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(carrierPay)
-                    : '—'}
-                </div>
-              </div>
-            </div>
-          </section>
+          <PriceAndTermsSection
+            agreedRate={agreedRate} onAgreedRate={setAgreedRate}
+            brokerFee={brokerFee} onBrokerFee={setBrokerFee}
+            carrierPay={carrierPay}
+            laneMiles={distance.laneMiles}
+            terms={priceTerms} onTerms={setPriceTerms}
+          />
 
           {/* Notes */}
           <section className="bg-white rounded-xl border border-gray-200 p-6">

@@ -5,6 +5,7 @@ import CelebrationsPanel from '@/components/settings/CelebrationsPanel';
 import DateFormatPanel from '@/components/settings/DateFormatPanel';
 import LaneDistancePanel from '@/components/settings/LaneDistancePanel';
 import LeadSourcesPanel from '@/components/settings/LeadSourcesPanel';
+import PaymentMethodsPanel from '@/components/settings/PaymentMethodsPanel';
 
 /**
  * Company-wide choices that change how orders behave, rather than who can see
@@ -42,6 +43,9 @@ export default function SettingsOperationsPage() {
           </div>
           <div id="date-format" className="scroll-mt-44">
             <DateFormatPanel />
+          </div>
+          <div id="payment-methods" className="scroll-mt-44">
+            <PaymentMethodsPanel />
           </div>
         </div>
       )}
