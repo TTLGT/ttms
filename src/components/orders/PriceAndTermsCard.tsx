@@ -36,7 +36,11 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
  * OrderPaymentTerms), so it shows what the load was booked with even after
  * the option changes in Settings.
  */
-export default function PriceAndTermsCard({ order }: { order: Props }) {
+export default function PriceAndTermsCard({ order, action }: {
+  order: Props;
+  /** Drawn at the right of the heading — the order page's per-section Edit. */
+  action?: React.ReactNode;
+}) {
   const bases = { agreedRate: order.agreedRate, carrierPay: order.carrierPay, brokerFee: order.brokerFee };
   const complex = order.complexTerms?.enabled ? order.complexTerms : null;
   const ppm = perMile(order.agreedRate, order.laneMiles);
@@ -62,8 +66,11 @@ export default function PriceAndTermsCard({ order }: { order: Props }) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price and Terms</h3>
+    <div id="price" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price and Terms</h3>
+        {action}
+      </div>
       <p className="text-xs text-gray-500 mt-1 mb-4">
         Total mileage: {order.laneMiles ? Math.round(order.laneMiles).toLocaleString() : '—'}
         {' · '}Total PPM: {ppm !== null ? usd(ppm) : '—'}

@@ -13,6 +13,7 @@ import CopyLinkButton from '@/components/CopyLinkButton';
 import DiscussButton from '@/components/chat/DiscussButton';
 import { listCarriers } from '@/lib/carriers';
 import PriceAndTermsCard from '@/components/orders/PriceAndTermsCard';
+import SectionEditLink from '@/components/orders/SectionEditLink';
 import type { Order, OrderStatus } from '@/types/order';
 import type { Carrier } from '@/types/carrier';
 import {
@@ -259,6 +260,17 @@ export default function OrderDetailPage() {
 
   // POD state
   const [podPath, setPodPath] = useState<string | null>(null);
+
+  // Coming back from editing one section lands on /orders/{id}#freight, but
+  // the browser looks for #freight before the order has loaded and finds
+  // nothing. So scroll once, after the cards exist.
+  const scrolledRef = useRef(false);
+  useEffect(() => {
+    if (!order || scrolledRef.current) return;
+    scrolledRef.current = true;
+    const id = window.location.hash.slice(1);
+    if (id) document.getElementById(id)?.scrollIntoView({ block: 'start' });
+  }, [order]);
 
   // Stops the backfill below from re-running and re-writing on every render
   // that produces a new `order` object.
@@ -979,8 +991,11 @@ export default function OrderDetailPage() {
       {tab === 'details' && (
         <div className="space-y-4">
           {/* General — pieces and weight live in Freight, per line */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">General</h3>
+          <div id="general" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">General</h3>
+              <SectionEditLink orderId={orderId} section="general" />
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <DetailRow label="Client"    value={<><PartyLink id={order.clientId}    name={order.clientName} /><PartyContact party={partyById[order.clientId ?? '']} /></>} />
               <DetailRow label="Lead Source" value={leadSourceLabel(leadSources, order.sourceId, order.sourceName)} />
@@ -991,8 +1006,11 @@ export default function OrderDetailPage() {
           </div>
 
           {/* Freight */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Freight</h3>
+          <div id="freight" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Freight</h3>
+              <SectionEditLink orderId={orderId} section="freight" />
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -1037,11 +1055,14 @@ export default function OrderDetailPage() {
           </div>
 
           {/* Price and Terms */}
-          <PriceAndTermsCard order={order} />
+          <PriceAndTermsCard order={order} action={<SectionEditLink orderId={orderId} section="price" />} />
 
           {/* Route */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Route</h3>
+          <div id="route" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Route</h3>
+              <SectionEditLink orderId={orderId} section="route" />
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <DetailRow label="Shipper (Pick-Up Location)" value={<><PartyLink id={order.shipperId} name={order.shipperName} /><PartyContact party={partyById[order.shipperId ?? '']} /></>} />
@@ -1472,12 +1493,16 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {order.notes && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Notes</h3>
-              <p className="text-sm text-gray-700 whitespace-pre-line">{order.notes}</p>
+          {/* Always drawn, even empty, so a note can be added from here. */}
+          <div id="notes" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</h3>
+              <SectionEditLink orderId={orderId} section="notes" />
             </div>
-          )}
+            {order.notes
+              ? <p className="text-sm text-gray-700 whitespace-pre-line">{order.notes}</p>
+              : <p className="text-sm text-gray-400">No notes.</p>}
+          </div>
 
           <div className="text-xs text-gray-400">
             Created {formatDate(order.createdAt as { toDate: () => Date } | null)} · Last updated {formatDate(order.updatedAt as { toDate: () => Date } | null)}

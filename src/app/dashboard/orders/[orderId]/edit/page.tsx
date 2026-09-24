@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Timestamp } from 'firebase/firestore';
 import { getOrder, updateOrder } from '@/lib/orders';
@@ -25,6 +25,8 @@ import { toDate } from '@/lib/dateFormat';
 import { useAuth } from '@/context/AuthContext';
 import DateField from '@/components/DateField';
 import DateRangeField, { dateRangeProblem } from '@/components/DateRangeField';
+import { ORDER_SECTION_LABEL, isOrderSection } from '@/components/orders/SectionEditLink';
+import type { OrderSection } from '@/components/orders/SectionEditLink';
 
 const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
 
@@ -95,6 +97,13 @@ export default function EditOrderPage() {
   const params   = useParams();
   const orderId  = params.orderId as string;
   const router   = useRouter();
+  // Set when opened from one card's Edit on the order page: only that section
+  // is drawn, and only its fields are saved. Absent = the whole order.
+  const askedSection = useSearchParams().get('section');
+  const section: OrderSection | null = isOrderSection(askedSection) ? askedSection : null;
+  const shows = (s: OrderSection) => !section || section === s;
+  // Back to the card the edit started from, not the top of the page.
+  const backHref = `/dashboard/orders/${orderId}${section ? `#${section}` : ''}`;
 
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
@@ -200,12 +209,17 @@ export default function EditOrderPage() {
     e.preventDefault();
     if (!order) return;
 
-    const unbound = unboundParties([
+    // Only the parties on screen — a section edit must not be refused over a
+    // box the person cannot see.
+    const partyBoxes = ([
       ['client', client], ['shipper', shipper], ['consignee', consignee],
-    ] as const);
+    ] as const).filter(([role]) => shows(role === 'client' ? 'general' : 'route'));
+    const unbound = unboundParties(partyBoxes);
     if (unbound.length) { setError(unboundMessage(unbound)); return; }
-    const badRange = dateRangeProblem('Pickup Date', pickupDate, pickupDateEnd)
-      || dateRangeProblem('Delivery Date', deliveryDate, deliveryDateEnd);
+    const badRange = shows('general')
+      ? dateRangeProblem('Pickup Date', pickupDate, pickupDateEnd)
+        || dateRangeProblem('Delivery Date', deliveryDate, deliveryDateEnd)
+      : '';
     if (badRange) { setError(badRange); return; }
 
     setError('');
@@ -214,48 +228,68 @@ export default function EditOrderPage() {
       // Reassigning a party to a role it has not held before must show up in
       // that role's list.
       await Promise.all(
-        ([['client', client], ['shipper', shipper], ['consignee', consignee]] as const)
+        partyBoxes
           .filter(([, sel]) => sel.id)
           // Best-effort: a party used under an approval is not writable by the
           // requester, and failing to tag a role must not block the order.
           .map(([role, sel]) => tagRoleIfNew(sel.id, role).catch(() => {})),
       );
 
-      await updateOrder(orderId, {
-        clientId:      client.id,
-        clientName:    client.name.trim(),
-        shipperId:     shipper.id,
-        shipperName:   shipper.name.trim(),
-        consigneeId:   consignee.id,
-        consigneeName: consignee.name.trim(),
-        commodity:    commoditySummary(commodityItems),
-        commodities:  commodityItems,
-        commodityValue: totalCommodityValue(commodityItems),
-        pieces:       totalPieces(commodityItems) || 1,
-        weight:       Math.round(totalWeightLb(commodityItems)),
-        origin,
-        destination,
-        routeMapUrl:  routeMapUrl.trim(),
-        laneMiles:       distance.laneMiles,
-        laneMilesSource: distance.laneMilesSource,
-        laneMilesAt:     distance.laneMilesAt ? Timestamp.fromDate(distance.laneMilesAt) : null,
-        // Only sent when this user is allowed to change it. Writing the same
-        // value back would still be a write to the field, and the rules reject
-        // any touch of it from someone who is neither an admin nor an owner —
-        // which would fail the whole save, not just this field.
-        ...(canEditThisSource ? { sourceId } : {}),
-        firstAvailablePickup: firstAvailable ? Timestamp.fromDate(new Date(firstAvailable + 'T12:00:00')) : null,
-        pickupDate:   pickupDate   ? Timestamp.fromDate(new Date(pickupDate + 'T12:00:00'))   : null,
-        deliveryDate: deliveryDate ? Timestamp.fromDate(new Date(deliveryDate + 'T12:00:00')) : null,
-        pickupDateEnd:   pickupDateEnd   ? Timestamp.fromDate(new Date(pickupDateEnd + 'T12:00:00'))   : null,
-        deliveryDateEnd: deliveryDateEnd ? Timestamp.fromDate(new Date(deliveryDateEnd + 'T12:00:00')) : null,
-        agreedRate:   parseFloat(agreedRate) || 0,
-        brokerFee:    parseFloat(brokerFee)  || 0,
-        carrierPay:   Math.max(0, carrierPay),
-        notes:        notes.trim(),
-        ...priceTermsForSave(priceTerms),
-      });
-      router.push(`/dashboard/orders/${orderId}`);
+      const ts = (d: string) => (d ? Timestamp.fromDate(new Date(d + 'T12:00:00')) : null);
+
+      // Split by section so a one-section save writes that section and
+      // nothing else. Writing the whole form back would overwrite whatever a
+      // colleague changed elsewhere on the load since this page was opened —
+      // with values this person never even saw.
+      const patches: Record<OrderSection, Partial<Order>> = {
+        general: {
+          clientId:      client.id,
+          clientName:    client.name.trim(),
+          // Only sent when this user is allowed to change it. Writing the same
+          // value back would still be a write to the field, and the rules reject
+          // any touch of it from someone who is neither an admin nor an owner —
+          // which would fail the whole save, not just this field.
+          ...(canEditThisSource ? { sourceId } : {}),
+          firstAvailablePickup: ts(firstAvailable),
+          pickupDate:      ts(pickupDate),
+          deliveryDate:    ts(deliveryDate),
+          pickupDateEnd:   ts(pickupDateEnd),
+          deliveryDateEnd: ts(deliveryDateEnd),
+        },
+        freight: {
+          commodity:    commoditySummary(commodityItems),
+          commodities:  commodityItems,
+          commodityValue: totalCommodityValue(commodityItems),
+          pieces:       totalPieces(commodityItems) || 1,
+          weight:       Math.round(totalWeightLb(commodityItems)),
+        },
+        price: {
+          agreedRate:   parseFloat(agreedRate) || 0,
+          brokerFee:    parseFloat(brokerFee)  || 0,
+          carrierPay:   Math.max(0, carrierPay),
+          ...priceTermsForSave(priceTerms),
+        },
+        route: {
+          shipperId:     shipper.id,
+          shipperName:   shipper.name.trim(),
+          consigneeId:   consignee.id,
+          consigneeName: consignee.name.trim(),
+          origin,
+          destination,
+          routeMapUrl:  routeMapUrl.trim(),
+          laneMiles:       distance.laneMiles,
+          laneMilesSource: distance.laneMilesSource,
+          laneMilesAt:     distance.laneMilesAt ? Timestamp.fromDate(distance.laneMilesAt) : null,
+        },
+        notes: {
+          notes:        notes.trim(),
+        },
+      };
+
+      await updateOrder(orderId, section
+        ? patches[section]
+        : Object.assign({}, ...Object.values(patches)));
+      router.push(backHref);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save order');
       setSaving(false);
@@ -278,15 +312,28 @@ export default function EditOrderPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl">
       <div className="mb-6">
-        <Link href={`/dashboard/orders/${orderId}`} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-2">
+        <Link href={backHref} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-2">
           ← Back to {orderDisplayNumber(order)}
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900">Edit Order</h1>
-        <p className="text-sm text-gray-500 mt-0.5 font-mono">{orderDisplayNumber(order)}</p>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {section ? `Edit ${ORDER_SECTION_LABEL[section]}` : 'Edit Order'}
+        </h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          <span className="font-mono">{orderDisplayNumber(order)}</span>
+          {section && (
+            <>
+              {' · '}
+              <Link href={`/dashboard/orders/${orderId}/edit`} className="text-brand-600 hover:underline">
+                Edit the whole order
+              </Link>
+            </>
+          )}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_20rem] gap-6 items-start">
         <form onSubmit={handleSubmit} className="space-y-8">
+          {shows('general') && (<>
           {/* General */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">General</h2>
@@ -320,7 +367,9 @@ export default function EditOrderPage() {
               />
             </div>
           </section>
+          </>)}
 
+          {shows('freight') && (<>
           {/* Freight */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <div>
@@ -332,7 +381,9 @@ export default function EditOrderPage() {
             </div>
             <CommodityItemsFields value={commodities} onChange={setCommodities} />
           </section>
+          </>)}
 
+          {shows('price') && (<>
           <PriceAndTermsSection
             agreedRate={agreedRate} onAgreedRate={setAgreedRate}
             brokerFee={brokerFee} onBrokerFee={setBrokerFee}
@@ -340,7 +391,9 @@ export default function EditOrderPage() {
             laneMiles={distance.laneMiles}
             terms={priceTerms} onTerms={setPriceTerms}
           />
+          </>)}
 
+          {shows('route') && (<>
           {/* Route */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
             <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Route</h2>
@@ -369,7 +422,9 @@ export default function EditOrderPage() {
               onChange={setRouteMapUrl}
             />
           </section>
+          </>)}
 
+          {shows('notes') && (<>
           {/* Notes */}
           <section className="bg-white rounded-xl border border-gray-200 p-6">
             <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-3">Notes</h2>
@@ -377,6 +432,7 @@ export default function EditOrderPage() {
               placeholder="Any special instructions or details…"
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none" />
           </section>
+          </>)}
 
           {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600">{error}</div>}
 
@@ -385,14 +441,15 @@ export default function EditOrderPage() {
               className="px-6 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
               {saving ? 'Saving…' : 'Save Changes'}
             </button>
-            <Link href={`/dashboard/orders/${orderId}`}
+            <Link href={backHref}
               className="px-6 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
               Cancel
             </Link>
           </div>
         </form>
 
-        <DimensionConverter />
+        {/* The converter is for typing freight dimensions — noise anywhere else. */}
+        {shows('freight') && <DimensionConverter />}
       </div>
     </div>
   );
