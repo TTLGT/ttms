@@ -11,6 +11,32 @@
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
   }
+
+  /*
+   * Dark mode — the colours themselves are remapped in tailwind.config.ts.
+   * This is what Tailwind cannot reach: the browser's own controls. Without
+   * it a dark page keeps white scrollbars, a white date picker and a white
+   * <select> list, drawn by the browser and not by any class of ours.
+   */
+  html.dark {
+    color-scheme: dark;
+  }
+}
+
+/*
+ * The analytics charts. Recharts paints its grid, axis labels and hover box
+ * with colours written as attributes, which no class reaches; a CSS property
+ * outranks an SVG attribute, so these win without touching the page.
+ */
+html.dark .recharts-cartesian-grid line {
+  stroke: #2b3440;
+}
+html.dark .recharts-cartesian-axis-tick-value {
+  fill: #8b95a1;
+}
+html.dark .recharts-default-tooltip {
+  background-color: #161c24 !important;
+  border-color: #2b3440 !important;
 }
 
 /*

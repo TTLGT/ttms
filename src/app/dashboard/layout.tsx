@@ -30,6 +30,7 @@ import { ChatProvider, useChat } from '@/context/ChatContext';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import { ApprovalsProvider, useApprovals } from '@/context/ApprovalsContext';
 import ChatPopup from '@/components/chat/ChatPopup';
+import ThemeSwitch from '@/components/dashboard/ThemeSwitch';
 
 /**
  * The sidebar, and the permission each entry needs.
@@ -363,12 +364,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               <p className="text-xs text-blue-300 truncate">{user?.email}</p>
             </div>
           </Link>
-          <button
-            onClick={logout}
-            className="w-full text-xs text-blue-300 hover:text-white transition text-left"
-          >
-            Sign out →
-          </button>
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={logout}
+              className="text-xs text-blue-300 hover:text-white transition text-left"
+            >
+              Sign out →
+            </button>
+            <ThemeSwitch />
+          </div>
         </div>
       </aside>
 
