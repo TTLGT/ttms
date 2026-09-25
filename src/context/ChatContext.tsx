@@ -38,6 +38,7 @@ import {
 } from '@/lib/chat';
 import {
   DEFAULT_NOTIFY_PREFS,
+  askPermissionOnFirstClick,
   loadNotifyPrefs,
   playChime,
   saveNotifyPrefs,
@@ -327,6 +328,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setPrefs(next);
     saveNotifyPrefs(next);
   }, []);
+
+  // Desktop notifications default to on, so get the browser's permission for
+  // them without waiting for somebody to find the bell. Only once signed in —
+  // the login page is not the place to be asked about chat.
+  useEffect(() => {
+    if (!uid) return;
+    return askPermissionOnFirstClick();
+  }, [uid]);
 
   // The company room is created on demand, so the listeners have to be told to
   // wait for it — attaching first would report it missing on a database where

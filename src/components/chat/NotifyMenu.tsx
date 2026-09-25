@@ -24,7 +24,9 @@ export default function NotifyMenu() {
   const box = useRef<HTMLDivElement>(null);
 
   // Read in an effect: the server renders this too, and it has no Notification.
-  useEffect(() => { setPermission(desktopPermission()); }, []);
+  // Re-read on every open, because ChatContext asks on the first click anywhere
+  // and the answer can arrive after this has mounted.
+  useEffect(() => { setPermission(desktopPermission()); }, [open]);
 
   useEffect(() => {
     if (!open) return;

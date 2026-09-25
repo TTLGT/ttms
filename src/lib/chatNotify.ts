@@ -80,6 +80,41 @@ export async function requestDesktopPermission(): Promise<PermissionState> {
   }
 }
 
+const ASKED_KEY = 'ttms.chatNotifyAsked';
+
+/**
+ * Asks for permission on the first click anywhere in TTMS, once per browser.
+ *
+ * Desktop notifications are on by default, but that default did nothing until
+ * somebody found the bell in chat and pressed "Allow" — and most people never
+ * did. A browser will not let a site grant itself permission, and refuses (or
+ * quietly buries) a prompt raised on page load, so the next best thing is to
+ * raise it inside the first real click: that counts as the user's gesture.
+ *
+ * Once, not every page load. Somebody who dismisses the prompt has answered,
+ * and Chrome turns repeated dismissals into a permanent block for the site.
+ * The bell menu is still there for anybody who changes their mind.
+ *
+ * Returns a cleanup that removes the listener if it has not fired yet.
+ */
+export function askPermissionOnFirstClick(): () => void {
+  if (desktopPermission() !== 'default') return () => {};
+  try {
+    if (window.localStorage.getItem(ASKED_KEY)) return () => {};
+  } catch {
+    // No storage: ask anyway. At worst it is once per page load in a private window.
+  }
+
+  const onClick = () => {
+    window.removeEventListener('click', onClick, true);
+    try { window.localStorage.setItem(ASKED_KEY, '1'); } catch { /* see above */ }
+    void requestDesktopPermission();
+  };
+  // Capture phase, so a click that a component stops from bubbling still counts.
+  window.addEventListener('click', onClick, true);
+  return () => window.removeEventListener('click', onClick, true);
+}
+
 /**
  * Shows one notification.
  *
