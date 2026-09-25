@@ -266,3 +266,28 @@ html.dark .chat-ground[data-wallpaper='dots'] {
     height: 100dvh;
   }
 }
+
+/*
+ * Learn English — see src/components/learn/LearnLayer.tsx.
+ *
+ * These are painted by the browser over Ranges; there is no element to put a
+ * class on, which is the point. Only colour, background and text-decoration
+ * apply inside ::highlight(), so the underline is text-decoration and the
+ * word under the card gets a tint rather than anything that changes layout.
+ *
+ * Mid blue and a translucent tint, so the same rule reads on a white page, on
+ * a dark one, and on the brand-900 sidebar.
+ */
+::highlight(ttms-learn) {
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: #3b82f6;
+  text-decoration-thickness: 2px;
+}
+::highlight(ttms-learn-active) {
+  background-color: rgba(59, 130, 246, 0.22);
+  text-decoration-line: underline;
+  text-decoration-style: solid;
+  text-decoration-color: #3b82f6;
+  text-decoration-thickness: 2px;
+}

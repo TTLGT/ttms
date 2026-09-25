@@ -230,6 +230,27 @@ dark window. Either is fine.
 4. Type `npm install` and press **Enter**. Wait for it to finish.
 5. Close the window and start TTMS normally.
 
+### Learn English mode
+
+For anyone still learning English. TTMS stays in English; this helps people
+read it.
+
+1. At the bottom of the menu, turn on **Learn English**.
+2. Words like *consignee*, *lane* and *BOL* now have a dotted blue line.
+3. Point at one with the mouse (or tap it on a phone) to see a small card: the
+   Spanish, a simple English meaning, an example, and a button that says it
+   out loud. On a button or link, double-click the word instead (on a phone,
+   press and hold it).
+4. Words you look up are saved on **My words**, next to the switch. Click
+   **I know this** and that word stops being underlined.
+
+It is off until each person turns it on, and it is remembered per computer,
+like light and dark mode. The word list itself follows the person.
+
+The words and their Spanish are a fixed list in `src/types/glossary.ts`, not
+a translation service, so nothing is sent outside the company. To add a word
+or fix a translation, ask a developer to edit that file.
+
 ---
 
 ## 6. Giving someone access

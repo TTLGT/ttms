@@ -814,6 +814,27 @@ assignment is held in `assignedToEmails` / `memberEmails` and converted by
 > That was replaced by `parties` in commit `660d057`. `src/types/party.ts` and
 > `src/types/order.ts` are the current truth. Prefer the types over that doc.
 
+### Learn English — underlines that never touch the page
+
+A per-browser switch at the foot of the sidebar (`LearnContext`) that underlines
+words from a hand-written glossary (`src/types/glossary.ts`, ~160 terms, Spanish
+beside each) and shows a meaning card on hover, tap or selection.
+`/dashboard/words` is the person's own list, stored in `vocabulary/{uid}`
+through `/api/me/words` — see the Schema Guide.
+
+**`LearnLayer` never changes the DOM, and must not start to.** Wrapping a word
+in a `<span>` splits a text node React owns: React then updates a node that is
+no longer on screen, and throws when it later removes it. The underline is the
+CSS Custom Highlight API (`::highlight(ttms-learn)` in `globals.css`) and the
+hover test is `caretPositionFromPoint` against the same Ranges. Mark anything
+that should not be underlined with `data-learn-skip`.
+
+**The glossary is deliberately not a translation service.** Machine
+translation gets freight words wrong ("consignee", "lane"), costs money, and
+would send whatever was on screen — rates, client names — to a third party. If
+sentence translation is ever added, it is an admin setting that defaults to
+off, chosen server-side, like lane distances.
+
 ## Conventions
 
 - **Comments explain why, not what.** This codebase is unusually well commented on non-obvious decisions, and that is the main reason it is handoverable. Match that density. When you make a non-obvious call, leave the reasoning.

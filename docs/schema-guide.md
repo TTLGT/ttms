@@ -1774,3 +1774,38 @@ This is the first thing in TTMS that runs on a clock, and it is not a precedent.
 Mutes and order access grants both expire when they are *read*, because a grant
 that outlived its deadline because a job did not fire is the worst failure
 either could have. The worst failure this one can have is a quiet morning.
+
+---
+
+## Collection: `vocabulary`
+
+One document per person using Learn English, at `vocabulary/{uid}`: which
+words they have looked up and which they have marked as known. See
+`src/types/vocabulary.ts`; the words themselves are `src/types/glossary.ts`.
+
+```
+vocabulary/{uid}
+  words: {
+    [glossaryId]: {
+      count  : number       // times the meaning card was opened
+      lastAt : Timestamp    // last time it was
+      known  : boolean      // "I know this": no longer underlined
+    }
+  }
+  updatedAt : Timestamp
+```
+
+**Read and written only through `/api/me/words`, keyed on the caller's own
+uid.** There is no rule for this path and there should not be one — it is
+closed to clients by default, like `celebrationRuns`. Nobody can read anybody
+else's list through the app, admins included.
+
+The route accepts only ids that exist in the glossary, so a glossary id is
+**stored data**: renaming one orphans everybody's history for that word. Add
+a new id instead. A word removed from the glossary is left in the document and
+skipped when read.
+
+Cost: one read when somebody with the mode on loads a page, and at most one
+write every 15 seconds while they are looking words up. Whether the mode is on
+is kept in the browser (`localStorage`), like the colour theme, and costs
+nothing.

@@ -31,6 +31,9 @@ import { UserAvatar } from '@/components/settings/UserAvatar';
 import { ApprovalsProvider, useApprovals } from '@/context/ApprovalsContext';
 import ChatPopup from '@/components/chat/ChatPopup';
 import ThemeSwitch from '@/components/dashboard/ThemeSwitch';
+import LearnSwitch from '@/components/dashboard/LearnSwitch';
+import LearnLayer from '@/components/learn/LearnLayer';
+import { LearnProvider } from '@/context/LearnContext';
 
 /**
  * The sidebar, and the permission each entry needs.
@@ -123,7 +126,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <ChatProvider>
       <ApprovalsProvider>
-        <DashboardShell>{children}</DashboardShell>
+        <LearnProvider>
+          <DashboardShell>{children}</DashboardShell>
+        </LearnProvider>
       </ApprovalsProvider>
     </ChatProvider>
   );
@@ -364,6 +369,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               <p className="text-xs text-blue-300 truncate">{user?.email}</p>
             </div>
           </Link>
+          <LearnSwitch current={isCurrent('/dashboard/words')} />
           <div className="flex items-center justify-between gap-2">
             <button
               onClick={logout}
@@ -427,6 +433,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* Over every page but the chat page itself, so a quick word does not
           cost you the order you were in the middle of. */}
       <ChatPopup />
+
+      {/* Learn English: nothing at all unless this browser has it turned on. */}
+      <LearnLayer />
     </div>
   );
 }
