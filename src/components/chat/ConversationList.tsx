@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
-import { leaveConversation, millis } from '@/lib/chat';
+import { leaveConversation, millis, openDirectConversation } from '@/lib/chat';
+import { UserAvatar } from '@/components/settings/UserAvatar';
 import { usePinnedDrag } from '@/lib/usePinnedDrag';
 import ActionMenu, { type MenuAction } from './ActionMenu';
 import ChatFilterBar from './ChatFilterBar';
@@ -45,7 +46,7 @@ export default function ConversationList({
   const { user } = useAuth();
   const {
     conversations, unreadIds, mentionIds, threadIds, unreadCounts, activeId, setActiveId,
-    nameOf, loading, myThreads, threadReadAt,
+    nameOf, loading, myThreads, threadReadAt, people,
     searchQuery, setSearchQuery, search, runSearch, clearSearch,
     notify, setNotifyFor, pinnedConversations, togglePinnedConversation,
     movePinnedConversation, dropPinnedConversation,
@@ -108,6 +109,53 @@ export default function ConversationList({
     : conversations.filter(
         (c) => c.id === activeId || inChatFilter(c, chatFilter, { favorites, lists, unreadIds }),
       );
+  /*
+   * People the box matches whom this person has no direct chat with yet — the
+   * WhatsApp "contacts" half of a search. Without it the only way to message
+   * somebody new is the + button, and a search box that finds Vivian only once
+   * you have already spoken to her reads as not knowing she exists.
+   *
+   * Drawn from `people`, which the chat already holds for names and photos, so
+   * this costs no read. Everyone in it has signed in at least once — there is
+   * no uid to address before that — and suspended accounts are left out: a
+   * direct chat nobody will ever answer is not a contact. Anyone already in a
+   * direct room with you is left out too, because that room is in the list
+   * above under their name.
+   */
+  const directWith = new Set(
+    conversations
+      .filter((c) => c.kind === 'direct')
+      .flatMap((c) => c.memberUids.filter((u) => u !== myUid)),
+  );
+  const newContacts = nameWords.length === 0 ? [] : people
+    .filter((p) => p.uid !== myUid && !p.suspended && !directWith.has(p.uid))
+    .filter((p) => {
+      const haystack = `${p.displayName ?? ''} ${p.email ?? ''}`
+        .toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+      return nameWords.every((w) => haystack.some((word) => word.startsWith(w)));
+    })
+    .sort((a, b) => (a.displayName || a.email).localeCompare(b.displayName || b.email));
+
+  const [opening, setOpening] = useState<string | null>(null);
+  const [openError, setOpenError] = useState('');
+
+  /** Opens (creating, the first time) the direct chat with somebody new. */
+  async function messagePerson(uid: string) {
+    setOpening(uid);
+    setOpenError('');
+    try {
+      setActiveId(await openDirectConversation(uid));
+      // Cleared so the new room is not hidden behind a search that no longer
+      // describes what is open. The server makes the room; the listener brings
+      // it into the list a moment later.
+      clearSearch();
+    } catch (e) {
+      setOpenError(e instanceof Error ? e.message : 'Could not open that conversation.');
+    } finally {
+      setOpening(null);
+    }
+  }
+
   const listRows = chatListsInOrder(lists);
 
   // Whether the threads list is worth opening, in one dot. Counted across
@@ -313,7 +361,7 @@ export default function ConversationList({
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {loading && <p className="px-2 py-3 text-sm text-gray-400">Loading…</p>}
 
-        {!loading && shown.length === 0 && (
+        {!loading && shown.length === 0 && newContacts.length === 0 && (
           <p className="px-2 py-3 text-sm text-gray-400">
             {nameWords.length > 0
               // Never a dead end: no room by that name does not mean nothing
@@ -443,6 +491,38 @@ export default function ConversationList({
             </div>
           );
         })}
+
+        {newContacts.length > 0 && (
+          <>
+            <p className="px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+              People
+            </p>
+            {newContacts.map((p) => (
+              <button
+                key={p.uid}
+                type="button"
+                onClick={() => void messagePerson(p.uid)}
+                disabled={opening !== null}
+                className="mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition hover:bg-gray-50 disabled:opacity-50"
+              >
+                <UserAvatar
+                  photoPath={p.photoPath}
+                  fallback={(p.displayName || p.email || '?').charAt(0).toUpperCase()}
+                  size={32}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-gray-800">
+                    {p.displayName || p.email}
+                  </span>
+                  <span className="block truncate text-xs text-gray-500">
+                    {opening === p.uid ? 'Opening…' : 'Start a chat'}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </>
+        )}
+        {openError && <p className="px-2 py-1 text-xs text-red-500">{openError}</p>}
       </div>
 
       {listDialog && (
