@@ -1,8 +1,12 @@
+'use client';
+
 import type { ReactNode } from 'react';
+import { useChatWallpaper } from '@/lib/chatWallpaper';
 
 /**
  * The patterned ground a conversation is read on — freight drawings over a
- * paper tone, in the manner of WhatsApp. The look itself is in globals.css.
+ * paper tone, in the manner of WhatsApp, or whichever other background this
+ * browser has picked (WallpaperMenu). The looks themselves are in globals.css.
  *
  * The pattern sits on a layer of its own behind the scroller rather than on
  * the scroller, which is the whole reason this component exists. Painted on
@@ -15,8 +19,9 @@ import type { ReactNode } from 'react';
  * (`relative`) so it stacks above the pattern.
  */
 export default function ChatWallpaper({ children }: { children: ReactNode }) {
+  const { wallpaper } = useChatWallpaper();
   return (
-    <div className="chat-ground relative min-h-0 flex-1">
+    <div data-wallpaper={wallpaper} className="chat-ground relative min-h-0 flex-1">
       <div aria-hidden className="chat-wallpaper pointer-events-none absolute inset-0" />
       {children}
     </div>

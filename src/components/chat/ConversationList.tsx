@@ -14,6 +14,7 @@ import ChatFilterBar from './ChatFilterBar';
 import ChatListDialog from './ChatListDialog';
 import RoomAvatar from './RoomAvatar';
 import NotifyMenu from './NotifyMenu';
+import WallpaperMenu from './WallpaperMenu';
 import {
   chatListIdOf,
   chatListsInOrder,
@@ -237,6 +238,7 @@ export default function ConversationList({
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-brand-500 ring-2 ring-white" />
             )}
           </button>
+          <WallpaperMenu />
           <NotifyMenu />
           {/* Filled, where everything beside it is a plain icon, because it is
               the one thing in this header that makes something new — the same

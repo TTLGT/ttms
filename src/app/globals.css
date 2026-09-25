@@ -125,22 +125,70 @@ html.app-shell-locked body {
  *
  * Kept deliberately faint. It is there so the column reads as a place rather
  * than as a form, and it must never compete with a message for attention.
+ *
+ * Each person picks one per browser (src/lib/chatWallpaper.ts), and the choice
+ * arrives as `data-wallpaper` on the ground. A background is three variables:
+ * the ground, the drawing colour, and the mask. Every ground stays within a
+ * few steps of the original paper tone, because a white bubble has to stand
+ * off all of them — see MessageBubble.
  */
-:root {
+.chat-ground {
   --chat-ground: #efeae2;
   --chat-doodle: #ddd4c6;
+  --chat-mask: url('/chat-wallpaper.svg') 0 0 / 480px 480px repeat;
+  background-color: var(--chat-ground);
 }
-html.dark {
+html.dark .chat-ground {
   --chat-ground: #0e1319;
   --chat-doodle: #1b232d;
 }
-.chat-ground {
-  background-color: var(--chat-ground);
+.chat-ground[data-wallpaper='highway'] {
+  --chat-ground: #e6ebf0;
+  --chat-doodle: #cfd8e2;
+  --chat-mask: url('/chat-wallpaper-highway.svg') 0 0 / 480px 480px repeat;
+}
+html.dark .chat-ground[data-wallpaper='highway'] {
+  --chat-ground: #0d1218;
+  --chat-doodle: #1a2431;
+}
+.chat-ground[data-wallpaper='harbour'] {
+  --chat-ground: #e0ecea;
+  --chat-doodle: #c7dcd8;
+  --chat-mask: url('/chat-wallpaper-harbour.svg') 0 0 / 480px 480px repeat;
+}
+html.dark .chat-ground[data-wallpaper='harbour'] {
+  --chat-ground: #0b1616;
+  --chat-doodle: #172a2b;
+}
+.chat-ground[data-wallpaper='warehouse'] {
+  --chat-ground: #eee8dc;
+  --chat-doodle: #dccfb8;
+  --chat-mask: url('/chat-wallpaper-warehouse.svg') 0 0 / 480px 480px repeat;
+}
+html.dark .chat-ground[data-wallpaper='warehouse'] {
+  --chat-ground: #13110d;
+  --chat-doodle: #252019;
+}
+/* A dot is a far smaller mark than a drawing, so its colour sits a step
+   further from the ground to be seen at all. */
+.chat-ground[data-wallpaper='dots'] {
+  --chat-ground: #eceff3;
+  --chat-doodle: #c9d0d9;
+  --chat-mask: radial-gradient(circle, #000 1.25px, transparent 1.75px) 0 0 / 20px 20px repeat;
+}
+html.dark .chat-ground[data-wallpaper='dots'] {
+  --chat-ground: #0f1318;
+  --chat-doodle: #252d38;
 }
 .chat-wallpaper {
   background-color: var(--chat-doodle);
-  -webkit-mask: url('/chat-wallpaper.svg') 0 0 / 480px 480px repeat;
-  mask: url('/chat-wallpaper.svg') 0 0 / 480px 480px repeat;
+  -webkit-mask: var(--chat-mask);
+  mask: var(--chat-mask);
+}
+/* Plain is the ground alone. The drawing layer is removed rather than given an
+   empty mask: with no mask at all it would paint solid in the drawing colour. */
+.chat-ground[data-wallpaper='plain'] .chat-wallpaper {
+  display: none;
 }
 
 /*
