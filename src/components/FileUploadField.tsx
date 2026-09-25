@@ -114,8 +114,10 @@ export default function FileUploadField({
   }
 
   if (value) {
+    const name = fileNameOf(value);
     return (
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        {name && <span className="text-sm text-gray-700 truncate min-w-0" title={name}>{name}</span>}
         <DownloadLink storagePath={value} label={viewLabel} />
         {!readOnly && (
           <button
@@ -153,6 +155,19 @@ export default function FileUploadField({
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
     </div>
   );
+}
+
+/**
+ * The name the file had on the uploader's computer, read back off the path —
+ * the last segment is `{timestamp}_{name}` (see above), so it needs no field
+ * of its own. It is what tells "COI 2026" from last year's copy without
+ * opening it. '' for a path in some other shape, which then shows the link
+ * alone, as before.
+ */
+function fileNameOf(storagePath: string): string {
+  const last = storagePath.split('/').pop() ?? '';
+  const m = /^\d+_(.+)$/.exec(last);
+  return m ? m[1] : '';
 }
 
 function DownloadLink({ storagePath, label }: { storagePath: string; label: string }) {

@@ -65,7 +65,8 @@ carriers/{carrierId}
   insuranceProvider     : string
   insurancePolicyNumber : string
   insuranceStoragePath  : string | null   // certificate of insurance in Storage, under carrier-insurance/
-  insuranceCoverage     : number | null   // coverage limit in whole USD; absent on carriers written before it existed
+  insuranceCoverage     : number | null   // LIABILITY limit in whole USD (the name predates cargo); absent on carriers written before it existed
+  insuranceCargoCoverage: number | null  // cargo limit in whole USD; absent on carriers written before it existed
   isActive              : boolean
   notes                 : string
   createdAt             : Timestamp

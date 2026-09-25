@@ -11,6 +11,7 @@ import DateField from '@/components/DateField';
 import CopyValue from '@/components/CopyValue';
 import PhoneValue from '@/components/PhoneValue';
 import InsuranceFileUpload from './InsuranceFileUpload';
+import CoverageInput from './CoverageInput';
 
 /** Same round trip the carrier page uses, so both screens agree on the day. */
 function toDateInput(ts: { toDate?: () => Date } | null | undefined): string {
@@ -30,7 +31,7 @@ const inputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm foc
 /**
  * What a broker checks about a carrier before tendering a load, reached from
  * the load: MC and DOT numbers, the certificate of insurance, the date it
- * expires and the amount it covers.
+ * expires and the liability and cargo amounts it covers.
  *
  * All of it is the carrier's, not the order's: it is written to the carrier
  * record — the same fields the carrier page edits — so what is filled in while
@@ -75,6 +76,7 @@ export default function CarrierCompliance({
   const [dot, setDot]           = useState('');
   const [expiry, setExpiry]     = useState('');
   const [coverage, setCoverage] = useState('');
+  const [cargo, setCargo]       = useState('');
   const [saving, setSaving]     = useState(false);
 
   const canEdit = can('carriers.edit');
@@ -84,6 +86,7 @@ export default function CarrierCompliance({
     setDot(c?.dot ?? '');
     setExpiry(toDateInput(c?.insuranceExpiration));
     setCoverage(coverageInput(c?.insuranceCoverage));
+    setCargo(coverageInput(c?.insuranceCargoCoverage));
   }
 
   useEffect(() => {
@@ -117,7 +120,12 @@ export default function CarrierCompliance({
     if (!carrier) return;
     const parsed = parseCoverageInput(coverage);
     if (coverage.trim() && parsed === null) {
-      setError('The coverage amount should be a number, like 1,000,000.');
+      setError('The liability amount should be a number, like 1,000,000.');
+      return;
+    }
+    const parsedCargo = parseCoverageInput(cargo);
+    if (cargo.trim() && parsedCargo === null) {
+      setError('The cargo amount should be a number, like 100,000.');
       return;
     }
     setError('');
@@ -125,6 +133,7 @@ export default function CarrierCompliance({
     const updates: Partial<Carrier> = {
       insuranceExpiration: expiry ? Timestamp.fromDate(new Date(expiry)) : null,
       insuranceCoverage:   parsed,
+      insuranceCargoCoverage: parsedCargo,
     };
     // Only a number that was blank is written from here — see the note above.
     if (!carrier.mc?.trim())  updates.mc  = carrierNumber(mc);
@@ -165,7 +174,8 @@ export default function CarrierCompliance({
   const dirty = (!mcOnFile && mc.trim() !== '')
     || (!dotOnFile && dot.trim() !== '')
     || expiry !== toDateInput(carrier.insuranceExpiration)
-    || coverage !== coverageInput(carrier.insuranceCoverage);
+    || coverage !== coverageInput(carrier.insuranceCoverage)
+    || cargo !== coverageInput(carrier.insuranceCargoCoverage);
 
   // On the new-order form this sits inside the order's <form>, and Enter in
   // any of these boxes would create the quote rather than save this.
@@ -229,10 +239,14 @@ export default function CarrierCompliance({
         )}
       </div>
       <div>
-        <label className={fieldLabelCls}>Coverage Amount (USD)</label>
-        <input type="text" inputMode="numeric" value={coverage}
-          onChange={(e) => setCoverage(e.target.value)} onKeyDown={saveOnEnter}
+        <label className={fieldLabelCls}>Liability Amount</label>
+        <CoverageInput value={coverage} onChange={setCoverage} onKeyDown={saveOnEnter}
           placeholder="e.g. 1,000,000" className={inputCls} />
+      </div>
+      <div>
+        <label className={fieldLabelCls}>Cargo Amount</label>
+        <CoverageInput value={cargo} onChange={setCargo} onKeyDown={saveOnEnter}
+          placeholder="e.g. 100,000" className={inputCls} />
       </div>
     </>
   ) : (
@@ -246,9 +260,15 @@ export default function CarrierCompliance({
         </p>
       </div>
       <div className="text-sm">
-        <p className={fieldLabelCls}>Coverage Amount</p>
+        <p className={fieldLabelCls}>Liability Amount</p>
         <p className="text-gray-900">
           {formatCoverage(carrier.insuranceCoverage) || <span className="text-gray-400">Not on record</span>}
+        </p>
+      </div>
+      <div className="text-sm">
+        <p className={fieldLabelCls}>Cargo Amount</p>
+        <p className="text-gray-900">
+          {formatCoverage(carrier.insuranceCargoCoverage) || <span className="text-gray-400">Not on record</span>}
         </p>
       </div>
     </>

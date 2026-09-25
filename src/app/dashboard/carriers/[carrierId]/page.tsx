@@ -18,6 +18,7 @@ import { phoneRegionOf } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
 import InsuranceFileUpload from '@/components/carriers/InsuranceFileUpload';
+import CoverageInput from '@/components/carriers/CoverageInput';
 import DriverFormModal from '@/components/carriers/DriverFormModal';
 import { listDriversForCarrier } from '@/lib/drivers';
 import { driverDisplayName, driverNameKey, getLicenseStatus } from '@/types/driver';
@@ -84,6 +85,7 @@ export default function CarrierDetailPage() {
   const [insPolicyNo, setInsPolicyNo]           = useState('');
   const [insExpiry, setInsExpiry]               = useState('');
   const [insCoverage, setInsCoverage]           = useState('');
+  const [insCargo, setInsCargo]                 = useState('');
   // Not part of the edit buffer below: the certificate saves the moment it is
   // uploaded, because the file is already in the bucket by then and a Cancel
   // that dropped the reference would leave it there unreachable.
@@ -115,6 +117,7 @@ export default function CarrierDetailPage() {
     setInsPolicyNo(c.insurancePolicyNumber ?? '');
     setInsExpiry(toDateInput(c.insuranceExpiration));
     setInsCoverage(c.insuranceCoverage != null ? String(c.insuranceCoverage) : '');
+    setInsCargo(c.insuranceCargoCoverage != null ? String(c.insuranceCargoCoverage) : '');
     setInsFile(c.insuranceStoragePath ?? null);
     setIsActive(c.isActive ?? true);
     setNotes(c.notes ?? '');
@@ -204,6 +207,7 @@ export default function CarrierDetailPage() {
         insurancePolicyNumber: insPolicyNo.trim(),
         insuranceExpiration:  insExpiry ? Timestamp.fromDate(new Date(insExpiry)) : null,
         insuranceCoverage:    parseCoverageInput(insCoverage),
+        insuranceCargoCoverage: parseCoverageInput(insCargo),
         isActive,
         notes:                notes.trim(),
       };
@@ -460,7 +464,7 @@ export default function CarrierDetailPage() {
             {!editing ? (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Provider</p>
+                  <p className="text-xs text-gray-500 mb-0.5">Insurance Company</p>
                   <p className="text-sm text-gray-900">{carrier.insuranceProvider || '—'}</p>
                 </div>
                 <div>
@@ -477,14 +481,18 @@ export default function CarrierDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Coverage Amount</p>
+                  <p className="text-xs text-gray-500 mb-0.5">Liability Amount</p>
                   <p className="text-sm text-gray-900">{formatCoverage(carrier.insuranceCoverage) || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Cargo Amount</p>
+                  <p className="text-sm text-gray-900">{formatCoverage(carrier.insuranceCargoCoverage) || '—'}</p>
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Provider</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Insurance Company</label>
                   <input value={insProvider} onChange={(e) => setInsProvider(e.target.value)} className={inputCls} />
                 </div>
                 <div>
@@ -496,9 +504,14 @@ export default function CarrierDetailPage() {
                   <DateField value={insExpiry} onChange={setInsExpiry} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Coverage Amount (USD)</label>
-                  <input type="text" inputMode="numeric" value={insCoverage} onChange={(e) => setInsCoverage(e.target.value)}
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Liability Amount</label>
+                  <CoverageInput value={insCoverage} onChange={setInsCoverage}
                     placeholder="e.g. 1,000,000" className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Cargo Amount</label>
+                  <CoverageInput value={insCargo} onChange={setInsCargo}
+                    placeholder="e.g. 100,000" className={inputCls} />
                 </div>
                 <div className="flex items-end">
                   <label className="flex items-center gap-2 cursor-pointer mb-2">

@@ -8,6 +8,7 @@ import ContactTitleSelect from '@/components/carriers/ContactTitleSelect';
 import PersonNameFields from '@/components/PersonNameFields';
 import DateField from '@/components/DateField';
 import InsuranceFileUpload from '@/components/carriers/InsuranceFileUpload';
+import CoverageInput from '@/components/carriers/CoverageInput';
 import { parseCoverageInput, carrierNumber } from '@/types/carrier';
 import PhoneField from '@/components/PhoneField';
 import { phoneRegionOf } from '@/lib/phone';
@@ -31,6 +32,7 @@ export default function NewCarrierPage() {
   const [insuranceExpiration, setInsExpiry]     = useState('');
   const [insuranceStoragePath, setInsFile]      = useState<string | null>(null);
   const [insuranceCoverage, setInsCoverage]     = useState('');
+  const [insuranceCargoCoverage, setInsCargo]   = useState('');
   const [isActive, setIsActive]                 = useState(true);
   const [notes, setNotes]                       = useState('');
 
@@ -64,6 +66,7 @@ export default function NewCarrierPage() {
           : null,
         insuranceStoragePath,
         insuranceCoverage:    parseCoverageInput(insuranceCoverage),
+        insuranceCargoCoverage: parseCoverageInput(insuranceCargoCoverage),
         isActive,
         notes: notes.trim(),
       });
@@ -135,7 +138,7 @@ export default function NewCarrierPage() {
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Insurance</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Provider</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Insurance Company</label>
               <input value={insuranceProvider} onChange={(e) => setInsProvider(e.target.value)}
                 placeholder="e.g. Progressive Commercial" className={inputCls} />
             </div>
@@ -150,11 +153,16 @@ export default function NewCarrierPage() {
                 className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Coverage Amount (USD)</label>
-              <input type="text" inputMode="numeric" value={insuranceCoverage} onChange={(e) => setInsCoverage(e.target.value)}
+              <label className="block text-xs font-medium text-gray-600 mb-1">Liability Amount</label>
+              <CoverageInput value={insuranceCoverage} onChange={setInsCoverage}
                 placeholder="e.g. 1,000,000" className={inputCls} />
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Cargo Amount</label>
+              <CoverageInput value={insuranceCargoCoverage} onChange={setInsCargo}
+                placeholder="e.g. 100,000" className={inputCls} />
+            </div>
+            <div className="col-span-1 sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Certificate of Insurance</label>
               {/* The carrier does not exist yet, so the file is filed under a
                   draft key and its path saved with the record. */}

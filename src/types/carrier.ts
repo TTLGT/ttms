@@ -52,12 +52,25 @@ export interface Carrier {
    */
   insuranceStoragePath?: string | null;
   /**
-   * The coverage limit on the certificate, in whole US dollars. Optional for
-   * the same reason as the path above — no carrier written before it has one —
-   * and null when somebody saved the form without filling it in. Read it
+   * The **liability** limit on the certificate, in whole US dollars. Optional
+   * for the same reason as the path above — no carrier written before it has
+   * one — and null when somebody saved the form without filling it in. Read it
    * through formatCoverage(); a missing amount is "not recorded", never $0.
+   *
+   * Named before cargo was recorded separately, when this was the one
+   * "coverage amount" box. It was the liability figure in practice — the
+   * $1,000,000 headline on a certificate — so it became the Liability Amount
+   * rather than being renamed, which would have been a migration.
    */
   insuranceCoverage?: number | null;
+  /**
+   * The cargo limit on the certificate, in whole US dollars — BATS's "Cargo
+   * Amount", recorded apart from liability because the carrier agreement
+   * asks for each separately ($100,000 cargo, $1,000,000 liability). Same
+   * contract as `insuranceCoverage`: absent on older carriers, null when left
+   * blank, never read as $0.
+   */
+  insuranceCargoCoverage?: number | null;
   isActive: boolean;
   notes: string;
   createdAt: Timestamp;

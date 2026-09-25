@@ -9,6 +9,7 @@ import ContactTitleSelect from '@/components/carriers/ContactTitleSelect';
 import PersonNameFields from '@/components/PersonNameFields';
 import DateField from '@/components/DateField';
 import InsuranceFileUpload from './InsuranceFileUpload';
+import CoverageInput from './CoverageInput';
 import PhoneField from '@/components/PhoneField';
 import { phoneRegionOf } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
@@ -23,9 +24,10 @@ import type { PhoneRegion } from '@/lib/phone';
  *
  * It deliberately asks for less than the full Add Carrier page: everything
  * omitted here is editable later on the carrier record. Email is included
- * because the e-sign agreement is mailed to it, and insurance expiration and
- * coverage amount because an order should not quietly get a carrier with
- * unknown coverage.
+ * because the e-sign agreement is mailed to it, and the whole of the insurance
+ * block — the same five fields BATS asks for, plus the certificate — because
+ * an order should not quietly get a carrier with unknown coverage, and the
+ * insurance is what gets checked before a load is tendered.
  */
 export default function QuickAddCarrierModal({
   prefillName = '',
@@ -48,9 +50,12 @@ export default function QuickAddCarrierModal({
   const [email, setEmail]                   = useState('');
   const [dot, setDot]                       = useState('');
   const [mc, setMc]                         = useState('');
+  const [insuranceProvider, setInsProvider] = useState('');
+  const [insurancePolicyNumber, setInsPolicyNo] = useState('');
   const [insuranceExpiration, setInsExpiry] = useState('');
   const [insuranceStoragePath, setInsFile]  = useState<string | null>(null);
   const [insuranceCoverage, setInsCoverage] = useState('');
+  const [insuranceCargoCoverage, setInsCargo] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -75,13 +80,14 @@ export default function QuickAddCarrierModal({
         billingContact:        '',
         billingPhone:          '',
         billingEmail:          '',
-        insuranceProvider:     '',
-        insurancePolicyNumber: '',
+        insuranceProvider:     insuranceProvider.trim(),
+        insurancePolicyNumber: insurancePolicyNumber.trim(),
         insuranceExpiration:   insuranceExpiration
           ? Timestamp.fromDate(new Date(insuranceExpiration))
           : null,
         insuranceStoragePath,
         insuranceCoverage:     parseCoverageInput(insuranceCoverage),
+        insuranceCargoCoverage: parseCoverageInput(insuranceCargoCoverage),
         isActive: true,
         notes:    '',
       };
@@ -105,8 +111,8 @@ export default function QuickAddCarrierModal({
           <div>
             <h2 className="text-lg font-bold text-gray-900">New Carrier</h2>
             <p className="text-xs text-gray-500 mt-1">
-              Saved to Carriers and assigned to this order. You can fill in billing,
-              address and policy details on the carrier record afterwards.
+              Saved to Carriers and assigned to this order. You can fill in billing
+              and address details on the carrier record afterwards.
             </p>
           </div>
 
@@ -142,15 +148,34 @@ export default function QuickAddCarrierModal({
               <input value={mc} onChange={(e) => setMc(e.target.value)}
                 placeholder="e.g. 123456" className={inputCls} />
             </div>
+            <h3 className="col-span-1 sm:col-span-2 pt-2 border-t border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Insurance
+            </h3>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Insurance Expiration</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Insurance Company</label>
+              <input value={insuranceProvider} onChange={(e) => setInsProvider(e.target.value)}
+                placeholder="e.g. Progressive Commercial" className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Policy Number</label>
+              <input value={insurancePolicyNumber} onChange={(e) => setInsPolicyNo(e.target.value)}
+                placeholder="e.g. CW6120874-00" className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Expiration Date</label>
               <DateField value={insuranceExpiration} onChange={setInsExpiry}
                 className={inputCls} />
             </div>
+            <div className="hidden sm:block" />
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Coverage Amount (USD)</label>
-              <input type="text" inputMode="numeric" value={insuranceCoverage} onChange={(e) => setInsCoverage(e.target.value)}
+              <label className="block text-xs font-medium text-gray-600 mb-1">Liability Amount</label>
+              <CoverageInput value={insuranceCoverage} onChange={setInsCoverage}
                 placeholder="e.g. 1,000,000" className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Cargo Amount</label>
+              <CoverageInput value={insuranceCargoCoverage} onChange={setInsCargo}
+                placeholder="e.g. 100,000" className={inputCls} />
             </div>
             <div className="col-span-1 sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Certificate of Insurance</label>
