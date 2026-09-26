@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -22,8 +22,12 @@ import {
   GraduationCap,
   Menu,
   X,
+  LogOut,
+  PanelLeftOpen,
   LucideIcon,
 } from 'lucide-react';
+import { useSidebarMode } from '@/lib/sidebarMode';
+import SidebarModeSwitch from '@/components/dashboard/SidebarModeSwitch';
 import { useAuth } from '@/context/AuthContext';
 import type { Permission } from '@/types/permission';
 import { ChatProvider, useChat } from '@/context/ChatContext';
@@ -175,6 +179,40 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   }, [navOpen]);
 
   /**
+   * How the sidebar sits on a desktop — open, a rail of icons, or a rail that
+   * opens under the pointer. See src/lib/sidebarMode.ts.
+   *
+   * `rail` is the one question everything below asks: is it narrow right now?
+   * In `auto` that changes with the pointer, and the widened sidebar floats
+   * over the page rather than pushing it, so the page does not reflow every
+   * time somebody's mouse crosses the left edge on the way to something else.
+   *
+   * Every class that depends on it is `lg:`-prefixed. Below `lg` the drawer
+   * always shows the full menu, whatever this says.
+   */
+  const { mode: sidebarMode, setMode: setSidebarMode, ready: sidebarReady } = useSidebarMode();
+  const [peek, setPeek] = useState(false);
+  const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rail = sidebarMode === 'collapsed' || (sidebarMode === 'auto' && !peek);
+
+  // A short delay both ways. Opening at once would fire on every pass to the
+  // browser's back button; closing at once would snap shut when the pointer
+  // grazes the edge on its way down the list.
+  const schedulePeek = (open: boolean) => {
+    if (sidebarMode !== 'auto') return;
+    if (peekTimer.current) clearTimeout(peekTimer.current);
+    peekTimer.current = setTimeout(() => setPeek(open), open ? 150 : 250);
+  };
+
+  // Leaving auto — or arriving in it — starts from closed.
+  useEffect(() => {
+    setPeek(false);
+    if (peekTimer.current) clearTimeout(peekTimer.current);
+  }, [sidebarMode]);
+
+  useEffect(() => () => { if (peekTimer.current) clearTimeout(peekTimer.current); }, []);
+
+  /**
    * Which nav item to light up. Dashboard is matched exactly — every other
    * page lives under /dashboard, so a prefix test would leave it lit
    * everywhere. The rest match their own subtree, so an order's detail page
@@ -269,15 +307,46 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Sidebar — a column on a desktop, a drawer over the page on a phone.
-          Only its nav list scrolls, in both cases. */}
+          Only its nav list scrolls, in both cases.
+
+          On a desktop the wrapper is what holds the page off to the right,
+          and the <aside> is positioned inside it. The two widths differ only
+          in `auto`: the wrapper keeps the rail's width while the sidebar
+          opens over the page. Below `lg` the wrapper has no width at all —
+          its only child is `fixed`. */}
+      <div
+        className={`flex-shrink-0 lg:relative ${sidebarMode === 'expanded' ? 'lg:w-60' : 'lg:w-[4.5rem]'} ${
+          sidebarReady ? 'transition-[width] duration-200 ease-out' : ''
+        }`}
+      >
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-60 flex-shrink-0 bg-brand-900 text-white flex flex-col transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0 ${
+        onMouseEnter={() => schedulePeek(true)}
+        onMouseLeave={() => schedulePeek(false)}
+        // Keyboard users get the same as the pointer: tabbing into the rail
+        // opens it, tabbing out of it closes it.
+        onFocus={() => {
+          if (sidebarMode !== 'auto') return;
+          if (peekTimer.current) clearTimeout(peekTimer.current);
+          setPeek(true);
+        }}
+        onBlur={(e) => {
+          if (sidebarMode !== 'auto') return;
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setPeek(false);
+        }}
+        className={`fixed inset-y-0 left-0 z-50 w-60 flex-shrink-0 overflow-hidden bg-brand-900 text-white flex flex-col ${
+          sidebarReady ? 'transition-[transform,width] duration-200 ease-out' : 'transition-transform duration-200 ease-out'
+        } lg:absolute lg:z-30 lg:translate-x-0 ${
+          rail ? 'lg:w-[4.5rem]' : 'lg:w-60'
+        } ${sidebarMode === 'auto' && peek ? 'lg:shadow-2xl' : ''} ${
           navOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex-shrink-0 px-4 py-4 border-b border-brand-700 flex items-center gap-3">
+        <div className={`flex-shrink-0 px-4 py-4 border-b border-brand-700 flex items-center gap-3 ${rail ? 'lg:justify-center lg:px-0' : ''}`}>
           <Image src="/logo-circle.png" alt="TTL" width={44} height={44} className="flex-shrink-0" />
-          <div className="min-w-0">
+          {/* A fixed width on a desktop so the subtitle does not re-wrap
+              line by line while the sidebar is opening. 152px is exactly
+              what is left of 240 beside the logo. */}
+          <div className={`min-w-0 lg:w-[152px] lg:flex-shrink-0 ${rail ? 'lg:hidden' : ''}`}>
             <p className="font-[family-name:var(--font-rajdhani)] text-3xl font-bold tracking-[0.2em] pl-[0.2em] leading-tight text-white">TTMS</p>
             <p className="text-[10px] font-medium uppercase tracking-widest text-blue-300 mt-0.5">Total Transportation Management System</p>
           </div>
@@ -296,7 +365,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         {/* min-h-0 is load-bearing: a flex child defaults to min-height:auto and
             would refuse to shrink below its content, so the list would push the
             sign-out block off-screen instead of scrolling. */}
-        <nav className="flex-1 min-h-0 overflow-y-auto sidebar-scroll px-3 py-4 space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden sidebar-scroll px-3 py-4 space-y-1">
           {visible.map(({ href, label, Icon }) => {
             const current = isCurrent(href);
             const badges  = badgesFor(href);
@@ -305,21 +374,39 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               key={href}
               href={href}
               aria-current={current ? 'page' : undefined}
+              // On the rail the label is display:none, which takes it out of
+              // what a screen reader announces too — so it is put back here,
+              // and as a tooltip for everybody else.
+              aria-label={rail ? label : undefined}
+              title={rail ? label : undefined}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
+                rail ? 'lg:justify-center lg:px-0' : ''
+              } ${
                 current
                   ? 'bg-brand-700 text-white'
                   : 'text-blue-100 hover:bg-brand-700 hover:text-white'
               }`}
             >
-              <Icon size={16} className="flex-shrink-0" />
-              <span className="flex-1">{label}</span>
+              <span className="relative flex-shrink-0">
+                <Icon size={16} />
+                {/* The rail has no room for the counts, but "something is
+                    waiting" must not vanish with them. One dot, in the colour
+                    of the more urgent badge — red before amber. */}
+                {rail && badges.length > 0 && (
+                  <span
+                    aria-hidden
+                    className={`absolute -right-1.5 -top-1.5 hidden h-2.5 w-2.5 rounded-full ring-2 ring-brand-900 lg:block ${badges[0].className}`}
+                  />
+                )}
+              </span>
+              <span className={`flex-1 whitespace-nowrap ${rail ? 'lg:hidden' : ''}`}>{label}</span>
               {badges.map((b) => (
                 <span
                   key={b.key}
                   title={b.key === 'in'
                     ? 'Waiting on you'
                     : b.key === 'out' ? 'Your requests, still undecided' : undefined}
-                  className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${b.className}`}
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${b.className} ${rail ? 'lg:hidden' : ''}`}
                 >
                   {b.text}
                 </span>
@@ -354,6 +441,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             aria-current={isCurrent('/dashboard/profile') ? 'page' : undefined}
             title="Your details, and how to ask for a change"
             className={`-mx-2 mb-2 flex items-center gap-3 rounded-lg px-2 py-2 transition ${
+              rail ? 'lg:justify-center' : ''
+            } ${
               isCurrent('/dashboard/profile') ? 'bg-brand-700' : 'hover:bg-brand-700'
             }`}
           >
@@ -362,25 +451,60 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               fallback={(profile?.displayName || user?.email || '?').charAt(0).toUpperCase()}
               size={32}
             />
-            <div className="overflow-hidden">
+            <div className={`overflow-hidden ${rail ? 'lg:hidden' : ''}`}>
               <p className="text-sm font-medium text-white truncate">
                 {profile?.displayName || user?.displayName}
               </p>
               <p className="text-xs text-blue-300 truncate">{user?.email}</p>
             </div>
           </Link>
-          <LearnSwitch current={isCurrent('/dashboard/words')} />
-          <div className="flex items-center justify-between gap-2">
-            <button
-              onClick={logout}
-              className="text-xs text-blue-300 hover:text-white transition text-left"
-            >
-              Sign out →
-            </button>
-            <ThemeSwitch />
+
+          {/* The full footer, and the phone drawer's footer always. */}
+          <div className={rail ? 'lg:hidden' : ''}>
+            <LearnSwitch current={isCurrent('/dashboard/words')} />
+            <SidebarModeSwitch mode={sidebarMode} onChange={setSidebarMode} />
+            <div className="flex items-center justify-between gap-2">
+              <button
+                onClick={logout}
+                className="text-xs text-blue-300 hover:text-white transition text-left whitespace-nowrap"
+              >
+                Sign out →
+              </button>
+              <ThemeSwitch />
+            </div>
           </div>
+
+          {/* The rail's footer. Sign out stays reachable without opening the
+              menu, and a folded menu needs a way back open that is not "find
+              the switch" — the switch is folded away with everything else.
+              `auto` has no open button: pointing at the rail is the button. */}
+          {rail && (
+            <div className="hidden flex-col items-center gap-1 lg:flex">
+              {sidebarMode === 'collapsed' && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarMode('expanded')}
+                  aria-label="Open the menu"
+                  title="Open the menu"
+                  className="rounded-lg p-1.5 text-blue-300 transition hover:bg-brand-700 hover:text-white"
+                >
+                  <PanelLeftOpen size={16} />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={logout}
+                aria-label="Sign out"
+                title="Sign out"
+                className="rounded-lg p-1.5 text-blue-300 transition hover:bg-brand-700 hover:text-white"
+              >
+                <LogOut size={16} />
+              </button>
+            </div>
+          )}
         </div>
       </aside>
+      </div>
 
       {/* min-w-0 is load-bearing here for the same reason min-h-0 is on the
           nav: a flex child will not shrink below its content, so a wide table
