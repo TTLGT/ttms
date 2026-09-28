@@ -501,6 +501,21 @@ export interface Order {
   bolStoragePath: string | null;
   invoiceStoragePath: string | null;
   podStoragePath: string | null;
+  /**
+   * The load's profile picture — one of its `loadPhotos` — drawn beside its
+   * number so loads can be told apart at a glance. Written by the server only
+   * (the first picture uploaded, then whatever somebody chooses); absent on
+   * every load that has never had a picture. See src/types/loadPhoto.ts.
+   */
+  coverPhotoId?: string | null;
+  /** How many pictures the load has. Kept by the photo routes; absent = none. */
+  photoCount?: number;
+  /**
+   * A signed link to the profile picture's thumbnail. Never stored: added to
+   * the response by `/api/orders` and `/api/orders/{id}`, since the bucket
+   * prefix is closed to the browser.
+   */
+  coverThumbUrl?: string | null;
   agreedRate: number;
   brokerFee: number;
   carrierPay: number;

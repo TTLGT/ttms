@@ -45,6 +45,8 @@ const LIST_FIELDS = [
   'clientName', 'shipperName', 'origin', 'destination',
   'commodity', 'status', 'pickupDate', 'agreedRate',
   'parentOrderId', 'createdAt',
+  // Not a column: the thumbnail beside the order number, signed in the route.
+  'coverPhotoId',
 ] as const;
 
 /**

@@ -8,6 +8,7 @@ import { listOrdersPage, countOrdersByStatus } from '@/lib/orders';
 import type { Order, OrderStatus } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
 import OrderLink from '@/components/orders/OrderLink';
+import { OrderCoverThumb } from '@/components/photos/PhotoBits';
 import ResizableTh from '@/components/table/ResizableTh';
 import { useColumnWidths, type ColumnWidths } from '@/lib/useColumnWidths';
 import { personHref } from '@/lib/directoryProfile';
@@ -413,7 +414,18 @@ function OrdersList() {
                     column reveals more of it; short fixed values truncate.
                   */}
                   <td className="px-4 py-3 text-sm break-words">
-                    <OrderLink order={order} />
+                    {/* The profile picture only where a load has one. A
+                        placeholder on every other row would put a column of
+                        identical boxes down a list where most loads have no
+                        pictures, and tell nobody anything. */}
+                    {order.coverThumbUrl ? (
+                      <span className="flex items-center gap-2">
+                        <OrderCoverThumb url={order.coverThumbUrl} size={28} />
+                        <OrderLink order={order} />
+                      </span>
+                    ) : (
+                      <OrderLink order={order} />
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-800 break-words">{order.clientName || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 break-words">{order.shipperName || '—'}</td>

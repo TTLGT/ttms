@@ -1328,6 +1328,15 @@ service cloud.firestore {
     match /attendanceConfig/{id}        { allow read, write: if false; }
     match /attendanceDevices/{id}       { allow read, write: if false; }
     match /attendancePrefs/{id}         { allow read, write: if false; }
+
+    // Load pictures. Closed to the browser for the same reason orders are read
+    // through the API: whether a picture may be seen is whether its load may
+    // be, and a picture carries no ownership fields for orderVisible() to test
+    // — the check has to fetch the parent order, which the routes do. Read and
+    // written only through /api/orders/{id}/photos and /api/documents/photos.
+    // See src/types/loadPhoto.ts. Identical to the default deny; written out so
+    // nobody "fixes" the missing rule by opening it.
+    match /loadPhotos/{id}              { allow read, write: if false; }
     match /attendanceAlerts/{id}        { allow read, write: if false; }
     match /attendanceCorrections/{id}   { allow read, write: if false; }
     match /timeOffRequests/{id}         { allow read, write: if false; }

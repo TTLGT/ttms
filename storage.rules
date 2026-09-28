@@ -110,6 +110,13 @@ service firebase.storage {
     }
     match /avatars/{allPaths=**} { allow read, write: if isAllowedUser(); }
 
+    // Load pictures (`load-photos/`) deliberately have no match here, so the
+    // client SDK can neither read nor write them. They are uploaded and served
+    // only through /api/orders/{id}/photos, which checks canSeeOrder() with the
+    // Admin SDK before anything lands or any link is signed — the same boundary
+    // as the BOL and POD, without even the open write those prefixes keep. See
+    // src/types/loadPhoto.ts.
+
     // Everything else is denied by default. That is deliberate rather than an
     // oversight: a new upload path has to be added here to work at all, which
     // is the point at which somebody has to decide who may read it. There is

@@ -57,6 +57,8 @@ import type { LeadSource } from '@/types/leadSource';
 import type { OwnerContact } from '@/types/order';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { trackActivity } from '@/lib/attendance';
+import OrderPhotos from '@/components/photos/OrderPhotos';
+import { OrderCoverThumb } from '@/components/photos/PhotoBits';
 
 // Sentinel value for the dropdown's "add a new carrier" row. Not a document id,
 // so it can never collide with a real carrier.
@@ -200,9 +202,12 @@ export default function OrderDetailPage() {
   */
   const searchParams = useSearchParams();
   const askedTab     = searchParams.get('tab');
-  const [tab, setTab] = useState<'details' | 'documents' | 'suborders'>(
-    askedTab === 'documents' || askedTab === 'suborders' ? askedTab : 'details',
+  const [tab, setTab] = useState<'details' | 'documents' | 'pictures' | 'suborders'>(
+    askedTab === 'documents' || askedTab === 'suborders' || askedTab === 'pictures' ? askedTab : 'details',
   );
+  // Kept apart from `order` so the tab label can count pictures added or
+  // removed on this visit without refetching the load.
+  const [photoCount, setPhotoCount] = useState<number | null>(null);
 
   /*
     Where "back" goes. Orders is right for somebody who came from the orders
@@ -905,6 +910,15 @@ export default function OrderDetailPage() {
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+        <div className="flex items-start gap-4">
+          {/* The load's profile picture, so it can be recognised before its
+              number is read. Opens the pictures; with none yet, it is the
+              prompt to add one. */}
+          <button type="button" onClick={() => setTab('pictures')}
+            title={order.coverThumbUrl ? 'Load pictures' : 'Add pictures of this load'}
+            className="rounded-lg hover:ring-2 hover:ring-brand-300 transition flex-shrink-0">
+            <OrderCoverThumb url={order.coverThumbUrl} size={64} className="rounded-lg" alt="Load profile picture" />
+          </button>
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-bold text-gray-900 font-mono">{orderDisplayNumber(order)}</h1>
@@ -925,6 +939,7 @@ export default function OrderDetailPage() {
               {order.batsId ? 'TTMS ' : 'previously '}{orderAltNumber(order)}
             </p>
           )}
+        </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {/* Beside the link button, not buried in a tab: the conversation
@@ -980,12 +995,15 @@ export default function OrderDetailPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
-        {(['details', 'documents', 'suborders'] as const).map((t) => (
+        {(['details', 'documents', 'pictures', 'suborders'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition ${
               tab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}>
-            {t === 'suborders' ? `Suborders (${suborders.length})` : t === 'documents' ? 'Documents' : 'Details'}
+            {t === 'suborders' ? `Suborders (${suborders.length})`
+              : t === 'documents' ? 'Documents'
+              : t === 'pictures' ? `Pictures (${photoCount ?? order.photoCount ?? 0})`
+              : 'Details'}
           </button>
         ))}
       </div>
@@ -1624,6 +1642,16 @@ export default function OrderDetailPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Pictures tab */}
+      {tab === 'pictures' && (
+        <OrderPhotos
+          order={order}
+          onCountChange={setPhotoCount}
+          onCoverChange={(coverPhotoId, coverThumbUrl) =>
+            setOrder((prev) => (prev ? { ...prev, coverPhotoId, coverThumbUrl } : prev))}
+        />
       )}
 
       {/* Suborders tab */}

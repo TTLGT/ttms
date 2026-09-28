@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { readOrder } from '@/lib/orderAccess';
+import { withCoverThumbs } from '@/lib/loadPhotosServer';
 
 /**
  * One order, or 403 when the caller does not own it and does not own its client.
@@ -44,7 +45,9 @@ export async function GET(
         { status: 403 },
       );
     }
-    return NextResponse.json({ order: access.order });
+    // The header draws the load's profile picture; see withCoverThumbs().
+    const [order] = await withCoverThumbs([access.order]);
+    return NextResponse.json({ order });
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

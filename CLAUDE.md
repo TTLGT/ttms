@@ -487,6 +487,14 @@ cannot see carries the order number, the licence and the owner's contact, and
 no shipper, client, rate or dates. Its `SELECTED_FIELDS` is the guard; adding
 to it is how the load leaks out beside the licence.
 
+**Load pictures go one step further than the BOL**: `load-photos/` has no
+storage rule at all, not even the open write, and `loadPhotos` is closed in
+`firestore.rules`. Uploads go through `POST /api/orders/{id}/photos`, which
+checks `canSeeOrder()` before anything lands and names the file itself. The
+bucket path is always `loadPhotoPath(orderId, photoId)` — never stored, never
+taken from a request — which is what makes the browser-writable
+`coverPhotoId` on an order harmless. See `loadPhotos` in the Schema Guide.
+
 ### Data model
 
 `parties` is the central record. The same party can be the client on one order,

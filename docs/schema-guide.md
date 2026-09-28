@@ -467,6 +467,47 @@ query(collection(db, 'orders'), where('parentOrderId', '==', primaryOrderId))
 
 ---
 
+## Collection: `loadPhotos`
+
+Pictures of a load — at pickup, in transit, at delivery, and of any damage.
+An order has any number, so they are their own collection rather than a path on
+the order. Top-level rather than `orders/{id}/photos` because the Documents
+screen lists them across every load, and a collection-group query would need an
+index scope the service account cannot create. Types: `src/types/loadPhoto.ts`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `orderId` | string | The load. The only link — no ownership is copied here. |
+| `caption` | string | Optional, up to 300 characters. |
+| `stage` | `pickup` \| `in_transit` \| `delivery` \| `damage` \| `other` | Chosen by the uploader; defaults from the load's status. |
+| `commodity` | string | Which of the load's commodity lines it shows, or the load's summary. Copied, not linked. |
+| `commodityKey` | string | `commodityKey(commodity)` — lower-cased, spaces collapsed. |
+| `width`, `height` | number | Pixels of the stored picture. |
+| `uploadedByUid`, `uploadedByName` | string | |
+| `createdAt` | timestamp | Server time. |
+
+**Closed to the browser** (`allow read, write: if false`). Visibility is the
+parent order's, checked fresh on every read by `/api/orders/{id}/photos` and
+`/api/documents/photos`. The files are `load-photos/{orderId}/{photoId}.jpg`
+and `…_thumb.jpg`, **worked out from the two ids and never stored** — see
+`loadPhotoPath()`. The browser shrinks every picture to 2560 px JPEG before
+upload (Vercel refuses a body over 4.5 MB), which also applies the phone's
+rotation and drops its GPS data.
+
+Two fields on the order go with it, both written by the server only:
+
+- `coverPhotoId` — the load's profile picture, shown beside its number in the
+  order header and the orders list. The first picture uploaded becomes it;
+  anybody who can see the load can change it. When it is removed, the oldest
+  remaining picture takes over.
+- `photoCount` — kept with `FieldValue.increment`. Absent means none.
+
+Removing a picture is limited to its uploader and holders of `orders.viewAll`,
+because a load photo is often the evidence in a damage claim. Queries use only
+single-field indexes (`orderId ==`, `createdAt desc`) — nothing to deploy.
+
+---
+
 ## Collection: `agreements`
 
 Tracks the e-sign lifecycle for both Carrier and Shipper agreements.
@@ -545,6 +586,8 @@ documents/{documentId}
 /carrier_docs/{carrierId}/{fileName}
 /avatars/{email}/{timestamp}.{ext}            profile photo an admin uploaded
 /avatars/{email}/requested-{timestamp}.{ext}  one waiting on a profile request
+/load-photos/{orderId}/{photoId}.jpg          a load picture (Admin SDK only)
+/load-photos/{orderId}/{photoId}_thumb.jpg    its thumbnail
 ```
 
 An avatar path is stored on the record, never a download URL — URLs carry a

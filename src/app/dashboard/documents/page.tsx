@@ -8,6 +8,7 @@ import { DownloadLink } from '@/components/orders/DocumentUpload';
 import { DownloadLink as StorageDownloadLink } from '@/components/FileUploadField';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
 import OrderOwnerContact from '@/components/orders/OrderOwnerContact';
+import LoadPhotoBrowser from '@/components/photos/LoadPhotoBrowser';
 import { useAuth } from '@/context/AuthContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { DOCUMENT_LABEL, type CarrierCoiRow, type OrderDocumentKind } from '@/types/orderDocument';
@@ -20,7 +21,9 @@ import { orderDisplayNumber, orderAltNumber } from '@/types/order';
 type DocType = OrderDocumentKind;
 // `coi` is not a DocType: a certificate belongs to the carrier, not the load,
 // so it is listed in its own section rather than as a row of the table.
-type FilterType = 'all' | DocType | 'coi';
+// `photos` is not one either: a load has any number of pictures, and they are
+// browsed as pictures — see LoadPhotoBrowser — rather than as rows of files.
+type FilterType = 'all' | DocType | 'coi' | 'photos';
 
 interface DocRow {
   orderId: string;
@@ -82,6 +85,7 @@ const FILTERS: { value: FilterType; label: string }[] = [
   { value: 'pod',     label: 'Proofs of Delivery' },
   { value: 'license', label: 'Driver Licenses' },
   { value: 'coi',     label: 'Certificates of Insurance' },
+  { value: 'photos',  label: 'Load Pictures' },
 ];
 
 export default function DocumentsPage() {
@@ -135,7 +139,8 @@ export default function DocumentsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const showDocs = filter !== 'coi';
+  const showPhotos = filter === 'photos';
+  const showDocs = filter !== 'coi' && !showPhotos;
   const showCois = filter === 'all' || filter === 'coi';
 
   const visibleCois = cois.filter((c) => {
@@ -164,11 +169,11 @@ export default function DocumentsPage() {
   });
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
+    <div className={`p-4 sm:p-6 lg:p-8 ${showPhotos ? 'max-w-7xl' : 'max-w-5xl'}`}>
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
-          <p className="text-sm text-gray-500 mt-1">All BOLs, invoices, PODs and driver licenses across orders, the certificates of insurance for the carriers on your loads.</p>
+          <p className="text-sm text-gray-500 mt-1">All BOLs, invoices, PODs and driver licenses across orders, the certificates of insurance for the carriers on your loads, and the pictures taken of them.</p>
         </div>
       </div>
 
@@ -186,16 +191,22 @@ export default function DocumentsPage() {
             </button>
           ))}
         </div>
-        <input
+        {/* The picture browser brings its own search, which reaches captions
+            and commodities this one does not. */}
+        {!showPhotos && <input
           type="search"
           placeholder="Search by order #, shipper or carrier…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full sm:ml-auto sm:w-64 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
-        />
+        />}
       </div>
 
-      {loading ? (
+      {/* Mounted only while chosen, so its read is spent only by somebody who
+          came to look at pictures. */}
+      {showPhotos && <LoadPhotoBrowser />}
+
+      {showPhotos ? null : loading ? (
         <div className="flex justify-center py-20">
           <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
         </div>

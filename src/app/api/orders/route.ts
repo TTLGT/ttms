@@ -10,6 +10,7 @@ import {
   type OrderQuery,
 } from '@/lib/orderAccess';
 import { resolveOwnerFilter } from '@/lib/ownerFilter';
+import { withCoverThumbs } from '@/lib/loadPhotosServer';
 import { ORDER_STATUSES } from '@/types/order';
 import { isOrderView } from '@/types/orderView';
 
@@ -105,6 +106,9 @@ export async function GET(req: NextRequest) {
     }
 
     const page = await listVisibleOrdersPage(caller, query);
+    // The list screens draw each load's profile picture beside its number.
+    // Only for `fields=list`: nothing else that pages orders draws one.
+    if (query.fields === 'list') page.orders = await withCoverThumbs(page.orders);
     return NextResponse.json(page);
   } catch (e) {
     if (e instanceof AdminAuthError) {
