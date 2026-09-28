@@ -725,12 +725,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   /* ------------------------------------------------------- notifications */
 
   /**
+   * When this page started listening. Nothing stamped at or before it is ever
+   * announced, whatever the snapshots below do.
+   *
+   * The seeding alone was not enough, and replayed old messages on every sign-in
+   * and reload. The first pass ran before any snapshot had arrived and seeded an
+   * empty map; `watchConversations` publishes the company room and the member
+   * rooms from two listeners, so the first snapshot holds only one of them; and
+   * the on-disk cache answers first with whatever it held last time, then the
+   * server catches up. Each of those made old messages look new to a pass that
+   * compares against "the first snapshot". A message sent before the page was
+   * open is not something that arrived while you were watching, and a clock
+   * compare is immune to the order snapshots arrive in.
+   *
+   * Browser clock against server stamps, so a machine running fast could swallow
+   * a message sent in its first moments. Far better than the replay it replaces.
+   */
+  const listeningSince = useRef<number | null>(null);
+  useEffect(() => {
+    listeningSince.current = uid ? Date.now() : null;
+    // A different person signing in on the same tab starts from nothing, not
+    // from what the last one had been shown.
+    announced.current = null;
+    announcedPings.current = null;
+    announcedThreads.current = null;
+  }, [uid]);
+
+  /**
    * The newest message this browser has already announced, per conversation.
    *
-   * Seeded from the first snapshot without notifying anything. Without that,
-   * every page load would fire a notification for every conversation that has
-   * ever had a message in it — which is how a new feature gets switched off on
-   * the first morning.
+   * Seeded without notifying anything, and not until the conversations have
+   * actually loaded — see `listeningSince` for what went wrong before.
    */
   const announced = useRef<Map<string, number> | null>(null);
 
@@ -743,11 +768,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Held in a ref so the effect below can read the current preferences and the
   // current conversation without re-running — and re-announcing — each time
   // either of them changes.
-  const latest = useRef({ notifyPrefs, activeId, uid, nameOf, openThread, notify });
-  latest.current = { notifyPrefs, activeId, uid, nameOf, openThread, notify };
+  const latest = useRef({ notifyPrefs, activeId, uid, nameOf, openThread, notify, lastReadAt, threadReadAt });
+  latest.current = { notifyPrefs, activeId, uid, nameOf, openThread, notify, lastReadAt, threadReadAt };
+
+  /**
+   * Whether a stamp is too old to announce: from before this page was open, or
+   * already read — on this machine or any other. Once read, never again.
+   */
+  const alreadyKnown = (at: number, readAt: number | undefined) =>
+    at <= (listeningSince.current ?? Infinity) || at <= (readAt ?? 0);
 
   useEffect(() => {
-    if (!uid) return;
+    // `loading` is still true until the first snapshot lands. Seeding before
+    // that seeds an empty map, and the real snapshot then reads as all new.
+    if (!uid || loading) return;
 
     if (announced.current === null) {
       announced.current = new Map(conversations.map((c) => [c.id, millis(c.lastMessage?.at)]));
@@ -762,6 +796,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       seen.set(c.id, at);
 
       if (!last || at <= previous) continue;
+      if (alreadyKnown(at, latest.current.lastReadAt[c.id])) continue;
       if (last.senderUid === latest.current.uid) continue;
       // You are looking straight at it. Announcing a message already on screen
       // is how people learn to ignore notifications.
@@ -793,7 +828,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
       if (latest.current.notifyPrefs.sound) playChime();
     }
-  }, [conversations, uid, router]);
+  }, [conversations, uid, loading, router]);
 
   /**
    * Somebody reacted to something you said.
@@ -809,7 +844,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
    * not something waiting for you to do anything about.
    */
   useEffect(() => {
-    if (!uid) return;
+    if (!uid || loading) return;
 
     // Seeded silently on the first snapshot, for the same reason as messages:
     // otherwise opening TTMS would replay every reaction anyone has ever left.
@@ -828,6 +863,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       seen.set(c.id, at);
 
       if (!ping || at <= previous) continue;
+      // No read mark for a reaction — it never marks anything unread — so only
+      // the page-open clock applies.
+      if (alreadyKnown(at, undefined)) continue;
       // Reacting to your own message writes no ping at all, so this only
       // catches the pass where a slot is rewritten by its own owner.
       if (ping.byUid === latest.current.uid) continue;
@@ -865,7 +903,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
       if (latest.current.notifyPrefs.sound) playChime();
     }
-  }, [conversations, uid, router]);
+  }, [conversations, uid, loading, router]);
 
   /**
    * Somebody answered in a thread you are in.
@@ -882,7 +920,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
    * can see.
    */
   useEffect(() => {
-    if (!uid) return;
+    if (!uid || loading) return;
 
     // Seeded silently on the first snapshot, for the same reason as the other
     // two: otherwise opening TTMS replays every thread reply ever written.
@@ -901,6 +939,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       seen.set(c.id, at);
 
       if (!ping || at <= previous) continue;
+      if (alreadyKnown(at, latest.current.threadReadAt[ping.rootId])) continue;
       // Your own reply marks the thread read as it is sent, so this only
       // catches a slot rewritten by its own owner.
       if (ping.byUid === latest.current.uid) continue;
@@ -938,7 +977,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
       if (latest.current.notifyPrefs.sound) playChime();
     }
-  }, [conversations, uid, router]);
+  }, [conversations, uid, loading, router]);
 
   // The count in front of the browser tab title, so a glance at the tab strip
   // is enough. Messages, like every other badge — the tab saying (2) beside a
