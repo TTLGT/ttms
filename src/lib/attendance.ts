@@ -145,7 +145,13 @@ export async function clock(action: 'in' | 'out' | 'breakStart' | 'breakEnd', ki
   }
 }
 
-export async function sendBeat(body: { active: boolean; clockedIn: boolean; hidden: boolean }): Promise<void> {
+export async function sendBeat(body: {
+  active: boolean;
+  clockedIn: boolean;
+  hidden: boolean;
+  /** Whole computer, or this TTMS tab only — recorded on the day. */
+  source: 'system' | 'page';
+}): Promise<void> {
   const counts = takeCounts();
   try {
     await call('/api/attendance/beat', json('POST', { ...body, counts }));

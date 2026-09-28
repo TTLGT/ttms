@@ -5,6 +5,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { getAppSettings } from './appSettings';
 import { sendBeat } from './attendance';
+import { systemActivity } from './idleDetection';
 import {
   PRESENCE_COLLECTION,
   PRESENCE_HEARTBEAT_MS,
@@ -83,7 +84,8 @@ const LAST_INPUT_KEY = 'ttms.presence.lastInput';
  * At most one beat every five minutes per browser.
  *
  * - **Active** — a click, key, scroll or mouse move since the last beat, in
- *   any TTMS tab. Shows as Online and counts as active minutes.
+ *   any TTMS tab; or, while clocked in and where the browser allows it, on
+ *   the computer as a whole. Shows as Online and counts as active minutes.
  * - **Idle** — no input, but clocked in. Sent anyway, so the day records idle
  *   minutes and colleagues see Away rather than a stale Online. Not sent at
  *   all when clocked out: an idle browser outside working hours costs nothing.
@@ -116,15 +118,22 @@ export function usePresenceHeartbeat(
       const since = lastBeat(uid);
       if (now - since < PRESENCE_HEARTBEAT_MS) return; // this or another tab already did
 
-      const active = now - lastInput() <= PRESENCE_HEARTBEAT_MS;
       const { clockedIn, hidden } = optsRef.current;
+      // While clocked in, the whole computer if the browser can tell us
+      // (see src/lib/idleDetection.ts); otherwise, and always outside work
+      // hours, this tab's own input.
+      const system = clockedIn ? systemActivity() : null;
+      const active = system
+        ? system.activeNow || now - system.lastActiveAt <= PRESENCE_HEARTBEAT_MS
+        : now - lastInput() <= PRESENCE_HEARTBEAT_MS;
       if (!active && !clockedIn) return;
 
       // Claimed before the send, so a second tab checking meanwhile does not
       // send one too. Not retried early on failure: a failing beat retried on
       // every mouse move is a flood.
       markBeat(uid, now);
-      sendBeat({ active, clockedIn, hidden }).catch((e) => console.warn('[presence] heartbeat failed', e));
+      sendBeat({ active, clockedIn, hidden, source: system ? 'system' : 'page' })
+        .catch((e) => console.warn('[presence] heartbeat failed', e));
     };
 
     const onActivity = () => {

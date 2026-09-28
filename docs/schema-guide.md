@@ -1688,6 +1688,7 @@ beside it, and idle time is shown but never subtracted.
 | `breaks` | `{ kind: "break" \| "lunch", start, end \| null }[]` | |
 | `firstActiveAt`, `lastActiveAt` | number \| null | From the heartbeat |
 | `activeMinutes`, `idleMinutes` | number | Five per check-in |
+| `measuredBy` | `{ system?: number, page?: number }` | Clocked-in check-ins measured on the whole computer (browser Idle Detection) vs the TTMS tab only |
 | `activity` | `{ ordersCreated?, ordersUpdated?, statusChanges?, agreementsSent?, documentsUploaded?, messagesSent? }` | Counted in the browser and carried on the next check-in or clock action — reports, not audited figures |
 | `corrections` | `DayCorrection[]` | Every change HR made, with before, after, who and why. Never removed |
 | `finalized`, `summary` | boolean, `DaySummary` | Written by the nightly close. A finalized day's summary is what reports show |

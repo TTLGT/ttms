@@ -343,16 +343,20 @@ async function writeDay(
  */
 export async function recordBeat(
   caller: { uid: string; email: string; name: string },
-  body: { active?: unknown; clockedIn?: unknown; hidden?: unknown; counts?: unknown },
+  body: { active?: unknown; clockedIn?: unknown; hidden?: unknown; counts?: unknown; source?: unknown },
   now: number,
 ): Promise<void> {
   const active = body.active === true;
   const clockedIn = body.clockedIn === true;
   const counts = readCounts(body.counts);
   const date = officeDateOf(now);
+  // Whole computer or TTMS only — see src/lib/idleDetection.ts. Counted per
+  // beat while clocked in, so the report can say how a day was measured.
+  const source = body.source === 'system' ? 'system' : 'page';
 
   if (active || clockedIn || Object.keys(counts).length > 0) {
     const patch: Record<string, unknown> = { ...countIncrements(counts) };
+    if (clockedIn) patch[`measuredBy.${source}`] = FieldValue.increment(1);
     if (active) {
       patch.lastActiveAt = now;
       patch.activeMinutes = FieldValue.increment(BEAT_MINUTES);
@@ -370,6 +374,7 @@ export async function recordBeat(
       activeMinutes: active ? BEAT_MINUTES : 0,
       idleMinutes: !active && clockedIn ? BEAT_MINUTES : 0,
       activity: counts,
+      ...(clockedIn ? { measuredBy: { [source]: 1 } } : {}),
     }, patch);
   }
 

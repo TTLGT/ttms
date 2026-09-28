@@ -331,6 +331,13 @@ export interface AttendanceDay {
   lastActiveAt: number | null;
   activeMinutes: number;
   idleMinutes: number;
+  /**
+   * How the clocked-in check-ins were measured: `system` is the whole
+   * computer (the browser's Idle Detection, Chrome and Edge, with
+   * permission), `page` is the TTMS tab alone. A count of check-ins each, so a
+   * day that switched halfway says so.
+   */
+  measuredBy?: { system?: number; page?: number };
   activity: Partial<Record<ActivityKind, number>>;
   corrections?: DayCorrection[];
   /** Set by the nightly job. A finalized day's `summary` is what the report shows. */
@@ -413,6 +420,23 @@ export interface DaySummary {
   newDevice: boolean;
   activeMinutes: number;
   idleMinutes: number;
+  /** How active and idle were measured while clocked in. Null when nothing was. */
+  measuredBy: MeasuredBy | null;
+}
+
+export type MeasuredBy = 'computer' | 'ttms' | 'mixed';
+
+export const MEASURED_BY_LABEL: Record<MeasuredBy, string> = {
+  computer: 'Whole computer',
+  ttms:     'TTMS only',
+  mixed:    'Partly whole computer, partly TTMS only',
+};
+
+function measuredByOf(day: AttendanceDay | null): MeasuredBy | null {
+  const system = day?.measuredBy?.system ?? 0;
+  const page = day?.measuredBy?.page ?? 0;
+  if (!system && !page) return null;
+  return system && page ? 'mixed' : system ? 'computer' : 'ttms';
 }
 
 export interface SummarizeInput {
@@ -446,6 +470,7 @@ export function summarizeDay({ date, day, schedule, holiday, timeOff, now }: Sum
     missedClockOut: false, office: null, newDevice: false,
     activeMinutes: day?.activeMinutes ?? 0,
     idleMinutes: day?.idleMinutes ?? 0,
+    measuredBy: measuredByOf(day),
   };
 
   if (sessions.length > 0) {

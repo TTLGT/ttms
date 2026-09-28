@@ -848,6 +848,22 @@ report), `attendanceAdmin.ts` (schedules, holidays, requests) and
 - **The heartbeat now goes through the server** (`POST /api/attendance/beat`),
   which writes presence and the day. It used to be a browser write; the
   `presence` rule is now closed to the client.
+- **While clocked in, "active" is the whole computer** where the browser
+  allows it: the Idle Detection API (Chrome and Edge), in
+  `src/lib/idleDetection.ts`. It says only whether there was keyboard or mouse
+  input anywhere in the last minute and whether the screen is locked. **Only
+  while clocked in** — outside work hours the heartbeat counts TTMS alone, so
+  an open tab in the evening does not watch somebody's home computer. Keep
+  that line. Permission is the Chrome/Edge policy `IdleDetectionAllowedForUrls`,
+  which the Google Admin console does **not** offer for Chrome browsers
+  (checked 2026-09-28) — `scripts/allow-idle-detection.bat`, run once per PC
+  as administrator, writes it for both browsers. Anywhere it is not set, the
+  every Clock in shows TTMS's own explanation first (`IdleExplainer` in
+  `AttendanceContext.tsx` — "please click Allow") until it is allowed, and its
+  button raises the browser's box; people click Block on a pop-up they did not
+  expect. After a Block no site can ask again (browser rule), so the
+  explanation switches to how to re-enable it in Site settings. Each day records which way it
+  was measured in `measuredBy`.
 - **Work counts** (`activity`) are counted in the browser by `trackActivity()`
   and carried on the next check-in or clock action, so they cost no writes.
   Anything new worth counting calls it once, after the thing succeeded.

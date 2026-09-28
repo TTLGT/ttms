@@ -6,6 +6,7 @@ import { downloadCsv, toCsv } from '@/lib/csv';
 import {
   ACTIVITY_KINDS,
   ACTIVITY_LABEL,
+  MEASURED_BY_LABEL,
   OUTCOME_LABEL,
   TIME_OFF_LABEL,
   datesBetween,
@@ -73,7 +74,7 @@ export default function AttendanceGrid({
     const header = [
       'Name', 'Email', 'Date', 'Result', 'Scheduled start', 'Scheduled end',
       'Clock in', 'Clock out', 'Worked hours', 'Break minutes', 'Late minutes', 'Left early minutes',
-      'Missed clock-out', 'Office network', 'New device', 'Active minutes', 'Idle minutes',
+      'Missed clock-out', 'Office network', 'New device', 'Active minutes', 'Idle minutes', 'Activity measured on',
       'Holiday', 'Time off', ...ACTIVITY_KINDS.map((k) => ACTIVITY_LABEL[k]),
     ];
     const rows = people.flatMap((p) => dates.map((date) => {
@@ -88,6 +89,7 @@ export default function AttendanceGrid({
         Math.round(s.lateMinutes) || '', Math.round(s.earlyMinutes) || '',
         s.missedClockOut ? 'Yes' : '', s.office === null ? '' : s.office ? 'Yes' : 'No', s.newDevice ? 'Yes' : '',
         Math.round(s.activeMinutes), Math.round(s.idleMinutes),
+        s.measuredBy ? MEASURED_BY_LABEL[s.measuredBy] : '',
         s.holiday ?? '', s.timeOff ? TIME_OFF_LABEL[s.timeOff] : '',
         ...ACTIVITY_KINDS.map((k) => counts[k] ?? ''),
       ];

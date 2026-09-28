@@ -35,6 +35,12 @@ export default function AttendancePolicy({ defaultOpen = false }: { defaultOpen?
               <li>When you press <strong>Clock in</strong>, <strong>Clock out</strong>, <strong>Break</strong> and <strong>Lunch</strong>. These are your hours.</li>
               <li>At each clock in and out: the internet address you connected from, the city and internet provider that address belongs to, whether it is the office network, and your browser and type of device (for example “Windows · Chrome · desktop”).</li>
               <li>Every five minutes while TTMS is open: whether you used it (clicked, typed or scrolled) in that time. This shows as active or idle minutes. Idle time is never taken off your hours — a phone call looks idle to a browser.</li>
+              <li>
+                <strong>While you are clocked in</strong>, on Chrome and Edge: whether the computer as a whole is in use —
+                any keyboard or mouse use, and whether the screen is locked — so working in another program counts as
+                active. Only yes or no, once a minute. Never which program, what you typed, or what is on your screen.
+                Outside your clocked-in hours, only your use of TTMS itself is counted.
+              </li>
               <li>How many loads you created or edited, status changes, agreements sent, documents uploaded and chat messages sent — counts only, never what they said.</li>
             </ul>
           </div>
@@ -42,7 +48,8 @@ export default function AttendancePolicy({ defaultOpen = false }: { defaultOpen?
             <p className="font-semibold text-gray-800">Not recorded</p>
             <ul className="mt-1 list-disc space-y-1 pl-5">
               <li>Your exact location. The city comes from the internet address and is often just the provider’s city.</li>
-              <li>Screenshots, keystrokes, the websites you visit, or anything outside TTMS.</li>
+              <li>Screenshots, keystrokes, the programs or websites you use, or what you do in them.</li>
+              <li>Anything about your computer when you are clocked out, other than your use of TTMS.</li>
             </ul>
           </div>
           <div>

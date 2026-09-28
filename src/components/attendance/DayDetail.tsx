@@ -8,6 +8,7 @@ import {
   ACTIVITY_KINDS,
   ACTIVITY_LABEL,
   BREAK_LABEL,
+  MEASURED_BY_LABEL,
   OUTCOME_LABEL,
   TIME_OFF_LABEL,
   deviceLabel,
@@ -137,6 +138,7 @@ export default function DayDetail({
             <Row label="Worked">{summary.clockIn ? formatMinutes(summary.workedMinutes) : '—'}</Row>
             <Row label="Breaks">{summary.breakMinutes ? formatMinutes(summary.breakMinutes) : '—'}</Row>
             <Row label="Active / idle">{`${formatMinutes(summary.activeMinutes)} / ${formatMinutes(summary.idleMinutes)}`}</Row>
+            {summary.measuredBy && <Row label="Measured on">{MEASURED_BY_LABEL[summary.measuredBy]}</Row>}
             {summary.holiday && <Row label="Holiday">{summary.holiday}</Row>}
             {summary.timeOff && <Row label="Time off">{TIME_OFF_LABEL[summary.timeOff]}</Row>}
           </dl>
