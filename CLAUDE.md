@@ -304,7 +304,6 @@ Changing one without the other creates a silent security hole:
 | `MAX_STICKER_BYTES` + the accepted types in `src/types/sticker.ts` | the `stickers/` block in `storage.rules` |
 | `MAX_LIBRARY_ITEMS` / `MAX_FOLDERS` / `MAX_LIBRARY_GIFS` in `src/types/sticker.ts` | the `chatLibraries` rule |
 | `GifRef` + `isKlipyUrl()` in `src/types/gif.ts` | `gifOk()` — the keys, the Klipy-host pattern, the lengths |
-| `Presence` in `src/types/presence.ts` | the `presence` block — `lastActiveAt` the only key, and it must be `request.time` |
 
 The owner matcher is duplicated three ways for the same reason — plain node
 scripts cannot import TypeScript either:
@@ -815,6 +814,55 @@ assignment is held in `assignedToEmails` / `memberEmails` and converted by
 > That was replaced by `parties` in commit `660d057`. `src/types/party.ts` and
 > `src/types/order.ts` are the current truth. Prefer the types over that doc.
 
+### Attendance — the clock, and HR's record of it
+
+Clock in/out, breaks, schedules, holidays, time off and corrections, with a
+report for HR at `/dashboard/attendance` and everybody's own on their profile.
+Pure rules in `src/types/attendance.ts`; server code in
+`src/lib/attendanceServer.ts` (who sees whom, the heartbeat, the clock, the
+report), `attendanceAdmin.ts` (schedules, holidays, requests) and
+`attendanceJobs.ts` (the two crons). See Attendance in the Schema Guide.
+
+- **It is HR data, closed to the browser.** Every attendance collection is
+  `allow read, write: if false` and read only through `/api/attendance/*`.
+  `canSeePerson()` is the whole visibility rule: yourself, `attendance.view`
+  (admin, HR), and a Sales Manager their own team via `managedUids`. **Nothing
+  from it may be mirrored onto `users/{uid}` or `presence/{uid}`**, both of
+  which every staff member reads. Presence says only what a colleague would
+  see across the office.
+- **The clock button is the record of hours.** The heartbeat's active and idle
+  minutes are evidence shown beside it; idle is never subtracted. Every time
+  is set by the server — the clock route takes no time from the browser and no
+  parameter for whose clock it is.
+- **`summarizeDay()` is the single definition** of late, early, absent and
+  hours. The report runs it live on any day not yet closed; the nightly job
+  runs it once and stores `summary`. Do not compute a verdict anywhere else.
+- **Office time is a fixed UTC−6** (`OFFICE_UTC_OFFSET_MINUTES`), for the same
+  reason the celebrations cron is: Guatemala has no daylight saving. It is the
+  one number that breaks if the office moves.
+- **Nobody is late or absent without a schedule.** The company default
+  (`attendanceSchedules/_default`) does not exist until HR saves it, so this
+  shipped without marking the whole company absent on its first night.
+- **Every change to a day keeps the original** in `corrections`, with who and
+  why. Nobody decides their own time off or correction.
+- **The heartbeat now goes through the server** (`POST /api/attendance/beat`),
+  which writes presence and the day. It used to be a browser write; the
+  `presence` rule is now closed to the client.
+- **Work counts** (`activity`) are counted in the browser by `trackActivity()`
+  and carried on the next check-in or clock action, so they cost no writes.
+  Anything new worth counting calls it once, after the thing succeeded.
+- **The internet provider comes from ipinfo**, which means each clock action's
+  IP address is sent to ipinfo.io — chosen deliberately, clock actions only,
+  never the heartbeat. `IPINFO_TOKEN` is optional (keyless works, rate-limited).
+- **Third and fourth clocks, and still not a precedent.** The nightly close
+  (3am office time) and the "not in yet" alerts (every 15 minutes, office
+  hours) finish records and post notices; they grant and remove nothing. The
+  rule that access never runs on a clock is untouched.
+- **`attendance.view` and `attendance.manage` widened HR** when they were added.
+  **What is recorded is written out for staff** in
+  `src/components/attendance/AttendancePolicy.tsx`. Record something new and
+  that text changes the same day.
+
 ### Learn English — underlines that never touch the page
 
 A per-browser switch at the foot of the sidebar (`LearnContext`) that underlines
@@ -866,7 +914,7 @@ off, chosen server-side, like lane distances.
 - **It is deployed on Vercel and live at `https://ttms.totaltransportlogistics.us`** (DNS added and verified 2026-09-09). A push to `main` builds and goes live for the whole company within minutes, so **a push to `main` is a production release**; say so before pushing. The repo side is done: security headers in `next.config.ts`, the address centralised in `src/lib/appUrl.ts`, [`docs/deployment.md`](docs/deployment.md) as the runbook.
   - **Firebase → Authentication → Settings → Authorized domains** holds both `ttms.totaltransportlogistics.us` and the fallback `ttms-iota.vercel.app` (confirmed 2026-09-09). Firebase refuses to sign anyone in on a host it has not been told about, and the failure is silent — the Google popup opens and closes with no error on the page — so that list is still the first thing to check if anyone reports it.
   - **`ttms` with two t's is the agreed spelling** (2026-09-08), and the record that exists at Namecheap is the two-t one; `tms.totaltransportlogistics.us` has no record and should not be given one. A Vercel project card was showing a one-t `tms.` variant; if that reappears it is the thing to change, not the code.
-  - **`vercel.json` exists for one reason: the crons.** Vercel's Next.js defaults are otherwise correct and each route declares its own `maxDuration`, so nothing else belongs in it. It declares `GET /api/chat/celebrations` at `0 14 * * *` and `GET /api/celebration-calendar/cron` at `5 14 * * *` — see the Celebrations section below. Both share `isCron()` in `src/lib/cronAuth.ts`. Adding a build setting, a rewrite or a header there is almost certainly the wrong file; headers live in `next.config.ts`.
+  - **`vercel.json` exists for one reason: the crons.** Vercel's Next.js defaults are otherwise correct and each route declares its own `maxDuration`, so nothing else belongs in it. It declares `GET /api/chat/celebrations` at `0 14 * * *` and `GET /api/celebration-calendar/cron` at `5 14 * * *` — see the Celebrations section below — and the two attendance jobs, `GET /api/attendance/cron/close` at `0 9 * * *` and `GET /api/attendance/cron/alerts` at `*/15 12-23 * * 1-6` — see Attendance. All share `isCron()` in `src/lib/cronAuth.ts`. Adding a build setting, a rewrite or a header there is almost certainly the wrong file; headers live in `next.config.ts`.
   - **`CRON_SECRET` must be set on Vercel** or the daily post never happens. The route refuses every request without it, deliberately — an endpoint that writes to the whole company must not fall open because a variable is missing. It is set in Vercel → Settings → Environment Variables and nowhere else; Vercel sends it on every scheduled call by itself. It is not in `.env.local` and does not need to be.
   - Deliberately absent: no `.github/workflows/` (Vercel builds on push), no Hosting block in `firebase.json`.
 - Firestore composite indexes are listed in `docs/schema-guide.md`. A missing-index error links to a one-click creator in the Console.

@@ -307,7 +307,7 @@ appSettings/general
   clientPaymentMethods  : PaymentMethod[]   // how the client pays us — default []
   carrierPaymentMethods : PaymentMethod[]   // BATS "Carrier Pay Terms" — default []
   brokerFeeTermOptions  : PaymentMethod[]   // BATS "Broker Fee Terms" — default []
-  presence         : boolean         // default true — "Online" / "Last seen" in chat; see presence below
+  presence         : boolean         // default true — the chat status and attendance check-in; see presence below
   updatedAt        : Timestamp
   updatedBy        : string          // email or uid of the admin who changed it
 ```
@@ -1632,32 +1632,124 @@ same as a sticker.
 
 ### `presence/{uid}` — online status
 
-Whether somebody is using TTMS, shown at the top of a direct chat as
-**Online** or **Last seen …**. One document per person.
+Whether somebody is using TTMS and the status they chose, shown at the top of
+a direct chat as **Online**, **Away**, **In a meeting · note**, **On break** or
+**Last seen …**. One document per person.
 
 | Field | Type | Notes |
 |---|---|---|
-| `lastActiveAt` | Timestamp | The server's time (`request.time`, enforced by the rules), so nobody can fake it. The only key allowed |
+| `lastActiveAt` | Timestamp | The last check-in during which they clicked, typed or scrolled |
+| `lastBeatAt` | Timestamp | The last check-in of any kind — TTMS open, maybe untouched. Recent `lastBeatAt` with an old `lastActiveAt` reads as Away |
+| `status` | `"busy"` \| `"meeting"` \| `"away"` \| null | Set from the sidebar clock. Absent or null means available |
+| `statusNote` | string | Up to 80 characters |
+| `onBreak` | boolean | Set by the clock's Break and Lunch buttons |
 
-- **Readable by all staff; each person writes only their own.** Written from
-  the browser (`src/lib/presence.ts`), like chat messages, because it is one
-  document addressed by uid with no query for a rule to fail to express.
-- **At most once every five minutes**, and only while the tab is visible and
-  somebody has clicked, typed, scrolled or moved the mouse in that time. Every
-  tab in one browser shares one clock through localStorage, so three open tabs
-  and a reload still cost one write per five minutes.
-- **Online is worked out when it is read**: a heartbeat in the last seven
-  minutes (five plus slack). Nothing is ever written to say somebody left —
-  browsers cannot be relied on to say goodbye — so there is no stale "online".
+- **Readable by all staff, written only by the server** (`/api/attendance/*`).
+  It was written from the browser until attendance arrived; it moved because
+  the same check-in now also records attendance minutes, and only the server
+  sees the network a request came from.
+- **At most one check-in every five minutes per browser** — every tab shares
+  one clock through localStorage. Sent when somebody has used TTMS in that
+  time, and also while they are clocked in (as idle) so the day records idle
+  minutes. Nothing at all from an idle browser that is clocked out.
+- **Online is worked out when it is read**: a check-in in the last seven
+  minutes (five plus slack). Nothing is ever written to say somebody left.
+- **Somebody who hides their last seen** (profile page) has both times removed
+  and none written after; their chosen status still shows.
 - **Switched by `appSettings/general.presence`** (Settings → Operations →
-  Online Status, `presence.manage`: admin and HR). Off stops writes and
-  listeners for each person from their next page load. Documents already
-  written stay and grant nothing.
-- Cost at about 30 staff: roughly 3,200 writes a day, plus one read per
-  heartbeat per person watching that colleague's direct chat.
-- Not attendance. It says a browser was in use, not that anybody was working,
-  and is deliberately visible to everyone — an attendance record would be HR
-  data and would need its own closed collection.
+  Online Status, `presence.manage`: admin and HR). Off also stops attendance's
+  active and idle minutes; the clock is unaffected.
+- Cost at about 30 staff: roughly 6,500 writes a day (presence and the day
+  record), plus one read per check-in per person watching that colleague.
+- **Nothing from attendance is in here.** Clock times, lateness and absences
+  are HR's and live in the closed collections below.
+
+## Attendance
+
+Clock in/out, breaks, schedules, time off and corrections. Types and the rules
+for judging a day in `src/types/attendance.ts`; server code in
+`src/lib/attendanceServer.ts`, `attendanceAdmin.ts` and `attendanceJobs.ts`.
+**Every collection here is closed to the browser** (`allow read, write: if
+false`) and reached only through `/api/attendance/*`, which decides who may see
+whom: yourself always, everybody with `attendance.view` (admin, HR), and a
+Sales Manager their own team. `attendance.manage` (admin, HR) sets things up
+and decides requests. Times are epoch milliseconds set by the server; days are
+**office** days (`America/Guatemala`, UTC−6, no daylight saving).
+
+The **clock button is the record of hours**. Heartbeat activity is evidence
+beside it, and idle time is shown but never subtracted.
+
+### `attendanceDays/{email}_{YYYY-MM-DD}`
+
+| Field | Type | Notes |
+|---|---|---|
+| `email`, `uid`, `name`, `date` | | `date` is the office date |
+| `sessions` | `{ in: ClockDetails, out: ClockDetails \| null }[]` | One per clock-in. Clocking out and back in again the same day makes two |
+| `breaks` | `{ kind: "break" \| "lunch", start, end \| null }[]` | |
+| `firstActiveAt`, `lastActiveAt` | number \| null | From the heartbeat |
+| `activeMinutes`, `idleMinutes` | number | Five per check-in |
+| `activity` | `{ ordersCreated?, ordersUpdated?, statusChanges?, agreementsSent?, documentsUploaded?, messagesSent? }` | Counted in the browser and carried on the next check-in or clock action — reports, not audited figures |
+| `corrections` | `DayCorrection[]` | Every change HR made, with before, after, who and why. Never removed |
+| `finalized`, `summary` | boolean, `DaySummary` | Written by the nightly close. A finalized day's summary is what reports show |
+
+`ClockDetails` records `at`, `ip`, `city` / `region` / `country` (from
+Vercel's IP headers — the network's location, city-level at best), `provider`
+(ipinfo, looked up at the clock only), `device` (`{ kind, os, browser }` from
+the user-agent), `deviceId` (random, kept in the browser's localStorage),
+`newDevice`, `office` (IP matched an office network), and `manual`
+(`"correction"` or `"autoClose"` when nobody pressed a button).
+
+### `attendanceSchedules/{email}` and `attendanceSchedules/_default`
+
+`{ days: { mon…sun: { start: "08:00", end: "17:00" } | null }, holidayCountry: "GT" | "US", graceMinutes }`.
+A person without their own follows `_default`; with neither, they are not
+scheduled and are never late or absent. `_default` does not exist until HR
+saves it.
+
+### `timeOffRequests/{id}`
+
+`{ email, name, from, to, kind, note, status: pending|approved|refused|withdrawn, createdAt, enteredByEmail, decidedAt, decidedByEmail, decidedByName, decisionNote }`.
+Recorded by HR for somebody (`enteredByEmail` set) it is approved as written.
+Nobody decides their own.
+
+### `attendanceCorrections/{id}`
+
+`{ email, name, date, clockIn: "HH:MM" | null, clockOut: "HH:MM" | null, reason, status, … }`.
+Approval rewrites the day through `applyCorrection()` and appends a
+`DayCorrection`; past days are re-judged at once, because the nightly close
+only looks a week back.
+
+### `holidayOverrides/{id}`
+
+HR's changes to the calculated holidays in `src/types/holidays.ts`: **moved**
+(`originalDate` + `movedTo`), **not observed** (`originalDate`, `movedTo:
+null`), or **added** (`originalDate: null`, `movedTo`, `name`). The id of a
+change to a calculated holiday is `{country}_{originalDate}`, so moving it
+twice replaces the first move. Readable by any staff member through the API —
+the Celebrations calendar uses it too.
+
+### The rest
+
+- `attendanceConfig/general` — `{ officeNetworks: { ip, label }[], alerts, alertAfterMinutes }`.
+- `attendanceDevices/{email}` — `{ ids: string[] }`, the browsers somebody has clocked in from.
+- `attendancePrefs/{email}` — `{ hideLastSeen }`.
+- `attendanceAlerts/{date}_{email}` — the lock that stops a "not in yet" alert
+  going twice; claimed with `create()`.
+
+### The two scheduled jobs (`vercel.json`)
+
+- `GET /api/attendance/cron/close` at `0 9 * * *` (3am office time): closes
+  forgotten clock-outs at the last activity, records absences, stores each
+  day's verdict. Re-checks the last 7 days every night; skips finalized days.
+- `GET /api/attendance/cron/alerts` at `*/15 12-23 * * 1-6` (6am–6pm office
+  time, Mon–Sat): posts "not in yet" into each recipient's own locked
+  `notice_attendance_{uid}` room.
+
+Both are authorized by `CRON_SECRET` alone. Neither grants or removes access —
+they finish records and post notices — which is why they may run on a clock.
+
+No composite indexes: every query is one field (`date` range, `status ==`,
+`email ==`, `to >=`, `createdAt >=`).
 
 
 ## Collections: `celebrationReminderSettings`, `celebrationReminders`, `celebrationReminderRuns`

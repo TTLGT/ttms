@@ -18,7 +18,7 @@ import ThreadPanel from './ThreadPanel';
 import { can } from '@/lib/accessControl';
 import { usePresence, usePresenceEnabled } from '@/lib/presence';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { isOnline } from '@/types/presence';
+import { isIdle, isOnline, USER_STATUS_LABEL } from '@/types/presence';
 import {
   COMPANY_CONVERSATION_ID,
   conversationTitle,
@@ -478,6 +478,10 @@ function Identity({
  * the question you have before you type. Falls back to the old line when the
  * company has the feature off, when the other person has never been seen, and
  * while it loads — never a blank.
+ *
+ * Nothing from attendance appears here: not whether they clocked in, not
+ * whether they were late. Only what a colleague would see by looking across
+ * the office — see src/types/presence.ts.
  */
 function DirectSubtitle({ conversation, myUid }: { conversation: Conversation; myUid: string }) {
   const enabled           = usePresenceEnabled();
@@ -485,24 +489,36 @@ function DirectSubtitle({ conversation, myUid }: { conversation: Conversation; m
   const { presence, now } = usePresence(other, enabled);
   const { formatDate }    = useDateFormatters();
 
-  const at = presence?.lastActiveAt?.toDate?.() ?? null;
-
-  if (!enabled || !at) {
+  if (!enabled || !presence) {
     return <span className="block truncate text-xs text-gray-500">Just the two of you</span>;
   }
 
-  if (isOnline(presence, now)) {
-    return (
-      <span className="flex items-center gap-1.5 truncate text-xs text-gray-500">
-        <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500" aria-hidden />
-        Online
-      </span>
-    );
-  }
+  const at = presence.lastActiveAt?.toDate?.() ?? null;
+  const online = isOnline(presence, now);
+  const idle = isIdle(presence, now);
+  // What they chose to say. Shown whether or not they hide their last seen —
+  // a status is something a person puts up on purpose.
+  const chosen = presence.onBreak
+    ? 'On break'
+    : presence.status
+      ? `${USER_STATUS_LABEL[presence.status]}${presence.statusNote ? ` · ${presence.statusNote}` : ''}`
+      : '';
+
+  // Green while active, amber while away from the keyboard or on a break.
+  const dot = online && !presence.onBreak && presence.status !== 'away'
+    ? 'bg-green-500'
+    : (online || idle) ? 'bg-amber-400' : null;
+
+  const words = online
+    ? chosen || 'Online'
+    : idle
+      ? chosen || 'Away'
+      : [chosen, at ? lastSeenLabel(at, now, formatDate) : ''].filter(Boolean).join(' · ') || 'Just the two of you';
 
   return (
-    <span className="block truncate text-xs text-gray-500">
-      {lastSeenLabel(at, now, formatDate)}
+    <span className="flex items-center gap-1.5 truncate text-xs text-gray-500">
+      {dot && <span className={`h-2 w-2 flex-shrink-0 rounded-full ${dot}`} aria-hidden />}
+      <span className="truncate">{words}</span>
     </span>
   );
 }

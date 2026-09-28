@@ -38,6 +38,7 @@ import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
 import DateField from '@/components/DateField';
 import CelebrationBanner from '@/components/dashboard/CelebrationBanner';
+import MyAttendanceCard from '@/components/attendance/MyAttendanceCard';
 import RoleBadges from '@/components/people/RoleBadges';
 import { MAX_PHOTO_BYTES, UserAvatar } from '@/components/settings/UserAvatar';
 
@@ -342,6 +343,10 @@ export default function MyProfilePage() {
       </div>
 
       <CelebrationsCard me={me} onChange={(patch) => setMe({ ...me, ...patch })} />
+
+      {/* Everybody's own, payroll-adjacent like the fields above — see
+          src/types/attendance.ts. Nobody needs a permission to see their own. */}
+      <MyAttendanceCard email={me.email.toLowerCase()} />
 
       <p className="mt-5 text-xs text-gray-400">
         Everything you have asked for, decided or not, is under{' '}

@@ -7,10 +7,11 @@
  * computed from the rules below, and nobody has to remember to type next
  * year's dates in each January. It costs no reads and cannot go stale.
  *
- * What it cannot do is follow a one-off decree: a holiday declared or moved by
- * the government for a single year will not appear here. If that becomes a
- * need, the answer is a small editable list in Settings beside these rules,
- * not replacing them.
+ * What the rules cannot do is follow a one-off decree: a holiday declared or
+ * moved for a single year. That is what `HolidayOverride` at the bottom of
+ * this file is for — HR's changes, kept beside these rules rather than
+ * replacing them. Anything deciding whether the office was shut should ask
+ * `observedHolidaysInYear()`, not `holidaysInYear()`.
  *
  * Pure, like the rest of src/types — no clock, no Firestore.
  */
@@ -164,4 +165,104 @@ export function holidaysInYear(year: number): Holiday[] {
 export function holidaysInMonth(year: number, month: number): Holiday[] {
   const prefix = `${year}-${pad(month)}`;
   return holidaysInYear(year).filter((h) => h.date.startsWith(prefix));
+}
+
+/* ------------------------------------------------------------ HR's changes */
+
+/**
+ * One change HR made to the calculated list — `holidayOverrides/{id}`.
+ *
+ * Three shapes, one document type:
+ *  - **moved**: `originalDate` set, `movedTo` set. Army Day observed on the
+ *    Monday, or the office closing the Friday after Thanksgiving instead.
+ *  - **not observed**: `originalDate` set, `movedTo` null. The office stays open.
+ *  - **added**: `originalDate` null, `movedTo` set. A decree for one year, or a
+ *    company day off, which is exactly the gap the note at the top of this
+ *    file said would need filling.
+ *
+ * The rules above keep producing the original date; an override only changes
+ * what is shown for it. So a moved holiday cannot come back next year by
+ * accident — each override names one year's date — and deleting an override
+ * puts the calculated day back.
+ *
+ * Applies to the Celebrations calendar as well as attendance, so the two can
+ * never disagree about whether the office was shut.
+ */
+export interface HolidayOverride {
+  id: string;
+  country: HolidayCountry;
+  originalDate: string | null;
+  movedTo: string | null;
+  /** Required for an added day; for a move, what the holiday was called. */
+  name: string;
+  note?: string;
+  updatedByEmail?: string;
+  updatedAt?: number;
+}
+
+/** The id for a change to a calculated holiday — one per country per date. */
+export function overrideIdFor(country: HolidayCountry, originalDate: string): string {
+  return `${country}_${originalDate}`;
+}
+
+export interface ObservedHoliday extends Holiday {
+  /** Set when HR moved it: the date the rules put it on. */
+  movedFrom?: string;
+  /** Added by HR rather than calculated. */
+  added?: boolean;
+  overrideId?: string;
+}
+
+/**
+ * Every holiday in a year as the company observes it.
+ *
+ * Neighbouring years are calculated too, because a move can cross New Year —
+ * the 31st of December taken on the 2nd of January.
+ */
+export function observedHolidaysInYear(year: number, overrides: HolidayOverride[]): ObservedHoliday[] {
+  const byId = new Map(overrides.map((o) => [o.id, o]));
+  const out: ObservedHoliday[] = [];
+
+  for (const y of [year - 1, year, year + 1]) {
+    for (const h of holidaysInYear(y)) {
+      const o = byId.get(overrideIdFor(h.country, h.date));
+      if (!o) { out.push(h); continue; }
+      if (!o.movedTo) continue; // not observed
+      out.push({ ...h, date: o.movedTo, movedFrom: h.date, overrideId: o.id, ...(o.note ? { note: o.note } : {}) });
+    }
+  }
+  for (const o of overrides) {
+    if (o.originalDate || !o.movedTo) continue;
+    out.push({ date: o.movedTo, country: o.country, name: o.name, added: true, overrideId: o.id, ...(o.note ? { note: o.note } : {}) });
+  }
+
+  const prefix = `${year}-`;
+  // A holiday the rules produce for both this year's list and the next (the
+  // US observed New Year) would otherwise appear twice.
+  const seen = new Set<string>();
+  return out
+    .filter((h) => h.date.startsWith(prefix))
+    .filter((h) => {
+      const key = `${h.country}|${h.date}|${h.name}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => a.date.localeCompare(b.date) || a.country.localeCompare(b.country));
+}
+
+export function observedHolidaysInMonth(year: number, month: number, overrides: HolidayOverride[]): ObservedHoliday[] {
+  const prefix = `${year}-${pad(month)}`;
+  return observedHolidaysInYear(year, overrides).filter((h) => h.date.startsWith(prefix));
+}
+
+/** The holiday a country observes on a date, by name, or null. */
+export function observedHolidayOn(
+  date: string,
+  country: HolidayCountry,
+  overrides: HolidayOverride[],
+): string | null {
+  const year = Number(date.slice(0, 4));
+  const hit = observedHolidaysInYear(year, overrides).find((h) => h.date === date && h.country === country);
+  return hit ? hit.name : null;
 }

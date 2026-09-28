@@ -6,6 +6,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { trackActivity } from './attendance';
 import type { Order, OrderStatus } from '@/types/order';
 import { orderSearchTerms } from '@/types/order';
 import type { LicenseDocumentRow, OrderDocumentKind } from '@/types/orderDocument';
@@ -52,6 +53,8 @@ export async function createOrder(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  // Counted for the day's attendance record — see trackActivity.
+  trackActivity('ordersCreated');
   return ref.id;
 }
 
@@ -403,6 +406,7 @@ export async function updateOrderStatus(
     updatedAt: serverTimestamp(),
     ...(status === 'delivered' && { deliveredAt: serverTimestamp() }),
   });
+  trackActivity('statusChanges');
 }
 
 /**
@@ -426,6 +430,7 @@ export async function updateOrder(
     ...data,
     updatedAt: serverTimestamp(),
   });
+  trackActivity('status' in data ? 'statusChanges' : 'ordersUpdated');
 
   // A change to any field the search box looks at makes the stored fragments
   // wrong, and this patch is only part of an order — the fragments come from

@@ -19,6 +19,7 @@ import {
   Settings,
   BookOpen,
   CalendarHeart,
+  CalendarClock,
   GraduationCap,
   Menu,
   X,
@@ -38,7 +39,8 @@ import ThemeSwitch from '@/components/dashboard/ThemeSwitch';
 import LearnSwitch from '@/components/dashboard/LearnSwitch';
 import LearnLayer from '@/components/learn/LearnLayer';
 import { LearnProvider } from '@/context/LearnContext';
-import { usePresenceEnabled, usePresenceHeartbeat } from '@/lib/presence';
+import { AttendanceProvider, useAttendance } from '@/context/AttendanceContext';
+import ClockWidget from '@/components/attendance/ClockWidget';
 
 /**
  * The sidebar, and the permission each entry needs.
@@ -133,7 +135,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <ChatProvider>
       <ApprovalsProvider>
         <LearnProvider>
-          <DashboardShell>{children}</DashboardShell>
+          {/* Also runs the heartbeat behind "Online" in chat and the day's
+              active minutes — here rather than on the chat page, because
+              somebody working an order with chat closed is still at work. */}
+          <AttendanceProvider>
+            <DashboardShell>{children}</DashboardShell>
+          </AttendanceProvider>
         </LearnProvider>
       </ApprovalsProvider>
     </ChatProvider>
@@ -154,10 +161,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const { unreadBadge }                 = useChat();
   const { incoming, outgoing }          = useApprovals();
 
-  // "Online" in chat. Here rather than on the chat page, because somebody
-  // working an order with chat closed is still at their desk. Below the auth
-  // gate, like the chat listeners, and silent when the company has it off.
-  usePresenceHeartbeat(user?.uid, usePresenceEnabled());
+  const { seesOthers: seesAttendance }  = useAttendance();
 
   /**
    * The sidebar is a drawer on a phone and a column on a desktop.
@@ -237,6 +241,22 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     }),
     [can],
   );
+
+  /**
+   * The sidebar as drawn: the list above, plus Attendance for anybody who can
+   * see somebody else's — the whole company with `attendance.view`, or a Sales
+   * Manager their own team. That second case is a role and a team rather than
+   * a permission, which is why it is added here and not in NAV_ITEMS. Being
+   * outside NAV_ITEMS also keeps it out of the bounce below, which would fire
+   * before the answer had loaded. Everybody's own attendance is on their
+   * profile page.
+   */
+  const shown = useMemo(() => {
+    if (!seesAttendance) return visible;
+    const item = { href: '/dashboard/attendance', label: 'Attendance', Icon: CalendarClock };
+    const at = visible.findIndex((i) => i.href === '/dashboard/analytics' || i.href === '/dashboard/settings');
+    return at < 0 ? [...visible, item] : [...visible.slice(0, at), item, ...visible.slice(at)];
+  }, [visible, seesAttendance]);
 
   /**
    * Somebody who typed, bookmarked or was sent the address of a section they
@@ -373,7 +393,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             would refuse to shrink below its content, so the list would push the
             sign-out block off-screen instead of scrolling. */}
         <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden sidebar-scroll px-3 py-4 space-y-1">
-          {visible.map(({ href, label, Icon }) => {
+          {shown.map(({ href, label, Icon }) => {
             const current = isCurrent(href);
             const badges  = badgesFor(href);
             return (
@@ -443,6 +463,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           people already click looking for their own details.
         */}
         <div className="flex-shrink-0 px-4 py-4 border-t border-brand-700">
+          <ClockWidget rail={rail} />
           <Link
             href="/dashboard/profile"
             aria-current={isCurrent('/dashboard/profile') ? 'page' : undefined}

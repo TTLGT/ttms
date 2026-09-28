@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { ref, uploadBytesResumable, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import { orderDocumentUrl } from '@/lib/orders';
+import { trackActivity } from '@/lib/attendance';
 import type { OrderDocumentKind } from '@/types/orderDocument';
 
 type DocType = 'invoice' | 'pod';
@@ -37,7 +38,7 @@ export default function DocumentUpload({ orderId, docType, existingPath, onUploa
       'state_changed',
       (snap) => setProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
       (err) => { setError(err.message); setProgress(null); },
-      () => { setProgress(null); onUploaded(path); },
+      () => { setProgress(null); trackActivity('documentsUploaded'); onUploaded(path); },
     );
   }
 

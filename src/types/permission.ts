@@ -215,6 +215,24 @@ export const PERMISSIONS = [
    * the writes that keep it current. Admin and HR by default.
    */
   'presence.manage',
+  /**
+   * See everybody's attendance: clock times, breaks, lateness, absences, and
+   * the network and device each clock-in came from.
+   *
+   * Everybody sees their own, on their profile page, without this. A Sales
+   * Manager sees their own team's without this too — the same arrangement as
+   * `directory.book`, and scoped the same way (see src/lib/teamScope.ts).
+   * Admin and HR by default. Grant it to anyone else knowing that it reaches
+   * the whole company.
+   */
+  'attendance.view',
+  /**
+   * Run attendance: schedules, holidays, office networks, the alerts, and
+   * deciding time-off and correction requests. Changing a day rewrites a
+   * record of hours, so every change keeps the original beside it.
+   * Admin and HR by default.
+   */
+  'attendance.manage',
   /** The intern's own area: their guide, their onboarding survey, their tasks. */
   'intern.section',
 ] as const;
@@ -298,6 +316,8 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'people.view',    label: 'See the access list', detail: 'Settings → People, including legal names, birthdays and personal addresses.' },
       { key: 'people.manage',  label: 'Manage people',     detail: 'Add and remove people, suspend them, and change roles and permissions.' },
       { key: 'profile.decideUpdates', label: 'Decide profile change requests', detail: 'Approve or refuse the changes people ask for on their own record — a number, a spelling, a photo. Never a role.' },
+      { key: 'attendance.view',   label: 'See everyone’s attendance', detail: 'Clock times, breaks, lateness, absences and where each clock-in came from, for the whole company. Admin and HR have this already.' },
+      { key: 'attendance.manage', label: 'Manage attendance', detail: 'Schedules, holidays, office networks and alerts, and approving time off and corrections. Admin and HR have this already.' },
     ],
   },
   {
@@ -449,9 +469,12 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
   // `presence.manage` widens HR by one switch: whether the company shows (and
   // pays for) online status in chat. It was asked for as an admin-or-HR
   // decision, and it reaches no data — only whether the heartbeats are sent.
+  // `attendance.view` and `attendance.manage`: attendance is a payroll record,
+  // and HR already holds the payroll fields it sits beside.
   isHr: [
     ...BASE_PERMISSIONS, 'people.view', 'directory.export', 'profile.decideUpdates',
     'chat.announce', 'celebrations.manage', 'presence.manage',
+    'attendance.view', 'attendance.manage',
   ],
 
   /**

@@ -69,9 +69,11 @@ export interface AppSettings {
    * src/types/presence.ts.
    *
    * A switch because it is the one chat feature that costs something while
-   * nobody is doing anything with it: every active person's browser writes
-   * every five minutes. Off stops both the writes and the listeners, for
-   * everybody, from their next page load.
+   * nobody is doing anything with it: every active person's browser checks in
+   * every five minutes. The same check-in records active and idle minutes on
+   * the day's attendance, so off also stops those — the clock itself, breaks
+   * and everything HR decides are unaffected. Off stops the writes and the
+   * listeners, for everybody, from their next page load.
    */
   presence: boolean;
 }
@@ -96,9 +98,8 @@ export interface AppSettings {
  *
  * `presence: true` despite the rule above about defaults and money: it was
  * asked for, and at this company's size it sits well inside the free daily
- * allowance (about 3,200 writes against 20,000). It is also inert until the
- * `presence` rule in firestore.rules is deployed — every write is refused
- * until then, and refused writes are not billed.
+ * allowance: about 6,500 writes a day against 20,000, counting the attendance
+ * minutes the same check-in records.
  */
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   laneDistanceMode: 'estimate',

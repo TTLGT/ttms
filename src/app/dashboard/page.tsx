@@ -21,6 +21,7 @@ import type { OrderViewId } from '@/types/orderView';
 import StatusBadge from '@/components/orders/StatusBadge';
 import AlertPanel from '@/components/orders/AlertPanel';
 import CelebrationBanner from '@/components/dashboard/CelebrationBanner';
+import WhosInCard from '@/components/attendance/WhosInCard';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 
 const PENDING_PICKUP_STATUSES = new Set(['booked', 'carrier_assigned', 'carrier_signed', 'shipper_signed']);
@@ -591,6 +592,8 @@ export default function DashboardPage() {
       </div>
 
       <CelebrationBanner />
+
+      <WhosInCard />
 
       {error && (
         <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4">

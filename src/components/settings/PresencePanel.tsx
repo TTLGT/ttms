@@ -48,9 +48,9 @@ export default function PresencePanel() {
     <section className="rounded-xl border border-gray-200 bg-white p-6">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-900">Online Status</h2>
       <p className="mb-4 mt-1 text-sm text-gray-500">
-        Shows <strong>Online</strong> or <strong>Last seen</strong> at the top of a one-on-one chat.
-        Each person&rsquo;s browser checks in at most once every five minutes while they are
-        using TTMS, so &ldquo;last seen&rdquo; can be up to five minutes behind.
+        Shows <strong>Online</strong>, <strong>Away</strong> or <strong>Last seen</strong> at the top of a
+        one-on-one chat. Each person&rsquo;s browser checks in at most once every five minutes while
+        they are using TTMS — or clocked in — so &ldquo;last seen&rdquo; can be up to five minutes behind.
       </p>
 
       {loading ? (
@@ -76,8 +76,8 @@ export default function PresencePanel() {
                 <p className="text-sm font-semibold text-gray-900">{value ? 'On' : 'Off'}</p>
                 <p className="mt-1 text-xs leading-relaxed text-gray-600">
                   {value
-                    ? 'About 12 small database writes an hour for each person using TTMS — around 3,000 a day for 30 people, inside the free daily allowance of 20,000.'
-                    : 'No writes and no status. One-on-one chats say “Just the two of you” as before.'}
+                    ? 'Also records active and idle minutes on each person’s attendance. About 24 small database writes an hour for each person using TTMS — around 6,500 a day for 30 people, inside the free daily allowance of 20,000.'
+                    : 'No check-ins and no status. One-on-one chats say “Just the two of you”, and attendance keeps clock times and breaks but no active or idle minutes.'}
                 </p>
               </div>
             </label>

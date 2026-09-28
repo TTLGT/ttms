@@ -56,6 +56,7 @@ import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
 import type { OwnerContact } from '@/types/order';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { trackActivity } from '@/lib/attendance';
 
 // Sentinel value for the dropdown's "add a new carrier" row. Not a document id,
 // so it can never collide with a real carrier.
@@ -622,6 +623,7 @@ export default function OrderDetailPage() {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'Failed to send');
       setAgreementSentTo(body.sentTo ?? 'carrier');
+      trackActivity('agreementsSent');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to send agreement');
     } finally {
@@ -642,6 +644,7 @@ export default function OrderDetailPage() {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'Failed to send');
       setShipperAgreementSentTo(body.sentTo ?? 'shipper');
+      trackActivity('agreementsSent');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to send shipper agreement');
     } finally {

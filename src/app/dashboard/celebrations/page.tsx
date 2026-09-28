@@ -27,10 +27,12 @@ import {
 } from '@/types/celebrationCalendar';
 import {
   HOLIDAY_COUNTRY_LABEL,
-  holidaysInMonth,
+  observedHolidaysInMonth,
   type Holiday,
   type HolidayCountry,
+  type HolidayOverride,
 } from '@/types/holidays';
+import { fetchHolidayOverrides } from '@/lib/attendance';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -133,9 +135,18 @@ export default function CelebrationsPage() {
     [data, cursor, showing],
   );
 
+  // HR's changes — a holiday moved to the Monday, a company day off — so this
+  // calendar and attendance agree about whether the office was shut. Shown
+  // without them until they load, and if they fail: the calculated list is
+  // still right almost every day of the year.
+  const [overrides, setOverrides] = useState<HolidayOverride[]>([]);
+  useEffect(() => {
+    fetchHolidayOverrides().then((r) => setOverrides(r.overrides)).catch(() => {});
+  }, []);
+
   const holidays = useMemo(
-    () => (cursor ? holidaysInMonth(cursor.year, cursor.month).filter((h) => countries[h.country]) : []),
-    [cursor, countries],
+    () => (cursor ? observedHolidaysInMonth(cursor.year, cursor.month, overrides).filter((h) => countries[h.country]) : []),
+    [cursor, countries, overrides],
   );
 
   const upcoming = useMemo(() => {

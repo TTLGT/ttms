@@ -1,5 +1,5 @@
 import { getApps, initializeApp, cert } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, type DocumentData } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { getAuth } from 'firebase-admin/auth';
 import {
@@ -48,7 +48,17 @@ async function verifyRequestToken(req: Request) {
  * sign-in allowlist. Email domain grants nothing on its own — an admin must
  * have added the address via Settings → Team Access.
  */
-export async function requireCompanyUser(req: Request): Promise<{ uid: string; email: string | undefined }> {
+export async function requireCompanyUser(req: Request): Promise<{
+  uid: string;
+  email: string | undefined;
+  /**
+   * The allowlist entry the check already had to read, handed back so a
+   * caller that wants the person's name does not read it a second time. The
+   * attendance heartbeat runs every five minutes per person, which is where
+   * that second read would add up. Absent for a bootstrap admin with no entry.
+   */
+  entry?: DocumentData;
+}> {
   const decoded = await verifyRequestToken(req);
   const email = normalizeEmail(decoded.email);
 
@@ -63,7 +73,7 @@ export async function requireCompanyUser(req: Request): Promise<{ uid: string; e
     throw new AdminAuthError('Your access to TTMS is suspended.', 403);
   }
 
-  return { uid: decoded.uid, email: decoded.email };
+  return { uid: decoded.uid, email: decoded.email, entry: allowed.data() };
 }
 
 /** Verifies the request's Bearer ID token and confirms the caller is an admin (per their users/{uid} profile). */

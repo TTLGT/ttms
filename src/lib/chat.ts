@@ -24,6 +24,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
+import { trackActivity } from './attendance';
 import type { ChatSearchResult } from './chatSearch';
 import {
   CHAT_READS_COLLECTION,
@@ -346,6 +347,7 @@ export async function sendMessage(
   batch.update(doc(db, CONVERSATIONS_COLLECTION, conversationId), conversationPatch);
 
   await batch.commit();
+  trackActivity('messagesSent');
 }
 
 /**
@@ -513,6 +515,7 @@ export async function sendThreadReply(
   }
 
   await batch.commit();
+  trackActivity('messagesSent');
 }
 
 /**
