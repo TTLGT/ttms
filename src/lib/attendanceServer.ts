@@ -343,9 +343,22 @@ async function writeDay(
  */
 export async function recordBeat(
   caller: { uid: string; email: string; name: string },
-  body: { active?: unknown; clockedIn?: unknown; hidden?: unknown; counts?: unknown; source?: unknown },
+  body: { active?: unknown; clockedIn?: unknown; hidden?: unknown; counts?: unknown; source?: unknown; presenceOnly?: unknown },
   now: number,
 ): Promise<void> {
+  // "Back at the desk" between two full beats: chat's Online, and nothing on
+  // the day — the next full beat counts those minutes, once. See
+  // usePresenceHeartbeat.
+  if (body.presenceOnly === true) {
+    if (body.hidden !== true) {
+      await adminDb.collection(PRESENCE_COLLECTION).doc(caller.uid).set({
+        lastBeatAt: FieldValue.serverTimestamp(),
+        lastActiveAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    return;
+  }
+
   const active = body.active === true;
   const clockedIn = body.clockedIn === true;
   const counts = readCounts(body.counts);

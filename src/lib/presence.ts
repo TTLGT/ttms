@@ -5,7 +5,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { getAppSettings } from './appSettings';
 import { sendBeat } from './attendance';
-import { systemActivity } from './idleDetection';
+import { onSystemActive, systemActivity } from './idleDetection';
 import {
   PRESENCE_COLLECTION,
   PRESENCE_HEARTBEAT_MS,
@@ -71,6 +71,27 @@ function markBeat(uid: string, at: number) {
   }
 }
 
+/**
+ * Whether the last heartbeat this browser sent said "active". Shared across
+ * tabs like the time, so any tab can tell that somebody has just come back.
+ */
+const lastActiveKey = (uid: string) => `ttms.presence.lastSentActive.${uid}`;
+let lastSentActiveInMemory = true;
+
+function lastSentActive(uid: string): boolean {
+  try {
+    const v = window.localStorage.getItem(lastActiveKey(uid));
+    return v === null ? true : v === '1';
+  } catch {
+    return lastSentActiveInMemory;
+  }
+}
+
+function markSentActive(uid: string, active: boolean) {
+  lastSentActiveInMemory = active;
+  try { window.localStorage.setItem(lastActiveKey(uid), active ? '1' : '0'); } catch { /* memory only */ }
+}
+
 /** Input any more often than this is the same activity, not new activity. */
 const INPUT_THROTTLE_MS = 15_000;
 
@@ -115,14 +136,33 @@ export function usePresenceHeartbeat(
 
     const beat = () => {
       const now = Date.now();
-      const since = lastBeat(uid);
-      if (now - since < PRESENCE_HEARTBEAT_MS) return; // this or another tab already did
-
       const { clockedIn, hidden } = optsRef.current;
       // While clocked in, the whole computer if the browser can tell us
       // (see src/lib/idleDetection.ts); otherwise, and always outside work
       // hours, this tab's own input.
       const system = clockedIn ? systemActivity() : null;
+      const source = system ? 'system' : 'page';
+
+      if (now - lastBeat(uid) < PRESENCE_HEARTBEAT_MS) {
+        // Inside the five minutes. The one exception: the last beat said
+        // "idle" and they are back. Without this, somebody clocked in could
+        // come back to their desk and read as Away for up to five minutes,
+        // because the idle beats had used the slot. This one updates chat
+        // only (`presenceOnly`) and leaves the slot alone, so the day's
+        // minutes are still counted once per five minutes and a return to
+        // the desk adds no phantom time.
+        const backNow = system ? system.activeNow : now - lastInput() < INPUT_THROTTLE_MS;
+        if (backNow && !lastSentActive(uid)) {
+          markSentActive(uid, true);
+          // Nothing to update for somebody who hides their last seen.
+          if (!hidden) {
+            sendBeat({ active: true, clockedIn, hidden, source, presenceOnly: true })
+              .catch((e) => console.warn('[presence] heartbeat failed', e));
+          }
+        }
+        return;
+      }
+
       const active = system
         ? system.activeNow || now - system.lastActiveAt <= PRESENCE_HEARTBEAT_MS
         : now - lastInput() <= PRESENCE_HEARTBEAT_MS;
@@ -132,7 +172,8 @@ export function usePresenceHeartbeat(
       // send one too. Not retried early on failure: a failing beat retried on
       // every mouse move is a flood.
       markBeat(uid, now);
-      sendBeat({ active, clockedIn, hidden, source: system ? 'system' : 'page' })
+      markSentActive(uid, active);
+      sendBeat({ active, clockedIn, hidden, source })
         .catch((e) => console.warn('[presence] heartbeat failed', e));
     };
 
@@ -155,8 +196,12 @@ export function usePresenceHeartbeat(
     window.addEventListener('focus', onActivity);
     document.addEventListener('visibilitychange', onVisibility);
     const timer = window.setInterval(beat, CHECK_EVERY_MS);
+    // Back at the computer in another program: the browser says so the moment
+    // it happens, so "Online" does not wait for the next minute's check.
+    const offSystem = onSystemActive(beat);
 
     return () => {
+      offSystem();
       for (const e of events) window.removeEventListener(e, onActivity);
       window.removeEventListener('focus', onActivity);
       document.removeEventListener('visibilitychange', onVisibility);

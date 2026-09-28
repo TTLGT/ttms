@@ -78,6 +78,9 @@ let detector: IdleDetectorLike | null = null;
 /** The last moment the computer was known to be in use. */
 let lastActiveAt = 0;
 
+/** Told the moment the computer goes from unused to used. See onSystemActive. */
+const activeListeners = new Set<() => void>();
+
 function onChange() {
   if (!detector) return;
   if (detector.userState === 'idle' || detector.screenState === 'locked') {
@@ -86,7 +89,17 @@ function onChange() {
     lastActiveAt = Math.max(lastActiveAt, Date.now() - (detector.screenState === 'locked' ? 0 : THRESHOLD_MS));
   } else {
     lastActiveAt = Date.now();
+    for (const fn of activeListeners) fn();
   }
+}
+
+/**
+ * Call `fn` whenever somebody comes back to the computer — so chat can say
+ * Online at once rather than at the next check. Returns the unsubscribe.
+ */
+export function onSystemActive(fn: () => void): () => void {
+  activeListeners.add(fn);
+  return () => { activeListeners.delete(fn); };
 }
 
 /** Start watching, if permitted. Safe to call repeatedly. */

@@ -151,7 +151,14 @@ export async function sendBeat(body: {
   hidden: boolean;
   /** Whole computer, or this TTMS tab only — recorded on the day. */
   source: 'system' | 'page';
+  /** "Back at the desk": update chat's Online now, count nothing on the day. */
+  presenceOnly?: boolean;
 }): Promise<void> {
+  if (body.presenceOnly) {
+    // Carries no counts: those wait for the next full beat, which writes the day.
+    await call('/api/attendance/beat', json('POST', body));
+    return;
+  }
   const counts = takeCounts();
   try {
     await call('/api/attendance/beat', json('POST', { ...body, counts }));
