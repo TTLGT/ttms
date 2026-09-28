@@ -9,7 +9,7 @@ import { auth, db } from './firebase';
 import { trackActivity } from './attendance';
 import type { Order, OrderStatus } from '@/types/order';
 import { orderSearchTerms } from '@/types/order';
-import type { LicenseDocumentRow, OrderDocumentKind } from '@/types/orderDocument';
+import type { CarrierCoiRow, LicenseDocumentRow, OrderDocumentKind } from '@/types/orderDocument';
 import type { OrderAccessRequest } from '@/types/orderAccessRequest';
 import type { OwnerContact } from '@/types/order';
 import type { OwnerEvent } from '@/types/ownerEvent';
@@ -186,6 +186,13 @@ export async function orderDocumentUrl(
 export async function listLicenseDocuments(): Promise<LicenseDocumentRow[]> {
   const res = await fetch('/api/documents/licenses', { headers: await authHeaders() });
   const { rows } = await unwrap<{ rows: LicenseDocumentRow[] }>(res);
+  return rows;
+}
+
+/** Carriers with a certificate of insurance on file, and the caller's loads on each. */
+export async function listCarrierCois(): Promise<CarrierCoiRow[]> {
+  const res = await fetch('/api/documents/cois', { headers: await authHeaders() });
+  const { rows } = await unwrap<{ rows: CarrierCoiRow[] }>(res);
   return rows;
 }
 

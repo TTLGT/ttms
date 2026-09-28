@@ -15,7 +15,7 @@ import { adminDb, AdminAuthError } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { can, canSeeAllOrders, canSeeOrder } from './accessControl';
 import { inChunks } from './teamScope';
-import { orderDisplayNumber, orderSearchTerm, searchWords } from '@/types/order';
+import { orderAltNumber, orderDisplayNumber, orderSearchTerm, searchWords } from '@/types/order';
 import { ORDER_ACCESS_REQUESTS_COLLECTION, isGrantLive } from '@/types/orderAccessRequest';
 import type { OwnerContact } from '@/types/order';
 import { ownerLabel } from './partyAccess';
@@ -512,6 +512,72 @@ export async function countVisibleOrdersByStatus(
   return Object.fromEntries(
     statuses.map((s) => [s, all.filter((o) => o.status === s).length]),
   );
+}
+
+/** A load as the certificate list names it: enough to link to, nothing more. */
+export interface CarrierLoadRef {
+  orderId: string;
+  orderNumber: string;
+  altNumber: string | null;
+}
+
+/**
+ * For each of these carriers, the caller's visible loads on it — how many, and
+ * the newest few by number.
+ *
+ * Built for the Documents screen's certificate list, which is a list of
+ * carriers and not of loads: a carrier with forty of somebody's loads is one
+ * certificate, and listing it forty times would bury the other carriers.
+ *
+ * Same two paths as the list, for the same reason. A privileged caller sees
+ * the whole book, so each carrier costs a count and a five-row query on the
+ * carrierId + createdAt index the carrier page already uses — never a read of
+ * every load that carrier ever hauled. Everyone else has their union read once
+ * and grouped in memory; it is bounded by one person's book.
+ *
+ * Suborders count: a suborder carries its own carrier, and that carrier's
+ * certificate is as much this load's paperwork as the parent's is.
+ */
+export async function visibleLoadsByCarrier(
+  caller: Caller,
+  carrierIds: readonly string[],
+  perCarrier = 5,
+): Promise<Map<string, { count: number; loads: CarrierLoadRef[] }>> {
+  const out = new Map<string, { count: number; loads: CarrierLoadRef[] }>();
+  if (!carrierIds.length || !can(caller.profile, 'orders.view')) return out;
+
+  const toRef = (id: string, data: Record<string, unknown>): CarrierLoadRef => ({
+    orderId:     id,
+    orderNumber: orderDisplayNumber(data),
+    altNumber:   orderAltNumber(data),
+  });
+  const REF_FIELDS = ['orderNumber', 'batsId', 'previousOrderNumber', 'carrierId', 'createdAt'];
+
+  if (canSeeAllOrders(caller.profile)) {
+    const col = adminDb.collection(COL);
+    await Promise.all(carrierIds.map(async (carrierId) => {
+      const q = col.where('carrierId', '==', carrierId);
+      const [count, recent] = await Promise.all([
+        q.count().get(),
+        q.orderBy('createdAt', 'desc').select(...REF_FIELDS).limit(perCarrier).get(),
+      ]);
+      const n = count.data().count;
+      if (n) out.set(carrierId, { count: n, loads: recent.docs.map((d) => toRef(d.id, d.data())) });
+    }));
+    return out;
+  }
+
+  const wanted = new Set(carrierIds);
+  // Already newest first, so the first few per carrier are the most recent.
+  for (const o of await unionForCaller(caller, REF_FIELDS)) {
+    const carrierId = o.carrierId as string | undefined;
+    if (!carrierId || !wanted.has(carrierId)) continue;
+    const entry = out.get(carrierId) ?? { count: 0, loads: [] };
+    entry.count += 1;
+    if (entry.loads.length < perCarrier) entry.loads.push(toRef(o.id as string, o));
+    out.set(carrierId, entry);
+  }
+  return out;
 }
 
 /**

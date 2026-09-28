@@ -170,7 +170,8 @@ function fileNameOf(storagePath: string): string {
   return m ? m[1] : '';
 }
 
-function DownloadLink({ storagePath, label }: { storagePath: string; label: string }) {
+/** Opens one stored file under the Storage rules — used alone by the Documents screen. */
+export function DownloadLink({ storagePath, label }: { storagePath: string; label: string }) {
   const [url, setUrl]         = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed]   = useState(false);

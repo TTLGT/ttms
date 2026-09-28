@@ -75,3 +75,28 @@ export interface LicenseDocumentRow {
   /** Present only when `shipperName` is withheld. */
   owner: OwnerContact | null;
 }
+
+/**
+ * One row of the Documents screen's certificate-of-insurance list: a carrier
+ * with a certificate on file, and the reader's own loads it is hauling.
+ *
+ * A certificate belongs to the carrier rather than to a load (see
+ * InsuranceFileUpload), so the row is the carrier and the loads hang off it.
+ * Only carriers on at least one load the reader can see are listed — this is
+ * "the certificates behind my loads", not the carrier directory.
+ */
+export interface CarrierCoiRow {
+  carrierId: string;
+  companyName: string;
+  mc: string;
+  dot: string;
+  insuranceProvider: string;
+  insurancePolicyNumber: string;
+  /** Epoch milliseconds, or null when no expiry is recorded. */
+  insuranceExpiration: number | null;
+  insuranceStoragePath: string;
+  /** How many of the reader's visible loads use this carrier. */
+  loadCount: number;
+  /** The newest few of them, for linking. */
+  loads: { orderId: string; orderNumber: string; altNumber: string | null }[];
+}
