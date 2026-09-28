@@ -1304,6 +1304,20 @@ service cloud.firestore {
         && (resource.data.createdByUid == request.auth.uid || can('chat.stickers.manage'));
     }
 
+    // Whether somebody is using TTMS: one server-stamped time per person,
+    // shown as "Online" or "Last seen" in a direct chat. Readable by all
+    // staff, because that is what it is for. Each person writes their own and
+    // nobody else's, and the time must be the server's — a browser that could
+    // write its own clock could show somebody online all night.
+    // Keep in sync with `Presence` in src/types/presence.ts.
+    match /presence/{uid} {
+      allow read: if isAllowedUser();
+      allow create, update: if isAllowedUser() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['lastActiveAt'])
+        && request.resource.data.lastActiveAt == request.time;
+      allow delete: if false;
+    }
+
     // One person's favourite stickers and their folders. Self-service, for
     // the same reason chatReads is: it says nothing about access, and the uid
     // in the path is what stops anybody rearranging somebody else's. The

@@ -304,6 +304,7 @@ Changing one without the other creates a silent security hole:
 | `MAX_STICKER_BYTES` + the accepted types in `src/types/sticker.ts` | the `stickers/` block in `storage.rules` |
 | `MAX_LIBRARY_ITEMS` / `MAX_FOLDERS` / `MAX_LIBRARY_GIFS` in `src/types/sticker.ts` | the `chatLibraries` rule |
 | `GifRef` + `isKlipyUrl()` in `src/types/gif.ts` | `gifOk()` — the keys, the Klipy-host pattern, the lengths |
+| `Presence` in `src/types/presence.ts` | the `presence` block — `lastActiveAt` the only key, and it must be `request.time` |
 
 The owner matcher is duplicated three ways for the same reason — plain node
 scripts cannot import TypeScript either:

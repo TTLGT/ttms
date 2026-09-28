@@ -206,6 +206,15 @@ export const PERMISSIONS = [
    * tab, and it reaches nothing else on it.
    */
   'celebrations.manage',
+  /**
+   * Switch chat's "Online" / "Last seen" on or off for the whole company.
+   *
+   * Its own permission, like `celebrations.manage`, so HR can hold it without
+   * the rest of `settings.manage`. It reveals nothing — anybody can already
+   * see the status while it is on — it only decides whether the company pays
+   * the writes that keep it current. Admin and HR by default.
+   */
+  'presence.manage',
   /** The intern's own area: their guide, their onboarding survey, their tasks. */
   'intern.section',
 ] as const;
@@ -309,6 +318,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'chat.announce',  label: 'Post in the Everyone room', detail: 'Write to the whole company when that room is set to announcements only. Admin and HR have this already.' },
       { key: 'chat.stickers.manage', label: 'Remove any sticker', detail: 'Take a sticker someone else added off the company set. Anyone can already remove their own.' },
       { key: 'celebrations.manage', label: 'Edit the celebrations message', detail: 'The wording of the daily birthday and work-anniversary post, and whether it is sent at all. Admin and HR have this already.' },
+      { key: 'presence.manage', label: 'Switch online status on or off', detail: 'Whether chat shows who is online and when they were last seen, for the whole company. Admin and HR have this already.' },
       { key: 'intern.section', label: 'See the intern area', detail: 'Their guide, their onboarding survey and their task list.' },
     ],
   },
@@ -436,9 +446,12 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
   // the birthdays and start dates the daily post is built from, so it adds no
   // reach at all — only the wording of something already going out in their
   // name.
+  // `presence.manage` widens HR by one switch: whether the company shows (and
+  // pays for) online status in chat. It was asked for as an admin-or-HR
+  // decision, and it reaches no data — only whether the heartbeats are sent.
   isHr: [
     ...BASE_PERMISSIONS, 'people.view', 'directory.export', 'profile.decideUpdates',
-    'chat.announce', 'celebrations.manage',
+    'chat.announce', 'celebrations.manage', 'presence.manage',
   ],
 
   /**

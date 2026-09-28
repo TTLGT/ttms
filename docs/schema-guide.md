@@ -307,6 +307,7 @@ appSettings/general
   clientPaymentMethods  : PaymentMethod[]   // how the client pays us — default []
   carrierPaymentMethods : PaymentMethod[]   // BATS "Carrier Pay Terms" — default []
   brokerFeeTermOptions  : PaymentMethod[]   // BATS "Broker Fee Terms" — default []
+  presence         : boolean         // default true — "Online" / "Last seen" in chat; see presence below
   updatedAt        : Timestamp
   updatedBy        : string          // email or uid of the admin who changed it
 ```
@@ -1628,6 +1629,35 @@ address rather than a copy, so a GIF Klipy removes stops showing and the
 message falls back to its title. Klipy adverts (`type: "ad"` items) are dropped
 server-side and never rendered. A GIF counts as a file for `policy.files`, the
 same as a sticker.
+
+### `presence/{uid}` — online status
+
+Whether somebody is using TTMS, shown at the top of a direct chat as
+**Online** or **Last seen …**. One document per person.
+
+| Field | Type | Notes |
+|---|---|---|
+| `lastActiveAt` | Timestamp | The server's time (`request.time`, enforced by the rules), so nobody can fake it. The only key allowed |
+
+- **Readable by all staff; each person writes only their own.** Written from
+  the browser (`src/lib/presence.ts`), like chat messages, because it is one
+  document addressed by uid with no query for a rule to fail to express.
+- **At most once every five minutes**, and only while the tab is visible and
+  somebody has clicked, typed, scrolled or moved the mouse in that time. Every
+  tab in one browser shares one clock through localStorage, so three open tabs
+  and a reload still cost one write per five minutes.
+- **Online is worked out when it is read**: a heartbeat in the last seven
+  minutes (five plus slack). Nothing is ever written to say somebody left —
+  browsers cannot be relied on to say goodbye — so there is no stale "online".
+- **Switched by `appSettings/general.presence`** (Settings → Operations →
+  Online Status, `presence.manage`: admin and HR). Off stops writes and
+  listeners for each person from their next page load. Documents already
+  written stay and grant nothing.
+- Cost at about 30 staff: roughly 3,200 writes a day, plus one read per
+  heartbeat per person watching that colleague's direct chat.
+- Not attendance. It says a browser was in use, not that anybody was working,
+  and is deliberately visible to everyone — an attendance record would be HR
+  data and would need its own closed collection.
 
 
 ## Collections: `celebrationReminderSettings`, `celebrationReminders`, `celebrationReminderRuns`

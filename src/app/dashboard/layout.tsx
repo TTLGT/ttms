@@ -38,6 +38,7 @@ import ThemeSwitch from '@/components/dashboard/ThemeSwitch';
 import LearnSwitch from '@/components/dashboard/LearnSwitch';
 import LearnLayer from '@/components/learn/LearnLayer';
 import { LearnProvider } from '@/context/LearnContext';
+import { usePresenceEnabled, usePresenceHeartbeat } from '@/lib/presence';
 
 /**
  * The sidebar, and the permission each entry needs.
@@ -98,7 +99,8 @@ const NAV_ITEMS: {
   // for their own panels on the Operations tab.
   { href: '/dashboard/settings',  label: 'Settings',  Icon: Settings,
     anyOf: ['people.manage', 'people.view', 'settings.manage',
-            'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage'] },
+            'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage',
+            'celebrations.manage', 'presence.manage'] },
   { href: '/dashboard/handbook',  label: 'Handbook',  Icon: BookOpen,      needs: 'handbook.view' },
 ];
 
@@ -151,6 +153,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const router                = useRouter();
   const { unreadBadge }                 = useChat();
   const { incoming, outgoing }          = useApprovals();
+
+  // "Online" in chat. Here rather than on the chat page, because somebody
+  // working an order with chat closed is still at their desk. Below the auth
+  // gate, like the chat listeners, and silent when the company has it off.
+  usePresenceHeartbeat(user?.uid, usePresenceEnabled());
 
   /**
    * The sidebar is a drawer on a phone and a column on a desktop.

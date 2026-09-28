@@ -16,6 +16,9 @@ import RoomAvatar from './RoomAvatar';
 import ThreadList from './ThreadList';
 import ThreadPanel from './ThreadPanel';
 import { can } from '@/lib/accessControl';
+import { usePresence, usePresenceEnabled } from '@/lib/presence';
+import { useDateFormatters } from '@/lib/useDateFormatters';
+import { isOnline } from '@/types/presence';
 import {
   COMPANY_CONVERSATION_ID,
   conversationTitle,
@@ -438,9 +441,13 @@ function Identity({
         <span className="block truncate text-base font-semibold text-gray-900">
           {conversationTitle(conversation, myUid, nameOf)}
         </span>
-        <span className="block truncate text-xs text-gray-500">
-          {subtitle(conversation, myUid, nameOf)}
-        </span>
+        {conversation.kind === 'direct' ? (
+          <DirectSubtitle conversation={conversation} myUid={myUid} />
+        ) : (
+          <span className="block truncate text-xs text-gray-500">
+            {subtitle(conversation, myUid, nameOf)}
+          </span>
+        )}
       </span>
     </>
   );
@@ -461,6 +468,67 @@ function Identity({
       {inside}
     </button>
   );
+}
+
+/**
+ * A direct thread's line: whether the other person is here.
+ *
+ * Only on a direct thread. In a room it would be a row of dots nobody asked
+ * for and one listener per member; between two people, "are they there?" is
+ * the question you have before you type. Falls back to the old line when the
+ * company has the feature off, when the other person has never been seen, and
+ * while it loads — never a blank.
+ */
+function DirectSubtitle({ conversation, myUid }: { conversation: Conversation; myUid: string }) {
+  const enabled           = usePresenceEnabled();
+  const other             = conversation.memberUids.find((uid) => uid !== myUid) ?? null;
+  const { presence, now } = usePresence(other, enabled);
+  const { formatDate }    = useDateFormatters();
+
+  const at = presence?.lastActiveAt?.toDate?.() ?? null;
+
+  if (!enabled || !at) {
+    return <span className="block truncate text-xs text-gray-500">Just the two of you</span>;
+  }
+
+  if (isOnline(presence, now)) {
+    return (
+      <span className="flex items-center gap-1.5 truncate text-xs text-gray-500">
+        <span className="h-2 w-2 flex-shrink-0 rounded-full bg-green-500" aria-hidden />
+        Online
+      </span>
+    );
+  }
+
+  return (
+    <span className="block truncate text-xs text-gray-500">
+      {lastSeenLabel(at, now, formatDate)}
+    </span>
+  );
+}
+
+/**
+ * "Last seen 20 min ago", "today at 3:42 PM", "yesterday at…", then a date.
+ *
+ * The date goes through the company format like every other date on screen;
+ * the time of day is only offered for today and yesterday, where it is the
+ * useful part.
+ */
+function lastSeenLabel(at: Date, now: number, formatDate: (d: Date) => string): string {
+  const minutes = Math.floor((now - at.getTime()) / 60_000);
+  if (minutes < 60) return `Last seen ${Math.max(minutes, 1)} min ago`;
+
+  const time = at.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const today = new Date(now);
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(at, today)) return `Last seen today at ${time}`;
+
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (sameDay(at, yesterday)) return `Last seen yesterday at ${time}`;
+
+  return `Last seen ${formatDate(at)}`;
 }
 
 /** Who is in here, in a line — the question people ask of a room they just opened. */

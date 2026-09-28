@@ -51,6 +51,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     || can('people.view')
     || can('settings.manage')
     || can('celebrations.manage')
+    || can('presence.manage')
     || can('leadSources.manage')
     || can('laneDistance.manage')
     || can('paymentTerms.manage')

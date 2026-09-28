@@ -84,6 +84,10 @@ export async function saveCelebrations(on: boolean): Promise<void> {
   await saveSetting({ celebrations: on });
 }
 
+export async function savePresence(on: boolean): Promise<void> {
+  await saveSetting({ presence: on });
+}
+
 /** Both templates together — they are one edit in one panel. */
 export async function saveCelebrationTemplates(templates: CelebrationTemplates): Promise<void> {
   await saveSetting({ celebrationTemplates: templates });

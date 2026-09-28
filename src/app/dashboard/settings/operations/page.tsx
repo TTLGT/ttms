@@ -6,6 +6,7 @@ import DateFormatPanel from '@/components/settings/DateFormatPanel';
 import LaneDistancePanel from '@/components/settings/LaneDistancePanel';
 import LeadSourcesPanel from '@/components/settings/LeadSourcesPanel';
 import PaymentMethodsPanel from '@/components/settings/PaymentMethodsPanel';
+import PresencePanel from '@/components/settings/PresencePanel';
 
 /**
  * Company-wide choices that change how orders behave, rather than who can see
@@ -19,7 +20,8 @@ import PaymentMethodsPanel from '@/components/settings/PaymentMethodsPanel';
  *
  * **The panels are filtered, not just the tab.** Most of this tab is
  * `settings.manage`, but four panels have a narrower permission of their own:
- * Celebrations (`celebrations.manage`, HR), Lead Sources
+ * Celebrations and Online Status (`celebrations.manage` / `presence.manage`,
+ * HR), Lead Sources
  * (`leadSources.manage`, dispatch), and Lane Distance and Payment Terms
  * (`laneDistance.manage` / `paymentTerms.manage`, finance). The layout lets
  * each of them through the door; this decides what is in the room. Drawing
@@ -36,9 +38,10 @@ export default function SettingsOperationsPage() {
   const laneDistance = settings || can('laneDistance.manage');
   const paymentTerms = settings || can('paymentTerms.manage');
   const leadSources  = settings || can('leadSources.manage');
+  const presence     = settings || can('presence.manage');
 
   const left  = laneDistance || settings || paymentTerms;
-  const right = leadSources || celebrations;
+  const right = leadSources || celebrations || presence;
 
   // One column when only one side has anything in it. Two columns with a
   // single card in the left of them is a card floating beside an empty
@@ -77,6 +80,11 @@ export default function SettingsOperationsPage() {
           {celebrations && (
             <div id="celebrations" className="scroll-mt-44">
               <CelebrationsPanel />
+            </div>
+          )}
+          {presence && (
+            <div id="presence" className="scroll-mt-44">
+              <PresencePanel />
             </div>
           )}
         </div>

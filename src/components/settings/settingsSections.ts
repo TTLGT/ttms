@@ -45,7 +45,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
   // and finance for Lane Distance and Payment Terms — each for its own panels
   // and nothing else on it.
   { id: 'operations',   label: 'Operations',   href: '/dashboard/settings/operations',   adminOnly: true,
-    permissions: ['celebrations.manage', 'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage'] },
+    permissions: ['celebrations.manage', 'presence.manage', 'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage'] },
   { id: 'data',         label: 'Data',         href: '/dashboard/settings/data',         adminOnly: true  },
 ];
 
@@ -157,6 +157,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     keywords: 'birthday birthdays anniversary anniversaries congratulations chat everyone room daily 8am announcement message wording template greeting hr',
     adminOnly: true,
     permissions: ['celebrations.manage'],
+  },
+  {
+    id: 'presence',
+    label: 'Online Status',
+    tab: 'operations',
+    blurb: 'Whether chat shows who is online and when they were last seen.',
+    keywords: 'online offline last seen active presence status away chat direct one on one cost writes',
+    adminOnly: true,
+    permissions: ['presence.manage'],
   },
   {
     id: 'payment-methods',

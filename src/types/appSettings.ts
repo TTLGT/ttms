@@ -64,6 +64,16 @@ export interface AppSettings {
   carrierPaymentMethods: PaymentMethod[];
   /** BATS's "Broker Fee Terms" — when our fee is collected. */
   brokerFeeTermOptions: PaymentMethod[];
+  /**
+   * Whether chat shows "Online" / "Last seen" in a direct conversation. See
+   * src/types/presence.ts.
+   *
+   * A switch because it is the one chat feature that costs something while
+   * nobody is doing anything with it: every active person's browser writes
+   * every five minutes. Off stops both the writes and the listeners, for
+   * everybody, from their next page load.
+   */
+  presence: boolean;
 }
 
 /**
@@ -83,6 +93,12 @@ export interface AppSettings {
  * own profile page, and the message never carries a birth year or an age. It
  * is also inert until the cron in vercel.json is deployed, so this default
  * cannot surprise anybody who has not already deployed the thing that calls it.
+ *
+ * `presence: true` despite the rule above about defaults and money: it was
+ * asked for, and at this company's size it sits well inside the free daily
+ * allowance (about 3,200 writes against 20,000). It is also inert until the
+ * `presence` rule in firestore.rules is deployed — every write is refused
+ * until then, and refused writes are not billed.
  */
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   laneDistanceMode: 'estimate',
@@ -92,6 +108,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   clientPaymentMethods: [],
   carrierPaymentMethods: [],
   brokerFeeTermOptions: [],
+  presence: true,
 };
 
 export const LANE_DISTANCE_MODES: LaneDistanceMode[] = ['off', 'estimate', 'routes'];
