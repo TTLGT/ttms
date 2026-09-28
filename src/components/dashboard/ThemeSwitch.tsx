@@ -1,16 +1,17 @@
 'use client';
 
-import { Monitor, Moon, Sun, LucideIcon } from 'lucide-react';
+import { Monitor, Moon, Sun, SunMoon, LucideIcon } from 'lucide-react';
 import { THEME_CHOICES, ThemeChoice, useTheme } from '@/lib/theme';
 
 const OPTIONS: Record<ThemeChoice, { icon: LucideIcon; label: string }> = {
   light:  { icon: Sun,     label: 'Light' },
+  dim:    { icon: SunMoon, label: 'Dim' },
   dark:   { icon: Moon,    label: 'Dark' },
   system: { icon: Monitor, label: 'Match this computer' },
 };
 
 /*
- * Light, dark, or whatever the operating system says. Lives at the foot of
+ * Light, dim, dark, or whatever the operating system says. Lives at the foot of
  * the sidebar, beside Sign out, because it is a setting about this screen
  * rather than about the person — see src/lib/theme.ts — and so has no place
  * on the profile page among details HR keeps.

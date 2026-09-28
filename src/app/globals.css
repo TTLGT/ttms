@@ -38,6 +38,17 @@ html.dark .recharts-default-tooltip {
   background-color: #161c24 !important;
   border-color: #2b3440 !important;
 }
+/* Dim — the same three at its lifted greys (GRAY_DIM in tailwind.config.ts). */
+html.dark.dim .recharts-cartesian-grid line {
+  stroke: #444c56;
+}
+html.dark.dim .recharts-cartesian-axis-tick-value {
+  fill: #909dab;
+}
+html.dark.dim .recharts-default-tooltip {
+  background-color: #2d333b !important;
+  border-color: #444c56 !important;
+}
 
 /*
  * Scrollbar for the dark sidebar nav. Only shows up once there are more menu
@@ -179,6 +190,28 @@ html.dark .chat-ground[data-wallpaper='warehouse'] {
 html.dark .chat-ground[data-wallpaper='dots'] {
   --chat-ground: #0f1318;
   --chat-doodle: #252d38;
+}
+/* Dim lifts each dark ground by the same step the page itself is lifted
+   (#0e1319 to #22272e), keeping each wallpaper's own hue. */
+html.dark.dim .chat-ground {
+  --chat-ground: #22272e;
+  --chat-doodle: #2f3741;
+}
+html.dark.dim .chat-ground[data-wallpaper='highway'] {
+  --chat-ground: #21262d;
+  --chat-doodle: #2e3845;
+}
+html.dark.dim .chat-ground[data-wallpaper='harbour'] {
+  --chat-ground: #1f2a2a;
+  --chat-doodle: #2b3e3f;
+}
+html.dark.dim .chat-ground[data-wallpaper='warehouse'] {
+  --chat-ground: #272521;
+  --chat-doodle: #39342d;
+}
+html.dark.dim .chat-ground[data-wallpaper='dots'] {
+  --chat-ground: #23272c;
+  --chat-doodle: #39414c;
 }
 .chat-wallpaper {
   background-color: var(--chat-doodle);

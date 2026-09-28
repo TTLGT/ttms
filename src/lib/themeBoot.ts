@@ -17,4 +17,4 @@ export const DARK_QUERY = '(prefers-color-scheme: dark)';
  * Written out as a string because it runs before any bundle has loaded; keep
  * it in step with `prefersDark()` in theme.ts.
  */
-export const THEME_BOOT_SCRIPT = `(function(){try{var c=localStorage.getItem('${THEME_STORAGE_KEY}');var d=c==='dark'||(c==='system'&&window.matchMedia('${DARK_QUERY}').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
+export const THEME_BOOT_SCRIPT = `(function(){try{var c=localStorage.getItem('${THEME_STORAGE_KEY}');var e=document.documentElement;var d=c==='dark'||c==='dim'||(c==='system'&&window.matchMedia('${DARK_QUERY}').matches);if(d)e.classList.add('dark');if(c==='dim')e.classList.add('dim');}catch(e){}})();`;

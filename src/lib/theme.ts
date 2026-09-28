@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { DARK_QUERY, THEME_STORAGE_KEY as STORAGE_KEY } from './themeBoot';
 
 /*
- * Light or dark, chosen per browser.
+ * Light, dim or dark, chosen per browser.
  *
  * The choice lives in localStorage rather than on `users/{uid}`, on purpose:
  * it is a preference about a screen, not about a person — the same somebody
@@ -22,27 +22,35 @@ import { DARK_QUERY, THEME_STORAGE_KEY as STORAGE_KEY } from './themeBoot';
  * no screen needs `dark:` classes of its own.
  */
 
-export type ThemeChoice = 'light' | 'dark' | 'system';
+/*
+ * Dim is dark mode with lighter grounds, for people who found dark too heavy.
+ * On <html> it is `dark` *plus* `dim`, never `dim` alone: the inks, the
+ * browser's own controls and every `html.dark` rule are shared, and only the
+ * grounds move — see tailwind.config.ts. "Match this computer" picks dark,
+ * not dim, because the operating system only knows two answers.
+ */
+export type ThemeChoice = 'light' | 'dim' | 'dark' | 'system';
 
-export const THEME_CHOICES: ThemeChoice[] = ['light', 'dark', 'system'];
+export const THEME_CHOICES: ThemeChoice[] = ['light', 'dim', 'dark', 'system'];
 
 function readChoice(): ThemeChoice {
   // A private window or blocked site data throws on access rather than
   // returning null; either way the answer is the default.
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === 'dark' || stored === 'system' ? stored : 'light';
+    return stored === 'dark' || stored === 'dim' || stored === 'system' ? stored : 'light';
   } catch {
     return 'light';
   }
 }
 
 function prefersDark(choice: ThemeChoice): boolean {
-  return choice === 'dark' || (choice === 'system' && window.matchMedia(DARK_QUERY).matches);
+  return choice === 'dark' || choice === 'dim' || (choice === 'system' && window.matchMedia(DARK_QUERY).matches);
 }
 
 function apply(choice: ThemeChoice) {
   document.documentElement.classList.toggle('dark', prefersDark(choice));
+  document.documentElement.classList.toggle('dim', choice === 'dim');
 }
 
 export function useTheme() {

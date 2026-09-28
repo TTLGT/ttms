@@ -50,11 +50,20 @@ const brand: Scale = {
  * Anything not listed resolves to its plain colour exactly as before, so the
  * light theme is unchanged: `:root` holds the same values Tailwind used to
  * write inline.
+ *
+ * Dim is a second set of the same variables, on `html.dark.dim`. It is dark
+ * mode with the grounds lifted from near-black to a slate grey, for people
+ * who found full dark too heavy but light too bright. It keeps the `dark`
+ * class on purpose: everything that decides *which way* a colour goes — the
+ * inks turning light, the browser's own controls, any `dark:` class — is
+ * shared, and only how far down the grounds sit differs.
  */
 
-// The two grounds everything else is measured against.
+// The two grounds everything else is measured against, per dark shade.
 const DARK_PAGE = '#0e1319';
 const DARK_SURFACE = '#161c24';
+const DIM_PAGE = '#22272e';
+const DIM_SURFACE = '#2d333b';
 
 // Hand-picked rather than computed: grey carries almost all the layout, and
 // the steps that separate a card from a row hover from an input need to be
@@ -66,6 +75,16 @@ const GRAY_DARK: Record<'bg' | 'text' | 'border', Scale> = {
   text:   { 200: '#3a4452', 300: '#4f5966', 400: '#6e7781', 500: '#8b95a1',
             600: '#a3adb9', 700: '#c3cbd5', 800: '#d4dbe3', 900: '#e6edf3' },
   border: { 50: '#1a2029', 100: '#222a34', 200: '#2b3440', 300: '#3a4452', 400: '#4f5966' },
+};
+
+// The same steps from a higher floor. The top ink is a touch softer than
+// dark's too — the point of dim is less contrast everywhere, not just a
+// lighter ground — and #e1e6ec still reads comfortably on the surface.
+const GRAY_DIM: Record<'bg' | 'text' | 'border', Scale> = {
+  bg:     { 50: DIM_PAGE, 100: '#373e47', 200: '#444c56', 300: '#545d68' },
+  text:   { 200: '#545d68', 300: '#636e7b', 400: '#768390', 500: '#909dab',
+            600: '#a8b3bf', 700: '#c5ced8', 800: '#d3dae2', 900: '#e1e6ec' },
+  border: { 50: '#2a3038', 100: '#323941', 200: '#3d444d', 300: '#4a525c', 400: '#5a636e' },
 };
 
 // Everything else follows one rule, tinted from the family's own 500.
@@ -98,49 +117,53 @@ function mix(tint: string, ground: string, amount: number): string {
 // Filled in as the mappings below are built, then emitted by the plugin.
 const lightVars: Record<string, string> = {};
 const darkVars: Record<string, string> = {};
+const dimVars: Record<string, string> = {};
 
 // A colour that changes with the theme. Written as an rgb triplet so the
 // opacity modifier (`bg-white/85`, `bg-brand-500/10`) keeps working.
-function themed(name: string, light: string, dark: string): string {
+function themed(name: string, light: string, dark: string, dim: string): string {
   lightVars[`--c-${name}`] = triplet(light);
   darkVars[`--c-${name}`] = triplet(dark);
+  dimVars[`--c-${name}`] = triplet(dim);
   return `rgb(var(--c-${name}) / <alpha-value>)`;
 }
 
 type Kind = 'bg' | 'text' | 'border';
 const mapped: Record<Kind, Record<string, Scale | string>> = { bg: {}, text: {}, border: {} };
 
-function mapFamily(family: string, light: Scale, dark: Record<Kind, Scale>) {
+// `dark` and `dim` always name the same shades — they differ in value only.
+function mapFamily(family: string, light: Scale, dark: Record<Kind, Scale>, dim: Record<Kind, Scale>) {
   for (const kind of ['bg', 'text', 'border'] as Kind[]) {
     const out: Scale = {};
     for (const [shade, darkHex] of Object.entries(dark[kind])) {
-      if (light[shade]) out[shade] = themed(`${kind}-${family}-${shade}`, light[shade], darkHex);
+      if (light[shade]) out[shade] = themed(`${kind}-${family}-${shade}`, light[shade], darkHex, dim[kind][shade]);
     }
     mapped[kind][family] = out;
   }
 }
 
-function ruleFor(light: Scale, source: Scale): Record<Kind, Scale> {
+function ruleFor(light: Scale, source: Scale, ground: string): Record<Kind, Scale> {
   const tint = source[500];
   const bg: Scale = {};
   const border: Scale = {};
   const text: Scale = {};
-  for (const [shade, amount] of Object.entries(TINT.bg)) bg[shade] = mix(tint, DARK_SURFACE, amount);
-  for (const [shade, amount] of Object.entries(TINT.border)) border[shade] = mix(tint, DARK_SURFACE, amount);
+  for (const [shade, amount] of Object.entries(TINT.bg)) bg[shade] = mix(tint, ground, amount);
+  for (const [shade, amount] of Object.entries(TINT.border)) border[shade] = mix(tint, ground, amount);
   for (const [shade, lighter] of Object.entries(INK)) if (light[shade]) text[shade] = source[lighter];
   return { bg, text, border };
 }
 
-mapFamily('gray', colors.gray, GRAY_DARK);
+mapFamily('gray', colors.gray, GRAY_DARK, GRAY_DIM);
 for (const family of STATUS_FAMILIES) {
   const scale = colors[family] as Scale;
-  mapFamily(family, scale, ruleFor(scale, scale));
+  mapFamily(family, scale, ruleFor(scale, scale, DARK_SURFACE), ruleFor(scale, scale, DIM_SURFACE));
 }
 // Brand is Tailwind's blue with a deeper 500–900, so its dark shades are
 // taken from blue: a tint of #1d4ed8 on near-black is too dark to read as blue.
-mapFamily('brand', brand, ruleFor(brand, colors.blue as Scale));
+const blue = colors.blue as Scale;
+mapFamily('brand', brand, ruleFor(brand, blue, DARK_SURFACE), ruleFor(brand, blue, DIM_SURFACE));
 
-const surface = themed('surface', '#ffffff', DARK_SURFACE);
+const surface = themed('surface', '#ffffff', DARK_SURFACE, DIM_SURFACE);
 
 const config: Config = {
   // `class` so the switch in src/lib/theme.ts decides, not the operating
@@ -170,7 +193,8 @@ const config: Config = {
   },
   plugins: [
     plugin(({ addBase }) => {
-      addBase({ ':root': lightVars, 'html.dark': darkVars });
+      // `html.dark.dim` outranks `html.dark`, so the order here does not matter.
+      addBase({ ':root': lightVars, 'html.dark': darkVars, 'html.dark.dim': dimVars });
     }),
   ],
 };
