@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CornerUpLeft, Link2, Lock, MessagesSquare, Pencil, Pin, PinOff, Trash2 } from 'lucide-react';
+import {
+  AtSign, ChevronDown, CornerUpLeft, Link2, Lock, MessagesSquare, Pencil, Pin, PinOff, Trash2,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -226,10 +228,101 @@ export default function MessageThread({ conversation }: { conversation: Conversa
    */
   const restoreFrom = useRef<{ height: number; top: number } | null>(null);
 
+  /* ------------------------------------------- below-the-fold new messages */
+
+  /**
+   * The newest moment this reader has actually had on screen, in this room.
+   *
+   * What the down-arrow's count and the @ button are measured against — in the
+   * manner of WhatsApp, which is what everybody here reads their phone with.
+   * It is local and per visit, deliberately not `lastReadAt`: the room is
+   * marked read the moment it is open, so the stored mark says nothing about
+   * whether somebody scrolled up an hour ago and has not come back down.
+   *
+   * Starts at "everything" so nothing is counted before the room has drawn and
+   * the first paint below has said where the reader actually landed. That is
+   * also why ChatPanel keys this component by conversation: without a remount,
+   * the first paint of a new room ran against the previous room's messages.
+   *
+   * It only ever moves forward, and it moves when a message is scrolled into
+   * view rather than when the bottom is reached, so reading down through five
+   * new messages counts them off one by one instead of all at once at the end.
+   */
+  const [seenUpTo, setSeenUpTo] = useState(Number.MAX_SAFE_INTEGER);
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
+
+  // Your own messages are never news to you, and a tombstone has nothing left
+  // to read. System lines count — "Ana added Luis" is worth knowing arrived.
+  const unseen = useMemo(
+    () => messages.filter((m) =>
+      m.senderUid !== myUid && !m.deletedAt && millis(m.createdAt) > seenUpTo),
+    [messages, myUid, seenUpTo],
+  );
+  // A message that names you, or quotes something you said: the two ways a
+  // room addresses somebody in particular, and so the two worth a button.
+  const unseenMentions = useMemo(
+    () => unseen.filter((m) =>
+      m.mentions?.includes(myUid) || m.replyTo?.senderUid === myUid),
+    [unseen, myUid],
+  );
+
+  // The scroll handler is rebuilt only when paging state changes, so it reads
+  // the current list through a ref rather than closing over a stale one.
+  const unseenRef = useRef(unseen);
+  unseenRef.current = unseen;
+  const newestAt = millis(messages[messages.length - 1]?.createdAt);
+  const newestRef = useRef(newestAt);
+  newestRef.current = newestAt;
+
+  const markSeen = useCallback((at: number) => {
+    setSeenUpTo((was) => (at > was ? at : was));
+  }, []);
+
+  /**
+   * Counts off whatever unseen message has come into view.
+   *
+   * Only the unseen ones are measured — a handful at most — so this is cheap
+   * enough to run on every scroll event without touching the rest of the room.
+   */
+  const noteWhatIsVisible = useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    if (atBottom.current) { markSeen(newestRef.current); return; }
+    const pending = unseenRef.current;
+    if (!pending.length) return;
+    const fold = el.getBoundingClientRect().bottom - 24;
+    let latest = 0;
+    for (const m of pending) {
+      const node = el.querySelector<HTMLElement>(`[data-message="${m.id}"]`);
+      if (!node || node.getBoundingClientRect().top > fold) break;
+      latest = millis(m.createdAt);
+    }
+    if (latest) markSeen(latest);
+  }, [markSeen]);
+
+  // A message can arrive, or the first paint can land, without any scroll to
+  // report it — measure again whenever the list of candidates changes.
+  useEffect(() => { noteWhatIsVisible(); }, [unseen, noteWhatIsVisible]);
+
+  /** Straight to the live end. Animated only when it is a short trip. */
+  const scrollToBottom = useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    el.scrollTo({
+      top: el.scrollHeight,
+      // A smooth scroll through three weeks of a busy room takes long enough
+      // to look like the button did nothing.
+      behavior: distance < el.clientHeight * 3 ? 'smooth' : 'auto',
+    });
+  }, []);
+
   const onScroll = useCallback(() => {
     const el = scroller.current;
     if (!el) return;
     atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    setAwayFromBottom(!atBottom.current);
+    noteWhatIsVisible();
 
     // Near the top, with more behind it: fetch the next page back.
     if (el.scrollTop < 120 && older === 'idle' && !loading) {
@@ -242,7 +335,7 @@ export default function MessageThread({ conversation }: { conversation: Conversa
     // they belong to. Closing beats letting them drift away from their anchor.
     setCard(null);
     setActionsFor(null);
-  }, [older, loading]);
+  }, [older, loading, noteWhatIsVisible]);
 
   const openedAt = useRef('');
   useEffect(() => {
@@ -261,10 +354,19 @@ export default function MessageThread({ conversation }: { conversation: Conversa
       if (target) {
         el.scrollTop = target.offsetTop - el.offsetTop - 48;
         atBottom.current = false;
+        // Everything after the line is still to be read, so the count starts
+        // there and is worked off by the scroll that follows.
+        setSeenUpTo(dividerAt);
       } else {
         el.scrollTop = el.scrollHeight;
         atBottom.current = true;
+        setSeenUpTo(newestAt);
       }
+      // A short room does not scroll, so no scroll event will come to settle
+      // either of these; settle them here.
+      atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      setAwayFromBottom(!atBottom.current);
+      noteWhatIsVisible();
       return;
     }
 
@@ -277,8 +379,16 @@ export default function MessageThread({ conversation }: { conversation: Conversa
       return;
     }
 
-    if (atBottom.current) el.scrollTop = el.scrollHeight;
-  }, [messages, loading, conversationId, firstUnreadId]);
+    if (atBottom.current) {
+      el.scrollTop = el.scrollHeight;
+      // Said here as well as by the scroll it causes: a message that fits
+      // without the room growing a scrollbar causes no scroll at all, and
+      // would otherwise sit in the count waiting for the next time they look up.
+      markSeen(newestAt);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dividerAt and
+    // newestAt are read on the render that caused this; neither should re-run it.
+  }, [messages, loading, conversationId, firstUnreadId, markSeen, noteWhatIsVisible]);
 
   /* --------------------------------------------------------------- replies */
 
@@ -721,6 +831,39 @@ export default function MessageThread({ conversation }: { conversation: Conversa
             );
           })}
         </div>
+
+        {/* Over the corner of the thread rather than in it, so they stay put
+            while the messages move under them. Shown only while the reader is
+            away from the bottom: at the live end there is nothing below to
+            point at, and a new message is already on screen. */}
+        {awayFromBottom && !loading && (
+          <div className="pointer-events-none absolute bottom-4 right-4 z-10 flex flex-col items-center gap-2.5">
+            {unseenMentions.length > 0 && (
+              <button
+                type="button"
+                onClick={() => jumpTo(unseenMentions[0].id)}
+                title="Go to the message that names you"
+                aria-label={`${unseenMentions.length} unread ${unseenMentions.length === 1 ? 'mention' : 'mentions'}. Go to the next one`}
+                className="pointer-events-auto relative flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-600 shadow-md ring-1 ring-black/5 transition hover:bg-gray-50"
+              >
+                <AtSign className="h-5 w-5" />
+                <CountBadge count={unseenMentions.length} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={scrollToBottom}
+              title="Go to the newest message"
+              aria-label={unseen.length
+                ? `${unseen.length} new ${unseen.length === 1 ? 'message' : 'messages'}. Go to the newest`
+                : 'Go to the newest message'}
+              className="pointer-events-auto relative flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-600 shadow-md ring-1 ring-black/5 transition hover:bg-gray-50"
+            >
+              <ChevronDown className="h-5 w-5" />
+              {unseen.length > 0 && <CountBadge count={unseen.length} />}
+            </button>
+          </div>
+        )}
       </ChatWallpaper>
 
       <MessageComposer
@@ -741,5 +884,14 @@ export default function MessageThread({ conversation }: { conversation: Conversa
         <PersonCard uid={card.uid} anchor={card.anchor} onClose={() => setCard(null)} />
       )}
     </div>
+  );
+}
+
+/** The unread count on a floating button — the same badge the room list uses. */
+function CountBadge({ count }: { count: number }) {
+  return (
+    <span className="absolute -right-1 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1.5 text-[11px] font-bold tabular-nums text-white shadow-sm">
+      {count > 99 ? '99+' : count}
+    </span>
   );
 }

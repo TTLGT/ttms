@@ -223,7 +223,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
               onFiles={() => setFilesOpen(true)}
             />
             <div className="min-h-0 flex-1">
-              <MessageThread conversation={active} />
+              <MessageThread key={active.id} conversation={active} />
             </div>
           </>
         ) : showThreads ? (
@@ -298,7 +298,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
               onFiles={() => setFilesOpen(true)}
             />
             <div className="min-h-0 flex-1">
-              <MessageThread conversation={active} />
+              <MessageThread key={active.id} conversation={active} />
             </div>
           </>
         ) : (
