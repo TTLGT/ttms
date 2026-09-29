@@ -157,7 +157,8 @@ export async function POST(req: NextRequest) {
   }
 
   const profileRef = adminDb.collection(USERS_COLLECTION).doc(uid);
-  const profileExists = (await profileRef.get()).exists;
+  const existingProfile = await profileRef.get();
+  const profileExists = existingProfile.exists;
   await profileRef.set(
     {
       ...profile,
@@ -192,7 +193,13 @@ export async function POST(req: NextRequest) {
 
   await syncClaims(uid, decoded, roles);
 
-  return NextResponse.json({ profile });
+  // The saved look-and-feel choices ride along from the read above, so the
+  // profile the browser starts with is complete. Without them PreferenceSync
+  // would see "nothing saved" until the live watch caught up, and could copy
+  // this browser's stale theme over the one the account holds.
+  return NextResponse.json({
+    profile: { ...profile, preferences: existingProfile.data()?.preferences ?? {} },
+  });
 }
 
 /**

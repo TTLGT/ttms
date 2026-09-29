@@ -2,14 +2,15 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { getMyWords, saveWordActivity } from '@/lib/vocabulary';
+import { saveToAccount } from '@/lib/preferences';
 import type { WordRecord } from '@/types/vocabulary';
 
 /**
  * Learn English: whether it is on, and the signed-in person's word list.
  *
- * **On or off is per browser, like the colour theme** (src/lib/theme.ts), and
- * for the same reasons: it is about this screen, it costs no read and no
- * write, and somebody may want it on at their desk and off on a phone. It is
+ * **On or off follows the account, like the colour theme** — see
+ * src/types/userPreferences.ts. This browser's copy is what is read;
+ * PreferenceSync puts the account's back when the browser has lost it. It is
  * off until somebody turns it on, so nobody finds the app changed under them.
  *
  * **The word list is per person**, in `vocabulary/{uid}` through
@@ -23,6 +24,9 @@ import type { WordRecord } from '@/types/vocabulary';
  */
 
 const STORAGE_KEY = 'ttms.learnEnglish';
+// Announces a change made from outside the switch (PreferenceSync) to this
+// tab, which gets no `storage` event of its own.
+const LOCAL_EVENT = 'ttms-learn';
 const SAVE_EVERY_MS = 15_000;
 const RECOUNT_AFTER_MS = 60_000;
 
@@ -39,12 +43,28 @@ interface LearnValue {
 
 const LearnContext = createContext<LearnValue | null>(null);
 
-function readEnabled(): boolean {
+/** What this browser holds, or null when it holds nothing. */
+export function storedLearnEnglish(): boolean | null {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'on';
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored === 'on' ? true : stored === 'off' ? false : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/** Remember the switch in this browser without saving it to the account. */
+export function storeLearnEnglish(on: boolean) {
+  try {
+    localStorage.setItem(STORAGE_KEY, on ? 'on' : 'off');
+  } catch {
+    // Not remembered here; the event below still switches this page.
+  }
+  window.dispatchEvent(new CustomEvent(LOCAL_EVENT, { detail: on }));
+}
+
+function readEnabled(): boolean {
+  return storedLearnEnglish() ?? false;
 }
 
 export function LearnProvider({ children }: { children: React.ReactNode }) {
@@ -62,17 +82,21 @@ export function LearnProvider({ children }: { children: React.ReactNode }) {
     const onStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY) setEnabledState(readEnabled());
     };
+    // Read off the event rather than storage, so it still switches in a
+    // private window that refused the write.
+    const onLocal = (e: Event) => setEnabledState((e as CustomEvent<boolean>).detail);
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener(LOCAL_EVENT, onLocal);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(LOCAL_EVENT, onLocal);
+    };
   }, []);
 
   const setEnabled = useCallback((on: boolean) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, on ? 'on' : 'off');
-    } catch {
-      // Not remembered, but on for as long as this page stays open.
-    }
+    storeLearnEnglish(on);
     setEnabledState(on);
+    saveToAccount({ learnEnglish: on });
   }, []);
 
   const loadWords = useCallback(() => {

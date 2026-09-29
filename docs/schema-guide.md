@@ -881,6 +881,17 @@ that document is readable by every signed-in user under `firestore.rules`, while
 `/api/admin/users` or `src/lib/userImport.ts` is published to the whole company —
 check before extending it.
 
+**Look-and-feel choices.** `users/{uid}.preferences` is a map of `theme`
+(`light` / `dim` / `dark` / `system`), `chatWallpaper` and `learnEnglish`, each
+optional — absent means never chosen. It is written only by
+`PATCH /api/me/preferences`, which takes the uid off the ID token and accepts
+only the keys `cleanPreferences()` in `src/types/userPreferences.ts` knows. The
+browser keeps its own copy in localStorage, which is what paints the first
+frame; `PreferenceSync` refills it from the account on a browser that lost it,
+and copies a browser's older choices up to an account that has none. Because
+every signed-in user can read this document, only cosmetic choices belong in
+the map.
+
 `legalName` is the name as it appears on payroll and legal paperwork, for the
 people whose everyday name is not the one on the form. It is one free-text field
 rather than parts, because it exists to be copied verbatim onto a document.

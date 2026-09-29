@@ -36,6 +36,7 @@ import { UserAvatar } from '@/components/settings/UserAvatar';
 import { ApprovalsProvider, useApprovals } from '@/context/ApprovalsContext';
 import ChatPopup from '@/components/chat/ChatPopup';
 import ThemeSwitch from '@/components/dashboard/ThemeSwitch';
+import PreferenceSync from '@/components/dashboard/PreferenceSync';
 import LearnSwitch from '@/components/dashboard/LearnSwitch';
 import LearnLayer from '@/components/learn/LearnLayer';
 import { LearnProvider } from '@/context/LearnContext';
@@ -135,6 +136,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <ChatProvider>
       <ApprovalsProvider>
         <LearnProvider>
+          {/* Puts the theme, wallpaper and Learn English back from the
+              account on a browser that forgot them. Inside LearnProvider
+              only so the switch it flips is already mounted. */}
+          <PreferenceSync />
           {/* Also runs the heartbeat behind "Online" in chat and the day's
               active minutes — here rather than on the chat page, because
               somebody working an order with chat closed is still at work. */}

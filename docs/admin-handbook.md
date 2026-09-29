@@ -244,8 +244,9 @@ read it.
 4. Words you look up are saved on **My words**, next to the switch. Click
    **I know this** and that word stops being underlined.
 
-It is off until each person turns it on, and it is remembered per computer,
-like light and dark mode. The word list itself follows the person.
+It is off until each person turns it on. Like light, dim and dark mode and the
+chat wallpaper, the switch is saved on the person's account, so it is the same
+on any computer they sign in on. The word list follows the person too.
 
 The words and their Spanish are a fixed list in `src/types/glossary.ts`, not
 a translation service, so nothing is sent outside the company. To add a word

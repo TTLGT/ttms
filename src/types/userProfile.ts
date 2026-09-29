@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { OtherPhoneRegion } from '@/lib/phone';
+import type { UserPreferences } from './userPreferences';
 
 export interface UserProfile {
   uid: string;
@@ -61,5 +62,11 @@ export interface UserProfile {
   teamId?: string | null;
   /** Storage path, not a URL — see AllowedUser.photoPath. */
   photoPath?: string | null;
+  /**
+   * Theme, chat wallpaper, Learn English — written only by
+   * PATCH /api/me/preferences. Readable by every staff member like the rest of
+   * this document, so cosmetic choices only: see src/types/userPreferences.ts.
+   */
+  preferences?: UserPreferences;
   createdAt: Timestamp;
 }

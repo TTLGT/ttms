@@ -2,15 +2,24 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { DARK_QUERY, THEME_STORAGE_KEY as STORAGE_KEY } from './themeBoot';
+import { THEME_CHOICES, type ThemeChoice } from '@/types/userPreferences';
+import { saveToAccount } from './preferences';
+
+export { THEME_CHOICES, type ThemeChoice };
+
+// A same-tab change fires no `storage` event, and PreferenceSync changes the
+// theme from outside the switch — so it is announced to this tab by hand.
+const LOCAL_EVENT = 'ttms-theme';
 
 /*
- * Light, dim or dark, chosen per browser.
+ * Light, dim or dark, remembered on the account and in the browser.
  *
- * The choice lives in localStorage rather than on `users/{uid}`, on purpose:
- * it is a preference about a screen, not about a person — the same somebody
- * can want dark on the office monitor and light on a phone in the sun — and
- * keeping it off Firestore means no read, no write, no rule and no field on
- * the profile every signed-in user can see.
+ * It was per browser alone once, and people found it forgotten the next
+ * morning; it now follows the person — see src/types/userPreferences.ts. The
+ * browser copy stays, because the boot script in <head> reads it before
+ * anybody is signed in, and it is the only thing that can paint the first
+ * frame the right colour. PreferenceSync refills it from the account on a
+ * browser that lost it.
  *
  * The default is light, not "follow the system". A company switching over
  * should find nothing changed until somebody asks for it; and the public
@@ -29,19 +38,20 @@ import { DARK_QUERY, THEME_STORAGE_KEY as STORAGE_KEY } from './themeBoot';
  * grounds move — see tailwind.config.ts. "Match this computer" picks dark,
  * not dim, because the operating system only knows two answers.
  */
-export type ThemeChoice = 'light' | 'dim' | 'dark' | 'system';
-
-export const THEME_CHOICES: ThemeChoice[] = ['light', 'dim', 'dark', 'system'];
-
-function readChoice(): ThemeChoice {
+/** What this browser holds, or null when it holds nothing it recognises. */
+export function storedTheme(): ThemeChoice | null {
   // A private window or blocked site data throws on access rather than
-  // returning null; either way the answer is the default.
+  // returning null; either way there is nothing stored.
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === 'dark' || stored === 'dim' || stored === 'system' ? stored : 'light';
+    return THEME_CHOICES.includes(stored as ThemeChoice) ? (stored as ThemeChoice) : null;
   } catch {
-    return 'light';
+    return null;
   }
+}
+
+function readChoice(): ThemeChoice {
+  return storedTheme() ?? 'light';
 }
 
 function prefersDark(choice: ThemeChoice): boolean {
@@ -51,6 +61,21 @@ function prefersDark(choice: ThemeChoice): boolean {
 function apply(choice: ThemeChoice) {
   document.documentElement.classList.toggle('dark', prefersDark(choice));
   document.documentElement.classList.toggle('dim', choice === 'dim');
+}
+
+/**
+ * Apply a theme and remember it in this browser, without saving it to the
+ * account. PreferenceSync uses this to put the account's choice back; saving
+ * it again from there would only echo it.
+ */
+export function storeTheme(choice: ThemeChoice) {
+  try {
+    localStorage.setItem(STORAGE_KEY, choice);
+  } catch {
+    // Not saved here, but still applied for as long as this page stays open.
+  }
+  apply(choice);
+  window.dispatchEvent(new Event(LOCAL_EVENT));
 }
 
 export function useTheme() {
@@ -71,8 +96,13 @@ export function useTheme() {
       setChoiceState(next);
       apply(next);
     };
+    const onLocal = () => setChoiceState(readChoice());
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener(LOCAL_EVENT, onLocal);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(LOCAL_EVENT, onLocal);
+    };
   }, []);
 
   // "System" has to follow the operating system while the page is open, which
@@ -86,13 +116,9 @@ export function useTheme() {
   }, [choice]);
 
   const setChoice = useCallback((next: ThemeChoice) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      // Not saved, but still applied for as long as this page stays open.
-    }
+    storeTheme(next);
     setChoiceState(next);
-    apply(next);
+    saveToAccount({ theme: next });
   }, []);
 
   return { choice, setChoice };

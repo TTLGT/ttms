@@ -12,9 +12,8 @@ const OPTIONS: Record<ThemeChoice, { icon: LucideIcon; label: string }> = {
 
 /*
  * Light, dim, dark, or whatever the operating system says. Lives at the foot of
- * the sidebar, beside Sign out, because it is a setting about this screen
- * rather than about the person — see src/lib/theme.ts — and so has no place
- * on the profile page among details HR keeps.
+ * the sidebar, beside Sign out, rather than on the profile page among details
+ * HR keeps. The choice is remembered on the account — see src/lib/theme.ts.
  *
  * Drawn for the sidebar, which is brand-900 in both themes.
  */
