@@ -47,8 +47,10 @@ export default function ChatPopup() {
   return (
     // Sized to sit clear of the sidebar and clear of the bottom of a laptop
     // screen. Fixed rather than resizable on purpose — this is the quick view,
-    // and someone who wants room for it has the page a click away.
-    <div className="fixed bottom-5 right-5 z-40 flex h-[560px] max-h-[calc(100vh-2.5rem)] w-[380px] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl">
+    // and someone who wants room for it has the page a click away. 436px
+    // rather than 380 to pay for the strip of room pictures down the left of
+    // an open chat, so the messages themselves keep the width they had.
+    <div className="fixed bottom-5 right-5 z-40 flex h-[560px] max-h-[calc(100vh-2.5rem)] w-[436px] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl">
       <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 bg-brand-900 px-3 py-2.5 text-white">
         <span className="text-sm font-semibold">Chat</span>
         <div className="flex items-center gap-1">

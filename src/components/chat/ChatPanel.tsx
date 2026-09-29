@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink, Paperclip, Search, Settings2 } from 'lucide-re
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import ChatFilesDialog from './ChatFilesDialog';
+import ChatRail from './ChatRail';
 import ChatWallpaper from './ChatWallpaper';
 import ConversationList from './ConversationList';
 import MessageThread from './MessageThread';
@@ -208,11 +209,19 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
     );
   }
 
-  // Narrow: one thing at a time, with a way back. Side by side in a 380px
-  // popup would leave a thread about 200px wide, which is not a chat.
+  // Narrow: one thing at a time, with a way back. Side by side in a popup
+  // would leave a thread about 200px wide, which is not a chat — so the list
+  // shrinks to a strip of pictures (ChatRail) instead of sitting beside it.
   if (compact) {
     return (
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-full min-h-0">
+        {/* Room pictures down the side whenever a room is open, so moving to
+            another one is a click rather than a trip back through the list.
+            Not over the list itself, which already is one, nor over a search
+            of every room, which is somewhere else to be. */}
+        {active && !globalSearch && <ChatRail />}
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* One thing at a time here too: an open thread replaces the room
             rather than sitting beside it, and closing it comes straight back.
             Its own header carries the way out. */}
@@ -248,6 +257,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
         ) : (
           <ConversationList onNew={() => setNewOpen(true)} onShowThreads={() => setShowThreads(true)} />
         )}
+        </div>
 
         {newOpen && <NewConversationDialog onClose={() => setNewOpen(false)} />}
         {settingsOpen && active && hasSettings && (
