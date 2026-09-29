@@ -948,6 +948,25 @@ would send whatever was on screen — rates, client names — to a third party. 
 sentence translation is ever added, it is an admin setting that defaults to
 off, chosen server-side, like lane distances.
 
+### Change history — the IT account's record of every change
+
+`/dashboard/changes` lists every commit to this repo, searchable by word, by
+type and by date range, for **`it@totaltransportlogistics.us` only** — an
+address test (`canSeeChangelog()` in `src/types/changelog.ts`), deliberately
+not a permission, so it cannot be granted from Settings. Served whole by
+`GET /api/changelog`; it costs no Firestore reads.
+
+- **The record is `src/lib/data/changelog.json`, a committed file.**
+  `scripts/update-changelog.js` runs as `prebuild`, so every `npm run build`
+  adds any commit it has not seen. It only ever adds: Vercel clones about ten
+  commits deep, and a file rebuilt from that would shrink on every deploy.
+- So **after a commit, the next local build leaves that file modified.**
+  That is expected; commit it with the next change. Vercel adds the newest
+  commits to its own copy at build time either way.
+- The type (New, Change, Fix, Security, Maintenance) is guessed from the
+  commit title by `changeTypeOf()` at read time, not stored. Commit titles are
+  what the page shows — write them as plain sentences, as now.
+
 ## Conventions
 
 - **Comments explain why, not what.** This codebase is unusually well commented on non-obvious decisions, and that is the main reason it is handoverable. Match that density. When you make a non-obvious call, leave the reasoning.

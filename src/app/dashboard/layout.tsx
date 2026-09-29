@@ -22,6 +22,7 @@ import {
   GraduationCap,
   ListTodo,
   CalendarDays,
+  History,
   Menu,
   X,
   LogOut,
@@ -43,6 +44,7 @@ import LearnLayer from '@/components/learn/LearnLayer';
 import { LearnProvider } from '@/context/LearnContext';
 import { AttendanceProvider, useAttendance } from '@/context/AttendanceContext';
 import ClockWidget from '@/components/attendance/ClockWidget';
+import { canSeeChangelog } from '@/types/changelog';
 
 /**
  * The sidebar, and the permission each entry needs.
@@ -262,11 +264,20 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
    * profile page.
    */
   const shown = useMemo(() => {
-    if (!seesAttendance) return visible;
-    const item = { href: '/dashboard/attendance', label: 'Attendance', Icon: CalendarClock };
-    const at = visible.findIndex((i) => i.href === '/dashboard/analytics' || i.href === '/dashboard/settings');
-    return at < 0 ? [...visible, item] : [...visible.slice(0, at), item, ...visible.slice(at)];
-  }, [visible, seesAttendance]);
+    let list = visible;
+    if (seesAttendance) {
+      const item = { href: '/dashboard/attendance', label: 'Attendance', Icon: CalendarClock };
+      const at = list.findIndex((i) => i.href === '/dashboard/analytics' || i.href === '/dashboard/settings');
+      list = at < 0 ? [...list, item] : [...list.slice(0, at), item, ...list.slice(at)];
+    }
+    // One account by address rather than a permission — see
+    // src/types/changelog.ts. Outside NAV_ITEMS for the same reason as
+    // Attendance: it is not a permission, so the bounce has nothing to test.
+    if (canSeeChangelog(user?.email)) {
+      list = [...list, { href: '/dashboard/changes', label: 'Change history', Icon: History }];
+    }
+    return list;
+  }, [visible, seesAttendance, user?.email]);
 
   /**
    * Somebody who typed, bookmarked or was sent the address of a section they
