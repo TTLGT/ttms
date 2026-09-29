@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { useChat } from '@/context/ChatContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -10,21 +11,33 @@ import type { ChatSearchHit } from '@/lib/chatSearch';
 /**
  * What a search of the chat history found.
  *
- * Takes the place of the room on screen rather than opening beside it: the
- * results are a list of places to go, and every one of them replaces what is
- * showing anyway. Closing comes straight back to the room that was open.
+ * A search of every room takes the place of the room on screen rather than
+ * opening beside it: the results are a list of places to go, and every one of
+ * them replaces what is showing anyway. Closing comes straight back to the
+ * room that was open.
+ *
+ * A search inside one chat is the other way round, on a wide screen: every hit
+ * is in the room already showing, so the list sits beside it and stays open
+ * while the reader jumps from one match to the next (`stayOpen`). It carries
+ * its own box, because the sidebar box searches everything.
  */
 export default function SearchResults({
-  myUid, onClose,
+  myUid, onClose, stayOpen = false,
 }: {
   myUid: string;
   onClose: () => void;
+  /** Keep the list up after a hit is opened. Only for a search inside a chat shown beside it. */
+  stayOpen?: boolean;
 }) {
-  const { search, conversations, nameOf, setActiveId, setOpenThread, setFocusMessage, clearSearch } =
-    useChat();
+  const {
+    search, conversations, nameOf, setActiveId, setOpenThread, setFocusMessage,
+    clearSearch, closeRoomSearch, runRoomSearch,
+  } = useChat();
   const { formatDateTime } = useDateFormatters();
 
   if (!search) return null;
+
+  const scopeId = search.conversationId;
 
   const roomOf = (id: string): Conversation | undefined => conversations.find((c) => c.id === id);
 
@@ -42,20 +55,33 @@ export default function SearchResults({
       setFocusMessage({ messageId: hit.rootId, at: null });
     } else {
       setFocusMessage({ messageId: hit.messageId, at: hit.at });
+      // The room scrolls to the hit beside the list, so the list can stay.
+      // A thread hit cannot: the thread opens in the column this is using.
+      if (stayOpen) return;
     }
-    clearSearch();
+    if (scopeId) closeRoomSearch();
+    else clearSearch();
   };
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
       <div className="flex flex-shrink-0 items-center gap-2 border-b border-gray-200 px-4 py-3">
         <Search size={16} className="flex-shrink-0 text-gray-400" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-gray-900">
-            {search.loading ? 'Searching…' : resultLine(search.hits.length, search.truncated)}
-          </p>
-          <p className="truncate text-xs text-gray-500">“{search.query}”</p>
-        </div>
+        {scopeId ? (
+          <RoomSearchBox
+            key={scopeId}
+            initial={search.query}
+            onSearch={(q) => runRoomSearch(scopeId, q)}
+            onClose={onClose}
+          />
+        ) : (
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-gray-900">
+              {search.loading ? 'Searching…' : resultLine(search.hits.length, search.truncated)}
+            </p>
+            <p className="truncate text-xs text-gray-500">“{search.query}”</p>
+          </div>
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -67,9 +93,21 @@ export default function SearchResults({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto bg-gray-50 p-3">
+        {scopeId && search.query && (
+          <p className="px-1 pb-2 text-xs font-medium text-gray-500">
+            {search.loading ? 'Searching…' : resultLine(search.hits.length, search.truncated)}
+          </p>
+        )}
+
+        {scopeId && !search.query && (
+          <p className="px-1 py-3 text-sm text-gray-500">
+            Type a word and press Enter to search this conversation.
+          </p>
+        )}
+
         {search.error && <p className="px-1 py-3 text-sm text-red-600">{search.error}</p>}
 
-        {!search.loading && !search.error && search.hits.length === 0 && (
+        {search.query && !search.loading && !search.error && search.hits.length === 0 && (
           <div className="px-1 py-3 text-sm text-gray-500">
             <p>Nothing was said matching that.</p>
             {/* The two ways this search misses, said plainly. Both are real
@@ -79,7 +117,9 @@ export default function SearchResults({
                 unreliable. */}
             <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-gray-400">
               <li>Whole words only — “invoice” finds it, “invoic” does not.</li>
-              <li>Only rooms you are in. A load room you have never opened is not searched.</li>
+              {scopeId
+                ? <li>Only this conversation. Search from the conversation list to look in all of them.</li>
+                : <li>Only rooms you are in. A load room you have never opened is not searched.</li>}
             </ul>
           </div>
         )}
@@ -94,7 +134,9 @@ export default function SearchResults({
               key={`${hit.conversationId}:${hit.messageId}`}
               className="mb-1.5 flex w-full items-start gap-2.5 rounded-lg bg-white p-2.5 shadow-sm transition hover:bg-brand-50"
             >
-              {room && <RoomAvatar conversation={room} size={28} />}
+              {/* Inside one chat, every row is the same room: the picture and
+                  the name would be the same on each line and say nothing. */}
+              {room && !scopeId && <RoomAvatar conversation={room} size={28} />}
               <button
                 type="button"
                 onClick={() => open(hit)}
@@ -105,8 +147,12 @@ export default function SearchResults({
                     {hit.senderName || nameOf(hit.senderUid)}
                   </span>
                   <span className="truncate text-[11px] text-gray-500">
-                    {room ? conversationTitle(room, myUid, nameOf) : 'A room you have left'}
-                    {hit.rootId ? ' · in a thread' : ''}
+                    {scopeId
+                      ? (hit.rootId ? 'in a thread' : '')
+                      : <>
+                          {room ? conversationTitle(room, myUid, nameOf) : 'A room you have left'}
+                          {hit.rootId ? ' · in a thread' : ''}
+                        </>}
                   </span>
                   {/* Through the company date format like every other date on
                       screen — see src/lib/dateFormat.ts. With the time on it,
@@ -137,6 +183,45 @@ export default function SearchResults({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * The box of a search inside one chat.
+ *
+ * Its text is held here rather than in ChatContext: nothing else reads it, and
+ * the results carry the words they were run with, so a box typed in since
+ * cannot mislabel them. On Enter, not per keystroke, for the reason
+ * `runSearch` gives. Keyed by room, so moving to another chat starts it empty.
+ */
+function RoomSearchBox({
+  initial, onSearch, onClose,
+}: {
+  initial: string;
+  onSearch: (query: string) => void;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState(initial);
+  const input = useRef<HTMLInputElement>(null);
+
+  // Focused on opening: somebody who pressed the magnifier is about to type.
+  useEffect(() => { input.current?.focus(); }, []);
+
+  return (
+    <input
+      ref={input}
+      type="search"
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') { e.preventDefault(); onSearch(text); }
+        if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+      }}
+      maxLength={200}
+      placeholder="Search this conversation"
+      aria-label="Search this conversation"
+      className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none"
+    />
   );
 }
 

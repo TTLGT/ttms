@@ -1185,9 +1185,16 @@ export async function messagesSince(conversationId: string, at: number): Promise
  * collection-group query over `messages` — and no rule can gate one of those,
  * because a collection-group rule cannot tell which conversation a document
  * belongs to. See src/lib/chatSearch.ts.
+ *
+ * With `conversationId`, searches inside that one conversation only.
  */
-export async function searchChat(text: string): Promise<ChatSearchResult> {
-  const res = await fetch(`/api/chat/search?q=${encodeURIComponent(text)}`, {
+export async function searchChat(
+  text: string,
+  conversationId: string | null = null,
+): Promise<ChatSearchResult> {
+  const params = new URLSearchParams({ q: text });
+  if (conversationId) params.set('room', conversationId);
+  const res = await fetch(`/api/chat/search?${params}`, {
     headers: await authHeaders(),
   });
   return unwrap<ChatSearchResult>(res);

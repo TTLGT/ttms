@@ -579,7 +579,10 @@ a client query it would be a collection-group query over `messages` — and a
 collection-group rule has no way to work out which conversation a document
 belongs to, so there is no rule that could gate one. The route works out which
 rooms the caller is in from their own uid and never takes that list from the
-request.
+request. The one thing it accepts is `room`, from the magnifier in a chat's
+header, to search inside a single conversation — and that only narrows:
+`searchableRoom()` checks membership, and a room the caller is not in answers
+with nothing.
 
 What it searches is `searchTerms`, a list of the words in each message worked
 out on save — the same trick as `orderSearchTerms`, because Firestore cannot

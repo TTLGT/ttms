@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Paperclip, Settings2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Paperclip, Search, Settings2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useChat } from '@/context/ChatContext';
 import ChatFilesDialog from './ChatFilesDialog';
@@ -54,7 +54,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
   const { user, profile } = useAuth();
   const {
     conversations, activeId, setActiveId, nameOf, error, loading, openThread, setOpenThread,
-    search, clearSearch,
+    search, clearSearch, startRoomSearch, closeRoomSearch,
   } = useChat();
 
   const [newOpen, setNewOpen]           = useState(false);
@@ -158,6 +158,18 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
     ? openThread
     : null;
 
+  // The two kinds of search go in different places. A search of every room
+  // replaces the room; a search inside this one sits beside it, where a thread
+  // would, because every hit it finds is in the room already on screen. Guarded
+  // against the open room for the same reason `thread` is above.
+  const globalSearch = search && !search.conversationId ? search : null;
+  const roomSearch   = search && active && search.conversationId === active.id ? search : null;
+
+  /** The magnifier in a chat's header. Takes the thread column's place. */
+  const openRoomSearch = active
+    ? () => { setOpenThread(null); startRoomSearch(active.id); }
+    : undefined;
+
   // Open on the company room the first time, so chat is never an empty screen
   // with nothing to click. Only when nothing is selected — this must not drag
   // someone out of a conversation when the list re-sorts under them.
@@ -204,8 +216,12 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
         {/* One thing at a time here too: an open thread replaces the room
             rather than sitting beside it, and closing it comes straight back.
             Its own header carries the way out. */}
-        {search ? (
+        {globalSearch ? (
           <SearchResults myUid={myUid} onClose={clearSearch} />
+        ) : roomSearch ? (
+          // Over the room here, like a thread: there is no width to put it
+          // beside. Opening a hit closes it and lands on the message.
+          <SearchResults myUid={myUid} onClose={closeRoomSearch} />
         ) : active && thread ? (
           <ThreadPanel
             conversation={active}
@@ -221,6 +237,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
               onBack={() => setActiveId(null)}
               onSettings={hasSettings ? () => setSettingsOpen(true) : undefined}
               onFiles={() => setFilesOpen(true)}
+              onSearch={openRoomSearch}
             />
             <div className="min-h-0 flex-1">
               <MessageThread key={active.id} conversation={active} />
@@ -286,7 +303,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
             go, and going there replaces what is on screen anyway — so a third
             column would be one the reader has to close again the moment they
             use it. Closing comes straight back to the room. */}
-        {search ? (
+        {globalSearch ? (
           <SearchResults myUid={myUid} onClose={clearSearch} />
         ) : active ? (
           <>
@@ -296,6 +313,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
               nameOf={nameOf}
               onSettings={hasSettings ? () => setSettingsOpen(true) : undefined}
               onFiles={() => setFilesOpen(true)}
+              onSearch={openRoomSearch}
             />
             <div className="min-h-0 flex-1">
               <MessageThread key={active.id} conversation={active} />
@@ -316,6 +334,15 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
           that the room carries on without it, and a panel covering the room
           would take that away at the moment it is most wanted — somebody
           answering one question while watching for the next. */}
+      {/* A search inside this room takes the same column, and for the same
+          reason: the reader clicks a match and watches the room scroll to it,
+          with the list still there for the next one. */}
+      {!globalSearch && roomSearch && (
+        <div className="w-[360px] flex-shrink-0 border-l border-gray-200 xl:w-[420px]">
+          <SearchResults myUid={myUid} onClose={closeRoomSearch} stayOpen />
+        </div>
+      )}
+
       {!search && active && thread && (
         <div className="w-[360px] flex-shrink-0 border-l border-gray-200 xl:w-[420px]">
           <ThreadPanel
@@ -342,7 +369,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
 }
 
 function Header({
-  conversation, myUid, nameOf, onBack, onSettings, onFiles,
+  conversation, myUid, nameOf, onBack, onSettings, onFiles, onSearch,
 }: {
   conversation: Conversation;
   myUid: string;
@@ -352,6 +379,8 @@ function Header({
   onSettings?: () => void;
   /** Every conversation has been sent something, or could have been. */
   onFiles: () => void;
+  /** Searching what was said in this conversation only. */
+  onSearch?: () => void;
 }) {
   return (
     <div className="flex flex-shrink-0 items-center gap-1 border-b border-gray-200 px-4 py-2.5">
@@ -392,6 +421,20 @@ function Header({
           Open order
           <ExternalLink size={12} />
         </Link>
+      )}
+
+      {/* Beside the sidebar box rather than instead of it: that one searches
+          every room, this one only the conversation on screen — "what did
+          Vivian say about the rate" is usually a question about one chat. */}
+      {onSearch && (
+        <button
+          type="button"
+          onClick={onSearch}
+          title="Search this conversation"
+          className="rounded-full p-2 text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
+        >
+          <Search size={20} />
+        </button>
       )}
 
       {/* Offered everywhere, unlike the gear beside it: a direct thread and a

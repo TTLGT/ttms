@@ -23,6 +23,12 @@ import {
  * browser knows its own conversation list and passing it would save a query,
  * but a request that names the rooms to search is a request that can name
  * somebody else's.
+ *
+ * The one thing a request may name is a single room to search *inside* — the
+ * magnifier in a chat's header. That narrows the list above rather than
+ * replacing it: the room is checked against the caller's membership here, and
+ * one they are not in comes back with nothing, the same answer as a room with
+ * no match, so the search cannot even confirm that a room exists.
  */
 
 /** A message that matched, with enough around it to draw a result row. */
@@ -70,6 +76,15 @@ const PER_ROOM_LIMIT = 40;
 const MAX_HITS = 100;
 
 /**
+ * Most hits taken from each collection when one room is searched on its own.
+ *
+ * Higher than PER_ROOM_LIMIT because there is only the one room to pay for:
+ * two queries instead of up to a hundred and twenty, so the budget that would
+ * have been spread across every room goes on that room's history instead.
+ */
+const SINGLE_ROOM_LIMIT = MAX_HITS;
+
+/**
  * Every conversation this person may search: the company room, which everyone
  * is in without being listed, plus the ones naming them.
  *
@@ -102,6 +117,26 @@ async function searchableConversationIds(uid: string): Promise<string[]> {
 }
 
 /**
+ * The one room a search inside a chat may look in — or none, when the caller
+ * is not a member of it.
+ *
+ * The same membership test as `isConversationMember()`: the company room is
+ * everybody's without listing them, and every other room names its members.
+ * Checked by reading the room rather than by consulting
+ * `searchableConversationIds()`, which stops at the sixty most recently active
+ * rooms — a quiet direct thread from last year is still somebody's to search.
+ */
+async function searchableRoom(uid: string, conversationId: string): Promise<string[]> {
+  const snap = await adminDb.collection(CONVERSATIONS_COLLECTION).doc(conversationId).get();
+  if (!snap.exists) return [];
+  if (conversationId === COMPANY_CONVERSATION_ID || snap.get('kind') === 'company') {
+    return [conversationId];
+  }
+  const members = snap.get('memberUids');
+  return Array.isArray(members) && members.includes(uid) ? [conversationId] : [];
+}
+
+/**
  * Runs one term against one collection in one room.
  *
  * Firestore allows a single `array-contains` per query, so a search for three
@@ -114,13 +149,14 @@ async function hitsIn(
   conversationId: string,
   collection: string,
   term: string,
+  limit: number,
 ): Promise<ChatSearchHit[]> {
   const snap = await adminDb
     .collection(CONVERSATIONS_COLLECTION).doc(conversationId)
     .collection(collection)
     .where('searchTerms', 'array-contains', term)
     .orderBy('createdAt', 'desc')
-    .limit(PER_ROOM_LIMIT)
+    .limit(limit)
     .get();
 
   const rows: ChatSearchHit[] = [];
@@ -160,13 +196,24 @@ async function hitsIn(
  * Returns newest first across every room, which is what a search box is for:
  * "what did we say about that" is nearly always a question about the most
  * recent time it was said.
+ *
+ * With `inConversation`, only that room is searched — and only if the caller is
+ * in it. See the note at the top of this file.
  */
-export async function searchChat(uid: string, query: string): Promise<ChatSearchResult> {
+export async function searchChat(
+  uid: string,
+  query: string,
+  inConversation: string | null = null,
+): Promise<ChatSearchResult> {
   const words = chatSearchWords(query);
   if (words.length === 0) return { hits: [], truncated: false };
 
-  const conversationIds = await searchableConversationIds(uid);
+  const conversationIds = inConversation
+    ? await searchableRoom(uid, inConversation)
+    : await searchableConversationIds(uid);
   if (conversationIds.length === 0) return { hits: [], truncated: false };
+
+  const limit = inConversation ? SINGLE_ROOM_LIMIT : PER_ROOM_LIMIT;
 
   const [first, ...rest] = words;
 
@@ -175,12 +222,12 @@ export async function searchChat(uid: string, query: string): Promise<ChatSearch
   // long as the person has rooms.
   const perRoom = await Promise.all(
     conversationIds.flatMap((id) => [
-      hitsIn(id, MESSAGES_COLLECTION, first),
-      hitsIn(id, REPLIES_COLLECTION, first),
+      hitsIn(id, MESSAGES_COLLECTION, first, limit),
+      hitsIn(id, REPLIES_COLLECTION, first, limit),
     ]),
   );
 
-  const truncated = perRoom.some((rows) => rows.length >= PER_ROOM_LIMIT);
+  const truncated = perRoom.some((rows) => rows.length >= limit);
 
   // The remaining words are applied here rather than in the query. Matching is
   // done against the text and the sender's name the same way the stored terms

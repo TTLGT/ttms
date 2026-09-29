@@ -14,13 +14,23 @@ import { searchChat } from '@/lib/chatSearch';
  * The caller's uid comes off the verified token, and the rooms are worked out
  * from it server-side — see src/lib/chatSearch.ts. There is no parameter for
  * whose chat to search, the same way GET /api/me has none for whose record.
+ *
+ * `room` narrows the search to one conversation — the search inside a chat.
+ * It can only narrow: searchChat checks the caller is a member and answers a
+ * room they are not in with no results.
  */
 export async function GET(req: NextRequest) {
   try {
     const { uid } = await requireCompanyUser(req);
 
     const q = (req.nextUrl.searchParams.get('q') ?? '').slice(0, 200);
-    const result = await searchChat(uid, q);
+    const room = req.nextUrl.searchParams.get('room');
+    // A Firestore id never holds a slash, and one here would be a path into a
+    // different collection rather than a room. Refused rather than cleaned.
+    if (room !== null && (room === '' || room.length > 200 || room.includes('/'))) {
+      return NextResponse.json({ error: 'Not a conversation.' }, { status: 400 });
+    }
+    const result = await searchChat(uid, q, room);
 
     return NextResponse.json(result);
   } catch (e) {

@@ -119,6 +119,12 @@ export interface FocusMessage {
  * headed by the wrong words are worse than no heading at all.
  */
 export interface ChatSearchState {
+  /**
+   * The one conversation this search is inside, or null for a search of every
+   * room. A search inside a chat sits beside that chat rather than over it, and
+   * closes when the chat does — see ChatPanel.
+   */
+  conversationId: string | null;
   query: string;
   hits: ChatSearchHit[];
   loading: boolean;
@@ -232,6 +238,17 @@ interface ChatContextValue {
   search: ChatSearchState | null;
   runSearch: () => void;
   clearSearch: () => void;
+  /**
+   * Opens the search box inside one conversation, before anything is typed.
+   *
+   * Separate from the sidebar box and never touching `searchQuery`: that box
+   * filters the conversation list, and closing a search inside one chat should
+   * not also throw away a filter somebody set on the list.
+   */
+  startRoomSearch: (conversationId: string) => void;
+  runRoomSearch: (conversationId: string, query: string) => void;
+  /** Closes a search inside a chat, leaving the sidebar box as it was. */
+  closeRoomSearch: () => void;
   /** Desktop notification and sound settings, per browser. */
   notifyPrefs: NotifyPrefs;
   setNotifyPrefs: (prefs: NotifyPrefs) => void;
@@ -657,26 +674,77 @@ export function ChatProvider({ children }: { children: ReactNode }) {
    * The results carry the words they belong to, so a box that has been typed
    * in since cannot mislabel them.
    */
+  /**
+   * Which search is the current one.
+   *
+   * A search inside a chat is refined in place — type, Enter, add a word,
+   * Enter — so two can be in flight at once, and the slower one answering last
+   * would put the first query's results under the second query's heading. Each
+   * run takes a number, and only the latest may write its answer. Closing takes
+   * one too, so a search that lands after it was closed does not reopen it.
+   */
+  const searchSeq = useRef(0);
+
+  const execSearch = useCallback((q: string, conversationId: string | null) => {
+    const seq = ++searchSeq.current;
+    setSearch({ conversationId, query: q, hits: [], loading: true, error: '', truncated: false });
+    void searchChat(q, conversationId)
+      .then((result) => {
+        if (seq !== searchSeq.current) return;
+        setSearch({
+          conversationId, query: q, hits: result.hits, loading: false, error: '',
+          truncated: result.truncated,
+        });
+      })
+      .catch(() => {
+        if (seq !== searchSeq.current) return;
+        setSearch({
+          conversationId, query: q, hits: [], loading: false, truncated: false,
+          error: 'That search could not be run.',
+        });
+      });
+  }, []);
+
   const runSearch = useCallback(() => {
     const q = searchQuery.trim();
-    if (!q) { setSearch(null); return; }
-
-    setSearch({ query: q, hits: [], loading: true, error: '', truncated: false });
-    void searchChat(q)
-      .then((result) => setSearch({
-        query: q, hits: result.hits, loading: false, error: '', truncated: result.truncated,
-      }))
-      .catch(() => setSearch({
-        query: q, hits: [], loading: false, truncated: false,
-        error: 'That search could not be run.',
-      }));
-  }, [searchQuery]);
+    if (!q) { searchSeq.current++; setSearch(null); return; }
+    execSearch(q, null);
+  }, [searchQuery, execSearch]);
 
   /** Closes the results and empties the box. Opening a result calls it too. */
   const clearSearch = useCallback(() => {
+    searchSeq.current++;
     setSearch(null);
     setSearchQuery('');
   }, []);
+
+  const startRoomSearch = useCallback((conversationId: string) => {
+    searchSeq.current++;
+    setSearch({ conversationId, query: '', hits: [], loading: false, error: '', truncated: false });
+  }, []);
+
+  /**
+   * Searches inside one conversation. An empty box goes back to the empty
+   * state rather than closing, because the box is part of the panel and the
+   * person is still in it.
+   */
+  const runRoomSearch = useCallback((conversationId: string, query: string) => {
+    const q = query.trim();
+    if (!q) { startRoomSearch(conversationId); return; }
+    execSearch(q, conversationId);
+  }, [execSearch, startRoomSearch]);
+
+  const closeRoomSearch = useCallback(() => {
+    searchSeq.current++;
+    setSearch(null);
+  }, []);
+
+  // A search inside a chat belongs to that chat. Switching to another one —
+  // or being removed from it — takes the panel with it, the same as a thread,
+  // or the results would sit beside a conversation they are not about.
+  useEffect(() => {
+    if (search?.conversationId && search.conversationId !== activeId) closeRoomSearch();
+  }, [search?.conversationId, activeId, closeRoomSearch]);
 
   const markRead = useCallback(
     (conversationId: string) => {
@@ -999,6 +1067,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       openThread, setOpenThread, markThreadSeen,
       pendingReply, setPendingReply, focusMessage, setFocusMessage,
       searchQuery, setSearchQuery, search, runSearch, clearSearch,
+      startRoomSearch, runRoomSearch, closeRoomSearch,
       notifyPrefs, setNotifyPrefs,
       notify, setNotifyFor,
       pinnedConversations, togglePinnedConversation,
@@ -1016,6 +1085,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       activeId, popupOpen, markRead, openThread, markThreadSeen,
       pendingReply, focusMessage,
       searchQuery, search, runSearch, clearSearch,
+      startRoomSearch, runRoomSearch, closeRoomSearch,
       notifyPrefs, setNotifyPrefs,
       notify, setNotifyFor,
       pinnedConversations, togglePinnedConversation,

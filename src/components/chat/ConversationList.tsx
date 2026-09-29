@@ -47,12 +47,16 @@ export default function ConversationList({
   const {
     conversations, unreadIds, mentionIds, threadIds, unreadCounts, activeId, setActiveId,
     nameOf, loading, myThreads, threadReadAt, people,
-    searchQuery, setSearchQuery, search, runSearch, clearSearch,
+    searchQuery, setSearchQuery, search: anySearch, runSearch, clearSearch,
     notify, setNotifyFor, pinnedConversations, togglePinnedConversation,
     movePinnedConversation, dropPinnedConversation,
     chatFilter, favorites, toggleFavorite, lists, addChatList, renameList, setInList,
   } = useChat();
   const myUid = user?.uid ?? '';
+  // Only a search of every room belongs to this box. A search inside one chat
+  // has its own box in that chat's panel, and this one should neither offer to
+  // clear it nor stop hinting that Enter searches everything.
+  const search = anySearch && !anySearch.conversationId ? anySearch : null;
 
   // Dragging a pinned room to a different place. The arrows in the menu below
   // do the same thing without a mouse, and both go through the same helper, so
