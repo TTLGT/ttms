@@ -1986,3 +1986,41 @@ Cost: one read when somebody with the mode on loads a page, and at most one
 write every 15 seconds while they are looking words up. Whether the mode is on
 is kept in the browser (`localStorage`), like the colour theme, and costs
 nothing.
+
+## Collection: `personalTasks` (My tasks and My calendar)
+
+Everybody's own to-do list and calendar, one subcollection per person at
+`personalTasks/{uid}/items/{itemId}`. The parent document is never written.
+See `src/types/task.ts`.
+
+```
+personalTasks/{uid}/items/{itemId}
+  kind      : 'task' | 'event'     // an event is an appointment: calendar only
+  title     : string               // up to 200 characters
+  notes     : string               // up to 4,000
+  status    : 'todo' | 'doing' | 'waiting' | 'done'   // always 'todo' on an event
+  priority  : 'low' | 'normal' | 'high'
+  color     : 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'orange'
+  date      : 'YYYY-MM-DD' | null  // due date of a task; the day of an event
+  time      : 'HH:MM' | null
+  endTime   : 'HH:MM' | null       // events only
+  order     : number               // position on the board and the sticky notes
+  createdAt, updatedAt : Timestamp
+  doneAt    : Timestamp | null     // set when it goes to Done, cleared when it leaves
+```
+
+**Read and written only through `/api/me/tasks`, keyed on the caller's own
+uid** — the same arrangement as `vocabulary`. There is no rule for this path
+and there should not be one. Nobody can read anybody else's list through the
+app, admins included; it is a notepad, not a record of work.
+
+The same items feed four views: a Kanban board (by `status`), sticky notes and
+a table at `/dashboard/tasks`, and a month calendar at `/dashboard/calendar`.
+Board and sticky notes share one `order`, a fraction between neighbours so a
+drag is one write; when the gap between two neighbours closes up,
+`POST /api/me/tasks/reorder` renumbers the group.
+
+Cost: one read per item every time somebody opens either page, capped at
+**1,000 items per person** (`MAX_TASKS_PER_PERSON`), plus one read of a count
+aggregation per new item. "Clear done" on the board deletes finished tasks and
+keeps events. No composite index is needed.

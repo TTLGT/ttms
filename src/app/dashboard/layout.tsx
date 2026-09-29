@@ -21,6 +21,8 @@ import {
   CalendarHeart,
   CalendarClock,
   GraduationCap,
+  ListTodo,
+  CalendarDays,
   Menu,
   X,
   LogOut,
@@ -88,6 +90,11 @@ const NAV_ITEMS: {
   // this one is talking to them. Open to everyone — chat crosses none of the
   // ownership boundaries the record pages are gated by.
   { href: '/dashboard/chat',      label: 'Chat',      Icon: MessageCircle, needs: 'chat.use' },
+  // Everybody's own to-do list and calendar, interns included, so no
+  // permission: each page shows only the caller's own items, and there is
+  // nothing for a permission to widen. See src/types/task.ts.
+  { href: '/dashboard/tasks',     label: 'My tasks',    Icon: ListTodo },
+  { href: '/dashboard/calendar',  label: 'My calendar', Icon: CalendarDays },
   // An intern's own corner: their guide, their onboarding survey, their tasks.
   // Sits below Chat because it is theirs rather than the company's. Admins hold
   // every permission, so they see it too — which is the only way to check what
