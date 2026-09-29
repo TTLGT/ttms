@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type DragEvent } from 'react';
-import { CalendarDays, Plus, StickyNote } from 'lucide-react';
+import { Bell, CalendarDays, Plus, StickyNote } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   TASK_PRIORITY_LABEL,
@@ -188,6 +188,9 @@ function Card({
               <CalendarDays size={10} />
               {task.date === today ? 'Today' : formatCalendarDate(task.date)}
               {task.time && ` ${formatTime(task.time)}`}
+              {task.reminders.length > 0 && task.status !== 'done' && (
+                <Bell size={10} className="ml-0.5" aria-label="Reminder set" />
+              )}
             </span>
           )}
           {task.priority !== 'normal' && (

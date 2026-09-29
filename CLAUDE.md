@@ -722,11 +722,16 @@ is the worst failure either could have. That argument does not reach here: the
 worst failure this one has is a quiet morning. Do not read it as permission to
 put access on a schedule.
 
-**Celebration reminders are the second clock.** `/dashboard/celebrations` is a
-calendar of birthdays and work anniversaries for `people.view` (admin and HR),
-plus Guatemala and US public holidays computed in `src/types/holidays.ts` —
-no new permission, because Settings → People already shows those dates under
-it. It shows the age somebody is turning and their years with the company;
+**Celebration reminders are the second clock.** Birthdays and work
+anniversaries are a layer of the Calendar (`/dashboard/calendar`) drawn only
+for `people.view` (admin and HR) — no new permission, because Settings →
+People already shows those dates under it. It used to be its own page;
+`/dashboard/celebrations` now redirects. The layer comes only from
+`/api/celebration-calendar`, which refuses everybody else, and the page does
+not ask for it without the permission — so the gate is the route, not what the
+page hides. **Never copy a birthday into the personal task list**, which is
+private and never re-checked when somebody leaves HR. The public holidays
+(`src/types/holidays.ts`) are on the same calendar for everybody. It shows the age somebody is turning and their years with the company;
 that is fine *there* because of who is reading, and must never leak into the
 Everyone-room post, which stays name-only. It lists everyone, including people
 who opted out of the post (marked "Not announced"): that opt-out is about being
@@ -881,7 +886,8 @@ report), `attendanceAdmin.ts` (schedules, holidays, requests) and
 - **The internet provider comes from ipinfo**, which means each clock action's
   IP address is sent to ipinfo.io — chosen deliberately, clock actions only,
   never the heartbeat. `IPINFO_TOKEN` is optional (keyless works, rate-limited).
-- **Third and fourth clocks, and still not a precedent.** The nightly close
+- **Third and fourth clocks, and still not a precedent.** (The fifth is task
+  reminders — see My tasks and the Calendar below.) The nightly close
   (3am office time) and the "not in yet" alerts (every 15 minutes, office
   hours) finish records and post notices; they grant and remove nothing. The
   rule that access never runs on a clock is untouched.
@@ -889,6 +895,37 @@ report), `attendanceAdmin.ts` (schedules, holidays, requests) and
   **What is recorded is written out for staff** in
   `src/components/attendance/AttendancePolicy.tsx`. Record something new and
   that text changes the same day.
+
+### My tasks and the Calendar — everybody's own list
+
+Every allowlisted person, interns included, has a private list of tasks and
+events at `personalTasks/{uid}/items`, shown as a board, sticky notes and a
+table at `/dashboard/tasks` and by month or week at `/dashboard/calendar`.
+Types and pure rules in `src/types/task.ts`; server in
+`src/lib/personalTasksServer.ts` and `src/lib/personalTaskReminders.ts`.
+
+- **Nobody else can see it, admins included.** Read and written only through
+  `/api/me/tasks`, keyed on the uid off the ID token, with no rule for the
+  path — the same arrangement as `vocabulary`. It is a notepad, not a record
+  of work: nothing may read it to report on somebody. Assigning work to
+  someone else would be a different feature.
+- **An event's `eventType` is a label.** A "company activity" is only on the
+  calendar of the person who added it. A calendar the company shares would
+  need its own answer to who may post on it.
+- **Dates and times are office time** (UTC−6), like celebrations and
+  attendance, because the reminder run has no browser time zone to go by.
+- **Reminders are the fifth clock.** `taskReminders/{uid}__{itemId}__{lead}`
+  is a queue the run can ask "what is due by now?" as a single-field range —
+  indexed by Firestore automatically, where a collection-group query over the
+  items would need a hand-deployed index. **Anything that writes a task's
+  `kind`, `status`, `date`, `time` or `reminders` must call
+  `syncReminderQueue()` in the same batch**, and deleting a task must clear
+  its slots; otherwise a finished task still reminds, or a moved call rings at
+  the old time. The run claims each entry with a delete conditioned on its
+  update time (at-least-once crons), re-checks the allowlist before sending,
+  drops anything over three hours late, and posts into a separate
+  `notice_tasks_{uid}` room — never the celebration one. It grants and removes
+  nothing.
 
 ### Learn English — underlines that never touch the page
 
@@ -941,7 +978,7 @@ off, chosen server-side, like lane distances.
 - **It is deployed on Vercel and live at `https://ttms.totaltransportlogistics.us`** (DNS added and verified 2026-09-09). A push to `main` builds and goes live for the whole company within minutes, so **a push to `main` is a production release**; say so before pushing. The repo side is done: security headers in `next.config.ts`, the address centralised in `src/lib/appUrl.ts`, [`docs/deployment.md`](docs/deployment.md) as the runbook.
   - **Firebase → Authentication → Settings → Authorized domains** holds both `ttms.totaltransportlogistics.us` and the fallback `ttms-iota.vercel.app` (confirmed 2026-09-09). Firebase refuses to sign anyone in on a host it has not been told about, and the failure is silent — the Google popup opens and closes with no error on the page — so that list is still the first thing to check if anyone reports it.
   - **`ttms` with two t's is the agreed spelling** (2026-09-08), and the record that exists at Namecheap is the two-t one; `tms.totaltransportlogistics.us` has no record and should not be given one. A Vercel project card was showing a one-t `tms.` variant; if that reappears it is the thing to change, not the code.
-  - **`vercel.json` exists for one reason: the crons.** Vercel's Next.js defaults are otherwise correct and each route declares its own `maxDuration`, so nothing else belongs in it. It declares `GET /api/chat/celebrations` at `0 14 * * *` and `GET /api/celebration-calendar/cron` at `5 14 * * *` — see the Celebrations section below — and the two attendance jobs, `GET /api/attendance/cron/close` at `0 9 * * *` and `GET /api/attendance/cron/alerts` at `*/15 12-23 * * 1-6` — see Attendance. All share `isCron()` in `src/lib/cronAuth.ts`. Adding a build setting, a rewrite or a header there is almost certainly the wrong file; headers live in `next.config.ts`.
+  - **`vercel.json` exists for one reason: the crons.** Vercel's Next.js defaults are otherwise correct and each route declares its own `maxDuration`, so nothing else belongs in it. It declares `GET /api/chat/celebrations` at `0 14 * * *` and `GET /api/celebration-calendar/cron` at `5 14 * * *` — see the Celebrations section below — and the two attendance jobs, `GET /api/attendance/cron/close` at `0 9 * * *` and `GET /api/attendance/cron/alerts` at `*/15 12-23 * * 1-6` — see Attendance — and `GET /api/task-reminders/cron` at `*/5 * * * *`, around the clock — see My tasks and the Calendar. All share `isCron()` in `src/lib/cronAuth.ts`. Adding a build setting, a rewrite or a header there is almost certainly the wrong file; headers live in `next.config.ts`.
   - **`CRON_SECRET` must be set on Vercel** or the daily post never happens. The route refuses every request without it, deliberately — an endpoint that writes to the whole company must not fall open because a variable is missing. It is set in Vercel → Settings → Environment Variables and nowhere else; Vercel sends it on every scheduled call by itself. It is not in `.env.local` and does not need to be.
   - Deliberately absent: no `.github/workflows/` (Vercel builds on push), no Hosting block in `firebase.json`.
 - Firestore composite indexes are listed in `docs/schema-guide.md`. A missing-index error links to a one-click creator in the Console.

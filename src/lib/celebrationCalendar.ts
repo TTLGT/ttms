@@ -8,7 +8,7 @@ import type {
 } from '@/types/celebrationCalendar';
 
 /**
- * The Celebrations page's data, from the browser.
+ * The Calendar's birthday and anniversary layer, from the browser.
  *
  * Through the API rather than the client SDK, because it is built from
  * `allowedUsers` — admin-and-HR data — and the reminder collections have no

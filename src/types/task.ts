@@ -16,12 +16,28 @@
  *
  * - a **task** has a status and sits on the board, the sticky notes and the
  *   table; a date on it is when it is due, and puts it on the calendar too.
- * - an **event** is an appointment — a call with a client at 10:00. It has a
- *   date and nothing to finish, so it appears on the calendar only.
+ * - an **event** is something to turn up to — a call, an online meeting, a
+ *   company activity. It has a date and nothing to finish, so it appears on
+ *   the calendar only. `eventType` says which sort; it changes the icon and
+ *   the wording of a reminder, and nothing else.
+ *
+ * Both can carry reminders — see `TASK_REMINDER_LEADS` below and
+ * src/lib/personalTaskReminders.ts.
+ *
+ * **Every date and time here is office time** (Guatemala, UTC−6), the same
+ * clock the celebrations and attendance run on. A reminder has to be sent by
+ * a server that knows no browser's time zone, so "10:00" must mean one
+ * instant; and a calendar that mixes birthdays with tasks cannot have two
+ * ideas of which day is today.
  */
+
+import { OFFICE_UTC_OFFSET_MINUTES } from './attendance';
+import { officeToday } from './celebration';
 
 export const PERSONAL_TASKS_COLLECTION = 'personalTasks';
 export const PERSONAL_TASK_ITEMS = 'items';
+/** The reminder queue, `taskReminders/{uid}__{itemId}__{lead}` — see syncReminderQueue(). */
+export const TASK_REMINDERS_COLLECTION = 'taskReminders';
 
 export type TaskKind = 'task' | 'event';
 
@@ -52,6 +68,67 @@ export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {
 export const TASK_COLORS = ['yellow', 'pink', 'blue', 'green', 'purple', 'orange'] as const;
 export type TaskColor = typeof TASK_COLORS[number];
 
+/**
+ * What sort of event. A label, not a behaviour: an "online meeting" is not
+ * joined through TTMS and a "company activity" is still only on the calendar
+ * of the person who added it. A calendar the whole company shares would be a
+ * different feature, with its own question of who may post on it.
+ */
+export const EVENT_TYPES = ['call', 'online', 'meeting', 'activity', 'appointment', 'other'] as const;
+export type EventType = typeof EVENT_TYPES[number];
+
+export const EVENT_TYPE_LABEL: Record<EventType, string> = {
+  call:        'Call',
+  online:      'Online meeting',
+  meeting:     'In-person meeting',
+  activity:    'Company activity',
+  appointment: 'Appointment',
+  other:       'Other event',
+};
+
+/**
+ * When a reminder goes out, relative to the item.
+ *
+ * With a time, each is that long before it. With no time there is no minute
+ * to count back from, so the item is treated as starting at 8am — the same
+ * hour the celebration reminders go out — and only the whole-day leads make
+ * sense: "on the morning" and "the day before". `leadsFor()` is the one place
+ * that says which leads apply.
+ */
+export const TASK_REMINDER_LEADS = ['start', '15m', '1h', '1d', '1w'] as const;
+export type TaskReminderLead = typeof TASK_REMINDER_LEADS[number];
+
+const LEAD_MINUTES: Record<TaskReminderLead, number> = {
+  start: 0, '15m': 15, '1h': 60, '1d': 24 * 60, '1w': 7 * 24 * 60,
+};
+
+/** The hour an untimed item is reminded about, office time. */
+export const UNTIMED_REMINDER_TIME = '08:00';
+
+export function leadsFor(hasTime: boolean): readonly TaskReminderLead[] {
+  return hasTime ? TASK_REMINDER_LEADS : ['start', '1d', '1w'];
+}
+
+export function reminderLeadLabel(lead: TaskReminderLead, hasTime: boolean): string {
+  if (!hasTime) {
+    return lead === 'start' ? 'That morning (8:00 AM)'
+      : lead === '1d' ? 'The day before (8:00 AM)'
+      : 'A week before (8:00 AM)';
+  }
+  return {
+    start: 'At the time', '15m': '15 minutes before', '1h': '1 hour before',
+    '1d': '1 day before', '1w': '1 week before',
+  }[lead];
+}
+
+export interface TaskReminderSettings {
+  email: boolean;
+  chat: boolean;
+}
+
+/** Both on until somebody says otherwise — a reminder set and then never sent is the worse surprise. */
+export const DEFAULT_TASK_REMINDER_SETTINGS: TaskReminderSettings = { email: true, chat: true };
+
 export interface PersonalTask {
   id: string;
   kind: TaskKind;
@@ -67,6 +144,12 @@ export interface PersonalTask {
   time: string | null;
   /** `HH:MM`. Events only. */
   endTime: string | null;
+  /** Events only; 'other' on a task, where it means nothing. */
+  eventType: EventType;
+  /** Where, or the meeting link. Free text; drawn as a link only when it is one. */
+  location: string;
+  /** When to be reminded. Empty for none. Never set on a finished task's queue. */
+  reminders: TaskReminderLead[];
   /**
    * Position within its board column, and among the sticky notes. A fraction
    * between its neighbours, so a drag is one write rather than a renumbering
@@ -82,10 +165,12 @@ export interface PersonalTask {
 
 /** What can be written. Everything else on a task is set by the server. */
 export type PersonalTaskInput = Partial<Pick<PersonalTask,
-  'kind' | 'title' | 'notes' | 'status' | 'priority' | 'color' | 'date' | 'time' | 'endTime' | 'order'>>;
+  'kind' | 'title' | 'notes' | 'status' | 'priority' | 'color' | 'date' | 'time' | 'endTime' | 'order'
+  | 'eventType' | 'location' | 'reminders'>>;
 
 export const MAX_TASK_TITLE = 200;
 export const MAX_TASK_NOTES = 4000;
+export const MAX_TASK_LOCATION = 500;
 
 /**
  * A ceiling, not a target. The whole list is read on every visit, so this is
@@ -136,6 +221,11 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   }
 
   if (typeof b.order === 'number' && Number.isFinite(b.order)) out.order = b.order;
+  if (oneOf(EVENT_TYPES, b.eventType)) out.eventType = b.eventType;
+  if (typeof b.location === 'string') out.location = b.location.trim().slice(0, MAX_TASK_LOCATION);
+  if (Array.isArray(b.reminders)) {
+    out.reminders = TASK_REMINDER_LEADS.filter((l) => (b.reminders as unknown[]).includes(l));
+  }
   return out;
 }
 
@@ -166,13 +256,12 @@ export function byTime(a: PersonalTask, b: PersonalTask): number {
 }
 
 /**
- * Today in the viewer's own browser. Deliberately not the office date that
- * celebrations and attendance use: this is somebody's own list, and "due
- * today" should mean today where they are sitting.
+ * Today on the calendar: the office's date, not the browser's — see the note
+ * at the top of this file. Read on the client after mount, never during a
+ * server render, where it would be baked into the page.
  */
-export function localToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+export function calendarToday(): string {
+  return officeToday();
 }
 
 /** Open, dated, and the date has passed. Events are never overdue. */
@@ -185,4 +274,44 @@ export function formatTime(hhmm: string | null): string {
   if (!hhmm) return '';
   const [h, m] = hhmm.split(':').map(Number);
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+/**
+ * The instants an item's reminders are due, as epoch milliseconds, keyed by
+ * lead. Pure, so the server that queues them and the editor that says "this
+ * one has already gone by" agree.
+ *
+ * Empty when there is nothing to remind about: no date, a finished task, or
+ * no leads. A lead that does not apply to an untimed item is skipped rather
+ * than guessed at.
+ */
+export function reminderInstants(
+  t: Pick<PersonalTask, 'kind' | 'status' | 'date' | 'time' | 'reminders'>,
+): Partial<Record<TaskReminderLead, number>> {
+  const out: Partial<Record<TaskReminderLead, number>> = {};
+  if (!t.date || (t.kind === 'task' && t.status === 'done')) return out;
+
+  const [y, m, d] = t.date.split('-').map(Number);
+  const [hh, mm] = (t.time ?? UNTIMED_REMINDER_TIME).split(':').map(Number);
+  // Office wall-clock → UTC: the office is UTC−6, so 10:00 there is 16:00 UTC.
+  const start = Date.UTC(y, m - 1, d, hh, mm) - OFFICE_UTC_OFFSET_MINUTES * 60_000;
+
+  const allowed = leadsFor(!!t.time);
+  for (const lead of t.reminders) {
+    if (!allowed.includes(lead)) continue;
+    out[lead] = start - LEAD_MINUTES[lead] * 60_000;
+  }
+  return out;
+}
+
+/** A location worth drawing as a link: http(s) only, so nothing typed can become a `javascript:` URL. */
+export function locationUrl(location: string): string | null {
+  const v = location.trim();
+  if (!/^https?:\/\/\S+$/i.test(v)) return null;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null;
+  } catch {
+    return null;
+  }
 }

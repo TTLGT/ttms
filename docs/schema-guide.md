@@ -1809,8 +1809,9 @@ No composite indexes: every query is one field (`date` range, `status ==`,
 
 ## Collections: `celebrationReminderSettings`, `celebrationReminders`, `celebrationReminderRuns`
 
-The Celebrations calendar (`/dashboard/celebrations`) — birthdays, work
-anniversaries and public holidays — and the reminders set from it. Holidays
+The birthday and anniversary layer of the Calendar (`/dashboard/calendar`;
+the old `/dashboard/celebrations` redirects there) and the reminders set from
+it. Public holidays on the same calendar are shown to everybody. Holidays
 (Guatemala and US) are computed from rules in `src/types/holidays.ts` and
 stored nowhere. Everything behind `people.view`
 (admin and HR), because Settings → People already shows those dates under that
@@ -1987,27 +1988,39 @@ write every 15 seconds while they are looking words up. Whether the mode is on
 is kept in the browser (`localStorage`), like the colour theme, and costs
 nothing.
 
-## Collection: `personalTasks` (My tasks and My calendar)
+## Collection: `personalTasks` (My tasks and the Calendar)
 
 Everybody's own to-do list and calendar, one subcollection per person at
-`personalTasks/{uid}/items/{itemId}`. The parent document is never written.
-See `src/types/task.ts`.
+`personalTasks/{uid}/items/{itemId}`. The parent document holds only that
+person's reminder settings. See `src/types/task.ts`.
 
 ```
+personalTasks/{uid}
+  reminderSettings : { email: boolean, chat: boolean }   // absent = both on
+  updatedAt        : Timestamp
+
 personalTasks/{uid}/items/{itemId}
-  kind      : 'task' | 'event'     // an event is an appointment: calendar only
+  kind      : 'task' | 'event'     // an event is calendar-only
+  eventType : 'call' | 'online' | 'meeting' | 'activity' | 'appointment' | 'other'
+                                   // a label; 'other' on every task
   title     : string               // up to 200 characters
   notes     : string               // up to 4,000
+  location  : string               // where, or a meeting link; up to 500
   status    : 'todo' | 'doing' | 'waiting' | 'done'   // always 'todo' on an event
   priority  : 'low' | 'normal' | 'high'
   color     : 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'orange'
   date      : 'YYYY-MM-DD' | null  // due date of a task; the day of an event
-  time      : 'HH:MM' | null
+  time      : 'HH:MM' | null       // office time (UTC−6)
   endTime   : 'HH:MM' | null       // events only
+  reminders : ('start' | '15m' | '1h' | '1d' | '1w')[]
+                                   // without a time, only start/1d/1w, at 8am
   order     : number               // position on the board and the sticky notes
   createdAt, updatedAt : Timestamp
   doneAt    : Timestamp | null     // set when it goes to Done, cleared when it leaves
 ```
+
+Items saved before `eventType`, `location` and `reminders` existed read as
+`'other'`, `''` and `[]`; no backfill is needed.
 
 **Read and written only through `/api/me/tasks`, keyed on the caller's own
 uid** — the same arrangement as `vocabulary`. There is no rule for this path
@@ -2015,12 +2028,40 @@ and there should not be one. Nobody can read anybody else's list through the
 app, admins included; it is a notepad, not a record of work.
 
 The same items feed four views: a Kanban board (by `status`), sticky notes and
-a table at `/dashboard/tasks`, and a month calendar at `/dashboard/calendar`.
-Board and sticky notes share one `order`, a fraction between neighbours so a
-drag is one write; when the gap between two neighbours closes up,
-`POST /api/me/tasks/reorder` renumbers the group.
+a table at `/dashboard/tasks`, and a month or week calendar at
+`/dashboard/calendar`. Board and sticky notes share one `order`, a fraction
+between neighbours so a drag is one write; when the gap between two
+neighbours closes up, `POST /api/me/tasks/reorder` renumbers the group.
 
 Cost: one read per item every time somebody opens either page, capped at
 **1,000 items per person** (`MAX_TASKS_PER_PERSON`), plus one read of a count
 aggregation per new item. "Clear done" on the board deletes finished tasks and
 keeps events. No composite index is needed.
+
+### `taskReminders/{uid}__{itemId}__{lead}` — the reminder queue
+
+```
+taskReminders/{uid}__{itemId}__{lead}
+  uid    : string
+  itemId : string
+  lead   : 'start' | '15m' | '1h' | '1d' | '1w'
+  sendAt : Timestamp
+```
+
+One entry per reminder still to be sent, written by `syncReminderQueue()` in
+the same batch as every save that changes a task's kind, status, date, time
+or reminders, and cleared when the task is finished, deleted or cleared. Only
+future times are queued.
+
+`GET /api/task-reminders/cron` runs every five minutes (`vercel.json`) and asks
+`sendAt <= now` — a single-field range on a top-level collection, so no index
+to deploy. Each entry is claimed by deleting it on the condition it has not
+changed since it was read, so an overlapping run cannot send it twice. Before
+sending, the run re-reads the item (and skips it if the reminder no longer
+matches), checks the person is still on the allowlist and not suspended, and
+drops anything more than three hours late. One message per person per run, by
+email and/or a post in their own `notice_tasks_{uid}` room ("Your reminders"),
+separate from the celebration and attendance rooms. A run with nothing due
+costs one read; 288 runs a day.
+
+Closed to clients by default: no rule for the path.

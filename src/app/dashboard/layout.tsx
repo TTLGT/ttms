@@ -18,7 +18,6 @@ import {
   BarChart2,
   Settings,
   BookOpen,
-  CalendarHeart,
   CalendarClock,
   GraduationCap,
   ListTodo,
@@ -90,19 +89,18 @@ const NAV_ITEMS: {
   // this one is talking to them. Open to everyone — chat crosses none of the
   // ownership boundaries the record pages are gated by.
   { href: '/dashboard/chat',      label: 'Chat',      Icon: MessageCircle, needs: 'chat.use' },
-  // Everybody's own to-do list and calendar, interns included, so no
-  // permission: each page shows only the caller's own items, and there is
-  // nothing for a permission to widen. See src/types/task.ts.
-  { href: '/dashboard/tasks',     label: 'My tasks',    Icon: ListTodo },
-  { href: '/dashboard/calendar',  label: 'My calendar', Icon: CalendarDays },
+  // Everybody's own to-do list and the calendar, interns included, so no
+  // permission: each shows only the caller's own items. The calendar also
+  // carries birthdays and anniversaries for admin and HR — it absorbed the
+  // Celebrations page — but that layer is gated by its own API route, not
+  // by this list. See src/types/task.ts and CelebrationPanels.tsx.
+  { href: '/dashboard/tasks',     label: 'My tasks',  Icon: ListTodo },
+  { href: '/dashboard/calendar',  label: 'Calendar',  Icon: CalendarDays },
   // An intern's own corner: their guide, their onboarding survey, their tasks.
   // Sits below Chat because it is theirs rather than the company's. Admins hold
   // every permission, so they see it too — which is the only way to check what
   // an intern is actually being shown.
   { href: '/dashboard/intern',    label: 'My onboarding', Icon: GraduationCap, needs: 'intern.section' },
-  // Admin and HR: the birthdays and start dates behind it are the ones Settings → People
-  // already shows under the same permission. See src/types/celebrationCalendar.ts.
-  { href: '/dashboard/celebrations', label: 'Celebrations', Icon: CalendarHeart, needs: 'people.view' },
   { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart2,     needs: 'analytics.view' },
   // Also open to HR, who read the people directory there and nothing else —
   // the page itself renders read-only for them — and to dispatch and finance

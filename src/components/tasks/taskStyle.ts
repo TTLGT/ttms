@@ -1,4 +1,7 @@
-import type { TaskColor, TaskPriority, TaskStatus } from '@/types/task';
+import {
+  CalendarClock, MapPin, PartyPopper, Phone, Users, Video, type LucideIcon,
+} from 'lucide-react';
+import type { EventType, TaskColor, TaskPriority, TaskStatus } from '@/types/task';
 
 /**
  * Sticky-note colours as plain Tailwind families. Every one of them is mapped
@@ -29,3 +32,13 @@ export const PRIORITY_STYLE: Record<TaskPriority, string> = {
 
 /** Drag payload type, so a task dragged from here is never confused with a file dropped from the desktop. */
 export const TASK_DRAG_TYPE = 'application/x-ttms-task';
+
+/** One icon per sort of event, used everywhere an event is drawn. */
+export const EVENT_ICON: Record<EventType, LucideIcon> = {
+  call:        Phone,
+  online:      Video,
+  meeting:     Users,
+  activity:    PartyPopper,
+  appointment: MapPin,
+  other:       CalendarClock,
+};

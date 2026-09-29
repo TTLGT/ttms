@@ -1,20 +1,25 @@
 'use client';
 
-import { useEffect, useMemo, useState, type DragEvent } from 'react';
-import { CalendarClock, Check, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react';
+import { Bell, Check, ChevronLeft, ChevronRight, ExternalLink, Plus } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
+  EVENT_TYPE_LABEL,
   TASK_STATUS_LABEL,
   byTime,
   formatTime,
   isOverdue,
+  locationUrl,
   type PersonalTask,
   type PersonalTaskInput,
 } from '@/types/task';
-import { NOTE_STYLE, TASK_DRAG_TYPE } from './taskStyle';
+import type { Holiday } from '@/types/holidays';
+import type { CalendarOccurrence } from '@/types/celebrationCalendar';
+import { HOLIDAY_STYLE, KIND_STYLE, holidayTitle, sameOccurrence, whatItIs } from '@/components/calendar/CelebrationPanels';
+import { EVENT_ICON, NOTE_STYLE, TASK_DRAG_TYPE } from './taskStyle';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-/** Items drawn in a month square before it says "+N more". The week view draws them all. */
+/** Things drawn in a month square before it says "+N more". The week view draws them all. */
 const PER_DAY = 3;
 
 type Mode = 'month' | 'week';
@@ -42,14 +47,20 @@ function weekStartOf(date: string): string {
   return addDays(date, -new Date(Date.UTC(y, m - 1, d)).getUTCDay());
 }
 
+const monthOf = (date: string) => ({ year: Number(date.slice(0, 4)), month: Number(date.slice(5, 7)) });
+
 /**
- * The calendar: every dated task on its due day and every appointment on its
- * day, by month or by week. Dragging an item to another day moves its date;
- * clicking a day lists it beside the calendar, with a button to add to it.
+ * The calendar, by month or by week. Three layers, drawn in this order in
+ * every square because it is the order they matter in when planning a day:
  *
- * The week view is the month's row made tall: every item is drawn, where a
- * month square stops at three, and on a phone the days stack instead of
- * squeezing seven columns into one screen.
+ * 1. public holidays (everybody) — whether the office and the freight are working;
+ * 2. birthdays and work anniversaries (only when `celebrationsOn` is given,
+ *    which the page does only for `people.view`);
+ * 3. the viewer's own tasks and events, which are the only things here that
+ *    can be dragged, because they are the only things here that are theirs.
+ *
+ * The page owns which day is selected, so something outside the calendar —
+ * the "next 30 days" list — can move it; the calendar pages itself to follow.
  *
  * Undated tasks are not here — they have no day to sit on. They are on the
  * board, and the board is one click away.
@@ -57,21 +68,39 @@ function weekStartOf(date: string): string {
 export default function TaskCalendar({
   items,
   today,
+  selected,
+  onSelect,
   onOpen,
   onAdd,
   onUpdate,
+  holidaysOn,
+  celebrationsOn,
+  pickedOccurrence = null,
+  onPickOccurrence,
+  toolbar,
+  asideTop,
+  asideBottom,
 }: {
   items: PersonalTask[];
   today: string;
+  selected: string;
+  onSelect: (date: string) => void;
   onOpen: (task: PersonalTask) => void;
   onAdd: (initial: PersonalTaskInput) => void;
   onUpdate: (id: string, input: PersonalTaskInput) => void;
+  holidaysOn: (date: string) => Holiday[];
+  celebrationsOn?: (date: string) => CalendarOccurrence[];
+  pickedOccurrence?: CalendarOccurrence | null;
+  onPickOccurrence?: (o: CalendarOccurrence) => void;
+  /** Drawn under the calendar's own header: the page's layer switches. */
+  toolbar?: ReactNode;
+  asideTop?: ReactNode;
+  asideBottom?: ReactNode;
 }) {
   const { formatCalendarDate } = useDateFormatters();
   const [mode, setMode] = useState<Mode>('month');
-  const [cursor, setCursor] = useState({ year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) });
-  const [weekStart, setWeekStart] = useState(() => weekStartOf(today));
-  const [selected, setSelected] = useState<string>(today);
+  const [cursor, setCursor] = useState(() => monthOf(selected));
+  const [weekStart, setWeekStart] = useState(() => weekStartOf(selected));
   const [over, setOver] = useState<string | null>(null);
 
   useEffect(() => {
@@ -80,6 +109,13 @@ export default function TaskCalendar({
     } catch { /* private window: month it is */ }
   }, []);
 
+  // Follow the selected day when it is moved from outside. Only on a change
+  // of `selected`, so paging away with the arrows is not undone.
+  useEffect(() => {
+    setCursor(monthOf(selected));
+    setWeekStart(weekStartOf(selected));
+  }, [selected]);
+
   /**
    * Switching keeps you where you were: the week of the selected day, or the
    * month that week starts in — not back to today.
@@ -87,7 +123,7 @@ export default function TaskCalendar({
   const choose = (m: Mode) => {
     setMode(m);
     if (m === 'week') setWeekStart(weekStartOf(selected));
-    else setCursor({ year: Number(selected.slice(0, 4)), month: Number(selected.slice(5, 7)) });
+    else setCursor(monthOf(selected));
     try { window.localStorage.setItem(MODE_KEY, m); } catch { /* not worth telling anyone */ }
   };
 
@@ -125,16 +161,16 @@ export default function TaskCalendar({
   };
 
   const goToday = () => {
-    setCursor({ year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) });
+    setCursor(monthOf(today));
     setWeekStart(weekStartOf(today));
-    setSelected(today);
+    onSelect(today);
   };
 
   const accepts = (e: DragEvent) => e.dataTransfer.types.includes(TASK_DRAG_TYPE);
 
   /** What makes any day — a month square or a week column — a place to drop onto. */
   const dayTarget = (date: string) => ({
-    onClick: () => setSelected(date),
+    onClick: () => onSelect(date),
     onDragOver: (e: DragEvent) => {
       if (!accepts(e)) return;
       e.preventDefault();
@@ -151,57 +187,98 @@ export default function TaskCalendar({
     },
   });
 
-  const chip = (t: PersonalTask, roomy: boolean) => (
-    <button
-      key={t.id}
-      type="button"
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData(TASK_DRAG_TYPE, t.id);
-        e.dataTransfer.setData('text/plain', t.title);
-      }}
-      onDragEnd={() => setOver(null)}
-      onClick={(e) => { e.stopPropagation(); onOpen(t); }}
-      title={t.title}
-      className={`flex w-full cursor-grab rounded text-left font-medium ${
-        roomy ? 'flex-col gap-0.5 px-2 py-1.5 text-xs' : 'items-center gap-1 truncate px-1.5 py-0.5 text-[11px]'
-      } ${NOTE_STYLE[t.color].chip} ${t.status === 'done' && t.kind === 'task' ? 'line-through opacity-60' : ''} ${
-        isOverdue(t, today) ? 'ring-1 ring-red-400' : ''
-      }`}
+  const itemChip = (t: PersonalTask, roomy: boolean) => {
+    const EventIcon = t.kind === 'event' ? EVENT_ICON[t.eventType] : null;
+    return (
+      <button
+        key={t.id}
+        type="button"
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData(TASK_DRAG_TYPE, t.id);
+          e.dataTransfer.setData('text/plain', t.title);
+        }}
+        onDragEnd={() => setOver(null)}
+        onClick={(e) => { e.stopPropagation(); onOpen(t); }}
+        title={t.kind === 'event' ? `${EVENT_TYPE_LABEL[t.eventType]}: ${t.title}` : t.title}
+        className={`flex w-full cursor-grab rounded text-left font-medium ${
+          roomy ? 'flex-col gap-0.5 px-2 py-1.5 text-xs' : 'items-center gap-1 truncate px-1.5 py-0.5 text-[11px]'
+        } ${NOTE_STYLE[t.color].chip} ${t.status === 'done' && t.kind === 'task' ? 'line-through opacity-60' : ''} ${
+          isOverdue(t, today) ? 'ring-1 ring-red-400' : ''
+        }`}
+      >
+        {roomy ? (
+          <>
+            {(t.time || EventIcon) && (
+              <span className="flex items-center gap-1 text-[11px] font-normal opacity-75">
+                {EventIcon && <EventIcon size={10} className="flex-shrink-0" />}
+                {t.time ? `${formatTime(t.time)}${t.endTime ? ` – ${formatTime(t.endTime)}` : ''}` : 'All day'}
+                {t.reminders.length > 0 && <Bell size={9} className="ml-auto flex-shrink-0" />}
+              </span>
+            )}
+            <span className="line-clamp-3 break-words">{t.title}</span>
+          </>
+        ) : (
+          <>
+            {EventIcon && <EventIcon size={10} className="flex-shrink-0" />}
+            {t.time && <span className="flex-shrink-0 opacity-70">{formatTime(t.time).replace(':00', '')}</span>}
+            <span className="truncate">{t.title}</span>
+          </>
+        )}
+      </button>
+    );
+  };
+
+  const holidayChip = (h: Holiday) => (
+    <div
+      key={`h-${h.country}-${h.name}`}
+      title={holidayTitle(h)}
+      className={`flex items-center gap-1 truncate rounded px-1.5 py-0.5 text-[11px] ${HOLIDAY_STYLE[h.country]}`}
     >
-      {roomy ? (
-        <>
-          {(t.time || t.kind === 'event') && (
-            <span className="flex items-center gap-1 text-[11px] font-normal opacity-75">
-              {t.kind === 'event' && <CalendarClock size={10} className="flex-shrink-0" />}
-              {t.time ? `${formatTime(t.time)}${t.endTime ? ` – ${formatTime(t.endTime)}` : ''}` : 'All day'}
-            </span>
-          )}
-          <span className="line-clamp-3 break-words">{t.title}</span>
-        </>
-      ) : (
-        <>
-          {t.kind === 'event' && <CalendarClock size={10} className="flex-shrink-0" />}
-          {t.time && <span className="flex-shrink-0 opacity-70">{formatTime(t.time).replace(':00', '')}</span>}
-          <span className="truncate">{t.title}</span>
-        </>
-      )}
-    </button>
+      <span className="flex-shrink-0 font-semibold">{h.country}</span>
+      <span className="truncate">{h.name.replace(/ \(.*\)$/, '')}</span>
+    </div>
   );
+
+  const occurrenceChip = (o: CalendarOccurrence) => {
+    const { Icon, chip, chipOn } = KIND_STYLE[o.kind];
+    return (
+      <button
+        key={`c-${o.kind}-${o.person.email}`}
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onSelect(o.date); onPickOccurrence?.(o); }}
+        title={`${o.person.name} — ${whatItIs(o)}`}
+        className={`flex w-full items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium ${
+          sameOccurrence(pickedOccurrence, o) ? chipOn : chip
+        }`}
+      >
+        <Icon size={10} className="flex-shrink-0" />
+        <span className="truncate">{o.person.name.split(' ')[0]} · {o.years}</span>
+      </button>
+    );
+  };
+
+  /** Everything on a day, in layer order. */
+  const dayContents = (date: string, roomy: boolean) => [
+    ...holidaysOn(date).map(holidayChip),
+    ...(celebrationsOn?.(date) ?? []).map(occurrenceChip),
+    ...(byDay.get(date) ?? []).map((t) => itemChip(t, roomy)),
+  ];
 
   const title = mode === 'month'
     ? monthTitle(cursor.year, cursor.month)
     : `${formatCalendarDate(weekDays[0])} – ${formatCalendarDate(weekDays[6])}`;
 
-  const dayItems = byDay.get(selected) ?? [];
   // Beside the month only: the week view already is this list, drawn wide.
   const selectedWeek = Array.from({ length: 7 }, (_, i) => addDays(weekStartOf(selected), i));
-  const thisWeek = selectedWeek.filter((d) => (byDay.get(d) ?? []).length > 0);
+  const weekHas = (d: string) =>
+    (byDay.get(d) ?? []).length > 0 || holidaysOn(d).length > 0 || (celebrationsOn?.(d) ?? []).length > 0;
+  const thisWeek = selectedWeek.filter(weekHas);
   const isCurrentWeek = weekStartOf(selected) === weekStartOf(today);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <section className="min-w-0 rounded-xl border border-gray-200 bg-white">
         <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 py-3">
           <button type="button" onClick={() => shift(-1)} aria-label={mode === 'week' ? 'Previous week' : 'Previous month'}
@@ -236,6 +313,8 @@ export default function TaskCalendar({
           </div>
         </div>
 
+        {toolbar && <div className="border-b border-gray-100 px-4 py-2">{toolbar}</div>}
+
         {mode === 'month' ? (
           <>
             <div className="grid grid-cols-7 border-b border-gray-100 text-center text-[11px] font-medium uppercase tracking-wide text-gray-400">
@@ -243,12 +322,12 @@ export default function TaskCalendar({
             </div>
             <div className="grid grid-cols-7">
               {cells.map((date, i) => {
-                const here = date ? byDay.get(date) ?? [] : [];
+                const here = date ? dayContents(date, false) : [];
                 return (
                   <div
                     key={date ?? `blank-${i}`}
                     {...(date ? dayTarget(date) : {})}
-                    className={`min-h-[6rem] border-b border-r border-gray-100 p-1 ${
+                    className={`min-h-[6rem] min-w-0 border-b border-r border-gray-100 p-1 ${
                       date === null ? 'bg-gray-50/60' : 'cursor-pointer hover:bg-gray-50'
                     } ${i % 7 === 6 ? 'border-r-0' : ''} ${
                       date && date === selected ? 'bg-brand-50/60' : ''
@@ -262,7 +341,7 @@ export default function TaskCalendar({
                           {Number(date.slice(8))}
                         </div>
                         <div className="space-y-1">
-                          {here.slice(0, PER_DAY).map((t) => chip(t, false))}
+                          {here.slice(0, PER_DAY)}
                           {here.length > PER_DAY && (
                             <p className="px-1.5 text-[11px] text-gray-500">+{here.length - PER_DAY} more</p>
                           )}
@@ -276,48 +355,47 @@ export default function TaskCalendar({
           </>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-7">
-            {weekDays.map((date, i) => {
-              const here = byDay.get(date) ?? [];
-              return (
-                <div
-                  key={date}
-                  {...dayTarget(date)}
-                  className={`flex min-h-[5rem] cursor-pointer flex-col border-b border-gray-100 p-1.5 hover:bg-gray-50 md:min-h-[28rem] md:border-b-0 ${
-                    i < 6 ? 'md:border-r' : ''
-                  } ${date === selected ? 'bg-brand-50/60' : ''} ${
-                    over === date ? 'ring-2 ring-inset ring-brand-400' : ''
-                  }`}
-                >
-                  <div className="mb-2 flex items-center gap-1.5 px-0.5">
-                    <span className="text-[11px] font-medium uppercase tracking-wide text-gray-400">{WEEKDAYS[i]}</span>
-                    <span className={`flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1 text-xs ${
-                      date === today ? 'bg-brand-600 font-semibold text-white' : 'text-gray-600'
-                    }`}>
-                      {Number(date.slice(8))}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={`Add on ${formatCalendarDate(date)}`}
-                      title="Add a task on this day"
-                      onClick={(e) => { e.stopPropagation(); setSelected(date); onAdd({ date, kind: 'task' }); }}
-                      className="ml-auto rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700"
-                    >
-                      <Plus size={13} />
-                    </button>
-                  </div>
-                  <div className="space-y-1.5">{here.map((t) => chip(t, true))}</div>
+            {weekDays.map((date, i) => (
+              <div
+                key={date}
+                {...dayTarget(date)}
+                className={`flex min-h-[5rem] min-w-0 cursor-pointer flex-col border-b border-gray-100 p-1.5 hover:bg-gray-50 md:min-h-[28rem] md:border-b-0 ${
+                  i < 6 ? 'md:border-r' : ''
+                } ${date === selected ? 'bg-brand-50/60' : ''} ${
+                  over === date ? 'ring-2 ring-inset ring-brand-400' : ''
+                }`}
+              >
+                <div className="mb-2 flex items-center gap-1.5 px-0.5">
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-gray-400">{WEEKDAYS[i]}</span>
+                  <span className={`flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1 text-xs ${
+                    date === today ? 'bg-brand-600 font-semibold text-white' : 'text-gray-600'
+                  }`}>
+                    {Number(date.slice(8))}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Add on ${formatCalendarDate(date)}`}
+                    title="Add on this day"
+                    onClick={(e) => { e.stopPropagation(); onSelect(date); onAdd({ date, kind: 'task' }); }}
+                    className="ml-auto rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+                  >
+                    <Plus size={13} />
+                  </button>
                 </div>
-              );
-            })}
+                <div className="space-y-1.5">{dayContents(date, true)}</div>
+              </div>
+            ))}
           </div>
         )}
 
         <p className="border-t border-gray-100 px-4 py-2 text-xs text-gray-400">
-          Drag an item to another day to move it.
+          Drag your own tasks and events to another day to move them. Times are Guatemala office time.
         </p>
       </section>
 
-      <aside className="h-fit space-y-4">
+      <aside className="h-fit min-w-0 space-y-4">
+        {asideTop}
+
         {/* ── The chosen day ─────────────────────────────────────── */}
         <section className="rounded-xl border border-gray-200 bg-white p-4">
           <div className="mb-3 flex items-center gap-2">
@@ -336,14 +414,21 @@ export default function TaskCalendar({
               onClick={() => onAdd({ date: selected, kind: 'event' })}
               className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50"
             >
-              <Plus size={12} /> Appointment
+              <Plus size={12} /> Event
             </button>
           </div>
 
-          {dayItems.length === 0 ? (
-            <p className="text-sm text-gray-500">Nothing on this day.</p>
+          {weekHas(selected) ? (
+            <DayList
+              holidays={holidaysOn(selected)}
+              occurrences={celebrationsOn?.(selected) ?? []}
+              items={byDay.get(selected) ?? []}
+              onOpen={onOpen}
+              onUpdate={onUpdate}
+              onPickOccurrence={onPickOccurrence}
+            />
           ) : (
-            <ItemList items={dayItems} onOpen={onOpen} onUpdate={onUpdate} />
+            <p className="text-sm text-gray-500">Nothing on this day.</p>
           )}
         </section>
 
@@ -370,42 +455,86 @@ export default function TaskCalendar({
                   <div key={d}>
                     <button
                       type="button"
-                      onClick={() => setSelected(d)}
+                      onClick={() => onSelect(d)}
                       className={`mb-1 text-xs font-medium hover:underline ${
                         d === today ? 'text-brand-700' : 'text-gray-500'
                       }`}
                     >
                       {WEEKDAYS[selectedWeek.indexOf(d)]} · {d === today ? 'Today' : formatCalendarDate(d)}
                     </button>
-                    <ItemList items={byDay.get(d) ?? []} onOpen={onOpen} onUpdate={onUpdate} />
+                    <DayList
+                      holidays={holidaysOn(d)}
+                      occurrences={celebrationsOn?.(d) ?? []}
+                      items={byDay.get(d) ?? []}
+                      onOpen={onOpen}
+                      onUpdate={onUpdate}
+                      onPickOccurrence={onPickOccurrence}
+                    />
                   </div>
                 ))}
               </div>
             )}
           </section>
         )}
+
+        {asideBottom}
       </aside>
     </div>
   );
 }
 
-/** One day's items as a list: a tick box for tasks, a clock for appointments. */
-function ItemList({
+/** One day as a list: holidays, then celebrations, then the viewer's own items. */
+function DayList({
+  holidays,
+  occurrences,
   items,
   onOpen,
   onUpdate,
+  onPickOccurrence,
 }: {
+  holidays: Holiday[];
+  occurrences: CalendarOccurrence[];
   items: PersonalTask[];
   onOpen: (task: PersonalTask) => void;
   onUpdate: (id: string, input: PersonalTaskInput) => void;
+  onPickOccurrence?: (o: CalendarOccurrence) => void;
 }) {
   return (
     <ul className="space-y-2">
+      {holidays.map((h) => (
+        <li key={`h-${h.country}-${h.name}`} className="flex items-start gap-2">
+          <span className={`mt-0.5 flex-shrink-0 rounded px-1 text-[10px] font-semibold ${HOLIDAY_STYLE[h.country]}`}>
+            {h.country}
+          </span>
+          <span className="min-w-0 flex-1 text-sm text-gray-700" title={holidayTitle(h)}>
+            {h.name}
+            {h.note && <span className="block text-xs text-gray-500">{h.note}</span>}
+          </span>
+        </li>
+      ))}
+
+      {occurrences.map((o) => {
+        const { Icon } = KIND_STYLE[o.kind];
+        return (
+          <li key={`c-${o.kind}-${o.person.email}`} className="flex items-start gap-2">
+            <Icon size={16} className={`mt-0.5 flex-shrink-0 ${o.kind === 'birthday' ? 'text-pink-500' : 'text-brand-500'}`} />
+            <button type="button" onClick={() => onPickOccurrence?.(o)} className="min-w-0 flex-1 text-left">
+              <span className="block text-sm text-gray-900 hover:underline">{o.person.name}</span>
+              <span className="block text-xs text-gray-500">{whatItIs(o)}</span>
+            </button>
+          </li>
+        );
+      })}
+
       {items.map((t) => {
         const done = t.kind === 'task' && t.status === 'done';
+        const EventIcon = t.kind === 'event' ? EVENT_ICON[t.eventType] : null;
+        const link = t.kind === 'event' ? locationUrl(t.location) : null;
         return (
           <li key={t.id} className="flex items-start gap-2">
-            {t.kind === 'task' ? (
+            {EventIcon ? (
+              <EventIcon size={16} className="mt-0.5 flex-shrink-0 text-gray-400" />
+            ) : (
               <button
                 type="button"
                 aria-label={done ? 'Mark as not done' : 'Mark as done'}
@@ -416,20 +545,33 @@ function ItemList({
               >
                 {done && <Check size={11} />}
               </button>
-            ) : (
-              <CalendarClock size={16} className="mt-0.5 flex-shrink-0 text-gray-400" />
             )}
-            <button type="button" onClick={() => onOpen(t)} className="min-w-0 flex-1 text-left">
-              <span className={`block text-sm text-gray-900 hover:underline ${done ? 'line-through text-gray-500' : ''}`}>
-                {t.title}
-              </span>
-              <span className="block text-xs text-gray-500">
-                {t.time
-                  ? `${formatTime(t.time)}${t.endTime ? ` – ${formatTime(t.endTime)}` : ''}`
-                  : t.kind === 'event' ? 'All day' : 'Any time'}
-                {t.kind === 'task' && ` · ${TASK_STATUS_LABEL[t.status]}`}
-              </span>
-            </button>
+            <div className="min-w-0 flex-1">
+              <button type="button" onClick={() => onOpen(t)} className="block w-full text-left">
+                <span className={`block text-sm text-gray-900 hover:underline ${done ? 'line-through text-gray-500' : ''}`}>
+                  {t.title}
+                </span>
+                <span className="flex items-center gap-1 text-xs text-gray-500">
+                  {t.time
+                    ? `${formatTime(t.time)}${t.endTime ? ` – ${formatTime(t.endTime)}` : ''}`
+                    : t.kind === 'event' ? 'All day' : 'Any time'}
+                  {t.kind === 'task' ? ` · ${TASK_STATUS_LABEL[t.status]}` : ` · ${EVENT_TYPE_LABEL[t.eventType]}`}
+                  {t.reminders.length > 0 && !done && <Bell size={10} aria-label="Reminder set" />}
+                </span>
+              </button>
+              {link ? (
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:underline"
+                >
+                  <ExternalLink size={11} /> {t.eventType === 'online' ? 'Join' : 'Open link'}
+                </a>
+              ) : t.kind === 'event' && t.location ? (
+                <span className="mt-0.5 block truncate text-xs text-gray-500">{t.location}</span>
+              ) : null}
+            </div>
             <span className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${NOTE_STYLE[t.color].swatch}`} />
           </li>
         );

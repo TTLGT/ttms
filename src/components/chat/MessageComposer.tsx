@@ -371,7 +371,7 @@ export default function MessageComposer({
           ) : blocked.reason === 'systemOnly' ? (
             <>
               Only TTMS writes here.{' '}
-              <span className="text-gray-500">Change what it sends you on the Celebrations page.</span>
+              <span className="text-gray-500">Change what it sends you on the Calendar page.</span>
             </>
           ) : (
             <>

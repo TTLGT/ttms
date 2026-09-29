@@ -8,7 +8,7 @@ import TaskBoard from '@/components/tasks/TaskBoard';
 import TaskNotes from '@/components/tasks/TaskNotes';
 import TaskTable from '@/components/tasks/TaskTable';
 import TaskEditor from '@/components/tasks/TaskEditor';
-import { localToday, type PersonalTask, type PersonalTaskInput } from '@/types/task';
+import { calendarToday, type PersonalTask, type PersonalTaskInput } from '@/types/task';
 
 /**
  * My tasks: the signed-in person's own to-do list, three ways.
@@ -29,7 +29,7 @@ const VIEWS: { id: View; label: string; Icon: typeof Columns3 }[] = [
 const VIEW_KEY = 'ttms.tasks.view';
 
 export default function MyTasksPage() {
-  const { tasks, error, setError, create, update, remove, clearDone, move } = usePersonalTasks();
+  const { tasks, settings, error, setError, create, update, remove, clearDone, move } = usePersonalTasks();
   const [view, setView] = useState<View>('board');
   const [query, setQuery] = useState('');
   const [showDone, setShowDone] = useState(false);
@@ -38,7 +38,7 @@ export default function MyTasksPage() {
   const [today, setToday] = useState('');
 
   useEffect(() => {
-    setToday(localToday());
+    setToday(calendarToday());
     try {
       const saved = window.localStorage.getItem(VIEW_KEY);
       if (saved === 'board' || saved === 'notes' || saved === 'table') setView(saved);
@@ -76,7 +76,7 @@ export default function MyTasksPage() {
           <p className="mt-0.5 flex items-center gap-1 text-sm text-gray-500">
             <Lock size={12} /> Only you can see this list.
             <Link href="/dashboard/calendar" className="ml-2 inline-flex items-center gap-1 text-brand-700 hover:underline">
-              <CalendarDays size={13} /> Open my calendar
+              <CalendarDays size={13} /> Open the calendar
             </Link>
           </p>
         </div>
@@ -177,6 +177,7 @@ export default function MyTasksPage() {
         <TaskEditor
           task={editing.task}
           initial={editing.initial}
+          noChannel={!settings.email && !settings.chat}
           onSave={save}
           onDelete={editing.task ? () => { remove(editing.task!.id); setEditing(null); } : undefined}
           onClose={() => setEditing(null)}

@@ -8,7 +8,7 @@ import {
 import { officeToday } from '@/types/celebration';
 
 /**
- * Everything the Celebrations page needs, in one call: who is on the
+ * The birthday and anniversary layer of the Calendar, in one call: who is on the
  * calendar, and the caller's own reminders.
  *
  * `people.view` because that is what already shows these birthdays and start dates in

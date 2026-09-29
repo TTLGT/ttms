@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { auth } from './firebase';
 import {
+  DEFAULT_TASK_REMINDER_SETTINGS,
   byOrder,
   orderBetween,
   type PersonalTask,
   type PersonalTaskInput,
+  type TaskReminderSettings,
 } from '@/types/task';
 
 /**
@@ -33,9 +35,17 @@ async function authedFetch<T>(input: string, init: RequestInit = {}): Promise<T>
   return data as T;
 }
 
-export async function listMyTasks(): Promise<PersonalTask[]> {
-  const data = await authedFetch<{ tasks?: PersonalTask[] }>('/api/me/tasks');
-  return data.tasks ?? [];
+export async function listMyTasks(): Promise<{ tasks: PersonalTask[]; settings: TaskReminderSettings }> {
+  const data = await authedFetch<{ tasks?: PersonalTask[]; settings?: TaskReminderSettings }>('/api/me/tasks');
+  return { tasks: data.tasks ?? [], settings: data.settings ?? DEFAULT_TASK_REMINDER_SETTINGS };
+}
+
+export async function saveMyReminderSettings(settings: TaskReminderSettings): Promise<TaskReminderSettings> {
+  const data = await authedFetch<{ settings: TaskReminderSettings }>('/api/me/tasks/settings', {
+    method: 'PUT',
+    body: JSON.stringify(settings),
+  });
+  return data.settings;
 }
 
 export async function createMyTask(input: PersonalTaskInput): Promise<PersonalTask> {
@@ -78,10 +88,13 @@ export async function reorderMyTasks(ids: string[]): Promise<void> {
 export function usePersonalTasks() {
   const [tasks, setTasks] = useState<PersonalTask[] | null>(null);
   const [error, setError] = useState('');
+  const [settings, setSettings] = useState<TaskReminderSettings>(DEFAULT_TASK_REMINDER_SETTINGS);
 
   const reload = useCallback(async () => {
     try {
-      setTasks(await listMyTasks());
+      const data = await listMyTasks();
+      setTasks(data.tasks);
+      setSettings(data.settings);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load your list');
       setTasks((t) => t ?? []);
@@ -179,5 +192,15 @@ export function usePersonalTasks() {
     }
   }, [update, fail]);
 
-  return { tasks, error, setError, reload, create, update, remove, clearDone, move };
+  const saveSettings = useCallback(async (next: TaskReminderSettings) => {
+    setError('');
+    setSettings(next);
+    try {
+      setSettings(await saveMyReminderSettings(next));
+    } catch (e) {
+      fail(e, 'Could not save your reminder settings');
+    }
+  }, [fail]);
+
+  return { tasks, settings, error, setError, reload, create, update, remove, clearDone, move, saveSettings };
 }

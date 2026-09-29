@@ -406,7 +406,7 @@ async function sendEmail(to: string, items: ReminderItem[], text: string): Promi
     from: `TTMS <${process.env.RESEND_FROM_EMAIL ?? 'noreply@totaltransportlogistics.us'}>`,
     to,
     subject,
-    text: `${text}\n\nYou set this reminder up on the Celebrations page in TTMS. Change or stop it there.`,
+    text: `${text}\n\nYou set this reminder up on the Calendar page in TTMS. Change or stop it there.`,
     html: emailHtml(text),
   });
   if (error) throw new Error(error.message);
@@ -421,6 +421,6 @@ function emailHtml(text: string): string {
   return `<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif;color:#1f2937;font-size:14px;line-height:1.5">
 <p style="font-weight:bold;margin:0 0 8px">${escapeHtml(head)}</p>
 <ul style="margin:0 0 16px;padding-left:20px">${lines.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}</ul>
-<p style="color:#6b7280;font-size:12px;margin:0">You set this reminder up on the Celebrations page in TTMS. Change or stop it there.</p>
+<p style="color:#6b7280;font-size:12px;margin:0">You set this reminder up on the Calendar page in TTMS. Change or stop it there.</p>
 </body></html>`;
 }

@@ -16,6 +16,10 @@
     {
       "path": "/api/attendance/cron/alerts",
       "schedule": "*/15 12-23 * * 1-6"
+    },
+    {
+      "path": "/api/task-reminders/cron",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
