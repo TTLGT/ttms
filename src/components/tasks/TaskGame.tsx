@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { PLAIN_SKIN, skinFor, type TaskSkin } from './taskSkins';
 import { ChevronDown, ChevronUp, Flame, Plus, Target, Trophy, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import type { GameNotice } from '@/lib/personalTasks';
@@ -66,10 +67,12 @@ const fmt = (n: number) => n.toLocaleString('en-US');
 
 export function GameBar({
   game,
+  skin = PLAIN_SKIN,
   onAddSuggestion,
   onOptions,
 }: {
   game: GameState;
+  skin?: TaskSkin;
   onAddSuggestion: (input: PersonalTaskInput) => void;
   onOptions: (options: { enabled?: boolean; theme?: GameTheme }) => void;
 }) {
@@ -80,13 +83,13 @@ export function GameBar({
   const openMissions = [...(game.daily?.missions ?? []), ...(game.weekly?.missions ?? [])].filter((m) => !m.done).length;
 
   return (
-    <div className="mb-4 rounded-xl border border-gray-200 bg-white">
+    <div className={`relative mb-4 border ${skin.panel}`}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
         <div className="flex min-w-[14rem] flex-1 items-center gap-3">
           <LevelMark level={level} />
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline gap-2">
-              <span className="truncate text-sm font-semibold text-gray-900">{title}</span>
+              <span className={`truncate text-sm font-semibold ${skin.ink} ${skin.font}`}>{title}</span>
               <span className="text-xs text-gray-500">Level {level.level}</span>
             </div>
             <div
@@ -97,7 +100,7 @@ export function GameBar({
               aria-valuemax={100}
               aria-label="Progress to the next level"
             >
-              <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${levelProgress(game.xp)}%` }} />
+              <div className={`h-full rounded-full transition-all ${skin.bar}`} style={{ width: `${levelProgress(game.xp)}%` }} />
             </div>
             <p className="mt-0.5 text-[11px] text-gray-500">
               {fmt(game.xp)} XP
@@ -112,14 +115,27 @@ export function GameBar({
           <span className="text-gray-500">day streak</span>
         </div>
 
+        <label className="inline-flex items-center gap-1.5 text-sm text-gray-600">
+          Theme
+          <select
+            value={game.theme}
+            onChange={(e) => onOptions({ theme: e.target.value as GameTheme })}
+            className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
+          >
+            {(Object.keys(GAME_THEMES) as GameTheme[]).map((t) => (
+              <option key={t} value={t}>{GAME_THEMES[t].label}</option>
+            ))}
+          </select>
+        </label>
+
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
         >
-          <Target size={14} /> Missions
-          {openMissions > 0 && <span className="rounded-full bg-brand-50 px-1.5 text-xs text-brand-700">{openMissions}</span>}
+          <Target size={14} /> {skin.missions}
+          {openMissions > 0 && <span className={`rounded-full px-1.5 text-xs ${skin.soft}`}>{openMissions}</span>}
           {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
       </div>
@@ -264,19 +280,10 @@ function GameOptions({
 }) {
   return (
     <section>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Level names</h3>
-      <select
-        aria-label="Level names theme"
-        value={game.theme}
-        onChange={(e) => onOptions({ theme: e.target.value as GameTheme })}
-        className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm"
-      >
-        {(Object.keys(GAME_THEMES) as GameTheme[]).map((t) => (
-          <option key={t} value={t}>{GAME_THEMES[t].label}</option>
-        ))}
-      </select>
-      <p className="mt-1 text-[11px] text-gray-500">
-        Level 30 is {levelTitle(GAME_LEVELS.length, game.theme)}. Changing the names keeps your XP and level.
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Your theme</h3>
+      <p className="text-[11px] text-gray-500">
+        {GAME_THEMES[game.theme].label}: the look of this page and the name of every level, up to level 30,{' '}
+        {levelTitle(GAME_LEVELS.length, game.theme)}. Changing it keeps your XP and level.
       </p>
       <details className="mt-3 text-xs text-gray-500">
         <summary className="cursor-pointer">How XP works</summary>
@@ -397,7 +404,7 @@ function LevelMoment({
           <X size={18} />
         </button>
         <div className="flex justify-center"><LevelMark level={level} size="xl" /></div>
-        <p className={`mt-4 font-[family-name:var(--font-rajdhani)] text-3xl font-bold tracking-wide ${up ? 'text-brand-700' : 'text-red-700'}`}>
+        <p className={`mt-4 text-3xl font-bold tracking-wide ${skinFor(theme).font} ${up ? 'text-brand-700' : 'text-red-700'}`}>
           {up ? 'LEVEL UP!' : 'LEVEL DOWN'}
         </p>
         <p className="mt-2 text-sm text-gray-600">

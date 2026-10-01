@@ -925,8 +925,13 @@ Types and pure rules in `src/types/task.ts`; server in
   in the same transaction; there is no route that sets it. Penalties are
   applied on the first `GET /api/me/tasks` of an office day. **No
   leaderboard** — a ranked private notepad is a performance measure, which the
-  list deliberately is not. The level names come in themes; freight is the
-  default.
+  list deliberately is not. **The theme is the whole page's look**, not just
+  the level names: `src/components/tasks/taskSkins.ts` dresses My tasks
+  (ground, pattern, heading face, columns, cards, buttons, a few words of
+  flavour) while game mode is on. Freight is the default. A theme may change
+  how the board looks and never what it says — column names, statuses and
+  priorities are the same under every one — and it may only use colour
+  families the Tailwind config maps for dark mode.
 - **The game's streak counts Monday to Friday only** and is frozen on
   Guatemalan holidays and on any day covered by the person's own
   `timeOffRequests` that are pending or approved (`offDaysFor()` in

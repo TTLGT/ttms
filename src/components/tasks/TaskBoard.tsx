@@ -19,6 +19,7 @@ import {
 } from '@/types/task';
 import { COLUMN_DRAG_TYPE, NOTE_STYLE, PRIORITY_STYLE, TASK_DRAG_TYPE, statusDot } from './taskStyle';
 import BoardColumnsMenu from './BoardColumnsMenu';
+import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
 
 /**
  * The Kanban board: one column per status the person has showing, in the
@@ -41,6 +42,7 @@ export default function TaskBoard({
   onMove,
   onQuickAdd,
   onColumnsChange,
+  skin = PLAIN_SKIN,
 }: {
   /** Tasks only — events never reach the board. */
   tasks: PersonalTask[];
@@ -53,6 +55,8 @@ export default function TaskBoard({
   onMove: (id: string, column: PersonalTask[], beforeId: string | null, patch: PersonalTaskInput) => void;
   onQuickAdd: (input: PersonalTaskInput) => void;
   onColumnsChange: (next: BoardColumn[]) => void;
+  /** The game theme's look — see taskSkins.ts. Changes how the board looks, never what it does. */
+  skin?: TaskSkin;
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   /** Where the card would land: the column, and the card it would go before. */
@@ -132,8 +136,10 @@ export default function TaskBoard({
               if (target?.status !== status || target.beforeId !== null) setTarget({ status, beforeId: null });
             }}
             onDrop={(e) => (acceptsColumn(e) ? dropColumn(e, status) : drop(e, status, null))}
-            className={`relative flex w-72 flex-shrink-0 flex-col rounded-xl border bg-gray-50 ${
-              target?.status === status ? 'border-brand-400' : 'border-gray-200'
+            // The drop target is a ring rather than a border colour, so it
+            // shows over whatever border the theme draws.
+            className={`relative flex w-72 flex-shrink-0 flex-col border ${skin.column} ${skin.columnTop} ${
+              target?.status === status ? 'ring-2 ring-brand-400' : ''
             } ${draggingColumn === status ? 'opacity-40' : ''}`}
           >
             {side && (
@@ -152,7 +158,7 @@ export default function TaskBoard({
               className="group flex cursor-grab items-center gap-2 px-3 py-2.5 active:cursor-grabbing"
             >
               <span className={`h-3 w-3 rounded-full border-2 ${statusDot(status)}`} />
-              <h3 className="text-sm font-semibold text-gray-900">{column.label}</h3>
+              <h3 className={`text-sm font-semibold ${skin.ink} ${skin.font}`}>{column.label}</h3>
               <span className="rounded-full bg-gray-200 px-1.5 text-xs text-gray-600">{cards.length}</span>
               <GripVertical size={14} className="ml-auto text-gray-300 opacity-0 group-hover:opacity-100" />
             </header>
@@ -165,6 +171,7 @@ export default function TaskBoard({
                   )}
                   <Card
                     task={t}
+                    look={skin.card}
                     today={today}
                     dragging={dragging === t.id}
                     onOpen={() => onOpen(t)}
@@ -193,6 +200,7 @@ export default function TaskBoard({
             </div>
 
             <QuickAdd
+              label={skin.addLabel}
               onAdd={(title) => {
                 const last = cards[cards.length - 1];
                 onQuickAdd({ title, status, order: orderBetween(last?.order ?? null, null) ?? Date.now() });
@@ -209,12 +217,15 @@ export default function TaskBoard({
 
 function Card({
   task,
+  look,
   today,
   dragging,
   onOpen,
   ...drag
 }: {
   task: PersonalTask;
+  /** Ground, hairline and corners, from the theme. */
+  look: string;
   today: string;
   dragging: boolean;
   onOpen: () => void;
@@ -231,7 +242,7 @@ function Card({
       draggable
       onClick={onOpen}
       {...drag}
-      className={`block w-full cursor-grab rounded-lg border border-gray-200 bg-white p-3 text-left shadow-sm hover:border-gray-300 active:cursor-grabbing ${
+      className={`block w-full cursor-grab border p-3 text-left shadow-sm hover:shadow-md active:cursor-grabbing ${look} ${
         dragging ? 'opacity-40' : ''
       }`}
     >
@@ -272,7 +283,7 @@ function Card({
   );
 }
 
-function QuickAdd({ onAdd }: { onAdd: (title: string) => void }) {
+function QuickAdd({ label, onAdd }: { label: string; onAdd: (title: string) => void }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
 
@@ -283,7 +294,7 @@ function QuickAdd({ onAdd }: { onAdd: (title: string) => void }) {
         onClick={() => setOpen(true)}
         className="m-2 mt-0 flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm text-gray-500 hover:bg-gray-100"
       >
-        <Plus size={14} /> Add a task
+        <Plus size={14} /> {label}
       </button>
     );
   }

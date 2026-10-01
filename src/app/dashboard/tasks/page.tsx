@@ -9,6 +9,7 @@ import TaskNotes from '@/components/tasks/TaskNotes';
 import TaskTable from '@/components/tasks/TaskTable';
 import TaskEditor from '@/components/tasks/TaskEditor';
 import { GameBar, GameFeedback } from '@/components/tasks/TaskGame';
+import { THEME_FONT_VARS, skinFor } from '@/components/tasks/taskSkins';
 import { calendarToday, type PersonalTask, type PersonalTaskInput } from '@/types/task';
 
 /**
@@ -35,6 +36,10 @@ export default function MyTasksPage() {
     create, update, remove, clearDone, move, saveColumns, saveGameOptions, dismissNotice,
   } = usePersonalTasks();
   const playing = !!game?.enabled;
+  // The theme dresses the whole page, but only while game mode is on: it is
+  // the game's costume, and with the game off the page is the plain one.
+  const skin = skinFor(playing ? game?.theme : null);
+  const SkinIcon = skin.Icon;
   const [view, setView] = useState<View>('board');
   const [query, setQuery] = useState('');
   const [showDone, setShowDone] = useState(false);
@@ -74,10 +79,29 @@ export default function MyTasksPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-5 flex flex-wrap items-start gap-3">
+    <div
+      className={`relative min-h-full p-4 sm:p-6 lg:p-8 ${skin.page} ${THEME_FONT_VARS}`}
+      style={{ backgroundImage: skin.pattern }}
+    >
+      {SkinIcon && (
+        // A large faint mark in the corner. Decoration only: hidden from
+        // screen readers and from the pointer.
+        <SkinIcon
+          aria-hidden
+          strokeWidth={1}
+          className={`pointer-events-none absolute right-6 top-4 hidden h-40 w-40 opacity-[0.07] sm:block ${skin.ink}`}
+        />
+      )}
+      <div className="relative mb-5 flex flex-wrap items-start gap-3">
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">My tasks</h1>
+          <h1 className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-2xl font-bold ${skin.ink} ${skin.font}`}>
+            My tasks
+            {skin.tagline && SkinIcon && (
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-sm font-semibold ${skin.soft}`}>
+                <SkinIcon size={14} /> {skin.tagline}
+              </span>
+            )}
+          </h1>
           <p className="mt-0.5 flex items-center gap-1 text-sm text-gray-500">
             <Lock size={12} /> Only you can see this list.
             <Link href="/dashboard/calendar" className="ml-2 inline-flex items-center gap-1 text-brand-700 hover:underline">
@@ -99,13 +123,13 @@ export default function MyTasksPage() {
         <button
           type="button"
           onClick={() => setEditing({ task: null })}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-brand-700"
+          className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium ${skin.accent}`}
         >
           <Plus size={16} /> Add task
         </button>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      <div className="relative mb-4 flex flex-wrap items-center gap-3">
         <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
           {VIEWS.map(({ id, label, Icon }) => (
             <button
@@ -114,7 +138,7 @@ export default function MyTasksPage() {
               aria-pressed={view === id}
               onClick={() => choose(id)}
               className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm ${
-                view === id ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                view === id ? skin.accent : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
               <Icon size={14} /> {label}
@@ -153,7 +177,7 @@ export default function MyTasksPage() {
       </div>
 
       {playing && game && (
-        <GameBar game={game} onAddSuggestion={(input) => { create(input); }} onOptions={saveGameOptions} />
+        <GameBar game={game} skin={skin} onAddSuggestion={(input) => { create(input); }} onOptions={saveGameOptions} />
       )}
 
       {error && (
@@ -171,6 +195,7 @@ export default function MyTasksPage() {
         <TaskBoard
           tasks={shown}
           columns={columns}
+          skin={skin}
           today={today}
           // Every task in the column, not just what the filter box lets
           // through — a hide moves all of them.

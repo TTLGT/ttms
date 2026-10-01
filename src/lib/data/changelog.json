@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "c2193d770eec409e71e1f276fc16a0c31a2ce0a0",
+      "date": "2026-10-01T14:20:49-06:00",
+      "author": "erwindank",
+      "subject": "Count game streaks on weekdays only and freeze them during time off",
+      "body": "Weekends, Guatemalan holidays and days covered by the person's own\npending or approved time-off requests no longer break a streak or\ncharge overdue XP. Weekly attendance missions now count five weekdays."
+    },
+    {
       "hash": "36a103c2b173c8bdbb93432df5e241e4a6a92020",
       "date": "2026-10-01T14:14:12-06:00",
       "author": "erwindank",
