@@ -29,7 +29,9 @@ const VIEWS: { id: View; label: string; Icon: typeof Columns3 }[] = [
 const VIEW_KEY = 'ttms.tasks.view';
 
 export default function MyTasksPage() {
-  const { tasks, settings, error, setError, create, update, remove, clearDone, move } = usePersonalTasks();
+  const {
+    tasks, settings, columns, error, setError, create, update, remove, clearDone, move, saveColumns,
+  } = usePersonalTasks();
   const [view, setView] = useState<View>('board');
   const [query, setQuery] = useState('');
   const [showDone, setShowDone] = useState(false);
@@ -150,7 +152,12 @@ export default function MyTasksPage() {
       ) : view === 'board' ? (
         <TaskBoard
           tasks={shown}
+          columns={columns}
           today={today}
+          // Every task in the column, not just what the filter box lets
+          // through — a hide moves all of them.
+          countIn={(status) => (tasks ?? []).filter((t) => t.kind === 'task' && t.status === status).length}
+          onColumnsChange={saveColumns}
           onOpen={(task) => setEditing({ task })}
           onMove={move}
           onQuickAdd={(input) => { create(input); }}
@@ -158,6 +165,7 @@ export default function MyTasksPage() {
       ) : view === 'notes' ? (
         <TaskNotes
           tasks={shown}
+          columns={columns}
           today={today}
           onOpen={(task) => setEditing({ task })}
           onMove={move}
@@ -167,6 +175,7 @@ export default function MyTasksPage() {
       ) : (
         <TaskTable
           tasks={shown}
+          columns={columns}
           today={today}
           onOpen={(task) => setEditing({ task })}
           onUpdate={update}
@@ -177,6 +186,7 @@ export default function MyTasksPage() {
         <TaskEditor
           task={editing.task}
           initial={editing.initial}
+          columns={columns}
           noChannel={!settings.email && !settings.chat}
           onSave={save}
           onDelete={editing.task ? () => { remove(editing.task!.id); setEditing(null); } : undefined}

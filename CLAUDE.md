@@ -909,6 +909,14 @@ Types and pure rules in `src/types/task.ts`; server in
   path — the same arrangement as `vocabulary`. It is a notepad, not a record
   of work: nothing may read it to report on somebody. Assigning work to
   someone else would be a different feature.
+- **The board's columns are per person** (`boardColumns` on the parent
+  document; six built-ins plus up to twelve of their own, in their order).
+  A status is any string `isTaskStatus()` accepts, not a fixed list.
+  **Hiding or deleting a column moves its tasks** to the nearest showing
+  column on its left, server-side in `PUT /api/me/tasks/columns`;
+  `placeOf()` draws the same step back for anything caught in between. To do
+  and Done can never be hidden — new tasks land in one, and the other is what
+  stops reminders.
 - **An event's `eventType` is a label.** A "company activity" is only on the
   calendar of the person who added it. A calendar the company shares would
   need its own answer to who may post on it.

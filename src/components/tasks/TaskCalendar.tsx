@@ -5,11 +5,13 @@ import { Bell, Check, ChevronLeft, ChevronRight, ExternalLink, Plus } from 'luci
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   EVENT_TYPE_LABEL,
-  TASK_STATUS_LABEL,
+  DEFAULT_BOARD_COLUMNS,
   byTime,
   formatTime,
   isOverdue,
   locationUrl,
+  statusLabel,
+  type BoardColumn,
   type PersonalTask,
   type PersonalTaskInput,
 } from '@/types/task';
@@ -67,6 +69,7 @@ const monthOf = (date: string) => ({ year: Number(date.slice(0, 4)), month: Numb
  */
 export default function TaskCalendar({
   items,
+  columns = DEFAULT_BOARD_COLUMNS,
   today,
   selected,
   onSelect,
@@ -82,6 +85,8 @@ export default function TaskCalendar({
   asideBottom,
 }: {
   items: PersonalTask[];
+  /** The person's board columns, for the name of a task's status. */
+  columns?: BoardColumn[];
   today: string;
   selected: string;
   onSelect: (date: string) => void;
@@ -423,6 +428,7 @@ export default function TaskCalendar({
               holidays={holidaysOn(selected)}
               occurrences={celebrationsOn?.(selected) ?? []}
               items={byDay.get(selected) ?? []}
+              columns={columns}
               onOpen={onOpen}
               onUpdate={onUpdate}
               onPickOccurrence={onPickOccurrence}
@@ -466,6 +472,7 @@ export default function TaskCalendar({
                       holidays={holidaysOn(d)}
                       occurrences={celebrationsOn?.(d) ?? []}
                       items={byDay.get(d) ?? []}
+                      columns={columns}
                       onOpen={onOpen}
                       onUpdate={onUpdate}
                       onPickOccurrence={onPickOccurrence}
@@ -488,6 +495,7 @@ function DayList({
   holidays,
   occurrences,
   items,
+  columns,
   onOpen,
   onUpdate,
   onPickOccurrence,
@@ -495,6 +503,7 @@ function DayList({
   holidays: Holiday[];
   occurrences: CalendarOccurrence[];
   items: PersonalTask[];
+  columns: BoardColumn[];
   onOpen: (task: PersonalTask) => void;
   onUpdate: (id: string, input: PersonalTaskInput) => void;
   onPickOccurrence?: (o: CalendarOccurrence) => void;
@@ -555,7 +564,7 @@ function DayList({
                   {t.time
                     ? `${formatTime(t.time)}${t.endTime ? ` – ${formatTime(t.endTime)}` : ''}`
                     : t.kind === 'event' ? 'All day' : 'Any time'}
-                  {t.kind === 'task' ? ` · ${TASK_STATUS_LABEL[t.status]}` : ` · ${EVENT_TYPE_LABEL[t.eventType]}`}
+                  {t.kind === 'task' ? ` · ${statusLabel(columns, t.status)}` : ` · ${EVENT_TYPE_LABEL[t.eventType]}`}
                   {t.reminders.length > 0 && !done && <Bell size={10} aria-label="Reminder set" />}
                 </span>
               </button>

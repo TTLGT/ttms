@@ -6,10 +6,10 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   TASK_PRIORITIES,
   TASK_PRIORITY_LABEL,
-  TASK_STATUSES,
-  TASK_STATUS_LABEL,
   formatTime,
   isOverdue,
+  placeOf,
+  type BoardColumn,
   type PersonalTask,
   type PersonalTaskInput,
 } from '@/types/task';
@@ -28,11 +28,13 @@ type SortKey = 'title' | 'status' | 'priority' | 'date' | 'createdAt';
  */
 export default function TaskTable({
   tasks,
+  columns,
   today,
   onOpen,
   onUpdate,
 }: {
   tasks: PersonalTask[];
+  columns: BoardColumn[];
   today: string;
   onOpen: (task: PersonalTask) => void;
   onUpdate: (id: string, input: PersonalTaskInput) => void;
@@ -42,6 +44,8 @@ export default function TaskTable({
 
   const rows = useMemo(() => {
     const rank = (list: readonly string[], v: string) => list.indexOf(v);
+    // Status sorts in the person's own column order, as the board reads left to right.
+    const statusOrder = columns.map((c) => c.id);
     return [...tasks].sort((a, b) => {
       const { key, dir } = sort;
       if (key === 'date') {
@@ -51,12 +55,12 @@ export default function TaskTable({
       }
       let c = 0;
       if (key === 'title') c = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
-      if (key === 'status') c = rank(TASK_STATUSES, a.status) - rank(TASK_STATUSES, b.status);
+      if (key === 'status') c = rank(statusOrder, placeOf(columns, a.status)) - rank(statusOrder, placeOf(columns, b.status));
       if (key === 'priority') c = rank(TASK_PRIORITIES, b.priority) - rank(TASK_PRIORITIES, a.priority);
       if (key === 'createdAt') c = (a.createdAt ?? '').localeCompare(b.createdAt ?? '');
       return c * dir || a.title.localeCompare(b.title);
     });
-  }, [tasks, sort]);
+  }, [tasks, sort, columns]);
 
   const header = (key: SortKey, label: string, className = '') => (
     <th className={`px-3 py-2 text-left font-medium ${className}`}>
@@ -121,11 +125,11 @@ export default function TaskTable({
                 <td className="px-3 py-2">
                   <select
                     aria-label="Status"
-                    value={t.status}
+                    value={placeOf(columns, t.status)}
                     onChange={(e) => onUpdate(t.id, { status: e.target.value as PersonalTask['status'] })}
                     className={select}
                   >
-                    {TASK_STATUSES.map((s) => <option key={s} value={s}>{TASK_STATUS_LABEL[s]}</option>)}
+                    {columns.filter((c) => !c.hidden).map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
                   </select>
                 </td>
                 <td className="px-3 py-2">

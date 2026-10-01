@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { auth } from './firebase';
 import {
+  DEFAULT_BOARD_COLUMNS,
   DEFAULT_TASK_REMINDER_SETTINGS,
   byOrder,
   orderBetween,
+  type BoardColumn,
   type PersonalTask,
   type PersonalTaskInput,
   type TaskReminderSettings,
@@ -35,9 +37,22 @@ async function authedFetch<T>(input: string, init: RequestInit = {}): Promise<T>
   return data as T;
 }
 
-export async function listMyTasks(): Promise<{ tasks: PersonalTask[]; settings: TaskReminderSettings }> {
-  const data = await authedFetch<{ tasks?: PersonalTask[]; settings?: TaskReminderSettings }>('/api/me/tasks');
-  return { tasks: data.tasks ?? [], settings: data.settings ?? DEFAULT_TASK_REMINDER_SETTINGS };
+export async function listMyTasks(): Promise<{
+  tasks: PersonalTask[]; settings: TaskReminderSettings; columns: BoardColumn[];
+}> {
+  const data = await authedFetch<{
+    tasks?: PersonalTask[]; settings?: TaskReminderSettings; columns?: BoardColumn[];
+  }>('/api/me/tasks');
+  return {
+    tasks: data.tasks ?? [],
+    settings: data.settings ?? DEFAULT_TASK_REMINDER_SETTINGS,
+    columns: data.columns ?? DEFAULT_BOARD_COLUMNS,
+  };
+}
+
+/** Save the board's columns. `moved` is how many tasks a hide or a delete stepped back. */
+export async function saveMyBoardColumns(columns: BoardColumn[]): Promise<{ columns: BoardColumn[]; moved: number }> {
+  return authedFetch('/api/me/tasks/columns', { method: 'PUT', body: JSON.stringify({ columns }) });
 }
 
 export async function saveMyReminderSettings(settings: TaskReminderSettings): Promise<TaskReminderSettings> {
@@ -89,12 +104,14 @@ export function usePersonalTasks() {
   const [tasks, setTasks] = useState<PersonalTask[] | null>(null);
   const [error, setError] = useState('');
   const [settings, setSettings] = useState<TaskReminderSettings>(DEFAULT_TASK_REMINDER_SETTINGS);
+  const [columns, setColumns] = useState<BoardColumn[]>(DEFAULT_BOARD_COLUMNS);
 
   const reload = useCallback(async () => {
     try {
       const data = await listMyTasks();
       setTasks(data.tasks);
       setSettings(data.settings);
+      setColumns(data.columns);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load your list');
       setTasks((t) => t ?? []);
@@ -202,5 +219,25 @@ export function usePersonalTasks() {
     }
   }, [fail]);
 
-  return { tasks, settings, error, setError, reload, create, update, remove, clearDone, move, saveSettings };
+  /**
+   * Drawn first like everything else. A hide or a delete moves tasks on the
+   * server, so the list is read again whenever any were — the browser does
+   * not try to work out the same moves a second time.
+   */
+  const saveColumns = useCallback(async (next: BoardColumn[]) => {
+    setError('');
+    setColumns(next);
+    try {
+      const saved = await saveMyBoardColumns(next);
+      setColumns(saved.columns);
+      if (saved.moved > 0) await reload();
+    } catch (e) {
+      fail(e, 'Could not save your columns');
+    }
+  }, [fail, reload]);
+
+  return {
+    tasks, settings, columns, error, setError, reload,
+    create, update, remove, clearDone, move, saveSettings, saveColumns,
+  };
 }

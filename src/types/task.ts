@@ -41,21 +41,158 @@ export const TASK_REMINDERS_COLLECTION = 'taskReminders';
 
 export type TaskKind = 'task' | 'event';
 
-export const TASK_STATUSES = ['todo', 'doing', 'waiting', 'done'] as const;
-export type TaskStatus = typeof TASK_STATUSES[number];
+/**
+ * The columns everybody starts with, in their starting order. `ready` and
+ * `review` were added after the first four; a layout saved before them gets
+ * them back by `cleanBoardColumns()`, so nobody has to go looking.
+ *
+ * "Waiting" earns its place in freight: half of what is on a broker's plate
+ * is sitting with a carrier, a shipper or a client, and mixing it in with
+ * "In progress" hides what they can actually move today.
+ */
+export const TASK_STATUSES = ['todo', 'ready', 'doing', 'waiting', 'review', 'done'] as const;
+export type BuiltInTaskStatus = typeof TASK_STATUSES[number];
 
 /**
- * Four columns and no more, fixed rather than per-person. "Waiting" earns its
- * place in freight: half of what is on a broker's plate is sitting with a
- * carrier, a shipper or a client, and mixing it in with "In progress" hides
- * what they can actually move today.
+ * A built-in column, or one the person added (`c_` and a random tail — see
+ * `newColumnId()`). A plain string on purpose: a custom column's id is data,
+ * not something the code can list.
  */
-export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
+export type TaskStatus = string;
+
+export const TASK_STATUS_LABEL: Record<BuiltInTaskStatus, string> = {
   todo:    'To do',
+  ready:   'Ready',
   doing:   'In progress',
   waiting: 'Waiting on someone',
+  review:  'In review',
   done:    'Done',
 };
+
+const CUSTOM_STATUS_RE = /^c_[a-z0-9]{4,16}$/;
+
+export function isBuiltInStatus(v: unknown): v is BuiltInTaskStatus {
+  return typeof v === 'string' && (TASK_STATUSES as readonly string[]).includes(v);
+}
+
+/** The shape of a status, not whether the person still has that column — see `placeOf()`. */
+export function isTaskStatus(v: unknown): v is TaskStatus {
+  return isBuiltInStatus(v) || (typeof v === 'string' && CUSTOM_STATUS_RE.test(v));
+}
+
+export function newColumnId(): string {
+  return `c_${Math.random().toString(36).slice(2, 10).padEnd(8, '0')}`;
+}
+
+/**
+ * One column of somebody's board, in the order they arranged it. Saved on
+ * `personalTasks/{uid}.boardColumns`; absent means the defaults.
+ *
+ * **To do and Done can be moved but never hidden.** To do is where a new task
+ * lands and where a task falls back to when nothing else will take it; Done
+ * is what stops a task's reminders and what "Clear done" clears. A board
+ * without either would lose work.
+ */
+export interface BoardColumn {
+  id: TaskStatus;
+  /** Shown for a custom column. A built-in one always reads its own label. */
+  label: string;
+  hidden: boolean;
+}
+
+export const LOCKED_COLUMNS: readonly TaskStatus[] = ['todo', 'done'];
+export const MAX_CUSTOM_COLUMNS = 12;
+export const MAX_COLUMN_LABEL = 40;
+
+export const DEFAULT_BOARD_COLUMNS: BoardColumn[] =
+  TASK_STATUSES.map((id) => ({ id, label: TASK_STATUS_LABEL[id], hidden: false }));
+
+/**
+ * A layout as stored or as sent, made whole: unknown and duplicate ids
+ * dropped, custom labels required and trimmed, the locked columns forced
+ * visible, and any built-in column missing from it put back in its default
+ * place among the others — which is how somebody who saved a layout before
+ * "Ready" existed still gets it.
+ */
+export function cleanBoardColumns(raw: unknown): BoardColumn[] {
+  if (!Array.isArray(raw)) return DEFAULT_BOARD_COLUMNS.map((c) => ({ ...c }));
+  const out: BoardColumn[] = [];
+  const seen = new Set<string>();
+  let custom = 0;
+  for (const item of raw) {
+    const r = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+    if (!isTaskStatus(r.id) || seen.has(r.id)) continue;
+    const builtIn = isBuiltInStatus(r.id);
+    const label = builtIn
+      ? TASK_STATUS_LABEL[r.id as BuiltInTaskStatus]
+      : (typeof r.label === 'string' ? r.label.trim().slice(0, MAX_COLUMN_LABEL) : '');
+    if (!label) continue;
+    if (!builtIn && ++custom > MAX_CUSTOM_COLUMNS) continue;
+    seen.add(r.id);
+    out.push({ id: r.id, label, hidden: !LOCKED_COLUMNS.includes(r.id) && r.hidden === true });
+  }
+  TASK_STATUSES.forEach((id, i) => {
+    if (seen.has(id)) return;
+    // After the nearest default neighbour on its left that is present.
+    const prev = TASK_STATUSES.slice(0, i).reverse().find((p) => seen.has(p));
+    const at = prev ? out.findIndex((c) => c.id === prev) + 1 : 0;
+    out.splice(at, 0, { id, label: TASK_STATUS_LABEL[id], hidden: false });
+    seen.add(id);
+  });
+  return out;
+}
+
+/**
+ * Where a column's tasks go when it stops showing: the nearest column to its
+ * left that is still showing, To do when there is none. The one definition of
+ * "one step back", used by the route that does the moving and by the board
+ * that says beforehand where they will go.
+ */
+export function stepBackFrom(
+  layout: BoardColumn[],
+  id: TaskStatus,
+  isShowing: (id: TaskStatus) => boolean,
+): TaskStatus {
+  const i = layout.findIndex((c) => c.id === id);
+  for (let j = i - 1; j >= 0; j--) if (isShowing(layout[j].id)) return layout[j].id;
+  return 'todo';
+}
+
+/**
+ * `id` taken out and put back beside `targetId` — after it when it was
+ * dragged rightwards, before it when leftwards, which is where the drop line
+ * is drawn. Positions are in the whole layout, hidden columns included, so a
+ * hidden column keeps its place relative to its neighbours.
+ */
+export function moveColumn(layout: BoardColumn[], id: TaskStatus, targetId: TaskStatus): BoardColumn[] {
+  const from = layout.findIndex((c) => c.id === id);
+  const to = layout.findIndex((c) => c.id === targetId);
+  if (from < 0 || to < 0 || from === to) return layout;
+  const rest = layout.filter((c) => c.id !== id);
+  const at = rest.findIndex((c) => c.id === targetId) + (from < to ? 1 : 0);
+  return [...rest.slice(0, at), layout[from], ...rest.slice(at)];
+}
+
+export function statusLabel(columns: BoardColumn[], status: TaskStatus): string {
+  if (isBuiltInStatus(status)) return TASK_STATUS_LABEL[status];
+  return columns.find((c) => c.id === status)?.label ?? TASK_STATUS_LABEL.todo;
+}
+
+/**
+ * Which visible column a task with this status is drawn in. Itself, when that
+ * column is showing; otherwise the nearest showing column to its left — the
+ * same "one step back" a hide moves tasks by; To do when the status is not on
+ * the board at all (a column deleted in another tab).
+ *
+ * The server moves tasks out of a column when it is hidden, so this is the
+ * fallback for the moment in between, not the mechanism.
+ */
+export function placeOf(columns: BoardColumn[], status: TaskStatus): TaskStatus {
+  const i = columns.findIndex((c) => c.id === status);
+  if (i < 0) return 'todo';
+  for (let j = i; j >= 0; j--) if (!columns[j].hidden) return columns[j].id;
+  return 'todo';
+}
 
 export const TASK_PRIORITIES = ['low', 'normal', 'high'] as const;
 export type TaskPriority = typeof TASK_PRIORITIES[number];
@@ -207,7 +344,7 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   if (oneOf(['task', 'event'] as const, b.kind)) out.kind = b.kind;
   if (typeof b.title === 'string') out.title = b.title.trim().slice(0, MAX_TASK_TITLE);
   if (typeof b.notes === 'string') out.notes = b.notes.slice(0, MAX_TASK_NOTES);
-  if (oneOf(TASK_STATUSES, b.status)) out.status = b.status;
+  if (isTaskStatus(b.status)) out.status = b.status;
   if (oneOf(TASK_PRIORITIES, b.priority)) out.priority = b.priority;
   if (oneOf(TASK_COLORS, b.color)) out.color = b.color;
 

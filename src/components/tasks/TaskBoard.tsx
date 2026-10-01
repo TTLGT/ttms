@@ -1,57 +1,78 @@
 'use client';
 
 import { useState, type DragEvent } from 'react';
-import { Bell, CalendarDays, Plus, StickyNote } from 'lucide-react';
+import { Bell, CalendarDays, GripVertical, Plus, StickyNote } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   TASK_PRIORITY_LABEL,
-  TASK_STATUSES,
-  TASK_STATUS_LABEL,
   byOrder,
   formatTime,
   isOverdue,
+  moveColumn,
   orderBetween,
+  placeOf,
+  type BoardColumn,
   type PersonalTask,
   type PersonalTaskInput,
   type TaskStatus,
 } from '@/types/task';
-import { NOTE_STYLE, PRIORITY_STYLE, STATUS_DOT, TASK_DRAG_TYPE } from './taskStyle';
+import { COLUMN_DRAG_TYPE, NOTE_STYLE, PRIORITY_STYLE, TASK_DRAG_TYPE, statusDot } from './taskStyle';
+import BoardColumnsMenu from './BoardColumnsMenu';
 
 /**
- * The Kanban board: one column per status, cards dragged between them.
+ * The Kanban board: one column per status the person has showing, in the
+ * order they arranged them, cards dragged between them.
  *
  * Native HTML drag and drop, as the pinned chat lists do — a column is a
  * handful of cards and the browser already draws the ghost and handles
  * Escape. A drop onto a card puts the dragged one before it; a drop onto the
  * empty part of a column puts it at the bottom.
+ *
+ * Columns drag too, by their header. The two drags carry different payload
+ * types, so a card can never be dropped as a column or the other way round.
  */
 export default function TaskBoard({
   tasks,
+  columns,
   today,
+  countIn,
   onOpen,
   onMove,
   onQuickAdd,
+  onColumnsChange,
 }: {
   /** Tasks only — events never reach the board. */
   tasks: PersonalTask[];
+  /** The whole layout, hidden columns included. */
+  columns: BoardColumn[];
   today: string;
+  /** How many tasks are in a column, ignoring the filter box — for the "move back" warning. */
+  countIn: (status: TaskStatus) => number;
   onOpen: (task: PersonalTask) => void;
   onMove: (id: string, column: PersonalTask[], beforeId: string | null, patch: PersonalTaskInput) => void;
   onQuickAdd: (input: PersonalTaskInput) => void;
+  onColumnsChange: (next: BoardColumn[]) => void;
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   /** Where the card would land: the column, and the card it would go before. */
   const [target, setTarget] = useState<{ status: TaskStatus; beforeId: string | null } | null>(null);
+  /** The column being dragged by its header, and the one it is over. */
+  const [draggingColumn, setDraggingColumn] = useState<TaskStatus | null>(null);
+  const [columnOver, setColumnOver] = useState<TaskStatus | null>(null);
 
-  const columns = TASK_STATUSES.map((status) => ({
-    status,
-    cards: tasks.filter((t) => t.status === status).sort(byOrder),
+  const visible = columns.filter((c) => !c.hidden);
+  // A task whose column is hidden or gone is drawn one step back rather than
+  // vanishing — see placeOf().
+  const board = visible.map((c) => ({
+    column: c,
+    cards: tasks.filter((t) => placeOf(columns, t.status) === c.id).sort(byOrder),
   }));
 
-  const accepts = (e: DragEvent) => e.dataTransfer.types.includes(TASK_DRAG_TYPE);
+  const acceptsCard = (e: DragEvent) => e.dataTransfer.types.includes(TASK_DRAG_TYPE);
+  const acceptsColumn = (e: DragEvent) => e.dataTransfer.types.includes(COLUMN_DRAG_TYPE);
 
   const drop = (e: DragEvent, status: TaskStatus, beforeId: string | null) => {
-    if (!accepts(e)) return;
+    if (!acceptsCard(e)) return;
     e.preventDefault();
     e.stopPropagation();
     const id = e.dataTransfer.getData(TASK_DRAG_TYPE);
@@ -61,7 +82,7 @@ export default function TaskBoard({
 
     const card = tasks.find((t) => t.id === id);
     if (!card) return;
-    const column = columns.find((c) => c.status === status)!.cards;
+    const column = board.find((c) => c.column.id === status)!.cards;
     // Dropped straight back where it was: nothing to save.
     const rest = column.filter((t) => t.id !== id);
     const nextId = beforeId ?? null;
@@ -71,71 +92,116 @@ export default function TaskBoard({
     onMove(id, rest, beforeId, card.status === status ? {} : { status });
   };
 
+  const dropColumn = (e: DragEvent, targetId: TaskStatus) => {
+    if (!acceptsColumn(e)) return;
+    e.preventDefault();
+    const id = e.dataTransfer.getData(COLUMN_DRAG_TYPE);
+    setDraggingColumn(null);
+    setColumnOver(null);
+    if (!id || id === targetId) return;
+    onColumnsChange(moveColumn(columns, id, targetId));
+  };
+
+  /** Which side of `id` the drop line goes on — the side moveColumn() will put it. */
+  const dropSide = (id: TaskStatus): 'left' | 'right' | null => {
+    if (!draggingColumn || columnOver !== id || draggingColumn === id) return null;
+    const from = visible.findIndex((c) => c.id === draggingColumn);
+    const to = visible.findIndex((c) => c.id === id);
+    return from < to ? 'right' : 'left';
+  };
+
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
-      {columns.map(({ status, cards }) => (
-        <section
-          key={status}
-          onDragOver={(e) => {
-            if (!accepts(e)) return;
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            if (target?.status !== status || target.beforeId !== null) setTarget({ status, beforeId: null });
-          }}
-          onDrop={(e) => drop(e, status, null)}
-          className={`flex w-72 flex-shrink-0 flex-col rounded-xl border bg-gray-50 ${
-            target?.status === status ? 'border-brand-400' : 'border-gray-200'
-          }`}
-        >
-          <header className="flex items-center gap-2 px-3 py-2.5">
-            <span className={`h-3 w-3 rounded-full border-2 ${STATUS_DOT[status]}`} />
-            <h3 className="text-sm font-semibold text-gray-900">{TASK_STATUS_LABEL[status]}</h3>
-            <span className="rounded-full bg-gray-200 px-1.5 text-xs text-gray-600">{cards.length}</span>
-          </header>
-
-          <div className="flex-1 space-y-2 px-2 pb-2">
-            {cards.map((t) => (
-              <div key={t.id}>
-                {target?.status === status && target.beforeId === t.id && dragging !== t.id && (
-                  <div className="mb-2 h-1 rounded-full bg-brand-400" />
-                )}
-                <Card
-                  task={t}
-                  today={today}
-                  dragging={dragging === t.id}
-                  onOpen={() => onOpen(t)}
-                  onDragStart={(e) => {
-                    setDragging(t.id);
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData(TASK_DRAG_TYPE, t.id);
-                    // Firefox will not start a drag without a plain-text payload.
-                    e.dataTransfer.setData('text/plain', t.title);
-                  }}
-                  onDragEnd={() => { setDragging(null); setTarget(null); }}
-                  onDragOver={(e) => {
-                    if (!accepts(e)) return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.dataTransfer.dropEffect = 'move';
-                    if (target?.status !== status || target.beforeId !== t.id) setTarget({ status, beforeId: t.id });
-                  }}
-                  onDrop={(e) => drop(e, status, t.id)}
-                />
-              </div>
-            ))}
-            {target?.status === status && target.beforeId === null && dragging && (
-              <div className="h-1 rounded-full bg-brand-400" />
-            )}
-          </div>
-
-          <QuickAdd
-            onAdd={(title) => {
-              const last = cards[cards.length - 1];
-              onQuickAdd({ title, status, order: orderBetween(last?.order ?? null, null) ?? Date.now() });
+    <div className="flex items-start gap-4 overflow-x-auto pb-4">
+      {board.map(({ column, cards }) => {
+        const status = column.id;
+        const side = dropSide(status);
+        return (
+          <section
+            key={status}
+            onDragOver={(e) => {
+              if (acceptsColumn(e)) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (columnOver !== status) setColumnOver(status);
+                return;
+              }
+              if (!acceptsCard(e)) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              if (target?.status !== status || target.beforeId !== null) setTarget({ status, beforeId: null });
             }}
-          />
-        </section>
-      ))}
+            onDrop={(e) => (acceptsColumn(e) ? dropColumn(e, status) : drop(e, status, null))}
+            className={`relative flex w-72 flex-shrink-0 flex-col rounded-xl border bg-gray-50 ${
+              target?.status === status ? 'border-brand-400' : 'border-gray-200'
+            } ${draggingColumn === status ? 'opacity-40' : ''}`}
+          >
+            {side && (
+              <div className={`absolute inset-y-0 w-1 rounded-full bg-brand-400 ${side === 'left' ? '-left-2.5' : '-right-2.5'}`} />
+            )}
+            <header
+              draggable
+              onDragStart={(e) => {
+                setDraggingColumn(status);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData(COLUMN_DRAG_TYPE, status);
+                e.dataTransfer.setData('text/plain', column.label);
+              }}
+              onDragEnd={() => { setDraggingColumn(null); setColumnOver(null); }}
+              title="Drag to move this column"
+              className="group flex cursor-grab items-center gap-2 px-3 py-2.5 active:cursor-grabbing"
+            >
+              <span className={`h-3 w-3 rounded-full border-2 ${statusDot(status)}`} />
+              <h3 className="text-sm font-semibold text-gray-900">{column.label}</h3>
+              <span className="rounded-full bg-gray-200 px-1.5 text-xs text-gray-600">{cards.length}</span>
+              <GripVertical size={14} className="ml-auto text-gray-300 opacity-0 group-hover:opacity-100" />
+            </header>
+
+            <div className="flex-1 space-y-2 px-2 pb-2">
+              {cards.map((t) => (
+                <div key={t.id}>
+                  {target?.status === status && target.beforeId === t.id && dragging !== t.id && (
+                    <div className="mb-2 h-1 rounded-full bg-brand-400" />
+                  )}
+                  <Card
+                    task={t}
+                    today={today}
+                    dragging={dragging === t.id}
+                    onOpen={() => onOpen(t)}
+                    onDragStart={(e) => {
+                      setDragging(t.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData(TASK_DRAG_TYPE, t.id);
+                      // Firefox will not start a drag without a plain-text payload.
+                      e.dataTransfer.setData('text/plain', t.title);
+                    }}
+                    onDragEnd={() => { setDragging(null); setTarget(null); }}
+                    onDragOver={(e) => {
+                      if (!acceptsCard(e)) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (target?.status !== status || target.beforeId !== t.id) setTarget({ status, beforeId: t.id });
+                    }}
+                    onDrop={(e) => drop(e, status, t.id)}
+                  />
+                </div>
+              ))}
+              {target?.status === status && target.beforeId === null && dragging && (
+                <div className="h-1 rounded-full bg-brand-400" />
+              )}
+            </div>
+
+            <QuickAdd
+              onAdd={(title) => {
+                const last = cards[cards.length - 1];
+                onQuickAdd({ title, status, order: orderBetween(last?.order ?? null, null) ?? Date.now() });
+              }}
+            />
+          </section>
+        );
+      })}
+
+      <BoardColumnsMenu columns={columns} countIn={countIn} onChange={onColumnsChange} />
     </div>
   );
 }

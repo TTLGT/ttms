@@ -7,7 +7,7 @@ import {
   toReminderSettings,
   toTask,
 } from '@/lib/personalTasksServer';
-import { MAX_TASKS_PER_PERSON, cleanTaskInput } from '@/types/task';
+import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanTaskInput } from '@/types/task';
 
 /**
  * The caller's own task list and calendar — see src/types/task.ts.
@@ -22,11 +22,13 @@ export async function GET(req: NextRequest) {
     // The whole list, in one read per item. It is capped at
     // MAX_TASKS_PER_PERSON, and every view needs all of it: the board, the
     // notes and the table sort it differently, and the calendar pages months.
-    // The settings ride along so the page needs no second request.
+    // The settings and the board's columns ride along so the page needs no
+    // second request.
     const [snap, owner] = await Promise.all([taskItems(uid).get(), taskOwnerDoc(uid).get()]);
     return NextResponse.json({
       tasks: snap.docs.map(toTask),
       settings: toReminderSettings(owner.data()?.reminderSettings),
+      columns: cleanBoardColumns(owner.data()?.boardColumns),
     });
   } catch (e) {
     if (e instanceof AdminAuthError) {

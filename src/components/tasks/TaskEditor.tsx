@@ -9,11 +9,11 @@ import {
   TASK_COLORS,
   TASK_PRIORITIES,
   TASK_PRIORITY_LABEL,
-  TASK_STATUSES,
-  TASK_STATUS_LABEL,
   leadsFor,
+  placeOf,
   reminderInstants,
   reminderLeadLabel,
+  type BoardColumn,
   type EventType,
   type PersonalTask,
   type PersonalTaskInput,
@@ -32,6 +32,7 @@ import { EVENT_ICON, NOTE_STYLE } from './taskStyle';
 export default function TaskEditor({
   task,
   initial,
+  columns,
   noChannel,
   onSave,
   onDelete,
@@ -41,6 +42,8 @@ export default function TaskEditor({
   task: PersonalTask | null;
   /** Starting values for a new item — the column or the day it was added from. */
   initial?: PersonalTaskInput;
+  /** The person's board columns: the choices in the status box. */
+  columns: BoardColumn[];
   /** Both reminder channels are off, so a reminder set here would never arrive. */
   noChannel?: boolean;
   onSave: (input: PersonalTaskInput) => Promise<void> | void;
@@ -53,7 +56,7 @@ export default function TaskEditor({
   const [title, setTitle]         = useState(start.title ?? '');
   const [notes, setNotes]         = useState(start.notes ?? '');
   const [location, setLocation]   = useState(start.location ?? '');
-  const [status, setStatus]       = useState(start.status ?? 'todo');
+  const [status, setStatus]       = useState(placeOf(columns, start.status ?? 'todo'));
   const [priority, setPriority]   = useState(start.priority ?? 'normal');
   const [color, setColor]         = useState(start.color ?? 'yellow');
   const [date, setDate]           = useState(start.date ?? '');
@@ -283,7 +286,7 @@ export default function TaskEditor({
               <div>
                 <label className={label} htmlFor="task-status">Status</label>
                 <select id="task-status" value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={input}>
-                  {TASK_STATUSES.map((s) => <option key={s} value={s}>{TASK_STATUS_LABEL[s]}</option>)}
+                  {columns.filter((c) => !c.hidden).map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
                 </select>
               </div>
             )}

@@ -10,7 +10,7 @@ import {
   TASK_PRIORITIES,
   TASK_REMINDERS_COLLECTION,
   TASK_REMINDER_LEADS,
-  TASK_STATUSES,
+  isTaskStatus,
   reminderInstants,
   type PersonalTask,
   type TaskReminderSettings,
@@ -28,7 +28,7 @@ export function taskItems(uid: string) {
   return adminDb.collection(PERSONAL_TASKS_COLLECTION).doc(uid).collection(PERSONAL_TASK_ITEMS);
 }
 
-/** The parent document: holds only the person's reminder settings. */
+/** The parent document: holds the person's reminder settings and their board's columns. */
 export function taskOwnerDoc(uid: string) {
   return adminDb.collection(PERSONAL_TASKS_COLLECTION).doc(uid);
 }
@@ -49,7 +49,7 @@ export function toTask(snap: DocumentSnapshot): PersonalTask {
     kind:      d.kind === 'event' ? 'event' : 'task',
     title:     typeof d.title === 'string' ? d.title : '',
     notes:     typeof d.notes === 'string' ? d.notes : '',
-    status:    pick(TASK_STATUSES, d.status, 'todo'),
+    status:    isTaskStatus(d.status) ? d.status : 'todo',
     priority:  pick(TASK_PRIORITIES, d.priority, 'normal'),
     color:     pick(TASK_COLORS, d.color, 'yellow'),
     date:      typeof d.date === 'string' ? d.date : null,

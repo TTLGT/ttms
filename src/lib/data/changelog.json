@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "27a22555f49381e70a258b662062cae9595aab2d",
+      "date": "2026-09-29T14:51:12-06:00",
+      "author": "erwindank",
+      "subject": "Add a change history of every TTMS change for the IT account",
+      "body": "A Change history page lists every commit to TTMS, newest first, searchable\nby word, by type (New, Change, Fix, Security, Maintenance) and by date\nrange. Only it@totaltransportlogistics.us can see it: an address test, not\na permission, so it cannot be granted from Settings.\n\nThe record is src/lib/data/changelog.json, filled from git by\nscripts/update-changelog.js, which now runs before every build. It only\nadds, since Vercel clones only the last few commits."
+    },
+    {
       "hash": "a53404f31fb45e8ea8de9b258a738a183445077f",
       "date": "2026-09-29T14:38:40-06:00",
       "author": "erwindank",

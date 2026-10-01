@@ -1991,12 +1991,16 @@ nothing.
 ## Collection: `personalTasks` (My tasks and the Calendar)
 
 Everybody's own to-do list and calendar, one subcollection per person at
-`personalTasks/{uid}/items/{itemId}`. The parent document holds only that
-person's reminder settings. See `src/types/task.ts`.
+`personalTasks/{uid}/items/{itemId}`. The parent document holds that
+person's reminder settings and the layout of their board. See
+`src/types/task.ts`.
 
 ```
 personalTasks/{uid}
   reminderSettings : { email: boolean, chat: boolean }   // absent = both on
+  boardColumns     : [{ id, label, hidden }]   // board order; absent = the six defaults
+                                               // 'todo' and 'done' are never hidden;
+                                               // custom ids are 'c_' + 4–16 chars, up to 12
   updatedAt        : Timestamp
 
 personalTasks/{uid}/items/{itemId}
@@ -2006,7 +2010,12 @@ personalTasks/{uid}/items/{itemId}
   title     : string               // up to 200 characters
   notes     : string               // up to 4,000
   location  : string               // where, or a meeting link; up to 500
-  status    : 'todo' | 'doing' | 'waiting' | 'done'   // always 'todo' on an event
+  status    : 'todo' | 'ready' | 'doing' | 'waiting' | 'review' | 'done' | 'c_…'
+                                   // 'c_…' is a column the person added;
+                                   // always 'todo' on an event. Hiding or
+                                   // deleting a column moves its tasks to the
+                                   // nearest showing column on its left
+                                   // (PUT /api/me/tasks/columns)
   priority  : 'low' | 'normal' | 'high'
   color     : 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'orange'
   date      : 'YYYY-MM-DD' | null  // due date of a task; the day of an event

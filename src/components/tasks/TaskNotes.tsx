@@ -4,10 +4,11 @@ import { useState, type DragEvent } from 'react';
 import { Check, Plus } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
-  TASK_STATUS_LABEL,
   byOrder,
   formatTime,
   isOverdue,
+  statusLabel,
+  type BoardColumn,
   type PersonalTask,
   type PersonalTaskInput,
 } from '@/types/task';
@@ -23,6 +24,7 @@ import { NOTE_STYLE, TASK_DRAG_TYPE } from './taskStyle';
  */
 export default function TaskNotes({
   tasks,
+  columns,
   today,
   onOpen,
   onMove,
@@ -30,6 +32,7 @@ export default function TaskNotes({
   onAdd,
 }: {
   tasks: PersonalTask[];
+  columns: BoardColumn[];
   today: string;
   onOpen: (task: PersonalTask) => void;
   onMove: (id: string, group: PersonalTask[], beforeId: string | null, patch: PersonalTaskInput) => void;
@@ -108,7 +111,7 @@ export default function TaskNotes({
               <p className="mt-2 line-clamp-6 whitespace-pre-line text-sm opacity-80">{t.notes}</p>
             )}
             <div className="mt-auto flex flex-wrap items-center gap-x-2 pt-3 text-[11px] opacity-70">
-              <span>{TASK_STATUS_LABEL[t.status]}</span>
+              <span>{statusLabel(columns, t.status)}</span>
               {t.date && (
                 <span className={isOverdue(t, today) ? 'font-semibold text-red-700 opacity-100' : ''}>
                   · {t.date === today ? 'Today' : formatCalendarDate(t.date)}{t.time && ` ${formatTime(t.time)}`}
