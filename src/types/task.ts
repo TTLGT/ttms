@@ -194,6 +194,26 @@ export function placeOf(columns: BoardColumn[], status: TaskStatus): TaskStatus 
   return 'todo';
 }
 
+/**
+ * How a task comes back. Tasks only — an event is a single thing on a day.
+ *
+ * A repeating task is one task at a time, not a series laid out in advance:
+ * ticking it Done makes the next one, in To do, due on the next date — see
+ * `nextOccurrence()` and the PATCH route. Nothing runs on a clock to do it,
+ * so a repeat never fires for somebody who has left, and the board never
+ * fills with copies nobody looked at.
+ */
+export const TASK_REPEATS = ['none', 'daily', 'weekdays', 'weekly', 'monthly'] as const;
+export type TaskRepeat = typeof TASK_REPEATS[number];
+
+export const TASK_REPEAT_LABEL: Record<TaskRepeat, string> = {
+  none:     'Does not repeat',
+  daily:    'Every day',
+  weekdays: 'Every weekday (Mon–Fri)',
+  weekly:   'Every week',
+  monthly:  'Every month',
+};
+
 export const TASK_PRIORITIES = ['low', 'normal', 'high'] as const;
 export type TaskPriority = typeof TASK_PRIORITIES[number];
 
@@ -287,6 +307,22 @@ export interface PersonalTask {
   location: string;
   /** When to be reminded. Empty for none. Never set on a finished task's queue. */
   reminders: TaskReminderLead[];
+  /** 'none' on an event and on anything saved before repeats existed. */
+  repeat: TaskRepeat;
+  /**
+   * The day of the month a monthly task belongs on, kept apart from `date`
+   * so a task for the 31st comes back on the 31st after a short month
+   * rather than drifting to the 28th for good. Set by the server.
+   */
+  repeatDay: number | null;
+  /** The copy finishing this one made. Set once, so un-ticking and re-ticking never makes two. */
+  nextId: string | null;
+  /** Game mode: the XP this task is holding, taken back if it is reopened. */
+  xpEarned: number;
+  /** Game mode: has counted toward missions once already, and never will again. */
+  everDone: boolean;
+  /** Added from a suggested broker task — see src/types/brokerSuggestions.ts. */
+  suggestionId: string | null;
   /**
    * Position within its board column, and among the sticky notes. A fraction
    * between its neighbours, so a drag is one write rather than a renumbering
@@ -303,7 +339,7 @@ export interface PersonalTask {
 /** What can be written. Everything else on a task is set by the server. */
 export type PersonalTaskInput = Partial<Pick<PersonalTask,
   'kind' | 'title' | 'notes' | 'status' | 'priority' | 'color' | 'date' | 'time' | 'endTime' | 'order'
-  | 'eventType' | 'location' | 'reminders'>>;
+  | 'eventType' | 'location' | 'reminders' | 'repeat' | 'suggestionId'>>;
 
 export const MAX_TASK_TITLE = 200;
 export const MAX_TASK_NOTES = 4000;
@@ -360,6 +396,10 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   if (typeof b.order === 'number' && Number.isFinite(b.order)) out.order = b.order;
   if (oneOf(EVENT_TYPES, b.eventType)) out.eventType = b.eventType;
   if (typeof b.location === 'string') out.location = b.location.trim().slice(0, MAX_TASK_LOCATION);
+  if (oneOf(TASK_REPEATS, b.repeat)) out.repeat = b.repeat;
+  // Checked against the catalog by the route, which is the one that knows it.
+  if (b.suggestionId === null) out.suggestionId = null;
+  else if (typeof b.suggestionId === 'string' && /^[a-z_]{1,40}$/.test(b.suggestionId)) out.suggestionId = b.suggestionId;
   if (Array.isArray(b.reminders)) {
     out.reminders = TASK_REMINDER_LEADS.filter((l) => (b.reminders as unknown[]).includes(l));
   }
@@ -451,4 +491,46 @@ export function locationUrl(location: string): string | null {
   } catch {
     return null;
   }
+}
+
+/* ---------------------------------------------------------------- repeats */
+
+function shiftDays(date: string, n: number): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+/** One step on from `date`. `day` is the month's anchor for a monthly task. */
+function stepRepeat(date: string, repeat: Exclude<TaskRepeat, 'none'>, day: number): string {
+  if (repeat === 'daily') return shiftDays(date, 1);
+  if (repeat === 'weekly') return shiftDays(date, 7);
+  if (repeat === 'weekdays') {
+    let d = shiftDays(date, 1);
+    // UTC throughout, so no time zone can turn a Monday into a Sunday.
+    while ([0, 6].includes(new Date(`${d}T00:00:00Z`).getUTCDay())) d = shiftDays(d, 1);
+    return d;
+  }
+  const [y, m] = date.split('-').map(Number);
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
+  return `${ny}-${String(nm).padStart(2, '0')}-${String(Math.min(day, last)).padStart(2, '0')}`;
+}
+
+/**
+ * The due date of the copy a finished repeating task makes: the next date in
+ * its pattern that is today or later. Dates already missed are skipped, so a
+ * daily task finished three days late makes one task due today, not three
+ * overdue ones. Null for a task that does not repeat or has no date.
+ */
+export function nextOccurrence(
+  t: Pick<PersonalTask, 'repeat' | 'repeatDay' | 'date'>,
+  today: string,
+): string | null {
+  if (t.repeat === 'none' || !t.date) return null;
+  const day = t.repeatDay ?? Number(t.date.slice(8, 10));
+  let d = stepRepeat(t.date, t.repeat, day);
+  // A daily task years overdue is a few hundred steps; the cap only guards a bug.
+  for (let i = 0; i < 2000 && d < today; i++) d = stepRepeat(d, t.repeat, day);
+  return d;
 }

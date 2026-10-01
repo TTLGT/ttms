@@ -917,6 +917,16 @@ Types and pure rules in `src/types/task.ts`; server in
   `placeOf()` draws the same step back for anything caught in between. To do
   and Done can never be hidden — new tasks land in one, and the other is what
   stops reminders.
+- **Repeating tasks make their next copy when finished**, in the PATCH
+  route's transaction — no clock. `nextId` on the finished one is the guard
+  against a second copy; missed dates are skipped (`nextOccurrence()`).
+- **Game mode is private** (`personalTasks/{uid}.game`, rules in
+  `src/types/taskGame.ts`). XP moves only as a side effect of saving a task,
+  in the same transaction; there is no route that sets it. Penalties are
+  applied on the first `GET /api/me/tasks` of an office day. **No
+  leaderboard** — a ranked private notepad is a performance measure, which the
+  list deliberately is not. The level names come in themes; freight is the
+  default.
 - **An event's `eventType` is a label.** A "company activity" is only on the
   calendar of the person who added it. A calendar the company shares would
   need its own answer to who may post on it.

@@ -9,6 +9,7 @@ import { usePersonalTasks } from '@/lib/personalTasks';
 import { fetchHolidayOverrides } from '@/lib/attendance';
 import TaskCalendar from '@/components/tasks/TaskCalendar';
 import TaskEditor from '@/components/tasks/TaskEditor';
+import { GameFeedback } from '@/components/tasks/TaskGame';
 import {
   CelebrationDetail,
   CelebrationReminderPanel,
@@ -47,7 +48,7 @@ import {
 export default function CalendarPage() {
   const { can } = useAuth();
   const { formatCalendarDate } = useDateFormatters();
-  const { tasks, settings, columns, saveSettings, error, setError, create, update, remove } = usePersonalTasks();
+  const { tasks, settings, columns, game, notices, dismissNotice, saveSettings, error, setError, create, update, remove } = usePersonalTasks();
   const [editing, setEditing] = useState<{ task: PersonalTask | null; initial?: PersonalTaskInput } | null>(null);
   const [today, setToday] = useState('');
   const [selected, setSelected] = useState('');
@@ -266,6 +267,8 @@ export default function CalendarPage() {
           )}
         />
       )}
+
+      <GameFeedback notices={notices} theme={game?.theme ?? 'freight'} onDismiss={dismissNotice} />
 
       {editing && (
         <TaskEditor

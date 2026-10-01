@@ -1998,6 +1998,16 @@ person's reminder settings and the layout of their board. See
 ```
 personalTasks/{uid}
   reminderSettings : { email: boolean, chat: boolean }   // absent = both on
+  game             : {                        // game mode; absent = never turned on
+    enabled, theme,                           // theme: 'freight' | 'wizarding' | 'empire' |
+                                              //        'fairy' | 'space' | 'pirate'
+    xp, streak, longestStreak,
+    lastActiveDate, lastCheckDate,            // office dates, 'YYYY-MM-DD'
+    daily, weekly : { key, missions: [{ id, progress, done }], used, counts, activeDates },
+    tasksDone, missionsDone,
+    levelHistory  : [{ level, at }],
+    log           : [{ at, label, xp }]       // the latest 60 XP changes
+  }
   boardColumns     : [{ id, label, hidden }]   // board order; absent = the six defaults
                                                // 'todo' and 'done' are never hidden;
                                                // custom ids are 'c_' + 4–16 chars, up to 12
@@ -2016,6 +2026,14 @@ personalTasks/{uid}/items/{itemId}
                                    // deleting a column moves its tasks to the
                                    // nearest showing column on its left
                                    // (PUT /api/me/tasks/columns)
+  repeat    : 'none' | 'daily' | 'weekdays' | 'weekly' | 'monthly'
+                                   // finishing one makes the next copy, due on
+                                   // the next date that is today or later
+  repeatDay : number | null        // a monthly task's day of the month
+  nextId    : string | null        // the copy finishing this one made; set once
+  xpEarned  : number               // game mode: taken back if it is reopened
+  everDone  : boolean              // game mode: has counted toward missions
+  suggestionId : string | null     // added from src/types/brokerSuggestions.ts
   priority  : 'low' | 'normal' | 'high'
   color     : 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'orange'
   date      : 'YYYY-MM-DD' | null  // due date of a task; the day of an event

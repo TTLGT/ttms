@@ -7,6 +7,9 @@ import {
   toReminderSettings,
   toTask,
 } from '@/lib/personalTasksServer';
+import { gameClock, gameFrom, runDailyCheck, writeGame } from '@/lib/taskGameServer';
+import { brokerSuggestion } from '@/types/brokerSuggestions';
+import { GameTurn, type GameEvent, type GameState } from '@/types/taskGame';
 import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanTaskInput } from '@/types/task';
 
 /**
@@ -25,10 +28,17 @@ export async function GET(req: NextRequest) {
     // The settings and the board's columns ride along so the page needs no
     // second request.
     const [snap, owner] = await Promise.all([taskItems(uid).get(), taskOwnerDoc(uid).get()]);
+    const tasks = snap.docs.map(toTask);
+    // Game mode's first look of the day — overdue and streak penalties, new
+    // missions — happens here, because this is the read every visit makes.
+    // Any other read that day skips it without a transaction.
+    const { game, events } = await runDailyCheck(uid, gameFrom(owner), tasks);
     return NextResponse.json({
-      tasks: snap.docs.map(toTask),
+      tasks,
       settings: toReminderSettings(owner.data()?.reminderSettings),
       columns: cleanBoardColumns(owner.data()?.boardColumns),
+      game,
+      events,
     });
   } catch (e) {
     if (e instanceof AdminAuthError) {
@@ -50,6 +60,11 @@ export async function POST(req: NextRequest) {
     if (kind === 'event' && !input.date) {
       return NextResponse.json({ error: 'An event needs a date.' }, { status: 400 });
     }
+    const repeat = kind === 'event' ? 'none' : (input.repeat ?? 'none');
+    if (repeat !== 'none' && !input.date) {
+      return NextResponse.json({ error: 'A repeating task needs a due date.' }, { status: 400 });
+    }
+    const suggestionId = kind === 'task' && brokerSuggestion(input.suggestionId) ? input.suggestionId! : null;
 
     const items = taskItems(uid);
     // An aggregation, so this costs one read however long the list is.
@@ -76,6 +91,12 @@ export async function POST(req: NextRequest) {
       eventType: kind === 'event' ? (input.eventType ?? 'other') : 'other',
       location:  input.location ?? '',
       reminders: input.reminders ?? [],
+      repeat,
+      repeatDay: repeat === 'monthly' && input.date ? Number(input.date.slice(8, 10)) : null,
+      nextId:    null,
+      xpEarned:  0,
+      everDone:  false,
+      suggestionId,
       // The browser works out where a new card goes (the bottom of its column)
       // because it is the one holding the column. Absent, the clock stands in:
       // it is always larger than anything orderBetween() hands out, so a task
@@ -91,7 +112,28 @@ export async function POST(req: NextRequest) {
     }, ref.id);
     await batch.commit();
 
-    return NextResponse.json({ task: toTask(await ref.get()) }, { status: 201 });
+    // "Add N tasks" missions. A transaction of its own after the task exists
+    // rather than one around both: the count above is an aggregation, which a
+    // transaction cannot hold, and a mission a click short is the worst case.
+    // An event is not a task to plan, and a task added already finished earns
+    // nothing here — finishing it is where the XP is.
+    let game: GameState | null = null;
+    let events: GameEvent[] = [];
+    if (kind === 'task' && status !== 'done') {
+      const { today, now } = gameClock();
+      const owner = taskOwnerDoc(uid);
+      ({ game, events } = await adminDb.runTransaction(async (tx) => {
+        const stored = gameFrom(await tx.get(owner));
+        if (!stored.enabled) return { game: null, events: [] as GameEvent[] };
+        const turn = new GameTurn(stored, today, now);
+        turn.onTaskAdded();
+        const out = turn.finish();
+        writeGame(tx, uid, out.state);
+        return { game: out.state, events: out.events };
+      }));
+    }
+
+    return NextResponse.json({ task: toTask(await ref.get()), game, events }, { status: 201 });
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

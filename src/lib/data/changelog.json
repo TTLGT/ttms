@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "f32ba9a5155bacc0eb35e327188cb4a2c4ca5638",
+      "date": "2026-10-01T12:43:24-06:00",
+      "author": "erwindank",
+      "subject": "Add Ready and In review columns, and let people arrange their own task board",
+      "body": "Columns can be dragged into a new order, hidden, and added. Hiding or\ndeleting a column moves its tasks back to the nearest showing column on\nits left. To do and Done are always shown. The layout is saved per person."
+    },
+    {
       "hash": "27a22555f49381e70a258b662062cae9595aab2d",
       "date": "2026-09-29T14:51:12-06:00",
       "author": "erwindank",

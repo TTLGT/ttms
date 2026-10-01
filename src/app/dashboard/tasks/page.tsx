@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { CalendarDays, Columns3, Lock, Plus, Search, StickyNote, Table2, X } from 'lucide-react';
+import { CalendarDays, Columns3, Gamepad2, Lock, Plus, Search, StickyNote, Table2, X } from 'lucide-react';
 import { usePersonalTasks } from '@/lib/personalTasks';
 import TaskBoard from '@/components/tasks/TaskBoard';
 import TaskNotes from '@/components/tasks/TaskNotes';
 import TaskTable from '@/components/tasks/TaskTable';
 import TaskEditor from '@/components/tasks/TaskEditor';
+import { GameBar, GameFeedback } from '@/components/tasks/TaskGame';
 import { calendarToday, type PersonalTask, type PersonalTaskInput } from '@/types/task';
 
 /**
@@ -30,8 +31,10 @@ const VIEW_KEY = 'ttms.tasks.view';
 
 export default function MyTasksPage() {
   const {
-    tasks, settings, columns, error, setError, create, update, remove, clearDone, move, saveColumns,
+    tasks, settings, columns, game, notices, error, setError,
+    create, update, remove, clearDone, move, saveColumns, saveGameOptions, dismissNotice,
   } = usePersonalTasks();
+  const playing = !!game?.enabled;
   const [view, setView] = useState<View>('board');
   const [query, setQuery] = useState('');
   const [showDone, setShowDone] = useState(false);
@@ -82,6 +85,17 @@ export default function MyTasksPage() {
             </Link>
           </p>
         </div>
+        <button
+          type="button"
+          aria-pressed={playing}
+          onClick={() => saveGameOptions({ enabled: !playing })}
+          title={playing ? 'Turn game mode off' : 'Earn XP and levels for finishing tasks. Only you see it.'}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium ${
+            playing ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <Gamepad2 size={16} /> Game mode{playing ? ' on' : ''}
+        </button>
         <button
           type="button"
           onClick={() => setEditing({ task: null })}
@@ -138,6 +152,10 @@ export default function MyTasksPage() {
         )}
       </div>
 
+      {playing && game && (
+        <GameBar game={game} onAddSuggestion={(input) => { create(input); }} onOptions={saveGameOptions} />
+      )}
+
       {error && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           <span className="flex-1">{error}</span>
@@ -181,6 +199,8 @@ export default function MyTasksPage() {
           onUpdate={update}
         />
       )}
+
+      <GameFeedback notices={notices} theme={game?.theme ?? 'freight'} onDismiss={dismissNotice} />
 
       {editing && (
         <TaskEditor

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type DragEvent } from 'react';
-import { Check, Plus } from 'lucide-react';
+import { Check, Plus, Repeat } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   byOrder,
@@ -118,6 +118,7 @@ export default function TaskNotes({
                 </span>
               )}
               {t.priority === 'high' && <span className="font-semibold">· High</span>}
+              {t.repeat !== 'none' && <Repeat size={10} aria-label="Repeats" />}
             </div>
           </div>
         );

@@ -1,4 +1,4 @@
-import type { DocumentSnapshot, WriteBatch } from 'firebase-admin/firestore';
+import type { DocumentData, DocumentReference, DocumentSnapshot } from 'firebase-admin/firestore';
 import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb } from './firebase-admin';
 import {
@@ -10,6 +10,7 @@ import {
   TASK_PRIORITIES,
   TASK_REMINDERS_COLLECTION,
   TASK_REMINDER_LEADS,
+  TASK_REPEATS,
   isTaskStatus,
   reminderInstants,
   type PersonalTask,
@@ -62,6 +63,12 @@ export function toTask(snap: DocumentSnapshot): PersonalTask {
     reminders: Array.isArray(d.reminders)
       ? TASK_REMINDER_LEADS.filter((l) => (d.reminders as unknown[]).includes(l))
       : [],
+    repeat:    d.kind === 'event' ? 'none' : pick(TASK_REPEATS, d.repeat, 'none'),
+    repeatDay: typeof d.repeatDay === 'number' ? d.repeatDay : null,
+    nextId:    typeof d.nextId === 'string' ? d.nextId : null,
+    xpEarned:  typeof d.xpEarned === 'number' ? d.xpEarned : 0,
+    everDone:  d.everDone === true,
+    suggestionId: typeof d.suggestionId === 'string' ? d.suggestionId : null,
     order:     typeof d.order === 'number' ? d.order : 0,
     createdAt: iso(d.createdAt),
     updatedAt: iso(d.updatedAt),
@@ -96,8 +103,14 @@ export function reminderQueueId(uid: string, itemId: string, lead: string): stri
  * behind at the old time. Anything already in the past is deleted rather than
  * queued — nobody wants "in 15 minutes" about a call that was yesterday.
  */
+/** A batch or a transaction — the queue is written inside whichever the caller is using. */
+interface Writes {
+  set(ref: DocumentReference, data: DocumentData): unknown;
+  delete(ref: DocumentReference): unknown;
+}
+
 export function syncReminderQueue(
-  batch: WriteBatch,
+  batch: Writes,
   uid: string,
   task: Pick<PersonalTask, 'kind' | 'status' | 'date' | 'time' | 'reminders'> | null,
   itemId: string,

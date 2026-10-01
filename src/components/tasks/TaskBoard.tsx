@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, type DragEvent } from 'react';
-import { Bell, CalendarDays, GripVertical, Plus, StickyNote } from 'lucide-react';
+import { Bell, CalendarDays, GripVertical, Plus, Repeat, StickyNote } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   TASK_PRIORITY_LABEL,
+  TASK_REPEAT_LABEL,
   byOrder,
   formatTime,
   isOverdue,
@@ -257,6 +258,7 @@ function Card({
               {task.reminders.length > 0 && task.status !== 'done' && (
                 <Bell size={10} className="ml-0.5" aria-label="Reminder set" />
               )}
+              {task.repeat !== 'none' && <Repeat size={10} className="ml-0.5" aria-label={TASK_REPEAT_LABEL[task.repeat]} />}
             </span>
           )}
           {task.priority !== 'normal' && (

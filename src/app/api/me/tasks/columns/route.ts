@@ -53,7 +53,10 @@ export async function PUT(req: NextRequest) {
             ...(to === 'done' ? { doneAt: FieldValue.serverTimestamp() } : {}),
           });
           // Only Done changes what a reminder does — a custom column placed
-          // after Done and then hidden steps back into it.
+          // after Done and then hidden steps back into it. Deliberately not a
+          // finish: no XP, and a repeating task makes no next copy. Tidying the
+          // board is not doing the work, and paying out for it would make
+          // "hide a column" the quickest way up the levels.
           if (to === 'done') syncReminderQueue(batch, uid, { ...task, status: to }, d.id);
         });
         await batch.commit();

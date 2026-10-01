@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Check } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, Repeat } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   TASK_PRIORITIES,
@@ -115,8 +115,9 @@ export default function TaskTable({
                   <button type="button" onClick={() => onOpen(t)} className="flex w-full items-start gap-2 text-left">
                     <span className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${NOTE_STYLE[t.color].swatch}`} />
                     <span className="min-w-0">
-                      <span className={`block truncate text-gray-900 hover:underline ${done ? 'line-through text-gray-500' : ''}`}>
-                        {t.title}
+                      <span className={`flex items-center gap-1 text-gray-900 hover:underline ${done ? 'line-through text-gray-500' : ''}`}>
+                        <span className="truncate">{t.title}</span>
+                        {t.repeat !== 'none' && <Repeat size={11} className="flex-shrink-0 text-gray-400" aria-label="Repeats" />}
                       </span>
                       {t.notes && <span className="block truncate text-xs text-gray-500">{t.notes}</span>}
                     </span>

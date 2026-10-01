@@ -9,6 +9,9 @@ import {
   TASK_COLORS,
   TASK_PRIORITIES,
   TASK_PRIORITY_LABEL,
+  TASK_REPEATS,
+  TASK_REPEAT_LABEL,
+  calendarToday,
   leadsFor,
   placeOf,
   reminderInstants,
@@ -19,6 +22,7 @@ import {
   type PersonalTaskInput,
   type TaskKind,
   type TaskReminderLead,
+  type TaskRepeat,
 } from '@/types/task';
 import { EVENT_ICON, NOTE_STYLE } from './taskStyle';
 
@@ -63,6 +67,7 @@ export default function TaskEditor({
   const [time, setTime]           = useState(start.time ?? '');
   const [endTime, setEndTime]     = useState(start.endTime ?? '');
   const [reminders, setReminders] = useState<TaskReminderLead[]>(start.reminders ?? []);
+  const [repeat, setRepeat]       = useState<TaskRepeat>(start.repeat ?? 'none');
   const [problem, setProblem]     = useState('');
   const [saving, setSaving]       = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -91,6 +96,7 @@ export default function TaskEditor({
     e.preventDefault();
     if (!title.trim()) { setProblem('Give it a title.'); return; }
     if (kind === 'event' && !date) { setProblem('An event needs a date.'); return; }
+    if (kind === 'task' && repeat !== 'none' && !date) { setProblem('A repeating task needs a due date.'); return; }
     if (kind === 'event' && time && endTime && endTime <= time) {
       setProblem('The end time is before the start time.');
       return;
@@ -108,6 +114,7 @@ export default function TaskEditor({
       date: date || null,
       time: time || null,
       endTime: kind === 'event' ? (endTime || null) : null,
+      repeat: kind === 'task' ? repeat : 'none',
       // Only the leads that apply to what is being saved: a "15 minutes
       // before" ticked while a time was set means nothing once it is cleared.
       reminders: date ? reminders.filter((l) => leads.includes(l)) : [],
@@ -296,6 +303,30 @@ export default function TaskEditor({
                 {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{TASK_PRIORITY_LABEL[p]}</option>)}
               </select>
             </div>
+            {kind === 'task' && (
+              <div className="sm:col-span-2">
+                <label className={label} htmlFor="task-repeat">Repeats</label>
+                <select
+                  id="task-repeat"
+                  value={repeat}
+                  onChange={(e) => {
+                    const next = e.target.value as TaskRepeat;
+                    setRepeat(next);
+                    // A repeat counts on from the due date, so it needs one;
+                    // today is the date somebody setting one up nearly always means.
+                    if (next !== 'none' && !date) setDate(calendarToday());
+                  }}
+                  className={input}
+                >
+                  {TASK_REPEATS.map((r) => <option key={r} value={r}>{TASK_REPEAT_LABEL[r]}</option>)}
+                </select>
+                {repeat !== 'none' && (
+                  <p className="mt-1.5 text-xs text-gray-500">
+                    When you mark it Done, the next one is added to To do with its new due date.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
