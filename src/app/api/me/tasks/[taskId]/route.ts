@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/firebase-admin';
 import { syncReminderQueue, taskItems, taskOwnerDoc, toTask } from '@/lib/personalTasksServer';
-import { gameClock, gameFrom, writeGame } from '@/lib/taskGameServer';
+import { gameClock, gameFrom, offDaysFor, writeGame } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
 import { GameTurn, type GameEvent, type GameState } from '@/types/taskGame';
 import { cleanTaskInput, nextOccurrence, type PersonalTask } from '@/types/task';
@@ -23,7 +23,7 @@ export async function PATCH(
   { params }: { params: Promise<{ taskId: string }> },
 ) {
   try {
-    const { uid } = await requireCompanyUser(req);
+    const { uid, email } = await requireCompanyUser(req);
     const { taskId } = await params;
     const ref = taskItems(uid).doc(taskId);
     const owner = taskOwnerDoc(uid);
@@ -74,7 +74,10 @@ export async function PATCH(
         let game: GameState | null = null;
         let events: GameEvent[] = [];
         if (stored.enabled && (finishing || (reopening && current.xpEarned > 0))) {
-          const turn = new GameTurn(stored, today, now);
+          // The person's days off, read only now — game mode on and a task
+          // finishing — so nobody else's status change pays for the query.
+          const offDays = finishing ? await offDaysFor(email, today, tx) : undefined;
+          const turn = new GameTurn(stored, today, now, offDays);
           if (finishing) {
             update.xpEarned = turn.onTaskDone(merged, !current.everDone);
             update.everDone = true;

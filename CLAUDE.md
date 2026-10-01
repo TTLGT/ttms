@@ -927,6 +927,12 @@ Types and pure rules in `src/types/task.ts`; server in
   leaderboard** — a ranked private notepad is a performance measure, which the
   list deliberately is not. The level names come in themes; freight is the
   default.
+- **The game's streak counts Monday to Friday only** and is frozen on
+  Guatemalan holidays and on any day covered by the person's own
+  `timeOffRequests` that are pending or approved (`offDaysFor()` in
+  `src/lib/taskGameServer.ts`). That is a read of HR data, but only the
+  person's own requests, server-side, to decide their own streak — nothing
+  about time off is copied onto the game state or shown on the board.
 - **An event's `eventType` is a label.** A "company activity" is only on the
   calendar of the person who added it. A calendar the company shares would
   need its own answer to who may post on it.

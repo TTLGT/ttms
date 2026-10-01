@@ -21,7 +21,7 @@ import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanTaskInput } from '@/types
  */
 export async function GET(req: NextRequest) {
   try {
-    const { uid } = await requireCompanyUser(req);
+    const { uid, email } = await requireCompanyUser(req);
     // The whole list, in one read per item. It is capped at
     // MAX_TASKS_PER_PERSON, and every view needs all of it: the board, the
     // notes and the table sort it differently, and the calendar pages months.
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     // Game mode's first look of the day — overdue and streak penalties, new
     // missions — happens here, because this is the read every visit makes.
     // Any other read that day skips it without a transaction.
-    const { game, events } = await runDailyCheck(uid, gameFrom(owner), tasks);
+    const { game, events } = await runDailyCheck(uid, email, gameFrom(owner), tasks);
     return NextResponse.json({
       tasks,
       settings: toReminderSettings(owner.data()?.reminderSettings),

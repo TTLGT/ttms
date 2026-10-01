@@ -283,9 +283,10 @@ function GameOptions({
         <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
           <li>Finishing a task: {TASK_XP.low} / {TASK_XP.normal} / {TASK_XP.high} XP for low, normal and high priority.</li>
           <li>Finished late: 75% up to 3 days late, 50% up to a week, then 25%.</li>
-          <li>First task of each day: +50 XP and your streak grows. Sundays and Guatemalan holidays do not break it.</li>
-          <li>Each working day a task is overdue costs 5 XP per day late, up to what it is worth.</li>
-          <li>Missing a working day breaks the streak and costs 25 XP per day of it, up to 300.</li>
+          <li>First task of each day: +50 XP and your streak grows. Only Monday to Friday count.</li>
+          <li>Your streak is frozen on weekends, Guatemalan holidays and days you have asked for time off (waiting or approved).</li>
+          <li>Each weekday a task is overdue costs 5 XP per day late, up to what it is worth. Nothing is charged on a day off.</li>
+          <li>Missing a weekday you were working breaks the streak and costs 25 XP per day of it, up to 300.</li>
           <li>Reopening a finished task takes back what it earned. Losing XP can lose you a level.</li>
           <li>Only you can see any of this.</li>
         </ul>

@@ -207,11 +207,17 @@ export function streakPenalty(streak: number): number {
 /* ---------------------------------------------------------- working days */
 
 /**
- * Days that count for the streak: Monday to Saturday, the office's week,
- * less Guatemala's public holidays. The holidays are the built-in list
- * (src/types/holidays.ts), not HR's moved ones — those live in Firestore,
- * and reading them on every tick of a task is not worth a streak that is a
- * day out once a year.
+ * Days that count for the streak: Monday to Friday, less Guatemala's public
+ * holidays, less the person's own time off. On any other day the streak is
+ * frozen — finishing a task still counts, but not finishing one breaks
+ * nothing, and no overdue penalty is charged.
+ *
+ * The holidays are the built-in list (src/types/holidays.ts), not HR's moved
+ * ones — those live in Firestore, and reading them on every tick of a task is
+ * not worth a streak that is a day out once a year.
+ *
+ * `offDays` is the person's time off, worked out by the server from their
+ * time-off requests — see `offDaysFor()` in src/lib/taskGameServer.ts.
  */
 const holidayCache = new Map<number, Set<string>>();
 
@@ -243,14 +249,21 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((toDate(to).getTime() - toDate(from).getTime()) / 86_400_000);
 }
 
-export function isWorkingDay(date: string): boolean {
-  return toDate(date).getUTCDay() !== 0 && !gtHolidays(Number(date.slice(0, 4))).has(date);
+const NO_DAYS_OFF: ReadonlySet<string> = new Set();
+
+export function isWorkingDay(date: string, offDays: ReadonlySet<string> = NO_DAYS_OFF): boolean {
+  const dow = toDate(date).getUTCDay();
+  return dow !== 0 && dow !== 6 && !gtHolidays(Number(date.slice(0, 4))).has(date) && !offDays.has(date);
 }
 
-/** The last working day strictly before `date`. */
-export function prevWorkingDay(date: string): string {
+/**
+ * The last working day strictly before `date`. Looks back far enough to step
+ * over the longest time-off request there can be (MAX_TIME_OFF_DAYS, 90) and
+ * the weekends either side of it.
+ */
+export function prevWorkingDay(date: string, offDays: ReadonlySet<string> = NO_DAYS_OFF): string {
   let d = addDays(date, -1);
-  for (let i = 0; i < 14 && !isWorkingDay(d); i++) d = addDays(d, -1);
+  for (let i = 0; i < 120 && !isWorkingDay(d, offDays); i++) d = addDays(d, -1);
   return d;
 }
 
@@ -296,8 +309,8 @@ export const WEEKLY_MISSIONS: MissionDef[] = [
   { id: 'w_ontime10', title: 'Like clockwork',  desc: 'Finish 10 tasks on or before their due date', target: 10, counter: 'onTime',     xp: 600 },
   { id: 'w_added5',   title: 'Pipeline',        desc: 'Add 5 new tasks this week',                   target: 5,  counter: 'added',      xp: 200 },
   { id: 'w_sugg5',    title: 'Rainmaker',       desc: 'Finish 5 suggested broker tasks this week',   target: 5,  counter: 'suggested',  xp: 450 },
-  { id: 'w_active4',  title: 'Steady',          desc: 'Finish a task on 4 working days this week',   target: 4,  counter: 'activeDays', xp: 350 },
-  { id: 'w_active6',  title: 'Perfect week',    desc: 'Finish a task on all 6 working days',         target: 6,  counter: 'activeDays', xp: 750 },
+  { id: 'w_active3',  title: 'Steady',          desc: 'Finish a task on 3 working days this week',   target: 3,  counter: 'activeDays', xp: 300 },
+  { id: 'w_active5',  title: 'Perfect week',    desc: 'Finish a task on all 5 weekdays',             target: 5,  counter: 'activeDays', xp: 750 },
 ];
 
 const MISSION_BY_ID = new Map([...DAILY_MISSIONS, ...WEEKLY_MISSIONS].map((m) => [m.id, m]));
@@ -431,7 +444,16 @@ export class GameTurn {
   readonly events: GameEvent[] = [];
   private readonly levelBefore: number;
 
-  constructor(state: GameState, private readonly today: string, private readonly now: string) {
+  /**
+   * `offDays` is the person's time off; leave it out only where the streak
+   * cannot move (adding a task). Without it a vacation reads as missed days.
+   */
+  constructor(
+    state: GameState,
+    private readonly today: string,
+    private readonly now: string,
+    private readonly offDays: ReadonlySet<string> = NO_DAYS_OFF,
+  ) {
     this.state = structuredClone(state);
     this.levelBefore = levelFor(state.xp).level;
   }
@@ -510,15 +532,16 @@ export class GameTurn {
    * does nothing.
    *
    * Nothing is charged on the first day after game mode is switched on, or
-   * on a Sunday or a holiday — a page opened on a day off is not a day late.
+   * on a weekend, a holiday or a day the person has off — a page opened on a
+   * day off is not a day late.
    */
   onNewDay(openTasks: Pick<PersonalTask, 'kind' | 'status' | 'date' | 'priority'>[]) {
     const s = this.state;
     if (!s.enabled || s.lastCheckDate === this.today) return;
-    const charge = s.lastCheckDate !== null && isWorkingDay(this.today);
+    const charge = s.lastCheckDate !== null && isWorkingDay(this.today, this.offDays);
     this.ensureSets();
 
-    if (charge && s.streak > 0 && s.lastActiveDate && s.lastActiveDate < prevWorkingDay(this.today)) {
+    if (charge && s.streak > 0 && s.lastActiveDate && s.lastActiveDate < prevWorkingDay(this.today, this.offDays)) {
       const lost = s.streak;
       s.streak = 0;
       this.award(-streakPenalty(lost), `${lost}-day streak broken`);
@@ -565,7 +588,7 @@ export class GameTurn {
     this.award(earned, `Finished "${task.title}"${note}`);
 
     if (s.lastActiveDate !== this.today) {
-      s.streak = s.lastActiveDate && s.lastActiveDate >= prevWorkingDay(this.today) ? s.streak + 1 : 1;
+      s.streak = s.lastActiveDate && s.lastActiveDate >= prevWorkingDay(this.today, this.offDays) ? s.streak + 1 : 1;
       s.longestStreak = Math.max(s.longestStreak, s.streak);
       s.lastActiveDate = this.today;
       this.award(STREAK_DAY_XP, `Streak: day ${s.streak}`);
@@ -578,7 +601,7 @@ export class GameTurn {
       if (task.date && daysLate <= 0) this.bump('onTime');
       if (task.suggestionId) this.bump('suggested');
       const week = this.state.weekly!;
-      if (isWorkingDay(this.today) && !week.activeDates.includes(this.today)) {
+      if (isWorkingDay(this.today, this.offDays) && !week.activeDates.includes(this.today)) {
         week.activeDates.push(this.today);
         week.counts.activeDays = week.activeDates.length;
       }

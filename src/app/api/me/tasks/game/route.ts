@@ -12,9 +12,9 @@ import { isGameTheme } from '@/types/taskGame';
  */
 export async function PUT(req: NextRequest) {
   try {
-    const { uid } = await requireCompanyUser(req);
+    const { uid, email } = await requireCompanyUser(req);
     const body = await req.json().catch(() => ({}));
-    const game = await setGameOptions(uid, {
+    const game = await setGameOptions(uid, email, {
       enabled: typeof body?.enabled === 'boolean' ? body.enabled : undefined,
       theme: isGameTheme(body?.theme) ? body.theme : undefined,
     });

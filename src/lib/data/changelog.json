@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "36a103c2b173c8bdbb93432df5e241e4a6a92020",
+      "date": "2026-10-01T14:14:12-06:00",
+      "author": "erwindank",
+      "subject": "Add repeating tasks and an optional game mode to My tasks",
+      "body": "Tasks can repeat every day, weekday, week or month; finishing one adds\nthe next. Game mode gives private XP, levels with themed titles (freight\nby default), a working-day streak, daily and weekly missions, penalties\nfor overdue tasks, and suggested freight broker tasks."
+    },
+    {
       "hash": "f32ba9a5155bacc0eb35e327188cb4a2c4ca5638",
       "date": "2026-10-01T12:43:24-06:00",
       "author": "erwindank",
