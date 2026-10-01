@@ -66,7 +66,10 @@ export function GameBar({
         banner's full height; the words stay in the left 60%, where the
         drawing has already faded to the plain ground.
       */}
-      <div className="overflow-hidden rounded-xl text-white shadow-sm" style={{ backgroundColor: skin.ground }}>
+      <div
+        className="overflow-hidden rounded-xl text-white shadow-lg ring-1 ring-[rgba(255,255,255,0.08)]"
+        style={{ backgroundColor: skin.ground }}
+      >
         <div
           style={game.enabled ? {
             backgroundImage: artUrl(game.theme),

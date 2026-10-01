@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "9b90c420a1a258c6f03ec5ab3397f868b19f2e88",
+      "date": "2026-10-01T14:43:44-06:00",
+      "author": "erwindank",
+      "subject": "Redesign game themes as a banner with line artwork and one accent",
+      "body": "Each theme now has a dark banner with its own drawing, the level, XP and\nstreak, and a strip with the theme and missions controls. The board takes\na single accent colour instead of a tinted, patterned page."
+    },
+    {
       "hash": "6e25c78cea07f47b761874c20f69cf88bfe88922",
       "date": "2026-10-01T14:30:09-06:00",
       "author": "erwindank",

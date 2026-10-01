@@ -925,16 +925,17 @@ Types and pure rules in `src/types/task.ts`; server in
   in the same transaction; there is no route that sets it. Penalties are
   applied on the first `GET /api/me/tasks` of an office day. **No
   leaderboard** — a ranked private notepad is a performance measure, which the
-  list deliberately is not. **The theme is a banner and one accent**, set
-  in `src/components/tasks/taskSkins.ts`: a dark banner with line artwork
-  (`taskSkinArt.ts`, plain SVG strings) carrying the level, XP and streak,
-  and a single accent on the board — column rules, card hover, the main
-  buttons. Restrained on purpose; an earlier version that tinted and
-  patterned the whole page read as cheap. Freight is the default. A theme
-  may change how the board looks and never what it says — column names,
-  statuses and priorities are the same under every one. The banner uses
-  fixed hex colours (a dark panel in both modes); everything else keeps the
-  dark-mode-mapped families.
+  list deliberately is not. **The theme dresses the whole page** while game
+  mode is on, set in `src/components/tasks/taskSkins.ts`: a dark banner with
+  line artwork (`taskSkinArt.ts`, plain SVG strings) carrying the level, XP
+  and streak, and the rest of the page as a dark room in the theme's
+  colours. That room is the `ttms-dark-scope` class (the app's own dark
+  palette, applied to one element — see `tailwind.config.ts`) plus
+  `pageStyleFor()`, which retints only the neutral greys toward the banner's
+  ground. Status colours keep their dark-mode meaning. Buttons and column
+  rules take the theme's accent. Freight is the default. A theme may change
+  how the board looks and never what it says — column names, statuses and
+  priorities are the same under every one.
 - **The game's streak counts Monday to Friday only** and is frozen on
   Guatemalan holidays and on any day covered by the person's own
   `timeOffRequests` that are pending or approved (`offDaysFor()` in
