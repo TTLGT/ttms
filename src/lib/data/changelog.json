@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "6e25c78cea07f47b761874c20f69cf88bfe88922",
+      "date": "2026-10-01T14:30:09-06:00",
+      "author": "erwindank",
+      "subject": "Let the game theme restyle the whole My tasks page",
+      "body": "Theme is now its own setting in the game bar. Each theme changes the\npage's background, pattern, heading lettering, columns, cards, buttons,\nXP bar and a few words, while column names and statuses stay the same."
+    },
+    {
       "hash": "c2193d770eec409e71e1f276fc16a0c31a2ce0a0",
       "date": "2026-10-01T14:20:49-06:00",
       "author": "erwindank",

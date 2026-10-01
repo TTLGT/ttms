@@ -138,7 +138,7 @@ export default function TaskBoard({
             onDrop={(e) => (acceptsColumn(e) ? dropColumn(e, status) : drop(e, status, null))}
             // The drop target is a ring rather than a border colour, so it
             // shows over whatever border the theme draws.
-            className={`relative flex w-72 flex-shrink-0 flex-col border ${skin.column} ${skin.columnTop} ${
+            className={`relative flex w-72 flex-shrink-0 flex-col rounded-xl border border-gray-200 bg-gray-50 ${skin.columnTop} ${
               target?.status === status ? 'ring-2 ring-brand-400' : ''
             } ${draggingColumn === status ? 'opacity-40' : ''}`}
           >
@@ -158,7 +158,7 @@ export default function TaskBoard({
               className="group flex cursor-grab items-center gap-2 px-3 py-2.5 active:cursor-grabbing"
             >
               <span className={`h-3 w-3 rounded-full border-2 ${statusDot(status)}`} />
-              <h3 className={`text-sm font-semibold ${skin.ink} ${skin.font}`}>{column.label}</h3>
+              <h3 className="text-sm font-semibold text-gray-900">{column.label}</h3>
               <span className="rounded-full bg-gray-200 px-1.5 text-xs text-gray-600">{cards.length}</span>
               <GripVertical size={14} className="ml-auto text-gray-300 opacity-0 group-hover:opacity-100" />
             </header>
@@ -171,7 +171,7 @@ export default function TaskBoard({
                   )}
                   <Card
                     task={t}
-                    look={skin.card}
+                    look={`rounded-lg border-gray-200 bg-white ${skin.cardHover}`}
                     today={today}
                     dragging={dragging === t.id}
                     onOpen={() => onOpen(t)}
@@ -224,7 +224,7 @@ function Card({
   ...drag
 }: {
   task: PersonalTask;
-  /** Ground, hairline and corners, from the theme. */
+  /** Ground, hairline, corners and hover edge — the hover edge is the theme's accent. */
   look: string;
   today: string;
   dragging: boolean;

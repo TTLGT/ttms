@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { PLAIN_SKIN, skinFor, type TaskSkin } from './taskSkins';
+import { artUrl } from './taskSkinArt';
 import { ChevronDown, ChevronUp, Flame, Plus, Target, Trophy, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import type { GameNotice } from '@/lib/personalTasks';
@@ -31,38 +32,6 @@ import { TASK_PRIORITY_LABEL, calendarToday, type PersonalTaskInput } from '@/ty
  * stays where it was for somebody who only wants to see the number go up.
  */
 
-/** One colour per tier of levels. All families tailwind.config.ts maps for dark mode. */
-const TIER_INK: Record<number, string> = {
-  1: 'text-gray-500',
-  2: 'text-sky-600',
-  3: 'text-violet-600',
-  4: 'text-amber-600',
-  5: 'text-rose-600',
-  6: 'text-brand-600',
-};
-
-const TIER_RING: Record<number, string> = {
-  1: 'border-gray-300 bg-gray-50',
-  2: 'border-sky-300 bg-sky-50',
-  3: 'border-violet-300 bg-violet-50',
-  4: 'border-amber-300 bg-amber-50',
-  5: 'border-rose-300 bg-rose-50',
-  6: 'border-brand-300 bg-brand-50',
-};
-
-function LevelMark({ level, size = 'md' }: { level: GameLevel; size?: 'md' | 'xl' }) {
-  return (
-    <span
-      aria-hidden
-      className={`inline-flex flex-shrink-0 items-center justify-center rounded-full border-2 font-semibold ${TIER_RING[level.tier]} ${TIER_INK[level.tier]} ${
-        size === 'xl' ? 'h-20 w-20 text-4xl' : 'h-9 w-9 text-lg'
-      }`}
-    >
-      {level.icon}
-    </span>
-  );
-}
-
 const fmt = (n: number) => n.toLocaleString('en-US');
 
 export function GameBar({
@@ -82,66 +51,115 @@ export function GameBar({
   const title = levelTitle(level.level, game.theme);
   const openMissions = [...(game.daily?.missions ?? []), ...(game.weekly?.missions ?? [])].filter((m) => !m.done).length;
 
+  const week = game.weekly?.missions ?? [];
+  const weekDone = week.filter((m) => m.done).length;
+  const progress = levelProgress(game.xp);
+  /** Controls on the banner: a translucent white over whatever ground the theme has. */
+  const onBanner = 'border border-[rgba(255,255,255,0.2)] bg-[rgba(255,255,255,0.08)] text-white hover:bg-[rgba(255,255,255,0.14)]';
+
   return (
-    <div className={`relative mb-4 border ${skin.panel}`}>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-        <div className="flex min-w-[14rem] flex-1 items-center gap-3">
-          <LevelMark level={level} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-baseline gap-2">
-              <span className={`truncate text-sm font-semibold ${skin.ink} ${skin.font}`}>{title}</span>
-              <span className="text-xs text-gray-500">Level {level.level}</span>
+    <div className="mb-4">
+      {/*
+        The banner. Its colours are fixed hex, the same in light and dark
+        mode — it is a dark panel in both — so nothing in it uses the
+        theme-mapped Tailwind families. The artwork sits on the right at the
+        banner's full height; the words stay in the left 60%, where the
+        drawing has already faded to the plain ground.
+      */}
+      <div className="overflow-hidden rounded-xl text-white shadow-sm" style={{ backgroundColor: skin.ground }}>
+        <div
+          style={game.enabled ? {
+            backgroundImage: artUrl(game.theme),
+            backgroundSize: 'auto 100%',
+            backgroundPosition: 'right center',
+            backgroundRepeat: 'no-repeat',
+          } : undefined}
+        >
+          <div className="flex min-h-[156px] flex-col justify-center gap-4 px-6 py-5 md:max-w-[62%]">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-[0.22em] text-[rgba(255,255,255,0.55)]">
+                {GAME_THEMES[game.theme].label} · Game mode
+              </p>
+              <h2 className={`mt-1 text-3xl font-bold leading-tight ${skin.font}`}>{skin.tagline}</h2>
             </div>
-            <div
-              className="mt-1 h-2 overflow-hidden rounded-full bg-gray-100"
-              role="progressbar"
-              aria-valuenow={levelProgress(game.xp)}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Progress to the next level"
-            >
-              <div className={`h-full rounded-full transition-all ${skin.bar}`} style={{ width: `${levelProgress(game.xp)}%` }} />
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+              <div className="flex min-w-[15rem] flex-1 items-center gap-3">
+                <span
+                  aria-hidden
+                  className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full border-2 text-lg"
+                  style={{ borderColor: skin.accent, color: skin.accent, background: 'rgba(255,255,255,0.06)' }}
+                >
+                  {level.icon}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="truncate font-semibold">{title}</span>
+                    <span className="flex-shrink-0 text-xs text-[rgba(255,255,255,0.6)]">Level {level.level}</span>
+                  </div>
+                  <div
+                    className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[rgba(255,255,255,0.14)]"
+                    role="progressbar"
+                    aria-valuenow={progress}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="Progress to the next level"
+                  >
+                    <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: skin.accent }} />
+                  </div>
+                  <p className="mt-1 text-[11px] text-[rgba(255,255,255,0.6)]">
+                    {fmt(game.xp)} XP
+                    {next ? ` · ${fmt(next.xp - game.xp)} to ${levelTitle(next.level, game.theme)}` : ' · Top level'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2" title={`Longest: ${game.longestStreak} days`}>
+                <Flame size={22} style={{ color: game.streak > 0 ? skin.accent : 'rgba(255,255,255,0.3)' }} />
+                <div>
+                  <p className="text-xl font-semibold leading-none">{game.streak}</p>
+                  <p className="text-[11px] text-[rgba(255,255,255,0.6)]">day streak</p>
+                </div>
+              </div>
             </div>
-            <p className="mt-0.5 text-[11px] text-gray-500">
-              {fmt(game.xp)} XP
-              {next ? ` · ${fmt(next.xp - game.xp)} to ${levelTitle(next.level, game.theme)}` : ' · Top level'}
-            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 text-sm" title={`Longest: ${game.longestStreak} days`}>
-          <Flame size={16} className={game.streak > 0 ? 'text-orange-500' : 'text-gray-300'} />
-          <span className="font-semibold text-gray-900">{game.streak}</span>
-          <span className="text-gray-500">day streak</span>
-        </div>
-
-        <label className="inline-flex items-center gap-1.5 text-sm text-gray-600">
-          Theme
-          <select
-            value={game.theme}
-            onChange={(e) => onOptions({ theme: e.target.value as GameTheme })}
-            className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900"
+        <div className="flex flex-wrap items-center gap-3 border-t border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.05)] px-6 py-2.5 text-sm">
+          <span className="text-[rgba(255,255,255,0.6)]">
+            {week.length > 0 ? `${weekDone} of ${week.length} ${skin.missions.toLowerCase()} done this week` : 'Finish a task to start this week’s ' + skin.missions.toLowerCase()}
+          </span>
+          <label className="ml-auto inline-flex items-center gap-2 text-[rgba(255,255,255,0.6)]">
+            Theme
+            <select
+              value={game.theme}
+              onChange={(e) => onOptions({ theme: e.target.value as GameTheme })}
+              // Dark so the browser draws its own list dark too, to match the banner.
+              style={{ colorScheme: 'dark' }}
+              className={`rounded-md px-2 py-1 text-sm ${onBanner}`}
+            >
+              {(Object.keys(GAME_THEMES) as GameTheme[]).map((t) => (
+                <option key={t} value={t}>{GAME_THEMES[t].label}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm ${onBanner}`}
           >
-            {(Object.keys(GAME_THEMES) as GameTheme[]).map((t) => (
-              <option key={t} value={t}>{GAME_THEMES[t].label}</option>
-            ))}
-          </select>
-        </label>
-
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-        >
-          <Target size={14} /> {skin.missions}
-          {openMissions > 0 && <span className={`rounded-full px-1.5 text-xs ${skin.soft}`}>{openMissions}</span>}
-          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </button>
+            <Target size={14} /> {skin.missions}
+            {openMissions > 0 && (
+              <span className="rounded-full px-1.5 text-xs font-semibold" style={{ background: skin.accent, color: skin.ground }}>
+                {openMissions}
+              </span>
+            )}
+            {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
       </div>
 
       {open && (
-        <div className="grid gap-4 border-t border-gray-100 px-4 py-4 lg:grid-cols-3">
+        <div className="mt-2 grid gap-6 rounded-xl border border-gray-200 bg-white px-5 py-4 lg:grid-cols-3">
           <div className="space-y-4">
             <MissionList heading="Today" set={game.daily} />
             <MissionList heading="This week" set={game.weekly} />
@@ -391,6 +409,7 @@ function LevelMoment({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  const skin = skinFor(theme);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div
@@ -398,28 +417,50 @@ function LevelMoment({
         aria-modal="true"
         aria-label={up ? 'Level up' : 'Level down'}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-2xl bg-white p-8 text-center shadow-2xl"
+        className="w-full max-w-sm overflow-hidden rounded-2xl bg-white text-center shadow-2xl"
       >
-        <button type="button" onClick={onClose} aria-label="Close" className="float-right -mr-4 -mt-4 text-gray-400 hover:text-gray-600">
-          <X size={18} />
-        </button>
-        <div className="flex justify-center"><LevelMark level={level} size="xl" /></div>
-        <p className={`mt-4 text-3xl font-bold tracking-wide ${skinFor(theme).font} ${up ? 'text-brand-700' : 'text-red-700'}`}>
-          {up ? 'LEVEL UP!' : 'LEVEL DOWN'}
-        </p>
-        <p className="mt-2 text-sm text-gray-600">
-          {up ? 'You are now' : 'You dropped to'} level {level.level}:{' '}
-          <span className="font-semibold text-gray-900">{levelTitle(level.level, theme)}</span>
-        </p>
-        <button
-          type="button"
-          onClick={onClose}
-          className={`mt-6 w-full rounded-lg px-4 py-2 text-sm font-medium text-white ${
-            up ? 'bg-brand-600 hover:bg-brand-700' : 'bg-red-600 hover:bg-red-700'
-          }`}
+        {/* The theme's banner in miniature: same ground, same drawing, same fixed colours. */}
+        <div
+          className="relative px-8 pb-6 pt-8 text-white"
+          style={{
+            backgroundColor: skin.ground,
+            backgroundImage: artUrl(theme),
+            backgroundSize: 'cover',
+            backgroundPosition: 'right center',
+          }}
         >
-          {up ? 'Keep going' : 'Win it back'}
-        </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute right-3 top-3 rounded p-1 text-[rgba(255,255,255,0.6)] hover:text-white"
+          >
+            <X size={18} />
+          </button>
+          <span
+            aria-hidden
+            className="mx-auto grid h-20 w-20 place-items-center rounded-full border-2 text-4xl"
+            style={{ borderColor: up ? skin.accent : '#f87171', color: up ? skin.accent : '#f87171', background: 'rgba(255,255,255,0.06)' }}
+          >
+            {level.icon}
+          </span>
+          <p className={`mt-4 text-3xl font-bold ${skin.font}`}>{up ? 'Level up' : 'Level down'}</p>
+        </div>
+        <div className="px-8 pb-7 pt-5">
+          <p className="text-sm text-gray-600">
+            {up ? 'You are now' : 'You dropped to'} level {level.level}
+          </p>
+          <p className="mt-1 text-lg font-semibold text-gray-900">{levelTitle(level.level, theme)}</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className={`mt-6 w-full rounded-lg px-4 py-2 text-sm font-medium ${
+              up ? skin.button : 'bg-red-600 text-white hover:bg-red-700'
+            }`}
+          >
+            {up ? 'Keep going' : 'Win it back'}
+          </button>
+        </div>
       </div>
     </div>
   );

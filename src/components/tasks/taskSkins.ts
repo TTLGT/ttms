@@ -1,222 +1,135 @@
-import { Cinzel, Dancing_Script, Orbitron, Pirata_One, Uncial_Antiqua } from 'next/font/google';
-import { Anchor, Crown, Flower2, Rocket, Truck, WandSparkles, type LucideIcon } from 'lucide-react';
 import type { GameTheme } from '@/types/taskGame';
 
 /**
- * How My tasks looks under each game theme — the theme is the whole page,
- * not just what the levels are called.
+ * How My tasks looks under each game theme.
  *
- * What a theme may change, and what it may not:
+ * The theme lives in two places and is restrained in both, the way a
+ * product's own themes are rather than a party's:
  *
- * - **May:** the ground and its pattern, the heading face, the columns, the
- *   cards, the buttons, the XP bar, and a few words of flavour ("Add a task"
- *   becomes "Chart a course"). That is what makes it feel like the theme.
- * - **May not:** column names, statuses, priorities, dates, or anything that
- *   says what a task *is*. A wizard's "In review" is still In review — the
- *   board has to mean the same thing whatever it is wearing.
+ * - **The banner** at the top of the page carries it fully — a deep ground,
+ *   fine line artwork (taskSkinArt.ts), the theme's display face, and the
+ *   level, XP and streak drawn in its accent. The banner's colours are fixed
+ *   hex values, deliberately the same in light and dark mode: it is a dark
+ *   panel in both.
+ * - **The working area** takes one accent and nothing else: a rule along the
+ *   top of each column, the hover edge of a card, the main buttons. The page
+ *   ground, the cards and every word on them stay as they always are, so a
+ *   wizard's board is as quick to read as anybody's.
  *
- * Colours are only the families tailwind.config.ts maps for dark mode, at
- * the shades it maps, so every theme works in dark and dim without a `dark:`
- * class. The patterns are drawn in a translucent mid-tone, which reads on a
- * light ground and a dark one alike. Gradients are avoided on purpose: the
- * config maps only `white` as a gradient stop, so a tinted gradient would
- * stay light in dark mode.
+ * What a theme may never change: column names, statuses, priorities, dates —
+ * anything that says what a task *is*.
  *
  * Every class here is a literal string so Tailwind finds it when it scans.
+ * The hex classes (`bg-[#…]`) are not mapped for dark mode on purpose; each
+ * is a solid accent with white text on it, which reads the same in both.
  */
-
-// Heading faces, one per theme. `preload: false` because most people will
-// only ever see one of them, and a preload is a download whether used or not.
-const wizardFace = Uncial_Antiqua({ weight: '400', subsets: ['latin'], variable: '--font-tt-wizard', preload: false, display: 'swap' });
-const empireFace = Cinzel({ weight: ['600', '700'], subsets: ['latin'], variable: '--font-tt-empire', preload: false, display: 'swap' });
-const fairyFace = Dancing_Script({ weight: ['600', '700'], subsets: ['latin'], variable: '--font-tt-fairy', preload: false, display: 'swap' });
-const spaceFace = Orbitron({ weight: ['600', '700'], subsets: ['latin'], variable: '--font-tt-space', preload: false, display: 'swap' });
-const pirateFace = Pirata_One({ weight: '400', subsets: ['latin'], variable: '--font-tt-pirate', preload: false, display: 'swap' });
-
-/** Put on the page's outermost element so every themed heading under it can reach its face. */
-export const THEME_FONT_VARS = [wizardFace, empireFace, fairyFace, spaceFace, pirateFace]
-  .map((f) => f.variable)
-  .join(' ');
-
 export interface TaskSkin {
-  /** A second name for the page, beside "My tasks". Empty for the plain look. */
+  /** False for the plain look with game mode off: no banner, brand colours. */
+  themed: boolean;
+  /** The banner title. */
   tagline: string;
-  Icon: LucideIcon | null;
-  /** Heading face. Body text stays Inter in every theme, for reading. */
+  /** Display face for the banner title only. */
   font: string;
-  /** Ink for headings. */
-  ink: string;
-  page: string;
-  /** A CSS background-image, or 'none'. */
-  pattern: string;
-  /** The main buttons: Add, the chosen view. */
+  /** Banner ground, as a hex colour. Matches the artwork's own ground. */
+  ground: string;
+  /** Highlights on the banner: XP fill, the level ring, the streak flame. */
   accent: string;
-  /** Small filled labels: the mission count, the tagline. */
-  soft: string;
-  /** A board column: ground, hairline, corners. */
-  column: string;
-  /** The coloured line along the top of a column. Empty for none. */
+  /** Main buttons in the working area: Add task, the chosen view. */
+  button: string;
+  /** The rule along the top of a board column. */
   columnTop: string;
-  /** A card: ground, hairline, corners. */
-  card: string;
-  /** XP bar fill. */
-  bar: string;
-  /** The game bar's box. */
-  panel: string;
+  /** A card's edge on hover. */
+  cardHover: string;
   /** The words on a column's quick-add button. */
   addLabel: string;
   /** What the missions are called. */
   missions: string;
 }
 
-/** A tiling SVG as a CSS background-image. */
-function tile(w: number, h: number, body: string): string {
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' viewBox='0 0 ${w} ${h}'>${body}</svg>`;
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-}
-
-/** The look with game mode off — exactly what the page was before themes. */
 export const PLAIN_SKIN: TaskSkin = {
+  themed: false,
   tagline: '',
-  Icon: null,
   font: '',
-  ink: 'text-gray-900',
-  page: '',
-  pattern: 'none',
-  accent: 'bg-brand-600 text-white hover:bg-brand-700',
-  soft: 'bg-brand-50 text-brand-700',
-  column: 'rounded-xl border-gray-200 bg-gray-50',
+  ground: '#1e3a8a',
+  accent: '#60a5fa',
+  button: 'bg-brand-600 text-white hover:bg-brand-700',
   columnTop: '',
-  card: 'rounded-lg border-gray-200 bg-white',
-  bar: 'bg-brand-500',
-  panel: 'rounded-xl border-gray-200 bg-white',
+  cardHover: 'hover:border-gray-300',
   addLabel: 'Add a task',
   missions: 'Missions',
 };
 
 export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
-  // Asphalt and lane paint: a dispatch board on the road.
   freight: {
+    themed: true,
     tagline: 'Dispatch board',
-    Icon: Truck,
-    font: 'font-[family-name:var(--font-rajdhani)] uppercase tracking-wide',
-    ink: 'text-gray-900',
-    page: 'bg-gray-100',
-    pattern: tile(120, 60,
-      `<rect x='0' y='28' width='36' height='4' rx='2' fill='rgba(234,179,8,0.28)'/>` +
-      `<rect x='60' y='28' width='36' height='4' rx='2' fill='rgba(234,179,8,0.28)'/>`),
-    accent: 'bg-yellow-400 text-black hover:bg-yellow-500', // black, not gray-900: gray inks turn light in dark mode
-    soft: 'bg-yellow-100 text-yellow-800',
-    column: 'rounded-md border-gray-300 bg-white',
-    columnTop: 'border-t-4 border-t-yellow-400',
-    card: 'rounded-md border-gray-300 bg-white border-l-4 border-l-yellow-400',
-    bar: 'bg-yellow-400',
-    panel: 'rounded-md border-gray-300 bg-white border-l-4 border-l-yellow-400',
-    addLabel: 'Book a task', // not "Book a load": on a freight desk that reads as booking real freight
+    font: 'font-[family-name:var(--font-rajdhani)] uppercase tracking-[0.12em]',
+    ground: '#0b1a33',
+    accent: '#f59e0b',
+    button: 'bg-[#0b1a33] text-white hover:bg-[#13274a]',
+    columnTop: 'border-t-[3px] border-t-[#f59e0b]',
+    cardHover: 'hover:border-[#f59e0b]',
+    // Not "Book a load": on a freight desk that reads as booking real freight.
+    addLabel: 'Book a task',
     missions: 'Runs',
   },
-  // Night-sky violet and small stars: a spellbook.
   wizarding: {
+    themed: true,
     tagline: 'Spellbook',
-    Icon: WandSparkles,
     font: 'font-[family-name:var(--font-tt-wizard)]',
-    ink: 'text-violet-900',
-    page: 'bg-violet-50',
-    pattern: tile(90, 90,
-      `<path d='M20 12 l2 6 6 2 -6 2 -2 6 -2 -6 -6 -2 6 -2z' fill='rgba(139,92,246,0.22)'/>` +
-      `<path d='M66 58 l1.4 4 4 1.4 -4 1.4 -1.4 4 -1.4 -4 -4 -1.4 4 -1.4z' fill='rgba(139,92,246,0.18)'/>` +
-      `<circle cx='70' cy='18' r='1.6' fill='rgba(139,92,246,0.3)'/>` +
-      `<circle cx='28' cy='70' r='1.2' fill='rgba(139,92,246,0.3)'/>`),
-    accent: 'bg-violet-700 text-white hover:bg-violet-800',
-    soft: 'bg-violet-100 text-violet-800',
-    column: 'rounded-2xl border-violet-200 bg-white/80',
-    columnTop: '',
-    card: 'rounded-xl border-violet-200 bg-white',
-    bar: 'bg-violet-500',
-    panel: 'rounded-2xl border-violet-200 bg-white/90',
+    ground: '#1a1033',
+    accent: '#c4b5fd',
+    button: 'bg-[#5b3fc4] text-white hover:bg-[#4c33a8]',
+    columnTop: 'border-t-[3px] border-t-[#8b5cf6]',
+    cardHover: 'hover:border-[#8b5cf6]',
     addLabel: 'Write a spell',
     missions: 'Quests',
   },
-  // Crimson and gold, square-cornered: a war council's table.
   empire: {
+    themed: true,
     tagline: 'War council',
-    Icon: Crown,
-    font: 'font-[family-name:var(--font-tt-empire)] tracking-wide',
-    ink: 'text-red-900',
-    page: 'bg-red-50',
-    pattern: tile(48, 48,
-      `<path d='M24 4 L44 24 L24 44 L4 24 Z' fill='none' stroke='rgba(245,158,11,0.22)' stroke-width='1.5'/>`),
-    accent: 'bg-red-800 text-white hover:bg-red-900',
-    soft: 'bg-amber-100 text-red-800',
-    column: 'rounded-sm border-amber-300 bg-white/85',
-    columnTop: 'border-t-4 border-t-red-700',
-    card: 'rounded-sm border-amber-200 bg-white border-t-2 border-t-amber-400',
-    bar: 'bg-amber-500',
-    panel: 'rounded-sm border-amber-300 bg-white/90 border-t-4 border-t-red-700',
+    font: 'font-[family-name:var(--font-tt-empire)] tracking-[0.08em]',
+    ground: '#3a0b12',
+    accent: '#e0b84f',
+    button: 'bg-[#7f1d2d] text-white hover:bg-[#6a1726]',
+    columnTop: 'border-t-[3px] border-t-[#c9a23f]',
+    cardHover: 'hover:border-[#c9a23f]',
     addLabel: 'Issue a decree',
     missions: 'Decrees',
   },
-  // Petals and soft corners: an enchanted garden.
   fairy: {
+    themed: true,
     tagline: 'Enchanted garden',
-    Icon: Flower2,
-    font: 'font-[family-name:var(--font-tt-fairy)] text-[1.15em]',
-    ink: 'text-pink-900',
-    page: 'bg-pink-50',
-    pattern: tile(80, 80,
-      `<circle cx='14' cy='14' r='3' fill='rgba(236,72,153,0.18)'/>` +
-      `<circle cx='54' cy='40' r='2' fill='rgba(16,185,129,0.22)'/>` +
-      `<circle cx='30' cy='62' r='2.5' fill='rgba(236,72,153,0.14)'/>` +
-      `<path d='M66 10 l1 3 3 1 -3 1 -1 3 -1 -3 -3 -1 3 -1z' fill='rgba(16,185,129,0.25)'/>`),
-    accent: 'bg-pink-500 text-white hover:bg-pink-600',
-    soft: 'bg-emerald-100 text-emerald-800',
-    column: 'rounded-3xl border-pink-200 bg-white/80',
-    columnTop: '',
-    card: 'rounded-2xl border-emerald-200 bg-white',
-    bar: 'bg-emerald-400',
-    panel: 'rounded-3xl border-pink-200 bg-white/90',
+    font: 'font-[family-name:var(--font-tt-fairy)] italic text-[1.35em]',
+    ground: '#0e2a24',
+    accent: '#f9a8d4',
+    button: 'bg-[#1f6b55] text-white hover:bg-[#195a47]',
+    columnTop: 'border-t-[3px] border-t-[#ec89b8]',
+    cardHover: 'hover:border-[#ec89b8]',
     addLabel: 'Make a wish',
     missions: 'Wishes',
   },
-  // Indigo and cyan, hard edges, a scatter of stars: mission control.
   space: {
+    themed: true,
     tagline: 'Mission control',
-    Icon: Rocket,
-    font: 'font-[family-name:var(--font-tt-space)] tracking-wider',
-    ink: 'text-indigo-900',
-    page: 'bg-indigo-50',
-    pattern: tile(100, 100,
-      `<circle cx='10' cy='20' r='1.2' fill='rgba(79,70,229,0.4)'/>` +
-      `<circle cx='60' cy='8' r='0.9' fill='rgba(79,70,229,0.35)'/>` +
-      `<circle cx='82' cy='52' r='1.5' fill='rgba(6,182,212,0.4)'/>` +
-      `<circle cx='34' cy='74' r='1' fill='rgba(79,70,229,0.35)'/>` +
-      `<circle cx='70' cy='88' r='8' fill='none' stroke='rgba(6,182,212,0.18)' stroke-width='1'/>`),
-    accent: 'bg-indigo-700 text-white hover:bg-indigo-800',
-    soft: 'bg-cyan-100 text-cyan-800',
-    column: 'rounded-none border-cyan-300 bg-white/80',
-    columnTop: 'border-t-2 border-t-cyan-400',
-    card: 'rounded-none border-indigo-200 bg-white border-l-2 border-l-cyan-400',
-    bar: 'bg-cyan-500',
-    panel: 'rounded-none border-cyan-300 bg-white/90',
+    font: 'font-[family-name:var(--font-tt-space)] tracking-[0.1em]',
+    ground: '#070b1f',
+    accent: '#67e8f9',
+    button: 'bg-[#3730a3] text-white hover:bg-[#2e2890]',
+    columnTop: 'border-t-[3px] border-t-[#22d3ee]',
+    cardHover: 'hover:border-[#22d3ee]',
     addLabel: 'Log an objective',
     missions: 'Objectives',
   },
-  // Parchment and sea: a captain's log.
   pirate: {
+    themed: true,
     tagline: 'Captain’s log',
-    Icon: Anchor,
-    font: 'font-[family-name:var(--font-tt-pirate)] text-[1.15em]',
-    ink: 'text-amber-900',
-    page: 'bg-amber-50',
-    pattern: tile(120, 40,
-      `<path d='M0 20 Q15 10 30 20 T60 20 T90 20 T120 20' fill='none' stroke='rgba(20,184,166,0.2)' stroke-width='2'/>`),
-    accent: 'bg-teal-800 text-white hover:bg-teal-900',
-    soft: 'bg-teal-100 text-teal-800',
-    column: 'rounded-sm border-amber-300 bg-orange-50',
-    columnTop: '',
-    card: 'rounded-sm border-amber-300 bg-amber-50',
-    bar: 'bg-teal-600',
-    panel: 'rounded-sm border-amber-300 bg-orange-50',
+    font: 'font-[family-name:var(--font-tt-pirate)] text-[1.25em] tracking-wide',
+    ground: '#08262b',
+    accent: '#e7c88a',
+    button: 'bg-[#0f5c5c] text-white hover:bg-[#0c4c4c]',
+    columnTop: 'border-t-[3px] border-t-[#c9a45c]',
+    cardHover: 'hover:border-[#c9a45c]',
     addLabel: 'Chart a course',
     missions: 'Bounties',
   },
