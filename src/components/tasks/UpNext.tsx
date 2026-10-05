@@ -1,5 +1,6 @@
 'use client';
 
+import { useId } from 'react';
 import { Check, Crosshair, Flame, ListChecks, Pencil, Zap } from 'lucide-react';
 import type { PersonalTask } from '@/types/task';
 import { nextStepOf } from '@/types/task';
@@ -119,7 +120,10 @@ export function UpNextCard({
  * With game mode off it is the plain streak — see src/types/taskStreak.ts.
  * With it on, the day count is the game's own (`game.streak`), the one that
  * pays the daily bonus and charges for a missed day, so the number here is
- * the number the XP follows; the flame takes the theme's accent. It used to
+ * the number the XP follows; the card's edge takes the theme's accent. The
+ * flame itself is fire-coloured under every theme — red at the base through
+ * orange to yellow at the tip — because a lilac or cyan flame stops reading
+ * as fire. It used to
  * be a small figure on the banner, easy to miss. "Done today" and all-time
  * come from the plain streak either way: it is recorded in both modes and
  * counts the same first finishes.
@@ -134,6 +138,8 @@ export function StreakCard({ streak, game = null, skin = PLAIN_SKIN }: {
   const alive = current > 0;
   const today = streak.todayTasks + streak.todaySteps;
   const accent = game && skin.themed ? skin.accent : undefined;
+  // One gradient per card; useId keeps two cards on a page from sharing an id.
+  const fire = `tt-fire-${useId().replace(/:/g, '')}`;
   return (
     <section
       aria-label="Your streak"
@@ -143,11 +149,26 @@ export function StreakCard({ streak, game = null, skin = PLAIN_SKIN }: {
       <div className="flex items-center gap-3">
         <span
           className={`grid h-12 w-12 flex-shrink-0 place-items-center rounded-full ${
-            accent ? '' : alive ? 'bg-orange-50 text-orange-500' : 'bg-gray-100 text-gray-400'
+            alive ? 'bg-orange-50 text-orange-500' : 'bg-gray-100 text-gray-400'
           }`}
-          style={accent ? { color: alive ? accent : undefined, background: `${accent}22` } : undefined}
         >
-          <Flame size={26} className={alive ? 'tt-flame-lit' : undefined} aria-hidden />
+          {/* The flame's stroke is a gradient in the icon's own 24-unit box,
+              bottom to top; the glow stays orange through currentColor. */}
+          <svg width="0" height="0" className="absolute" aria-hidden>
+            <defs>
+              <linearGradient id={fire} gradientUnits="userSpaceOnUse" x1="12" y1="22" x2="12" y2="2">
+                <stop offset="0%" stopColor="#dc2626" />
+                <stop offset="55%" stopColor="#f97316" />
+                <stop offset="100%" stopColor="#facc15" />
+              </linearGradient>
+            </defs>
+          </svg>
+          <Flame
+            size={26}
+            stroke={alive ? `url(#${fire})` : 'currentColor'}
+            className={alive ? 'tt-flame-lit' : undefined}
+            aria-hidden
+          />
         </span>
         <div>
           <p className="text-2xl font-bold leading-none text-gray-900">

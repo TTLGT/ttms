@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "215df92d5cf9caf3ea53c1a6117571f7259bb518",
+      "date": "2026-10-05T14:25:53-06:00",
+      "author": "erwindank",
+      "subject": "Make the streak flame flicker while the streak is alive",
+      "body": "The flame on the streak card sways from its base with a pulsing glow in\nits own colour, in plain mode and every game theme. A dead streak's grey\nflame stays still, and the animation is off for anyone who asks their\nsystem for less motion."
+    },
+    {
       "hash": "6cda745391c8b43148fb43c8d41e86286eaa2050",
       "date": "2026-10-05T14:23:19-06:00",
       "author": "erwindank",
