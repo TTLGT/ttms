@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "eace64e4e92f80705549a4b7d3cb25a726e66d24",
+      "date": "2026-10-05T11:52:33-06:00",
+      "author": "erwindank",
+      "subject": "Colour the task editor with the colour picked for the task",
+      "body": "The editor window now wears the same note colours as the board card and\nthe sticky note, and changes as a colour is clicked, so it previews the\ncard before saving. Inputs keep their own plain ground."
+    },
+    {
       "hash": "c92bbc7be7f8383d5d766ac490c26dac8ea455f6",
       "date": "2026-10-05T11:47:57-06:00",
       "author": "erwindank",

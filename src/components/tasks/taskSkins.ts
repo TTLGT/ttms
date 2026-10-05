@@ -291,13 +291,19 @@ export function roomCss(skin: TaskSkin): string {
     '--c-text-gray-500':   lift(g, 0.66),
     '--c-text-gray-600':   lift(g, 0.75),
     '--c-text-gray-700':   lift(g, 0.84),
+    // The top inks have to be restated here even though dark has values of
+    // its own: the light block above sets them on this same element, and
+    // without these the headings stayed the light room's deep ink on a dark
+    // ground.
+    '--c-text-gray-800':   lift(g, 0.9),
+    '--c-text-gray-900':   lift(g, 0.94),
     '--tt-accent-ink':     skin.accent,
     'background-color':    asRgb(lift(g, 0.11)),
     'background-image':    glow(0.12),
   };
 
   // Dim: the dark room from a higher floor, as the app's dim is dark with
-  // lifted grounds. The top inks are left at dim's own softer values.
+  // lifted grounds.
   const dim: Shades = {
     '--c-bg-gray-50':      lift(g, 0.27),
     '--c-surface':         lift(g, 0.34),
@@ -314,12 +320,17 @@ export function roomCss(skin: TaskSkin): string {
     '--c-text-gray-500':   lift(g, 0.72),
     '--c-text-gray-600':   lift(g, 0.8),
     '--c-text-gray-700':   lift(g, 0.87),
+    // Restated for the same reason as in dark; a touch softer, as dim's are.
+    '--c-text-gray-800':   lift(g, 0.9),
+    '--c-text-gray-900':   lift(g, 0.93),
     '--tt-accent-ink':     skin.accent,
     'background-color':    asRgb(lift(g, 0.21)),
     'background-image':    glow(0.1),
   };
 
-  // `html.dark.dim` outranks `html.dark`, which outranks the bare class.
+  // `html.dark.dim` outranks `html.dark`, which outranks the bare class. All
+  // three are on the same element, so a variable set in one and missing from
+  // another leaks across: every block must name the same variables.
   return `.${ROOM_CLASS}{${block(light)}}`
     + `html.dark .${ROOM_CLASS}{${block(dark)}}`
     + `html.dark.dim .${ROOM_CLASS}{${block(dim)}}`;
