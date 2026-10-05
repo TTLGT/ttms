@@ -200,6 +200,7 @@ export default function MyTasksPage() {
           tasks={shown}
           columns={columns}
           today={today}
+          showXp={playing}
           onOpen={(task) => setEditing({ task })}
           onMove={move}
           onToggleDone={(t) => update(t.id, { status: t.status === 'done' ? 'todo' : 'done' })}
@@ -210,6 +211,7 @@ export default function MyTasksPage() {
           tasks={shown}
           columns={columns}
           today={today}
+          showXp={playing}
           onOpen={(task) => setEditing({ task })}
           onUpdate={update}
         />

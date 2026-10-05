@@ -13,6 +13,7 @@ import {
   type PersonalTaskInput,
 } from '@/types/task';
 import { NOTE_STYLE, TASK_DRAG_TYPE } from './taskStyle';
+import XpBadge from './XpBadge';
 
 /**
  * Sticky notes: the same tasks as paper squares on a wall, in the colour
@@ -26,6 +27,7 @@ export default function TaskNotes({
   tasks,
   columns,
   today,
+  showXp = false,
   onOpen,
   onMove,
   onToggleDone,
@@ -34,6 +36,8 @@ export default function TaskNotes({
   tasks: PersonalTask[];
   columns: BoardColumn[];
   today: string;
+  /** Game mode: each note says what finishing it is worth. */
+  showXp?: boolean;
   onOpen: (task: PersonalTask) => void;
   onMove: (id: string, group: PersonalTask[], beforeId: string | null, patch: PersonalTaskInput) => void;
   onToggleDone: (task: PersonalTask) => void;
@@ -119,6 +123,7 @@ export default function TaskNotes({
               )}
               {t.priority === 'high' && <span className="font-semibold">· High</span>}
               {t.repeat !== 'none' && <Repeat size={10} aria-label="Repeats" />}
+              {showXp && <XpBadge task={t} today={today} className="ml-auto" />}
             </div>
           </div>
         );

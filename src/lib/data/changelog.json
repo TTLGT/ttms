@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "f544c3cdefd5a759dd8309291efabece198efbef",
+      "date": "2026-10-05T11:56:30-06:00",
+      "author": "erwindank",
+      "subject": "Make the Fairy worlds page and column titles bigger",
+      "body": "Fairy's script italic reads at half the height of the other display faces,\nso a theme can now set its own title sizes. Only Fairy does: column titles\ngo from 14px to 20px and the page title from 24px to about 34px."
+    },
+    {
       "hash": "03985466c3154ca4c8c923dfa22bddee4937c324",
       "date": "2026-10-05T11:54:55-06:00",
       "author": "erwindank",

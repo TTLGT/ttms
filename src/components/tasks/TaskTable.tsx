@@ -14,6 +14,7 @@ import {
   type PersonalTaskInput,
 } from '@/types/task';
 import { NOTE_STYLE, PRIORITY_STYLE } from './taskStyle';
+import XpBadge from './XpBadge';
 
 type SortKey = 'title' | 'status' | 'priority' | 'date' | 'createdAt';
 
@@ -30,12 +31,15 @@ export default function TaskTable({
   tasks,
   columns,
   today,
+  showXp = false,
   onOpen,
   onUpdate,
 }: {
   tasks: PersonalTask[];
   columns: BoardColumn[];
   today: string;
+  /** Game mode: each row says what finishing it is worth. */
+  showXp?: boolean;
   onOpen: (task: PersonalTask) => void;
   onUpdate: (id: string, input: PersonalTaskInput) => void;
 }) {
@@ -118,6 +122,7 @@ export default function TaskTable({
                       <span className={`flex items-center gap-1 text-gray-900 hover:underline ${done ? 'line-through text-gray-500' : ''}`}>
                         <span className="truncate">{t.title}</span>
                         {t.repeat !== 'none' && <Repeat size={11} className="flex-shrink-0 text-gray-400" aria-label="Repeats" />}
+                        {showXp && <XpBadge task={t} today={today} className="ml-1 flex-shrink-0 no-underline" />}
                       </span>
                       {t.notes && <span className="block truncate text-xs text-gray-500">{t.notes}</span>}
                     </span>

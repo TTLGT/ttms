@@ -19,6 +19,7 @@ import {
 } from '@/types/task';
 import { COLUMN_DRAG_TYPE, NOTE_STYLE, PRIORITY_STYLE, TASK_DRAG_TYPE } from './taskStyle';
 import StatusMark from './StatusMark';
+import XpBadge from './XpBadge';
 import BoardColumnsMenu from './BoardColumnsMenu';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
 
@@ -174,6 +175,8 @@ export default function TaskBoard({
                     task={t}
                     look={`rounded-lg ${NOTE_STYLE[t.color].note} ${skin.cardHover}`}
                     today={today}
+                    // Game mode is what puts a theme on the board.
+                    showXp={skin.themed}
                     dragging={dragging === t.id}
                     onOpen={() => onOpen(t)}
                     onDragStart={(e) => {
@@ -220,6 +223,7 @@ function Card({
   task,
   look,
   today,
+  showXp,
   dragging,
   onOpen,
   ...drag
@@ -231,6 +235,7 @@ function Card({
    */
   look: string;
   today: string;
+  showXp: boolean;
   dragging: boolean;
   onOpen: () => void;
   onDragStart: (e: DragEvent) => void;
@@ -265,7 +270,7 @@ function Card({
           <StickyNote size={10} className="mr-1 inline" />{task.notes}
         </p>
       )}
-      {(task.date || task.priority !== 'normal') && (
+      {(task.date || task.priority !== 'normal' || showXp) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-[1.125rem]">
           {task.date && (
             <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${
@@ -285,6 +290,7 @@ function Card({
               {TASK_PRIORITY_LABEL[task.priority]}
             </span>
           )}
+          {showXp && <XpBadge task={task} today={today} />}
         </div>
       )}
     </button>

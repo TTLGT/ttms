@@ -194,6 +194,20 @@ export function lateShare(daysLate: number): number {
   return daysLate <= 3 ? 0.75 : daysLate <= 7 ? 0.5 : 0.25;
 }
 
+/**
+ * What finishing `task` on `today` is worth, before the streak's daily bonus
+ * — the single definition. onTaskDone() pays it, and the cards show it as
+ * "+30 XP" beforehand, so the number on a card is the number that lands.
+ */
+export function taskXp(
+  task: Pick<PersonalTask, 'priority' | 'date' | 'suggestionId'>,
+  today: string,
+): { xp: number; full: number; daysLate: number } {
+  const full = TASK_XP[task.priority] + (task.suggestionId ? SUGGESTION_BONUS_XP : 0);
+  const daysLate = task.date ? Math.max(0, daysBetween(task.date, today)) : 0;
+  return { xp: daysLate > 0 ? Math.max(1, Math.round(full * lateShare(daysLate))) : full, full, daysLate };
+}
+
 /** Per open overdue task, each day it is first seen overdue: 5 XP a day late, capped at what it is worth. */
 export function overduePenalty(priority: TaskPriority, daysOverdue: number): number {
   return Math.min(daysOverdue * 5, TASK_XP[priority]);
@@ -577,14 +591,8 @@ export class GameTurn {
     if (!s.enabled) return 0;
     this.ensureSets();
 
-    let earned = TASK_XP[task.priority] + (task.suggestionId ? SUGGESTION_BONUS_XP : 0);
-    let note = '';
-    const daysLate = task.date ? daysBetween(task.date, this.today) : 0;
-    if (daysLate > 0) {
-      const full = earned;
-      earned = Math.max(1, Math.round(full * lateShare(daysLate)));
-      note = ` (${daysLate} day${daysLate === 1 ? '' : 's'} late)`;
-    }
+    const { xp: earned, daysLate } = taskXp(task, this.today);
+    const note = daysLate > 0 ? ` (${daysLate} day${daysLate === 1 ? '' : 's'} late)` : '';
     this.award(earned, `Finished "${task.title}"${note}`);
 
     if (s.lastActiveDate !== this.today) {
