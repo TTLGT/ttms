@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "0d4dc7e21c72766dae6b12f25e7b130048f7af80",
+      "date": "2026-10-05T14:28:20-06:00",
+      "author": "erwindank",
+      "subject": "Draw the streak flame in fire colours under every theme",
+      "body": "The flame was tinted with the game theme's accent, so it came out lilac or\ncyan on some themes. It is now a red-orange-yellow gradient everywhere;\nthe card's edge still carries the theme's accent."
+    },
+    {
       "hash": "215df92d5cf9caf3ea53c1a6117571f7259bb518",
       "date": "2026-10-05T14:25:53-06:00",
       "author": "erwindank",

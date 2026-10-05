@@ -198,8 +198,14 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
     themed: true,
     id: 'pirate',
     tagline: 'Captain’s log',
-    font: 'font-[family-name:var(--font-tt-pirate)] text-[1.25em] tracking-wide',
-    heading: 'font-[family-name:var(--font-tt-pirate)] tracking-wide',
+    // Pirata One comes in one weight, so the font-bold / font-semibold the
+    // titles carry made the browser smear a fake bold over a blackletter
+    // that is already heavy. `!font-normal` beats them whatever the class
+    // order, and the sizes below make up for the face reading small.
+    font: '!font-normal font-[family-name:var(--font-tt-pirate)] text-[1.25em] tracking-wide',
+    heading: '!font-normal font-[family-name:var(--font-tt-pirate)] tracking-wide',
+    pageTitleSize: 'text-[1.875rem] leading-tight',
+    columnTitleSize: 'text-lg leading-6',
     body: 'font-[family-name:var(--font-tt-pirate-body)]',
     ground: '#08262b',
     accent: '#e7c88a',
