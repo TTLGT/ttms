@@ -86,7 +86,7 @@ export function UpNextCard({
             <ListChecks size={12} /> {stepsDone}/{task.steps.length} {skin.steps}
           </span>
         )}
-        {playing && <XpBadge task={task} today={today} />}
+        {playing && <XpBadge task={task} today={today} theme={skin.id} />}
       </div>
 
       <div className="mt-4 flex gap-2">

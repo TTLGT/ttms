@@ -376,6 +376,7 @@ export default function MyTasksPage() {
           columns={columns}
           today={today}
           showXp={playing}
+          theme={skin.id}
           onOpen={(task) => setEditing({ task })}
           onMove={move}
           onToggleDone={toggleDone}
@@ -387,6 +388,7 @@ export default function MyTasksPage() {
           columns={columns}
           today={today}
           showXp={playing}
+          theme={skin.id}
           onOpen={(task) => setEditing({ task })}
           onUpdate={update}
         />

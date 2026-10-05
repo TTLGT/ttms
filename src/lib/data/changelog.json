@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "08a79846135dfa1dd324631aa0c09d87c6ea8b18",
+      "date": "2026-10-05T12:52:03-06:00",
+      "author": "erwindank",
+      "subject": "Add a Path view that draws the task queue as a road with each task's steps in order",
+      "body": ""
+    },
+    {
       "hash": "6a1382a1adbe54a48c2c9a1215c08b47c61322ee",
       "date": "2026-10-05T12:47:14-06:00",
       "author": "erwindank",

@@ -119,7 +119,7 @@ export default function TaskFocus({
                   {TASK_PRIORITY_LABEL[task.priority]} priority
                 </span>
               )}
-              {playing && <XpBadge task={task} today={today} />}
+              {playing && <XpBadge task={task} today={today} theme={skin.id} />}
             </div>
           </div>
           <button type="button" onClick={onEdit} aria-label="Edit this task" className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">

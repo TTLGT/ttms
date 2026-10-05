@@ -169,7 +169,7 @@ function PathCard({
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {task.date && <DueChip date={task.date} time={task.time} today={today} />}
-          {playing && <XpBadge task={task} today={today} />}
+          {playing && <XpBadge task={task} today={today} theme={skin.id} />}
           {task.steps.length > 0 && (
             <span className="ml-auto text-[11px] font-medium text-gray-500">{done}/{task.steps.length} {skin.steps}</span>
           )}

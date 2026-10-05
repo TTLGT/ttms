@@ -19,6 +19,7 @@ import {
 } from '@/types/task';
 import { COLUMN_DRAG_TYPE, NOTE_STYLE, PRIORITY_STYLE, TASK_DRAG_TYPE } from './taskStyle';
 import StatusMark from './StatusMark';
+import type { GameTheme } from '@/types/taskGame';
 import XpBadge from './XpBadge';
 import BoardColumnsMenu from './BoardColumnsMenu';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
@@ -177,6 +178,7 @@ export default function TaskBoard({
                     today={today}
                     // Game mode is what puts a theme on the board.
                     showXp={skin.themed}
+                    theme={skin.id}
                     dragging={dragging === t.id}
                     onOpen={() => onOpen(t)}
                     onDragStart={(e) => {
@@ -224,6 +226,7 @@ function Card({
   look,
   today,
   showXp,
+  theme,
   dragging,
   onOpen,
   ...drag
@@ -236,6 +239,7 @@ function Card({
   look: string;
   today: string;
   showXp: boolean;
+  theme: GameTheme | null;
   dragging: boolean;
   onOpen: () => void;
   onDragStart: (e: DragEvent) => void;
@@ -295,7 +299,7 @@ function Card({
               <ListChecks size={10} /> {task.steps.filter((s) => s.done).length}/{task.steps.length}
             </span>
           )}
-          {showXp && <XpBadge task={task} today={today} />}
+          {showXp && <XpBadge task={task} today={today} theme={theme} />}
         </div>
       )}
     </button>

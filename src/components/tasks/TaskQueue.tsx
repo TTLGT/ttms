@@ -116,7 +116,7 @@ export default function TaskQueue({
                 <button type="button" onClick={() => onOpen(t)} className="min-w-0 flex-1 truncate text-left text-sm text-gray-500 line-through">
                   {t.title}
                 </button>
-                {playing && <XpBadge task={t} today={today} />}
+                {playing && <XpBadge task={t} today={today} theme={skin.id} />}
               </li>
             ))}
           </ul>
@@ -169,7 +169,7 @@ function QueueRow({
               {TASK_PRIORITY_LABEL[task.priority]}
             </span>
           )}
-          {playing && <XpBadge task={task} today={today} />}
+          {playing && <XpBadge task={task} today={today} theme={skin.id} />}
         </span>
       </button>
 
