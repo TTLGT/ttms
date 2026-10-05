@@ -8,6 +8,7 @@ import {
   byOrder,
   orderBetween,
   type BoardColumn,
+  type ColorLabels,
   type PersonalTask,
   type PersonalTaskInput,
   type TaskReminderSettings,
@@ -45,15 +46,16 @@ interface GameReply {
 }
 
 export async function listMyTasks(): Promise<{
-  tasks: PersonalTask[]; settings: TaskReminderSettings; columns: BoardColumn[];
+  tasks: PersonalTask[]; settings: TaskReminderSettings; columns: BoardColumn[]; colorLabels: ColorLabels;
 } & GameReply> {
   const data = await authedFetch<{
-    tasks?: PersonalTask[]; settings?: TaskReminderSettings; columns?: BoardColumn[];
+    tasks?: PersonalTask[]; settings?: TaskReminderSettings; columns?: BoardColumn[]; colorLabels?: ColorLabels;
   } & GameReply>('/api/me/tasks');
   return {
     tasks: data.tasks ?? [],
     settings: data.settings ?? DEFAULT_TASK_REMINDER_SETTINGS,
     columns: data.columns ?? DEFAULT_BOARD_COLUMNS,
+    colorLabels: data.colorLabels ?? {},
     game: data.game ?? null,
     events: data.events ?? [],
   };
@@ -62,6 +64,15 @@ export async function listMyTasks(): Promise<{
 /** Save the board's columns. `moved` is how many tasks a hide or a delete stepped back. */
 export async function saveMyBoardColumns(columns: BoardColumn[]): Promise<{ columns: BoardColumn[]; moved: number }> {
   return authedFetch('/api/me/tasks/columns', { method: 'PUT', body: JSON.stringify({ columns }) });
+}
+
+/** Save the names given to the colours. The whole map: a colour left out goes back to its own name. */
+export async function saveMyColorLabels(colorLabels: ColorLabels): Promise<ColorLabels> {
+  const data = await authedFetch<{ colorLabels: ColorLabels }>('/api/me/tasks/labels', {
+    method: 'PUT',
+    body: JSON.stringify({ colorLabels }),
+  });
+  return data.colorLabels;
 }
 
 export async function saveMyGameOptions(options: { enabled?: boolean; theme?: GameTheme }): Promise<GameState> {
@@ -130,6 +141,7 @@ export function usePersonalTasks() {
   const [error, setError] = useState('');
   const [settings, setSettings] = useState<TaskReminderSettings>(DEFAULT_TASK_REMINDER_SETTINGS);
   const [columns, setColumns] = useState<BoardColumn[]>(DEFAULT_BOARD_COLUMNS);
+  const [colorLabels, setColorLabels] = useState<ColorLabels>({});
   const [game, setGame] = useState<GameState | null>(null);
   const [notices, setNotices] = useState<GameNotice[]>([]);
   const noticeId = useRef(0);
@@ -152,6 +164,7 @@ export function usePersonalTasks() {
       setTasks(data.tasks);
       setSettings(data.settings);
       setColumns(data.columns);
+      setColorLabels(data.colorLabels);
       takeGame(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load your list');
@@ -284,6 +297,16 @@ export function usePersonalTasks() {
     }
   }, [fail, reload]);
 
+  const saveColorLabels = useCallback(async (next: ColorLabels) => {
+    setError('');
+    setColorLabels(next);
+    try {
+      setColorLabels(await saveMyColorLabels(next));
+    } catch (e) {
+      fail(e, 'Could not save your colour names');
+    }
+  }, [fail]);
+
   const saveGameOptions = useCallback(async (options: { enabled?: boolean; theme?: GameTheme }) => {
     setError('');
     setGame((g) => (g ? { ...g, ...options } : g));
@@ -295,7 +318,7 @@ export function usePersonalTasks() {
   }, [fail]);
 
   return {
-    tasks, settings, columns, game, notices, error, setError, reload,
-    create, update, remove, clearDone, move, saveSettings, saveColumns, saveGameOptions, dismissNotice,
+    tasks, settings, columns, colorLabels, game, notices, error, setError, reload,
+    create, update, remove, clearDone, move, saveSettings, saveColumns, saveColorLabels, saveGameOptions, dismissNotice,
   };
 }

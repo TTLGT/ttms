@@ -10,7 +10,7 @@ import {
 import { gameClock, gameFrom, runDailyCheck, writeGame } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
 import { GameTurn, type GameEvent, type GameState } from '@/types/taskGame';
-import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanTaskInput } from '@/types/task';
+import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanColorLabels, cleanTaskInput } from '@/types/task';
 
 /**
  * The caller's own task list and calendar — see src/types/task.ts.
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     // The whole list, in one read per item. It is capped at
     // MAX_TASKS_PER_PERSON, and every view needs all of it: the board, the
     // notes and the table sort it differently, and the calendar pages months.
-    // The settings and the board's columns ride along so the page needs no
+    // The settings, the board's columns and the colour names ride along so the page needs no
     // second request.
     const [snap, owner] = await Promise.all([taskItems(uid).get(), taskOwnerDoc(uid).get()]);
     const tasks = snap.docs.map(toTask);
@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
       tasks,
       settings: toReminderSettings(owner.data()?.reminderSettings),
       columns: cleanBoardColumns(owner.data()?.boardColumns),
+      colorLabels: cleanColorLabels(owner.data()?.colorLabels),
       game,
       events,
     });

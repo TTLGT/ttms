@@ -226,6 +226,37 @@ export const TASK_COLORS = ['yellow', 'pink', 'blue', 'green', 'purple', 'orange
 export type TaskColor = typeof TASK_COLORS[number];
 
 /**
+ * A name somebody gave a colour — "Important, urgent", "On hold" — so the
+ * colours work as tags, the way a Google Keep label extension does. Per
+ * person, on `personalTasks/{uid}.colorLabels`; a colour with no name of its
+ * own is called by its colour. Only the names are stored: which tag a task
+ * carries is still just its `color`, so naming a colour retags nothing.
+ */
+export type ColorLabels = Partial<Record<TaskColor, string>>;
+
+export const COLOR_LABEL_MAX = 40;
+
+export const TASK_COLOR_NAME: Record<TaskColor, string> = {
+  yellow: 'Yellow', pink: 'Pink', blue: 'Blue', green: 'Green', purple: 'Purple', orange: 'Orange',
+};
+
+/** What a colour is called for this person. */
+export function colorLabel(labels: ColorLabels, color: TaskColor): string {
+  return labels[color] || TASK_COLOR_NAME[color];
+}
+
+/** Whatever was stored or sent, as clean names: known colours only, trimmed, empties dropped. */
+export function cleanColorLabels(raw: unknown): ColorLabels {
+  const out: ColorLabels = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const c of TASK_COLORS) {
+    const v = (raw as Record<string, unknown>)[c];
+    if (typeof v === 'string' && v.trim()) out[c] = v.trim().slice(0, COLOR_LABEL_MAX);
+  }
+  return out;
+}
+
+/**
  * What sort of event. A label, not a behaviour: an "online meeting" is not
  * joined through TTMS and a "company activity" is still only on the calendar
  * of the person who added it. A calendar the whole company shares would be a

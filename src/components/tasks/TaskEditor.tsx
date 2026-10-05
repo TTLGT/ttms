@@ -12,11 +12,13 @@ import {
   TASK_REPEATS,
   TASK_REPEAT_LABEL,
   calendarToday,
+  colorLabel,
   leadsFor,
   placeOf,
   reminderInstants,
   reminderLeadLabel,
   type BoardColumn,
+  type ColorLabels,
   type EventType,
   type PersonalTask,
   type PersonalTaskInput,
@@ -37,6 +39,7 @@ export default function TaskEditor({
   task,
   initial,
   columns,
+  colorLabels = {},
   noChannel,
   onSave,
   onDelete,
@@ -48,6 +51,8 @@ export default function TaskEditor({
   initial?: PersonalTaskInput;
   /** The person's board columns: the choices in the status box. */
   columns: BoardColumn[];
+  /** The person's names for the colours — they are tags. */
+  colorLabels?: ColorLabels;
   /** Both reminder channels are off, so a reminder set here would never arrive. */
   noChannel?: boolean;
   onSave: (input: PersonalTaskInput) => Promise<void> | void;
@@ -334,13 +339,14 @@ export default function TaskEditor({
           </div>
 
           <div>
-            <span className={label}>Colour</span>
+            <span className={label}>Colour · <span className="font-semibold">{colorLabel(colorLabels, color)}</span></span>
             <div className="flex gap-2">
               {TASK_COLORS.map((c) => (
                 <button
                   key={c}
                   type="button"
-                  aria-label={c}
+                  aria-label={colorLabel(colorLabels, c)}
+                  title={colorLabel(colorLabels, c)}
                   aria-pressed={color === c}
                   onClick={() => setColor(c)}
                   className={`h-7 w-7 rounded-full ${NOTE_STYLE[c].swatch} ${

@@ -2011,6 +2011,7 @@ personalTasks/{uid}
   boardColumns     : [{ id, label, hidden }]   // board order; absent = the six defaults
                                                // 'todo' and 'done' are never hidden;
                                                // custom ids are 'c_' + 4–16 chars, up to 12
+  colorLabels      : { yellow?, pink?, … }    // the person's names for the colours (tags); absent = the colour's own name
   updatedAt        : Timestamp
 
 personalTasks/{uid}/items/{itemId}

@@ -11,7 +11,8 @@ import TaskEditor from '@/components/tasks/TaskEditor';
 import { GameBar, GameFeedback } from '@/components/tasks/TaskGame';
 import { ROOM_CLASS, roomCss, skinFor } from '@/components/tasks/taskSkins';
 import { THEME_FONT_VARS } from '@/components/tasks/themeFonts';
-import { calendarToday, type PersonalTask, type PersonalTaskInput } from '@/types/task';
+import ColorTagBar from '@/components/tasks/ColorTagBar';
+import { TASK_COLORS, calendarToday, type PersonalTask, type PersonalTaskInput, type TaskColor } from '@/types/task';
 
 /**
  * My tasks: the signed-in person's own to-do list, three ways.
@@ -33,17 +34,21 @@ const VIEW_KEY = 'ttms.tasks.view';
 
 export default function MyTasksPage() {
   const {
-    tasks, settings, columns, game, notices, error, setError,
-    create, update, remove, clearDone, move, saveColumns, saveGameOptions, dismissNotice,
+    tasks, settings, columns, colorLabels, game, notices, error, setError,
+    create, update, remove, clearDone, move, saveColumns, saveColorLabels, saveGameOptions, dismissNotice,
   } = usePersonalTasks();
   const playing = !!game?.enabled;
-  // The theme is the game's costume, and it dresses the whole page: a
-  // room in the theme's colours, light, dim or dark to match the app theme, with the banner on top and its accent on the
-  // board. With the game off the page is the plain one. See taskSkins.ts.
+  // The theme is the game's costume, and it dresses the whole page: a room
+  // in the theme's colours, light, dim or dark to match the app theme, with
+  // the banner on top and its accent on the board. With the game off the page is the plain one. See taskSkins.ts.
   const skin = skinFor(playing ? game?.theme : null);
   const [view, setView] = useState<View>('board');
   const [query, setQuery] = useState('');
   const [showDone, setShowDone] = useState(false);
+  // The colour tag being filtered on. Not remembered between visits on
+  // purpose: a filter that quietly comes back next morning reads as tasks
+  // that have gone missing.
+  const [tag, setTag] = useState<TaskColor | null>(null);
   const [editing, setEditing] = useState<{ task: PersonalTask | null; initial?: PersonalTaskInput } | null>(null);
   // Read after mount: the server has no idea what day it is where the viewer is.
   const [today, setToday] = useState('');
@@ -70,8 +75,15 @@ export default function MyTasksPage() {
 
   // The board always has its Done column; the notes and the table hide
   // finished work unless asked, because those two have nowhere to park it.
-  const shown = view === 'board' || showDone ? onlyTasks : onlyTasks.filter((t) => t.status !== 'done');
+  const visible = view === 'board' || showDone ? onlyTasks : onlyTasks.filter((t) => t.status !== 'done');
   const doneCount = onlyTasks.filter((t) => t.status === 'done').length;
+  // Counted before the colour filter, so each chip says what clicking it shows.
+  const tagCounts = useMemo(() => {
+    const out = Object.fromEntries(TASK_COLORS.map((c) => [c, 0])) as Record<TaskColor, number>;
+    for (const t of visible) out[t.color]++;
+    return out;
+  }, [visible]);
+  const shown = tag ? visible.filter((t) => t.color === tag) : visible;
 
   const save = async (input: PersonalTaskInput) => {
     if (editing?.task) await update(editing.task.id, input);
@@ -112,7 +124,9 @@ export default function MyTasksPage() {
         </button>
         <button
           type="button"
-          onClick={() => setEditing({ task: null })}
+          // While a tag is picked, a new task starts in that colour — otherwise
+          // it would be saved straight out of sight.
+          onClick={() => setEditing({ task: null, initial: tag ? { color: tag } : undefined })}
           className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium ${skin.button}`}
         >
           <Plus size={16} /> Add task
@@ -177,6 +191,14 @@ export default function MyTasksPage() {
         </div>
       )}
 
+      <ColorTagBar
+        labels={colorLabels}
+        counts={tagCounts}
+        selected={tag}
+        onSelect={setTag}
+        onSaveLabels={saveColorLabels}
+      />
+
       {tasks === null || !today ? (
         <div className="flex justify-center py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
@@ -193,7 +215,7 @@ export default function MyTasksPage() {
           onColumnsChange={saveColumns}
           onOpen={(task) => setEditing({ task })}
           onMove={move}
-          onQuickAdd={(input) => { create(input); }}
+          onQuickAdd={(input) => { create(tag ? { ...input, color: tag } : input); }}
         />
       ) : view === 'notes' ? (
         <TaskNotes
@@ -204,7 +226,7 @@ export default function MyTasksPage() {
           onOpen={(task) => setEditing({ task })}
           onMove={move}
           onToggleDone={(t) => update(t.id, { status: t.status === 'done' ? 'todo' : 'done' })}
-          onAdd={() => setEditing({ task: null })}
+          onAdd={() => setEditing({ task: null, initial: tag ? { color: tag } : undefined })}
         />
       ) : (
         <TaskTable
@@ -224,6 +246,7 @@ export default function MyTasksPage() {
           task={editing.task}
           initial={editing.initial}
           columns={columns}
+          colorLabels={colorLabels}
           noChannel={!settings.email && !settings.chat}
           onSave={save}
           onDelete={editing.task ? () => { remove(editing.task!.id); setEditing(null); } : undefined}

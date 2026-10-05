@@ -48,7 +48,7 @@ import {
 export default function CalendarPage() {
   const { can } = useAuth();
   const { formatCalendarDate } = useDateFormatters();
-  const { tasks, settings, columns, game, notices, dismissNotice, saveSettings, error, setError, create, update, remove } = usePersonalTasks();
+  const { tasks, settings, columns, colorLabels, game, notices, dismissNotice, saveSettings, error, setError, create, update, remove } = usePersonalTasks();
   const [editing, setEditing] = useState<{ task: PersonalTask | null; initial?: PersonalTaskInput } | null>(null);
   const [today, setToday] = useState('');
   const [selected, setSelected] = useState('');
@@ -275,6 +275,7 @@ export default function CalendarPage() {
           task={editing.task}
           initial={editing.initial}
           columns={columns}
+          colorLabels={colorLabels}
           noChannel={noChannel}
           onSave={save}
           onDelete={editing.task ? () => { remove(editing.task!.id); setEditing(null); } : undefined}

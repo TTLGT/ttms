@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "ca7109019ffc550bea71d961eb9ff1d1e172b027",
+      "date": "2026-10-05T12:13:14-06:00",
+      "author": "erwindank",
+      "subject": "Show the XP a task will earn on its card in game mode",
+      "body": "Board cards, sticky notes and table rows show \"+30 XP\" while a task is\nopen, discounted when it is late, and what it earned once done. The\nfigure comes from a new taskXp(), which onTaskDone() now pays from too,\nso the number on a card is the number that lands."
+    },
+    {
       "hash": "f544c3cdefd5a759dd8309291efabece198efbef",
       "date": "2026-10-05T11:56:30-06:00",
       "author": "erwindank",
