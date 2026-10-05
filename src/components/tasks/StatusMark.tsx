@@ -1,5 +1,5 @@
 import {
-  Anchor, BadgeCheck, BookOpen, ClipboardCheck, ClipboardList, Crown, Eye, FlaskConical, Flag, Flower2, Gem,
+  Anchor, BadgeCheck, BookOpen, ClipboardCheck, ClipboardList, Crown, Eye, FlaskConical, Flag, Flower, Gem,
   Hourglass, Leaf, Map, MoonStar, Orbit, Package, Radar, Rocket, Sailboat, Satellite, Scroll, ScrollText, Shield,
   Sparkles, Sprout, Swords, Telescope, Timer, Truck, WandSparkles, type LucideIcon,
 } from 'lucide-react';
@@ -20,7 +20,7 @@ const THEME_ICONS: Record<GameTheme, Record<BuiltInTaskStatus, LucideIcon>> = {
   freight:   { todo: ClipboardList, ready: Package,      doing: Truck,        waiting: Timer,     review: ClipboardCheck, done: BadgeCheck },
   wizarding: { todo: ScrollText,    ready: FlaskConical, doing: WandSparkles, waiting: Hourglass, review: BookOpen,       done: Sparkles },
   empire:    { todo: Scroll,        ready: Shield,       doing: Swords,       waiting: Hourglass, review: Eye,            done: Crown },
-  fairy:     { todo: Sprout,        ready: Leaf,         doing: WandSparkles, waiting: MoonStar,  review: Eye,            done: Flower2 },
+  fairy:     { todo: Sprout,        ready: Leaf,         doing: WandSparkles, waiting: MoonStar,  review: Eye,            done: Flower },
   space:     { todo: Satellite,     ready: Radar,        doing: Rocket,       waiting: Orbit,     review: Telescope,      done: Flag },
   pirate:    { todo: Map,           ready: Anchor,       doing: Sailboat,     waiting: Hourglass, review: Telescope,      done: Gem },
 };

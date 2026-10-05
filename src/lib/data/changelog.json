@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "2977cf31bcccd23acd20578594866229235a7a1a",
+      "date": "2026-10-05T14:31:47-06:00",
+      "author": "erwindank",
+      "subject": "Make the Pirates theme titles larger and stop faking bold on them",
+      "body": "Pirata One has a single weight, so the bold the titles ask for was being\nsynthesized by the browser over an already heavy blackletter."
+    },
+    {
       "hash": "0d4dc7e21c72766dae6b12f25e7b130048f7af80",
       "date": "2026-10-05T14:28:20-06:00",
       "author": "erwindank",
