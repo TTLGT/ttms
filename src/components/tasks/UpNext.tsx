@@ -3,6 +3,7 @@
 import { Check, Crosshair, Flame, ListChecks, Pencil, Zap } from 'lucide-react';
 import type { PersonalTask } from '@/types/task';
 import { nextStepOf } from '@/types/task';
+import type { GameState } from '@/types/taskGame';
 import type { TaskStreak } from '@/types/taskStreak';
 import { DueChip } from './TaskQueue';
 import XpBadge from './XpBadge';
@@ -113,23 +114,46 @@ export function UpNextCard({
 }
 
 /**
- * The streak with game mode off — see src/types/taskStreak.ts. Game mode has
- * its own on the banner, which also pays and charges XP; this one only counts.
+ * The streak, beside the up-next card in both modes.
+ *
+ * With game mode off it is the plain streak — see src/types/taskStreak.ts.
+ * With it on, the day count is the game's own (`game.streak`), the one that
+ * pays the daily bonus and charges for a missed day, so the number here is
+ * the number the XP follows; the flame takes the theme's accent. It used to
+ * be a small figure on the banner, easy to miss. "Done today" and all-time
+ * come from the plain streak either way: it is recorded in both modes and
+ * counts the same first finishes.
  */
-export function StreakCard({ streak }: { streak: TaskStreak }) {
-  const alive = streak.current > 0;
+export function StreakCard({ streak, game = null, skin = PLAIN_SKIN }: {
+  streak: TaskStreak;
+  game?: GameState | null;
+  skin?: TaskSkin;
+}) {
+  const current = game ? game.streak : streak.current;
+  const longest = game ? game.longestStreak : streak.longest;
+  const alive = current > 0;
   const today = streak.todayTasks + streak.todaySteps;
+  const accent = game && skin.themed ? skin.accent : undefined;
   return (
-    <section aria-label="Your streak" className="flex h-full flex-col justify-center rounded-xl border border-gray-200 bg-white px-5 py-4">
+    <section
+      aria-label="Your streak"
+      className={`flex h-full flex-col justify-center rounded-xl border-gray-200 bg-white px-5 py-4 ${accent ? 'border-2' : 'border'}`}
+      style={accent ? { borderColor: accent } : undefined}
+    >
       <div className="flex items-center gap-3">
-        <span className={`grid h-12 w-12 flex-shrink-0 place-items-center rounded-full ${alive ? 'bg-orange-50 text-orange-500' : 'bg-gray-100 text-gray-400'}`}>
+        <span
+          className={`grid h-12 w-12 flex-shrink-0 place-items-center rounded-full ${
+            accent ? '' : alive ? 'bg-orange-50 text-orange-500' : 'bg-gray-100 text-gray-400'
+          }`}
+          style={accent ? { color: alive ? accent : undefined, background: `${accent}22` } : undefined}
+        >
           <Flame size={26} />
         </span>
         <div>
           <p className="text-2xl font-bold leading-none text-gray-900">
-            {streak.current} <span className="text-sm font-medium text-gray-500">day{streak.current === 1 ? '' : 's'} in a row</span>
+            {current} <span className="text-sm font-medium text-gray-500">day{current === 1 ? '' : 's'} in a row</span>
           </p>
-          <p className="mt-1 text-xs text-gray-500">Longest: {streak.longest} day{streak.longest === 1 ? '' : 's'}</p>
+          <p className="mt-1 text-xs text-gray-500">Longest: {longest} day{longest === 1 ? '' : 's'}</p>
         </div>
       </div>
       <p className="mt-3 text-sm text-gray-700">
@@ -141,6 +165,7 @@ export function StreakCard({ streak }: { streak: TaskStreak }) {
           ? 'Streak safe for today.'
           : alive ? 'Finish a task or a step today to keep it going.' : 'Finish a task or a step to start a streak.'}
         {' '}Weekdays only; holidays and time off do not break it.
+        {game && ' The first finish of each day pays +50 XP; a missed weekday costs XP.'}
       </p>
     </section>
   );

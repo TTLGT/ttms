@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "e158133cbb6ecf9a5c1b2a5ccd883ee9e5180ddd",
+      "date": "2026-10-05T13:20:40-06:00",
+      "author": "erwindank",
+      "subject": "Let a task's steps carry due dates of their own",
+      "body": "Each step can be given a date from the step list in the editor and focus\nscreen, and shows when it is due on the board, sticky notes, table, path\nand up-next card. A step's date is a label: no reminder, no XP, and it\nnever makes the task overdue. A repeating task's next copy moves each step\ndate by as much as the task's own moved."
+    },
+    {
       "hash": "d1ee272448f76cec6d64e4184183b5a4a2240dc4",
       "date": "2026-10-05T13:12:39-06:00",
       "author": "erwindank",

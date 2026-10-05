@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { PLAIN_SKIN, skinFor, type TaskSkin } from './taskSkins';
 import { artUrl } from './taskSkinArt';
-import { ChevronDown, ChevronUp, Flame, Plus, Target, Trophy, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Target, Trophy, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import type { GameNotice } from '@/lib/personalTasks';
 import { BROKER_SUGGESTIONS, suggestionsFor, type BrokerSuggestion } from '@/types/brokerSuggestions';
@@ -114,13 +114,6 @@ export function GameBar({
                     {fmt(game.xp)} XP
                     {next ? ` · ${fmt(next.xp - game.xp)} to ${levelTitle(next.level, game.theme)}` : ' · Top level'}
                   </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2" title={`Longest: ${game.longestStreak} days`}>
-                <Flame size={22} style={{ color: game.streak > 0 ? skin.accent : 'rgba(255,255,255,0.3)' }} />
-                <div>
-                  <p className="text-xl font-semibold leading-none">{game.streak}</p>
-                  <p className="text-[11px] text-[rgba(255,255,255,0.6)]">day streak</p>
                 </div>
               </div>
             </div>

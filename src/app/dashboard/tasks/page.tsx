@@ -248,11 +248,11 @@ export default function MyTasksPage() {
       )}
 
       {/* The next thing to do, above every view, so it is the first thing
-          anybody sees. The plain streak sits beside it; with game mode on, the
-          banner above already carries the game's own. */}
+          anybody sees. The streak sits beside it in both modes — the game's
+          own count with game mode on (see StreakCard). */}
       {tasks !== null && today && (
-        <div className={`mb-5 grid gap-4 ${playing ? '' : 'lg:grid-cols-3'}`}>
-          <div className={playing ? '' : 'lg:col-span-2'}>
+        <div className="mb-5 grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
             <UpNextCard
               task={upNext}
               number={upNext ? placeOf(upNext.id) : null}
@@ -264,7 +264,7 @@ export default function MyTasksPage() {
               onOpen={(t) => setEditing({ task: t })}
             />
           </div>
-          {!playing && <StreakCard streak={streak} />}
+          <StreakCard streak={streak} game={playing ? game : null} skin={skin} />
         </div>
       )}
 

@@ -46,7 +46,7 @@ export interface TaskSkin {
   body: string;
   /** Banner ground, as a hex colour. Matches the artwork's own ground. */
   ground: string;
-  /** Highlights on the banner: XP fill, the level ring, the streak flame. */
+  /** Highlights: the banner's XP fill and level ring, and the streak card's flame and edge. */
   accent: string;
   /**
    * Main buttons: Add task, the chosen view. The accent, with the ground's
@@ -98,7 +98,7 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
   freight: {
     themed: true,
     id: 'freight',
-    tagline: 'Dispatch board',
+    tagline: 'Logistics strategy',
     font: 'font-[family-name:var(--font-rajdhani)] uppercase tracking-[0.12em]',
     heading: 'font-[family-name:var(--font-rajdhani)] uppercase tracking-[0.08em]',
     body: 'font-[family-name:var(--font-tt-freight-body)] font-medium',
@@ -113,7 +113,7 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
     // A load runs stop by stop; a task here does the same.
     step: 'stop',
     steps: 'stops',
-    queue: 'Dispatch queue',
+    queue: 'Logistics plans',
     upNext: 'Next dispatch',
   },
   wizarding: {
