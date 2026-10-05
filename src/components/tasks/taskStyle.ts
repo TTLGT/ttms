@@ -5,16 +5,53 @@ import type { BuiltInTaskStatus, EventType, TaskColor, TaskPriority, TaskStatus 
 
 /**
  * Sticky-note colours as plain Tailwind families. Every one of them is mapped
- * in tailwind.config.ts, so a yellow note is a dim yellow in dark mode without
- * a `dark:` class anywhere.
+ * in tailwind.config.ts, so a yellow note goes dark in dark mode without a
+ * `dark:` class anywhere.
+ *
+ * On a dark ground the 100 tint is too faint — a 22% wash of yellow over slate
+ * reads as mud, and the colours were hard to tell apart — so under dark mode
+ * and the game theme's dark room a note steps up to the 200 ground and the 300
+ * edge. That has to be an arbitrary variant rather than `dark:`: the game room
+ * is `.ttms-dark-scope` on a page whose `html` may well be light. The light
+ * theme is unchanged.
+ *
+ * The swatch is a solid 400, which the mapping leaves alone, so the picker and
+ * the dots on the calendar and table are the same clear colour in every theme.
+ *
+ * Written out in full, never assembled from the family name: Tailwind only
+ * generates classes it can find spelled out in the source.
  */
 export const NOTE_STYLE: Record<TaskColor, { note: string; chip: string; swatch: string }> = {
-  yellow: { note: 'bg-yellow-100 border-yellow-200 text-yellow-900', chip: 'bg-yellow-100 text-yellow-800', swatch: 'bg-yellow-300' },
-  pink:   { note: 'bg-pink-100 border-pink-200 text-pink-900',       chip: 'bg-pink-100 text-pink-800',     swatch: 'bg-pink-300' },
-  blue:   { note: 'bg-sky-100 border-sky-200 text-sky-900',          chip: 'bg-sky-100 text-sky-800',       swatch: 'bg-sky-300' },
-  green:  { note: 'bg-green-100 border-green-200 text-green-900',    chip: 'bg-green-100 text-green-800',   swatch: 'bg-green-300' },
-  purple: { note: 'bg-violet-100 border-violet-200 text-violet-900', chip: 'bg-violet-100 text-violet-800', swatch: 'bg-violet-300' },
-  orange: { note: 'bg-orange-100 border-orange-200 text-orange-900', chip: 'bg-orange-100 text-orange-800', swatch: 'bg-orange-300' },
+  yellow: {
+    note: 'bg-yellow-100 border-yellow-200 text-yellow-900 [.dark_&]:bg-yellow-200 [.dark_&]:border-yellow-300 [.ttms-dark-scope_&]:bg-yellow-200 [.ttms-dark-scope_&]:border-yellow-300',
+    chip: 'bg-yellow-100 text-yellow-800',
+    swatch: 'bg-yellow-400',
+  },
+  pink: {
+    note: 'bg-pink-100 border-pink-200 text-pink-900 [.dark_&]:bg-pink-200 [.dark_&]:border-pink-300 [.ttms-dark-scope_&]:bg-pink-200 [.ttms-dark-scope_&]:border-pink-300',
+    chip: 'bg-pink-100 text-pink-800',
+    swatch: 'bg-pink-400',
+  },
+  blue: {
+    note: 'bg-sky-100 border-sky-200 text-sky-900 [.dark_&]:bg-sky-200 [.dark_&]:border-sky-300 [.ttms-dark-scope_&]:bg-sky-200 [.ttms-dark-scope_&]:border-sky-300',
+    chip: 'bg-sky-100 text-sky-800',
+    swatch: 'bg-sky-400',
+  },
+  green: {
+    note: 'bg-green-100 border-green-200 text-green-900 [.dark_&]:bg-green-200 [.dark_&]:border-green-300 [.ttms-dark-scope_&]:bg-green-200 [.ttms-dark-scope_&]:border-green-300',
+    chip: 'bg-green-100 text-green-800',
+    swatch: 'bg-green-400',
+  },
+  purple: {
+    note: 'bg-violet-100 border-violet-200 text-violet-900 [.dark_&]:bg-violet-200 [.dark_&]:border-violet-300 [.ttms-dark-scope_&]:bg-violet-200 [.ttms-dark-scope_&]:border-violet-300',
+    chip: 'bg-violet-100 text-violet-800',
+    swatch: 'bg-violet-400',
+  },
+  orange: {
+    note: 'bg-orange-100 border-orange-200 text-orange-900 [.dark_&]:bg-orange-200 [.dark_&]:border-orange-300 [.ttms-dark-scope_&]:bg-orange-200 [.ttms-dark-scope_&]:border-orange-300',
+    chip: 'bg-orange-100 text-orange-800',
+    swatch: 'bg-orange-400',
+  },
 };
 
 const BUILT_IN_DOT: Record<BuiltInTaskStatus, string> = {

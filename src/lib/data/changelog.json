@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "87106b8661daa0288d00543dcaa54b144de46df6",
+      "date": "2026-10-05T10:10:09-06:00",
+      "author": "erwindank",
+      "subject": "Lighten the game-themed My tasks page and give it the theme's fonts and icons",
+      "body": "The area around the banner is now a few steps lighter than the banner, in\nthe theme's colour, with brighter grey text to match. Each theme has a\nreadable body font for the whole page and uses its display font for the page\ntitle and column names. The theme dropdown's options are dark with white\ntext instead of white on white. Board columns keep their coloured dots and\ngain an icon from the chosen theme beside them."
+    },
+    {
       "hash": "24d4f449e45b21dbe433535647f8084baec2632e",
       "date": "2026-10-01T15:09:00-06:00",
       "author": "erwindank",

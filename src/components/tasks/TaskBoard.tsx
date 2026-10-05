@@ -172,7 +172,7 @@ export default function TaskBoard({
                   )}
                   <Card
                     task={t}
-                    look={`rounded-lg border-gray-200 bg-white ${skin.cardHover}`}
+                    look={`rounded-lg ${NOTE_STYLE[t.color].note} ${skin.cardHover}`}
                     today={today}
                     dragging={dragging === t.id}
                     onOpen={() => onOpen(t)}
@@ -225,7 +225,10 @@ function Card({
   ...drag
 }: {
   task: PersonalTask;
-  /** Ground, hairline, corners and hover edge — the hover edge is the theme's accent. */
+  /**
+   * Ground, hairline, ink, corners and hover edge. The ground is the colour
+   * the person picked for the task; the hover edge is the theme's accent.
+   */
   look: string;
   today: string;
   dragging: boolean;
@@ -248,13 +251,17 @@ function Card({
       }`}
     >
       <div className="flex items-start gap-2">
-        <span className={`mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full ${NOTE_STYLE[task.color].swatch}`} />
-        <span className={`flex-1 text-sm text-gray-900 ${task.status === 'done' ? 'line-through text-gray-500' : ''}`}>
+        {/* The card is the task's colour, so the dot is free to say where it
+            stands — the same ring its column header wears. */}
+        <span className="mt-1 flex">
+          <StatusMark status={task.status} theme={null} size="sm" />
+        </span>
+        <span className={`flex-1 text-sm ${task.status === 'done' ? 'line-through opacity-60' : ''}`}>
           {task.title}
         </span>
       </div>
       {task.notes && (
-        <p className="mt-1 line-clamp-2 pl-[1.125rem] text-xs text-gray-500">
+        <p className="mt-1 line-clamp-2 pl-[1.125rem] text-xs opacity-75">
           <StickyNote size={10} className="mr-1 inline" />{task.notes}
         </p>
       )}
