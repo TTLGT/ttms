@@ -62,6 +62,16 @@ export interface TaskSkin {
   addLabel: string;
   /** What the missions are called. */
   missions: string;
+  /**
+   * What a task's steps are called, one and many — a load's stops, a spell's
+   * incantations. Words only: a step is the same thing under every theme.
+   */
+  step: string;
+  steps: string;
+  /** What the queue view is called. */
+  queue: string;
+  /** The heading over the one task to do next. */
+  upNext: string;
 }
 
 export const PLAIN_SKIN: TaskSkin = {
@@ -78,6 +88,10 @@ export const PLAIN_SKIN: TaskSkin = {
   cardHover: 'hover:border-gray-300',
   addLabel: 'Add a task',
   missions: 'Missions',
+  step: 'step',
+  steps: 'steps',
+  queue: 'Queue',
+  upNext: 'Up next',
 };
 
 export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
@@ -96,6 +110,11 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
     // Not "Book a load": on a freight desk that reads as booking real freight.
     addLabel: 'Book a task',
     missions: 'Runs',
+    // A load runs stop by stop; a task here does the same.
+    step: 'stop',
+    steps: 'stops',
+    queue: 'Dispatch queue',
+    upNext: 'Next dispatch',
   },
   wizarding: {
     themed: true,
@@ -111,6 +130,10 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
     cardHover: 'hover:border-[#8b5cf6]',
     addLabel: 'Write a spell',
     missions: 'Quests',
+    step: 'incantation',
+    steps: 'incantations',
+    queue: 'Spell queue',
+    upNext: 'Next spell',
   },
   empire: {
     themed: true,
@@ -126,6 +149,10 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
     cardHover: 'hover:border-[#c9a23f]',
     addLabel: 'Issue a decree',
     missions: 'Decrees',
+    step: 'maneuver',
+    steps: 'maneuvers',
+    queue: 'Battle plan',
+    upNext: 'Next campaign',
   },
   fairy: {
     themed: true,
@@ -143,6 +170,10 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
     cardHover: 'hover:border-[#ec89b8]',
     addLabel: 'Make a wish',
     missions: 'Wishes',
+    step: 'petal',
+    steps: 'petals',
+    queue: 'Flower path',
+    upNext: 'Next wish',
   },
   space: {
     themed: true,
@@ -158,6 +189,10 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
     cardHover: 'hover:border-[#22d3ee]',
     addLabel: 'Log an objective',
     missions: 'Objectives',
+    step: 'waypoint',
+    steps: 'waypoints',
+    queue: 'Flight plan',
+    upNext: 'Next launch',
   },
   pirate: {
     themed: true,
@@ -173,6 +208,10 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
     cardHover: 'hover:border-[#c9a45c]',
     addLabel: 'Chart a course',
     missions: 'Bounties',
+    step: 'map mark',
+    steps: 'map marks',
+    queue: 'Treasure map',
+    upNext: 'Next heading',
   },
 };
 

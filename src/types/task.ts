@@ -317,6 +317,63 @@ export interface TaskReminderSettings {
 /** Both on until somebody says otherwise — a reminder set and then never sent is the worse surprise. */
 export const DEFAULT_TASK_REMINDER_SETTINGS: TaskReminderSettings = { email: true, chat: true };
 
+/**
+ * One step of a task — "Call the carrier", "Send the rate con" — ticked off
+ * one at a time on the way to finishing the whole thing. Stored as an array
+ * on the task itself: a task has a handful, they are never read without it,
+ * and a subcollection would cost a read per step on every visit.
+ *
+ * `xp` and `everDone` are the server's, set the same way as a task's own
+ * `xpEarned` and `everDone`: whatever a request says about them is ignored
+ * and carried over from the stored step with the same id.
+ */
+export interface TaskStep {
+  /** `s_` and a random tail — see `newStepId()`. Made in the browser so a new step can be ticked before it is saved. */
+  id: string;
+  title: string;
+  done: boolean;
+  /** Game mode: the XP this step is holding, taken back if it is unticked. */
+  xp: number;
+  /** Has counted toward the streak and today's count once, and never will again. */
+  everDone: boolean;
+}
+
+export const MAX_TASK_STEPS = 50;
+export const MAX_STEP_TITLE = 200;
+const STEP_ID_RE = /^s_[a-z0-9]{4,16}$/;
+
+export function newStepId(): string {
+  return `s_${Math.random().toString(36).slice(2, 10).padEnd(8, '0')}`;
+}
+
+/** Steps as sent: well-formed ids, unique, titled, at most MAX_TASK_STEPS. The server's fields reset. */
+export function cleanSteps(raw: unknown): TaskStep[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TaskStep[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const r = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+    if (typeof r.id !== 'string' || !STEP_ID_RE.test(r.id) || seen.has(r.id)) continue;
+    const title = typeof r.title === 'string' ? r.title.trim().slice(0, MAX_STEP_TITLE) : '';
+    if (!title) continue;
+    seen.add(r.id);
+    out.push({ id: r.id, title, done: r.done === true, xp: 0, everDone: false });
+    if (out.length >= MAX_TASK_STEPS) break;
+  }
+  return out;
+}
+
+/** Stored steps, every field defaulted. */
+export function toSteps(raw: unknown): TaskStep[] {
+  if (!Array.isArray(raw)) return [];
+  const clean = cleanSteps(raw);
+  const stored = new Map((raw as Record<string, unknown>[]).map((r) => [r?.id, r]));
+  return clean.map((s) => {
+    const r = stored.get(s.id) ?? {};
+    return { ...s, xp: typeof r.xp === 'number' ? r.xp : 0, everDone: r.everDone === true };
+  });
+}
+
 export interface PersonalTask {
   id: string;
   kind: TaskKind;
@@ -360,6 +417,15 @@ export interface PersonalTask {
    * of the whole column — see `orderBetween()`.
    */
   order: number;
+  /** The steps on the way to finishing it, in order. Tasks only. */
+  steps: TaskStep[];
+  /**
+   * Its place in the queue, set by the person: lower comes first. Null for a
+   * task nobody has placed, which queues after every placed one by due date.
+   * The number shown beside it is its position, not this — so the queue
+   * reads #1, #2, #3 with no gaps whatever has been finished. See `byQueue()`.
+   */
+  rank: number | null;
   /** ISO strings on the wire. */
   createdAt: string | null;
   updatedAt: string | null;
@@ -370,7 +436,9 @@ export interface PersonalTask {
 /** What can be written. Everything else on a task is set by the server. */
 export type PersonalTaskInput = Partial<Pick<PersonalTask,
   'kind' | 'title' | 'notes' | 'status' | 'priority' | 'color' | 'date' | 'time' | 'endTime' | 'order'
-  | 'eventType' | 'location' | 'reminders' | 'repeat' | 'suggestionId'>>;
+  | 'eventType' | 'location' | 'reminders' | 'repeat' | 'suggestionId' | 'steps' | 'rank'>>;
+
+export const MAX_QUEUE_RANK = 100_000;
 
 export const MAX_TASK_TITLE = 200;
 export const MAX_TASK_NOTES = 4000;
@@ -434,7 +502,72 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   if (Array.isArray(b.reminders)) {
     out.reminders = TASK_REMINDER_LEADS.filter((l) => (b.reminders as unknown[]).includes(l));
   }
+  if (Array.isArray(b.steps)) out.steps = cleanSteps(b.steps);
+  if (b.rank === null) out.rank = null;
+  else if (typeof b.rank === 'number' && Number.isInteger(b.rank) && b.rank >= 1 && b.rank <= MAX_QUEUE_RANK) out.rank = b.rank;
   return out;
+}
+
+/* ------------------------------------------------------------------ queue */
+
+/**
+ * Queue order, DankQuest-style: the tasks the person has placed, by the
+ * place they gave them; then everything unplaced, soonest due first, undated
+ * last. One definition, so the queue, its numbers and the focus screen agree.
+ */
+export function byQueue(a: PersonalTask, b: PersonalTask): number {
+  if (a.rank !== null || b.rank !== null) {
+    if (a.rank === null) return 1;
+    if (b.rank === null) return -1;
+    if (a.rank !== b.rank) return a.rank - b.rank;
+  }
+  if (a.date !== b.date) {
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return a.date.localeCompare(b.date);
+  }
+  return byTime(a, b);
+}
+
+/** The open tasks, in queue order. Position + 1 is the number drawn beside each. */
+export function taskQueue(tasks: PersonalTask[]): PersonalTask[] {
+  return tasks.filter((t) => t.kind === 'task' && t.status !== 'done').sort(byQueue);
+}
+
+/**
+ * The one task to do next: the closest deadline, overdue ones first (the
+ * longest overdue soonest), and the queue's own order between two due the
+ * same day. With nothing dated, the top of the queue.
+ *
+ * Deliberately not just "the queue's #1": a task somebody placed third
+ * last week and is now due today is the one that cannot wait.
+ */
+export function upNextTask(tasks: PersonalTask[]): PersonalTask | null {
+  const queue = taskQueue(tasks);
+  const dated = queue.filter((t) => t.date);
+  if (dated.length === 0) return queue[0] ?? null;
+  const position = new Map(queue.map((t, i) => [t.id, i]));
+  return [...dated].sort((a, b) =>
+    a.date!.localeCompare(b.date!)
+    || (a.time && b.time ? a.time.localeCompare(b.time) : a.time ? -1 : b.time ? 1 : 0)
+    || position.get(a.id)! - position.get(b.id)!)[0];
+}
+
+/** The first step not yet ticked, or null when there is none left (or none at all). */
+export function nextStepOf(t: Pick<PersonalTask, 'steps'>): TaskStep | null {
+  return t.steps.find((s) => !s.done) ?? null;
+}
+
+/** `ids` is the whole queue in its new order; each gets its position as its rank. */
+export function rankedBy(ids: string[]): Map<string, number> {
+  return new Map(ids.map((id, i) => [id, i + 1]));
+}
+
+/** The queue's ids with `id` taken out and put back at position `place` (1-based, clamped). */
+export function placeInQueue(queueIds: string[], id: string, place: number): string[] {
+  const rest = queueIds.filter((q) => q !== id);
+  const at = Math.max(0, Math.min(rest.length, Math.round(place) - 1));
+  return [...rest.slice(0, at), id, ...rest.slice(at)];
 }
 
 /**

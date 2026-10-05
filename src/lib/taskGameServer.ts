@@ -6,6 +6,7 @@ import { normalizeEmail } from './accessControl';
 import { TIME_OFF_COLLECTION } from '@/types/attendance';
 import { GameTurn, addDays, cleanGameState, prevWorkingDay, type GameEvent, type GameState } from '@/types/taskGame';
 import type { PersonalTask } from '@/types/task';
+import { cleanTaskStreak, liveTaskStreak, streakNeedsOffDays, type TaskStreak } from '@/types/taskStreak';
 
 /**
  * Server side of game mode — see src/types/taskGame.ts for the rules.
@@ -127,4 +128,18 @@ export async function setGameOptions(
     tx.set(owner, { game: state }, { merge: true });
     return state;
   });
+}
+
+/**
+ * The plain streak as it stands today, for the page — see
+ * src/types/taskStreak.ts. Reads the person's time off only when the streak
+ * would otherwise look broken, so an ordinary visit spends nothing on it.
+ * Nothing is written: a broken streak is worked out on read, and the stored
+ * one is corrected by the next save that moves it.
+ */
+export async function liveStreakFor(owner: DocumentSnapshot, email: string | undefined): Promise<TaskStreak> {
+  const today = officeToday();
+  const stored = cleanTaskStreak(owner.data()?.streak);
+  const offDays = streakNeedsOffDays(stored, today) ? await offDaysFor(email, today) : undefined;
+  return liveTaskStreak(stored, today, offDays);
 }

@@ -14,6 +14,7 @@ import {
   type TaskReminderSettings,
 } from '@/types/task';
 import type { GameEvent, GameState, GameTheme } from '@/types/taskGame';
+import { EMPTY_TASK_STREAK, type TaskStreak } from '@/types/taskStreak';
 
 /**
  * Browser side of the personal task list, which lives behind /api/me/tasks —
@@ -43,6 +44,8 @@ async function authedFetch<T>(input: string, init: RequestInit = {}): Promise<T>
 interface GameReply {
   game?: GameState | null;
   events?: GameEvent[];
+  /** The plain streak, when the save moved it. */
+  streak?: TaskStreak | null;
 }
 
 export async function listMyTasks(): Promise<{
@@ -58,6 +61,7 @@ export async function listMyTasks(): Promise<{
     colorLabels: data.colorLabels ?? {},
     game: data.game ?? null,
     events: data.events ?? [],
+    streak: data.streak ?? EMPTY_TASK_STREAK,
   };
 }
 
@@ -115,6 +119,11 @@ export async function clearMyDoneTasks(): Promise<string[]> {
   return data.deleted;
 }
 
+/** The whole queue, in its new order. */
+export async function rankMyQueue(ids: string[]): Promise<void> {
+  await authedFetch('/api/me/tasks/queue', { method: 'PUT', body: JSON.stringify({ ids }) });
+}
+
 export async function reorderMyTasks(ids: string[]): Promise<void> {
   await authedFetch('/api/me/tasks/reorder', { method: 'POST', body: JSON.stringify({ ids }) });
 }
@@ -144,10 +153,12 @@ export function usePersonalTasks() {
   const [colorLabels, setColorLabels] = useState<ColorLabels>({});
   const [game, setGame] = useState<GameState | null>(null);
   const [notices, setNotices] = useState<GameNotice[]>([]);
+  const [streak, setStreak] = useState<TaskStreak>(EMPTY_TASK_STREAK);
   const noticeId = useRef(0);
 
   const takeGame = useCallback((reply: GameReply) => {
     if (reply.game) setGame(reply.game);
+    if (reply.streak) setStreak(reply.streak);
     const events = reply.events ?? [];
     if (events.length) {
       setNotices((list) => [...list, ...events.map((event) => ({ id: ++noticeId.current, event }))]);
@@ -270,6 +281,18 @@ export function usePersonalTasks() {
     }
   }, [update, fail, took]);
 
+  /** The whole open queue in its new order: each gets its position as its place. Drawn first. */
+  const rankQueue = useCallback(async (ids: string[]) => {
+    setError('');
+    const rank = new Map(ids.map((id, i) => [id, i + 1]));
+    setTasks((list) => (list ?? []).map((t) => (rank.has(t.id) ? { ...t, rank: rank.get(t.id)! } : t)));
+    try {
+      await rankMyQueue(ids);
+    } catch (e) {
+      fail(e, 'Could not reorder your queue');
+    }
+  }, [fail]);
+
   const saveSettings = useCallback(async (next: TaskReminderSettings) => {
     setError('');
     setSettings(next);
@@ -318,7 +341,7 @@ export function usePersonalTasks() {
   }, [fail]);
 
   return {
-    tasks, settings, columns, colorLabels, game, notices, error, setError, reload,
-    create, update, remove, clearDone, move, saveSettings, saveColumns, saveColorLabels, saveGameOptions, dismissNotice,
+    tasks, settings, columns, colorLabels, game, streak, notices, error, setError, reload,
+    create, update, remove, clearDone, move, rankQueue, saveSettings, saveColumns, saveColorLabels, saveGameOptions, dismissNotice,
   };
 }

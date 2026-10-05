@@ -7,7 +7,7 @@ import {
   toReminderSettings,
   toTask,
 } from '@/lib/personalTasksServer';
-import { gameClock, gameFrom, runDailyCheck, writeGame } from '@/lib/taskGameServer';
+import { gameClock, gameFrom, liveStreakFor, runDailyCheck, writeGame } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
 import { GameTurn, type GameEvent, type GameState } from '@/types/taskGame';
 import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanColorLabels, cleanTaskInput } from '@/types/task';
@@ -32,7 +32,10 @@ export async function GET(req: NextRequest) {
     // Game mode's first look of the day — overdue and streak penalties, new
     // missions — happens here, because this is the read every visit makes.
     // Any other read that day skips it without a transaction.
-    const { game, events } = await runDailyCheck(uid, email, gameFrom(owner), tasks);
+    const [{ game, events }, streak] = await Promise.all([
+      runDailyCheck(uid, email, gameFrom(owner), tasks),
+      liveStreakFor(owner, email),
+    ]);
     return NextResponse.json({
       tasks,
       settings: toReminderSettings(owner.data()?.reminderSettings),
@@ -40,6 +43,7 @@ export async function GET(req: NextRequest) {
       colorLabels: cleanColorLabels(owner.data()?.colorLabels),
       game,
       events,
+      streak,
     });
   } catch (e) {
     if (e instanceof AdminAuthError) {
@@ -98,6 +102,10 @@ export async function POST(req: NextRequest) {
       xpEarned:  0,
       everDone:  false,
       suggestionId,
+      // A step born ticked is just written down, not done today: it earns
+      // nothing and never will (`everDone`), the same as a task added as Done.
+      steps:     kind === 'event' ? [] : (input.steps ?? []).map((st) => ({ ...st, xp: 0, everDone: st.done })),
+      rank:      kind === 'event' ? null : input.rank ?? null,
       // The browser works out where a new card goes (the bottom of its column)
       // because it is the one holding the column. Absent, the clock stands in:
       // it is always larger than anything orderBetween() hands out, so a task

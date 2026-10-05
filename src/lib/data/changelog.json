@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "aacd2b60eef4ba13fb8ff2c9007ead0576f82532",
+      "date": "2026-10-05T12:21:27-06:00",
+      "author": "erwindank",
+      "subject": "Give sticky notes a status dot and let them size to their text",
+      "body": "Each note shows the status ring its board column wears before the title,\nand is as tall as what is written on it instead of a fixed square; long\nnotes stop at 18 lines."
+    },
+    {
       "hash": "49325b2118f96eeca73b1370eb9348336666d43b",
       "date": "2026-10-05T12:19:11-06:00",
       "author": "erwindank",

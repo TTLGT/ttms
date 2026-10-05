@@ -2012,6 +2012,11 @@ personalTasks/{uid}
                                                // 'todo' and 'done' are never hidden;
                                                // custom ids are 'c_' + 4–16 chars, up to 12
   colorLabels      : { yellow?, pink?, … }    // the person's names for the colours (tags); absent = the colour's own name
+  streak           : {                        // the plain streak, game mode or not; absent = none yet
+    current, longest, lastActiveDate,         // working days in a row something was finished
+    day, todayTasks, todaySteps,              // counts for the office date in `day`
+    totalTasks, totalSteps                    // all-time, first completions only
+  }
   updatedAt        : Timestamp
 
 personalTasks/{uid}/items/{itemId}
@@ -2043,12 +2048,19 @@ personalTasks/{uid}/items/{itemId}
   reminders : ('start' | '15m' | '1h' | '1d' | '1w')[]
                                    // without a time, only start/1d/1w, at 8am
   order     : number               // position on the board and the sticky notes
+  steps     : [{ id, title, done, xp, everDone }]
+                                   // a task's checklist, up to 50; ids 's_' + 4–16
+                                   // chars. xp/everDone are server-set like the
+                                   // task's own; [] on an event
+  rank      : number | null        // place in the queue, lower first; null = not
+                                   // placed, queued after the placed ones by due date
+                                   // (PUT /api/me/tasks/queue renumbers the whole queue)
   createdAt, updatedAt : Timestamp
   doneAt    : Timestamp | null     // set when it goes to Done, cleared when it leaves
 ```
 
-Items saved before `eventType`, `location` and `reminders` existed read as
-`'other'`, `''` and `[]`; no backfill is needed.
+Items saved before `eventType`, `location`, `reminders`, `steps` and `rank`
+existed read as `'other'`, `''`, `[]`, `[]` and `null`; no backfill is needed.
 
 **Read and written only through `/api/me/tasks`, keyed on the caller's own
 uid** — the same arrangement as `vocabulary`. There is no rule for this path

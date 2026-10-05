@@ -25,8 +25,10 @@ import {
   type TaskKind,
   type TaskReminderLead,
   type TaskRepeat,
+  type TaskStep,
 } from '@/types/task';
 import { EVENT_ICON, NOTE_STYLE } from './taskStyle';
+import StepList from './StepList';
 
 /**
  * Add or edit one item. The same dialog for every view, so a task means the
@@ -41,6 +43,9 @@ export default function TaskEditor({
   columns,
   colorLabels = {},
   noChannel,
+  stepWords = { one: 'step', many: 'steps' },
+  queuePlace = null,
+  queueSize = 0,
   onSave,
   onDelete,
   onClose,
@@ -55,7 +60,14 @@ export default function TaskEditor({
   colorLabels?: ColorLabels;
   /** Both reminder channels are off, so a reminder set here would never arrive. */
   noChannel?: boolean;
-  onSave: (input: PersonalTaskInput) => Promise<void> | void;
+  /** What the steps are called under the person's theme. */
+  stepWords?: { one: string; many: string };
+  /** Where an open task sits in the queue now (1-based); null for a new or finished one. */
+  queuePlace?: number | null;
+  /** How many open tasks the queue holds, not counting a new one. */
+  queueSize?: number;
+  /** `place` is a new spot in the queue when the person typed one, otherwise null. */
+  onSave: (input: PersonalTaskInput, place: number | null) => Promise<void> | void;
   onDelete?: () => void;
   onClose: () => void;
 }) {
@@ -73,6 +85,9 @@ export default function TaskEditor({
   const [endTime, setEndTime]     = useState(start.endTime ?? '');
   const [reminders, setReminders] = useState<TaskReminderLead[]>(start.reminders ?? []);
   const [repeat, setRepeat]       = useState<TaskRepeat>(start.repeat ?? 'none');
+  const [steps, setSteps]         = useState<TaskStep[]>(start.steps ?? []);
+  // Blank means "leave it where it is" — or, for a new task, the end of the queue.
+  const [place, setPlace]         = useState(queuePlace ? String(queuePlace) : '');
   const [problem, setProblem]     = useState('');
   const [saving, setSaving]       = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -106,6 +121,9 @@ export default function TaskEditor({
       setProblem('The end time is before the start time.');
       return;
     }
+    const placeNum = Number(place);
+    const placeAt = kind === 'task' && status !== 'done' && place.trim() && Number.isInteger(placeNum) && placeNum >= 1
+      && placeNum !== queuePlace ? placeNum : null;
     setSaving(true);
     await onSave({
       kind,
@@ -123,7 +141,8 @@ export default function TaskEditor({
       // Only the leads that apply to what is being saved: a "15 minutes
       // before" ticked while a time was set means nothing once it is cleared.
       reminders: date ? reminders.filter((l) => leads.includes(l)) : [],
-    });
+      ...(kind === 'task' ? { steps } : {}),
+    }, placeAt);
     setSaving(false);
   };
 
@@ -256,6 +275,13 @@ export default function TaskEditor({
             />
           </div>
 
+          {kind === 'task' && (
+            <div>
+              <span className={`${label} capitalize`}>{stepWords.many}</span>
+              <StepList steps={steps} onChange={setSteps} one={stepWords.one} many={stepWords.many} />
+            </div>
+          )}
+
           {/* ── Reminders ───────────────────────────────────────── */}
           <div>
             <span className={`${label} flex items-center gap-1`}><Bell size={12} /> Remind me</span>
@@ -312,6 +338,21 @@ export default function TaskEditor({
                 {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{TASK_PRIORITY_LABEL[p]}</option>)}
               </select>
             </div>
+            {kind === 'task' && status !== 'done' && (
+              <div>
+                <label className={label} htmlFor="task-place">Priority number (place in queue)</label>
+                <input
+                  id="task-place"
+                  type="number"
+                  min={1}
+                  max={queueSize + (task ? 0 : 1)}
+                  value={place}
+                  onChange={(e) => setPlace(e.target.value)}
+                  placeholder={task ? '' : `${queueSize + 1} (the end)`}
+                  className={input}
+                />
+              </div>
+            )}
             {kind === 'task' && (
               <div className="sm:col-span-2">
                 <label className={label} htmlFor="task-repeat">Repeats</label>

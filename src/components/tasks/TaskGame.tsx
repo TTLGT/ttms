@@ -10,6 +10,7 @@ import { BROKER_SUGGESTIONS, suggestionsFor, type BrokerSuggestion } from '@/typ
 import {
   GAME_LEVELS,
   GAME_THEMES,
+  STEP_XP,
   SUGGESTION_BONUS_XP,
   TASK_XP,
   levelFor,
@@ -316,7 +317,8 @@ function GameOptions({
         <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
           <li>Finishing a task: {TASK_XP.low} / {TASK_XP.normal} / {TASK_XP.high} XP for low, normal and high priority.</li>
           <li>Finished late: 75% up to 3 days late, 50% up to a week, then 25%.</li>
-          <li>First task of each day: +50 XP and your streak grows. Only Monday to Friday count.</li>
+          <li>Each step of a task you tick off: +{STEP_XP} XP. Unticking it takes that back.</li>
+          <li>First task or step of each day: +50 XP and your streak grows. Only Monday to Friday count.</li>
           <li>Your streak is frozen on weekends, Guatemalan holidays and days you have asked for time off (waiting or approved).</li>
           <li>Each weekday a task is overdue costs 5 XP per day late, up to what it is worth. Nothing is charged on a day off.</li>
           <li>Missing a weekday you were working breaks the streak and costs 25 XP per day of it, up to 300.</li>

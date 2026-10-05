@@ -13,6 +13,7 @@ import {
   TASK_REPEATS,
   isTaskStatus,
   reminderInstants,
+  toSteps,
   type PersonalTask,
   type TaskReminderSettings,
 } from '@/types/task';
@@ -70,6 +71,9 @@ export function toTask(snap: DocumentSnapshot): PersonalTask {
     everDone:  d.everDone === true,
     suggestionId: typeof d.suggestionId === 'string' ? d.suggestionId : null,
     order:     typeof d.order === 'number' ? d.order : 0,
+    // Items saved before steps and the queue existed have none and are unplaced.
+    steps:     d.kind === 'event' ? [] : toSteps(d.steps),
+    rank:      typeof d.rank === 'number' ? d.rank : null,
     createdAt: iso(d.createdAt),
     updatedAt: iso(d.updatedAt),
     doneAt:    iso(d.doneAt),

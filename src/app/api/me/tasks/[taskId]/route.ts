@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/firebase-admin';
 import { syncReminderQueue, taskItems, taskOwnerDoc, toTask } from '@/lib/personalTasksServer';
-import { gameClock, gameFrom, offDaysFor, writeGame } from '@/lib/taskGameServer';
+import { gameClock, gameFrom, offDaysFor } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
 import { GameTurn, type GameEvent, type GameState } from '@/types/taskGame';
-import { cleanTaskInput, nextOccurrence, type PersonalTask } from '@/types/task';
+import { cleanTaskInput, nextOccurrence, type PersonalTask, type TaskStep } from '@/types/task';
+import { cleanTaskStreak, recordTaskProgress, type TaskStreak } from '@/types/taskStreak';
 
 class Refused extends Error {
   constructor(message: string, readonly status: number) { super(message); }
@@ -35,7 +36,7 @@ export async function PATCH(
     if (input.suggestionId && !brokerSuggestion(input.suggestionId)) delete input.suggestionId;
     const { today, now } = gameClock();
 
-    let result: { nextId: string | null; game: GameState | null; events: GameEvent[] };
+    let result: { nextId: string | null; game: GameState | null; events: GameEvent[]; streak: TaskStreak | null };
     try {
       result = await adminDb.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
@@ -65,28 +66,80 @@ export async function PATCH(
         if (finishing) update.doneAt = FieldValue.serverTimestamp();
         if (reopening) update.doneAt = null;
 
-        const merged = { ...current, ...input, kind, date, repeat, repeatDay, status } as PersonalTask;
+        // Steps: what was sent, with the server's own fields carried over from
+        // the stored step of the same id. An event has nothing to finish.
+        const newlyDone: TaskStep[] = [];
+        const unticked: TaskStep[] = [];
+        let steps = current.steps;
+        if (kind === 'event') {
+          if (current.steps.length) update.steps = [];
+          steps = [];
+        } else if (input.steps) {
+          const storedSteps = new Map(current.steps.map((st) => [st.id, st]));
+          steps = input.steps.map((st) => {
+            const was = storedSteps.get(st.id);
+            const step = { ...st, xp: was?.xp ?? 0, everDone: was?.everDone ?? false };
+            if (step.done && !was?.done) newlyDone.push(step);
+            if (!step.done && was?.done) unticked.push(step);
+            return step;
+          });
+          update.steps = steps;
+        } else {
+          delete update.steps;
+        }
+        if (kind === 'event') update.rank = null;
+
+        const merged = { ...current, ...input, kind, date, repeat, repeatDay, status, steps } as PersonalTask;
+
+        // Counted once ever, in both the game and the plain streak, so ticking
+        // a box on and off cannot pad either.
+        const firstTasks = finishing && !current.everDone ? 1 : 0;
+        const firstSteps = newlyDone.filter((st) => !st.everDone).length;
+        if (finishing) update.everDone = true;
+        for (const st of newlyDone) st.everDone = true;
 
         // Game mode. A task that has counted toward missions once never does
         // again, so ticking one on and off cannot farm them; its own XP is
         // taken back on reopening and paid again on finishing, which nets out.
+        // A step works the same way, for a smaller sum.
         const stored = gameFrom(ownerSnap);
+        const storedStreak = cleanTaskStreak(ownerSnap.data()?.streak);
+        const gameMoves = stored.enabled && (
+          finishing || (reopening && current.xpEarned > 0)
+          || newlyDone.length > 0 || unticked.some((st) => st.xp > 0));
+        const progress = firstTasks + firstSteps > 0;
+        // The person's days off, read only when a streak can actually move
+        // today — so an ordinary status change pays for no query.
+        const needOffDays = (gameMoves && (finishing || newlyDone.length > 0) && stored.lastActiveDate !== today)
+          || (progress && storedStreak.lastActiveDate !== today);
+        const offDays = needOffDays ? await offDaysFor(email, today, tx) : undefined;
+
         let game: GameState | null = null;
         let events: GameEvent[] = [];
-        if (stored.enabled && (finishing || (reopening && current.xpEarned > 0))) {
-          // The person's days off, read only now — game mode on and a task
-          // finishing — so nobody else's status change pays for the query.
-          const offDays = finishing ? await offDaysFor(email, today, tx) : undefined;
+        if (gameMoves) {
           const turn = new GameTurn(stored, today, now, offDays);
           if (finishing) {
             update.xpEarned = turn.onTaskDone(merged, !current.everDone);
-            update.everDone = true;
-          } else {
+          } else if (reopening && current.xpEarned > 0) {
             turn.onTaskReopened(merged.title, current.xpEarned);
             update.xpEarned = 0;
           }
+          for (const st of newlyDone) st.xp = turn.onStepDone(st.title);
+          for (const st of unticked) {
+            turn.onStepUndone(st.title, st.xp);
+            st.xp = 0;
+          }
           ({ state: game, events } = turn.finish());
-          writeGame(tx, uid, game);
+        }
+
+        // Null when nothing was finished: the page keeps the streak it has,
+        // which GET worked out with the person's time off in hand.
+        const streak = progress
+          ? recordTaskProgress(storedStreak, today, offDays, { tasks: firstTasks, steps: firstSteps })
+          : null;
+        // One write to the owner for both, only when either moved.
+        if (game || progress) {
+          tx.set(owner, { ...(game ? { game } : {}), ...(progress ? { streak } : {}) }, { merge: true });
         }
 
         // A repeating task makes its next copy the first time it is finished.
@@ -114,6 +167,10 @@ export async function PATCH(
             repeat,
             repeatDay,
             suggestionId: merged.suggestionId,
+            // The next one starts with the same steps, none of them done, and
+            // keeps its place in the queue.
+            steps: merged.steps.map((st) => ({ ...st, done: false, xp: 0, everDone: false })),
+            rank: merged.rank ?? null,
             nextId: null,
             xpEarned: 0,
             everDone: false,
@@ -141,7 +198,7 @@ export async function PATCH(
             reminders: input.reminders ?? current.reminders,
           }, taskId);
         }
-        return { nextId, game, events };
+        return { nextId, game, events, streak };
       });
     } catch (e) {
       if (e instanceof Refused) return NextResponse.json({ error: e.message }, { status: e.status });
@@ -157,6 +214,7 @@ export async function PATCH(
       next: next ? toTask(next) : null,
       game: result.game,
       events: result.events,
+      streak: result.streak,
     });
   } catch (e) {
     if (e instanceof AdminAuthError) {

@@ -187,6 +187,12 @@ export const TASK_XP: Record<TaskPriority, number> = { low: 15, normal: 30, high
 export const SUGGESTION_BONUS_XP = 15;
 /** The first task finished on a day, for keeping the streak going. */
 export const STREAK_DAY_XP = 50;
+/**
+ * One step of a task ticked off. Small on purpose: the task itself still pays
+ * its full XP when it is finished, so a task cut into twenty steps is worth a
+ * little more for the effort of planning it, not twenty times more.
+ */
+export const STEP_XP = 5;
 
 /** DankQuest's late scale: three days late keeps 75%, a week 50%, after that 25%. */
 export function lateShare(daysLate: number): number {
@@ -595,12 +601,7 @@ export class GameTurn {
     const note = daysLate > 0 ? ` (${daysLate} day${daysLate === 1 ? '' : 's'} late)` : '';
     this.award(earned, `Finished "${task.title}"${note}`);
 
-    if (s.lastActiveDate !== this.today) {
-      s.streak = s.lastActiveDate && s.lastActiveDate >= prevWorkingDay(this.today, this.offDays) ? s.streak + 1 : 1;
-      s.longestStreak = Math.max(s.longestStreak, s.streak);
-      s.lastActiveDate = this.today;
-      this.award(STREAK_DAY_XP, `Streak: day ${s.streak}`);
-    }
+    this.markActive();
 
     if (firstTime) {
       s.tasksDone++;
@@ -616,6 +617,39 @@ export class GameTurn {
       this.settleAll();
     }
     return earned;
+  }
+
+  /**
+   * Something was finished today: the first time on any day grows the streak
+   * and pays its bonus. A finished task and a ticked step both count, so a
+   * long task worked through a step a day keeps the streak alive.
+   */
+  private markActive() {
+    const s = this.state;
+    if (s.lastActiveDate === this.today) return;
+    s.streak = s.lastActiveDate && s.lastActiveDate >= prevWorkingDay(this.today, this.offDays) ? s.streak + 1 : 1;
+    s.longestStreak = Math.max(s.longestStreak, s.streak);
+    s.lastActiveDate = this.today;
+    this.award(STREAK_DAY_XP, `Streak: day ${s.streak}`);
+  }
+
+  /**
+   * A step was ticked. Returns the XP it earned, which the caller stores on
+   * the step so unticking takes back exactly that — the same shape as a task.
+   * Steps count for no mission: missions are about finishing tasks, and a
+   * step-count mission would reward cutting work into slivers.
+   */
+  onStepDone(title: string): number {
+    if (!this.state.enabled) return 0;
+    this.ensureSets();
+    this.award(STEP_XP, `Step: "${title}"`);
+    this.markActive();
+    return STEP_XP;
+  }
+
+  onStepUndone(title: string, earned: number) {
+    if (!this.state.enabled || earned <= 0) return;
+    this.award(-earned, `Unticked "${title}"`);
   }
 
   /** A finished task was reopened: what it earned is taken back. */

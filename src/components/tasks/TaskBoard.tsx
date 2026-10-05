@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type DragEvent } from 'react';
-import { Bell, CalendarDays, GripVertical, Plus, Repeat, StickyNote } from 'lucide-react';
+import { Bell, CalendarDays, GripVertical, ListChecks, Plus, Repeat, StickyNote } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   TASK_PRIORITY_LABEL,
@@ -270,7 +270,7 @@ function Card({
           <StickyNote size={10} className="mr-1 inline" />{task.notes}
         </p>
       )}
-      {(task.date || task.priority !== 'normal' || showXp) && (
+      {(task.date || task.priority !== 'normal' || showXp || task.steps.length > 0) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-[1.125rem]">
           {task.date && (
             <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${
@@ -288,6 +288,11 @@ function Card({
           {task.priority !== 'normal' && (
             <span className={`rounded px-1.5 py-0.5 text-[11px] ${PRIORITY_STYLE[task.priority]}`}>
               {TASK_PRIORITY_LABEL[task.priority]}
+            </span>
+          )}
+          {task.steps.length > 0 && (
+            <span className="inline-flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">
+              <ListChecks size={10} /> {task.steps.filter((s) => s.done).length}/{task.steps.length}
             </span>
           )}
           {showXp && <XpBadge task={task} today={today} />}

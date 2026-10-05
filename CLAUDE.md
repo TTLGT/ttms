@@ -944,6 +944,19 @@ Types and pure rules in `src/types/task.ts`; server in
   `src/lib/taskGameServer.ts`). That is a read of HR data, but only the
   person's own requests, server-side, to decide their own streak — nothing
   about time off is copied onto the game state or shown on the board.
+- **Up next, the queue, steps and focus.** The card at the top of the page is
+  `upNextTask()` — the closest deadline, not the queue's #1, on purpose. The
+  queue's numbers are positions, from `rank` via `byQueue()`; moving a task
+  sends the whole queue to `PUT /api/me/tasks/queue`. Steps live on the task
+  as an array and pay `STEP_XP` once each in game mode, with the same
+  take-back-on-untick shape as a task. Their names follow the theme
+  (`step`/`steps` in `taskSkins.ts`) and only the words change. Focus mode is
+  per browser (`ttms.tasks.focus`) and its timer is never saved.
+- **The plain streak runs with game mode off** (`personalTasks/{uid}.streak`,
+  `src/types/taskStreak.ts`): the game's calendar, no penalties, first
+  completions only, a task or a step. It is written only by the PATCH that
+  finishes something; GET works out a broken one on read and spends a
+  time-off query only when it would otherwise look broken.
 - **An event's `eventType` is a label.** A "company activity" is only on the
   calendar of the person who added it. A calendar the company shares would
   need its own answer to who may post on it.
