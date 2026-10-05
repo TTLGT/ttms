@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CalendarDays, Columns3, Gamepad2, ListOrdered, Lock, Plus, Route, Search, StickyNote, Table2, X } from 'lucide-react';
 import { usePersonalTasks } from '@/lib/personalTasks';
+import { useTaskDirectory } from '@/lib/taskContacts';
+import { TaskDirectoryProvider } from '@/components/tasks/TaskContacts';
 import TaskBoard from '@/components/tasks/TaskBoard';
 import TaskNotes from '@/components/tasks/TaskNotes';
 import TaskTable from '@/components/tasks/TaskTable';
@@ -66,6 +68,8 @@ export default function MyTasksPage() {
   const [editing, setEditing] = useState<{ task: PersonalTask | null; initial?: PersonalTaskInput } | null>(null);
   // Read after mount: the server has no idea what day it is where the viewer is.
   const [today, setToday] = useState('');
+  // The directory, for the "with @Name" contacts: only once something needs it.
+  const { people } = useTaskDirectory(!!editing || (tasks ?? []).some((t) => t.contacts.length > 0));
 
   useEffect(() => {
     setToday(calendarToday());
@@ -95,7 +99,8 @@ export default function MyTasksPage() {
     return (tasks ?? []).filter((t) =>
       t.kind === 'task'
       && (!q || t.title.toLowerCase().includes(q) || t.notes.toLowerCase().includes(q)
-        || t.steps.some((s) => s.title.toLowerCase().includes(q))));
+        || t.steps.some((s) => s.title.toLowerCase().includes(q))
+        || t.contacts.some((c) => c.name.toLowerCase().includes(q))));
   }, [tasks, query]);
 
   // The board always has its Done column; the other views hide finished
@@ -181,6 +186,7 @@ export default function MyTasksPage() {
   // A task deleted or cleared while in focus simply drops back to the list.
   if (focused && today) {
     return (
+      <TaskDirectoryProvider people={people}>
       <div className={room}>
         {skin.themed && <style>{roomCss(skin)}</style>}
         <div className="mx-auto max-w-2xl">{errorBar}</div>
@@ -200,10 +206,12 @@ export default function MyTasksPage() {
         <GameFeedback notices={notices} theme={game?.theme ?? 'freight'} onDismiss={dismissNotice} />
         {editor}
       </div>
+      </TaskDirectoryProvider>
     );
   }
 
   return (
+    <TaskDirectoryProvider people={people}>
     <div className={room}>
       {skin.themed && <style>{roomCss(skin)}</style>}
       <div className="mb-5 flex flex-wrap items-start gap-3">
@@ -402,5 +410,6 @@ export default function MyTasksPage() {
 
       {editor}
     </div>
+    </TaskDirectoryProvider>
   );
 }

@@ -18,8 +18,9 @@ import { NOTE_STYLE, PRIORITY_STYLE } from './taskStyle';
 import type { GameTheme } from '@/types/taskGame';
 import XpBadge from './XpBadge';
 import { DueChip } from './TaskQueue';
+import { TaskContactsLine } from './TaskContacts';
 
-type SortKey = 'title' | 'status' | 'priority' | 'date' | 'createdAt';
+type SortKey = 'title' | 'contact' | 'status' | 'priority' | 'date' | 'createdAt';
 
 /**
  * The same tasks as rows, for somebody who wants to see everything at once
@@ -77,6 +78,12 @@ export default function TaskTable({
         const byDate = ((a.date ?? '') + (a.time ?? '')).localeCompare((b.date ?? '') + (b.time ?? ''));
         return byDate * dir || a.title.localeCompare(b.title);
       }
+      // Like the due date, tasks with nobody on them go last either way round.
+      if (key === 'contact') {
+        if (!a.contacts.length !== !b.contacts.length) return a.contacts.length ? -1 : 1;
+        const c = (a.contacts[0]?.name ?? '').localeCompare(b.contacts[0]?.name ?? '', undefined, { sensitivity: 'base' });
+        return c * dir || a.title.localeCompare(b.title);
+      }
       let c = 0;
       if (key === 'title') c = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
       if (key === 'status') c = rank(statusOrder, placeOf(columns, a.status)) - rank(statusOrder, placeOf(columns, b.status));
@@ -112,6 +119,7 @@ export default function TaskTable({
           <tr>
             <th className="w-10 px-3 py-2"><span className="sr-only">Done</span></th>
             {header('title', 'Task')}
+            {header('contact', 'With')}
             {header('status', 'Status')}
             {header('priority', 'Priority')}
             {header('date', 'Due')}
@@ -178,6 +186,9 @@ export default function TaskTable({
                   </button>
                   </div>
                 </td>
+                <td className="px-3 py-2 text-gray-700">
+                  {t.contacts.length > 0 ? <TaskContactsLine contacts={t.contacts} /> : <span className="text-gray-400">—</span>}
+                </td>
                 <td className="px-3 py-2">
                   <select
                     aria-label="Status"
@@ -206,7 +217,7 @@ export default function TaskTable({
               {expanded && t.steps.map((st, n) => (
                 <tr key={st.id} className="bg-gray-50">
                   <td />
-                  <td colSpan={5} className="py-1.5 pl-8 pr-3">
+                  <td colSpan={6} className="py-1.5 pl-8 pr-3">
                     {/* The line down the left joins the steps to their task, as on the board. */}
                     <div className="flex items-center gap-2 border-l-2 border-gray-300 pl-3">
                       <button

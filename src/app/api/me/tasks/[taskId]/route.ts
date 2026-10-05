@@ -179,6 +179,8 @@ export async function PATCH(
               everDone: false,
             })),
             rank: merged.rank ?? null,
+            // Still the same people next week.
+            contacts: merged.contacts,
             nextId: null,
             xpEarned: 0,
             everDone: false,

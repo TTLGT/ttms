@@ -9,6 +9,8 @@ import { usePersonalTasks } from '@/lib/personalTasks';
 import { fetchHolidayOverrides } from '@/lib/attendance';
 import TaskCalendar from '@/components/tasks/TaskCalendar';
 import TaskEditor from '@/components/tasks/TaskEditor';
+import { TaskDirectoryProvider } from '@/components/tasks/TaskContacts';
+import { useTaskDirectory } from '@/lib/taskContacts';
 import { GameFeedback } from '@/components/tasks/TaskGame';
 import {
   CelebrationDetail,
@@ -53,6 +55,9 @@ export default function CalendarPage() {
   const [today, setToday] = useState('');
   const [selected, setSelected] = useState('');
   const [picked, setPicked] = useState<CalendarOccurrence | null>(null);
+  // For the editor's "With" box. The calendar draws no contacts itself, so
+  // only an open editor is worth reading the directory for.
+  const { people: directory } = useTaskDirectory(!!editing);
 
   const hr = can('people.view');
   const celebrations = useCelebrationCalendar(hr);
@@ -271,6 +276,7 @@ export default function CalendarPage() {
       <GameFeedback notices={notices} theme={game?.theme ?? 'freight'} onDismiss={dismissNotice} />
 
       {editing && (
+        <TaskDirectoryProvider people={directory}>
         <TaskEditor
           task={editing.task}
           initial={editing.initial}
@@ -281,6 +287,7 @@ export default function CalendarPage() {
           onDelete={editing.task ? () => { remove(editing.task!.id); setEditing(null); } : undefined}
           onClose={() => setEditing(null)}
         />
+        </TaskDirectoryProvider>
       )}
     </div>
   );

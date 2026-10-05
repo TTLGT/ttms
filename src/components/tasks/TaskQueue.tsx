@@ -8,6 +8,7 @@ import { TASK_PRIORITY_LABEL, formatTime, type PersonalTask } from '@/types/task
 import { PRIORITY_STYLE } from './taskStyle';
 import XpBadge from './XpBadge';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
+import { TaskContactsLine } from './TaskContacts';
 
 /**
  * The queue: every open task as one numbered list, DankQuest-style. #1 is
@@ -155,8 +156,17 @@ function QueueRow({
         #{number}
       </span>
 
-      <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
-        <span className="block truncate text-sm font-semibold text-gray-900">{task.title}</span>
+      {/* Clicking anywhere here opens the task, as it always has; the title is
+          the button a keyboard reaches. Not one big <button> any more, because
+          the "@Name" chips beside the title are buttons of their own. */}
+      <div onClick={onOpen} className="min-w-0 flex-1 cursor-pointer text-left">
+        {/* Wraps, so a long list of names drops under the title rather than squeezing it. */}
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+          <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(); }} className="min-w-0 max-w-full truncate text-left text-sm font-semibold text-gray-900">
+            {task.title}
+          </button>
+          <TaskContactsLine contacts={task.contacts} prefix="with" className="text-xs text-gray-600" />
+        </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
           {task.steps.length > 0 && (
             <span className="inline-flex items-center gap-1">
@@ -171,7 +181,7 @@ function QueueRow({
           )}
           {playing && <XpBadge task={task} today={today} theme={skin.id} />}
         </span>
-      </button>
+      </div>
 
       {upNext && (
         <span

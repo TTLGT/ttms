@@ -24,6 +24,7 @@ import type { GameTheme } from '@/types/taskGame';
 import XpBadge from './XpBadge';
 import BoardColumnsMenu from './BoardColumnsMenu';
 import { DueChip } from './TaskQueue';
+import { TaskContactsLine } from './TaskContacts';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
 
 /**
@@ -278,10 +279,17 @@ function Card({
   const { formatCalendarDate } = useDateFormatters();
   const overdue = isOverdue(task, today);
   return (
-    <button
-      type="button"
+    // A div acting as a button rather than a <button>, because the "@Name"
+    // chips inside it are buttons of their own and a button cannot hold one.
+    <div
+      role="button"
+      tabIndex={0}
       draggable
       onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); }
+      }}
       {...drag}
       className={`block w-full cursor-grab border p-3 text-left shadow-sm hover:shadow-md active:cursor-grabbing ${look}`}
     >
@@ -295,6 +303,7 @@ function Card({
           {task.title}
         </span>
       </div>
+      <TaskContactsLine contacts={task.contacts} prefix="with" className="mt-0.5 pl-[1.125rem] text-xs" />
       {task.notes && (
         <p className="mt-1 line-clamp-2 pl-[1.125rem] text-xs opacity-75">
           <StickyNote size={10} className="mr-1 inline" />{task.notes}
@@ -328,7 +337,7 @@ function Card({
           {showXp && <XpBadge task={task} today={today} theme={theme} />}
         </div>
       )}
-    </button>
+    </div>
   );
 }
 

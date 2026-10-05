@@ -2058,12 +2058,18 @@ personalTasks/{uid}/items/{itemId}
   rank      : number | null        // place in the queue, lower first; null = not
                                    // placed, queued after the placed ones by due date
                                    // (PUT /api/me/tasks/queue renumbers the whole queue)
+  contacts  : [{ email, name }]    // colleagues from the directory it is with, up to 5;
+                                   // email lower-cased, name a copy taken when added
+                                   // (the contact card looks the person up live).
+                                   // Tells and grants the colleague nothing.
+                                   // Carried onto a repeating task's next copy
   createdAt, updatedAt : Timestamp
   doneAt    : Timestamp | null     // set when it goes to Done, cleared when it leaves
 ```
 
-Items saved before `eventType`, `location`, `reminders`, `steps` and `rank`
-existed read as `'other'`, `''`, `[]`, `[]` and `null`; no backfill is needed.
+Items saved before `eventType`, `location`, `reminders`, `steps`, `rank` and
+`contacts` existed read as `'other'`, `''`, `[]`, `[]`, `null` and `[]`; no
+backfill is needed.
 A step saved before step dates existed reads as `date: null`.
 
 **Read and written only through `/api/me/tasks`, keyed on the caller's own

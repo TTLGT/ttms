@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
       // nothing and never will (`everDone`), the same as a task added as Done.
       steps:     kind === 'event' ? [] : (input.steps ?? []).map((st) => ({ ...st, xp: 0, everDone: st.done })),
       rank:      kind === 'event' ? null : input.rank ?? null,
+      contacts:  input.contacts ?? [],
       // The browser works out where a new card goes (the bottom of its column)
       // because it is the one holding the column. Absent, the clock stands in:
       // it is always larger than anything orderBetween() hands out, so a task

@@ -23,12 +23,14 @@ import {
   type PersonalTask,
   type PersonalTaskInput,
   type TaskKind,
+  type TaskContact,
   type TaskReminderLead,
   type TaskRepeat,
   type TaskStep,
 } from '@/types/task';
 import { EVENT_ICON, NOTE_STYLE } from './taskStyle';
 import StepList from './StepList';
+import { TaskContactPicker } from './TaskContacts';
 
 /**
  * Add or edit one item. The same dialog for every view, so a task means the
@@ -86,6 +88,7 @@ export default function TaskEditor({
   const [reminders, setReminders] = useState<TaskReminderLead[]>(start.reminders ?? []);
   const [repeat, setRepeat]       = useState<TaskRepeat>(start.repeat ?? 'none');
   const [steps, setSteps]         = useState<TaskStep[]>(start.steps ?? []);
+  const [contacts, setContacts]   = useState<TaskContact[]>(start.contacts ?? []);
   // Blank means "leave it where it is" — or, for a new task, the end of the queue.
   const [place, setPlace]         = useState(queuePlace ? String(queuePlace) : '');
   const [problem, setProblem]     = useState('');
@@ -141,6 +144,7 @@ export default function TaskEditor({
       // Only the leads that apply to what is being saved: a "15 minutes
       // before" ticked while a time was set means nothing once it is cleared.
       reminders: date ? reminders.filter((l) => leads.includes(l)) : [],
+      contacts,
       ...(kind === 'task' ? { steps } : {}),
     }, placeAt);
     setSaving(false);
@@ -273,6 +277,12 @@ export default function TaskEditor({
               onChange={(e) => setNotes(e.target.value)}
               className={input}
             />
+          </div>
+
+          {/* Who it is with, so their number is one click from the task. */}
+          <div>
+            <span className={label}>With</span>
+            <TaskContactPicker value={contacts} onChange={setContacts} inputClass={input} />
           </div>
 
           {kind === 'task' && (

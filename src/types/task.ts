@@ -381,6 +381,47 @@ export function toSteps(raw: unknown): TaskStep[] {
   });
 }
 
+/**
+ * A colleague from the directory this task is with — the carrier rep's
+ * account manager, the dispatcher holding the load — so reaching them is one
+ * click from the task rather than a trip to the phone book.
+ *
+ * Keyed by email, not uid: the directory is keyed that way, and somebody
+ * invited who has never signed in has an email and a desk number but no uid
+ * yet. The name is a copy taken when they were added, so every view can draw
+ * "with @Name" without loading the directory; the contact card looks the
+ * person up live for their numbers, and shows the newer name when it finds one.
+ *
+ * Naming a colleague here tells them nothing and grants them nothing. It is a
+ * note on the owner's own private list, like the rest of it — see the top of
+ * this file.
+ */
+export interface TaskContact {
+  email: string;
+  name: string;
+}
+
+export const MAX_TASK_CONTACTS = 5;
+const MAX_CONTACT_NAME = 120;
+const CONTACT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Contacts as sent or stored: well-formed addresses, lower-cased, unique, at most MAX_TASK_CONTACTS. */
+export function cleanContacts(raw: unknown): TaskContact[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TaskContact[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const r = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+    const email = typeof r.email === 'string' ? r.email.trim().toLowerCase() : '';
+    if (!email || email.length > 254 || !CONTACT_EMAIL_RE.test(email) || seen.has(email)) continue;
+    const name = typeof r.name === 'string' ? r.name.trim().slice(0, MAX_CONTACT_NAME) : '';
+    seen.add(email);
+    out.push({ email, name: name || email });
+    if (out.length >= MAX_TASK_CONTACTS) break;
+  }
+  return out;
+}
+
 export interface PersonalTask {
   id: string;
   kind: TaskKind;
@@ -433,6 +474,8 @@ export interface PersonalTask {
    * reads #1, #2, #3 with no gaps whatever has been finished. See `byQueue()`.
    */
   rank: number | null;
+  /** Colleagues this task is with, in the order they were added. Empty for none. */
+  contacts: TaskContact[];
   /** ISO strings on the wire. */
   createdAt: string | null;
   updatedAt: string | null;
@@ -443,7 +486,7 @@ export interface PersonalTask {
 /** What can be written. Everything else on a task is set by the server. */
 export type PersonalTaskInput = Partial<Pick<PersonalTask,
   'kind' | 'title' | 'notes' | 'status' | 'priority' | 'color' | 'date' | 'time' | 'endTime' | 'order'
-  | 'eventType' | 'location' | 'reminders' | 'repeat' | 'suggestionId' | 'steps' | 'rank'>>;
+  | 'eventType' | 'location' | 'reminders' | 'repeat' | 'suggestionId' | 'steps' | 'rank' | 'contacts'>>;
 
 export const MAX_QUEUE_RANK = 100_000;
 
@@ -512,6 +555,7 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   if (Array.isArray(b.steps)) out.steps = cleanSteps(b.steps);
   if (b.rank === null) out.rank = null;
   else if (typeof b.rank === 'number' && Number.isInteger(b.rank) && b.rank >= 1 && b.rank <= MAX_QUEUE_RANK) out.rank = b.rank;
+  if (Array.isArray(b.contacts)) out.contacts = cleanContacts(b.contacts);
   return out;
 }
 

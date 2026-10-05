@@ -11,6 +11,7 @@ import {
   TASK_REMINDERS_COLLECTION,
   TASK_REMINDER_LEADS,
   TASK_REPEATS,
+  cleanContacts,
   isTaskStatus,
   reminderInstants,
   toSteps,
@@ -74,6 +75,8 @@ export function toTask(snap: DocumentSnapshot): PersonalTask {
     // Items saved before steps and the queue existed have none and are unplaced.
     steps:     d.kind === 'event' ? [] : toSteps(d.steps),
     rank:      typeof d.rank === 'number' ? d.rank : null,
+    // Absent on everything saved before contacts existed, which had none.
+    contacts:  cleanContacts(d.contacts),
     createdAt: iso(d.createdAt),
     updatedAt: iso(d.updatedAt),
     doneAt:    iso(d.doneAt),
