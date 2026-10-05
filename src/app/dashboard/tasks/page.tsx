@@ -9,7 +9,7 @@ import TaskNotes from '@/components/tasks/TaskNotes';
 import TaskTable from '@/components/tasks/TaskTable';
 import TaskEditor from '@/components/tasks/TaskEditor';
 import { GameBar, GameFeedback } from '@/components/tasks/TaskGame';
-import { pageStyleFor, skinFor } from '@/components/tasks/taskSkins';
+import { ROOM_CLASS, roomCss, skinFor } from '@/components/tasks/taskSkins';
 import { THEME_FONT_VARS } from '@/components/tasks/themeFonts';
 import { calendarToday, type PersonalTask, type PersonalTaskInput } from '@/types/task';
 
@@ -37,8 +37,8 @@ export default function MyTasksPage() {
     create, update, remove, clearDone, move, saveColumns, saveGameOptions, dismissNotice,
   } = usePersonalTasks();
   const playing = !!game?.enabled;
-  // The theme is the game's costume, and it dresses the whole page: a dark
-  // room in the theme's colours, with the banner on top and its accent on the
+  // The theme is the game's costume, and it dresses the whole page: a
+  // room in the theme's colours, light, dim or dark to match the app theme, with the banner on top and its accent on the
   // board. With the game off the page is the plain one. See taskSkins.ts.
   const skin = skinFor(playing ? game?.theme : null);
   const [view, setView] = useState<View>('board');
@@ -81,9 +81,9 @@ export default function MyTasksPage() {
 
   return (
     <div
-      className={`min-h-full p-4 sm:p-6 lg:p-8 ${THEME_FONT_VARS} ${skin.themed ? `ttms-dark-scope ${skin.body}` : ''}`}
-      style={skin.themed ? (pageStyleFor(skin) as React.CSSProperties) : undefined}
+      className={`min-h-full p-4 sm:p-6 lg:p-8 ${THEME_FONT_VARS} ${skin.themed ? `${ROOM_CLASS} ${skin.body}` : ''}`}
     >
+      {skin.themed && <style>{roomCss(skin)}</style>}
       <div className="mb-5 flex flex-wrap items-start gap-3">
         <div className="flex-1">
           <h1 className={`text-2xl font-bold text-gray-900 ${skin.heading}`}>My tasks</h1>
@@ -92,7 +92,7 @@ export default function MyTasksPage() {
             <Link
               href="/dashboard/calendar"
               className="ml-2 inline-flex items-center gap-1 text-brand-700 hover:underline"
-              style={skin.themed ? { color: skin.accent } : undefined}
+              style={skin.themed ? { color: 'var(--tt-accent-ink)' } : undefined}
             >
               <CalendarDays size={13} /> Open the calendar
             </Link>
@@ -103,11 +103,10 @@ export default function MyTasksPage() {
           aria-pressed={playing}
           onClick={() => saveGameOptions({ enabled: !playing })}
           title={playing ? 'Turn game mode off' : 'Earn XP and levels for finishing tasks. Only you see it.'}
-          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium ${
-            // On a themed page, a quiet outline that does not compete with
-            // the accent-filled Add task beside it.
-            playing ? 'border-[rgba(255,255,255,0.2)] bg-[rgba(255,255,255,0.06)] text-white hover:bg-[rgba(255,255,255,0.12)]' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-          }`}
+          // A quiet outline that does not compete with the accent-filled Add
+          // task beside it. The same classes on a themed page: the room
+          // retints them, in light, dim and dark alike.
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
           <Gamepad2 size={16} /> Game mode{playing ? ' on' : ''}
         </button>

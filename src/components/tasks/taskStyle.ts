@@ -9,11 +9,10 @@ import type { BuiltInTaskStatus, EventType, TaskColor, TaskPriority, TaskStatus 
  * `dark:` class anywhere.
  *
  * On a dark ground the 100 tint is too faint — a 22% wash of yellow over slate
- * reads as mud, and the colours were hard to tell apart — so under dark mode
- * and the game theme's dark room a note steps up to the 200 ground and the 300
- * edge. That has to be an arbitrary variant rather than `dark:`: the game room
- * is `.ttms-dark-scope` on a page whose `html` may well be light. The light
- * theme is unchanged.
+ * reads as mud, and the colours were hard to tell apart — so under dark and
+ * dim a note steps up to the 200 ground and the 300 edge. One of the few
+ * `dark:` classes in the app, because the mapping alone cannot say "a
+ * stronger tint here only". The light theme is unchanged.
  *
  * The swatch is a solid 400, which the mapping leaves alone, so the picker and
  * the dots on the calendar and table are the same clear colour in every theme.
@@ -23,32 +22,32 @@ import type { BuiltInTaskStatus, EventType, TaskColor, TaskPriority, TaskStatus 
  */
 export const NOTE_STYLE: Record<TaskColor, { note: string; chip: string; swatch: string }> = {
   yellow: {
-    note: 'bg-yellow-100 border-yellow-200 text-yellow-900 [.dark_&]:bg-yellow-200 [.dark_&]:border-yellow-300 [.ttms-dark-scope_&]:bg-yellow-200 [.ttms-dark-scope_&]:border-yellow-300',
+    note: 'bg-yellow-100 border-yellow-200 text-yellow-900 dark:bg-yellow-200 dark:border-yellow-300',
     chip: 'bg-yellow-100 text-yellow-800',
     swatch: 'bg-yellow-400',
   },
   pink: {
-    note: 'bg-pink-100 border-pink-200 text-pink-900 [.dark_&]:bg-pink-200 [.dark_&]:border-pink-300 [.ttms-dark-scope_&]:bg-pink-200 [.ttms-dark-scope_&]:border-pink-300',
+    note: 'bg-pink-100 border-pink-200 text-pink-900 dark:bg-pink-200 dark:border-pink-300',
     chip: 'bg-pink-100 text-pink-800',
     swatch: 'bg-pink-400',
   },
   blue: {
-    note: 'bg-sky-100 border-sky-200 text-sky-900 [.dark_&]:bg-sky-200 [.dark_&]:border-sky-300 [.ttms-dark-scope_&]:bg-sky-200 [.ttms-dark-scope_&]:border-sky-300',
+    note: 'bg-sky-100 border-sky-200 text-sky-900 dark:bg-sky-200 dark:border-sky-300',
     chip: 'bg-sky-100 text-sky-800',
     swatch: 'bg-sky-400',
   },
   green: {
-    note: 'bg-green-100 border-green-200 text-green-900 [.dark_&]:bg-green-200 [.dark_&]:border-green-300 [.ttms-dark-scope_&]:bg-green-200 [.ttms-dark-scope_&]:border-green-300',
+    note: 'bg-green-100 border-green-200 text-green-900 dark:bg-green-200 dark:border-green-300',
     chip: 'bg-green-100 text-green-800',
     swatch: 'bg-green-400',
   },
   purple: {
-    note: 'bg-violet-100 border-violet-200 text-violet-900 [.dark_&]:bg-violet-200 [.dark_&]:border-violet-300 [.ttms-dark-scope_&]:bg-violet-200 [.ttms-dark-scope_&]:border-violet-300',
+    note: 'bg-violet-100 border-violet-200 text-violet-900 dark:bg-violet-200 dark:border-violet-300',
     chip: 'bg-violet-100 text-violet-800',
     swatch: 'bg-violet-400',
   },
   orange: {
-    note: 'bg-orange-100 border-orange-200 text-orange-900 [.dark_&]:bg-orange-200 [.dark_&]:border-orange-300 [.ttms-dark-scope_&]:bg-orange-200 [.ttms-dark-scope_&]:border-orange-300',
+    note: 'bg-orange-100 border-orange-200 text-orange-900 dark:bg-orange-200 dark:border-orange-300',
     chip: 'bg-orange-100 text-orange-800',
     swatch: 'bg-orange-400',
   },

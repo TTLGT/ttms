@@ -195,12 +195,6 @@ const config: Config = {
     plugin(({ addBase }) => {
       // `html.dark.dim` outranks `html.dark`, so the order here does not matter.
       addBase({ ':root': lightVars, 'html.dark': darkVars, 'html.dark.dim': dimVars });
-      // The dark palette for one part of a page, whatever the page's own
-      // theme: My tasks in game mode is a dark room in a light house. Set on
-      // the element, so it beats anything inherited from `html`. The game
-      // theme then tints the surfaces with inline variables of its own —
-      // see paletteFor() in src/components/tasks/taskSkins.ts.
-      addBase({ '.ttms-dark-scope': { ...darkVars, colorScheme: 'dark' } });
     }),
   ],
 };

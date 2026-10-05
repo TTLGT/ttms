@@ -928,11 +928,13 @@ Types and pure rules in `src/types/task.ts`; server in
   list deliberately is not. **The theme dresses the whole page** while game
   mode is on, set in `src/components/tasks/taskSkins.ts`: a dark banner with
   line artwork (`taskSkinArt.ts`, plain SVG strings) carrying the level, XP
-  and streak, and the rest of the page as a dark room in the theme's
-  colours. That room is the `ttms-dark-scope` class (the app's own dark
-  palette, applied to one element — see `tailwind.config.ts`) plus
-  `pageStyleFor()`, which retints only the neutral greys toward the banner's
-  ground. Status colours keep their dark-mode meaning. Buttons and column
+  and streak (dark in every app theme), and the rest of the page as a room
+  in the theme's colours that **follows the app theme** — a pale wash in
+  light, slate in dim, deep in dark. `roomCss()` writes all three as CSS
+  keyed on `html.dark` / `html.dark.dim`, so the right one is there on the
+  first frame; it retints only the neutral greys toward the banner's ground,
+  and status colours keep the app theme's own meaning. Pale accents are
+  darkened for words in the light room (`--tt-accent-ink`). Buttons and column
   rules take the theme's accent. Freight is the default. A theme may change
   how the board looks and never what it says — column names, statuses and
   priorities are the same under every one.

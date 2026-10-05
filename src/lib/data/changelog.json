@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "66c961bb11703f6646dc997342c87f39c91c7ac7",
+      "date": "2026-10-05T10:23:41-06:00",
+      "author": "erwindank",
+      "subject": "Colour board cards by the task's colour and make note colours clearer on dark grounds",
+      "body": "The board card now takes the colour picked for the task, and its dot shows\nthe task's status with the same ring as its column header. Under dark mode\nand the game theme a note steps up to a stronger tint so the colours stop\nreading as mud, and swatches are a solid 400 in every theme."
+    },
+    {
       "hash": "87106b8661daa0288d00543dcaa54b144de46df6",
       "date": "2026-10-05T10:10:09-06:00",
       "author": "erwindank",

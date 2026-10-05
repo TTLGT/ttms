@@ -11,9 +11,8 @@ import type { GameTheme } from '@/types/taskGame';
  *   level, XP and streak drawn in its accent. The banner's colours are fixed
  *   hex values, deliberately the same in light and dark mode: it is a dark
  *   panel in both.
- * - **The working area** is a room in the theme's colours, a few steps
- *   lighter than the banner so the banner reads as the darkest thing on the
- *   page. It takes the accent for the column rules, a card's hover edge and
+ * - **The working area** is a room in the theme's colours, in a light, dim
+ *   or dark version to match the app's own theme — see roomCss(). It takes the accent for the column rules, a card's hover edge and
  *   the main buttons; the theme's display face for the page title and the
  *   column headings; a readable body face of the same mood for everything
  *   else; and a set of status icons drawn in each status's own colour.
@@ -44,8 +43,8 @@ export interface TaskSkin {
   accent: string;
   /**
    * Main buttons: Add task, the chosen view. The accent, with the ground's
-   * colour for the words — the page is dark under every theme, so a
-   * button in the ground colour would disappear into it.
+   * colour for the words. A pale accent filled with a deep ink reads on a
+   * light room and a dark one alike.
    */
   button: string;
   /** The rule along the top of a board column. */
@@ -189,50 +188,141 @@ function lift(hex: string, amount: number): string {
   return rgbOf(hex).map((c) => Math.round(c + (target - c) * a)).join(' ');
 }
 
+/** White moved `amount` of the way toward `hex`, as a triplet — the light room's version of lift(). */
+function wash(hex: string, amount: number): string {
+  return rgbOf(mixHex('#ffffff', hex, amount)).join(' ');
+}
+
+const asRgb = (triplet: string) => `rgb(${triplet.split(' ').join(',')})`;
+
+/** The class the page puts on the element that roomCss() dresses. */
+export const ROOM_CLASS = 'tt-room';
+
+type Shades = Record<string, string>;
+
+/** One room's variables as a CSS declaration block. */
+function block(vars: Shades): string {
+  return Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';');
+}
+
 /**
- * The whole page in the theme's colours. The element gets `ttms-dark-scope`
- * — the app's own dark palette, so every ink, chip and status colour in the
- * cards, the table and the editor is already right for a dark ground — and
- * these variables on top, which tint the neutral surfaces toward the
- * banner's ground: columns, cards, inputs, the hairlines between them.
+ * The working area in the theme's colours, in a version for each of the
+ * app's own themes — light, dim and dark — returned as CSS for a `<style>`
+ * beside the page.
  *
- * Only the neutrals are retinted. The status families (red overdue, amber
- * today, the sticky-note colours) keep their dark-mode values, so they mean
- * the same thing under every theme.
+ * It follows the app theme rather than forcing one. The room used to wear
+ * the dark palette whatever the app was set to, which put a dark page in the
+ * middle of somebody's light app. Now the light theme gets a pale room washed
+ * with the banner's hue, dim a slate one, dark the deep one it always had.
  *
- * The variable names are the ones tailwind.config.ts writes: `--c-surface`
- * is `bg-white`, `--c-bg-gray-50` is `bg-gray-50`, and so on.
+ * CSS selectors on `html.dark` / `html.dark.dim` rather than a hook reading
+ * the theme: the boot script has set those classes before the first paint,
+ * so the right room is there on the first frame, and a theme switched in the
+ * sidebar or in another tab carries over with nothing to re-render.
+ *
+ * Only the neutrals are retinted — the variable names are the ones
+ * tailwind.config.ts writes: `--c-surface` is `bg-white`, `--c-bg-gray-50`
+ * is `bg-gray-50`, and so on. The status families (red overdue, amber today,
+ * the sticky-note colours) keep the app theme's own values, so they mean the
+ * same thing under every game theme.
+ *
+ * The banner is not part of this. It is a dark panel in all three — its
+ * artwork is drawn for a dark ground — see TaskGame.tsx.
+ *
+ * Every value is computed from the skin's own fixed colours, never from
+ * anything typed, so building the style text here is safe.
  */
-export function pageStyleFor(skin: TaskSkin): Record<string, string> {
+export function roomCss(skin: TaskSkin): string {
   // A touch of the accent in the ground, so the room is the theme's colour
   // and not just a grey with the banner's hue.
   const g = mixHex(skin.ground, skin.accent, 0.06);
   const [r, gg, b] = rgbOf(skin.accent);
-  // Each step up is a lighter layer: page, then columns (gray-50), then
+  const glow = (alpha: number) =>
+    `radial-gradient(ellipse 70% 50% at 100% 0%, rgba(${r},${gg},${b},${alpha}), transparent 70%)`;
+
+  // Light: steps of the ground mixed into white. Columns (gray-50) sit below
+  // the cards as in the plain light theme, and the inks are the ground itself
+  // nearly at full strength, so body text is the theme's deep colour rather
+  // than a neutral black.
+  const light: Shades = {
+    '--c-bg-gray-50':      wash(g, 0.07),
+    '--c-surface':         wash(g, 0.012),
+    '--c-bg-gray-100':     wash(g, 0.1),
+    '--c-bg-gray-200':     wash(g, 0.15),
+    '--c-bg-gray-300':     wash(g, 0.22),
+    '--c-border-gray-50':  wash(g, 0.08),
+    '--c-border-gray-100': wash(g, 0.11),
+    '--c-border-gray-200': wash(g, 0.16),
+    '--c-border-gray-300': wash(g, 0.24),
+    '--c-border-gray-400': wash(g, 0.34),
+    '--c-text-gray-300':   wash(g, 0.32),
+    '--c-text-gray-400':   wash(g, 0.46),
+    '--c-text-gray-500':   wash(g, 0.6),
+    '--c-text-gray-600':   wash(g, 0.7),
+    '--c-text-gray-700':   wash(g, 0.8),
+    '--c-text-gray-800':   wash(g, 0.88),
+    '--c-text-gray-900':   wash(g, 0.94),
+    // The accents are pale (lilac, pink, cyan) because they were picked to
+    // glow on a dark ground; as words on a light one they vanish. Halfway
+    // toward the ground keeps the hue and reaches readable contrast.
+    '--tt-accent-ink':     mixHex(skin.accent, skin.ground, 0.55),
+    'background-color':    asRgb(wash(g, 0.035)),
+    'background-image':    glow(0.1),
+  };
+
+  // Dark: each step up is a lighter layer: page, then columns (gray-50), then
   // cards and inputs (bg-white), then chips and hovers above those. The page
   // itself sits well above the banner — it was below it once, and the whole
-  // screen read as a cave.
-  return {
-    '--c-bg-gray-50':     lift(g, 0.17),
-    '--c-surface':        lift(g, 0.24),
-    '--c-bg-gray-100':    lift(g, 0.31),
-    '--c-bg-gray-200':    lift(g, 0.36),
-    '--c-bg-gray-300':    lift(g, 0.43),
+  // screen read as a cave. The quiet inks climb with the surfaces, or
+  // secondary text (dates, notes, counts) fades into a card this light.
+  const dark: Shades = {
+    '--c-bg-gray-50':      lift(g, 0.17),
+    '--c-surface':         lift(g, 0.24),
+    '--c-bg-gray-100':     lift(g, 0.31),
+    '--c-bg-gray-200':     lift(g, 0.36),
+    '--c-bg-gray-300':     lift(g, 0.43),
     '--c-border-gray-50':  lift(g, 0.2),
     '--c-border-gray-100': lift(g, 0.24),
     '--c-border-gray-200': lift(g, 0.29),
     '--c-border-gray-300': lift(g, 0.36),
     '--c-border-gray-400': lift(g, 0.45),
-    // The quiet inks have to climb with the surfaces, or secondary text
-    // (dates, notes, counts) fades into a card this light.
-    '--c-text-gray-300':  lift(g, 0.42),
-    '--c-text-gray-400':  lift(g, 0.55),
-    '--c-text-gray-500':  lift(g, 0.66),
-    '--c-text-gray-600':  lift(g, 0.75),
-    '--c-text-gray-700':  lift(g, 0.84),
-    backgroundColor: `rgb(${lift(g, 0.11).split(' ').join(',')})`,
-    backgroundImage: `radial-gradient(ellipse 70% 50% at 100% 0%, rgba(${r},${gg},${b},0.12), transparent 70%)`,
+    '--c-text-gray-300':   lift(g, 0.42),
+    '--c-text-gray-400':   lift(g, 0.55),
+    '--c-text-gray-500':   lift(g, 0.66),
+    '--c-text-gray-600':   lift(g, 0.75),
+    '--c-text-gray-700':   lift(g, 0.84),
+    '--tt-accent-ink':     skin.accent,
+    'background-color':    asRgb(lift(g, 0.11)),
+    'background-image':    glow(0.12),
   };
+
+  // Dim: the dark room from a higher floor, as the app's dim is dark with
+  // lifted grounds. The top inks are left at dim's own softer values.
+  const dim: Shades = {
+    '--c-bg-gray-50':      lift(g, 0.27),
+    '--c-surface':         lift(g, 0.34),
+    '--c-bg-gray-100':     lift(g, 0.41),
+    '--c-bg-gray-200':     lift(g, 0.46),
+    '--c-bg-gray-300':     lift(g, 0.53),
+    '--c-border-gray-50':  lift(g, 0.3),
+    '--c-border-gray-100': lift(g, 0.34),
+    '--c-border-gray-200': lift(g, 0.39),
+    '--c-border-gray-300': lift(g, 0.46),
+    '--c-border-gray-400': lift(g, 0.55),
+    '--c-text-gray-300':   lift(g, 0.52),
+    '--c-text-gray-400':   lift(g, 0.63),
+    '--c-text-gray-500':   lift(g, 0.72),
+    '--c-text-gray-600':   lift(g, 0.8),
+    '--c-text-gray-700':   lift(g, 0.87),
+    '--tt-accent-ink':     skin.accent,
+    'background-color':    asRgb(lift(g, 0.21)),
+    'background-image':    glow(0.1),
+  };
+
+  // `html.dark.dim` outranks `html.dark`, which outranks the bare class.
+  return `.${ROOM_CLASS}{${block(light)}}`
+    + `html.dark .${ROOM_CLASS}{${block(dark)}}`
+    + `html.dark.dim .${ROOM_CLASS}{${block(dim)}}`;
 }
 
 export function skinFor(theme: GameTheme | null | undefined): TaskSkin {
