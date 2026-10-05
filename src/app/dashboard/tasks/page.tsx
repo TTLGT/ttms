@@ -81,12 +81,12 @@ export default function MyTasksPage() {
 
   return (
     <div
-      className={`min-h-full p-4 sm:p-6 lg:p-8 ${THEME_FONT_VARS} ${skin.themed ? 'ttms-dark-scope' : ''}`}
+      className={`min-h-full p-4 sm:p-6 lg:p-8 ${THEME_FONT_VARS} ${skin.themed ? `ttms-dark-scope ${skin.body}` : ''}`}
       style={skin.themed ? (pageStyleFor(skin) as React.CSSProperties) : undefined}
     >
       <div className="mb-5 flex flex-wrap items-start gap-3">
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">My tasks</h1>
+          <h1 className={`text-2xl font-bold text-gray-900 ${skin.heading}`}>My tasks</h1>
           <p className="mt-0.5 flex items-center gap-1 text-sm text-gray-500">
             <Lock size={12} /> Only you can see this list.
             <Link

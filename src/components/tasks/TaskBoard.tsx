@@ -17,7 +17,8 @@ import {
   type PersonalTaskInput,
   type TaskStatus,
 } from '@/types/task';
-import { COLUMN_DRAG_TYPE, NOTE_STYLE, PRIORITY_STYLE, TASK_DRAG_TYPE, statusDot } from './taskStyle';
+import { COLUMN_DRAG_TYPE, NOTE_STYLE, PRIORITY_STYLE, TASK_DRAG_TYPE } from './taskStyle';
+import StatusMark from './StatusMark';
 import BoardColumnsMenu from './BoardColumnsMenu';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
 
@@ -157,8 +158,8 @@ export default function TaskBoard({
               title="Drag to move this column"
               className="group flex cursor-grab items-center gap-2 px-3 py-2.5 active:cursor-grabbing"
             >
-              <span className={`h-3 w-3 rounded-full border-2 ${statusDot(status)}`} />
-              <h3 className="text-sm font-semibold text-gray-900">{column.label}</h3>
+              <StatusMark status={status} theme={skin.id} />
+              <h3 className={`text-sm font-semibold text-gray-900 ${skin.heading}`}>{column.label}</h3>
               <span className="rounded-full bg-gray-200 px-1.5 text-xs text-gray-600">{cards.length}</span>
               <GripVertical size={14} className="ml-auto text-gray-300 opacity-0 group-hover:opacity-100" />
             </header>
@@ -210,7 +211,7 @@ export default function TaskBoard({
         );
       })}
 
-      <BoardColumnsMenu columns={columns} countIn={countIn} onChange={onColumnsChange} />
+      <BoardColumnsMenu columns={columns} theme={skin.id} countIn={countIn} onChange={onColumnsChange} />
     </div>
   );
 }

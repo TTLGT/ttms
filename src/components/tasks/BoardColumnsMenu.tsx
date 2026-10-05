@@ -13,7 +13,9 @@ import {
   type BoardColumn,
   type TaskStatus,
 } from '@/types/task';
-import { COLUMN_DRAG_TYPE, statusDot } from './taskStyle';
+import { COLUMN_DRAG_TYPE } from './taskStyle';
+import StatusMark from './StatusMark';
+import type { GameTheme } from '@/types/taskGame';
 
 /**
  * The last slot on the board: a button that opens the person's column list.
@@ -27,10 +29,13 @@ import { COLUMN_DRAG_TYPE, statusDot } from './taskStyle';
  */
 export default function BoardColumnsMenu({
   columns,
+  theme = null,
   countIn,
   onChange,
 }: {
   columns: BoardColumn[];
+  /** The game theme, for the column icons; null with the game off. */
+  theme?: GameTheme | null;
   countIn: (status: TaskStatus) => number;
   onChange: (next: BoardColumn[]) => void;
 }) {
@@ -196,7 +201,7 @@ export default function BoardColumnsMenu({
                     aria-label={c.hidden ? `Show ${c.label}` : `Hide ${c.label}`}
                     title={locked ? 'Always shown' : undefined}
                   />
-                  <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full border-2 ${statusDot(c.id)}`} />
+                  <StatusMark status={c.id} theme={theme} size="sm" />
                   {custom ? (
                     <input
                       defaultValue={c.label}

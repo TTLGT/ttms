@@ -140,7 +140,12 @@ export function GameBar({
               className={`rounded-md px-2 py-1 text-sm ${onBanner}`}
             >
               {(Object.keys(GAME_THEMES) as GameTheme[]).map((t) => (
-                <option key={t} value={t}>{GAME_THEMES[t].label}</option>
+                // The list is drawn by the browser, and Chrome on Windows
+                // ignores the select's colour-scheme for it: without these
+                // the options are white text on a white list.
+                <option key={t} value={t} style={{ backgroundColor: skin.ground, color: '#ffffff' }}>
+                  {GAME_THEMES[t].label}
+                </option>
               ))}
             </select>
           </label>

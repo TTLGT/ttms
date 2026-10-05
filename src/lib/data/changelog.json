@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "24d4f449e45b21dbe433535647f8084baec2632e",
+      "date": "2026-10-01T15:09:00-06:00",
+      "author": "erwindank",
+      "subject": "Dress the whole My tasks page in the game theme",
+      "body": "With game mode on, the page becomes a dark room in the theme's colours:\ncolumns, task tiles, inputs, the editor and the buttons all follow the\nbanner, while status colours keep their meaning."
+    },
+    {
       "hash": "9b90c420a1a258c6f03ec5ab3397f868b19f2e88",
       "date": "2026-10-01T14:43:44-06:00",
       "author": "erwindank",

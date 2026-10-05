@@ -11,10 +11,12 @@ import type { GameTheme } from '@/types/taskGame';
  *   level, XP and streak drawn in its accent. The banner's colours are fixed
  *   hex values, deliberately the same in light and dark mode: it is a dark
  *   panel in both.
- * - **The working area** takes one accent and nothing else: a rule along the
- *   top of each column, the hover edge of a card, the main buttons. The page
- *   ground, the cards and every word on them stay as they always are, so a
- *   wizard's board is as quick to read as anybody's.
+ * - **The working area** is a room in the theme's colours, a few steps
+ *   lighter than the banner so the banner reads as the darkest thing on the
+ *   page. It takes the accent for the column rules, a card's hover edge and
+ *   the main buttons; the theme's display face for the page title and the
+ *   column headings; a readable body face of the same mood for everything
+ *   else; and a set of status icons drawn in each status's own colour.
  *
  * What a theme may never change: column names, statuses, priorities, dates —
  * anything that says what a task *is*.
@@ -26,10 +28,16 @@ import type { GameTheme } from '@/types/taskGame';
 export interface TaskSkin {
   /** False for the plain look with game mode off: no banner, brand colours. */
   themed: boolean;
+  /** Which theme this is — picks the column icons. Null for the plain look. */
+  id: GameTheme | null;
   /** The banner title. */
   tagline: string;
-  /** Display face for the banner title only. */
+  /** Display face and size for the banner title. */
   font: string;
+  /** The same display face, no size: the page title and the column headings. */
+  heading: string;
+  /** The readable face for everything else on the page. See themeFonts.ts. */
+  body: string;
   /** Banner ground, as a hex colour. Matches the artwork's own ground. */
   ground: string;
   /** Highlights on the banner: XP fill, the level ring, the streak flame. */
@@ -52,8 +60,11 @@ export interface TaskSkin {
 
 export const PLAIN_SKIN: TaskSkin = {
   themed: false,
+  id: null,
   tagline: '',
   font: '',
+  heading: '',
+  body: '',
   ground: '#1e3a8a',
   accent: '#60a5fa',
   button: 'bg-brand-600 text-white hover:bg-brand-700',
@@ -66,8 +77,11 @@ export const PLAIN_SKIN: TaskSkin = {
 export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
   freight: {
     themed: true,
+    id: 'freight',
     tagline: 'Dispatch board',
     font: 'font-[family-name:var(--font-rajdhani)] uppercase tracking-[0.12em]',
+    heading: 'font-[family-name:var(--font-rajdhani)] uppercase tracking-[0.08em]',
+    body: 'font-[family-name:var(--font-tt-freight-body)] font-medium',
     ground: '#0b1a33',
     accent: '#f59e0b',
     button: 'bg-[#f59e0b] text-[#0b1a33] hover:bg-[#fbbf24]',
@@ -79,8 +93,11 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
   },
   wizarding: {
     themed: true,
+    id: 'wizarding',
     tagline: 'Spellbook',
     font: 'font-[family-name:var(--font-tt-wizard)]',
+    heading: 'font-[family-name:var(--font-tt-wizard)]',
+    body: 'font-[family-name:var(--font-tt-wizard-body)]',
     ground: '#1a1033',
     accent: '#c4b5fd',
     button: 'bg-[#c4b5fd] text-[#1a1033] hover:bg-[#ddd6fe]',
@@ -91,8 +108,11 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
   },
   empire: {
     themed: true,
+    id: 'empire',
     tagline: 'War council',
     font: 'font-[family-name:var(--font-tt-empire)] tracking-[0.08em]',
+    heading: 'font-[family-name:var(--font-tt-empire)] tracking-[0.06em]',
+    body: 'font-[family-name:var(--font-tt-empire-body)]',
     ground: '#3a0b12',
     accent: '#e0b84f',
     button: 'bg-[#e0b84f] text-[#3a0b12] hover:bg-[#ecca6e]',
@@ -103,8 +123,11 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
   },
   fairy: {
     themed: true,
+    id: 'fairy',
     tagline: 'Enchanted garden',
     font: 'font-[family-name:var(--font-tt-fairy)] italic text-[1.35em]',
+    heading: 'font-[family-name:var(--font-tt-fairy)] italic',
+    body: 'font-[family-name:var(--font-tt-fairy-body)]',
     ground: '#0e2a24',
     accent: '#f9a8d4',
     button: 'bg-[#f9a8d4] text-[#0e2a24] hover:bg-[#fbc4e2]',
@@ -115,8 +138,11 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
   },
   space: {
     themed: true,
+    id: 'space',
     tagline: 'Mission control',
     font: 'font-[family-name:var(--font-tt-space)] tracking-[0.1em]',
+    heading: 'font-[family-name:var(--font-tt-space)] tracking-[0.06em]',
+    body: 'font-[family-name:var(--font-tt-space-body)]',
     ground: '#070b1f',
     accent: '#67e8f9',
     button: 'bg-[#67e8f9] text-[#070b1f] hover:bg-[#a5f3fc]',
@@ -127,8 +153,11 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
   },
   pirate: {
     themed: true,
+    id: 'pirate',
     tagline: 'Captain’s log',
     font: 'font-[family-name:var(--font-tt-pirate)] text-[1.25em] tracking-wide',
+    heading: 'font-[family-name:var(--font-tt-pirate)] tracking-wide',
+    body: 'font-[family-name:var(--font-tt-pirate-body)]',
     ground: '#08262b',
     accent: '#e7c88a',
     button: 'bg-[#e7c88a] text-[#08262b] hover:bg-[#f0d9a8]',
@@ -139,11 +168,18 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
   },
 };
 
-/* ---------------------------------------------------------- the dark room */
+/* --------------------------------------------------------------- the room */
 
 function rgbOf(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+/** `hex` moved `amount` of the way toward `toward`, as a hex colour. */
+function mixHex(hex: string, toward: string, amount: number): string {
+  const a = rgbOf(hex);
+  const t = rgbOf(toward);
+  return '#' + a.map((c, i) => Math.round(c + (t[i] - c) * amount).toString(16).padStart(2, '0')).join('');
 }
 
 /** `amount` of white (or of black, when negative) mixed into `hex`, as Tailwind's "r g b" triplet. */
@@ -168,23 +204,34 @@ function lift(hex: string, amount: number): string {
  * is `bg-white`, `--c-bg-gray-50` is `bg-gray-50`, and so on.
  */
 export function pageStyleFor(skin: TaskSkin): Record<string, string> {
-  const g = skin.ground;
+  // A touch of the accent in the ground, so the room is the theme's colour
+  // and not just a grey with the banner's hue.
+  const g = mixHex(skin.ground, skin.accent, 0.06);
   const [r, gg, b] = rgbOf(skin.accent);
+  // Each step up is a lighter layer: page, then columns (gray-50), then
+  // cards and inputs (bg-white), then chips and hovers above those. The page
+  // itself sits well above the banner — it was below it once, and the whole
+  // screen read as a cave.
   return {
-    '--c-surface':        lift(g, 0.075),
-    '--c-bg-gray-50':     lift(g, 0.035),
-    '--c-bg-gray-100':    lift(g, 0.11),
-    '--c-bg-gray-200':    lift(g, 0.16),
-    '--c-bg-gray-300':    lift(g, 0.23),
-    '--c-border-gray-50':  lift(g, 0.06),
-    '--c-border-gray-100': lift(g, 0.09),
-    '--c-border-gray-200': lift(g, 0.13),
-    '--c-border-gray-300': lift(g, 0.19),
-    '--c-border-gray-400': lift(g, 0.27),
-    // A shade darker than the banner, so the banner reads as a panel on it,
-    // with the accent glowing faintly from the top right.
-    backgroundColor: `rgb(${lift(g, -0.28).split(' ').join(',')})`,
-    backgroundImage: `radial-gradient(ellipse 70% 50% at 100% 0%, rgba(${r},${gg},${b},0.10), transparent 70%)`,
+    '--c-bg-gray-50':     lift(g, 0.17),
+    '--c-surface':        lift(g, 0.24),
+    '--c-bg-gray-100':    lift(g, 0.31),
+    '--c-bg-gray-200':    lift(g, 0.36),
+    '--c-bg-gray-300':    lift(g, 0.43),
+    '--c-border-gray-50':  lift(g, 0.2),
+    '--c-border-gray-100': lift(g, 0.24),
+    '--c-border-gray-200': lift(g, 0.29),
+    '--c-border-gray-300': lift(g, 0.36),
+    '--c-border-gray-400': lift(g, 0.45),
+    // The quiet inks have to climb with the surfaces, or secondary text
+    // (dates, notes, counts) fades into a card this light.
+    '--c-text-gray-300':  lift(g, 0.42),
+    '--c-text-gray-400':  lift(g, 0.55),
+    '--c-text-gray-500':  lift(g, 0.66),
+    '--c-text-gray-600':  lift(g, 0.75),
+    '--c-text-gray-700':  lift(g, 0.84),
+    backgroundColor: `rgb(${lift(g, 0.11).split(' ').join(',')})`,
+    backgroundImage: `radial-gradient(ellipse 70% 50% at 100% 0%, rgba(${r},${gg},${b},0.12), transparent 70%)`,
   };
 }
 
