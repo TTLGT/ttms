@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "6cda745391c8b43148fb43c8d41e86286eaa2050",
+      "date": "2026-10-05T14:23:19-06:00",
+      "author": "erwindank",
+      "subject": "Warn when a step is due after its task",
+      "body": "The step list in the editor and focus screen flags a step whose due date\nfalls after the task's own, with a line saying which dates clash. It warns\nrather than refuses, since the task's date may be about to move."
+    },
+    {
       "hash": "aef0fdf5f224b1979f00003d0a5756965a1c8d7f",
       "date": "2026-10-05T13:23:38-06:00",
       "author": "erwindank",

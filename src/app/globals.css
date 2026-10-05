@@ -324,3 +324,28 @@ html.dark.dim .chat-ground[data-wallpaper='dots'] {
   text-decoration-color: #3b82f6;
   text-decoration-thickness: 2px;
 }
+
+/*
+ * The streak flame on My tasks (StreakCard in components/tasks/UpNext.tsx)
+ * flickers while the streak is alive. Pivoting on the base keeps the bottom
+ * planted and lets the tip sway, which is what reads as fire rather than a
+ * wobbling icon; the glow uses currentColor so it takes the theme's accent.
+ * A dead streak's grey flame stays still — a cold flame that dances says the
+ * wrong thing. Off entirely for anybody who has asked for less motion.
+ */
+@keyframes tt-flame-flicker {
+  0%   { transform: rotate(-2deg) scale(1, 1);       filter: drop-shadow(0 0 2px currentColor); }
+  25%  { transform: rotate(2deg)  scale(0.96, 1.06); filter: drop-shadow(0 0 5px currentColor); }
+  50%  { transform: rotate(-1deg) scale(1.03, 0.97); filter: drop-shadow(0 0 3px currentColor); }
+  75%  { transform: rotate(3deg)  scale(0.98, 1.04); filter: drop-shadow(0 0 6px currentColor); }
+  100% { transform: rotate(-2deg) scale(1, 1);       filter: drop-shadow(0 0 2px currentColor); }
+}
+
+.tt-flame-lit {
+  transform-origin: 50% 90%;
+  animation: tt-flame-flicker 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tt-flame-lit { animation: none; }
+}

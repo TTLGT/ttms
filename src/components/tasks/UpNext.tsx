@@ -147,7 +147,7 @@ export function StreakCard({ streak, game = null, skin = PLAIN_SKIN }: {
           }`}
           style={accent ? { color: alive ? accent : undefined, background: `${accent}22` } : undefined}
         >
-          <Flame size={26} />
+          <Flame size={26} className={alive ? 'tt-flame-lit' : undefined} aria-hidden />
         </span>
         <div>
           <p className="text-2xl font-bold leading-none text-gray-900">
