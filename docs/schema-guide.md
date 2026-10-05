@@ -2048,10 +2048,13 @@ personalTasks/{uid}/items/{itemId}
   reminders : ('start' | '15m' | '1h' | '1d' | '1w')[]
                                    // without a time, only start/1d/1w, at 8am
   order     : number               // position on the board and the sticky notes
-  steps     : [{ id, title, done, xp, everDone }]
+  steps     : [{ id, title, done, date, xp, everDone }]
                                    // a task's checklist, up to 50; ids 's_' + 4–16
-                                   // chars. xp/everDone are server-set like the
-                                   // task's own; [] on an event
+                                   // chars. date is 'YYYY-MM-DD' | null, a label
+                                   // only (no reminder, no XP, never makes the task
+                                   // overdue), shifted with the task on a repeat.
+                                   // xp/everDone are server-set like the task's
+                                   // own; [] on an event
   rank      : number | null        // place in the queue, lower first; null = not
                                    // placed, queued after the placed ones by due date
                                    // (PUT /api/me/tasks/queue renumbers the whole queue)
@@ -2061,6 +2064,7 @@ personalTasks/{uid}/items/{itemId}
 
 Items saved before `eventType`, `location`, `reminders`, `steps` and `rank`
 existed read as `'other'`, `''`, `[]`, `[]` and `null`; no backfill is needed.
+A step saved before step dates existed reads as `date: null`.
 
 **Read and written only through `/api/me/tasks`, keyed on the caller's own
 uid** — the same arrangement as `vocabulary`. There is no rule for this path

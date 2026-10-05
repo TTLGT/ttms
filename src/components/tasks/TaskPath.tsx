@@ -209,6 +209,7 @@ function PathCard({
                     }`}>
                       {s.title}
                     </span>
+                    {s.date && !s.done && <DueChip date={s.date} today={today} className="flex-shrink-0" />}
                     {isNext && (
                       <span className="flex-shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600">
                         Next

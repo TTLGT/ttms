@@ -17,6 +17,7 @@ import {
 import { NOTE_STYLE, PRIORITY_STYLE } from './taskStyle';
 import type { GameTheme } from '@/types/taskGame';
 import XpBadge from './XpBadge';
+import { DueChip } from './TaskQueue';
 
 type SortKey = 'title' | 'status' | 'priority' | 'date' | 'createdAt';
 
@@ -220,6 +221,7 @@ export default function TaskTable({
                       </button>
                       <span className="flex-shrink-0 whitespace-nowrap text-xs text-gray-400">{stepLabel} {n + 1}</span>
                       <span className={`min-w-0 truncate ${st.done ? 'text-gray-500 line-through' : 'text-gray-800'}`}>{st.title}</span>
+                      {st.date && !st.done && <DueChip date={st.date} today={today} className="flex-shrink-0" />}
                     </div>
                   </td>
                 </tr>

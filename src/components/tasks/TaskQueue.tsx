@@ -209,11 +209,14 @@ function QueueRow({
 /**
  * When a task is due, said the way somebody would: "12d overdue", "Due
  * today", "Due tomorrow", "Due in 3d", and the date itself past a week.
+ * `label` goes in front ("Step · Due today") where a step's date sits beside
+ * its task's and the two would otherwise read the same.
  */
-export function DueChip({ date, time, today, className = '' }: {
+export function DueChip({ date, time, today, label, className = '' }: {
   date: string;
   time?: string | null;
   today: string;
+  label?: string;
   className?: string;
 }) {
   const { formatCalendarDate } = useDateFormatters();
@@ -227,7 +230,7 @@ export function DueChip({ date, time, today, className = '' }: {
     : ['bg-gray-100 text-gray-600', `Due ${formatCalendarDate(date)}`];
   return (
     <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ${tone} ${className}`}>
-      <CalendarDays size={10} /> {text}
+      <CalendarDays size={10} /> {label && `${label} · `}{text}
     </span>
   );
 }

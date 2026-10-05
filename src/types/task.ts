@@ -332,6 +332,12 @@ export interface TaskStep {
   id: string;
   title: string;
   done: boolean;
+  /**
+   * When this step is due, `YYYY-MM-DD`, or null. A label on the step and
+   * nothing more: it sets no reminder, moves no XP and never makes the task
+   * itself overdue — the task's own date is still the one that counts.
+   */
+  date: string | null;
   /** Game mode: the XP this step is holding, taken back if it is unticked. */
   xp: number;
   /** Has counted toward the streak and today's count once, and never will again. */
@@ -357,7 +363,8 @@ export function cleanSteps(raw: unknown): TaskStep[] {
     const title = typeof r.title === 'string' ? r.title.trim().slice(0, MAX_STEP_TITLE) : '';
     if (!title) continue;
     seen.add(r.id);
-    out.push({ id: r.id, title, done: r.done === true, xp: 0, everDone: false });
+    const date = typeof r.date === 'string' && isRealDate(r.date) ? r.date : null;
+    out.push({ id: r.id, title, done: r.done === true, date, xp: 0, everDone: false });
     if (out.length >= MAX_TASK_STEPS) break;
   }
   return out;

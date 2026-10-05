@@ -3,7 +3,7 @@ import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/f
 import { syncReminderQueue, taskItems, taskOwnerDoc, toTask } from '@/lib/personalTasksServer';
 import { gameClock, gameFrom, offDaysFor } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
-import { GameTurn, type GameEvent, type GameState } from '@/types/taskGame';
+import { GameTurn, addDays, daysBetween, type GameEvent, type GameState } from '@/types/taskGame';
 import { cleanTaskInput, nextOccurrence, type PersonalTask, type TaskStep } from '@/types/task';
 import { cleanTaskStreak, recordTaskProgress, type TaskStreak } from '@/types/taskStreak';
 
@@ -168,8 +168,16 @@ export async function PATCH(
             repeatDay,
             suggestionId: merged.suggestionId,
             // The next one starts with the same steps, none of them done, and
-            // keeps its place in the queue.
-            steps: merged.steps.map((st) => ({ ...st, done: false, xp: 0, everDone: false })),
+            // keeps its place in the queue. A step's due date moves with the
+            // task's — two days before it stays two days before it — and is
+            // dropped when the finished task had no date to measure from.
+            steps: merged.steps.map((st) => ({
+              ...st,
+              done: false,
+              date: st.date && merged.date ? addDays(st.date, daysBetween(merged.date, nextDate)) : null,
+              xp: 0,
+              everDone: false,
+            })),
             rank: merged.rank ?? null,
             nextId: null,
             xpEarned: 0,

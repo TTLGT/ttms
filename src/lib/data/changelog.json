@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "d1ee272448f76cec6d64e4184183b5a4a2240dc4",
+      "date": "2026-10-05T13:12:39-06:00",
+      "author": "erwindank",
+      "subject": "Show a task's steps as their own cards, notes and table rows",
+      "body": "On the board each step is a small card hung under its task in the task's\ncolour, joined to it by a line and tickable in place. On the sticky notes\neach step is a smaller note on a dashed string under its task's note. In\nthe table, clicking a row with steps opens them underneath as rows of\ntheir own. Steps move with their task and fold away once it is done."
+    },
+    {
       "hash": "650f3718720038fbc857c453dc7c18eb2f3ca977",
       "date": "2026-10-05T13:07:26-06:00",
       "author": "erwindank",

@@ -23,6 +23,7 @@ import StatusMark from './StatusMark';
 import type { GameTheme } from '@/types/taskGame';
 import XpBadge from './XpBadge';
 import BoardColumnsMenu from './BoardColumnsMenu';
+import { DueChip } from './TaskQueue';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
 
 /**
@@ -210,6 +211,7 @@ export default function TaskBoard({
                     <StepCards
                       task={t}
                       word={skin.step}
+                      today={today}
                       look={`${NOTE_STYLE[t.color].note} ${skin.cardHover}`}
                       onOpen={() => onOpen(t)}
                       onToggle={(stepId) => onUpdate(t.id, { steps: withStepToggled(t, stepId) })}
@@ -337,9 +339,10 @@ function Card({
  * where steps are added, renamed and reordered.
  */
 function StepCards({
-  task, word, look, onOpen, onToggle, onDragOver, onDrop,
+  task, word, today, look, onOpen, onToggle, onDragOver, onDrop,
 }: {
   task: PersonalTask;
+  today: string;
   /** The theme's word for a step, lower case — see taskSkins.ts. */
   word: string;
   look: string;
@@ -382,6 +385,7 @@ function StepCards({
             <span className="min-w-0 flex-1">
               <span className={`block ${s.done ? 'line-through' : ''}`}>{s.title}</span>
               <span className="block text-[10px] opacity-60">{label} {i + 1} of {task.steps.length}</span>
+              {s.date && !s.done && <DueChip date={s.date} today={today} className="mt-1" />}
             </span>
           </div>
         </li>

@@ -80,6 +80,8 @@ export function UpNextCard({
       </h2>
 
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        {/* The step on show says when it is due; the task's own date stays beside it. */}
+        {step?.date && <DueChip date={step.date} today={today} label={skin.step.charAt(0).toUpperCase() + skin.step.slice(1)} />}
         {task.date && <DueChip date={task.date} time={task.time} today={today} />}
         {task.steps.length > 0 && (
           <span className="inline-flex items-center gap-1">

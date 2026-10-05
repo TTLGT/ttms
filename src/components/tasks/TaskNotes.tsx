@@ -17,6 +17,7 @@ import { NOTE_STYLE, TASK_DRAG_TYPE } from './taskStyle';
 import StatusMark from './StatusMark';
 import type { GameTheme } from '@/types/taskGame';
 import XpBadge from './XpBadge';
+import { DueChip } from './TaskQueue';
 
 /**
  * Sticky notes: the same tasks as paper squares on a wall, in the colour
@@ -181,6 +182,7 @@ export default function TaskNotes({
                       <span className="min-w-0 flex-1">
                         <span className={`block leading-snug ${st.done ? 'line-through' : ''}`}>{st.title}</span>
                         <span className="block text-[10px] opacity-60">{stepLabel} {n + 1} of {steps.length}</span>
+                        {st.date && !st.done && <DueChip date={st.date} today={today} className="mt-1" />}
                       </span>
                       <button
                         type="button"
