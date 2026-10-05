@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "03985466c3154ca4c8c923dfa22bddee4937c324",
+      "date": "2026-10-05T11:54:55-06:00",
+      "author": "erwindank",
+      "subject": "Restore light headings in the dim and dark game-themed My tasks",
+      "body": "The light room set the two top inks on the same element and the dim and\ndark rooms did not restate them, so column titles and the page heading\nkept the light room's deep ink on a dark ground. Every room now names the\nsame variables."
+    },
+    {
       "hash": "eace64e4e92f80705549a4b7d3cb25a726e66d24",
       "date": "2026-10-05T11:52:33-06:00",
       "author": "erwindank",

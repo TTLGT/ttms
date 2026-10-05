@@ -159,7 +159,7 @@ export default function TaskBoard({
               className="group flex cursor-grab items-center gap-2 px-3 py-2.5 active:cursor-grabbing"
             >
               <StatusMark status={status} theme={skin.id} />
-              <h3 className={`text-sm font-semibold text-gray-900 ${skin.heading}`}>{column.label}</h3>
+              <h3 className={`${skin.columnTitleSize ?? 'text-sm'} font-semibold text-gray-900 ${skin.heading}`}>{column.label}</h3>
               <span className="rounded-full bg-gray-200 px-1.5 text-xs text-gray-600">{cards.length}</span>
               <GripVertical size={14} className="ml-auto text-gray-300 opacity-0 group-hover:opacity-100" />
             </header>

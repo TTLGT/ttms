@@ -35,6 +35,13 @@ export interface TaskSkin {
   font: string;
   /** The same display face, no size: the page title and the column headings. */
   heading: string;
+  /**
+   * Sizes for the page title and the column headings, for a display face
+   * that reads small at the plain sizes — Fairy's script italic is half the
+   * height of the others at 14px. Absent means the plain text-2xl / text-sm.
+   */
+  pageTitleSize?: string;
+  columnTitleSize?: string;
   /** The readable face for everything else on the page. See themeFonts.ts. */
   body: string;
   /** Banner ground, as a hex colour. Matches the artwork's own ground. */
@@ -126,6 +133,8 @@ export const TASK_SKINS: Record<GameTheme, TaskSkin> = {
     tagline: 'Enchanted garden',
     font: 'font-[family-name:var(--font-tt-fairy)] italic text-[1.35em]',
     heading: 'font-[family-name:var(--font-tt-fairy)] italic',
+    pageTitleSize: 'text-[2.1rem] leading-tight',
+    columnTitleSize: 'text-xl leading-6',
     body: 'font-[family-name:var(--font-tt-fairy-body)]',
     ground: '#0e2a24',
     accent: '#f9a8d4',
