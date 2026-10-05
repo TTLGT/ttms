@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type DragEvent } from 'react';
-import { Bell, CalendarDays, GripVertical, ListChecks, Plus, Repeat, StickyNote } from 'lucide-react';
+import { Bell, CalendarDays, Check, GripVertical, ListChecks, Plus, Repeat, StickyNote } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   TASK_PRIORITY_LABEL,
@@ -12,6 +12,7 @@ import {
   moveColumn,
   orderBetween,
   placeOf,
+  withStepToggled,
   type BoardColumn,
   type PersonalTask,
   type PersonalTaskInput,
@@ -33,6 +34,11 @@ import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
  * Escape. A drop onto a card puts the dragged one before it; a drop onto the
  * empty part of a column puts it at the bottom.
  *
+ * A task's steps are cards of their own, hung under it in its colour and
+ * joined to it by a line down the left. They have no status of their own, so
+ * they sit in their task's column and move with it; a finished task folds its
+ * steps away, since the Done column is for looking back, not ticking.
+ *
  * Columns drag too, by their header. The two drags carry different payload
  * types, so a card can never be dropped as a column or the other way round.
  */
@@ -43,6 +49,7 @@ export default function TaskBoard({
   countIn,
   onOpen,
   onMove,
+  onUpdate,
   onQuickAdd,
   onColumnsChange,
   skin = PLAIN_SKIN,
@@ -56,6 +63,8 @@ export default function TaskBoard({
   countIn: (status: TaskStatus) => number;
   onOpen: (task: PersonalTask) => void;
   onMove: (id: string, column: PersonalTask[], beforeId: string | null, patch: PersonalTaskInput) => void;
+  /** Ticking a step on its own card. */
+  onUpdate: (id: string, input: PersonalTaskInput) => void;
   onQuickAdd: (input: PersonalTaskInput) => void;
   onColumnsChange: (next: BoardColumn[]) => void;
   /** The game theme's look — see taskSkins.ts. Changes how the board looks, never what it does. */
@@ -167,8 +176,8 @@ export default function TaskBoard({
             </header>
 
             <div className="flex-1 space-y-2 px-2 pb-2">
-              {cards.map((t) => (
-                <div key={t.id}>
+              {cards.map((t, i) => (
+                <div key={t.id} className={dragging === t.id ? 'opacity-40' : ''}>
                   {target?.status === status && target.beforeId === t.id && dragging !== t.id && (
                     <div className="mb-2 h-1 rounded-full bg-brand-400" />
                   )}
@@ -179,7 +188,6 @@ export default function TaskBoard({
                     // Game mode is what puts a theme on the board.
                     showXp={skin.themed}
                     theme={skin.id}
-                    dragging={dragging === t.id}
                     onOpen={() => onOpen(t)}
                     onDragStart={(e) => {
                       setDragging(t.id);
@@ -198,6 +206,26 @@ export default function TaskBoard({
                     }}
                     onDrop={(e) => drop(e, status, t.id)}
                   />
+                  {t.status !== 'done' && t.steps.length > 0 && (
+                    <StepCards
+                      task={t}
+                      word={skin.step}
+                      look={`${NOTE_STYLE[t.color].note} ${skin.cardHover}`}
+                      onOpen={() => onOpen(t)}
+                      onToggle={(stepId) => onUpdate(t.id, { steps: withStepToggled(t, stepId) })}
+                      // A drop on a step lands after the whole task, before
+                      // the next one — never between a task and its steps.
+                      onDragOver={(e) => {
+                        if (!acceptsCard(e)) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.dataTransfer.dropEffect = 'move';
+                        const after = cards[i + 1]?.id ?? null;
+                        if (target?.status !== status || target.beforeId !== after) setTarget({ status, beforeId: after });
+                      }}
+                      onDrop={(e) => drop(e, status, cards[i + 1]?.id ?? null)}
+                    />
+                  )}
                 </div>
               ))}
               {target?.status === status && target.beforeId === null && dragging && (
@@ -227,7 +255,6 @@ function Card({
   today,
   showXp,
   theme,
-  dragging,
   onOpen,
   ...drag
 }: {
@@ -240,7 +267,6 @@ function Card({
   today: string;
   showXp: boolean;
   theme: GameTheme | null;
-  dragging: boolean;
   onOpen: () => void;
   onDragStart: (e: DragEvent) => void;
   onDragEnd: () => void;
@@ -255,9 +281,7 @@ function Card({
       draggable
       onClick={onOpen}
       {...drag}
-      className={`block w-full cursor-grab border p-3 text-left shadow-sm hover:shadow-md active:cursor-grabbing ${look} ${
-        dragging ? 'opacity-40' : ''
-      }`}
+      className={`block w-full cursor-grab border p-3 text-left shadow-sm hover:shadow-md active:cursor-grabbing ${look}`}
     >
       <div className="flex items-start gap-2">
         {/* The card is the task's colour, so the dot is free to say where it
@@ -303,6 +327,66 @@ function Card({
         </div>
       )}
     </button>
+  );
+}
+
+/**
+ * A task's steps as small cards under it. The line down the left and the
+ * shared colour are the link; each card names its place ("Step 2 of 4") in
+ * the theme's own word. Ticking is the box; anywhere else opens the task,
+ * where steps are added, renamed and reordered.
+ */
+function StepCards({
+  task, word, look, onOpen, onToggle, onDragOver, onDrop,
+}: {
+  task: PersonalTask;
+  /** The theme's word for a step, lower case — see taskSkins.ts. */
+  word: string;
+  look: string;
+  onOpen: () => void;
+  onToggle: (stepId: string) => void;
+  onDragOver: (e: DragEvent) => void;
+  onDrop: (e: DragEvent) => void;
+}) {
+  const label = word.charAt(0).toUpperCase() + word.slice(1);
+  return (
+    <ol
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      aria-label={`${label}s of ${task.title}`}
+      className="ml-3 mt-1 space-y-1 border-l-2 border-gray-300 pl-2"
+    >
+      {task.steps.map((s, i) => (
+        <li key={s.id} className="relative">
+          {/* The tick from the line to the card. */}
+          <span className="absolute -left-2 top-1/2 h-0.5 w-2 bg-gray-300" />
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={onOpen}
+            onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
+            className={`flex w-full cursor-pointer items-start gap-2 rounded-md border px-2 py-1.5 text-left text-xs shadow-sm hover:shadow ${look} ${
+              s.done ? 'opacity-60' : ''
+            }`}
+          >
+            <button
+              type="button"
+              aria-label={s.done ? `Untick ${s.title}` : `Tick ${s.title}`}
+              onClick={(e) => { e.stopPropagation(); onToggle(s.id); }}
+              className={`mt-px flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border ${
+                s.done ? 'border-green-600 bg-green-600 text-white' : 'border-current opacity-60 hover:opacity-100'
+              }`}
+            >
+              {s.done && <Check size={9} />}
+            </button>
+            <span className="min-w-0 flex-1">
+              <span className={`block ${s.done ? 'line-through' : ''}`}>{s.title}</span>
+              <span className="block text-[10px] opacity-60">{label} {i + 1} of {task.steps.length}</span>
+            </span>
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }
 

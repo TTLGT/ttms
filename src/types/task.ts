@@ -558,6 +558,14 @@ export function nextStepOf(t: Pick<PersonalTask, 'steps'>): TaskStep | null {
   return t.steps.find((s) => !s.done) ?? null;
 }
 
+/**
+ * The task's steps with one ticked or unticked — the whole array, which is
+ * what a save sends. The server carries each step's XP over by id.
+ */
+export function withStepToggled(t: Pick<PersonalTask, 'steps'>, stepId: string): TaskStep[] {
+  return t.steps.map((s) => (s.id === stepId ? { ...s, done: !s.done } : s));
+}
+
 /** `ids` is the whole queue in its new order; each gets its position as its rank. */
 export function rankedBy(ids: string[]): Map<string, number> {
   return new Map(ids.map((id, i) => [id, i + 1]));

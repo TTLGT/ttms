@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, Repeat } from 'lucide-react';
+import { Fragment, useMemo, useState } from 'react';
+import { ArrowDown, ArrowUp, Check, ChevronRight, Repeat } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   TASK_PRIORITIES,
@@ -9,6 +9,7 @@ import {
   formatTime,
   isOverdue,
   placeOf,
+  withStepToggled,
   type BoardColumn,
   type PersonalTask,
   type PersonalTaskInput,
@@ -24,6 +25,10 @@ type SortKey = 'title' | 'status' | 'priority' | 'date' | 'createdAt';
  * and sort it. Status and priority change in place; anything else opens the
  * editor.
  *
+ * A task with steps opens them underneath when its row is clicked, as rows of
+ * their own that tick in place. The title still opens the editor, and the
+ * selects and boxes keep their own clicks. Which rows are open is not saved.
+ *
  * Tasks with no due date sort after the dated ones either way round: "sort by
  * due date" is asking what is coming up, and forty undated rows first would
  * push the answer off the screen.
@@ -34,6 +39,7 @@ export default function TaskTable({
   today,
   showXp = false,
   theme = null,
+  stepWord = 'step',
   onOpen,
   onUpdate,
 }: {
@@ -44,11 +50,20 @@ export default function TaskTable({
   showXp?: boolean;
   /** The game theme, for the XP badge's icon. */
   theme?: GameTheme | null;
+  /** The theme's word for a step, lower case — see taskSkins.ts. */
+  stepWord?: string;
   onOpen: (task: PersonalTask) => void;
   onUpdate: (id: string, input: PersonalTaskInput) => void;
 }) {
   const { formatCalendarDate, formatDate } = useDateFormatters();
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'date', dir: 1 });
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  const stepLabel = stepWord.charAt(0).toUpperCase() + stepWord.slice(1);
+  const toggleOpen = (id: string) => setOpen((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const rows = useMemo(() => {
     const rank = (list: readonly string[], v: string) => list.indexOf(v);
@@ -105,8 +120,18 @@ export default function TaskTable({
         <tbody className="divide-y divide-gray-100">
           {rows.map((t) => {
             const done = t.status === 'done';
+            const hasSteps = t.steps.length > 0;
+            const expanded = hasSteps && open.has(t.id);
             return (
-              <tr key={t.id} className="hover:bg-gray-50">
+              <Fragment key={t.id}>
+              <tr
+                onClick={(e) => {
+                  // The row's own controls keep their clicks.
+                  if (!hasSteps || (e.target as HTMLElement).closest('button, select, a, input')) return;
+                  toggleOpen(t.id);
+                }}
+                className={`hover:bg-gray-50 ${hasSteps ? 'cursor-pointer' : ''} ${expanded ? 'bg-gray-50' : ''}`}
+              >
                 <td className="px-3 py-2">
                   <button
                     type="button"
@@ -120,7 +145,21 @@ export default function TaskTable({
                   </button>
                 </td>
                 <td className="max-w-md px-3 py-2">
-                  <button type="button" onClick={() => onOpen(t)} className="flex w-full items-start gap-2 text-left">
+                  <div className="flex items-start gap-1">
+                  {hasSteps ? (
+                    <button
+                      type="button"
+                      aria-expanded={expanded}
+                      aria-label={`${expanded ? 'Hide' : 'Show'} ${stepWord}s`}
+                      onClick={() => toggleOpen(t.id)}
+                      className="-ml-1 mt-0.5 flex flex-shrink-0 items-center rounded text-gray-400 hover:text-gray-700"
+                    >
+                      <ChevronRight size={14} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
+                    </button>
+                  ) : (
+                    <span className="-ml-1 w-[14px] flex-shrink-0" />
+                  )}
+                  <button type="button" onClick={() => onOpen(t)} className="flex min-w-0 flex-1 items-start gap-2 text-left">
                     <span className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${NOTE_STYLE[t.color].swatch}`} />
                     <span className="min-w-0">
                       <span className={`flex items-center gap-1 text-gray-900 hover:underline ${done ? 'line-through text-gray-500' : ''}`}>
@@ -129,8 +168,14 @@ export default function TaskTable({
                         {showXp && <XpBadge task={t} today={today} theme={theme} className="ml-1 flex-shrink-0 no-underline" />}
                       </span>
                       {t.notes && <span className="block truncate text-xs text-gray-500">{t.notes}</span>}
+                      {hasSteps && (
+                        <span className="block text-xs text-gray-500">
+                          {t.steps.filter((x) => x.done).length}/{t.steps.length} {stepWord}s
+                        </span>
+                      )}
                     </span>
                   </button>
+                  </div>
                 </td>
                 <td className="px-3 py-2">
                   <select
@@ -157,6 +202,29 @@ export default function TaskTable({
                 </td>
                 <td className="hidden whitespace-nowrap px-3 py-2 text-gray-500 md:table-cell">{formatDate(t.createdAt)}</td>
               </tr>
+              {expanded && t.steps.map((st, n) => (
+                <tr key={st.id} className="bg-gray-50">
+                  <td />
+                  <td colSpan={5} className="py-1.5 pl-8 pr-3">
+                    {/* The line down the left joins the steps to their task, as on the board. */}
+                    <div className="flex items-center gap-2 border-l-2 border-gray-300 pl-3">
+                      <button
+                        type="button"
+                        aria-label={st.done ? `Untick ${st.title}` : `Tick ${st.title}`}
+                        onClick={() => onUpdate(t.id, { steps: withStepToggled(t, st.id) })}
+                        className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${
+                          st.done ? 'border-green-600 bg-green-600 text-white' : 'border-gray-400 hover:border-gray-600'
+                        }`}
+                      >
+                        {st.done && <Check size={11} />}
+                      </button>
+                      <span className="flex-shrink-0 whitespace-nowrap text-xs text-gray-400">{stepLabel} {n + 1}</span>
+                      <span className={`min-w-0 truncate ${st.done ? 'text-gray-500 line-through' : 'text-gray-800'}`}>{st.title}</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              </Fragment>
             );
           })}
         </tbody>

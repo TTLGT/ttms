@@ -368,6 +368,7 @@ export default function MyTasksPage() {
           onColumnsChange={saveColumns}
           onOpen={(task) => setEditing({ task })}
           onMove={move}
+          onUpdate={update}
           onQuickAdd={(input) => { create(tag ? { ...input, color: tag } : input); }}
         />
       ) : view === 'notes' ? (
@@ -377,8 +378,10 @@ export default function MyTasksPage() {
           today={today}
           showXp={playing}
           theme={skin.id}
+          stepWord={skin.step}
           onOpen={(task) => setEditing({ task })}
           onMove={move}
+          onUpdate={update}
           onToggleDone={toggleDone}
           onAdd={() => setEditing({ task: null, initial: tag ? { color: tag } : undefined })}
         />
@@ -389,6 +392,7 @@ export default function MyTasksPage() {
           today={today}
           showXp={playing}
           theme={skin.id}
+          stepWord={skin.step}
           onOpen={(task) => setEditing({ task })}
           onUpdate={update}
         />

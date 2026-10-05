@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "650f3718720038fbc857c453dc7c18eb2f3ca977",
+      "date": "2026-10-05T13:07:26-06:00",
+      "author": "erwindank",
+      "subject": "Give the XP badge its own icon in each game theme",
+      "body": "It always drew Sparkles, the wizarding theme's Done icon, so under every\ntheme it read as \"done\". Each theme now has a reward icon of its own that\nrepeats no column icon: fuel, a bolt, a medal, a sparkle, a star, coins."
+    },
+    {
       "hash": "08a79846135dfa1dd324631aa0c09d87c6ea8b18",
       "date": "2026-10-05T12:52:03-06:00",
       "author": "erwindank",
