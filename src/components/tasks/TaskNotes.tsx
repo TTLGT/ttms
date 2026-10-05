@@ -13,11 +13,18 @@ import {
   type PersonalTaskInput,
 } from '@/types/task';
 import { NOTE_STYLE, TASK_DRAG_TYPE } from './taskStyle';
+import StatusMark from './StatusMark';
 import XpBadge from './XpBadge';
 
 /**
  * Sticky notes: the same tasks as paper squares on a wall, in the colour
  * each was given.
+ *
+ * Each note is as tall as what is written on it — a one-line reminder is a
+ * small square, a page of notes a tall one — rather than every note the size
+ * of the longest. `items-start` is what lets them differ within a row; very
+ * long notes still stop at 18 lines, so one essay cannot push the rest of
+ * the wall off the screen.
  *
  * Dragged into a new place, a note keeps the same `order` the board uses, so
  * two tasks swapped here are swapped in their board column as well — one
@@ -63,7 +70,7 @@ export default function TaskNotes({
 
   return (
     <div
-      className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-4"
+      className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] items-start gap-4"
       onDragOver={(e) => { if (accepts(e)) { e.preventDefault(); setOver(null); } }}
       onDrop={(e) => drop(e, null)}
     >
@@ -91,13 +98,18 @@ export default function TaskNotes({
             }}
             onDrop={(e) => drop(e, t.id)}
             onClick={() => onOpen(t)}
-            className={`group relative flex min-h-[11rem] cursor-grab flex-col rounded-sm border p-4 shadow-md transition-transform hover:rotate-0 hover:shadow-lg active:cursor-grabbing ${
+            className={`group relative flex min-h-[6rem] cursor-grab flex-col rounded-sm border p-4 shadow-md transition-transform hover:rotate-0 hover:shadow-lg active:cursor-grabbing ${
               NOTE_STYLE[t.color].note
             } ${tilt} ${dragging === t.id ? 'opacity-40' : ''} ${
               over === t.id && dragging !== t.id ? 'ring-2 ring-brand-500 ring-offset-2' : ''
             }`}
           >
             <div className="flex items-start gap-2">
+              {/* The colour is the note's; the dot says where it stands, the
+                  same ring its board column wears. */}
+              <span className="mt-1 flex">
+                <StatusMark status={t.status} theme={null} size="sm" />
+              </span>
               <p className={`flex-1 font-semibold leading-snug ${done ? 'line-through opacity-60' : ''}`}>{t.title}</p>
               <button
                 type="button"
@@ -112,7 +124,7 @@ export default function TaskNotes({
               </button>
             </div>
             {t.notes && (
-              <p className="mt-2 line-clamp-6 whitespace-pre-line text-sm opacity-80">{t.notes}</p>
+              <p className="mt-2 line-clamp-[18] whitespace-pre-line text-sm opacity-80">{t.notes}</p>
             )}
             <div className="mt-auto flex flex-wrap items-center gap-x-2 pt-3 text-[11px] opacity-70">
               <span>{statusLabel(columns, t.status)}</span>
@@ -132,7 +144,7 @@ export default function TaskNotes({
       <button
         type="button"
         onClick={onAdd}
-        className="flex min-h-[11rem] flex-col items-center justify-center gap-1 rounded-sm border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-gray-400 hover:bg-gray-50"
+        className="flex min-h-[6rem] flex-col items-center justify-center gap-1 rounded-sm border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-gray-400 hover:bg-gray-50"
       >
         <Plus size={20} /> New note
       </button>

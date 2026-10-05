@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "49325b2118f96eeca73b1370eb9348336666d43b",
+      "date": "2026-10-05T12:19:11-06:00",
+      "author": "erwindank",
+      "subject": "Turn task colours into named tags with a filter bar on My tasks",
+      "body": "A bar above the list shows All and each colour with its count; a click\nfilters every view to that colour, and a new task starts in it while it\nis picked. \"Name colours\" lets each person name the six colours, stored\non personalTasks/{uid}.colorLabels through PUT /api/me/tasks/labels and\nshown in the task editor too."
+    },
+    {
       "hash": "ca7109019ffc550bea71d961eb9ff1d1e172b027",
       "date": "2026-10-05T12:13:14-06:00",
       "author": "erwindank",
