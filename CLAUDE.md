@@ -952,6 +952,8 @@ Types and pure rules in `src/types/task.ts`; server in
   take-back-on-untick shape as a task. Their names follow the theme
   (`step`/`steps` in `taskSkins.ts`) and only the words change. Focus mode is
   per browser (`ttms.tasks.focus`) and its timer is never saved.
+  The Path view (`TaskPath.tsx`) is the same queue drawn as a road, steps as
+  a numbered line inside each card; it reads `byQueue()` like everything else.
 - **The plain streak runs with game mode off** (`personalTasks/{uid}.streak`,
   `src/types/taskStreak.ts`): the game's calendar, no penalties, first
   completions only, a task or a step. It is written only by the PATCH that

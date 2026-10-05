@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "6a1382a1adbe54a48c2c9a1215c08b47c61322ee",
+      "date": "2026-10-05T12:47:14-06:00",
+      "author": "erwindank",
+      "subject": "Add an up-next card, a numbered queue, task steps, focus mode and a streak without game mode",
+      "body": "The task with the closest deadline is highlighted at the top of My tasks\nwith a Done button that walks through its steps. Tasks can have steps,\nnamed after the game theme, and a priority number in a new Queue view.\nFocus mode shrinks the page to one task. A plain streak runs with game\nmode off."
+    },
+    {
       "hash": "aacd2b60eef4ba13fb8ff2c9007ead0576f82532",
       "date": "2026-10-05T12:21:27-06:00",
       "author": "erwindank",

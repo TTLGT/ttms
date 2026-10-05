@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { CalendarDays, Columns3, Gamepad2, ListOrdered, Lock, Plus, Search, StickyNote, Table2, X } from 'lucide-react';
+import { CalendarDays, Columns3, Gamepad2, ListOrdered, Lock, Plus, Route, Search, StickyNote, Table2, X } from 'lucide-react';
 import { usePersonalTasks } from '@/lib/personalTasks';
 import TaskBoard from '@/components/tasks/TaskBoard';
 import TaskNotes from '@/components/tasks/TaskNotes';
@@ -14,6 +14,7 @@ import { THEME_FONT_VARS } from '@/components/tasks/themeFonts';
 import ColorTagBar from '@/components/tasks/ColorTagBar';
 import TaskQueue from '@/components/tasks/TaskQueue';
 import TaskFocus from '@/components/tasks/TaskFocus';
+import TaskPath from '@/components/tasks/TaskPath';
 import { StreakCard, UpNextCard } from '@/components/tasks/UpNext';
 import {
   TASK_COLORS, calendarToday, nextStepOf, placeInQueue, taskQueue, upNextTask,
@@ -21,7 +22,7 @@ import {
 } from '@/types/task';
 
 /**
- * My tasks: the signed-in person's own to-do list, four ways, with the one
+ * My tasks: the signed-in person's own to-do list, five ways, with the one
  * task to do next always at the top and a focus mode that shrinks the page
  * to a single task.
  *
@@ -29,10 +30,11 @@ import {
  * caller's own list, served by /api/me/tasks. See src/types/task.ts.
  */
 
-type View = 'queue' | 'board' | 'notes' | 'table';
+type View = 'queue' | 'path' | 'board' | 'notes' | 'table';
 
 const VIEWS: { id: View; label: string; Icon: typeof Columns3 }[] = [
   { id: 'queue', label: 'Queue',        Icon: ListOrdered },
+  { id: 'path',  label: 'Path',         Icon: Route },
   { id: 'board', label: 'Board',        Icon: Columns3 },
   { id: 'notes', label: 'Sticky notes', Icon: StickyNote },
   { id: 'table', label: 'Table',        Icon: Table2 },
@@ -69,7 +71,7 @@ export default function MyTasksPage() {
     setToday(calendarToday());
     try {
       const saved = window.localStorage.getItem(VIEW_KEY);
-      if (saved === 'queue' || saved === 'board' || saved === 'notes' || saved === 'table') setView(saved);
+      if (saved === 'queue' || saved === 'path' || saved === 'board' || saved === 'notes' || saved === 'table') setView(saved);
       setFocusId(window.localStorage.getItem(FOCUS_KEY));
     } catch { /* private window: the queue it is */ }
   }, []);
@@ -293,7 +295,7 @@ export default function MyTasksPage() {
           />
         </div>
 
-        {view !== 'board' && (
+        {view !== 'board' && view !== 'path' && (
           <label className="inline-flex items-center gap-1.5 text-sm text-gray-600">
             <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} />
             Show done ({doneCount})
@@ -341,6 +343,18 @@ export default function MyTasksPage() {
           onMove={moveInQueue}
           onToggleDone={toggleDone}
           onQuickAdd={(title) => { create(tag ? { title, color: tag } : { title }); }}
+        />
+      ) : view === 'path' ? (
+        <TaskPath
+          queue={queue}
+          shown={new Set(shown.map((t) => t.id))}
+          upNextId={upNext?.id ?? null}
+          today={today}
+          playing={playing}
+          skin={skin}
+          onOpen={(task) => setEditing({ task })}
+          onFocus={(t) => focus(t.id)}
+          onUpdate={update}
         />
       ) : view === 'board' ? (
         <TaskBoard
