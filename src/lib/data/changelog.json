@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "aef0fdf5f224b1979f00003d0a5756965a1c8d7f",
+      "date": "2026-10-05T13:23:38-06:00",
+      "author": "erwindank",
+      "subject": "Give the game's streak its own card and rename two freight theme labels",
+      "body": "The streak was a small figure on the game banner and easy to miss. It now\nhas the same card beside Up next that the plain streak has, showing the\ngame's own count in the theme's accent. On the freight theme the banner\nreads \"Logistics strategy\" and the queue \"Logistics plans\"."
+    },
+    {
       "hash": "e158133cbb6ecf9a5c1b2a5ccd883ee9e5180ddd",
       "date": "2026-10-05T13:20:40-06:00",
       "author": "erwindank",

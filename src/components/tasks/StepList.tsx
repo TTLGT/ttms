@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { CalendarDays, Check, ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Check, ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
 import DateField from '@/components/DateField';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 import { MAX_STEP_TITLE, MAX_TASK_STEPS, calendarToday, newStepId, type TaskStep } from '@/types/task';
 import { DueChip } from './TaskQueue';
 
@@ -17,6 +18,11 @@ import { DueChip } from './TaskQueue';
  * A step can carry a due date of its own: the calendar button opens a date
  * box under the step, and a dated step shows when it is due in the same words
  * a task does. It is a label — see `TaskStep.date`.
+ *
+ * A step due after the task itself is warned about, not refused: the date
+ * still saves, because the person may be about to move the task's date, and
+ * the editor's date box sits above this list where that is one click away.
+ * The warning stays on the step until one of the two dates changes.
  */
 export default function StepList({
   steps,
@@ -24,6 +30,7 @@ export default function StepList({
   one = 'step',
   many = 'steps',
   large = false,
+  taskDate = null,
 }: {
   steps: TaskStep[];
   onChange: (next: TaskStep[]) => void;
@@ -31,12 +38,17 @@ export default function StepList({
   many?: string;
   /** The focus screen's bigger rows. */
   large?: boolean;
+  /** The task's own due date, `YYYY-MM-DD`, to warn about a step due after it. */
+  taskDate?: string | null;
 }) {
   const [text, setText] = useState('');
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
   /** The step whose date box is open. */
   const [dating, setDating] = useState<string | null>(null);
   const today = calendarToday();
+  const { formatCalendarDate } = useDateFormatters();
+  // Plain string order is date order for YYYY-MM-DD.
+  const late = (s: TaskStep) => !s.done && !!s.date && !!taskDate && s.date > taskDate;
   const setDate = (id: string, date: string) =>
     onChange(steps.map((s) => (s.id === id ? { ...s, date: date || null } : s)));
   const done = steps.filter((s) => s.done).length;
@@ -126,6 +138,13 @@ export default function StepList({
                   <DueChip date={s.date} today={today} />
                 </button>
               )}
+              {late(s) && (
+                <AlertTriangle
+                  size={14}
+                  className="flex-shrink-0 text-amber-500"
+                  aria-label={`Due after the task (${formatCalendarDate(taskDate!)})`}
+                />
+              )}
 
               <span className="flex flex-shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                 <button
@@ -153,6 +172,12 @@ export default function StepList({
                 </button>
               </span>
           </div>
+          {late(s) && (
+            <p role="alert" className="mt-1.5 rounded-md bg-amber-50 py-1 pl-7 pr-2 text-xs text-amber-800">
+              This {one} is due {formatCalendarDate(s.date!)}, after the task itself ({formatCalendarDate(taskDate!)}).
+              Move the {one} earlier or the task later.
+            </p>
+          )}
           {dating === s.id && (
             <div className="mt-1.5 flex items-center gap-2 pl-7">
               <span className="text-xs text-gray-500">Due</span>

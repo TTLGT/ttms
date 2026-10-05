@@ -183,7 +183,7 @@ export default function TaskFocus({
 
         <div className="mt-6">
           <h2 className="mb-2 text-sm font-semibold capitalize text-gray-900">{skin.steps}</h2>
-          <StepList steps={task.steps} onChange={saveSteps} one={skin.step} many={skin.steps} large />
+          <StepList steps={task.steps} onChange={saveSteps} one={skin.step} many={skin.steps} large taskDate={task.date} />
           {!finished && step === null && task.steps.length === 0 && (
             <p className="mt-2 text-xs text-gray-500">
               Big task? Break it into {skin.steps} and the Done button walks you through them one at a time.
