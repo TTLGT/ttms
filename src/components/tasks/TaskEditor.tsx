@@ -133,10 +133,14 @@ export default function TaskEditor({
         aria-label={task ? 'Edit item' : 'Add item'}
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white shadow-xl"
+        // The window wears the colour picked below, the same classes the board
+        // card and the sticky note use, so choosing one previews the card.
+        // The inputs keep their own plain ground and stay easy to read on it.
+        className={`max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border shadow-xl transition-colors ${NOTE_STYLE[color].note}`}
       >
-        <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-gray-100 bg-white px-5 py-4">
-          <h2 className="flex-1 text-base font-semibold text-gray-900">
+        {/* The header and footer inherit the window's colour and edge. */}
+        <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-inherit bg-inherit px-5 py-4">
+          <h2 className="flex-1 text-base font-semibold">
             {task ? 'Edit' : 'Add'} {kind === 'event' ? EVENT_TYPE_LABEL[eventType].toLowerCase() : 'task'}
           </h2>
           <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-gray-400 hover:bg-gray-100">
@@ -340,7 +344,7 @@ export default function TaskEditor({
                   aria-pressed={color === c}
                   onClick={() => setColor(c)}
                   className={`h-7 w-7 rounded-full ${NOTE_STYLE[c].swatch} ${
-                    color === c ? 'ring-2 ring-brand-600 ring-offset-2' : ''
+                    color === c ? 'ring-2 ring-brand-600 ring-offset-2 ring-offset-transparent' : ''
                   }`}
                 />
               ))}
@@ -350,7 +354,7 @@ export default function TaskEditor({
           {problem && <p className="text-sm text-red-600">{problem}</p>}
         </div>
 
-        <footer className="flex items-center gap-2 border-t border-gray-100 px-5 py-3">
+        <footer className="flex items-center gap-2 border-t border-inherit px-5 py-3">
           {task && onDelete && (
             <button
               type="button"

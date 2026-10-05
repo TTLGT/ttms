@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "c92bbc7be7f8383d5d766ac490c26dac8ea455f6",
+      "date": "2026-10-05T11:47:57-06:00",
+      "author": "erwindank",
+      "subject": "Make the My tasks game themes follow the light, dim and dark app themes",
+      "body": "The themed room used to force the dark palette whatever the app was set\nto. It now comes in three versions written as CSS on html.dark and\nhtml.dark.dim: a pale wash of the theme's hue in light, slate in dim, and\nthe deep room it always had in dark. Pale accents are darkened for words\nin the light room, and the banner stays dark in all three."
+    },
+    {
       "hash": "66c961bb11703f6646dc997342c87f39c91c7ac7",
       "date": "2026-10-05T10:23:41-06:00",
       "author": "erwindank",
