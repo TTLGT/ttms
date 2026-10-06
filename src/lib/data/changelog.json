@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "cd2d3905b3280dce2ea4359f1fb335ba4e6501fc",
+      "date": "2026-10-06T15:00:23-06:00",
+      "author": "erwindank",
+      "subject": "Check carriers with FMCSA for authority, insurance on file and safety record",
+      "body": "A Check FMCSA box on the carrier page, and on the order screens where it\nrefreshes a check over a day old by itself. Flags revoked or missing\nauthority, no liability insurance on file, out-of-service orders, poor\nsafety ratings, and an MC on our record that FMCSA does not list under the\nDOT number. Warns only; nothing blocks booking.\n\nThe lookup runs server-side with FMCSA_WEB_KEY and is stored on the carrier\nas `fmcsa`, which the rules now refuse from the browser."
+    },
+    {
       "hash": "a5a11f86ba90a7e2a7ccbc391584107b0bc8d93c",
       "date": "2026-10-06T13:09:40-06:00",
       "author": "erwindank",

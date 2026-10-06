@@ -32,7 +32,8 @@ const FILTER_TABS: { label: string; value: OrderStatus | 'all' }[] = [
  * mean to reset it.
  */
 const COLUMNS: { key: string; label: string; align?: 'left' | 'right'; width: number }[] = [
-  { key: 'orderNumber', label: 'Order #',   width: 120 },
+  // Wide enough for a TTL number beside a load's profile picture.
+  { key: 'orderNumber', label: 'Order #',   width: 165 },
   { key: 'client',      label: 'Client',    width: 150 },
   { key: 'shipper',     label: 'Shipper',   width: 165 },
   { key: 'route',       label: 'Route',     width: 230 },
@@ -419,9 +420,15 @@ function OrdersList() {
                         identical boxes down a list where most loads have no
                         pictures, and tell nobody anything. */}
                     {order.coverThumbUrl ? (
+                      // min-w-0 + break-all so a column dragged narrow wraps
+                      // the number under itself instead of spilling it across
+                      // the Client column — a flex item will not shrink below
+                      // its text otherwise.
                       <span className="flex items-center gap-2">
-                        <OrderCoverThumb url={order.coverThumbUrl} size={28} />
-                        <OrderLink order={order} />
+                        <OrderCoverThumb url={order.coverThumbUrl} size={28} className="shrink-0" />
+                        <span className="min-w-0 break-all">
+                          <OrderLink order={order} />
+                        </span>
                       </span>
                     ) : (
                       <OrderLink order={order} />
