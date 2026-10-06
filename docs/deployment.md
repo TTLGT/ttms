@@ -179,6 +179,8 @@ Two of these have a catch:
 - **`GOOGLE_MAPS_API_KEY`** — leave it out entirely, unless someone has decided
   to pay per lookup for exact mileage. Without it TTMS uses its free built-in
   estimate, which is the intended default.
+- **`FMCSA_WEB_KEY`** — optional and free; it turns on the FMCSA carrier check.
+  Server-only, so like Klipy it takes effect on the next deploy.
 - **`KLIPY_API_KEY`** — optional and free; it turns on GIF search in chat. It is
   read by the server only, so it takes effect after the next deploy (Deployments →
   "..." → **Redeploy**) but does not need a rebuild of anything else.

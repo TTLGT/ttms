@@ -67,11 +67,21 @@ carriers/{carrierId}
   insuranceStoragePath  : string | null   // certificate of insurance in Storage, under carrier-insurance/
   insuranceCoverage     : number | null   // LIABILITY limit in whole USD (the name predates cargo); absent on carriers written before it existed
   insuranceCargoCoverage: number | null  // cargo limit in whole USD; absent on carriers written before it existed
+  fmcsa                 : FmcsaCheck      // absent until first checked; SERVER-WRITTEN ONLY — see below
   isActive              : boolean
   notes                 : string
   createdAt             : Timestamp
   updatedAt             : Timestamp
 ```
+
+> **`fmcsa`** is FMCSA's answer the last time anybody checked the carrier — authority, whether
+> liability and cargo insurance are on file (in FMCSA's thousands of dollars), safety rating,
+> out-of-service order, inspection rates, and the MC dockets registered to the DOT — plus
+> `checkedAt` and `checkedByName`. Shape in `src/types/fmcsa.ts`. Only FMCSA's answer is stored;
+> which parts count as a concern is decided on read by `fmcsaConcerns()`. Written only by
+> `POST /api/carriers/{id}/fmcsa` (Admin SDK, needs `FMCSA_WEB_KEY`); `firestore.rules` refuses
+> the field from the browser so nobody can mark a carrier checked. The order screens refresh a
+> check older than a day by themselves; the carrier page waits for the button.
 
 > **Subcollection:** `carriers/{carrierId}/documents` — described here but never built, like the
 > order-level one. The certificate of insurance is a Storage file instead, and the carrier document

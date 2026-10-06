@@ -17,6 +17,7 @@ import PhoneField from '@/components/PhoneField';
 import { phoneRegionOf } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
+import FmcsaPanel from '@/components/carriers/FmcsaPanel';
 import InsuranceFileUpload from '@/components/carriers/InsuranceFileUpload';
 import CoverageInput from '@/components/carriers/CoverageInput';
 import DriverFormModal from '@/components/carriers/DriverFormModal';
@@ -305,6 +306,15 @@ export default function CarrierDetailPage() {
       {/* Details tab */}
       {tab === 'details' && (
         <div className="space-y-4">
+          {/* The saved numbers, not the edit boxes: a check runs against what
+              is on the record, and the panel says so when they differ. */}
+          <FmcsaPanel
+            carrierId={carrierId}
+            check={carrier.fmcsa}
+            dot={carrier.dot ?? ''}
+            mc={carrier.mc ?? ''}
+            onChecked={(fmcsa) => setCarrier((prev) => (prev ? { ...prev, fmcsa } : prev))}
+          />
           {/* Company Info */}
           <section className="bg-white rounded-xl border border-gray-200 p-6">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Company Info</h3>

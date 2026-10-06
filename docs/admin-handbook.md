@@ -1218,6 +1218,8 @@ GOOGLE_MAPS_API_KEY=
 
 KLIPY_API_KEY=
 
+FMCSA_WEB_KEY=
+
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
@@ -1225,6 +1227,14 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
   Get it from the KLIPY Partner Panel, signed in as
   `it@totaltransportlogistics.us`. Without it, chat works as normal and the GIFs
   side of the sticker picker says GIF search isn't set up.
+
+- `FMCSA_WEB_KEY` is **optional and free**. It turns on the FMCSA carrier check
+  (authority, insurance on file, safety record) on the carrier page and the
+  order screens. Get it at mobile.fmcsa.dot.gov/QCDevsite → My WebKeys, signed
+  in through Login.gov as `it@totaltransportlogistics.us`. The "client secret"
+  that form asks for is only used to make the key — keep it in the IT Drive
+  folder, not in `.env.local`. Without the key, the check says it isn't set up
+  and nothing else is affected.
 
 - `GOOGLE_MAPS_API_KEY` is **optional and costs money**. Leave it blank unless
   someone has decided to pay for exact mileage. Orders work fine without it —

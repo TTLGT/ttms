@@ -569,7 +569,14 @@ service cloud.firestore {
     // from being handed the whole carrier book by default.
     match /carriers/{carrierId} {
       allow read: if can('carriers.view');
-      allow create, update, delete: if can('carriers.edit');
+      // `fmcsa` is FMCSA's answer about this carrier, written only by
+      // POST /api/carriers/{id}/fmcsa with the Admin SDK. Closed here so a
+      // broker cannot mark a carrier as checked and authorized without FMCSA
+      // having been asked. The app's saves name their fields and never send it.
+      allow create: if can('carriers.edit') && !('fmcsa' in request.resource.data);
+      allow update: if can('carriers.edit')
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fmcsa']);
+      allow delete: if can('carriers.edit');
     }
 
     // Drivers hang off a carrier and are gated by the carrier permissions

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "a5a11f86ba90a7e2a7ccbc391584107b0bc8d93c",
+      "date": "2026-10-06T13:09:40-06:00",
+      "author": "erwindank",
+      "subject": "Remove the driver licence search from the Documents screen",
+      "body": "Licences are now opened from the order they belong to. The company-wide\nlisting and its route, /api/documents/licenses, are gone, so no listing\nreaches past canSeeOrder() any more."
+    },
+    {
       "hash": "405f4b11e4df8ca983a912449969696d482e588e",
       "date": "2026-10-06T11:53:08-06:00",
       "author": "erwindank",

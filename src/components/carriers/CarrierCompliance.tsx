@@ -12,6 +12,7 @@ import CopyValue from '@/components/CopyValue';
 import PhoneValue from '@/components/PhoneValue';
 import InsuranceFileUpload from './InsuranceFileUpload';
 import CoverageInput from './CoverageInput';
+import FmcsaPanel from './FmcsaPanel';
 
 /** Same round trip the carrier page uses, so both screens agree on the day. */
 function toDateInput(ts: { toDate?: () => Date } | null | undefined): string {
@@ -281,6 +282,20 @@ export default function CarrierCompliance({
         {numberField('MC', mcOnFile, mc, setMc, 'Not on record — e.g. 123456')}
         {numberField('DOT', dotOnFile, dot, setDot, 'Not on record — e.g. 1234567')}
       </div>
+
+      {/* Checked by itself here, unlike on the carrier page: this is where the
+          carrier is being booked, and a warning nobody thought to ask for is
+          the one that matters. Uses the saved numbers, so it re-runs once a
+          blank MC or DOT above has been saved. */}
+      <FmcsaPanel
+        carrierId={carrierId}
+        check={carrier.fmcsa}
+        dot={dotOnFile}
+        mc={mcOnFile}
+        autoCheck
+        compact
+        onChecked={(fmcsa) => setCarrier((prev) => (prev ? { ...prev, fmcsa } : prev))}
+      />
 
       {/* Read off the carrier record rather than copied onto the load, for the
           same reason as PartyContact: a phone number is only useful if it is

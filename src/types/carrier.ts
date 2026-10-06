@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { PhoneRegion } from '@/lib/phone';
+import type { FmcsaCheck } from './fmcsa';
 
 export interface Carrier {
   id: string;
@@ -71,6 +72,12 @@ export interface Carrier {
    * blank, never read as $0.
    */
   insuranceCargoCoverage?: number | null;
+  /**
+   * FMCSA's answer the last time anybody checked this carrier. Absent until
+   * the first check. Written only by `POST /api/carriers/{id}/fmcsa` — the
+   * rules refuse it from the browser — so never include it in an update.
+   */
+  fmcsa?: FmcsaCheck | null;
   isActive: boolean;
   notes: string;
   createdAt: Timestamp;
