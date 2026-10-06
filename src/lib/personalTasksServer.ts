@@ -12,6 +12,7 @@ import {
   TASK_REMINDER_LEADS,
   TASK_REPEATS,
   cleanContacts,
+  cleanOrders,
   isTaskStatus,
   reminderInstants,
   toSteps,
@@ -77,6 +78,8 @@ export function toTask(snap: DocumentSnapshot): PersonalTask {
     rank:      typeof d.rank === 'number' ? d.rank : null,
     // Absent on everything saved before contacts existed, which had none.
     contacts:  cleanContacts(d.contacts),
+    // Likewise orders.
+    orders:    cleanOrders(d.orders),
     createdAt: iso(d.createdAt),
     updatedAt: iso(d.updatedAt),
     doneAt:    iso(d.doneAt),

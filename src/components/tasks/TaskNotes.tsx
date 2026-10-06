@@ -19,6 +19,7 @@ import type { GameTheme } from '@/types/taskGame';
 import XpBadge from './XpBadge';
 import { DueChip } from './TaskQueue';
 import { TaskContactsLine } from './TaskContacts';
+import { TaskOrdersLine } from './TaskOrders';
 
 /**
  * Sticky notes: the same tasks as paper squares on a wall, in the colour
@@ -167,6 +168,7 @@ export default function TaskNotes({
               {/* Who it is with, in the bottom-left corner, like a name
                   scribbled at the foot of a note. */}
               <TaskContactsLine contacts={t.contacts} className="pt-1.5 text-xs" />
+              <TaskOrdersLine orders={t.orders} className="pt-1 text-xs" />
             </div>
             {steps.length > 0 && (
               <ol aria-label={`${stepLabel}s of ${t.title}`} className="ml-5 space-y-0">

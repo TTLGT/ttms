@@ -422,6 +422,48 @@ export function cleanContacts(raw: unknown): TaskContact[] {
   return out;
 }
 
+/**
+ * A load this task is about — "chase the POD on TTL26000042" — drawn as a link
+ * to the order on every view, so the load is one click from the reminder.
+ *
+ * Both halves are stored. The id is what the link needs, and finding it from a
+ * number is a query; the number is what people read. The editor resolves them
+ * once, through the same access-checked `/api/orders/lookup` that draws chat's
+ * order cards, so only a load the owner could open gets added — and the views
+ * then draw the link without a read per card.
+ *
+ * Storing it grants nothing. The order page applies `canSeeOrder()` when the
+ * link is followed, so a task that outlives somebody's access to a load holds
+ * a link that answers "no access", not a way back in. The number is a copy
+ * taken when it was added; an order renumbered since still opens by its id.
+ */
+export interface TaskOrder {
+  id: string;
+  number: string;
+}
+
+/** Chat stops at three cards a message for the same reason: past that it is a list. */
+export const MAX_TASK_ORDERS = 3;
+// The same loose id shape chat's link parser accepts — see ORDER_REF in
+// src/lib/orderCards.ts. It ends up in a URL path, so nothing else gets in.
+const TASK_ORDER_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
+const MAX_ORDER_NUMBER = 40;
+
+/** Orders as sent or stored: a safe id, a number, unique by id, at most MAX_TASK_ORDERS. */
+export function cleanOrders(raw: unknown): TaskOrder[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TaskOrder[] = [];
+  for (const item of raw) {
+    const r = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+    const id = typeof r.id === 'string' ? r.id.trim() : '';
+    if (!TASK_ORDER_ID_RE.test(id) || out.some((o) => o.id === id)) continue;
+    const number = typeof r.number === 'string' ? r.number.trim().slice(0, MAX_ORDER_NUMBER) : '';
+    out.push({ id, number: number || id });
+    if (out.length >= MAX_TASK_ORDERS) break;
+  }
+  return out;
+}
+
 export interface PersonalTask {
   id: string;
   kind: TaskKind;
@@ -476,6 +518,8 @@ export interface PersonalTask {
   rank: number | null;
   /** Colleagues this task is with, in the order they were added. Empty for none. */
   contacts: TaskContact[];
+  /** Loads this task is about, in the order they were added. Empty for none. */
+  orders: TaskOrder[];
   /** ISO strings on the wire. */
   createdAt: string | null;
   updatedAt: string | null;
@@ -486,7 +530,7 @@ export interface PersonalTask {
 /** What can be written. Everything else on a task is set by the server. */
 export type PersonalTaskInput = Partial<Pick<PersonalTask,
   'kind' | 'title' | 'notes' | 'status' | 'priority' | 'color' | 'date' | 'time' | 'endTime' | 'order'
-  | 'eventType' | 'location' | 'reminders' | 'repeat' | 'suggestionId' | 'steps' | 'rank' | 'contacts'>>;
+  | 'eventType' | 'location' | 'reminders' | 'repeat' | 'suggestionId' | 'steps' | 'rank' | 'contacts' | 'orders'>>;
 
 export const MAX_QUEUE_RANK = 100_000;
 
@@ -556,6 +600,7 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   if (b.rank === null) out.rank = null;
   else if (typeof b.rank === 'number' && Number.isInteger(b.rank) && b.rank >= 1 && b.rank <= MAX_QUEUE_RANK) out.rank = b.rank;
   if (Array.isArray(b.contacts)) out.contacts = cleanContacts(b.contacts);
+  if (Array.isArray(b.orders)) out.orders = cleanOrders(b.orders);
   return out;
 }
 

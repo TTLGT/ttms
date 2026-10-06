@@ -25,6 +25,7 @@ import XpBadge from './XpBadge';
 import BoardColumnsMenu from './BoardColumnsMenu';
 import { DueChip } from './TaskQueue';
 import { TaskContactsLine } from './TaskContacts';
+import { TaskOrdersLine } from './TaskOrders';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
 
 /**
@@ -304,6 +305,7 @@ function Card({
         </span>
       </div>
       <TaskContactsLine contacts={task.contacts} prefix="with" className="mt-0.5 pl-[1.125rem] text-xs" />
+      <TaskOrdersLine orders={task.orders} className="mt-0.5 pl-[1.125rem] text-xs" />
       {task.notes && (
         <p className="mt-1 line-clamp-2 pl-[1.125rem] text-xs opacity-75">
           <StickyNote size={10} className="mr-1 inline" />{task.notes}

@@ -24,6 +24,7 @@ import {
   type PersonalTaskInput,
   type TaskKind,
   type TaskContact,
+  type TaskOrder,
   type TaskReminderLead,
   type TaskRepeat,
   type TaskStep,
@@ -31,6 +32,7 @@ import {
 import { EVENT_ICON, NOTE_STYLE } from './taskStyle';
 import StepList from './StepList';
 import { TaskContactPicker } from './TaskContacts';
+import { TaskOrderPicker } from './TaskOrders';
 
 /**
  * Add or edit one item. The same dialog for every view, so a task means the
@@ -89,6 +91,7 @@ export default function TaskEditor({
   const [repeat, setRepeat]       = useState<TaskRepeat>(start.repeat ?? 'none');
   const [steps, setSteps]         = useState<TaskStep[]>(start.steps ?? []);
   const [contacts, setContacts]   = useState<TaskContact[]>(start.contacts ?? []);
+  const [orders, setOrders]       = useState<TaskOrder[]>(start.orders ?? []);
   // Blank means "leave it where it is" — or, for a new task, the end of the queue.
   const [place, setPlace]         = useState(queuePlace ? String(queuePlace) : '');
   const [problem, setProblem]     = useState('');
@@ -145,6 +148,7 @@ export default function TaskEditor({
       // before" ticked while a time was set means nothing once it is cleared.
       reminders: date ? reminders.filter((l) => leads.includes(l)) : [],
       contacts,
+      orders,
       ...(kind === 'task' ? { steps } : {}),
     }, placeAt);
     setSaving(false);
@@ -283,6 +287,12 @@ export default function TaskEditor({
           <div>
             <span className={label}>With</span>
             <TaskContactPicker value={contacts} onChange={setContacts} inputClass={input} />
+          </div>
+
+          {/* The load it is about, so the order is one click from the task. */}
+          <div>
+            <span className={label}>Order</span>
+            <TaskOrderPicker value={orders} onChange={setOrders} inputClass={input} />
           </div>
 
           {kind === 'task' && (

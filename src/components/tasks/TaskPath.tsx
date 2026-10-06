@@ -7,6 +7,7 @@ import { NOTE_STYLE } from './taskStyle';
 import XpBadge from './XpBadge';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
 import { TaskContactsLine } from './TaskContacts';
+import { TaskOrdersLine } from './TaskOrders';
 
 /**
  * The path: the queue drawn as a road. Each open task is a floating card,
@@ -147,6 +148,7 @@ function PathCard({
       <div className="px-4 pb-4 pt-3">
         {/* Who it is with, on top: outside the title's button, which cannot hold the chips. */}
         <TaskContactsLine contacts={task.contacts} prefix="with" className="mb-1 text-xs text-gray-600" />
+        <TaskOrdersLine orders={task.orders} className="mb-1 text-xs" />
         <div className="flex items-start gap-2">
           <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
             {upNext && (

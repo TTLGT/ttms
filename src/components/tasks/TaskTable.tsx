@@ -19,6 +19,7 @@ import type { GameTheme } from '@/types/taskGame';
 import XpBadge from './XpBadge';
 import { DueChip } from './TaskQueue';
 import { TaskContactsLine } from './TaskContacts';
+import { TaskOrdersLine } from './TaskOrders';
 
 type SortKey = 'title' | 'contact' | 'status' | 'priority' | 'date' | 'createdAt';
 
@@ -185,6 +186,8 @@ export default function TaskTable({
                     </span>
                   </button>
                   </div>
+                  {/* Under the title rather than inside its button, which cannot hold a link. */}
+                  <TaskOrdersLine orders={t.orders} className="pl-[1.75rem] text-xs" />
                 </td>
                 <td className="px-3 py-2 text-gray-700">
                   {t.contacts.length > 0 ? <TaskContactsLine contacts={t.contacts} /> : <span className="text-gray-400">—</span>}

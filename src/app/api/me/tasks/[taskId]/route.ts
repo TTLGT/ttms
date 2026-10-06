@@ -181,6 +181,9 @@ export async function PATCH(
             rank: merged.rank ?? null,
             // Still the same people next week.
             contacts: merged.contacts,
+            // But not the same load: a weekly "chase the POD" is a different
+            // order each week, and a link to last week's would be wrong, not empty.
+            orders: [],
             nextId: null,
             xpEarned: 0,
             everDone: false,

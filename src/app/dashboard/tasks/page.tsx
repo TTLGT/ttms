@@ -100,7 +100,8 @@ export default function MyTasksPage() {
       t.kind === 'task'
       && (!q || t.title.toLowerCase().includes(q) || t.notes.toLowerCase().includes(q)
         || t.steps.some((s) => s.title.toLowerCase().includes(q))
-        || t.contacts.some((c) => c.name.toLowerCase().includes(q))));
+        || t.contacts.some((c) => c.name.toLowerCase().includes(q))
+        || t.orders.some((o) => o.number.toLowerCase().includes(q))));
   }, [tasks, query]);
 
   // The board always has its Done column; the other views hide finished

@@ -9,6 +9,7 @@ import { PRIORITY_STYLE } from './taskStyle';
 import XpBadge from './XpBadge';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
 import { TaskContactsLine } from './TaskContacts';
+import { TaskOrdersLine } from './TaskOrders';
 
 /**
  * The queue: every open task as one numbered list, DankQuest-style. #1 is
@@ -166,6 +167,7 @@ function QueueRow({
             {task.title}
           </button>
           <TaskContactsLine contacts={task.contacts} prefix="with" className="text-xs text-gray-600" />
+          <TaskOrdersLine orders={task.orders} className="text-xs" />
         </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
           {task.steps.length > 0 && (
