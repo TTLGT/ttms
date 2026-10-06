@@ -1,6 +1,20 @@
 {
   "changes": [
     {
+      "hash": "405f4b11e4df8ca983a912449969696d482e588e",
+      "date": "2026-10-06T11:53:08-06:00",
+      "author": "erwindank",
+      "subject": "Let tasks link to an order by its number",
+      "body": "A task can now carry up to three orders. The editor's Order box takes a TTL\nnumber, a #number for a BATS-era load, or the order's link, and looks it up\nthrough the same access-checked route chat's order cards use, so a typo or\nsomeone else's load is refused rather than saved. The number shows as a link\nto the order on the board, sticky notes, queue, path and table, and the task\nsearch finds it. A repeating task's next copy starts without the order."
+    },
+    {
+      "hash": "9accb5be238c4af81032838ec8d7ca1e754ad034",
+      "date": "2026-10-06T11:45:11-06:00",
+      "author": "erwindank",
+      "subject": "Give every game level its own hand-drawn picture in each theme",
+      "body": "The ring with a shared symbol beside the level name is replaced by a line\ndrawing in the style of the banner art, one per level per theme (180 in\nall), chosen to fit each level's name. It also shows, larger, in the level\nup and level down pop-up, red on a level down."
+    },
+    {
       "hash": "1307c2a25e56a41e5469617f6d8ed6caab2b71d5",
       "date": "2026-10-05T14:56:52-06:00",
       "author": "erwindank",

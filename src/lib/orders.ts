@@ -9,7 +9,7 @@ import { auth, db } from './firebase';
 import { trackActivity } from './attendance';
 import type { Order, OrderStatus } from '@/types/order';
 import { orderSearchTerms } from '@/types/order';
-import type { CarrierCoiRow, LicenseDocumentRow, OrderDocumentKind } from '@/types/orderDocument';
+import type { CarrierCoiRow, OrderDocumentKind } from '@/types/orderDocument';
 import type { OrderAccessRequest } from '@/types/orderAccessRequest';
 import type { OwnerContact } from '@/types/order';
 import type { OwnerEvent } from '@/types/ownerEvent';
@@ -172,21 +172,6 @@ export async function orderDocumentUrl(
   if (!res.ok) return null;
   const { url } = await res.json().catch(() => ({ url: null }));
   return typeof url === 'string' ? url : null;
-}
-
-/**
- * Every driver's licence in the company, for the Documents screen.
- *
- * Separate from listOrdersPage because it is deliberately not filtered to the
- * loads this user owns — licences are open to all staff, and one you cannot
- * find is one you cannot use. The rows come back already redacted: a load you
- * have no access to arrives with its shipper stripped and its owner named
- * instead. See /api/documents/licenses.
- */
-export async function listLicenseDocuments(): Promise<LicenseDocumentRow[]> {
-  const res = await fetch('/api/documents/licenses', { headers: await authHeaders() });
-  const { rows } = await unwrap<{ rows: LicenseDocumentRow[] }>(res);
-  return rows;
 }
 
 /** Carriers with a certificate of insurance on file, and the caller's loads on each. */

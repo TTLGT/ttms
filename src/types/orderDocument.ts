@@ -10,7 +10,7 @@
  * and the screens that call it.
  */
 
-import type { Order, OwnerContact } from './order';
+import type { Order } from './order';
 
 export const ORDER_DOCUMENT_KINDS = ['bol', 'invoice', 'pod', 'license'] as const;
 export type OrderDocumentKind = (typeof ORDER_DOCUMENT_KINDS)[number];
@@ -55,25 +55,6 @@ export function isOrderDocumentKind(value: unknown): value is OrderDocumentKind 
  */
 export function needsOrderAccess(kind: OrderDocumentKind): boolean {
   return kind !== 'license';
-}
-
-/**
- * One row of the Documents screen's driver-licence list.
- *
- * Two shapes in one, and the pair is exclusive: a reader who can see the load
- * gets `shipperName` and no `owner`, and a reader who cannot gets `owner` and
- * no `shipperName`. Modelling it this way rather than sending both and hiding
- * one in the UI is the whole point — a field that never reaches the browser
- * cannot be read out of the network tab.
- */
-export interface LicenseDocumentRow {
-  orderId: string;
-  orderNumber: string;
-  altNumber: string | null;
-  /** null when this load is not visible to the reader. */
-  shipperName: string | null;
-  /** Present only when `shipperName` is withheld. */
-  owner: OwnerContact | null;
 }
 
 /**

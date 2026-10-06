@@ -480,12 +480,11 @@ reopens the hole silently — nothing in the app would fail. `driver-licenses/`
 is deliberately readable by any allowlisted account; `needsOrderAccess()` in
 `src/types/orderDocument.ts` is where that split is decided.
 
-Because licences are open to everyone, `GET /api/documents/licenses` lists them
-across the whole company — **the one listing that deliberately reaches past
-`canSeeOrder()`**. It redacts instead of filtering: a row for a load the caller
-cannot see carries the order number, the licence and the owner's contact, and
-no shipper, client, rate or dates. Its `SELECTED_FIELDS` is the guard; adding
-to it is how the load leaks out beside the licence.
+Licences are opened from the order they belong to. There used to be a
+company-wide licence listing on the Documents screen
+(`GET /api/documents/licenses`, redacting loads the caller could not see); it
+was removed on 2026-10-06, so no listing reaches past `canSeeOrder()` any more.
+Bringing one back means bringing back its redaction too.
 
 **Load pictures go one step further than the BOL**: `load-photos/` has no
 storage rule at all, not even the open write, and `loadPhotos` is closed in
