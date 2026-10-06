@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Timestamp } from 'firebase/firestore';
-import { createCarrier } from '@/lib/carriers';
+import { createCarrier, getCarrier } from '@/lib/carriers';
 import type { Carrier } from '@/types/carrier';
 import { parseCoverageInput, carrierNumber } from '@/types/carrier';
 import ContactTitleSelect from '@/components/carriers/ContactTitleSelect';
@@ -13,6 +13,8 @@ import CoverageInput from './CoverageInput';
 import PhoneField from '@/components/PhoneField';
 import { phoneRegionOf } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
+import FmcsaLookupBox from './FmcsaLookupBox';
+import { runFmcsaCheck } from '@/lib/fmcsaClient';
 
 /**
  * Quick-add carrier, used from the carrier dropdown on an order.
@@ -50,6 +52,7 @@ export default function QuickAddCarrierModal({
   const [email, setEmail]                   = useState('');
   const [dot, setDot]                       = useState('');
   const [mc, setMc]                         = useState('');
+  const [address, setAddress]               = useState('');
   const [insuranceProvider, setInsProvider] = useState('');
   const [insurancePolicyNumber, setInsPolicyNo] = useState('');
   const [insuranceExpiration, setInsExpiry] = useState('');
@@ -72,7 +75,7 @@ export default function QuickAddCarrierModal({
         phoneRegion:           phoneRegionOf(phoneRegion),
         dot:                   carrierNumber(dot),
         mc:                    carrierNumber(mc),
-        address:               '',
+        address:               address.trim(),
         fax:                   '',
         dispatcher:            '',
         dispatcherPhone:       '',
@@ -92,6 +95,9 @@ export default function QuickAddCarrierModal({
         notes:    '',
       };
       const id = await createCarrier(fields);
+      // Same as the Add Carrier page: file FMCSA's answer against the new
+      // record so the order screen opens on it rather than looking again.
+      if (fields.dot || fields.mc) await runFmcsaCheck(id).catch(() => {});
       // Hand back a Carrier shaped like the ones in the dropdown so the caller
       // can select it immediately; createdAt/updatedAt are server-stamped and
       // only matter once the record is re-read.
@@ -112,15 +118,44 @@ export default function QuickAddCarrierModal({
             <h2 className="text-lg font-bold text-gray-900">New Carrier</h2>
             <p className="text-xs text-gray-500 mt-1">
               Saved to Carriers and assigned to this order. You can fill in billing
-              and address details on the carrier record afterwards.
+              details on the carrier record afterwards.
             </p>
           </div>
+
+          <FmcsaLookupBox
+            onFill={(f) => { setCompanyName(f.companyName); setDot(f.dot); setMc(f.mc); setAddress(f.address); }}
+            renderExisting={(c) => (
+              <button type="button" disabled={saving}
+                onClick={async () => {
+                  // Hand back the record that is already here, exactly as a
+                  // fresh one would be, so the order simply selects it.
+                  setSaving(true);
+                  try {
+                    const existing = await getCarrier(c.id);
+                    if (existing) onCreated(existing);
+                    else setError('That carrier could not be opened.');
+                  } catch (err: unknown) {
+                    setError(err instanceof Error ? err.message : 'That carrier could not be opened.');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                className="inline-flex px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
+                Use {c.companyName || 'this carrier'}
+              </button>
+            )}
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="col-span-1 sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
               <input required autoFocus value={companyName} onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="e.g. Swift Transport LLC" className={inputCls} />
+            </div>
+            <div className="col-span-1 sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+              <input value={address} onChange={(e) => setAddress(e.target.value)}
+                placeholder="Street, city, state ZIP" className={inputCls} />
             </div>
             <div className="col-span-1 sm:col-span-2">
               <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />

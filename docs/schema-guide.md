@@ -82,6 +82,10 @@ carriers/{carrierId}
 > `POST /api/carriers/{id}/fmcsa` (Admin SDK, needs `FMCSA_WEB_KEY`); `firestore.rules` refuses
 > the field from the browser so nobody can mark a carrier checked. The order screens refresh a
 > check older than a day by themselves; the carrier page waits for the button.
+> Both Add Carrier forms start with an FMCSA lookup (`POST /api/fmcsa/lookup`, `carriers.edit`,
+> writes nothing) that fills in name, DOT, MC and address, and refuses to fill when a carrier with
+> the same DOT or any of its MCs is already here. The form then saves the carrier as usual and
+> files the check against it.
 
 > **Subcollection:** `carriers/{carrierId}/documents` — described here but never built, like the
 > order-level one. The certificate of insurance is a Storage file instead, and the carrier document

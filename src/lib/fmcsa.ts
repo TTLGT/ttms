@@ -1,4 +1,4 @@
-import type { FmcsaCheck } from '@/types/fmcsa';
+import type { FmcsaAnswer } from '@/types/fmcsa';
 
 /**
  * FMCSA's QCMobile service — the free, keyed lookup behind the SAFER website.
@@ -23,7 +23,7 @@ export class FmcsaUnavailableError extends Error {}
 /** The key is missing or FMCSA refused it. Something for IT, not the broker. */
 export class FmcsaNotConfiguredError extends Error {}
 
-export type FmcsaLookup = Omit<FmcsaCheck, 'checkedAt' | 'checkedByName'>;
+export type FmcsaLookup = FmcsaAnswer;
 
 type Raw = Record<string, unknown>;
 
@@ -80,7 +80,7 @@ function notFound(lookedUpBy: 'dot' | 'mc', query: string): FmcsaLookup {
     powerUnits: 0, drivers: 0, crashTotal: 0, fatalCrash: 0,
     vehicleInspections: 0, vehicleOosRate: 0, vehicleOosNational: 0,
     driverInspections: 0, driverOosRate: 0, driverOosNational: 0,
-    city: '', state: '',
+    city: '', state: '', street: '', zip: '',
   };
 }
 
@@ -142,5 +142,7 @@ export async function lookupCarrier(dot: string, mc: string): Promise<FmcsaLooku
     driverOosNational: num(carrier.driverOosRateNationalAverage),
     city: str(carrier.phyCity),
     state: str(carrier.phyState),
+    street: str(carrier.phyStreet),
+    zip: str(carrier.phyZipcode),
   };
 }

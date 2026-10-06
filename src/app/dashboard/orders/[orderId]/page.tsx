@@ -575,8 +575,12 @@ export default function OrderDetailPage() {
   }
 
   function handleCarrierCreated(carrier: Carrier) {
+    // The quick-add can also hand back a carrier that was already here, when
+    // the FMCSA lookup found it — so only add it to the list if it is new.
     setCarriers((prev) =>
-      [...prev, carrier].sort((a, b) => a.companyName.localeCompare(b.companyName))
+      prev.some((c) => c.id === carrier.id)
+        ? prev
+        : [...prev, carrier].sort((a, b) => a.companyName.localeCompare(b.companyName))
     );
     setSelectedCarrierId(carrier.id);
     // A carrier created just now has no past loads to inherit a driver from.

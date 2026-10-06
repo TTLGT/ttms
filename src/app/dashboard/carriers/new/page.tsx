@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Timestamp } from 'firebase/firestore';
 import { createCarrier } from '@/lib/carriers';
 import ContactTitleSelect from '@/components/carriers/ContactTitleSelect';
@@ -13,6 +14,8 @@ import { parseCoverageInput, carrierNumber } from '@/types/carrier';
 import PhoneField from '@/components/PhoneField';
 import { phoneRegionOf } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
+import FmcsaLookupBox from '@/components/carriers/FmcsaLookupBox';
+import { runFmcsaCheck } from '@/lib/fmcsaClient';
 
 export default function NewCarrierPage() {
   const router = useRouter();
@@ -27,6 +30,7 @@ export default function NewCarrierPage() {
   const [phoneRegion, setPhoneRegion]           = useState<PhoneRegion | undefined>(undefined);
   const [dot, setDot]                           = useState('');
   const [mc, setMc]                             = useState('');
+  const [address, setAddress]                   = useState('');
   const [insuranceProvider, setInsProvider]     = useState('');
   const [insurancePolicyNumber, setInsPolicyNo] = useState('');
   const [insuranceExpiration, setInsExpiry]     = useState('');
@@ -51,7 +55,7 @@ export default function NewCarrierPage() {
         phoneRegion:          phoneRegionOf(phoneRegion),
         dot:                  carrierNumber(dot),
         mc:                   carrierNumber(mc),
-        address:              '',
+        address:              address.trim(),
         fax:                  '',
         dispatcher:           '',
         dispatcherPhone:      '',
@@ -70,6 +74,10 @@ export default function NewCarrierPage() {
         isActive,
         notes: notes.trim(),
       });
+      // File FMCSA's answer against the new record, so it opens with the check
+      // already on it. Awaited but never fatal: the carrier is saved either way,
+      // and the carrier page offers the button if this did not land.
+      if (carrierNumber(dot) || carrierNumber(mc)) await runFmcsaCheck(id).catch(() => {});
       router.push(`/dashboard/carriers/${id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create carrier');
@@ -89,6 +97,16 @@ export default function NewCarrierPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
+        <FmcsaLookupBox
+          onFill={(f) => { setCompanyName(f.companyName); setDot(f.dot); setMc(f.mc); setAddress(f.address); }}
+          renderExisting={(c) => (
+            <Link href={`/dashboard/carriers/${c.id}`}
+              className="inline-flex px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition">
+              Open {c.companyName || 'the carrier'}
+            </Link>
+          )}
+        />
+
         {/* Company Info */}
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Company Info</h2>
@@ -97,6 +115,11 @@ export default function NewCarrierPage() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
               <input required value={companyName} onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="e.g. Swift Transport LLC" className={inputCls} />
+            </div>
+            <div className="col-span-1 sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+              <input value={address} onChange={(e) => setAddress(e.target.value)}
+                placeholder="Street, city, state ZIP" className={inputCls} />
             </div>
             <div className="col-span-1 sm:col-span-2">
               <PersonNameFields label="Contact" value={contactName} onChange={setContactName} />

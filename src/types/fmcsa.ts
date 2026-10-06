@@ -73,6 +73,12 @@ export interface FmcsaCheck {
   /** Where the carrier's physical address is, for a sanity check by eye. */
   city: string;
   state: string;
+  /**
+   * The rest of the physical address, for filling in a new carrier. Optional
+   * because checks stored before the lookup could add carriers lack them.
+   */
+  street?: string;
+  zip?: string;
 }
 
 export type FmcsaLevel = 'ok' | 'warn' | 'bad';
@@ -119,7 +125,10 @@ export function fmcsaDollars(thousands: number): string {
  * numbers on file belong to two different companies — the shape of a
  * borrowed or stolen MC, which is the most common way freight is stolen.
  */
-export function fmcsaConcerns(c: FmcsaCheck, ourMc?: string): FmcsaConcern[] {
+/** FMCSA's answer without who asked or when — a lookup before it is filed. */
+export type FmcsaAnswer = Omit<FmcsaCheck, 'checkedAt' | 'checkedByName'>;
+
+export function fmcsaConcerns(c: FmcsaAnswer, ourMc?: string): FmcsaConcern[] {
   const out: FmcsaConcern[] = [];
   if (!c.found) {
     out.push({ level: 'bad', text: `FMCSA has no carrier under ${c.lookedUpBy.toUpperCase()} ${c.query}.` });
@@ -211,4 +220,10 @@ export function authorityLabel(code: string): string {
 
 export function safetyRatingLabel(code: string): string {
   return code === 'S' ? 'Satisfactory' : code === 'C' ? 'Conditional' : code === 'U' ? 'Unsatisfactory' : 'Not rated';
+}
+
+/** "2411 C BULL STREET, SAVANNAH, GA 31401" — FMCSA's address as one line, for a new carrier. */
+export function fmcsaAddress(c: Pick<FmcsaCheck, 'street' | 'city' | 'state' | 'zip'>): string {
+  const cityState = [c.city, [c.state, c.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  return [c.street, cityState].filter(Boolean).join(', ');
 }
