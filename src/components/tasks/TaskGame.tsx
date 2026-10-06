@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { PLAIN_SKIN, skinFor, type TaskSkin } from './taskSkins';
 import { artUrl } from './taskSkinArt';
+import { LevelArt } from './LevelArt';
 import { ChevronDown, ChevronUp, Plus, Target, Trophy, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import type { GameNotice } from '@/lib/personalTasks';
@@ -88,13 +89,8 @@ export function GameBar({
             </div>
             <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
               <div className="flex min-w-[15rem] flex-1 items-center gap-3">
-                <span
-                  aria-hidden
-                  className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-full border-2 text-lg"
-                  style={{ borderColor: skin.accent, color: skin.accent, background: 'rgba(255,255,255,0.06)' }}
-                >
-                  {level.icon}
-                </span>
+                {/* The level's own hand-drawn picture for this theme, with no ring round it. */}
+                <LevelArt level={level.level} theme={game.theme} size={48} color={skin.accent} className="flex-shrink-0" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="truncate font-semibold">{title}</span>
@@ -440,13 +436,7 @@ function LevelMoment({
           >
             <X size={18} />
           </button>
-          <span
-            aria-hidden
-            className="mx-auto grid h-20 w-20 place-items-center rounded-full border-2 text-4xl"
-            style={{ borderColor: up ? skin.accent : '#f87171', color: up ? skin.accent : '#f87171', background: 'rgba(255,255,255,0.06)' }}
-          >
-            {level.icon}
-          </span>
+          <LevelArt level={level.level} theme={theme} size={88} color={up ? skin.accent : '#f87171'} className="mx-auto block" />
           <p className={`mt-4 text-3xl font-bold ${skin.font}`}>{up ? 'Level up' : 'Level down'}</p>
         </div>
         <div className="px-8 pb-7 pt-5">
