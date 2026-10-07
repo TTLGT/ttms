@@ -82,6 +82,14 @@ carriers/{carrierId}
 > `POST /api/carriers/{id}/fmcsa` (Admin SDK, needs `FMCSA_WEB_KEY`); `firestore.rules` refuses
 > the field from the browser so nobody can mark a carrier checked. The order screens refresh a
 > check older than a day by themselves; the carrier page waits for the button.
+>
+> `fmcsa.registry` is the second half of a check, from FMCSA's open data on data.transportation.gov
+> (`src/lib/fmcsaRegistry.ts`): registered phone, email and officer, cargo types, the insurance
+> policies on file (cancelled filings removed), pending cancellations, and suspension notices from
+> the last year. It reads the **Motus** datasets — the older `ActPendInsur` stopped receiving
+> filings when Motus launched on 2026-05-14. Daily, not live; null when the portal could not be
+> reached, which never fails the check. The carrier page and order screens offer to fill the
+> carrier's *blank* fields from it; nothing a broker typed is overwritten.
 > Both Add Carrier forms start with an FMCSA lookup (`POST /api/fmcsa/lookup`, `carriers.edit`,
 > writes nothing) that fills in name, DOT, MC and address, and refuses to fill when a carrier with
 > the same DOT or any of its MCs is already here. The form then saves the carrier as usual and

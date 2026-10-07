@@ -123,7 +123,13 @@ export default function QuickAddCarrierModal({
           </div>
 
           <FmcsaLookupBox
-            onFill={(f) => { setCompanyName(f.companyName); setDot(f.dot); setMc(f.mc); setAddress(f.address); }}
+            onFill={(f) => {
+            setCompanyName(f.companyName); setDot(f.dot); setMc(f.mc); setAddress(f.address);
+            setPhone(f.phone); setPhoneRegion(f.phoneRegion); setEmail(f.email);
+            setInsProvider(f.insuranceProvider); setInsPolicyNo(f.insurancePolicyNumber);
+            setInsCoverage(f.insuranceCoverage === null ? '' : String(f.insuranceCoverage));
+            setInsCargo(f.insuranceCargoCoverage === null ? '' : String(f.insuranceCargoCoverage));
+          }}
             renderExisting={(c) => (
               <button type="button" disabled={saving}
                 onClick={async () => {

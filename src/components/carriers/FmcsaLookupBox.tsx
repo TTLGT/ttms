@@ -4,37 +4,21 @@ import { useState } from 'react';
 import { Search, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react';
 import { lookupFmcsa } from '@/lib/fmcsaClient';
 import type { FmcsaLookupResult } from '@/lib/fmcsaClient';
-import { fmcsaAddress, fmcsaConcerns, fmcsaLevel } from '@/types/fmcsa';
-import type { FmcsaAnswer } from '@/types/fmcsa';
+import { fmcsaCarrierFill, fmcsaConcerns, fmcsaLevel } from '@/types/fmcsa';
+import type { FmcsaAnswer, FmcsaCarrierFill } from '@/types/fmcsa';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 
-export interface FmcsaFill {
-  companyName: string;
-  dot: string;
-  mc: string;
-  address: string;
-}
-
-/** The parts of an FMCSA answer that become a new carrier's details. */
-function fillFrom(a: FmcsaAnswer, kind: 'dot' | 'mc', typed: string): FmcsaFill {
-  return {
-    companyName: a.legalName,
-    dot: a.dotNumber || (kind === 'dot' ? typed : ''),
-    // The MC the broker typed when they typed one: a company can hold several
-    // dockets, and the one on the rate confirmation is the one they meant.
-    mc: kind === 'mc' ? typed : (a.docketNumbers[0] ?? ''),
-    address: fmcsaAddress(a),
-  };
-}
+export type { FmcsaCarrierFill as FmcsaFill } from '@/types/fmcsa';
 
 const inputCls = 'border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
 /**
  * The top of the Add Carrier forms: type a DOT or MC, and FMCSA fills in the
- * rest of what it knows — the legal name, both numbers and the address.
+ * rest of what it knows — the legal name, both numbers, the address, and from
+ * the registration data the phone, email and liability insurer.
  *
- * It fills, it does not save. The broker still adds the contact, phone and
- * email (FMCSA's lookup has none of those) and the certificate, and can
- * correct anything it filled before pressing Save.
+ * It fills, it does not save. The broker still adds the contact person and the
+ * certificate, and can correct anything it filled before pressing Save.
  *
  * When the company is already in TTMS it says so instead of filling, and
  * `renderExisting` decides what to offer — open it from the Carriers page,
@@ -49,7 +33,7 @@ export default function FmcsaLookupBox({
   onFill,
   renderExisting,
 }: {
-  onFill: (fill: FmcsaFill, answer: FmcsaAnswer) => void;
+  onFill: (fill: FmcsaCarrierFill, answer: FmcsaAnswer) => void;
   renderExisting: (existing: NonNullable<FmcsaLookupResult['existing']>) => React.ReactNode;
 }) {
   const [kind, setKind]       = useState<'dot' | 'mc'>('dot');
@@ -57,6 +41,7 @@ export default function FmcsaLookupBox({
   const [running, setRunning] = useState(false);
   const [error, setError]     = useState('');
   const [result, setResult]   = useState<FmcsaLookupResult | null>(null);
+  const { formatCalendarDate } = useDateFormatters();
 
   const digits = number.replace(/\D+/g, '');
 
@@ -68,7 +53,7 @@ export default function FmcsaLookupBox({
     try {
       const r = await lookupFmcsa(digits, kind);
       setResult(r);
-      if (r.lookup.found && !r.existing) onFill(fillFrom(r.lookup, kind, digits), r.lookup);
+      if (r.lookup.found && !r.existing) onFill(fmcsaCarrierFill(r.lookup, kind, digits), r.lookup);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'The FMCSA lookup failed.');
     } finally {
@@ -77,7 +62,7 @@ export default function FmcsaLookupBox({
   }
 
   const answer = result?.lookup;
-  const concerns = answer?.found ? fmcsaConcerns(answer, kind === 'mc' ? digits : undefined) : [];
+  const concerns = answer?.found ? fmcsaConcerns(answer, kind === 'mc' ? digits : undefined, formatCalendarDate) : [];
   const level = fmcsaLevel(concerns);
   const LevelIcon = level === 'bad' ? ShieldX : level === 'warn' ? ShieldAlert : ShieldCheck;
 
@@ -86,8 +71,9 @@ export default function FmcsaLookupBox({
       <div>
         <p className="text-sm font-semibold text-gray-900">Look up on FMCSA</p>
         <p className="text-xs text-gray-600">
-          Type the DOT or MC number and the name, numbers and address are filled in for you.
-          Contact, phone and email still need typing — FMCSA does not give those out.
+          Type the DOT or MC number and the name, numbers, address, phone, email and insurer are
+          filled in from what the carrier registered with FMCSA. Check them before saving — the
+          contact person and the certificate still need adding.
         </p>
       </div>
 

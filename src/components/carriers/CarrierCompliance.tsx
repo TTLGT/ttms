@@ -295,6 +295,12 @@ export default function CarrierCompliance({
         autoCheck
         compact
         onChecked={(fmcsa) => setCarrier((prev) => (prev ? { ...prev, fmcsa } : prev))}
+        carrier={dirty ? undefined : carrier}
+        onFilled={(updates) => {
+          const next = { ...carrier, ...updates };
+          setCarrier(next);
+          resetFrom(next);
+        }}
       />
 
       {/* Read off the carrier record rather than copied onto the load, for the

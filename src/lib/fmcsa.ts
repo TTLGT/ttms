@@ -1,4 +1,5 @@
 import type { FmcsaAnswer } from '@/types/fmcsa';
+import { lookupRegistry } from './fmcsaRegistry';
 
 /**
  * FMCSA's QCMobile service — the free, keyed lookup behind the SAFER website.
@@ -107,7 +108,11 @@ export async function lookupCarrier(dot: string, mc: string): Promise<FmcsaLooku
   if (!carrier) return notFound(lookedUpBy, query);
 
   const dotNumber = str(carrier.dotNumber);
-  const docketNumbers = dotNumber ? await docketsFor(dotNumber) : [];
+  // The open data is read alongside the docket list rather than after it; it
+  // is the slower of the two and never fails the check (see fmcsaRegistry).
+  const [docketNumbers, registry] = dotNumber
+    ? await Promise.all([docketsFor(dotNumber), lookupRegistry(dotNumber)])
+    : [[], null];
 
   return {
     lookedUpBy, query, found: true,
@@ -144,5 +149,6 @@ export async function lookupCarrier(dot: string, mc: string): Promise<FmcsaLooku
     state: str(carrier.phyState),
     street: str(carrier.phyStreet),
     zip: str(carrier.phyZipcode),
+    registry,
   };
 }

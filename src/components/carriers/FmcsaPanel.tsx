@@ -1,12 +1,18 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ShieldCheck, ShieldAlert, ShieldX, RefreshCw, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, ShieldX, RefreshCw, ExternalLink, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { updateCarrier } from '@/lib/carriers';
+import { useAuth } from '@/context/AuthContext';
+import type { Carrier } from '@/types/carrier';
+import { formatCoverage } from '@/types/carrier';
 import { runFmcsaCheck } from '@/lib/fmcsaClient';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   authorityLabel,
+  fmcsaCarrierFill,
   fmcsaConcerns,
+  INSURANCE_KIND_LABEL,
   fmcsaDollars,
   fmcsaIsStale,
   fmcsaLevel,
@@ -22,6 +28,40 @@ const LEVEL_STYLE: Record<FmcsaLevel, { box: string; pill: string; label: string
 };
 
 const labelCls = 'block text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5';
+
+const FILL_LABELS: Partial<Record<keyof Carrier, string>> = {
+  phone: 'phone',
+  email: 'email',
+  address: 'address',
+  insuranceProvider: 'insurance company',
+  insurancePolicyNumber: 'policy number',
+  insuranceCoverage: 'liability amount',
+  insuranceCargoCoverage: 'cargo amount',
+};
+
+const isBlank = (v: unknown) => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
+
+/**
+ * What FMCSA could fill in on this carrier without overwriting anything:
+ * only the fields that are blank on our record. Something a broker typed is
+ * never replaced — it may well be newer than what the carrier registered.
+ */
+function blankFills(carrier: Carrier, check: FmcsaCheck): Partial<Carrier> {
+  if (!check.found) return {};
+  const f = fmcsaCarrierFill(check, check.lookedUpBy, check.query);
+  const out: Partial<Carrier> = {};
+  if (isBlank(carrier.phone) && f.phone) {
+    out.phone = f.phone;
+    if (f.phoneRegion) out.phoneRegion = f.phoneRegion;
+  }
+  if (isBlank(carrier.email) && f.email) out.email = f.email;
+  if (isBlank(carrier.address) && f.address) out.address = f.address;
+  if (isBlank(carrier.insuranceProvider) && f.insuranceProvider) out.insuranceProvider = f.insuranceProvider;
+  if (isBlank(carrier.insurancePolicyNumber) && f.insurancePolicyNumber) out.insurancePolicyNumber = f.insurancePolicyNumber;
+  if (isBlank(carrier.insuranceCoverage) && f.insuranceCoverage !== null) out.insuranceCoverage = f.insuranceCoverage;
+  if (isBlank(carrier.insuranceCargoCoverage) && f.insuranceCargoCoverage !== null) out.insuranceCargoCoverage = f.insuranceCargoCoverage;
+  return out;
+}
 
 /** FMCSA's public page for the carrier, for anybody who wants the source. */
 function saferUrl(dot: string): string {
@@ -51,6 +91,8 @@ export default function FmcsaPanel({
   autoCheck = false,
   compact = false,
   onChecked,
+  carrier,
+  onFilled,
 }: {
   carrierId: string;
   check: FmcsaCheck | null | undefined;
@@ -61,8 +103,17 @@ export default function FmcsaPanel({
   compact?: boolean;
   /** A fresh answer, so the page holding the carrier can keep its copy current. */
   onChecked?: (check: FmcsaCheck) => void;
+  /**
+   * The carrier as saved, to offer filling its blank fields from FMCSA. Leave
+   * it out where the record is being edited, so a fill cannot race the form.
+   */
+  carrier?: Carrier;
+  /** The fields a fill wrote, so the page can show them without a re-read. */
+  onFilled?: (updates: Partial<Carrier>) => void;
 }) {
-  const { formatDateTime } = useDateFormatters();
+  const { formatDateTime, formatCalendarDate } = useDateFormatters();
+  const { can } = useAuth();
+  const [filling, setFilling] = useState(false);
   const [check, setCheck]     = useState<FmcsaCheck | null>(initial ?? null);
   const [running, setRunning] = useState(false);
   const [error, setError]     = useState('');
@@ -128,7 +179,25 @@ export default function FmcsaPanel({
     );
   }
 
-  const concerns = fmcsaConcerns(check, mc);
+  const concerns = fmcsaConcerns(check, mc, formatCalendarDate);
+  const reg = check.registry;
+  const fills = carrier && can('carriers.edit') ? blankFills(carrier, check) : {};
+  const fillNames = Object.keys(fills)
+    .map((k) => FILL_LABELS[k as keyof Carrier])
+    .filter(Boolean) as string[];
+
+  async function fillBlanks() {
+    setFilling(true);
+    setError('');
+    try {
+      await updateCarrier(carrierId, fills);
+      onFilled?.(fills);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not fill in the carrier details.');
+    } finally {
+      setFilling(false);
+    }
+  }
   const level = fmcsaLevel(concerns);
   const style = LEVEL_STYLE[level];
   const { Icon } = style;
@@ -174,6 +243,19 @@ export default function FmcsaPanel({
         <p className="text-sm text-green-800">
           Authorized to operate, operating authority active and liability insurance on file.
         </p>
+      )}
+
+      {fillNames.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-white border border-gray-200 px-3 py-2">
+          <p className="text-xs text-gray-700 flex-1 min-w-[12rem]">
+            FMCSA has the {fillNames.join(', ')} this carrier is missing.
+          </p>
+          <button type="button" onClick={fillBlanks} disabled={filling}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
+            <Download className="w-3.5 h-3.5" />
+            {filling ? 'Filling in…' : 'Fill in from FMCSA'}
+          </button>
+        </div>
       )}
 
       {check.found && compact && (
@@ -249,9 +331,65 @@ export default function FmcsaPanel({
               Driver {fmcsaRate(check.driverOosRate)} <span className="text-gray-500">(avg {fmcsaRate(check.driverOosNational)})</span>
             </p>
           </div>
+          {reg && (
+            <>
+              <div>
+                <p className={labelCls}>Registered Phone</p>
+                <p className="text-gray-900">{reg.phone || reg.cellPhone || '—'}</p>
+                {reg.phone && reg.cellPhone && <p className="text-xs text-gray-500">Cell {reg.cellPhone}</p>}
+              </div>
+              <div className="min-w-0">
+                <p className={labelCls}>Registered Email</p>
+                <p className="text-gray-900 truncate">{reg.email || '—'}</p>
+              </div>
+              <div>
+                <p className={labelCls}>Company Officer</p>
+                <p className="text-gray-900">{reg.officer || '—'}</p>
+              </div>
+              <div className="sm:col-span-3">
+                <p className={labelCls}>Insurance Filed with FMCSA</p>
+                {reg.policies.length === 0 ? (
+                  <p className="text-gray-900">None on file</p>
+                ) : (
+                  <ul className="space-y-0.5">
+                    {reg.policies.map((p) => (
+                      <li key={`${p.kind}|${p.company}|${p.policyNo}|${p.effectiveDate}`} className="text-gray-900">
+                        <span className="font-medium">{INSURANCE_KIND_LABEL[p.kind]}{p.excess && ' (excess)'}</span>
+                        {' — '}{p.company || 'Unnamed insurer'}
+                        {p.policyNo && <span className="text-gray-500"> · policy {p.policyNo}</span>}
+                        {p.amount > 0 && <span className="text-gray-500"> · {formatCoverage(p.amount)}</span>}
+                        {p.effectiveDate && <span className="text-gray-500"> · since {formatCalendarDate(p.effectiveDate)}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              {reg.cargoTypes.length > 0 && (
+                <div className="sm:col-span-3">
+                  <p className={labelCls}>Hauls</p>
+                  <p className="text-gray-900">{reg.cargoTypes.join(' · ')}</p>
+                </div>
+              )}
+              <div>
+                <p className={labelCls}>Registration Updated</p>
+                <p className="text-gray-900">{reg.mcs150Date ? formatCalendarDate(reg.mcs150Date) : '—'}</p>
+              </div>
+              {reg.mailingAddress && (
+                <div className="sm:col-span-2">
+                  <p className={labelCls}>Mailing Address</p>
+                  <p className="text-gray-900">{reg.mailingAddress}</p>
+                </div>
+              )}
+            </>
+          )}
           <p className="sm:col-span-3 text-xs text-gray-500">
-            FMCSA shows whether insurance is on file, not the insurer or the expiry date — the
-            certificate details on this carrier are still the ones to keep current.
+            {reg
+              ? <>Phone, email and insurance are what the carrier registered with FMCSA, from FMCSA&apos;s
+                  daily data (as of {formatCalendarDate(reg.asOf)}). Amounts are what was filed, which can be
+                  less than the certificate&apos;s limit, and FMCSA keeps no expiry date — the certificate
+                  details on this carrier are still the ones to keep current.</>
+              : <>FMCSA shows whether insurance is on file, not the insurer or the expiry date — the
+                  certificate details on this carrier are still the ones to keep current.</>}
           </p>
         </div>
       )}

@@ -98,7 +98,13 @@ export default function NewCarrierPage() {
 
       <form onSubmit={handleSubmit} className="space-y-8">
         <FmcsaLookupBox
-          onFill={(f) => { setCompanyName(f.companyName); setDot(f.dot); setMc(f.mc); setAddress(f.address); }}
+          onFill={(f) => {
+            setCompanyName(f.companyName); setDot(f.dot); setMc(f.mc); setAddress(f.address);
+            setPhone(f.phone); setPhoneRegion(f.phoneRegion); setEmail(f.email);
+            setInsProvider(f.insuranceProvider); setInsPolicyNo(f.insurancePolicyNumber);
+            setInsCoverage(f.insuranceCoverage === null ? '' : String(f.insuranceCoverage));
+            setInsCargo(f.insuranceCargoCoverage === null ? '' : String(f.insuranceCargoCoverage));
+          }}
           renderExisting={(c) => (
             <Link href={`/dashboard/carriers/${c.id}`}
               className="inline-flex px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition">

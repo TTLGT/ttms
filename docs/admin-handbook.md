@@ -1235,6 +1235,10 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
   that form asks for is only used to make the key — keep it in the IT Drive
   folder, not in `.env.local`. Without the key, the check says it isn't set up
   and nothing else is affected.
+  The phone, email and insurer details come from FMCSA's open data, which needs
+  no key at all. `DOT_DATA_APP_TOKEN` is an optional free token from
+  data.transportation.gov that stops those lookups being slowed down when the
+  site is busy; leave it out unless they start failing.
 
 - `GOOGLE_MAPS_API_KEY` is **optional and costs money**. Leave it blank unless
   someone has decided to pay for exact mileage. Orders work fine without it —

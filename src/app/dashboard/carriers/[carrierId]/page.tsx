@@ -314,6 +314,14 @@ export default function CarrierDetailPage() {
             dot={carrier.dot ?? ''}
             mc={carrier.mc ?? ''}
             onChecked={(fmcsa) => setCarrier((prev) => (prev ? { ...prev, fmcsa } : prev))}
+            carrier={editing ? undefined : carrier}
+            onFilled={(updates) => {
+              const next = { ...carrier, ...updates };
+              setCarrier(next);
+              // The edit boxes are filled from these, and would otherwise
+              // open on the blanks the fill just replaced.
+              syncFields(next);
+            }}
           />
           {/* Company Info */}
           <section className="bg-white rounded-xl border border-gray-200 p-6">

@@ -1,4 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
+import type { PhoneRegion } from '@/lib/phone';
+import { isPhoneRegion } from '@/lib/phone';
 
 /**
  * What FMCSA said about a carrier the last time somebody looked, stored on the
@@ -79,6 +81,97 @@ export interface FmcsaCheck {
    */
   street?: string;
   zip?: string;
+  /**
+   * What FMCSA's daily open data adds to the live lookup: the registered
+   * phone and email, the insurers and policies on file, pending
+   * cancellations and suspension notices. Absent on checks made before it
+   * existed, and null when the open data could not be reached — the live
+   * answer above still stands on its own, so a check is never failed for it.
+   */
+  registry?: FmcsaRegistry | null;
+}
+
+export type FmcsaInsuranceKind = 'liability' | 'cargo' | 'bond' | 'other';
+
+export interface FmcsaPolicy {
+  kind: FmcsaInsuranceKind;
+  /** Excess (umbrella) liability over a primary policy, rather than the primary. */
+  excess: boolean;
+  company: string;
+  /** '' when FMCSA has none, which is what a self-insured carrier files. */
+  policyNo: string;
+  /** YYYY-MM-DD. */
+  effectiveDate: string;
+  /** Whole dollars, as filed — not necessarily the whole limit on the certificate. */
+  amount: number;
+}
+
+export interface FmcsaPendingCancellation {
+  kind: FmcsaInsuranceKind;
+  company: string;
+  policyNo: string;
+  /** YYYY-MM-DD the policy stops covering. */
+  cancelDate: string;
+  /** True when another current policy of the same kind will still be on file. */
+  replaced: boolean;
+}
+
+export interface FmcsaSuspension {
+  /** "Motor Carrier of Property (Except Household Goods)", as FMCSA words it. */
+  authorityType: string;
+  /** "Operating Authority Involuntary Suspension Notice", as FMCSA words it. */
+  notice: string;
+  /** YYYY-MM-DD. */
+  servedDate: string;
+  /** YYYY-MM-DD the suspension takes, or took, effect. */
+  effectiveDate: string;
+  involuntary: boolean;
+}
+
+/**
+ * FMCSA's registration data as published to data.transportation.gov. Since
+ * May 2026 this is what carriers file in Motus; it refreshes once a day, so
+ * it can be a day behind the live lookup.
+ */
+export interface FmcsaRegistry {
+  /** Office-day the open data was read, YYYY-MM-DD. */
+  asOf: string;
+  phone: string;
+  cellPhone: string;
+  fax: string;
+  email: string;
+  /** FMCSA's "company officer" — usually the owner. */
+  officer: string;
+  /** 'US', 'CA', 'MX' — the physical address's country, for the phone's country. */
+  country: string;
+  mailingAddress: string;
+  /** YYYY-MM-DD of the last MCS-150 update, '' when unknown. */
+  mcs150Date: string;
+  /** What the carrier says it hauls: "General Freight", "Refrigerated Food"… */
+  cargoTypes: string[];
+  /** Policies on file now, cancelled ones already removed. */
+  policies: FmcsaPolicy[];
+  pendingCancellations: FmcsaPendingCancellation[];
+  /** Suspension notices with an effective date in the last year or still ahead. */
+  suspensions: FmcsaSuspension[];
+}
+
+export const INSURANCE_KIND_LABEL: Record<FmcsaInsuranceKind, string> = {
+  liability: 'Liability',
+  cargo: 'Cargo',
+  bond: 'Bond',
+  other: 'Other',
+};
+
+/**
+ * The policy that answers "who insures this carrier": the newest primary
+ * liability policy, or the newest excess one when there is no primary.
+ */
+export function primaryPolicy(r: FmcsaRegistry | null | undefined, kind: FmcsaInsuranceKind): FmcsaPolicy | null {
+  const of = (r?.policies ?? []).filter((p) => p.kind === kind);
+  const primary = of.filter((p) => !p.excess);
+  const pool = primary.length ? primary : of;
+  return [...pool].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0] ?? null;
 }
 
 export type FmcsaLevel = 'ok' | 'warn' | 'bad';
@@ -128,7 +221,18 @@ export function fmcsaDollars(thousands: number): string {
 /** FMCSA's answer without who asked or when — a lookup before it is filed. */
 export type FmcsaAnswer = Omit<FmcsaCheck, 'checkedAt' | 'checkedByName'>;
 
-export function fmcsaConcerns(c: FmcsaAnswer, ourMc?: string): FmcsaConcern[] {
+/** Today as YYYY-MM-DD in office time (UTC−6, no daylight saving), like the rest of TTMS. */
+export function officeDay(now = Date.now()): string {
+  return new Date(now - 6 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+export function fmcsaConcerns(
+  c: FmcsaAnswer,
+  ourMc?: string,
+  /** How a YYYY-MM-DD date is written in a sentence — the company date format. */
+  formatDay: (iso: string) => string = (iso) => iso,
+  today: string = officeDay(),
+): FmcsaConcern[] {
   const out: FmcsaConcern[] = [];
   if (!c.found) {
     out.push({ level: 'bad', text: `FMCSA has no carrier under ${c.lookedUpBy.toUpperCase()} ${c.query}.` });
@@ -175,6 +279,43 @@ export function fmcsaConcerns(c: FmcsaAnswer, ourMc?: string): FmcsaConcern[] {
   }
 
   if (c.mcs150Outdated === 'Y') out.push({ level: 'warn', text: 'Registration (MCS-150) is out of date.' });
+
+  const reg = c.registry;
+  for (const p of reg?.pendingCancellations ?? []) {
+    if (p.replaced) continue;
+    const what = `${INSURANCE_KIND_LABEL[p.kind]} insurance with ${p.company || 'its insurer'}`;
+    out.push({
+      level: p.kind === 'liability' ? 'bad' : 'warn',
+      text: `${what} is being cancelled on ${formatDay(p.cancelDate)}, and no replacement is on file.`,
+    });
+  }
+  // A suspension notice nearly always means the insurance filing lapsed, and
+  // a new liability filing after the notice was served usually cures it —
+  // which is why a notice that is still ahead drops to a warning once one is
+  // on file. Whether it was cured is FMCSA's to say, so the text sends the
+  // broker to SAFER rather than guessing.
+  const liabilitySince = (day: string) =>
+    (reg?.policies ?? []).find((p) => p.kind === 'liability' && p.effectiveDate >= day);
+  for (const s of reg?.suspensions ?? []) {
+    if (!s.involuntary) continue;
+    const refiled = liabilitySince(s.servedDate);
+    if (s.effectiveDate >= today) {
+      out.push(refiled
+        ? {
+            level: 'warn',
+            text: `Suspension notice served ${formatDay(s.servedDate)}, taking effect ${formatDay(s.effectiveDate)}. New liability insurance was filed ${formatDay(refiled.effectiveDate)}, which usually clears it — confirm on SAFER.`,
+          }
+        : {
+            level: 'bad',
+            text: `Suspension notice served ${formatDay(s.servedDate)}: authority will be suspended on ${formatDay(s.effectiveDate)} unless the carrier fixes it.`,
+          });
+    } else {
+      out.push({
+        level: 'warn',
+        text: `Had a suspension notice for ${formatDay(s.effectiveDate)} in the past year — usually a lapse in insurance.`,
+      });
+    }
+  }
 
   if (c.vehicleInspections >= MIN_INSPECTIONS_FOR_RATE && c.vehicleOosNational > 0
       && c.vehicleOosRate > c.vehicleOosNational * OOS_RATE_MARGIN) {
@@ -226,4 +367,49 @@ export function safetyRatingLabel(code: string): string {
 export function fmcsaAddress(c: Pick<FmcsaCheck, 'street' | 'city' | 'state' | 'zip'>): string {
   const cityState = [c.city, [c.state, c.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
   return [c.street, cityState].filter(Boolean).join(', ');
+}
+
+/**
+ * The carrier details an FMCSA answer can fill in. Everything here is a field
+ * the broker could have typed and can still change: it is a starting point,
+ * not a record of FMCSA's, which is what `fmcsa` itself is.
+ *
+ * The liability figure is the amount *filed* with FMCSA (often the $750,000
+ * legal minimum), which can be less than the limit on the certificate. It is
+ * still better than a blank, and the certificate is where the real one is
+ * read from.
+ */
+export interface FmcsaCarrierFill {
+  companyName: string;
+  dot: string;
+  mc: string;
+  address: string;
+  phone: string;
+  phoneRegion: PhoneRegion | undefined;
+  email: string;
+  insuranceProvider: string;
+  insurancePolicyNumber: string;
+  insuranceCoverage: number | null;
+  insuranceCargoCoverage: number | null;
+}
+
+export function fmcsaCarrierFill(a: FmcsaAnswer, kind: 'dot' | 'mc', typed: string): FmcsaCarrierFill {
+  const r = a.registry;
+  const liability = primaryPolicy(r, 'liability');
+  const cargo = primaryPolicy(r, 'cargo');
+  return {
+    companyName: a.legalName,
+    dot: a.dotNumber || (kind === 'dot' ? typed : ''),
+    // The MC the broker typed when they typed one: a company can hold several
+    // dockets, and the one on the rate confirmation is the one they meant.
+    mc: kind === 'mc' ? typed : (a.docketNumbers[0] ?? ''),
+    address: fmcsaAddress(a),
+    phone: r?.phone || r?.cellPhone || '',
+    phoneRegion: r && isPhoneRegion(r.country) ? r.country : undefined,
+    email: r?.email ?? '',
+    insuranceProvider: liability?.company ?? '',
+    insurancePolicyNumber: liability?.policyNo ?? '',
+    insuranceCoverage: liability && liability.amount > 0 ? liability.amount : null,
+    insuranceCargoCoverage: cargo && cargo.amount > 0 ? cargo.amount : null,
+  };
 }
