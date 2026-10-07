@@ -597,12 +597,28 @@ export interface PersonalTask {
   status: TaskStatus;
   priority: TaskPriority;
   color: TaskColor;
-  /** `YYYY-MM-DD`. When a task is due; the day of an event. */
+  /**
+   * `YYYY-MM-DD`. When a task is planned to be worked on — the day it sits on
+   * the calendar, the day its reminders count from and its repeats step from;
+   * the day of an event. Not the deadline: that is `dueDate`, kept apart so
+   * "do it Tuesday, due Friday" can be said. A task saved before the two were
+   * separate has only this, and it still counts as the deadline (`deadlineOf()`).
+   */
   date: string | null;
-  /** `HH:MM`, 24-hour. Optional on both kinds. */
+  /** `HH:MM`, 24-hour. Optional on both kinds. The planned time, beside `date`. */
   time: string | null;
   /** `HH:MM`. Events only. */
   endTime: string | null;
+  /**
+   * `YYYY-MM-DD`, the deadline. Tasks only — null on an event, and on any
+   * task with no deadline of its own, which then answers to its planned day.
+   * Drives overdue, the queue's order, Up next and game-mode penalties
+   * (always through `deadlineOf()`); never the calendar or the reminders,
+   * which follow the plan.
+   */
+  dueDate: string | null;
+  /** `HH:MM`, the time on the deadline. Null without a `dueDate`. */
+  dueTime: string | null;
   /** Events only; 'other' on a task, where it means nothing. */
   eventType: EventType;
   /** Where, or the meeting link. Free text; drawn as a link only when it is one. */
@@ -729,7 +745,7 @@ export function outcomeOf(t: Pick<PersonalTask, 'kind' | 'status' | 'outcome'>):
 
 /** What can be written. Everything else on a task is set by the server. */
 export type PersonalTaskInput = Partial<Pick<PersonalTask,
-  'kind' | 'title' | 'notes' | 'status' | 'priority' | 'color' | 'date' | 'time' | 'endTime' | 'order'
+  'kind' | 'title' | 'notes' | 'status' | 'priority' | 'color' | 'date' | 'time' | 'endTime' | 'dueDate' | 'dueTime' | 'order'
   | 'eventType' | 'location' | 'reminders' | 'repeat' | 'repeatWeekday' | 'repeatNths' | 'repeatUntil'
   | 'suggestionId' | 'steps' | 'rank' | 'contacts' | 'orders' | 'outcome'>>;
 
@@ -778,7 +794,9 @@ export function belongsInHistory(t: PersonalTask, cutoff: string): boolean {
   if (t.status !== 'done') return false;
   // A repeating task that has not made its next copy would stop repeating.
   if (t.repeat !== 'none' && !t.nextId) return false;
-  if (t.date) return t.date < cutoff;
+  // By the later of its two days, so a deadline still ahead keeps it in the list.
+  const day = [t.date, t.dueDate].filter(Boolean).sort().pop();
+  if (day) return day < cutoff;
   // Undated: by when it was closed, and only once it is off the board too.
   return t.archived && !!t.doneAt && t.doneAt.slice(0, 10) < cutoff;
 }
@@ -815,10 +833,13 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   if (oneOf(TASK_PRIORITIES, b.priority)) out.priority = b.priority;
   if (oneOf(TASK_COLORS, b.color)) out.color = b.color;
 
-  if (b.date === null || b.date === '') out.date = null;
-  else if (typeof b.date === 'string' && isRealDate(b.date)) out.date = b.date;
+  for (const key of ['date', 'dueDate'] as const) {
+    const v = b[key];
+    if (v === null || v === '') out[key] = null;
+    else if (typeof v === 'string' && isRealDate(v)) out[key] = v;
+  }
 
-  for (const key of ['time', 'endTime'] as const) {
+  for (const key of ['time', 'endTime', 'dueTime'] as const) {
     const v = b[key];
     if (v === null || v === '') out[key] = null;
     else if (typeof v === 'string' && TIME_RE.test(v)) out[key] = v;
@@ -851,6 +872,28 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   return out;
 }
 
+/**
+ * The deadline that counts: the task's own `dueDate` when it has one, and
+ * otherwise its planned day. The fallback is what keeps a task saved before
+ * the two were separate behaving as it always did — its one date was labelled
+ * "Due" — and it means a planned task with no deadline still goes overdue once
+ * its day has gone by, as a missed planning slot must (see `isLapsedPlanning()`).
+ *
+ * Everything that asks "is it late?" or "what is due soonest?" goes through
+ * this; nothing that places a task on the calendar does.
+ */
+export function deadlineOf(
+  t: Pick<PersonalTask, 'date' | 'time'> & Partial<Pick<PersonalTask, 'dueDate' | 'dueTime'>>,
+): { date: string; time: string | null } | null {
+  if (t.dueDate) return { date: t.dueDate, time: t.dueTime ?? null };
+  return t.date ? { date: t.date, time: t.time } : null;
+}
+
+/** Just the day of `deadlineOf()`, for code that has no use for the time. */
+export function deadlineDay(t: Pick<PersonalTask, 'date'> & Partial<Pick<PersonalTask, 'dueDate'>>): string | null {
+  return t.dueDate || t.date || null;
+}
+
 /* ------------------------------------------------------------------ queue */
 
 /**
@@ -864,10 +907,12 @@ export function byQueue(a: PersonalTask, b: PersonalTask): number {
     if (b.rank === null) return -1;
     if (a.rank !== b.rank) return a.rank - b.rank;
   }
-  if (a.date !== b.date) {
-    if (!a.date) return 1;
-    if (!b.date) return -1;
-    return a.date.localeCompare(b.date);
+  const da = deadlineOf(a)?.date ?? null;
+  const db = deadlineOf(b)?.date ?? null;
+  if (da !== db) {
+    if (!da) return 1;
+    if (!db) return -1;
+    return da.localeCompare(db);
   }
   return byTime(a, b);
 }
@@ -887,13 +932,13 @@ export function taskQueue(tasks: PersonalTask[]): PersonalTask[] {
  */
 export function upNextTask(tasks: PersonalTask[]): PersonalTask | null {
   const queue = taskQueue(tasks);
-  const dated = queue.filter((t) => t.date);
+  const dated = queue.map((t) => ({ t, due: deadlineOf(t) })).filter((x) => x.due);
   if (dated.length === 0) return queue[0] ?? null;
   const position = new Map(queue.map((t, i) => [t.id, i]));
-  return [...dated].sort((a, b) =>
-    a.date!.localeCompare(b.date!)
-    || (a.time && b.time ? a.time.localeCompare(b.time) : a.time ? -1 : b.time ? 1 : 0)
-    || position.get(a.id)! - position.get(b.id)!)[0];
+  return [...dated].sort(({ t: a, due: x }, { t: b, due: y }) =>
+    x!.date.localeCompare(y!.date)
+    || (x!.time && y!.time ? x!.time.localeCompare(y!.time) : x!.time ? -1 : y!.time ? 1 : 0)
+    || position.get(a.id)! - position.get(b.id)!)[0].t;
 }
 
 /** The first step not yet ticked, or null when there is none left (or none at all). */
@@ -956,9 +1001,10 @@ export function calendarToday(): string {
   return officeToday();
 }
 
-/** Open, dated, and the date has passed. Events are never overdue. */
+/** Open, and its deadline (see `deadlineOf()`) has passed. Events are never overdue. */
 export function isOverdue(t: PersonalTask, today: string): boolean {
-  return t.kind === 'task' && t.status !== 'done' && !!t.date && t.date < today;
+  const due = deadlineOf(t);
+  return t.kind === 'task' && t.status !== 'done' && !!due && due.date < today;
 }
 
 /**

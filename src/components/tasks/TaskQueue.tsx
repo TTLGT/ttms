@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { CalendarDays, Check, ChevronDown, ChevronUp, Crosshair, ListChecks, Plus, Zap } from 'lucide-react';
+import { CalendarClock, CalendarDays, Check, ChevronDown, ChevronUp, Crosshair, ListChecks, Plus, Zap } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { daysBetween } from '@/types/taskGame';
-import { TASK_PRIORITY_LABEL, formatTime, type PersonalTask } from '@/types/task';
+import { TASK_PRIORITY_LABEL, formatTime, timeRange, type PersonalTask } from '@/types/task';
 import { PRIORITY_STYLE } from './taskStyle';
 import XpBadge from './XpBadge';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
@@ -175,7 +175,7 @@ function QueueRow({
               <ListChecks size={12} /> {stepsDone}/{task.steps.length} {skin.steps}
             </span>
           )}
-          {task.date && <DueChip date={task.date} time={task.time} today={today} />}
+          <TaskWhen task={task} today={today} />
           {task.priority !== 'normal' && (
             <span className={`rounded px-1.5 py-0.5 text-[11px] ${PRIORITY_STYLE[task.priority]}`}>
               {TASK_PRIORITY_LABEL[task.priority]}
@@ -244,5 +244,52 @@ export function DueChip({ date, time, today, label, className = '' }: {
     <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ${tone} ${className}`}>
       <CalendarDays size={10} /> {label && `${label} · `}{text}
     </span>
+  );
+}
+
+/**
+ * When a task is planned for, said the way somebody would: "Today 9:00 AM",
+ * "Tomorrow", "In 3d", and the date itself past a week. Blue, so it never
+ * reads as a deadline beside the DueChip.
+ *
+ * A planned day that has gone by is red and "overdue" only when the task has
+ * no deadline of its own, because then the planned day is the deadline (see
+ * deadlineOf()). With a deadline still ahead, missing the plan is just late
+ * to start, and says so quietly.
+ */
+export function PlanChip({ task, today, className = '' }: {
+  task: Pick<PersonalTask, 'date' | 'time' | 'endTime' | 'dueDate'>;
+  today: string;
+  className?: string;
+}) {
+  const { formatCalendarDate } = useDateFormatters();
+  if (!task.date) return null;
+  const days = daysBetween(today, task.date);
+  const at = task.time ? ` ${timeRange(task)}` : '';
+  const [tone, text] = days < 0
+    ? (task.dueDate
+      ? ['bg-gray-100 text-gray-600', `Planned ${-days}d ago`]
+      : ['bg-red-50 text-red-700', `${-days}d overdue`])
+    : days === 0 ? ['bg-sky-50 text-sky-700', `Today${at}`]
+    : days === 1 ? ['bg-sky-50 text-sky-700', `Tomorrow${at}`]
+    : days <= 7 ? ['bg-sky-50 text-sky-700', `In ${days}d${at}`]
+    : ['bg-sky-50 text-sky-700', `${formatCalendarDate(task.date)}${at}`];
+  return (
+    <span title="Planned for" className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ${tone} ${className}`}>
+      <CalendarClock size={10} /> {text}
+    </span>
+  );
+}
+
+/** Both of a task's dates as chips: when it is planned for, then when it is due. Either may be absent. */
+export function TaskWhen({ task, today }: {
+  task: Pick<PersonalTask, 'date' | 'time' | 'endTime' | 'dueDate' | 'dueTime'>;
+  today: string;
+}) {
+  return (
+    <>
+      <PlanChip task={task} today={today} />
+      {task.dueDate && <DueChip date={task.dueDate} time={task.dueTime} today={today} />}
+    </>
   );
 }

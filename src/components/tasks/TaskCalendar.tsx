@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react';
-import { Bell, Check, ChevronLeft, ChevronRight, ExternalLink, Maximize2, Minimize2, Plus, X } from 'lucide-react';
+import { Bell, Check, Flag, ChevronLeft, ChevronRight, ExternalLink, Maximize2, Minimize2, Plus, X } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   EVENT_TYPE_LABEL,
@@ -223,6 +223,20 @@ export default function TaskCalendar({
     return map;
   }, [items, rangeFrom, rangeTo]);
 
+  // Deadlines, as a marker on their own day. A task sits on the calendar on
+  // the day it is planned for; when it is due on a different day (or has no
+  // planned day at all) the deadline would otherwise be nowhere on screen.
+  // Open tasks only — a finished one has no deadline left to meet.
+  const dueByDay = useMemo(() => {
+    const map = new Map<string, PersonalTask[]>();
+    for (const t of items) {
+      if (t.kind !== 'task' || t.status === 'done' || !t.dueDate || t.dueDate === t.date) continue;
+      if (t.dueDate < rangeFrom || t.dueDate > rangeTo) continue;
+      map.set(t.dueDate, [...(map.get(t.dueDate) ?? []), t]);
+    }
+    return map;
+  }, [items, rangeFrom, rangeTo]);
+
   const first  = new Date(Date.UTC(cursor.year, cursor.month - 1, 1));
   const lead   = first.getUTCDay();
   const daysIn = new Date(Date.UTC(cursor.year, cursor.month, 0)).getUTCDate();
@@ -364,10 +378,27 @@ export default function TaskCalendar({
     );
   };
 
+  /** A deadline marker: opens the task, and is not dragged — the task is moved by its planned day. */
+  const dueChip = (t: PersonalTask) => (
+    <button
+      key={`due-${t.id}`}
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onOpen(t); }}
+      title={`Due: ${t.title}${t.dueTime ? ` at ${formatTime(t.dueTime)}` : ''}`}
+      className={`flex w-full items-center gap-1 truncate rounded border border-dashed px-1.5 py-0.5 text-left text-[11px] font-medium ${
+        isOverdue(t, today) ? 'border-red-300 bg-red-50 text-red-700' : 'border-amber-300 bg-amber-50 text-amber-700'
+      }`}
+    >
+      <Flag size={10} className="flex-shrink-0" />
+      <span className="truncate">Due: {t.title}</span>
+    </button>
+  );
+
   /** Everything on a day, in layer order. */
   const dayContents = (date: string, roomy: boolean) => [
     ...holidaysOn(date).map(holidayChip),
     ...(celebrationsOn?.(date) ?? []).map(occurrenceChip),
+    ...(dueByDay.get(date) ?? []).map(dueChip),
     ...(byDay.get(date) ?? []).map((t) => itemChip(t, roomy, date)),
   ];
 
@@ -382,7 +413,8 @@ export default function TaskCalendar({
   // Beside the month only: the week view already is this list, drawn wide.
   const selectedWeek = Array.from({ length: 7 }, (_, i) => addDays(weekStartOf(selected), i));
   const weekHas = (d: string) =>
-    (byDay.get(d) ?? []).length > 0 || holidaysOn(d).length > 0 || (celebrationsOn?.(d) ?? []).length > 0;
+    (byDay.get(d) ?? []).length > 0 || (dueByDay.get(d) ?? []).length > 0
+    || holidaysOn(d).length > 0 || (celebrationsOn?.(d) ?? []).length > 0;
   const thisWeek = selectedWeek.filter(weekHas);
   const isCurrentWeek = weekStartOf(selected) === weekStartOf(today);
 
@@ -485,7 +517,11 @@ export default function TaskCalendar({
             selected={selected}
             items={items}
             itemsOn={(d) => byDay.get(d) ?? []}
-            extrasOn={(d) => [...holidaysOn(d).map(holidayChip), ...(celebrationsOn?.(d) ?? []).map(occurrenceChip)]}
+            extrasOn={(d) => [
+              ...holidaysOn(d).map(holidayChip),
+              ...(celebrationsOn?.(d) ?? []).map(occurrenceChip),
+              ...(dueByDay.get(d) ?? []).map(dueChip),
+            ]}
             untimedChip={(t, d) => itemChip(t, false, d)}
             onSelect={onSelect}
             onOpen={onOpen}
@@ -564,6 +600,7 @@ export default function TaskCalendar({
               holidays={holidaysOn(selected)}
               occurrences={celebrationsOn?.(selected) ?? []}
               items={byDay.get(selected) ?? []}
+              due={dueByDay.get(selected) ?? []}
               columns={columns}
               onOpen={onOpen}
               onUpdate={onUpdate}
@@ -608,6 +645,7 @@ export default function TaskCalendar({
                       holidays={holidaysOn(d)}
                       occurrences={celebrationsOn?.(d) ?? []}
                       items={byDay.get(d) ?? []}
+                      due={dueByDay.get(d) ?? []}
                       columns={columns}
                       onOpen={onOpen}
                       onUpdate={onUpdate}
@@ -649,6 +687,7 @@ function DayList({
   holidays,
   occurrences,
   items,
+  due,
   columns,
   onOpen,
   onUpdate,
@@ -657,6 +696,8 @@ function DayList({
   holidays: Holiday[];
   occurrences: CalendarOccurrence[];
   items: PersonalTask[];
+  /** Open tasks due this day but planned for another (or none). */
+  due: PersonalTask[];
   columns: BoardColumn[];
   onOpen: (task: PersonalTask) => void;
   onUpdate: (id: string, input: PersonalTaskInput) => void;
@@ -688,6 +729,18 @@ function DayList({
           </li>
         );
       })}
+
+      {due.map((t) => (
+        <li key={`due-${t.id}`} className="flex items-start gap-2">
+          <Flag size={16} className="mt-0.5 flex-shrink-0 text-amber-600" />
+          <button type="button" onClick={() => onOpen(t)} className="min-w-0 flex-1 text-left">
+            <span className="block text-sm text-gray-900 hover:underline">{t.title}</span>
+            <span className="block text-xs text-gray-500">
+              Due{t.dueTime ? ` by ${formatTime(t.dueTime)}` : ' this day'}{t.date ? '' : ' · not planned yet'}
+            </span>
+          </button>
+        </li>
+      ))}
 
       {items.map((t) => {
         const done = t.kind === 'task' && t.status === 'done';

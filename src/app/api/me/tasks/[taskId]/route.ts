@@ -51,13 +51,15 @@ export async function PATCH(
         const date = 'date' in input ? input.date ?? null : current.date;
         if (kind === 'event' && !date) throw new Refused('An event needs a date.', 400);
         const repeat = input.repeat ?? current.repeat;
-        if (repeat !== 'none' && !date) throw new Refused('A repeating task needs a due date.', 400);
+        if (repeat !== 'none' && !date) throw new Refused('A repeating task needs a planned date to repeat from.', 400);
 
         const update: Record<string, unknown> = { ...input, updatedAt: FieldValue.serverTimestamp() };
         // An event has nothing to finish and no end time is meaningful on a task;
         // turning one into the other tidies both rather than leaving stale fields.
         // An event repeats as a series rather than by copies — see TASK_REPEATS.
-        if (kind === 'event') { update.status = 'todo'; }
+        if (kind === 'event') { update.status = 'todo'; update.dueDate = null; update.dueTime = null; }
+        // A deadline time means nothing without its day.
+        if (kind === 'task' && !('dueDate' in input ? input.dueDate : current.dueDate)) update.dueTime = null;
         if (kind === 'task') { update.endTime = null; update.eventType = 'other'; }
         // Except a planning slot, which is a block of time: its end follows its
         // start, keeping the length the person chose on the planning card —

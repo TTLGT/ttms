@@ -99,6 +99,10 @@ export function toTask(snap: DocumentSnapshot): PersonalTask {
     date:      typeof d.date === 'string' ? d.date : null,
     time:      typeof d.time === 'string' ? d.time : null,
     endTime:   typeof d.endTime === 'string' ? d.endTime : null,
+    // Absent on everything saved before the deadline was its own field; such
+    // a task's one date still counts as its deadline — see deadlineOf().
+    dueDate:   d.kind !== 'event' && typeof d.dueDate === 'string' ? d.dueDate : null,
+    dueTime:   d.kind !== 'event' && typeof d.dueDate === 'string' && typeof d.dueTime === 'string' ? d.dueTime : null,
     // Items saved before events had types or reminders read as the plainest
     // version of each — which is what they were.
     eventType: pick(EVENT_TYPES, d.eventType, 'other'),
@@ -168,6 +172,10 @@ export function nextCopyData(t: PersonalTask, nextDate: string): DocumentData {
     time: t.time,
     // Only a planning slot keeps an end; the caller passes null for anything else.
     endTime: t.endTime,
+    // The deadline keeps its distance from the planned day — planned Tuesday,
+    // due Friday stays planned Tuesday, due Friday the next time round.
+    dueDate: t.dueDate && t.date ? addDays(t.dueDate, daysBetween(t.date, nextDate)) : t.dueDate,
+    dueTime: t.dueTime,
     eventType: 'other',
     location: t.location,
     reminders: t.reminders,

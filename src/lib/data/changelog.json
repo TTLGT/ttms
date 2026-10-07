@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "93ee88cb4d7c55d27a77e26516f69d89ea4bcd9c",
+      "date": "2026-10-07T12:55:28-06:00",
+      "author": "erwindank",
+      "subject": "Let the planning card rename the slot before adding it",
+      "body": "The title in the card's preview is now a text box. What is typed there\nis the task's title on the calendar, the board and the reminder; left\nblank, the kind's usual name is saved."
+    },
+    {
       "hash": "ef4a496388d90c3a1b3254a86a3736506b2545fe",
       "date": "2026-10-07T12:50:37-06:00",
       "author": "erwindank",

@@ -10,6 +10,7 @@ import {
   outcomeOf,
   repeatText,
   timeRange,
+  formatTime,
   isOverdue,
   placeOf,
   withStepToggled,
@@ -24,7 +25,7 @@ import { DueChip } from './TaskQueue';
 import { TaskContactsLine } from './TaskContacts';
 import { TaskOrdersLine } from './TaskOrders';
 
-type SortKey = 'title' | 'contact' | 'status' | 'priority' | 'date' | 'createdAt';
+type SortKey = 'title' | 'contact' | 'status' | 'priority' | 'date' | 'due' | 'createdAt';
 
 /**
  * The same tasks as rows, for somebody who wants to see everything at once
@@ -35,9 +36,11 @@ type SortKey = 'title' | 'contact' | 'status' | 'priority' | 'date' | 'createdAt
  * their own that tick in place. The title still opens the editor, and the
  * selects and boxes keep their own clicks. Which rows are open is not saved.
  *
- * Tasks with no due date sort after the dated ones either way round: "sort by
- * due date" is asking what is coming up, and forty undated rows first would
- * push the answer off the screen.
+ * Planned and Due are separate columns: when somebody means to work on it,
+ * and when it has to be done by. Tasks with no date in the column being
+ * sorted go after the dated ones either way round: "sort by due date" is
+ * asking what is coming up, and forty undated rows first would push the
+ * answer off the screen.
  */
 export default function TaskTable({
   tasks,
@@ -81,6 +84,11 @@ export default function TaskTable({
         if (!a.date !== !b.date) return a.date ? -1 : 1;
         const byDate = ((a.date ?? '') + (a.time ?? '')).localeCompare((b.date ?? '') + (b.time ?? ''));
         return byDate * dir || a.title.localeCompare(b.title);
+      }
+      if (key === 'due') {
+        if (!a.dueDate !== !b.dueDate) return a.dueDate ? -1 : 1;
+        const byDue = ((a.dueDate ?? '') + (a.dueTime ?? '')).localeCompare((b.dueDate ?? '') + (b.dueTime ?? ''));
+        return byDue * dir || a.title.localeCompare(b.title);
       }
       // Like the due date, tasks with nobody on them go last either way round.
       if (key === 'contact') {
@@ -126,7 +134,8 @@ export default function TaskTable({
             {header('contact', 'With')}
             {header('status', 'Status')}
             {header('priority', 'Priority')}
-            {header('date', 'Due')}
+            {header('date', 'Planned')}
+            {header('due', 'Due')}
             {header('createdAt', 'Added', 'hidden md:table-cell')}
           </tr>
         </thead>
@@ -218,15 +227,19 @@ export default function TaskTable({
                     {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{TASK_PRIORITY_LABEL[p]}</option>)}
                   </select>
                 </td>
-                <td className={`whitespace-nowrap px-3 py-2 ${isOverdue(t, today) ? 'font-medium text-red-700' : 'text-gray-700'}`}>
+                {/* Red goes on whichever date made it overdue: the deadline, or the planned day when there is none. */}
+                <td className={`whitespace-nowrap px-3 py-2 ${!t.dueDate && isOverdue(t, today) ? 'font-medium text-red-700' : 'text-gray-700'}`}>
                   {t.date ? `${formatCalendarDate(t.date)}${t.time ? ` ${timeRange(t)}` : ''}` : '—'}
+                </td>
+                <td className={`whitespace-nowrap px-3 py-2 ${t.dueDate && isOverdue(t, today) ? 'font-medium text-red-700' : 'text-gray-700'}`}>
+                  {t.dueDate ? `${formatCalendarDate(t.dueDate)}${t.dueTime ? ` ${formatTime(t.dueTime)}` : ''}` : '—'}
                 </td>
                 <td className="hidden whitespace-nowrap px-3 py-2 text-gray-500 md:table-cell">{formatDate(t.createdAt)}</td>
               </tr>
               {expanded && t.steps.map((st, n) => (
                 <tr key={st.id} className="bg-gray-50">
                   <td />
-                  <td colSpan={6} className="py-1.5 pl-8 pr-3">
+                  <td colSpan={7} className="py-1.5 pl-8 pr-3">
                     {/* The line down the left joins the steps to their task, as on the board. */}
                     <div className="flex items-center gap-2 border-l-2 border-gray-300 pl-3">
                       <button

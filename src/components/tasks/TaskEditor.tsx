@@ -113,6 +113,11 @@ export default function TaskEditor({
   const [date, setDate]           = useState(start.date ?? '');
   const [time, setTime]           = useState(start.time ?? '');
   const [endTime, setEndTime]     = useState(start.endTime ?? '');
+  // The deadline, apart from the planned day above. A task saved before the
+  // two were separate opens with none here, and its planned day still counts
+  // as the deadline until one is given (deadlineOf()).
+  const [dueDate, setDueDate]     = useState(start.dueDate ?? '');
+  const [dueTime, setDueTime]     = useState(start.dueTime ?? '');
   const [reminders, setReminders] = useState<TaskReminderLead[]>(start.reminders ?? []);
   const [repeat, setRepeat]       = useState<TaskRepeat>(start.repeat ?? 'none');
   // monthlyNth: the weekday and which of them. Seeded from the date when the
@@ -166,7 +171,7 @@ export default function TaskEditor({
     if (readOnly) return;
     if (!title.trim()) { setProblem('Give it a title.'); return; }
     if (kind === 'event' && !date) { setProblem('An event needs a date.'); return; }
-    if (kind === 'task' && repeat !== 'none' && !date) { setProblem('A repeating task needs a due date.'); return; }
+    if (kind === 'task' && repeat !== 'none' && !date) { setProblem('A repeating task needs a planned date to repeat from.'); return; }
     if (repeat === 'monthlyNth' && !nths.length) { setProblem('Pick at least one week of the month.'); return; }
     if (repeat !== 'none' && !repeatUntil) { setProblem('Pick the day it stops repeating. Nothing repeats for ever.'); return; }
     if (repeat !== 'none' && date && repeatUntil < date) { setProblem('It stops repeating before it starts.'); return; }
@@ -193,6 +198,8 @@ export default function TaskEditor({
       date: date || null,
       time: time || null,
       endTime: hasEnd ? (endTime || null) : null,
+      dueDate: kind === 'task' ? (dueDate || null) : null,
+      dueTime: kind === 'task' && dueDate ? (dueTime || null) : null,
       repeat,
       repeatWeekday: repeat === 'monthlyNth' ? nthWeekday : null,
       repeatNths: repeat === 'monthlyNth' ? nths : [],
@@ -300,8 +307,8 @@ export default function TaskEditor({
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
-              <span className={label}>{kind === 'event' ? 'Date' : 'Due date'}</span>
-              <DateField value={date} onChange={setDate} className={input} ariaLabel={kind === 'event' ? 'Date' : 'Due date'} />
+              <span className={label}>{kind === 'event' ? 'Date' : 'Planned for'}</span>
+              <DateField value={date} onChange={setDate} className={input} ariaLabel={kind === 'event' ? 'Date' : 'Planned date'} />
             </div>
             <div>
               <label className={label} htmlFor="task-time">{kind === 'event' ? 'Starts' : 'Time'}</label>
@@ -326,7 +333,24 @@ export default function TaskEditor({
               </div>
             )}
           </div>
-          <p className="-mt-2 text-xs text-gray-400">Times are Guatemala office time.</p>
+          {kind === 'task' && (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <span className={label}>Due by</span>
+                <DateField value={dueDate} onChange={setDueDate} className={input} ariaLabel="Due date" />
+              </div>
+              <div>
+                <label className={label} htmlFor="task-due-time">Due time</label>
+                <input id="task-due-time" type="time" value={dueTime} disabled={!dueDate}
+                  onChange={(e) => setDueTime(e.target.value)} className={`${input} disabled:opacity-50`} />
+              </div>
+            </div>
+          )}
+          <p className="-mt-2 text-xs text-gray-400">
+            {kind === 'task'
+              ? 'Planned is when you will work on it — it goes on your calendar and reminders count from it. Due is the deadline. With no due date, the planned day counts as the deadline. Times are Guatemala office time.'
+              : 'Times are Guatemala office time.'}
+          </p>
 
           {kind === 'event' && (
             <div>
@@ -371,7 +395,7 @@ export default function TaskEditor({
           {kind === 'task' && (
             <div>
               <span className={`${label} capitalize`}>{stepWords.many}</span>
-              <StepList steps={steps} onChange={setSteps} one={stepWords.one} many={stepWords.many} taskDate={date || null} />
+              <StepList steps={steps} onChange={setSteps} one={stepWords.one} many={stepWords.many} taskDate={dueDate || date || null} />
             </div>
           )}
 
@@ -379,7 +403,7 @@ export default function TaskEditor({
           <div>
             <span className={`${label} flex items-center gap-1`}><Bell size={12} /> Remind me</span>
             {!date ? (
-              <p className="text-xs text-gray-500">Give it a date to set a reminder.</p>
+              <p className="text-xs text-gray-500">{kind === 'task' ? 'Give it a planned date to set a reminder.' : 'Give it a date to set a reminder.'}</p>
             ) : (
               <>
                 <div className="flex flex-wrap gap-1.5">
@@ -476,7 +500,7 @@ export default function TaskEditor({
                   setRepeat(next);
                   // A month, offered every time a repeat is switched on.
                   if (next !== 'none' && !repeatUntil) setRepeatUntil(oneMonthAfter(date || calendarToday()));
-                  // A repeat counts on from the due date, so it needs one;
+                  // A repeat counts on from the planned date, so it needs one;
                   // today is the date somebody setting one up nearly always means.
                   if (next !== 'none' && !date) setDate(calendarToday());
                 }}
@@ -536,7 +560,7 @@ export default function TaskEditor({
               {repeat !== 'none' && (
                 <p className="mt-1.5 text-xs text-gray-500">
                   {kind === 'task'
-                    ? 'When you mark it Done, the next one is added to To do with its new due date.'
+                    ? 'When you mark it Done, the next one is added to To do with its new planned date, and its due date moves by the same amount.'
                     : 'It shows on every date in the series, starting from the date above. Changes and deleting apply to all of them.'}
                 </p>
               )}

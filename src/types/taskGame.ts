@@ -24,7 +24,7 @@
  */
 
 import { holidaysInYear } from './holidays';
-import type { PersonalTask, TaskPriority } from './task';
+import { deadlineDay, type PersonalTask, type TaskPriority } from './task';
 
 /* ------------------------------------------------------------------ levels */
 
@@ -207,11 +207,14 @@ export function lateShare(daysLate: number): number {
  * "+30 XP" beforehand, so the number on a card is the number that lands.
  */
 export function taskXp(
-  task: Pick<PersonalTask, 'priority' | 'date' | 'suggestionId'>,
+  task: Pick<PersonalTask, 'priority' | 'date' | 'suggestionId'> & Partial<Pick<PersonalTask, 'dueDate'>>,
   today: string,
 ): { xp: number; full: number; daysLate: number } {
   const full = TASK_XP[task.priority] + (task.suggestionId ? SUGGESTION_BONUS_XP : 0);
-  const daysLate = task.date ? Math.max(0, daysBetween(task.date, today)) : 0;
+  // Late against the deadline, not the planned day: doing Tuesday's planned
+  // work on Wednesday is not late when it is due Friday.
+  const due = deadlineDay(task);
+  const daysLate = due ? Math.max(0, daysBetween(due, today)) : 0;
   return { xp: daysLate > 0 ? Math.max(1, Math.round(full * lateShare(daysLate))) : full, full, daysLate };
 }
 
@@ -565,7 +568,7 @@ export class GameTurn {
    * on a weekend, a holiday or a day the person has off — a page opened on a
    * day off is not a day late.
    */
-  onNewDay(openTasks: Pick<PersonalTask, 'kind' | 'status' | 'date' | 'priority'>[]) {
+  onNewDay(openTasks: (Pick<PersonalTask, 'kind' | 'status' | 'date' | 'priority'> & Partial<Pick<PersonalTask, 'dueDate'>>)[]) {
     const s = this.state;
     if (!s.enabled || s.lastCheckDate === this.today) return;
     const charge = s.lastCheckDate !== null && isWorkingDay(this.today, this.offDays);
@@ -581,8 +584,9 @@ export class GameTurn {
       let penalty = 0;
       let late = 0;
       for (const t of openTasks) {
-        if (t.kind !== 'task' || t.status === 'done' || !t.date || t.date >= this.today) continue;
-        penalty += overduePenalty(t.priority, daysBetween(t.date, this.today));
+        const due = deadlineDay(t);
+        if (t.kind !== 'task' || t.status === 'done' || !due || due >= this.today) continue;
+        penalty += overduePenalty(t.priority, daysBetween(due, this.today));
         late++;
       }
       if (penalty > 0) this.award(-penalty, `${late} overdue task${late === 1 ? '' : 's'}`);
@@ -600,7 +604,7 @@ export class GameTurn {
    * not, or ticking one task on and off would finish every mission.
    */
   onTaskDone(
-    task: Pick<PersonalTask, 'title' | 'priority' | 'date' | 'suggestionId'>,
+    task: Pick<PersonalTask, 'title' | 'priority' | 'date' | 'suggestionId'> & Partial<Pick<PersonalTask, 'dueDate'>>,
     firstTime: boolean,
   ): number {
     const s = this.state;
@@ -617,7 +621,7 @@ export class GameTurn {
       s.tasksDone++;
       this.bump('done');
       if (task.priority === 'high') this.bump('high');
-      if (task.date && daysLate <= 0) this.bump('onTime');
+      if (deadlineDay(task) && daysLate <= 0) this.bump('onTime');
       if (task.suggestionId) this.bump('suggested');
       const week = this.state.weekly!;
       if (isWorkingDay(this.today, this.offDays) && !week.activeDates.includes(this.today)) {

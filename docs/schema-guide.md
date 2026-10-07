@@ -2087,8 +2087,14 @@ personalTasks/{uid}/items/{itemId}
                                    // cleared when another item is linked in its place
   priority  : 'low' | 'normal' | 'high'
   color     : 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'orange'
-  date      : 'YYYY-MM-DD' | null  // due date of a task; the day of an event
-  time      : 'HH:MM' | null       // office time (UTC−6)
+  date      : 'YYYY-MM-DD' | null  // the day a task is PLANNED for (calendar,
+                                   // reminders, repeats); the day of an event
+  time      : 'HH:MM' | null       // office time (UTC−6), the planned time
+  dueDate   : 'YYYY-MM-DD' | null  // a task's deadline, kept apart from `date`;
+                                   // null on events. Absent/null: `date` counts
+                                   // as the deadline (deadlineOf()) — overdue,
+                                   // queue order, Up next, game penalties
+  dueTime   : 'HH:MM' | null       // time on the deadline; null without dueDate
   endTime   : 'HH:MM' | null       // events, and planning slots (follows the start
                                    // when it moves, keeping the length); null on other tasks
   reminders : ('start' | '15m' | '1h' | '1d' | '1w')[]

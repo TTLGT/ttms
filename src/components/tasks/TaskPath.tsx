@@ -2,7 +2,7 @@
 
 import { Check, Crosshair, Flag, Zap } from 'lucide-react';
 import { nextStepOf, type PersonalTask, type PersonalTaskInput } from '@/types/task';
-import { DueChip } from './TaskQueue';
+import { DueChip, TaskWhen } from './TaskQueue';
 import { NOTE_STYLE } from './taskStyle';
 import XpBadge from './XpBadge';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
@@ -173,7 +173,7 @@ function PathCard({
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {task.date && <DueChip date={task.date} time={task.time} today={today} />}
+          <TaskWhen task={task} today={today} />
           {playing && <XpBadge task={task} today={today} theme={skin.id} />}
           {task.steps.length > 0 && (
             <span className="ml-auto text-[11px] font-medium text-gray-500">{done}/{task.steps.length} {skin.steps}</span>

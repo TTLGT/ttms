@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Check, Crosshair, Pencil, RotateCcw, StickyNote, Timer, Zap } from 'lucide-react';
 import { TASK_PRIORITY_LABEL, nextStepOf, type PersonalTask, type PersonalTaskInput, type TaskStep } from '@/types/task';
 import StepList from './StepList';
-import { DueChip } from './TaskQueue';
+import { TaskWhen } from './TaskQueue';
 import { PRIORITY_STYLE } from './taskStyle';
 import XpBadge from './XpBadge';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
@@ -113,7 +113,7 @@ export default function TaskFocus({
               {task.title}
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              {task.date && !finished && <DueChip date={task.date} time={task.time} today={today} />}
+              {!finished && <TaskWhen task={task} today={today} />}
               {task.priority !== 'normal' && (
                 <span className={`rounded px-1.5 py-0.5 text-[11px] ${PRIORITY_STYLE[task.priority]}`}>
                   {TASK_PRIORITY_LABEL[task.priority]} priority

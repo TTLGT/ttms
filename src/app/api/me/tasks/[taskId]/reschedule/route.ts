@@ -70,6 +70,8 @@ export async function POST(
         syncReminderQueue(tx, uid, null, taskId);
 
         tx.set(copyRef, {
+          // `dueDate` comes across untouched: rescheduling moves when it is
+          // planned, never when it is due.
           ...snap.data(),
           date: to.date,
           time,

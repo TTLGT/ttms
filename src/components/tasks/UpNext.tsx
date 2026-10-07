@@ -6,7 +6,7 @@ import type { PersonalTask } from '@/types/task';
 import { nextStepOf } from '@/types/task';
 import type { GameState } from '@/types/taskGame';
 import type { TaskStreak } from '@/types/taskStreak';
-import { DueChip } from './TaskQueue';
+import { DueChip, TaskWhen } from './TaskQueue';
 import XpBadge from './XpBadge';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
 
@@ -84,7 +84,7 @@ export function UpNextCard({
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
         {/* The step on show says when it is due; the task's own date stays beside it. */}
         {step?.date && <DueChip date={step.date} today={today} label={skin.step.charAt(0).toUpperCase() + skin.step.slice(1)} />}
-        {task.date && <DueChip date={task.date} time={task.time} today={today} />}
+        <TaskWhen task={task} today={today} />
         {task.steps.length > 0 && (
           <span className="inline-flex items-center gap-1">
             <ListChecks size={12} /> {stepsDone}/{task.steps.length} {skin.steps}

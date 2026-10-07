@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type DragEvent } from 'react';
-import { Bell, CalendarDays, Check, GripVertical, ListChecks, Plus, Repeat, StickyNote } from 'lucide-react';
+import { Bell, CalendarDays, Check, Flag, GripVertical, ListChecks, Plus, Repeat, StickyNote } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import OutcomeBadge from './OutcomeBadge';
 import {
@@ -10,6 +10,7 @@ import {
   outcomeOf,
   repeatText,
   timeRange,
+  formatTime,
   isOverdue,
   moveColumn,
   orderBetween,
@@ -314,11 +315,13 @@ function Card({
           <StickyNote size={10} className="mr-1 inline" />{task.notes}
         </p>
       )}
-      {(task.date || task.priority !== 'normal' || showXp || task.steps.length > 0) && (
+      {(task.date || task.dueDate || task.priority !== 'normal' || showXp || task.steps.length > 0) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 pl-[1.125rem]">
           {task.date && (
-            <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${
-              overdue ? 'bg-red-50 text-red-700' : task.date === today ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'
+            // The planned day. Red only when there is no deadline, which is
+            // when the planned day stands in for one (deadlineOf()).
+            <span title="Planned for" className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${
+              overdue && !task.dueDate ? 'bg-red-50 text-red-700' : task.date === today ? 'bg-sky-50 text-sky-700' : 'bg-gray-100 text-gray-600'
             }`}>
               <CalendarDays size={10} />
               {task.date === today ? 'Today' : formatCalendarDate(task.date)}
@@ -327,6 +330,15 @@ function Card({
                 <Bell size={10} className="ml-0.5" aria-label="Reminder set" />
               )}
               {task.repeat !== 'none' && <Repeat size={10} className="ml-0.5" aria-label={repeatText(task)}><title>{repeatText(task)}</title></Repeat>}
+            </span>
+          )}
+          {task.dueDate && (
+            <span title="Due by" className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${
+              overdue ? 'bg-red-50 text-red-700' : task.dueDate === today ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600'
+            }`}>
+              <Flag size={10} />
+              Due {task.dueDate === today ? 'today' : formatCalendarDate(task.dueDate)}
+              {task.dueTime && ` ${formatTime(task.dueTime)}`}
             </span>
           )}
           {task.priority !== 'normal' && (

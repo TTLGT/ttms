@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     }
     const repeat = input.repeat ?? 'none';
     if (repeat !== 'none' && !input.date) {
-      return NextResponse.json({ error: 'A repeating task needs a due date.' }, { status: 400 });
+      return NextResponse.json({ error: 'A repeating task needs a planned date to repeat from.' }, { status: 400 });
     }
     const repeating = {
       ...repeatFields(repeat, input.date ?? null, input),
@@ -107,6 +107,9 @@ export async function POST(req: NextRequest) {
       date:      input.date ?? null,
       time:      input.time ?? null,
       endTime:   kind === 'event' ? (input.endTime ?? null) : null,
+      // A deadline is a task's; an event simply happens on its day.
+      dueDate:   kind === 'task' ? (input.dueDate ?? null) : null,
+      dueTime:   kind === 'task' && input.dueDate ? (input.dueTime ?? null) : null,
       eventType: kind === 'event' ? (input.eventType ?? 'other') : 'other',
       location:  input.location ?? '',
       reminders: input.reminders ?? [],

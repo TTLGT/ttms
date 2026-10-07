@@ -9,6 +9,7 @@ import {
   outcomeOf,
   repeatText,
   timeRange,
+  formatTime,
   isOverdue,
   statusLabel,
   withStepToggled,
@@ -159,8 +160,13 @@ export default function TaskNotes({
                   ? <OutcomeBadge task={t} />
                   : <span>{statusLabel(columns, t.status)}</span>}
                 {t.date && (
-                  <span className={isOverdue(t, today) ? 'font-semibold text-red-700 opacity-100' : ''}>
+                  <span title="Planned for" className={!t.dueDate && isOverdue(t, today) ? 'font-semibold text-red-700 opacity-100' : ''}>
                     · {t.date === today ? 'Today' : formatCalendarDate(t.date)}{t.time && ` ${timeRange(t)}`}
+                  </span>
+                )}
+                {t.dueDate && (
+                  <span className={isOverdue(t, today) ? 'font-semibold text-red-700 opacity-100' : ''}>
+                    · Due {t.dueDate === today ? 'today' : formatCalendarDate(t.dueDate)}{t.dueTime && ` ${formatTime(t.dueTime)}`}
                   </span>
                 )}
                 {t.priority === 'high' && <span className="font-semibold">· High</span>}
