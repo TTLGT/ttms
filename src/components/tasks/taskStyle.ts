@@ -1,7 +1,11 @@
 import {
   CalendarClock, CornerUpRight, MapPin, PartyPopper, Phone, Users, Video, XCircle, type LucideIcon,
 } from 'lucide-react';
-import type { BuiltInTaskStatus, EventType, TaskColor, TaskOutcome, TaskPriority, TaskStatus } from '@/types/task';
+import {
+  EXTRA_COLORS,
+  type BaseColor, type BuiltInTaskStatus, type EventType, type ExtraColor, type TaskColor, type TaskOutcome,
+  type TaskPriority, type TaskStatus,
+} from '@/types/task';
 
 /**
  * Sticky-note colours as plain Tailwind families. Every one of them is mapped
@@ -20,7 +24,7 @@ import type { BuiltInTaskStatus, EventType, TaskColor, TaskOutcome, TaskPriority
  * Written out in full, never assembled from the family name: Tailwind only
  * generates classes it can find spelled out in the source.
  */
-export const NOTE_STYLE: Record<TaskColor, { note: string; chip: string; swatch: string }> = {
+const BASE_NOTE_STYLE: Record<BaseColor, { note: string; chip: string; swatch: string }> = {
   yellow: {
     note: 'bg-yellow-100 border-yellow-200 text-yellow-900 dark:bg-yellow-200 dark:border-yellow-300',
     chip: 'bg-yellow-100 text-yellow-800',
@@ -51,6 +55,20 @@ export const NOTE_STYLE: Record<TaskColor, { note: string; chip: string; swatch:
     chip: 'bg-orange-100 text-orange-800',
     swatch: 'bg-orange-400',
   },
+};
+
+/**
+ * The extra colours are drawn by `.tt-tag-*` in globals.css from the hue
+ * class (`tt-h90`), which works out each theme's shade — see EXTRA_COLORS.
+ * Same three keys, so nothing that draws a task needs to know which kind it has.
+ */
+export const NOTE_STYLE: Record<TaskColor, { note: string; chip: string; swatch: string }> = {
+  ...BASE_NOTE_STYLE,
+  ...Object.fromEntries(EXTRA_COLORS.map((c) => [c, {
+    note: `tt-tag-note tt-${c}`,
+    chip: `tt-tag-chip tt-${c}`,
+    swatch: `tt-tag-swatch tt-${c}`,
+  }])) as Record<ExtraColor, { note: string; chip: string; swatch: string }>,
 };
 
 const BUILT_IN_DOT: Record<BuiltInTaskStatus, string> = {

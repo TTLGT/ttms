@@ -11,6 +11,7 @@ import {
   orderBetween,
   type BoardColumn,
   type ColorLabels,
+  type TaskColor,
   type PersonalTask,
   type PersonalTaskInput,
   type TaskReminderSettings,
@@ -73,12 +74,14 @@ export async function saveMyBoardColumns(columns: BoardColumn[]): Promise<{ colu
 }
 
 /** Save the names given to the colours. The whole map: a colour left out goes back to its own name. */
-export async function saveMyColorLabels(colorLabels: ColorLabels): Promise<ColorLabels> {
-  const data = await authedFetch<{ colorLabels: ColorLabels }>('/api/me/tasks/labels', {
+export async function saveMyColorLabels(
+  colorLabels: ColorLabels,
+): Promise<{ colorLabels: ColorLabels; removed: TaskColor[] }> {
+  const data = await authedFetch<{ colorLabels: ColorLabels; removed?: TaskColor[] }>('/api/me/tasks/labels', {
     method: 'PUT',
     body: JSON.stringify({ colorLabels }),
   });
-  return data.colorLabels;
+  return { colorLabels: data.colorLabels, removed: data.removed ?? [] };
 }
 
 export async function saveMyGameOptions(options: { enabled?: boolean; theme?: GameTheme }): Promise<GameState> {
@@ -415,7 +418,13 @@ export function usePersonalTasks() {
     setError('');
     setColorLabels(next);
     try {
-      setColorLabels(await saveMyColorLabels(next));
+      const saved = await saveMyColorLabels(next);
+      setColorLabels(saved.colorLabels);
+      // A removed colour's tasks went to yellow on the server; follow suit
+      // here rather than read the whole list again.
+      if (saved.removed.length) {
+        setTasks((ts) => ts && ts.map((t) => (saved.removed.includes(t.color) ? { ...t, color: 'yellow' } : t)));
+      }
     } catch (e) {
       fail(e, 'Could not save your colour names');
     }

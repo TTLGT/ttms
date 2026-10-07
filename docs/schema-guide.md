@@ -2033,7 +2033,8 @@ personalTasks/{uid}
   boardColumns     : [{ id, label, hidden }]   // board order; absent = the six defaults
                                                // 'todo' and 'done' are never hidden;
                                                // custom ids are 'c_' + 4–16 chars, up to 12
-  colorLabels      : { yellow?, pink?, … }    // the person's names for the colours (tags); absent = the colour's own name
+  colorLabels      : { yellow?, pink?, …, h90?, … }  // the person's names for the colours (tags); absent = the colour's own name.
+                                             // An extra colour (h70…h310) exists while it has a name; clearing one moves its tasks to yellow
   streak           : {                        // the plain streak, game mode or not; absent = none yet
     current, longest, lastActiveDate,         // working days in a row something was finished
     day, todayTasks, todaySteps,              // counts for the office date in `day`
@@ -2087,6 +2088,9 @@ personalTasks/{uid}/items/{itemId}
                                    // cleared when another item is linked in its place
   priority  : 'low' | 'normal' | 'high'
   color     : 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'orange'
+            | 'h70' | 'h90' | 'h110' | 'h274' | 'h292' | 'h310'
+                                   // the h-values are extra colours a person added
+                                   // (EXTRA_COLORS, a hue each; never renumber)
   date      : 'YYYY-MM-DD' | null  // the day a task is PLANNED for (calendar,
                                    // reminders, repeats); the day of an event
   time      : 'HH:MM' | null       // office time (UTC−6), the planned time

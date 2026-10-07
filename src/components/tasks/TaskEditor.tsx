@@ -7,7 +7,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   EVENT_TYPES,
   EVENT_TYPE_LABEL,
-  TASK_COLORS,
+  colorsInUse,
   TASK_PRIORITIES,
   TASK_PRIORITY_LABEL,
   TASK_REPEATS,
@@ -569,8 +569,9 @@ export default function TaskEditor({
 
           <div>
             <span className={label}>Colour · <span className="font-semibold">{colorLabel(colorLabels, color)}</span></span>
-            <div className="flex gap-2">
-              {TASK_COLORS.map((c) => (
+            <div className="flex flex-wrap gap-2">
+              {/* The person's colours, plus the one this task wears if it has since been removed. */}
+              {[...colorsInUse(colorLabels), ...(colorsInUse(colorLabels).includes(color) ? [] : [color])].map((c) => (
                 <button
                   key={c}
                   type="button"

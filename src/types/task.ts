@@ -345,9 +345,37 @@ export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {
   low: 'Low', normal: 'Normal', high: 'High',
 };
 
-/** Sticky-note colours. All six are families `tailwind.config.ts` maps for dark mode. */
-export const TASK_COLORS = ['yellow', 'pink', 'blue', 'green', 'purple', 'orange'] as const;
+/** Sticky-note colours every person has. All six are families `tailwind.config.ts` maps for dark mode. */
+export const BASE_COLORS = ['yellow', 'pink', 'blue', 'green', 'purple', 'orange'] as const;
+export type BaseColor = typeof BASE_COLORS[number];
+
+/**
+ * Colours a person can add as tags of their own, on top of the six. Each one
+ * is a hue, not a colour: `globals.css` (`.tt-tag-*`) works out the pale,
+ * the ink and the dark-and-dim shades from it the way tailwind.config.ts
+ * does for a family, so no pick can come out unreadable in any theme. That
+ * is why it is a fixed list rather than a free picker — a hex somebody chose
+ * in light mode has no right answer in dark.
+ *
+ * The hues are the gaps left once everything else on the calendar is placed:
+ * clear of the six above, of the layers (indigo birthdays, teal anniversaries,
+ * brand blue, grey holidays — KIND_STYLE in CelebrationPanels.tsx) and of red,
+ * which means overdue. Three between yellow and green, three between violet
+ * and pink; past that the next one would look like a colour already in use.
+ *
+ * The value is the hue (`h90` is 90°), so a task's `color` is drawn on its
+ * own with nothing to look up. **Never renumber one** — it is stored on tasks.
+ */
+export const EXTRA_COLORS = ['h70', 'h90', 'h110', 'h274', 'h292', 'h310'] as const;
+export type ExtraColor = typeof EXTRA_COLORS[number];
+
+/** Every value a task's `color` can hold. */
+export const TASK_COLORS = [...BASE_COLORS, ...EXTRA_COLORS] as const;
 export type TaskColor = typeof TASK_COLORS[number];
+
+export function isExtraColor(c: unknown): c is ExtraColor {
+  return typeof c === 'string' && (EXTRA_COLORS as readonly string[]).includes(c);
+}
 
 /**
  * A name somebody gave a colour — "Important, urgent", "On hold" — so the
@@ -355,6 +383,11 @@ export type TaskColor = typeof TASK_COLORS[number];
  * person, on `personalTasks/{uid}.colorLabels`; a colour with no name of its
  * own is called by its colour. Only the names are stored: which tag a task
  * carries is still just its `color`, so naming a colour retags nothing.
+ *
+ * **An extra colour exists while it has a name** — that is the whole of
+ * "added". Clearing a base colour's name puts its own name back; clearing an
+ * extra one removes it, and PUT /api/me/tasks/labels moves its tasks to
+ * yellow so nothing is left wearing a tag the person can no longer see.
  */
 export type ColorLabels = Partial<Record<TaskColor, string>>;
 
@@ -362,11 +395,17 @@ export const COLOR_LABEL_MAX = 40;
 
 export const TASK_COLOR_NAME: Record<TaskColor, string> = {
   yellow: 'Yellow', pink: 'Pink', blue: 'Blue', green: 'Green', purple: 'Purple', orange: 'Orange',
+  h70: 'Olive', h90: 'Lime', h110: 'Moss', h274: 'Grape', h292: 'Orchid', h310: 'Magenta',
 };
 
 /** What a colour is called for this person. */
 export function colorLabel(labels: ColorLabels, color: TaskColor): string {
   return labels[color] || TASK_COLOR_NAME[color];
+}
+
+/** The colours this person has: the six, then the extras they added, in hue order. */
+export function colorsInUse(labels: ColorLabels): TaskColor[] {
+  return [...BASE_COLORS, ...EXTRA_COLORS.filter((c) => labels[c])];
 }
 
 /** Whatever was stored or sent, as clean names: known colours only, trimmed, empties dropped. */

@@ -64,6 +64,8 @@ const DARK_PAGE = '#0e1319';
 const DARK_SURFACE = '#161c24';
 const DIM_PAGE = '#22272e';
 const DIM_SURFACE = '#2d333b';
+// DARK_SURFACE and DIM_SURFACE are also written out in globals.css, for the
+// extra task colours (.tt-tag-*), which CSS cannot import. Change both.
 
 // Hand-picked rather than computed: grey carries almost all the layout, and
 // the steps that separate a card from a row hover from an input need to be

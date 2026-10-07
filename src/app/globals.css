@@ -24,6 +24,62 @@
 }
 
 /*
+ * Task colours a person added (EXTRA_COLORS in src/types/task.ts). Each is a
+ * hue, and these rules give it every shade the built-in colours get from
+ * tailwind.config.ts: a pale ground and dark ink in light; in dark and dim,
+ * the hue washed over that theme's surface (the same 22% / 32% / 48% mixes
+ * as the TINT table there) with a light ink. So any of them reads in all
+ * three themes without a per-theme choice by anybody.
+ *
+ * In `components` so a utility on the same element (an outcome's opacity, a
+ * ring) still wins. The surfaces are DARK_SURFACE and DIM_SURFACE in
+ * tailwind.config.ts, written out because CSS cannot import them — change
+ * one, change both.
+ */
+@layer components {
+  .tt-h70  { --tag-h: 70; }
+  .tt-h90  { --tag-h: 90; }
+  .tt-h110 { --tag-h: 110; }
+  .tt-h274 { --tag-h: 274; }
+  .tt-h292 { --tag-h: 292; }
+  .tt-h310 { --tag-h: 310; }
+
+  .tt-tag-note, .tt-tag-chip, .tt-tag-swatch {
+    --tag-base: hsl(var(--tag-h) 62% 48%);
+  }
+  .tt-tag-note {
+    background-color: hsl(var(--tag-h) 70% 90%);
+    border-color: hsl(var(--tag-h) 55% 80%);
+    color: hsl(var(--tag-h) 65% 17%);
+  }
+  .tt-tag-chip {
+    background-color: hsl(var(--tag-h) 70% 90%);
+    color: hsl(var(--tag-h) 65% 24%);
+  }
+  /* Solid in every theme, like the built-in swatches' 400. */
+  .tt-tag-swatch {
+    background-color: hsl(var(--tag-h) 60% 58%);
+  }
+
+  html.dark .tt-tag-note {
+    background-color: color-mix(in srgb, var(--tag-base) 32%, #161c24);
+    border-color: color-mix(in srgb, var(--tag-base) 48%, #161c24);
+    color: hsl(var(--tag-h) 70% 90%);
+  }
+  html.dark .tt-tag-chip {
+    background-color: color-mix(in srgb, var(--tag-base) 22%, #161c24);
+    color: hsl(var(--tag-h) 70% 86%);
+  }
+  html.dark.dim .tt-tag-note {
+    background-color: color-mix(in srgb, var(--tag-base) 32%, #2d333b);
+    border-color: color-mix(in srgb, var(--tag-base) 48%, #2d333b);
+  }
+  html.dark.dim .tt-tag-chip {
+    background-color: color-mix(in srgb, var(--tag-base) 22%, #2d333b);
+  }
+}
+
+/*
  * The analytics charts. Recharts paints its grid, axis labels and hover box
  * with colours written as attributes, which no class reaches; a CSS property
  * outranks an SVG attribute, so these win without touching the page.

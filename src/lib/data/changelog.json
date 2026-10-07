@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "918db9fcb56f4fab561df4996d241399c52af823",
+      "date": "2026-10-07T13:05:12-06:00",
+      "author": "erwindank",
+      "subject": "Keep calendar layer colours apart from the task colours",
+      "body": "Birthdays move from pink to indigo, work anniversaries from brand blue to\nteal, US holidays from sky to outlined grey, and the My tasks and My events\nswitches from yellow and violet to brand. None of them now matches one of\nthe six colours a task or event can be given."
+    },
+    {
       "hash": "24540c934032b5503d30610c7d223dabd5b7c953",
       "date": "2026-10-07T13:02:59-06:00",
       "author": "erwindank",
