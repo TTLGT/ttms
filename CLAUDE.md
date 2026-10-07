@@ -1009,7 +1009,10 @@ Types and pure rules in `src/types/task.ts`; server in
   dashboard layout) ask somebody to pick a time for four kinds of planning and,
   in one click, add it as a task with a reminder at that time: a **morning
   review** of today's plan, **end-of-day** planning for tomorrow, **weekly** on
-  Friday (movable) and **monthly** on the last Friday (`monthlyNth`). The two
+  Friday and **monthly** on the last Friday (`monthlyNth`), both movable on the
+  card (weekday, and for monthly which one of the month). Weekly and monthly
+  are only asked from noon on that Friday (`isPlanningAskDay()`), never on the
+  same morning card as the daily ones. The two
   daily ones are one-offs unless the person ticks "every weekday", because
   people plan at different times; a one-off covers its own day, so the card
   asks again the next working day. The morning one is not asked after 1pm.

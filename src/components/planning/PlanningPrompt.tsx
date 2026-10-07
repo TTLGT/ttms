@@ -6,16 +6,18 @@ import { AlertTriangle, BellRing, CalendarCheck, CalendarClock, MoveRight, Repea
 import { getMyPlanning, getMyPlanningDay, scheduleMyPlanning, setMyPlanningPrompt } from '@/lib/planning';
 import { updateMyTask } from '@/lib/personalTasks';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { calendarToday, formatTime, oneMonthAfter, repeatText } from '@/types/task';
+import { NTH_LABEL, calendarToday, formatTime, nthPatternLabel, oneMonthAfter, repeatText } from '@/types/task';
 import {
   PLANNING_ASK_EVENT,
   PLANNING_CHANGED_EVENT,
   PLANNING_COPY,
   PLANNING_DEFAULT_DURATION,
+  PLANNING_DEFAULT_NTH,
   PLANNING_DEFAULT_TIME,
   PLANNING_DEFAULT_WEEKDAY,
   PLANNING_DURATIONS,
   PLANNING_FALLBACK_SHIFT,
+  PLANNING_NTHS,
   PLANNING_WEEKDAYS,
   WEEKDAY_LONG,
   WEEKDAY_SHORT,
@@ -64,8 +66,12 @@ import TimeWheel from './TimeWheel';
 const CLOSED_KEY = 'ttms.planningPrompt.closed';
 const SHOW_AFTER_MS = 2500;
 
-const HOURS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] as const;
-const MINUTES = [0, 15, 30, 45] as const;
+// All 24 hours on one wheel, drawn 12-hour: scrolling on from 11 AM reaches
+// 12 PM and flips the AM/PM wheel with it, instead of stopping at the end of
+// a twelve-row list.
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+// Every minute. People plan at 7:40, not only on the quarter hour.
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 const HALVES = ['AM', 'PM'] as const;
 
 /** Today in this browser — only for "closed today", which is this browser's own business. */
@@ -82,9 +88,15 @@ function rememberClosed() {
   try { window.localStorage.setItem(CLOSED_KEY, localDay()); } catch { /* fine: it asks again next load */ }
 }
 
-function toHHMM(hour12: number, minute: number, half: 'AM' | 'PM'): string {
-  const h = (hour12 % 12) + (half === 'PM' ? 12 : 0);
-  return `${String(h).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+function toHHMM(hour24: number, minute: number): string {
+  return `${String(hour24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+/** The next five-minute mark after `hhmm`, or null if that runs past midnight. */
+function nextFiveMinutes(hhmm: string): string | null {
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = Math.floor((h * 60 + m) / 5) * 5 + 5;
+  return total >= 24 * 60 ? null : toHHMM(Math.floor(total / 60), total % 60);
 }
 
 /** The next Monday–Friday after `date`, for "move to the next working day". */
@@ -95,15 +107,11 @@ function nextWorkday(date: string): string {
   return at.toISOString().slice(0, 10);
 }
 
-/** Down to the quarter hour the wheel can show. */
-function toQuarter(hhmm: string): string {
-  return `${hhmm.slice(0, 3)}${String(Math.floor(Number(hhmm.slice(3)) / 15) * 15).padStart(2, '0')}`;
-}
-
-function cadence(kind: PlanningKind, weekday: number, everyWeekday: boolean): string {
+function cadence(kind: PlanningKind, weekday: number, nth: number, everyWeekday: boolean): string {
   if (isDailyKind(kind)) return everyWeekday ? 'Every weekday' : 'Just this once';
   if (kind === 'weekly') return `Every ${WEEKDAY_LONG[weekday]}`;
-  return 'Last Friday of every month';
+  const label = nthPatternLabel(weekday, [nth]);
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 export default function PlanningPrompt() {
@@ -121,6 +129,7 @@ export default function PlanningPrompt() {
   const [timeTouched, setTimeTouched] = useState(false);
   const [minutes, setMinutes] = useState(PLANNING_DEFAULT_DURATION.morning);
   const [weekday, setWeekday] = useState(PLANNING_DEFAULT_WEEKDAY);
+  const [nth, setNth] = useState(PLANNING_DEFAULT_NTH);
   const [everyWeekday, setEveryWeekday] = useState(false);
 
   const [day, setDay] = useState<PlanningDay | null>(null);
@@ -131,6 +140,7 @@ export default function PlanningPrompt() {
     setTimeTouched(false);
     setMinutes(PLANNING_DEFAULT_DURATION[k]);
     setWeekday(PLANNING_DEFAULT_WEEKDAY);
+    setNth(PLANNING_DEFAULT_NTH);
     setEveryWeekday(false);
     setDay(null);
     setMoving(null);
@@ -172,14 +182,13 @@ export default function PlanningPrompt() {
 
   const kind = queue[step];
   const [h, m] = time.split(':').map(Number);
-  const hour12 = h % 12 || 12;
   const half: 'AM' | 'PM' = h < 12 ? 'AM' : 'PM';
   const copy = kind ? PLANNING_COPY[kind] : null;
 
   // The day the slot lands on, worked out the same way the server will.
   const date = useMemo(
-    () => (kind ? firstPlanningDate(kind, time, { weekday }) : ''),
-    [kind, time, weekday],
+    () => (kind ? firstPlanningDate(kind, time, { weekday, nth }) : ''),
+    [kind, time, weekday, nth],
   );
 
   const loadDay = useCallback(async (d: string) => {
@@ -195,7 +204,15 @@ export default function PlanningPrompt() {
   // the start of the shift, tomorrow's plan just before it ends.
   useEffect(() => {
     if (!day?.shift || timeTouched || !kind || !isDailyKind(kind) || day.date !== date) return;
-    const want = toQuarter(kind === 'morning' ? day.shift.start : addMinutes(day.shift.end, -minutes));
+    let want = kind === 'morning' ? day.shift.start : addMinutes(day.shift.end, -minutes);
+    // Opened after the shift has started, the start has gone by and the slot
+    // would slide to the next working day — a look at "today's plan" dated
+    // tomorrow. Start it in a few minutes instead, while it is still today.
+    if (kind === 'morning') {
+      const today = calendarToday();
+      const soon = nextFiveMinutes(officeNowTime());
+      if (soon && want <= officeNowTime() && firstPlanningDate(kind, soon, {}) === today) want = soon;
+    }
     if (want !== time) setTime(want);
   }, [day, timeTouched, kind, date, minutes, time]);
 
@@ -240,7 +257,7 @@ export default function PlanningPrompt() {
     setBusy(true);
     setError('');
     try {
-      setAdded(await scheduleMyPlanning({ kind, time, minutes, weekday, everyWeekday }));
+      setAdded(await scheduleMyPlanning({ kind, time, minutes, weekday, nth, everyWeekday }));
       window.dispatchEvent(new Event(PLANNING_CHANGED_EVENT));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not add it to your calendar.');
@@ -344,13 +361,18 @@ export default function PlanningPrompt() {
           </div>
         ) : (
           <div className="overflow-y-auto px-5 pb-5 pt-4">
+            {/* The headline is the ask itself, large: this card interrupts the
+                page, so the one thing it wants has to be read at a glance. */}
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-white">
-                <CalendarClock size={22} />
+              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-md">
+                <CalendarClock size={24} />
               </div>
-              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
-                <h2 id="planning-prompt-title" className="text-sm font-semibold text-gray-900">{copy.prompt}</h2>
-                <p className="text-sm text-gray-600">{copy.ask}</p>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-brand-600">{copy.label}</p>
+                <h2 id="planning-prompt-title" className="text-xl font-bold leading-snug text-gray-900">
+                  {copy.ask}
+                </h2>
+                <p className="mt-0.5 text-sm text-gray-600">{copy.prompt}</p>
               </div>
             </div>
             {kind === 'morning' && (
@@ -367,22 +389,36 @@ export default function PlanningPrompt() {
                   <p className="font-semibold text-gray-900">{copy.title}</p>
                   <p className="text-sm text-gray-500">{dayName(date)} · {range}</p>
                   <p className="text-xs text-gray-400">
-                    {cadence(kind, weekday, everyWeekday)}
+                    {cadence(kind, weekday, nth, everyWeekday)}
                     {/* Every repeat ends — a month, like any other (REPEAT_ADVICE). */}
                     {(!isDailyKind(kind) || everyWeekday) && <>, until {formatCalendarDate(oneMonthAfter(date))}</>}
                   </p>
                 </div>
               </div>
 
-              {kind === 'weekly' && (
-                <div className="mt-4 flex justify-between gap-1" role="radiogroup" aria-label="Day of the week">
-                  {PLANNING_WEEKDAYS.map((d) => (
-                    <button key={d} type="button" role="radio" aria-checked={weekday === d}
-                      onClick={() => setWeekday(d)} className={`flex-1 ${chip(weekday === d)}`}>
-                      {WEEKDAY_SHORT[d]}
-                    </button>
-                  ))}
-                </div>
+              {!isDailyKind(kind) && (
+                <>
+                  {kind === 'monthly' && <p className="mt-4 text-center text-xs font-semibold text-gray-400">Which one of the month</p>}
+                  {kind === 'monthly' && (
+                    <div className="mt-1.5 flex justify-between gap-1" role="radiogroup" aria-label="Which one of the month">
+                      {PLANNING_NTHS.map((n) => (
+                        <button key={n} type="button" role="radio" aria-checked={nth === n}
+                          onClick={() => setNth(n)} className={`flex-1 ${chip(nth === n)}`}>
+                          {NTH_LABEL[n]}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <div className={`${kind === 'monthly' ? 'mt-2' : 'mt-4'} flex justify-between gap-1`} role="radiogroup"
+                    aria-label="Day of the week">
+                    {PLANNING_WEEKDAYS.map((d) => (
+                      <button key={d} type="button" role="radio" aria-checked={weekday === d}
+                        onClick={() => setWeekday(d)} className={`flex-1 ${chip(weekday === d)}`}>
+                        {WEEKDAY_SHORT[d]}
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
 
               <div className="mt-4 rounded-xl border-2 border-brand-300 bg-white px-3 py-2">
@@ -390,17 +426,24 @@ export default function PlanningPrompt() {
                 <div className="relative mt-1 flex items-center justify-center gap-1">
                   {/* The middle row, marked the way a phone's picker marks it. */}
                   <div className="pointer-events-none absolute inset-x-2 top-1/2 h-10 -translate-y-1/2 border-y border-gray-200" />
-                  <TimeWheel label="Hour" options={HOURS} value={hour12}
-                    onChange={(v) => pickTime(toHHMM(v, m, half))} />
+                  <TimeWheel label="Hour" options={HOURS} value={h}
+                    render={(v) => String(v % 12 || 12)}
+                    onChange={(v) => pickTime(toHHMM(v, m))} />
                   <span className="text-xl font-semibold text-gray-900">:</span>
-                  <TimeWheel label="Minutes" options={MINUTES} value={(MINUTES as readonly number[]).includes(m) ? m : 0}
+                  <TimeWheel label="Minutes" options={MINUTES} value={m}
                     render={(v) => String(v).padStart(2, '0')}
-                    onChange={(v) => pickTime(toHHMM(hour12, v, half))} />
+                    onChange={(v) => pickTime(toHHMM(h, v))} />
                   <TimeWheel label="AM or PM" options={HALVES} value={half}
-                    onChange={(v) => pickTime(toHHMM(hour12, m, v))} />
+                    onChange={(v) => pickTime(toHHMM((h % 12) + (v === 'PM' ? 12 : 0), m))} />
                 </div>
               </div>
               <p className="mt-2 text-center text-[11px] text-gray-400">Office time (Guatemala)</p>
+              {/* Today would have been the day but for the clock: say so, or the jump looks like a bug. */}
+              {date !== calendarToday() && firstPlanningDate(kind, time, { weekday, nth }, calendarToday(), '00:00') === calendarToday() && (
+                <p className="mt-1 text-center text-xs text-amber-700">
+                  {formatTime(time)} has already gone by today, so this goes on {relativeDay(date) === 'Tomorrow' ? 'tomorrow' : formatCalendarDate(date)}.
+                </p>
+              )}
 
               <p className="mt-3 text-center text-xs font-semibold text-gray-400">How long</p>
               <div className="mt-1.5 flex justify-between gap-1" role="radiogroup" aria-label="How long">

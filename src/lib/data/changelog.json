@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "f3994b25b3877aef7990d92a0877be36280e4389",
+      "date": "2026-10-07T11:47:57-06:00",
+      "author": "erwindank",
+      "subject": "Move old tasks into a history store and give every repeat an end date",
+      "body": "History: anything finished or past more than 90 days ago moves out of the task\nlist once a day, so opening My tasks or the Calendar reads only recent and open\nwork. Open tasks and repeating series never move. The Calendar fetches history\na month at a time only when paged back that far, and shows it read-only.\n\nRepeat ends: every repeating task and event now stops on a date the person\npicks, a month by default. Setting it longer shows a warning that advises\nagainst it. Repeating planning slots also end after a month, and the planning\ncard asks again when they do."
+    },
+    {
       "hash": "6c8470e1252e23519f414228866b7a340b4d7ffd",
       "date": "2026-10-07T11:31:43-06:00",
       "author": "erwindank",

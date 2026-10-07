@@ -79,7 +79,7 @@ export const PLANNING_COPY: Record<PlanningKind, {
     title: 'Plan next week',
     prompt: 'Finish the week by planning the next one.',
     ask: 'When will you plan next week?',
-    detail: 'On Friday: what is due next week, who to follow up with, and what can wait.',
+    detail: 'Before the week starts: what is due next week, who to follow up with, and what can wait.',
     steps: [
       'Look over next week on my calendar',
       'List the loads and clients to follow up',
@@ -91,7 +91,7 @@ export const PLANNING_COPY: Record<PlanningKind, {
     title: 'Plan next month',
     prompt: 'Close out the month by planning the next one.',
     ask: 'When will you plan next month?',
-    detail: 'On the last Friday: how this month went, what you want from the next, and the big dates to put on the calendar.',
+    detail: 'Before the month ends: how this month went, what you want from the next, and the big dates to put on the calendar.',
     steps: [
       'Review how this month went',
       'Set my goals for next month',
@@ -108,20 +108,43 @@ export const PLANNING_COPY: Record<PlanningKind, {
 export const PLANNING_DEFAULT_TIME: Record<PlanningKind, string> = {
   morning: '07:00',
   evening: '16:30',
-  weekly: '08:30',
-  monthly: '10:00',
+  // The weekly and monthly cards are only asked from noon on the day (see
+  // PLANNING_ASK_FROM), so a morning default would land a week or a month away.
+  weekly: '15:00',
+  monthly: '14:00',
 };
 
 /**
- * Weekly and monthly are both Fridays on purpose: the week and the month are
- * planned before they start, not on their first morning when the phones are
- * already ringing. Weekly can be moved to another weekday on the card;
- * monthly is always the last Friday.
+ * Weekly and monthly both start on Fridays on purpose: the week and the month
+ * are planned before they start, not on their first morning when the phones
+ * are already ringing. Both can be moved on the card — weekly to another
+ * weekday, monthly to another weekday and which one of the month ("the 2nd
+ * Tuesday"). The default is the last Friday.
  */
 export const PLANNING_DEFAULT_WEEKDAY = 5;
+export const PLANNING_DEFAULT_NTH = NTH_LAST;
+/** Which one of the month the monthly card offers: 1st–4th and last (NTH_LAST). */
+export const PLANNING_NTHS = [1, 2, 3, 4, NTH_LAST] as const;
 
-/** The monthly slot's pattern: the last Friday (see `monthlyNth` in src/types/task.ts). */
-export const MONTHLY_PLANNING_PATTERN = { repeatWeekday: 5, repeatNths: [NTH_LAST] };
+export function isPlanningNth(v: unknown): v is number {
+  return (PLANNING_NTHS as readonly unknown[]).includes(v);
+}
+
+/**
+ * Weekly and monthly are asked about only from noon, office time, and only
+ * on the day they belong to: weekly on a Friday, monthly on the last Friday
+ * of the month. Asked on a Wednesday morning alongside the daily ones, they
+ * turned one quick card into four. The Calendar page's "Set a time" still
+ * asks for any of them whenever somebody wants it.
+ */
+export const PLANNING_ASK_FROM = '12:00';
+
+export function isPlanningAskDay(kind: PlanningKind, today: string): boolean {
+  if (isDailyKind(kind)) return true;
+  if (dayOfWeek(today) !== PLANNING_DEFAULT_WEEKDAY) return false;
+  if (kind === 'weekly') return true;
+  return shift(today, 7).slice(0, 7) !== today.slice(0, 7);
+}
 
 /** Mon–Fri as `getUTCDay()` numbers. Weekly planning on a weekend is not a thing anybody here does. */
 export const PLANNING_WEEKDAYS = [1, 2, 3, 4, 5] as const;
@@ -333,7 +356,7 @@ export function snoozeUntil(kind: PlanningKind, today: string): string {
 export function firstPlanningDate(
   kind: PlanningKind,
   time: string,
-  opts: { weekday?: number },
+  opts: { weekday?: number; nth?: number },
   today: string = officeToday(),
   nowTime: string = officeNowTime(),
 ): string {
@@ -341,8 +364,12 @@ export function firstPlanningDate(
     if (date === today && time <= nowTime) return false;
     const dow = dayOfWeek(date);
     if (isDailyKind(kind)) return dow !== 0 && dow !== 6;
-    if (kind === 'weekly') return dow === (opts.weekday ?? PLANNING_DEFAULT_WEEKDAY);
-    return dow === 5 && shift(date, 7).slice(0, 7) !== date.slice(0, 7);
+    if (dow !== (opts.weekday ?? PLANNING_DEFAULT_WEEKDAY)) return false;
+    if (kind === 'weekly') return true;
+    const nth = opts.nth ?? PLANNING_DEFAULT_NTH;
+    return nth === NTH_LAST
+      ? shift(date, 7).slice(0, 7) !== date.slice(0, 7)
+      : Math.ceil(Number(date.slice(8, 10)) / 7) === nth;
   };
   let d = today;
   // A monthly slot can be a month away; the cap only guards a bug.

@@ -6,18 +6,22 @@ import {
   MAX_TASKS_PER_PERSON, isLapsedPlanning, newStepId, nextOccurrence, repeatEnd, repeatFields, type PersonalTask,
 } from '@/types/task';
 import {
-  MONTHLY_PLANNING_PATTERN,
   MORNING_ASK_UNTIL,
+  PLANNING_ASK_FROM,
   PLANNING_COPY,
   PLANNING_DEFAULT_DURATION,
+  PLANNING_DEFAULT_NTH,
   PLANNING_DEFAULT_WEEKDAY,
   PLANNING_KINDS,
   PLANNING_WEEKDAYS,
   addMinutes,
   cleanPlanningState,
   firstPlanningDate,
+  isDailyKind,
+  isPlanningAskDay,
   isPlanningDuration,
   isPlanningKind,
+  isPlanningNth,
   isValidTime,
   officeNowTime,
   planningRepeat,
@@ -71,7 +75,11 @@ async function statusFor(
   return Promise.all(PLANNING_KINDS.map(async (kind) => {
     const s = state[kind];
     const task = await live(s.taskId);
-    const inHours = kind !== 'morning' || nowTime < MORNING_ASK_UNTIL;
+    // Morning until 1pm; end-of-day all day; weekly and monthly only from
+    // noon on their own Friday — see PLANNING_ASK_FROM.
+    const inHours = kind === 'morning'
+      ? nowTime < MORNING_ASK_UNTIL
+      : isDailyKind(kind) || (nowTime >= PLANNING_ASK_FROM && isPlanningAskDay(kind, today));
     return {
       kind,
       scheduled: task
@@ -140,10 +148,11 @@ export async function GET(req: NextRequest) {
  * the time, and the pointer to it — in one batch, so the card never stops
  * asking about a slot that failed to save.
  *
- * Body: `{ kind, time, minutes?, weekday?, everyWeekday? }`. `weekday` is
- * weekly only; `everyWeekday` is the daily ones' repeat box, off unless sent.
- * Monthly is always the last Friday. Everything else is fixed here; the
- * person changes it afterwards like any other task.
+ * Body: `{ kind, time, minutes?, weekday?, nth?, everyWeekday? }`. `weekday`
+ * is weekly and monthly; `nth` (1–4, 5 = last) is monthly only, and the two
+ * default to the last Friday. `everyWeekday` is the daily ones' repeat box,
+ * off unless sent. Everything else is fixed here; the person changes it
+ * afterwards like any other task.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -159,6 +168,7 @@ export async function POST(req: NextRequest) {
     const time = body.time;
     const weekday = (PLANNING_WEEKDAYS as readonly number[]).includes(body.weekday as number)
       ? body.weekday as number : PLANNING_DEFAULT_WEEKDAY;
+    const nth = isPlanningNth(body.nth) ? body.nth : PLANNING_DEFAULT_NTH;
     const minutes = isPlanningDuration(body.minutes) ? body.minutes : PLANNING_DEFAULT_DURATION[kind];
     const endTime = addMinutes(time, minutes);
     const repeat = planningRepeat(kind, body.everyWeekday === true);
@@ -183,9 +193,9 @@ export async function POST(req: NextRequest) {
     }
 
     const copy = PLANNING_COPY[kind];
-    const date = firstPlanningDate(kind, time, { weekday }, today);
+    const date = firstPlanningDate(kind, time, { weekday, nth }, today);
     const repeating = {
-      ...repeatFields(repeat, date, kind === 'monthly' ? MONTHLY_PLANNING_PATTERN : {}),
+      ...repeatFields(repeat, date, kind === 'monthly' ? { repeatWeekday: weekday, repeatNths: [nth] } : {}),
       // A month, like every repeat (REPEAT_ADVICE). When it runs out the card
       // asks again, which is the renewal: a plan worth keeping is a click away.
       repeatUntil: repeatEnd(repeat, date, undefined, null),
