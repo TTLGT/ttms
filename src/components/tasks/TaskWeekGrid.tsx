@@ -15,15 +15,23 @@ import { EVENT_ICON, NOTE_STYLE, OCCURRENCE_DRAG_TYPE, OUTCOME_ICON, OUTCOME_STY
 import type { SeriesAsk } from './SeriesChoice';
 
 /**
- * The week as an hour grid, Google Calendar style: timed items drawn as blocks
- * as tall as they last, untimed ones in a row across the top.
+ * Days as an hour grid, Google Calendar style: timed items drawn as blocks
+ * as tall as they last, untimed ones in a row across the top. A week, four
+ * days or one — the grid draws whatever `days` it is given.
  *
  * - **Pull the bottom edge** of an event (or a planning slot, the one kind of
  *   task with an end) to change how long it lasts, in quarter hours. It is
  *   saved when the pointer is let go — one write, not one per pixel.
  * - **Drag a block** to another day or time; it keeps its length. Dropped in
- *   the top row it changes day only and keeps its time.
- * - **Double-click** an empty spot to add an event there, an hour long.
+ *   the top row it changes day only and keeps its time. While it is held, a
+ *   copy of it is drawn at the quarter hour it would land on, with the times,
+ *   and the original is dimmed — the same answer the drop will give, because
+ *   both ask `landingStart()`.
+ * - **Click** an empty spot to add an event there, an hour long. The hour it
+ *   would make is outlined under the pointer, so the spot is chosen before
+ *   the click rather than corrected after it. One click, as Google does it: a
+ *   click on empty grid had nothing else to do but select the day, and it
+ *   still does that too.
  *
  * A date of a repeating event can be dragged and pulled too, but the page is
  * asked first (`onAskSeries`, which opens SeriesChoice): moving it takes it out
@@ -34,8 +42,12 @@ import type { SeriesAsk } from './SeriesChoice';
  * Desktop only. Seven hour-columns do not fit a phone, which keeps the list.
  */
 
-/** Pixels per hour. 48 makes a quarter hour 12px — a target a mouse can hit. */
-const HOUR_PX = 48;
+/**
+ * Pixels per hour. 48 makes a quarter hour 12px — a target a mouse can hit;
+ * the roomy size makes it 18px, with room in a half-hour block for its times.
+ */
+const HOUR_PX_NORMAL = 48;
+const HOUR_PX_ROOMY = 72;
 const SNAP = 15;
 /** How tall a timed task (no end) is drawn, and an event with no end. */
 const NO_END_MINUTES = 30;
@@ -97,6 +109,7 @@ function layOut(items: PersonalTask[], endOf: (t: PersonalTask) => number): Plac
 
 export default function TaskWeekGrid({
   days, today, selected, items, itemsOn, extrasOn, untimedChip, onSelect, onOpen, onUpdate, onAdd, onAskSeries, nowMinutes,
+  roomy = false,
 }: {
   days: string[];
   today: string;
@@ -115,19 +128,35 @@ export default function TaskWeekGrid({
   onAskSeries?: (ask: SeriesAsk) => void;
   /** The office clock in minutes, for the red line on today. Null before mount. */
   nowMinutes: number | null;
+  /** Taller hours, a taller window and larger type. */
+  roomy?: boolean;
 }) {
+  const HOUR_PX = roomy ? HOUR_PX_ROOMY : HOUR_PX_NORMAL;
   const scroller = useRef<HTMLDivElement>(null);
   // Where in the block it was picked up, so a drop puts the block's top where
-  // the block's top was dragged to, not where the pointer was.
+  // the block's top was dragged to, not where the pointer was. Zeroed at the
+  // start of every drag, so a chip picked up from the top row does not
+  // inherit the offset of the last block that was dragged.
   const grabOffset = useRef(0);
   const [over, setOver] = useState<string | null>(null);
+  /**
+   * What is being dragged, and which date of it. The drop can read this off
+   * the drag itself, but a dragover cannot — browsers hide the payload until
+   * the drop — so the preview needs its own copy. Null for a drag that began
+   * outside the grid.
+   */
+  const [dragging, setDragging] = useState<{ task: PersonalTask; date: string } | null>(null);
+  /** Where the drag preview is drawn: a day and a start minute. */
+  const [landing, setLanding] = useState<{ date: string; start: number } | null>(null);
+  /** The empty slot under the pointer, which a double-click would fill. */
+  const [hoverSlot, setHoverSlot] = useState<{ date: string; start: number } | null>(null);
   // Keyed by date as well: a series is one item on several days, and only the
   // date being pulled should grow while the pointer is down.
   const [stretch, setStretch] = useState<{ id: string; date: string; end: number } | null>(null);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: FIRST_HOUR_SHOWN * HOUR_PX - 8 });
-  }, []);
+  }, [HOUR_PX]);
 
   const endOf = (t: PersonalTask, date: string) =>
     (stretch?.id === t.id && stretch.date === date ? stretch.end : endMinutes(t));
@@ -135,10 +164,33 @@ export default function TaskWeekGrid({
 
   const accepts = (e: DragEvent) => e.dataTransfer.types.includes(TASK_DRAG_TYPE);
 
+  /** How long it keeps when moved. An untimed item is given an hour of room, as before. */
+  const movedLength = (t: PersonalTask | undefined) => (t?.time ? endMinutes(t) - minutesOf(t.time) : 60);
+  /** How tall it will be drawn once it lands: an untimed task gets a time and no end. */
+  const drawnLength = (t: PersonalTask | undefined) => (t?.time ? endMinutes(t) - minutesOf(t.time) : NO_END_MINUTES);
+
+  /** The start minute a drop at this pointer would give. Shared by the preview and the drop. */
+  const landingStart = (e: DragEvent<HTMLDivElement>, length: number) => {
+    const top = e.clientY - e.currentTarget.getBoundingClientRect().top - grabOffset.current;
+    return Math.max(0, Math.min(snap((top / HOUR_PX) * 60), 24 * 60 - Math.min(length, 24 * 60 - SNAP)));
+  };
+
+  /** The start a double-click here would give. Shared by the hover outline and the double-click. */
+  const slotStart = (e: { clientY: number; currentTarget: HTMLElement }) => {
+    const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+    return Math.min(snap(Math.floor((y / HOUR_PX) * 60 / SNAP) * SNAP), 23 * 60);
+  };
+
+  const endDrag = () => {
+    setOver(null);
+    setLanding(null);
+    setDragging(null);
+  };
+
   const dropOn = (date: string, e: DragEvent<HTMLDivElement>, withTime: boolean) => {
     if (!accepts(e)) return;
     e.preventDefault();
-    setOver(null);
+    endDrag();
     const t = items.find((i) => i.id === e.dataTransfer.getData(TASK_DRAG_TYPE));
     if (!t) return;
     // Which date of a series was picked up; for anything else, its own date.
@@ -149,9 +201,7 @@ export default function TaskWeekGrid({
       } else if (t.date !== date) onUpdate(t.id, { date });
       return;
     }
-    const top = e.clientY - e.currentTarget.getBoundingClientRect().top - grabOffset.current;
-    const length = t.time ? endMinutes(t) - minutesOf(t.time) : 60;
-    const start = Math.max(0, Math.min(snap((top / HOUR_PX) * 60), 24 * 60 - Math.min(length, 24 * 60 - SNAP)));
+    const start = landingStart(e, movedLength(t));
     const time = toHhmm(start);
     if (from === date && t.time === time) return;
     // Keeps its length. A task has no end of its own; a planning slot and an
@@ -199,12 +249,27 @@ export default function TaskWeekGrid({
     handle.addEventListener('pointercancel', up);
   };
 
-  const cols = 'grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))]';
+  // Inline rather than a class: Tailwind only builds class names it can read
+  // whole in the source, and the column count varies.
+  const cols = 'grid';
+  const colStyle = { gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))` };
+  const blockText = roomy ? 'text-xs' : 'text-[11px]';
 
   return (
-    <div className="hidden md:block">
+    <div className="hidden md:block"
+      // Every drag in the grid passes through here: the blocks below and the
+      // untimed chips the calendar draws in the top row. Capture runs before
+      // the block's own handler sets its offset; the bubble runs after the
+      // payload is set, which is the one moment outside a drop it can be read.
+      onDragStartCapture={() => { grabOffset.current = 0; setHoverSlot(null); }}
+      onDragStart={(e) => {
+        const t = items.find((i) => i.id === e.dataTransfer.getData(TASK_DRAG_TYPE));
+        if (t) setDragging({ task: t, date: e.dataTransfer.getData(OCCURRENCE_DRAG_TYPE) || t.date || '' });
+      }}
+      onDragEnd={endDrag}
+    >
       {/* Day names, and the row for whatever has no time. */}
-      <div className={`${cols} border-b border-gray-100`}>
+      <div className={`${cols} border-b border-gray-100`} style={colStyle}>
         <div />
         {days.map((date) => (
           <div key={date} className={`flex items-center gap-1.5 border-l border-gray-100 px-1.5 py-1.5 ${
@@ -228,12 +293,12 @@ export default function TaskWeekGrid({
           </div>
         ))}
       </div>
-      <div className={`${cols} border-b border-gray-200`}>
+      <div className={`${cols} border-b border-gray-200`} style={colStyle}>
         <div className="px-1 py-1 text-right text-[10px] text-gray-400">All day</div>
         {days.map((date) => (
           <div key={date}
             onClick={() => onSelect(date)}
-            onDragOver={(e) => { if (accepts(e)) { e.preventDefault(); setOver(`${date}-top`); } }}
+            onDragOver={(e) => { if (accepts(e)) { e.preventDefault(); setOver(`${date}-top`); setLanding(null); } }}
             onDragLeave={() => setOver(null)}
             onDrop={(e) => dropOn(date, e, false)}
             className={`min-h-[2rem] min-w-0 space-y-1 border-l border-gray-100 p-1 ${
@@ -245,8 +310,8 @@ export default function TaskWeekGrid({
         ))}
       </div>
 
-      <div ref={scroller} className="h-[34rem] overflow-y-auto">
-        <div className={`${cols} relative`} style={{ height: 24 * HOUR_PX }}>
+      <div ref={scroller} className={`overflow-y-auto ${roomy ? 'h-[calc(100vh-16rem)] min-h-[34rem]' : 'h-[34rem]'}`}>
+        <div className={`${cols} relative`} style={{ ...colStyle, height: 24 * HOUR_PX }}>
           <div className="relative">
             {Array.from({ length: 24 }, (_, h) => (
               <div key={h} className="absolute right-1.5 -translate-y-1/2 text-[10px] text-gray-400" style={{ top: h * HOUR_PX }}>
@@ -256,19 +321,44 @@ export default function TaskWeekGrid({
           </div>
           {days.map((date) => {
             const placed = layOut(itemsOn(date).filter((t) => !!t.time), (t) => endOf(t, date));
+            const ghost = landing?.date === date ? landing : null;
+            const ghostEnd = ghost ? Math.min(ghost.start + drawnLength(dragging?.task), 24 * 60) : 0;
+            const slot = !ghost && !stretch && hoverSlot?.date === date ? hoverSlot : null;
             return (
               <div key={date}
-                className={`relative border-l border-gray-100 ${date === selected ? 'bg-brand-50/40' : ''} ${
-                  over === date ? 'bg-brand-50' : ''
-                }`}
-                onClick={() => onSelect(date)}
-                onDoubleClick={(e) => {
-                  const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
-                  const start = Math.min(snap(Math.floor((y / HOUR_PX) * 60 / SNAP) * SNAP), 23 * 60);
+                className={`relative border-l border-gray-100 ${date === selected ? 'bg-brand-50/40' : ''}`}
+                onClick={(e) => {
+                  onSelect(date);
+                  // A click that landed on a block was the block's (it stops
+                  // the click itself); only empty grid makes an event.
+                  if (e.target !== e.currentTarget) return;
+                  const start = slotStart(e);
                   onAdd({ date, kind: 'event', time: toHhmm(start), endTime: addMinutes(toHhmm(start), 60) });
                 }}
-                onDragOver={(e) => { if (accepts(e)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOver(date); } }}
-                onDragLeave={() => setOver(null)}
+                onMouseMove={(e) => {
+                  // Only over empty grid: a block under the pointer opens on a
+                  // click, so outlining a slot there would promise something
+                  // that does not happen.
+                  if (e.target !== e.currentTarget) {
+                    if (hoverSlot) setHoverSlot(null);
+                    return;
+                  }
+                  const start = slotStart(e);
+                  if (hoverSlot?.date !== date || hoverSlot.start !== start) setHoverSlot({ date, start });
+                }}
+                onMouseLeave={() => setHoverSlot(null)}
+                onDragOver={(e) => {
+                  if (!accepts(e)) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  // Fires many times a second; only a new quarter hour re-renders.
+                  const start = landingStart(e, movedLength(dragging?.task));
+                  if (landing?.date !== date || landing.start !== start) setLanding({ date, start });
+                }}
+                // Not cleared on dragleave: moving onto a block inside the
+                // column fires one, and the preview would flicker. Entering
+                // another column replaces it; the top row and the end of the
+                // drag clear it.
                 onDrop={(e) => dropOn(date, e, true)}
               >
                 {Array.from({ length: 24 }, (_, h) => (
@@ -277,6 +367,28 @@ export default function TaskWeekGrid({
                 {date === today && nowMinutes !== null && (
                   <div className="pointer-events-none absolute inset-x-0 z-20 border-t-2 border-red-500"
                     style={{ top: (nowMinutes / 60) * HOUR_PX }} />
+                )}
+                {slot && (
+                  <div aria-hidden
+                    className={`pointer-events-none absolute inset-x-0.5 z-0 flex items-start gap-1 rounded border border-dashed border-brand-400 bg-brand-50/70 px-1.5 py-0.5 font-medium text-brand-700 ${roomy ? 'text-xs' : 'text-[10px]'}`}
+                    style={{ top: (slot.start / 60) * HOUR_PX, height: HOUR_PX }}
+                  >
+                    <Plus size={roomy ? 12 : 10} className="mt-px flex-shrink-0" />
+                    {formatTime(toHhmm(slot.start))} – {formatTime(toHhmm(Math.min(slot.start + 60, 24 * 60 - 1)))}
+                  </div>
+                )}
+                {ghost && (
+                  <div aria-hidden
+                    className={`pointer-events-none absolute inset-x-0.5 z-40 overflow-hidden rounded border-2 border-brand-500 px-1.5 py-0.5 ${blockText} leading-tight shadow-md ${
+                      dragging ? NOTE_STYLE[dragging.task.color].chip : 'bg-brand-50'
+                    }`}
+                    style={{ top: (ghost.start / 60) * HOUR_PX, height: Math.max(((ghostEnd - ghost.start) / 60) * HOUR_PX, 18) }}
+                  >
+                    {dragging && <span className="block truncate font-medium">{dragging.task.title}</span>}
+                    <span className="block truncate font-semibold">
+                      {formatTime(toHhmm(ghost.start))} – {formatTime(toHhmm(ghostEnd))}
+                    </span>
+                  </div>
                 )}
                 {placed.map(({ task: t, start, end, lane, lanes }) => {
                   const series = isSeries(t);
@@ -299,16 +411,14 @@ export default function TaskWeekGrid({
                         e.dataTransfer.setData(OCCURRENCE_DRAG_TYPE, date);
                         e.dataTransfer.setData('text/plain', t.title);
                       }}
-                      onDragEnd={() => setOver(null)}
                       onClick={(e) => { e.stopPropagation(); onOpen(t); }}
-                      onDoubleClick={(e) => e.stopPropagation()}
                       onKeyDown={(e) => { if (e.key === 'Enter') onOpen(t); }}
                       title={`${t.kind === 'event' ? `${EVENT_TYPE_LABEL[t.eventType]}: ` : ''}${t.title}${series ? ` (${repeatText(t)})` : ''}`}
-                      className={`absolute z-10 overflow-hidden rounded border border-white/60 px-1.5 py-0.5 text-[11px] leading-tight shadow-sm ${
+                      className={`absolute z-10 overflow-hidden rounded border border-white/60 px-1.5 py-0.5 ${blockText} leading-tight shadow-sm ${
                         NOTE_STYLE[t.color].chip
                       } ${movable ? 'cursor-grab' : 'cursor-pointer'} ${outcome ? OUTCOME_STYLE[outcome] : ''} ${
                         stretch?.id === t.id && stretch.date === date ? 'z-30 ring-2 ring-brand-400' : ''
-                      }`}
+                      } ${dragging?.task.id === t.id && dragging.date === date ? 'opacity-40' : ''}`}
                       style={{
                         top: (start / 60) * HOUR_PX,
                         height,

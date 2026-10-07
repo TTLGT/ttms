@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "b919754696498ba2e5f98805e6c1995f00e7580b",
+      "date": "2026-10-07T12:34:43-06:00",
+      "author": "erwindank",
+      "subject": "Let the planning card use a task or event you already have",
+      "body": "\"Use one you have\" on the planning card lists your own upcoming timed\ntasks and events and links the one you pick as that planning time,\ninstead of making a new slot. Nothing is recognised by its title. A\nrepeat past its end no longer counts as on the calendar, so the card\nasks again."
+    },
+    {
       "hash": "f870281e6a60588b023f280095e4efdb26d385f4",
       "date": "2026-10-07T12:13:34-06:00",
       "author": "erwindank",

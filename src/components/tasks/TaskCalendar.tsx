@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react';
-import { Bell, Check, ChevronLeft, ChevronRight, ExternalLink, Plus, X } from 'lucide-react';
+import { Bell, Check, ChevronLeft, ChevronRight, ExternalLink, Maximize2, Minimize2, Plus, X } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   EVENT_TYPE_LABEL,
@@ -28,12 +28,23 @@ import TaskWeekGrid from './TaskWeekGrid';
 import { officeNowTime } from '@/types/planning';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-/** Things drawn in a month square before it says "+N more". The week view draws them all. */
+/** Things drawn in a month square before it says "+N more". The hour grid draws them all. */
 const PER_DAY = 3;
+const PER_DAY_ROOMY = 6;
 
-type Mode = 'month' | 'week';
+type Mode = 'month' | 'week' | 'four' | 'day';
+const MODES: { id: Mode; label: string }[] = [
+  { id: 'day', label: 'Day' },
+  { id: 'four', label: '4 days' },
+  { id: 'week', label: 'Week' },
+  { id: 'month', label: 'Month' },
+];
+/** How many days the hour grid shows in each mode. */
+const SPAN: Record<Exclude<Mode, 'month'>, number> = { day: 1, four: 4, week: 7 };
 /** Per browser, like the task view: which one somebody likes is not worth a write. */
 const MODE_KEY = 'ttms.calendar.mode';
+/** Normal or roomy, per browser for the same reason. */
+const SIZE_KEY = 'ttms.calendar.size';
 
 /** "September 2026" — a month, not a date, so not the company date setting's business. */
 function monthTitle(year: number, month: number): string {
@@ -57,6 +68,15 @@ function weekStartOf(date: string): string {
 }
 
 const monthOf = (date: string) => ({ year: Number(date.slice(0, 4)), month: Number(date.slice(5, 7)) });
+
+/**
+ * The first day the hour grid shows with `date` on screen: the Sunday of its
+ * week for the week view, the day itself for one or four days — Google's
+ * four-day view starts on the day you are on, not on a fixed weekday.
+ */
+function gridStartFor(mode: Mode, date: string): string {
+  return mode === 'week' ? weekStartOf(date) : date;
+}
 
 /**
  * The calendar, by month or by week. Three layers, drawn in this order in
@@ -121,7 +141,9 @@ export default function TaskCalendar({
   const { formatCalendarDate } = useDateFormatters();
   const [mode, setMode] = useState<Mode>('month');
   const [cursor, setCursor] = useState(() => monthOf(selected));
-  const [weekStart, setWeekStart] = useState(() => weekStartOf(selected));
+  // The first day of the hour grid, in the day, four-day and week views.
+  const [gridStart, setGridStart] = useState(() => weekStartOf(selected));
+  const [roomy, setRoomy] = useState(false);
   const [over, setOver] = useState<string | null>(null);
   const [seriesAsk, setSeriesAsk] = useState<SeriesAsk | null>(null);
   // The office clock for the week grid's "now" line; read after mount and once a minute.
@@ -135,15 +157,34 @@ export default function TaskCalendar({
 
   useEffect(() => {
     try {
-      if (window.localStorage.getItem(MODE_KEY) === 'week') setMode('week');
+      const saved = window.localStorage.getItem(MODE_KEY);
+      const m = MODES.find((x) => x.id === saved)?.id;
+      if (m && m !== 'month') { setMode(m); setGridStart(gridStartFor(m, selected)); }
+      if (window.localStorage.getItem(SIZE_KEY) === 'roomy') setRoomy(true);
     } catch { /* private window: month it is */ }
+    // Once, on mount: `selected` is only the starting point.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const toggleRoomy = () => {
+    setRoomy((r) => {
+      try { window.localStorage.setItem(SIZE_KEY, r ? 'normal' : 'roomy'); } catch { /* not worth telling anyone */ }
+      return !r;
+    });
+  };
+
   // Follow the selected day when it is moved from outside. Only on a change
-  // of `selected`, so paging away with the arrows is not undone.
+  // of `selected`, so paging away with the arrows is not undone. The grid
+  // moves only when the day is off it: in the four-day view, clicking the
+  // third column must not slide the view along to start there.
   useEffect(() => {
     setCursor(monthOf(selected));
-    setWeekStart(weekStartOf(selected));
+    setGridStart((g) => {
+      const n = mode === 'month' ? 7 : SPAN[mode];
+      return selected >= g && selected <= addDays(g, n - 1) ? g : gridStartFor(mode, selected);
+    });
+    // Only `selected`: a change of mode places the grid itself, in choose().
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
 
   /**
@@ -152,8 +193,8 @@ export default function TaskCalendar({
    */
   const choose = (m: Mode) => {
     setMode(m);
-    if (m === 'week') setWeekStart(weekStartOf(selected));
-    else setCursor(monthOf(selected));
+    if (m === 'month') setCursor(monthOf(selected));
+    else setGridStart(gridStartFor(m, selected));
     try { window.localStorage.setItem(MODE_KEY, m); } catch { /* not worth telling anyone */ }
   };
 
@@ -164,7 +205,7 @@ export default function TaskCalendar({
    * rather than forever.
    */
   const monthStart = `${cursor.year}-${String(cursor.month).padStart(2, '0')}-01`;
-  const span = [addDays(monthStart, -7), addDays(monthStart, 38), weekStart, addDays(weekStart, 6),
+  const span = [addDays(monthStart, -7), addDays(monthStart, 38), gridStart, addDays(gridStart, 6),
     weekStartOf(selected), addDays(weekStartOf(selected), 6), today].filter(Boolean).sort();
   const rangeFrom = span[0];
   const rangeTo = span[span.length - 1];
@@ -192,11 +233,15 @@ export default function TaskCalendar({
   ];
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const gridDays = Array.from({ length: mode === 'month' ? 7 : SPAN[mode] }, (_, i) => addDays(gridStart, i));
 
   const shift = (by: number) => {
-    if (mode === 'week') {
-      setWeekStart((w) => addDays(w, 7 * by));
+    if (mode !== 'month') {
+      const next = addDays(gridStart, SPAN[mode] * by);
+      setGridStart(next);
+      // One day on screen: the day panel beside it should be that day, not
+      // one the arrows have already left behind.
+      if (mode === 'day') onSelect(next);
       return;
     }
     setCursor((c) => {
@@ -207,7 +252,7 @@ export default function TaskCalendar({
 
   const goToday = () => {
     setCursor(monthOf(today));
-    setWeekStart(weekStartOf(today));
+    setGridStart(gridStartFor(mode, today));
     onSelect(today);
   };
 
@@ -328,7 +373,11 @@ export default function TaskCalendar({
 
   const title = mode === 'month'
     ? monthTitle(cursor.year, cursor.month)
-    : `${formatCalendarDate(weekDays[0])} – ${formatCalendarDate(weekDays[6])}`;
+    : gridDays.length === 1
+      ? formatCalendarDate(gridDays[0])
+      : `${formatCalendarDate(gridDays[0])} – ${formatCalendarDate(gridDays[gridDays.length - 1])}`;
+  const unit = mode === 'month' ? 'month' : mode === 'week' ? 'week' : mode === 'day' ? 'day' : 'four days';
+  const perDay = roomy ? PER_DAY_ROOMY : PER_DAY;
 
   // Beside the month only: the week view already is this list, drawn wide.
   const selectedWeek = Array.from({ length: 7 }, (_, i) => addDays(weekStartOf(selected), i));
@@ -338,15 +387,16 @@ export default function TaskCalendar({
   const isCurrentWeek = weekStartOf(selected) === weekStartOf(today);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+    // Roomy gives the calendar the whole width: the side panels move below it.
+    <div className={`grid gap-6 ${roomy ? '' : 'lg:grid-cols-[1fr_320px]'}`}>
       <section className="min-w-0 rounded-xl border border-gray-200 bg-white">
         <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 py-3">
-          <button type="button" onClick={() => shift(-1)} aria-label={mode === 'week' ? 'Previous week' : 'Previous month'}
+          <button type="button" onClick={() => shift(-1)} aria-label={`Previous ${unit}`}
             className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100">
             <ChevronLeft size={18} />
           </button>
           <h2 className="min-w-[10rem] text-center text-base font-semibold text-gray-900">{title}</h2>
-          <button type="button" onClick={() => shift(1)} aria-label={mode === 'week' ? 'Next week' : 'Next month'}
+          <button type="button" onClick={() => shift(1)} aria-label={`Next ${unit}`}
             className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100">
             <ChevronRight size={18} />
           </button>
@@ -358,18 +408,32 @@ export default function TaskCalendar({
             Today
           </button>
 
-          <div className="ml-auto inline-flex rounded-lg border border-gray-200 p-0.5 text-xs">
-            {(['month', 'week'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                aria-pressed={mode === m}
-                onClick={() => choose(m)}
-                className={`rounded-md px-2.5 py-1 font-medium ${mode === m ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-              >
-                {m === 'month' ? 'Month' : 'Week'}
-              </button>
-            ))}
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleRoomy}
+              aria-pressed={roomy}
+              title={roomy ? 'Back to the normal size, with the side panels beside it' : 'Bigger: taller hours and the full width'}
+              className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+            >
+              {roomy ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+              {roomy ? 'Smaller' : 'Bigger'}
+            </button>
+            <div className="inline-flex rounded-lg border border-gray-200 p-0.5 text-xs">
+              {MODES.map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={mode === id}
+                  onClick={() => choose(id)}
+                  // Below md the hour grid is a list, and one day or four is
+                  // the same list shorter — still worth having on a phone.
+                  className={`rounded-md px-2.5 py-1 font-medium ${mode === id ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -387,7 +451,7 @@ export default function TaskCalendar({
                   <div
                     key={date ?? `blank-${i}`}
                     {...(date ? dayTarget(date) : {})}
-                    className={`min-h-[6rem] min-w-0 border-b border-r border-gray-100 p-1 ${
+                    className={`${roomy ? 'min-h-[9.5rem] p-1.5' : 'min-h-[6rem] p-1'} min-w-0 border-b border-r border-gray-100 ${
                       date === null ? 'bg-gray-50/60' : 'cursor-pointer hover:bg-gray-50'
                     } ${i % 7 === 6 ? 'border-r-0' : ''} ${
                       date && date === selected ? 'bg-brand-50/60' : ''
@@ -401,9 +465,9 @@ export default function TaskCalendar({
                           {Number(date.slice(8))}
                         </div>
                         <div className="space-y-1">
-                          {here.slice(0, PER_DAY)}
-                          {here.length > PER_DAY && (
-                            <p className="px-1.5 text-[11px] text-gray-500">+{here.length - PER_DAY} more</p>
+                          {here.slice(0, perDay)}
+                          {here.length > perDay && (
+                            <p className="px-1.5 text-[11px] text-gray-500">+{here.length - perDay} more</p>
                           )}
                         </div>
                       </>
@@ -416,7 +480,7 @@ export default function TaskCalendar({
         ) : (
           <>
           <TaskWeekGrid
-            days={weekDays}
+            days={gridDays}
             today={today}
             selected={selected}
             items={items}
@@ -429,10 +493,11 @@ export default function TaskCalendar({
             onAdd={onAdd}
             onAskSeries={onDetach ? setSeriesAsk : undefined}
             nowMinutes={nowMinutes}
+            roomy={roomy}
           />
           {/* A phone keeps the list: seven hour-columns do not fit it. */}
           <div className="grid grid-cols-1 md:hidden">
-            {weekDays.map((date, i) => (
+            {gridDays.map((date) => (
               <div
                 key={date}
                 {...dayTarget(date)}
@@ -441,7 +506,7 @@ export default function TaskCalendar({
                 }`}
               >
                 <div className="mb-2 flex items-center gap-1.5 px-0.5">
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-gray-400">{WEEKDAYS[i]}</span>
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-gray-400">{WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()]}</span>
                   <span className={`flex h-6 min-w-[1.5rem] items-center justify-center rounded-full px-1 text-xs ${
                     date === today ? 'bg-brand-600 font-semibold text-white' : 'text-gray-600'
                   }`}>
@@ -465,7 +530,7 @@ export default function TaskCalendar({
         )}
 
         <p className="border-t border-gray-100 px-4 py-2 text-xs text-gray-400">
-          Drag your own tasks and events to another day to move them{mode === 'week' ? ', or to another time in the week view. Pull the bottom edge of an event to change how long it lasts; double-click an empty spot to add one' : ''}. Times are Guatemala office time.
+          Drag your own tasks and events to another day to move them{mode !== 'month' ? ', or to another time. Pull the bottom edge of an event to change how long it lasts; click an empty spot to add one' : ''}. Times are Guatemala office time.
         </p>
       </section>
 
