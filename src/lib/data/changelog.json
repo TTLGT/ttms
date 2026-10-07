@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "c105422455b0dc6fbc7d57855457db4db12a7d20",
+      "date": "2026-10-07T14:31:36-06:00",
+      "author": "erwindank",
+      "subject": "Ask before closing a task or event with unsaved changes",
+      "body": "Clicking outside the editor, Escape, the X and Cancel now confirm before\nthrowing away anything typed or picked, for new items and edits alike.\nEscape in a board column's quick-add box asks too when it holds text."
+    },
+    {
       "hash": "9d4b897b93e2e2c0a3b15b738dbc6b9a1530db2a",
       "date": "2026-10-07T14:12:53-06:00",
       "author": "erwindank",

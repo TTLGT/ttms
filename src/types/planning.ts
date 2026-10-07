@@ -18,11 +18,13 @@
  * carry the pointer with them. The card never recognises one by its title;
  * see `canBePlanningSlot()`.
  *
- * **The two daily ones need not repeat.** People plan at different times on
+ * **None of them has to repeat.** People plan at different times on
  * different days, so the morning and end-of-day slots are "just this once"
- * unless the person ticks "every weekday" — and a one-off counts as covering
- * its own day only, so the card asks again the next working day. Weekly and
- * monthly always repeat.
+ * unless the person ticks "every weekday". Weekly and monthly start ticked —
+ * a week's plan is more often a fixed habit — but can be unticked for this
+ * week or month only. A one-off counts as covering its own day only, so the
+ * card asks again on the next day it would ask anyway: the next working day,
+ * the next Friday afternoon, the next last Friday (`isPlanningAskDay()`).
  *
  * Stored on the owner document, `personalTasks/{uid}.planning`, beside the
  * board's columns and the reminder settings — so it is as private as the list
@@ -46,7 +48,7 @@ export function isPlanningKind(v: unknown): v is PlanningKind {
   return typeof v === 'string' && (PLANNING_KINDS as readonly string[]).includes(v);
 }
 
-/** The two that happen every working day, and may be one-offs. */
+/** The two that happen every working day. */
 export function isDailyKind(kind: PlanningKind): boolean {
   return kind === 'morning' || kind === 'evening';
 }
@@ -410,9 +412,18 @@ export function firstPlanningDate(
   return d;
 }
 
-/** Which repeat the task gets. The daily ones only when the person asked for it. */
-export function planningRepeat(kind: PlanningKind, everyWeekday: boolean): TaskRepeat {
-  if (isDailyKind(kind)) return everyWeekday ? 'weekdays' : 'none';
+/**
+ * Whether the card's repeat box starts ticked: off for the daily ones, on for
+ * weekly and monthly. Also what the server assumes when the box is not sent.
+ */
+export function planningRepeatsByDefault(kind: PlanningKind): boolean {
+  return !isDailyKind(kind);
+}
+
+/** Which repeat the task gets — `none` when the person left the box unticked. */
+export function planningRepeat(kind: PlanningKind, repeats: boolean): TaskRepeat {
+  if (!repeats) return 'none';
+  if (isDailyKind(kind)) return 'weekdays';
   return kind === 'weekly' ? 'weekly' : 'monthlyNth';
 }
 

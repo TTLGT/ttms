@@ -17,7 +17,7 @@ export async function getMyPlanningDay(date: string): Promise<PlanningDay> {
 }
 
 export async function scheduleMyPlanning(input: {
-  kind: PlanningKind; time: string; title?: string; minutes?: number; weekday?: number; nth?: number; everyWeekday?: boolean;
+  kind: PlanningKind; time: string; title?: string; minutes?: number; weekday?: number; nth?: number; repeat?: boolean;
 }): Promise<PlanningStatus> {
   const data = await authedFetch<{ status: PlanningStatus }>('/api/me/planning', {
     method: 'POST',

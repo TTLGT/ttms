@@ -26,6 +26,7 @@ import {
   isValidTime,
   officeNowTime,
   planningRepeat,
+  planningRepeatsByDefault,
   snoozeUntil,
   type PlanningKind,
   type PlanningState,
@@ -153,12 +154,13 @@ export async function GET(req: NextRequest) {
  * the time, and the pointer to it — in one batch, so the card never stops
  * asking about a slot that failed to save.
  *
- * Body: `{ kind, time, title?, minutes?, weekday?, nth?, everyWeekday? }`.
+ * Body: `{ kind, time, title?, minutes?, weekday?, nth?, repeat? }`.
  * `title` is the person's own name for the slot; blank or missing is the
  * kind's usual one (PLANNING_COPY). `weekday`
  * is weekly and monthly; `nth` (1–4, 5 = last) is monthly only, and the two
- * default to the last Friday. `everyWeekday` is the daily ones' repeat box,
- * off unless sent. Everything else is fixed here; the person changes it
+ * default to the last Friday. `repeat` is the card's repeat box; when not
+ * sent it is off for the daily ones and on for weekly and monthly
+ * (`planningRepeatsByDefault()`). Everything else is fixed here; the person changes it
  * afterwards like any other task.
  */
 export async function POST(req: NextRequest) {
@@ -178,7 +180,7 @@ export async function POST(req: NextRequest) {
     const nth = isPlanningNth(body.nth) ? body.nth : PLANNING_DEFAULT_NTH;
     const minutes = isPlanningDuration(body.minutes) ? body.minutes : PLANNING_DEFAULT_DURATION[kind];
     const endTime = addMinutes(time, minutes);
-    const repeat = planningRepeat(kind, body.everyWeekday === true);
+    const repeat = planningRepeat(kind, typeof body.repeat === 'boolean' ? body.repeat : planningRepeatsByDefault(kind));
 
     const ownerRef = taskOwnerDoc(uid);
     const today = officeToday();
@@ -203,7 +205,7 @@ export async function POST(req: NextRequest) {
     const title = (typeof body.title === 'string' ? body.title.trim().slice(0, MAX_TASK_TITLE) : '') || copy.title;
     const date = firstPlanningDate(kind, time, { weekday, nth }, today);
     const repeating = {
-      ...repeatFields(repeat, date, kind === 'monthly' ? { repeatWeekday: weekday, repeatNths: [nth] } : {}),
+      ...repeatFields(repeat, date, repeat === 'monthlyNth' ? { repeatWeekday: weekday, repeatNths: [nth] } : {}),
       // A month, like every repeat (REPEAT_ADVICE). When it runs out the card
       // asks again, which is the renewal: a plan worth keeping is a click away.
       repeatUntil: repeatEnd(repeat, date, undefined, null),

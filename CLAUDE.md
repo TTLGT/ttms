@@ -1014,8 +1014,9 @@ Types and pure rules in `src/types/task.ts`; server in
   are only asked from noon on that Friday (`isPlanningAskDay()`), never on the
   same morning card as the daily ones. The two
   daily ones are one-offs unless the person ticks "every weekday", because
-  people plan at different times; a one-off covers its own day, so the card
-  asks again the next working day. The morning one is not asked after 1pm.
+  people plan at different times; weekly and monthly start ticked to repeat
+  but can be unticked for just this week or month. A one-off covers its own
+  day, so the card asks again on its next ask day. The morning one is not asked after 1pm.
   - A slot keeps an `endTime` (the length picked on the card) — the one kind
     of task that does; the PATCH route shifts it when the start moves.
   - "Your day" on the card comes from `GET /api/me/planning/day`: the caller's

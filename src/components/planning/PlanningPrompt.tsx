@@ -32,6 +32,7 @@ import {
   firstPlanningDate,
   freeStarts,
   isDailyKind,
+  planningRepeatsByDefault,
   isPlanningKind,
   itemEnd,
   officeNowTime,
@@ -117,8 +118,37 @@ function nextWorkday(date: string): string {
   return at.toISOString().slice(0, 10);
 }
 
-function cadence(kind: PlanningKind, weekday: number, nth: number, everyWeekday: boolean): string {
-  if (isDailyKind(kind)) return everyWeekday ? 'Every weekday' : 'Just this once';
+/**
+ * The repeat box, per kind. The daily ones start unticked and weekly and
+ * monthly ticked (`planningRepeatsByDefault()`); `again` is when a one-off
+ * leaves the card asking next, which follows `isPlanningAskDay()`.
+ */
+const REPEAT_BOX: Record<PlanningKind, { label: string; hint: string; again: string }> = {
+  morning: {
+    label: 'Repeat every weekday at this time',
+    hint: 'Leave it off if you plan at different times — you will be asked again next working day.',
+    again: 'next working day',
+  },
+  evening: {
+    label: 'Repeat every weekday at this time',
+    hint: 'Leave it off if you plan at different times — you will be asked again next working day.',
+    again: 'next working day',
+  },
+  weekly: {
+    label: 'Repeat every week at this time',
+    hint: 'Untick it to plan just this week — you will be asked again next Friday afternoon.',
+    again: 'next Friday afternoon',
+  },
+  monthly: {
+    label: 'Repeat every month at this time',
+    hint: 'Untick it to plan just this month — you will be asked again on the last Friday of next month.',
+    again: 'on the last Friday of next month',
+  },
+};
+
+function cadence(kind: PlanningKind, weekday: number, nth: number, repeats: boolean): string {
+  if (!repeats) return 'Just this once';
+  if (isDailyKind(kind)) return 'Every weekday';
   if (kind === 'weekly') return `Every ${WEEKDAY_LONG[weekday]}`;
   const label = nthPatternLabel(weekday, [nth]);
   return label.charAt(0).toUpperCase() + label.slice(1);
@@ -143,7 +173,7 @@ export default function PlanningPrompt() {
   const [title, setTitle] = useState(PLANNING_COPY.morning.title);
   const [weekday, setWeekday] = useState(PLANNING_DEFAULT_WEEKDAY);
   const [nth, setNth] = useState(PLANNING_DEFAULT_NTH);
-  const [everyWeekday, setEveryWeekday] = useState(false);
+  const [repeats, setRepeats] = useState(planningRepeatsByDefault('morning'));
 
   const [day, setDay] = useState<PlanningDay | null>(null);
   const [moving, setMoving] = useState<string | null>(null);
@@ -164,7 +194,7 @@ export default function PlanningPrompt() {
     setTitle(PLANNING_COPY[k].title);
     setWeekday(PLANNING_DEFAULT_WEEKDAY);
     setNth(PLANNING_DEFAULT_NTH);
-    setEveryWeekday(false);
+    setRepeats(planningRepeatsByDefault(k));
     setDay(null);
     setMoving(null);
     setAdded(null);
@@ -285,7 +315,7 @@ export default function PlanningPrompt() {
     setBusy(true);
     setError('');
     try {
-      setAdded(await scheduleMyPlanning({ kind, time, title: slotTitle, minutes, weekday, nth, everyWeekday }));
+      setAdded(await scheduleMyPlanning({ kind, time, title: slotTitle, minutes, weekday, nth, repeat: repeats }));
       window.dispatchEvent(new Event(PLANNING_CHANGED_EVENT));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not add it to your calendar.');
@@ -401,7 +431,7 @@ export default function PlanningPrompt() {
               <p className="mt-1 text-xs text-gray-500">
                 {linked
                   ? 'It does not repeat, so you will be asked again once it has passed.'
-                  : 'Just this once — you will be asked again next working day.'}
+                  : `Just this once — you will be asked again ${REPEAT_BOX[kind].again}.`}
               </p>
             )}
             {added.scheduled && added.scheduled.repeat !== 'none' && added.scheduled.repeatUntil && (
@@ -472,9 +502,9 @@ export default function PlanningPrompt() {
                     className="-mx-1.5 w-[calc(100%+0.75rem)] rounded-md border border-transparent bg-transparent px-1.5 py-0.5 font-semibold text-gray-900 hover:border-gray-300 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-400" />
                   <p className="text-sm text-gray-500">{dayName(date)} · {range}</p>
                   <p className="text-xs text-gray-400">
-                    {cadence(kind, weekday, nth, everyWeekday)}
+                    {cadence(kind, weekday, nth, repeats)}
                     {/* Every repeat ends — a month, like any other (REPEAT_ADVICE). */}
-                    {(!isDailyKind(kind) || everyWeekday) && <>, until {formatCalendarDate(oneMonthAfter(date))}</>}
+                    {repeats && <>, until {formatCalendarDate(oneMonthAfter(date))}</>}
                   </p>
                 </div>
               </div>
@@ -538,18 +568,16 @@ export default function PlanningPrompt() {
                 ))}
               </div>
 
-              {isDailyKind(kind) && (
-                <label className="mt-4 flex items-start gap-2 text-sm text-gray-700">
-                  <input type="checkbox" checked={everyWeekday} onChange={(e) => setEveryWeekday(e.target.checked)}
-                    className="mt-0.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
-                  <span>
-                    <span className="flex items-center gap-1 font-medium"><Repeat size={13} /> Repeat every weekday at this time</span>
-                    <span className="block text-xs text-gray-500">
-                      Leave it off if you plan at different times — you will be asked again next working day.
-                    </span>
-                  </span>
-                </label>
-              )}
+              {/* Every kind can be a one-off: this week's plan at a time that
+                  suits this week, and asked again next time round. */}
+              <label className="mt-4 flex items-start gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={repeats} onChange={(e) => setRepeats(e.target.checked)}
+                  className="mt-0.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+                <span>
+                  <span className="flex items-center gap-1 font-medium"><Repeat size={13} /> {REPEAT_BOX[kind].label}</span>
+                  <span className="block text-xs text-gray-500">{REPEAT_BOX[kind].hint}</span>
+                </span>
+              </label>
             </div>
 
             <DayView
