@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "d74461f9404c27951c3ebcf6c090167e81686c25",
+      "date": "2026-10-07T12:43:03-06:00",
+      "author": "erwindank",
+      "subject": "Add day and four-day views, a bigger calendar size, one-click events, and drop previews",
+      "body": "Dragging in the hour grid now draws the item where it will land, with its\ntimes, and dims the original. Hovering an empty spot outlines the hour a\nclick would create, and one click creates it. The calendar gains Day and\n4 days views beside Week and Month, and a Bigger size with taller hours and\nthe full width, both remembered per browser."
+    },
+    {
       "hash": "b919754696498ba2e5f98805e6c1995f00e7580b",
       "date": "2026-10-07T12:34:43-06:00",
       "author": "erwindank",

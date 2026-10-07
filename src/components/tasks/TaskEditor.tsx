@@ -42,6 +42,7 @@ import {
   type TaskRepeat,
   type TaskStep,
 } from '@/types/task';
+import { shiftedEnd } from '@/types/planning';
 import { EVENT_ICON, NOTE_STYLE } from './taskStyle';
 import StepList from './StepList';
 import { TaskContactPicker } from './TaskContacts';
@@ -142,6 +143,10 @@ export default function TaskEditor({
   }, [onClose]);
 
   const hasTime = !!time;
+  // A planning slot is a task that keeps an end — the length picked on the
+  // planning card — so it gets the Ends box an event has. The PATCH route
+  // takes an end after the start and otherwise keeps the slot's length.
+  const hasEnd = kind === 'event' || (kind === 'task' && !!task?.planning);
   const leads = leadsFor(hasTime);
   // Which of the ticked reminders are already in the past, so the box can say
   // so rather than letting somebody believe a reminder is on its way.
@@ -165,7 +170,7 @@ export default function TaskEditor({
     if (repeat === 'monthlyNth' && !nths.length) { setProblem('Pick at least one week of the month.'); return; }
     if (repeat !== 'none' && !repeatUntil) { setProblem('Pick the day it stops repeating. Nothing repeats for ever.'); return; }
     if (repeat !== 'none' && date && repeatUntil < date) { setProblem('It stops repeating before it starts.'); return; }
-    if (kind === 'event' && time && endTime && endTime <= time) {
+    if (hasEnd && time && endTime && endTime <= time) {
       setProblem('The end time is before the start time.');
       return;
     }
@@ -187,7 +192,7 @@ export default function TaskEditor({
       color,
       date: date || null,
       time: time || null,
-      endTime: kind === 'event' ? (endTime || null) : null,
+      endTime: hasEnd ? (endTime || null) : null,
       repeat,
       repeatWeekday: repeat === 'monthlyNth' ? nthWeekday : null,
       repeatNths: repeat === 'monthlyNth' ? nths : [],
@@ -300,9 +305,21 @@ export default function TaskEditor({
             </div>
             <div>
               <label className={label} htmlFor="task-time">{kind === 'event' ? 'Starts' : 'Time'}</label>
-              <input id="task-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} className={input} />
+              <input
+                id="task-time"
+                type="time"
+                value={time}
+                onChange={(e) => {
+                  // The end moves with the start, keeping the length — the
+                  // same as dragging the block on the calendar.
+                  const next = e.target.value;
+                  if (hasEnd && time && endTime && next) setEndTime(shiftedEnd(time, endTime, next) ?? endTime);
+                  setTime(next);
+                }}
+                className={input}
+              />
             </div>
-            {kind === 'event' && (
+            {hasEnd && (
               <div>
                 <label className={label} htmlFor="task-end">Ends</label>
                 <input id="task-end" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={input} />
