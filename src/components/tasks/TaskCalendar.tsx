@@ -84,6 +84,7 @@ export default function TaskCalendar({
   onAdd,
   onUpdate,
   onDetach,
+  onRangeChange,
   holidaysOn,
   celebrationsOn,
   pickedOccurrence = null,
@@ -106,6 +107,8 @@ export default function TaskCalendar({
    * goes. Without it, dates of a series cannot be dragged or stretched.
    */
   onDetach?: (id: string, input: { date: string; newDate?: string; time?: string | null; endTime?: string | null }) => void;
+  /** The days on screen, so the page can fetch history when they reach back that far. */
+  onRangeChange?: (from: string, to: string) => void;
   holidaysOn: (date: string) => Holiday[];
   celebrationsOn?: (date: string) => CalendarOccurrence[];
   pickedOccurrence?: CalendarOccurrence | null;
@@ -165,6 +168,8 @@ export default function TaskCalendar({
     weekStartOf(selected), addDays(weekStartOf(selected), 6), today].filter(Boolean).sort();
   const rangeFrom = span[0];
   const rangeTo = span[span.length - 1];
+
+  useEffect(() => { onRangeChange?.(rangeFrom, rangeTo); }, [onRangeChange, rangeFrom, rangeTo]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, PersonalTask[]>();
@@ -241,7 +246,8 @@ export default function TaskCalendar({
     // One date of a series can be dragged when the page can take it out of
     // the series — and asks first. Otherwise it is moved by editing the event.
     const series = t.kind === 'event' && t.repeat !== 'none';
-    const movable = !series || !!onDetach;
+    // History is a record: opened to read, never moved.
+    const movable = !t.fromHistory && (!series || !!onDetach);
     return (
       <button
         key={t.id}
@@ -631,7 +637,8 @@ function DayList({
               <button
                 type="button"
                 aria-label={done ? 'Reopen' : 'Mark as done'}
-                title={done ? 'Reopen' : 'Mark as done'}
+                title={t.fromHistory ? 'From your history — read only' : done ? 'Reopen' : 'Mark as done'}
+                disabled={t.fromHistory}
                 onClick={() => onUpdate(t.id, { status: done ? 'todo' : 'done' })}
                 className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${
                   outcome === 'notdone' ? 'border-red-500 bg-red-500 text-white'

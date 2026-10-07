@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Bell, CalendarClock, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarClock, Trash2, X } from 'lucide-react';
 import DateField from '@/components/DateField';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
@@ -15,7 +15,11 @@ import {
   NTH_LABEL,
   NTH_LAST,
   WEEKDAY_NAMES,
+  HISTORY_AFTER_DAYS,
+  REPEAT_ADVICE,
   calendarToday,
+  oneMonthAfter,
+  repeatsTooLong,
   nthOf,
   outcomeOf,
   type TaskOutcome,
@@ -91,6 +95,7 @@ export default function TaskEditor({
   onClose: () => void;
 }) {
   const start = task ?? initial ?? {};
+  const readOnly = !!task?.fromHistory;
   const [kind, setKind]           = useState<TaskKind>(start.kind ?? 'task');
   const [eventType, setEventType] = useState<EventType>(start.eventType ?? 'call');
   const [title, setTitle]         = useState(start.title ?? '');
@@ -113,6 +118,12 @@ export default function TaskEditor({
   // item has none yet, so picking the pattern on the 9th offers "2nd …day".
   const [repeatWeekday, setRepeatWeekday] = useState<number | null>(start.repeatWeekday ?? null);
   const [repeatNths, setRepeatNths]       = useState<number[]>(start.repeatNths ?? []);
+  // Every repeat ends. A repeating item from before ends existed opens with a
+  // month from its date (or today), the same the server would give it.
+  const [repeatUntil, setRepeatUntil]     = useState(
+    start.repeatUntil
+      ?? (start.repeat && start.repeat !== 'none' ? oneMonthAfter(start.date ?? calendarToday()) : ''),
+  );
   const [steps, setSteps]         = useState<TaskStep[]>(start.steps ?? []);
   const [contacts, setContacts]   = useState<TaskContact[]>(start.contacts ?? []);
   const [orders, setOrders]       = useState<TaskOrder[]>(start.orders ?? []);
@@ -147,10 +158,13 @@ export default function TaskEditor({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (readOnly) return;
     if (!title.trim()) { setProblem('Give it a title.'); return; }
     if (kind === 'event' && !date) { setProblem('An event needs a date.'); return; }
     if (kind === 'task' && repeat !== 'none' && !date) { setProblem('A repeating task needs a due date.'); return; }
     if (repeat === 'monthlyNth' && !nths.length) { setProblem('Pick at least one week of the month.'); return; }
+    if (repeat !== 'none' && !repeatUntil) { setProblem('Pick the day it stops repeating. Nothing repeats for ever.'); return; }
+    if (repeat !== 'none' && date && repeatUntil < date) { setProblem('It stops repeating before it starts.'); return; }
     if (kind === 'event' && time && endTime && endTime <= time) {
       setProblem('The end time is before the start time.');
       return;
@@ -177,6 +191,7 @@ export default function TaskEditor({
       repeat,
       repeatWeekday: repeat === 'monthlyNth' ? nthWeekday : null,
       repeatNths: repeat === 'monthlyNth' ? nths : [],
+      repeatUntil: repeat !== 'none' ? repeatUntil : null,
       // Only the leads that apply to what is being saved: a "15 minutes
       // before" ticked while a time was set means nothing once it is cleared.
       reminders: date ? reminders.filter((l) => leads.includes(l)) : [],
@@ -213,7 +228,15 @@ export default function TaskEditor({
           </button>
         </header>
 
+        {/* History is a record: everything shown, nothing changeable. A
+            disabled fieldset turns off every control inside it at once. */}
+        <fieldset disabled={readOnly} className="min-w-0">
         <div className="space-y-4 px-5 py-4">
+          {readOnly && (
+            <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+              From your history — over {HISTORY_AFTER_DAYS} days ago — so it can be read but not changed.
+            </p>
+          )}
           {/* A task is something to finish; an event is something to turn
               up to. Only tasks go on the board. */}
           <div className="inline-flex rounded-lg border border-gray-200 p-0.5 text-sm">
@@ -434,6 +457,8 @@ export default function TaskEditor({
                 onChange={(e) => {
                   const next = e.target.value as TaskRepeat;
                   setRepeat(next);
+                  // A month, offered every time a repeat is switched on.
+                  if (next !== 'none' && !repeatUntil) setRepeatUntil(oneMonthAfter(date || calendarToday()));
                   // A repeat counts on from the due date, so it needs one;
                   // today is the date somebody setting one up nearly always means.
                   if (next !== 'none' && !date) setDate(calendarToday());
@@ -468,6 +493,30 @@ export default function TaskEditor({
                 </div>
               )}
               {repeat !== 'none' && (
+                <div className="mt-2">
+                  <span className={label}>Stops repeating after</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <DateField ariaLabel="Stops repeating after" value={repeatUntil} onChange={setRepeatUntil} className={`${input} max-w-[12rem]`} />
+                    {date && repeatsTooLong(date, repeatUntil) && (
+                      <button type="button" onClick={() => setRepeatUntil(oneMonthAfter(date))}
+                        className="text-xs font-medium text-brand-700 hover:underline">
+                        Set it to one month
+                      </button>
+                    )}
+                  </div>
+                  {date && repeatsTooLong(date, repeatUntil) ? (
+                    <p className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+                      <AlertTriangle size={13} className="mt-0.5 flex-shrink-0" />
+                      <span>{REPEAT_ADVICE}</span>
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Nothing repeats for ever. A month is the most we suggest — renew it then if it still matters.
+                    </p>
+                  )}
+                </div>
+              )}
+              {repeat !== 'none' && (
                 <p className="mt-1.5 text-xs text-gray-500">
                   {kind === 'task'
                     ? 'When you mark it Done, the next one is added to To do with its new due date.'
@@ -496,7 +545,7 @@ export default function TaskEditor({
             </div>
           </div>
 
-          {task && onReschedule && kind === 'task' && task.status !== 'done' && (
+          {task && onReschedule && !readOnly && kind === 'task' && task.status !== 'done' && (
             <div className="rounded-lg border border-gray-200 p-3">
               {moveTo ? (
                 <div className="flex flex-wrap items-end gap-2">
@@ -537,9 +586,10 @@ export default function TaskEditor({
 
           {problem && <p className="text-sm text-red-600">{problem}</p>}
         </div>
+        </fieldset>
 
         <footer className="flex items-center gap-2 border-t border-inherit px-5 py-3">
-          {task && onDelete && (
+          {task && onDelete && !readOnly && (
             <button
               type="button"
               onClick={() => { if (window.confirm(`Delete "${task.title}"?`)) onDelete(); }}
@@ -550,15 +600,17 @@ export default function TaskEditor({
           )}
           <div className="ml-auto flex gap-2">
             <button type="button" onClick={onClose} className="rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
-              Cancel
+              {readOnly ? 'Close' : 'Cancel'}
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
-            >
-              {saving ? 'Saving…' : task ? 'Save' : 'Add'}
-            </button>
+            {!readOnly && (
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : task ? 'Save' : 'Add'}
+              </button>
+            )}
           </div>
         </footer>
       </form>

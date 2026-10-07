@@ -6,7 +6,7 @@ import { AlertTriangle, BellRing, CalendarCheck, CalendarClock, MoveRight, Repea
 import { getMyPlanning, getMyPlanningDay, scheduleMyPlanning, setMyPlanningPrompt } from '@/lib/planning';
 import { updateMyTask } from '@/lib/personalTasks';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { calendarToday, formatTime, repeatText } from '@/types/task';
+import { calendarToday, formatTime, oneMonthAfter, repeatText } from '@/types/task';
 import {
   PLANNING_ASK_EVENT,
   PLANNING_CHANGED_EVENT,
@@ -324,6 +324,12 @@ export default function PlanningPrompt() {
             {added.scheduled?.repeat === 'none' && (
               <p className="mt-1 text-xs text-gray-500">Just this once — you will be asked again next working day.</p>
             )}
+            {added.scheduled && added.scheduled.repeat !== 'none' && added.scheduled.repeatUntil && (
+              <p className="mt-1 text-xs text-gray-500">
+                Until {formatCalendarDate(added.scheduled.repeatUntil)}. Then you will be asked whether to keep it — a
+                month at a time keeps it worth doing.
+              </p>
+            )}
             <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-gray-500">
               <BellRing size={13} /> You will get a reminder when it is time.
             </p>
@@ -360,7 +366,11 @@ export default function PlanningPrompt() {
                 <div className="min-w-0">
                   <p className="font-semibold text-gray-900">{copy.title}</p>
                   <p className="text-sm text-gray-500">{dayName(date)} · {range}</p>
-                  <p className="text-xs text-gray-400">{cadence(kind, weekday, everyWeekday)}</p>
+                  <p className="text-xs text-gray-400">
+                    {cadence(kind, weekday, everyWeekday)}
+                    {/* Every repeat ends — a month, like any other (REPEAT_ADVICE). */}
+                    {(!isDailyKind(kind) || everyWeekday) && <>, until {formatCalendarDate(oneMonthAfter(date))}</>}
+                  </p>
                 </div>
               </div>
 

@@ -187,7 +187,7 @@ export interface PlanningStatus {
   /** The live task, when there is one: its date and time, for the Calendar page to show. */
   scheduled: {
     taskId: string; date: string | null; time: string | null; endTime: string | null;
-    repeat: TaskRepeat; repeatWeekday: number | null; repeatNths: number[];
+    repeat: TaskRepeat; repeatWeekday: number | null; repeatNths: number[]; repeatUntil: string | null;
   } | null;
   off: boolean;
   /** True when the card should ask about this kind today. */

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/firebase-admin';
+import { officeToday } from '@/types/celebration';
 import {
+  sweepToHistory,
   syncReminderQueue,
   taskItems,
   taskOwnerDoc,
@@ -10,7 +12,7 @@ import {
 import { gameClock, gameFrom, liveStreakFor, runDailyCheck, writeGame } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
 import { GameTurn, type GameEvent, type GameState } from '@/types/taskGame';
-import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanColorLabels, cleanTaskInput, repeatFields } from '@/types/task';
+import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanColorLabels, cleanTaskInput, repeatEnd, repeatFields } from '@/types/task';
 
 /**
  * The caller's own task list and calendar — see src/types/task.ts.
@@ -28,7 +30,14 @@ export async function GET(req: NextRequest) {
     // The settings, the board's columns and the colour names ride along so the page needs no
     // second request.
     const [snap, owner] = await Promise.all([taskItems(uid).get(), taskOwnerDoc(uid).get()]);
-    const tasks = snap.docs.map(toTask);
+    let tasks = snap.docs.map(toTask);
+    // Once a day, what is long over moves to history, so this read stays the
+    // size of the present rather than of everything ever done.
+    const today = officeToday();
+    if (owner.data()?.historySweptOn !== today) {
+      const moved = await sweepToHistory(uid, snap.docs, tasks, today);
+      if (moved.size) tasks = tasks.filter((t) => !moved.has(t.id));
+    }
     // Game mode's first look of the day — overdue and streak penalties, new
     // missions — happens here, because this is the read every visit makes.
     // Any other read that day skips it without a transaction.
@@ -69,7 +78,11 @@ export async function POST(req: NextRequest) {
     if (repeat !== 'none' && !input.date) {
       return NextResponse.json({ error: 'A repeating task needs a due date.' }, { status: 400 });
     }
-    const repeating = repeatFields(repeat, input.date ?? null, input);
+    const repeating = {
+      ...repeatFields(repeat, input.date ?? null, input),
+      // Nothing repeats for ever; a month when none was given. See REPEAT_ADVICE.
+      repeatUntil: repeatEnd(repeat, input.date ?? null, input.repeatUntil, null),
+    };
     const suggestionId = kind === 'task' && brokerSuggestion(input.suggestionId) ? input.suggestionId! : null;
 
     const items = taskItems(uid);

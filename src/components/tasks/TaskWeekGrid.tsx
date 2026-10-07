@@ -280,7 +280,8 @@ export default function TaskWeekGrid({
                 )}
                 {placed.map(({ task: t, start, end, lane, lanes }) => {
                   const series = isSeries(t);
-                  const movable = !series || !!onAskSeries;
+                  // History is a record: opened to read, never moved or stretched.
+                  const movable = !t.fromHistory && (!series || !!onAskSeries);
                   const done = t.kind === 'task' && t.status === 'done';
                   const outcome = outcomeOf(t);
                   const EventIcon = t.kind === 'event' ? EVENT_ICON[t.eventType]

@@ -6,6 +6,8 @@ import {
   DEFAULT_BOARD_COLUMNS,
   DEFAULT_TASK_REMINDER_SETTINGS,
   byOrder,
+  calendarToday,
+  historyCutoff,
   orderBetween,
   type BoardColumn,
   type ColorLabels,
@@ -119,6 +121,46 @@ export async function detachMyOccurrence(
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+/** The caller's history for some days (at most two months), read-only. See PERSONAL_TASK_HISTORY. */
+export async function fetchMyHistory(from: string, to: string): Promise<PersonalTask[]> {
+  const data = await authedFetch<{ tasks?: PersonalTask[] }>(
+    `/api/me/tasks/history?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+  );
+  return (data.tasks ?? []).map((t) => ({ ...t, fromHistory: true }));
+}
+
+/**
+ * History for whatever days a page is showing, fetched a month at a time and
+ * only for months that begin before the cutoff — so a calendar on this month
+ * never reads history at all. Each month is asked once per page visit.
+ */
+export function useTaskHistory() {
+  const [history, setHistory] = useState<PersonalTask[]>([]);
+  const asked = useRef(new Set<string>());
+
+  const showRange = useCallback((from: string, to: string) => {
+    if (!from || !to) return;
+    const cutoff = historyCutoff(calendarToday());
+    if (from >= cutoff) return;
+    let [y, m] = from.split('-').map(Number);
+    const [ty, tm] = to.split('-').map(Number);
+    while (y < ty || (y === ty && m <= tm)) {
+      const first = `${y}-${String(m).padStart(2, '0')}-01`;
+      const last = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+      if (first < cutoff && !asked.current.has(first)) {
+        asked.current.add(first);
+        fetchMyHistory(first, last)
+          .then((got) => setHistory((h) => [...h.filter((t) => !got.some((g) => g.id === t.id)), ...got]))
+          // Not there is the same as nothing there: the month can be asked again next visit.
+          .catch(() => asked.current.delete(first));
+      }
+      if (m === 12) { y++; m = 1; } else m++;
+    }
+  }, []);
+
+  return { history, showRange };
 }
 
 export async function deleteMyTask(id: string): Promise<void> {

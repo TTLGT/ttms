@@ -5,7 +5,7 @@ import { gameClock, gameFrom, offDaysFor } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
 import { GameTurn, addDays, daysBetween, type GameEvent, type GameState } from '@/types/taskGame';
 import {
-  cleanTaskInput, nextOccurrence, outcomeOf, repeatFields, type PersonalTask, type TaskOutcome, type TaskStep,
+  cleanTaskInput, nextOccurrence, outcomeOf, repeatEnd, repeatFields, type PersonalTask, type TaskOutcome, type TaskStep,
 } from '@/types/task';
 import { shiftedEnd } from '@/types/planning';
 import { cleanTaskStreak, recordTaskProgress, type TaskStreak } from '@/types/taskStreak';
@@ -80,6 +80,12 @@ export async function PATCH(
           : { repeatDay: current.repeatDay, repeatWeekday: current.repeatWeekday, repeatNths: current.repeatNths };
         const { repeatDay } = repeating;
         Object.assign(update, repeating);
+        // Every repeat has an end. One saved before ends existed gets a month
+        // from here, on whatever save comes first. See REPEAT_ADVICE.
+        const repeatUntil = repeatEnd(
+          repeat, date, 'repeatUntil' in input ? input.repeatUntil : undefined, current.repeatUntil,
+        );
+        update.repeatUntil = repeatUntil;
 
         const status = (update.status as string | undefined) ?? current.status;
         const finishing = kind === 'task' && status === 'done' && current.status !== 'done';
@@ -126,7 +132,7 @@ export async function PATCH(
         }
         if (kind === 'event') update.rank = null;
 
-        const merged = { ...current, ...input, kind, date, repeat, ...repeating, status, steps } as PersonalTask;
+        const merged = { ...current, ...input, kind, date, repeat, ...repeating, repeatUntil, status, steps } as PersonalTask;
 
         // Counted once ever, in both the game and the plain streak, so ticking
         // a box on and off cannot pad either.
@@ -216,7 +222,8 @@ export async function PATCH(
         // it to another day moves them with it. A drag that changes only `order`
         // touches none of the fields a reminder depends on and skips it.
         tx.update(ref, update);
-        if (['kind', 'status', 'date', 'time', 'reminders', 'repeat', 'repeatWeekday', 'repeatNths'].some((k) => k in update)) {
+        if (['kind', 'status', 'date', 'time', 'reminders', 'repeat', 'repeatWeekday', 'repeatNths', 'repeatUntil'].some((k) => k in input)
+          || ['kind', 'status', 'date', 'time'].some((k) => k in update)) {
           syncReminderQueue(tx, uid, {
             kind,
             status,
@@ -225,6 +232,7 @@ export async function PATCH(
             reminders: input.reminders ?? current.reminders,
             repeat,
             ...repeating,
+            repeatUntil,
             skipDates: current.skipDates,
           }, taskId);
         }

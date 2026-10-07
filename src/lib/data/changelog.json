@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "6c8470e1252e23519f414228866b7a340b4d7ffd",
+      "date": "2026-10-07T11:31:43-06:00",
+      "author": "erwindank",
+      "subject": "Add planning prompts, repeating events, an hour grid and task outcomes to the calendar",
+      "body": "Planning prompts: a card that asks for a time for a morning review, end-of-day\nplanning for tomorrow, weekly planning on Friday and monthly planning on the\nlast Friday, and adds it as a task with a reminder. The daily ones are one-off\nunless \"every weekday\" is ticked. The card shows the day it lands on within the\nperson's working hours (7am to 4pm when HR has set none) and can move things\nout of the way.\n\nRepeats: \"every month by weekday\" (1st Tuesday, 2nd and 4th Wednesday, last\nFriday), and events can now repeat as a series. One date of a series can be\ndragged or stretched on its own, after asking, and becomes a separate event.\n\nCalendar: the week view is an hour grid on desktop. Drag blocks to another day\nor time, pull an event's bottom edge to change its length, double-click to add.\n\nTasks: a closed task records Done, Not done or Rescheduled and stays on its\nday. Not done costs XP in game mode and is refunded if undone. Reschedule\nkeeps the original on its day and carries a copy forward. \"Clear done\" takes\nfinished tasks off My tasks but keeps them on the calendar.\n\nAttendance: the \"Standard week\" button fills in 7am to 4pm."
+    },
+    {
       "hash": "426a933edcd2ac70e962c9ece9ae575dbb61842a",
       "date": "2026-10-07T07:27:32-06:00",
       "author": "erwindank",

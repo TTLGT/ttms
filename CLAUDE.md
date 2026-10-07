@@ -928,6 +928,22 @@ Types and pure rules in `src/types/task.ts`; server in
   deletes**: off My tasks, still on the calendar. Deleting is one task at a
   time, from the task. Archived tasks still count toward the 1,000-item cap
   and are read with the list.
+- **Nothing repeats for ever.** Every repeating task and event has a
+  `repeatUntil`; a month after its start is the default and the most the
+  editor suggests, and going longer shows `REPEAT_ADVICE`, which argues
+  against it. `repeatEnd()` is the one rule: a repeat saved without an end
+  gets a month, so one is never stored without. Past it, `nextOccurrence()`
+  makes no copy and `occurrencesBetween()` draws nothing. Planning slots get
+  a month too; when it runs out the card asks again, which is the renewal.
+- **Very old work moves to history** (`personalTasks/{uid}/history`, same
+  ids): anything finished or past more than `HISTORY_AFTER_DAYS` (90) ago,
+  once a day, from the first `GET /api/me/tasks` (`sweepToHistory()`, using
+  the list it already read — only the moves are writes). Never moved: anything
+  open, a repeating event series, a repeating task that has not made its next
+  copy. The Calendar fetches history a month at a time, and only for months
+  before the cutoff (`GET /api/me/tasks/history`); it is drawn read-only
+  (`fromHistory`, never stored). This is what keeps the list read the size of
+  the present now that finished tasks are kept.
 - **Repeating tasks make their next copy when finished**, in the PATCH
   route's transaction — no clock. `nextId` on the finished one is the guard
   against a second copy; missed dates are skipped (`nextOccurrence()`).

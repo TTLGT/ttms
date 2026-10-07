@@ -72,6 +72,7 @@ export async function POST(
           repeatDay: null,
           repeatWeekday: null,
           repeatNths: [],
+          repeatUntil: null,
           skipDates: [],
           detachedFrom: taskId,
           nextId: null,

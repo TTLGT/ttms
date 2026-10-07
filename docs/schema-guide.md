@@ -2046,6 +2046,7 @@ personalTasks/{uid}
       off                                     // "Don't ask again"; turned back on from the Calendar page
     }
   }
+  historySweptOn   : 'YYYY-MM-DD'             // office date of the last move to history
   updatedAt        : Timestamp
 
 personalTasks/{uid}/items/{itemId}
@@ -2069,6 +2070,8 @@ personalTasks/{uid}/items/{itemId}
   repeatDay : number | null        // a monthly item's day of the month
   repeatWeekday : number | null    // monthlyNth: 0 (Sunday) – 6
   repeatNths : number[]            // monthlyNth: 1–4, 5 = last ("2nd and 4th" = [2, 4])
+  repeatUntil : 'YYYY-MM-DD' | null  // the last day it repeats on; every repeat has one
+                                   // (a month by default); null when it does not repeat
   skipDates : string[]             // a repeating event's dates taken out of the series
   detachedFrom : string | null     // on the separate event made from one of them: the series' id
   nextId    : string | null        // the copy finishing this one made; set once
@@ -2116,6 +2119,12 @@ personalTasks/{uid}/items/{itemId}
   rescheduledFrom : string | null  // on the copy a reschedule made: the original's id
   xpLost    : number               // game mode: what Not done cost, given back if undone
   archived  : boolean              // taken off My tasks by "Clear done"; still on the calendar
+
+personalTasks/{uid}/history/{itemId}
+  …the same fields as an item, same id, plus movedToHistoryAt : Timestamp
+                                   // finished or past more than 90 days ago, moved out
+                                   // once a day by GET /api/me/tasks; read only by the
+                                   // Calendar paging back (GET /api/me/tasks/history)
 ```
 
 Items saved before `eventType`, `location`, `reminders`, `steps`, `rank`,

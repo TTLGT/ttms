@@ -272,6 +272,51 @@ export function repeatText(t: Pick<PersonalTask, 'repeat' | 'repeatWeekday' | 'r
  * weeks — taken from the request when it sent them, otherwise read off the
  * date ("the 2nd Tuesday" for the 9th of a month that starts on a Sunday).
  */
+/**
+ * Nothing repeats for ever: every repeat ends, on a day the person picks, and
+ * a month is both the default and the most this suggests.
+ *
+ * Not a hard cap — some things really do recur all quarter — but the editor
+ * argues against going past it, in the person's own interest: a reminder
+ * that has been on the board for months stops being read. A month, then a
+ * deliberate "yes, keep it", keeps it a decision rather than wallpaper.
+ */
+export const REPEAT_ADVISED_MONTHS = 1;
+
+export const REPEAT_ADVICE =
+  'We advise against repeating anything for more than a month. Something that comes back week after week for months '
+  + 'turns into wallpaper: you stop reading it, stop asking whether it still matters, and tick it out of habit — or '
+  + 'stop ticking it at all. Set it for a month. When it ends, renew it on purpose if it still earns its place; '
+  + 'that one decision is what keeps it worth doing.';
+
+/** The same day next month (the last day of next month when it is shorter): the default, and advised, end. */
+export function oneMonthAfter(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  const last = new Date(Date.UTC(ny, nm, 0)).getUTCDate();
+  return `${ny}-${String(nm).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`;
+}
+
+/** Ends later than advised: more than a month after it starts. */
+export function repeatsTooLong(date: string | null, until: string | null): boolean {
+  return !!date && !!until && until > oneMonthAfter(date);
+}
+
+/**
+ * The end a repeat is saved with: the one sent, if it is on or after the
+ * start; otherwise the one it had, if that still is; otherwise a month from
+ * the start — so a repeat can be saved without one, but never stored without.
+ */
+export function repeatEnd(
+  repeat: TaskRepeat, date: string | null, sent: string | null | undefined, stored: string | null,
+): string | null {
+  if (repeat === 'none' || !date) return null;
+  if (sent && sent >= date) return sent;
+  if (sent === undefined && stored && stored >= date) return stored;
+  return oneMonthAfter(date);
+}
+
 export function repeatFields(
   repeat: TaskRepeat,
   date: string | null,
@@ -577,6 +622,13 @@ export interface PersonalTask {
   /** `monthlyNth` only: which of that weekday — 1–4, and 5 for the last. Empty on every other repeat. */
   repeatNths: number[];
   /**
+   * The last day it repeats on, `YYYY-MM-DD`. Every repeating item has one —
+   * nothing here goes on for ever (see REPEAT_ADVICE). Null when it does not
+   * repeat, and on a repeating item saved before ends existed, which takes a
+   * month from its next save.
+   */
+  repeatUntil: string | null;
+  /**
    * A repeating event's dates that have been taken out of the series — moved
    * or changed on their own, and now a separate event (`detachedFrom` on that
    * one). Skipped wherever the series is laid out, reminders included. Empty
@@ -640,6 +692,11 @@ export interface PersonalTask {
    * it back.
    */
   archived: boolean;
+  /**
+   * Browser only, never stored: this came from the history store (see
+   * HISTORY_AFTER_DAYS) and is shown read-only.
+   */
+  fromHistory?: boolean;
 }
 
 /**
@@ -673,7 +730,7 @@ export function outcomeOf(t: Pick<PersonalTask, 'kind' | 'status' | 'outcome'>):
 /** What can be written. Everything else on a task is set by the server. */
 export type PersonalTaskInput = Partial<Pick<PersonalTask,
   'kind' | 'title' | 'notes' | 'status' | 'priority' | 'color' | 'date' | 'time' | 'endTime' | 'order'
-  | 'eventType' | 'location' | 'reminders' | 'repeat' | 'repeatWeekday' | 'repeatNths'
+  | 'eventType' | 'location' | 'reminders' | 'repeat' | 'repeatWeekday' | 'repeatNths' | 'repeatUntil'
   | 'suggestionId' | 'steps' | 'rank' | 'contacts' | 'orders' | 'outcome'>>;
 
 export const MAX_QUEUE_RANK = 100_000;
@@ -685,9 +742,46 @@ export const MAX_TASK_LOCATION = 500;
 /**
  * A ceiling, not a target. The whole list is read on every visit, so this is
  * also the most one page load can cost; a thousand is years of anybody's
- * to-dos, and "Clear done" is on the board for the rest.
+ * to-dos, and "Clear done" is on the board for the rest. What has moved to
+ * history (below) does not count.
  */
 export const MAX_TASKS_PER_PERSON = 1000;
+
+/**
+ * History: `personalTasks/{uid}/history/{id}`, the same documents as the list
+ * with the same ids, for what is long over.
+ *
+ * Every visit reads the whole list, and finished tasks are kept now rather
+ * than deleted (so a day can be looked back on), so without this the cost of
+ * opening My tasks would grow for ever. Anything finished or past more than
+ * this many days ago is moved out — once a day, by the first GET of
+ * /api/me/tasks — and read only when the Calendar is paged back that far
+ * (GET /api/me/tasks/history). It is shown there read-only: it is a record.
+ *
+ * Never moved, however old: anything open (an overdue task is still work), a
+ * repeating event series (it is still happening), and a repeating task that
+ * has not made its next copy. Same rules for everybody, so nothing about it
+ * is a setting.
+ */
+export const PERSONAL_TASK_HISTORY = 'history';
+export const HISTORY_AFTER_DAYS = 90;
+
+/** The first day still kept in the list: anything finished before it may be in history. */
+export function historyCutoff(today: string): string {
+  const [y, m, d] = today.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d - HISTORY_AFTER_DAYS)).toISOString().slice(0, 10);
+}
+
+/** Over and old enough to move out of the list. See PERSONAL_TASK_HISTORY. */
+export function belongsInHistory(t: PersonalTask, cutoff: string): boolean {
+  if (t.kind === 'event') return t.repeat === 'none' && !!t.date && t.date < cutoff;
+  if (t.status !== 'done') return false;
+  // A repeating task that has not made its next copy would stop repeating.
+  if (t.repeat !== 'none' && !t.nextId) return false;
+  if (t.date) return t.date < cutoff;
+  // Undated: by when it was closed, and only once it is off the board too.
+  return t.archived && !!t.doneAt && t.doneAt.slice(0, 10) < cutoff;
+}
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -739,6 +833,8 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
     out.repeatWeekday = b.repeatWeekday as number;
   }
   if (Array.isArray(b.repeatNths)) out.repeatNths = cleanNths(b.repeatNths);
+  if (b.repeatUntil === null || b.repeatUntil === '') out.repeatUntil = null;
+  else if (typeof b.repeatUntil === 'string' && isRealDate(b.repeatUntil)) out.repeatUntil = b.repeatUntil;
   // Checked against the catalog by the route, which is the one that knows it.
   if (b.suggestionId === null) out.suggestionId = null;
   else if (typeof b.suggestionId === 'string' && /^[a-z_]{1,40}$/.test(b.suggestionId)) out.suggestionId = b.suggestionId;
@@ -917,6 +1013,7 @@ export function reminderInstants(
       kind: 'event', repeat: t.repeat, date: t.date,
       repeatDay: t.repeatDay ?? null, repeatWeekday: t.repeatWeekday ?? null, repeatNths: t.repeatNths ?? [],
       skipDates: t.skipDates ?? [],
+      repeatUntil: t.repeatUntil ?? null,
     };
     const fromDate = new Date(after + OFFICE_UTC_OFFSET_MINUTES * 60_000).toISOString().slice(0, 10);
     // Seventy days covers every pattern plus the longest lead (a week).
@@ -993,7 +1090,7 @@ export function lastFridayOf(year: number, month: number): string {
 }
 
 type RepeatShape = Pick<PersonalTask, 'repeat' | 'repeatDay' | 'repeatWeekday' | 'repeatNths' | 'date'>
-  & Partial<Pick<PersonalTask, 'skipDates'>>;
+  & Partial<Pick<PersonalTask, 'skipDates' | 'repeatUntil'>>;
 
 /** One step on from `date`, by the item's pattern. */
 function stepRepeat(date: string, t: RepeatShape): string {
@@ -1038,7 +1135,8 @@ export function nextOccurrence(t: RepeatShape, today: string): string | null {
   let d = stepRepeat(t.date, t);
   // A daily task years overdue is a few hundred steps; the cap only guards a bug.
   for (let i = 0; i < 2000 && d < today; i++) d = stepRepeat(d, t);
-  return d;
+  // Past its end it has no next one: the repeat is over.
+  return t.repeatUntil && d > t.repeatUntil ? null : d;
 }
 
 /**
@@ -1055,7 +1153,8 @@ export function occurrencesBetween(t: RepeatShape & Pick<PersonalTask, 'kind'>, 
   const skip = new Set(t.skipDates ?? []);
   let d = t.date;
   // A daily series started years ago walks a few thousand steps; the cap only guards a bug.
-  for (let i = 0; i < 5000 && d <= to; i++) {
+  const last = t.repeatUntil && t.repeatUntil < to ? t.repeatUntil : to;
+  for (let i = 0; i < 5000 && d <= last; i++) {
     if (d >= from && !skip.has(d)) out.push(d);
     d = stepRepeat(d, t);
   }

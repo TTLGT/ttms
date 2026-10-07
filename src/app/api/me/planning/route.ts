@@ -3,7 +3,7 @@ import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/f
 import { nextCopyData, syncReminderQueue, taskItems, taskOwnerDoc, toTask } from '@/lib/personalTasksServer';
 import { officeToday } from '@/types/celebration';
 import {
-  MAX_TASKS_PER_PERSON, isLapsedPlanning, newStepId, nextOccurrence, repeatFields, type PersonalTask,
+  MAX_TASKS_PER_PERSON, isLapsedPlanning, newStepId, nextOccurrence, repeatEnd, repeatFields, type PersonalTask,
 } from '@/types/task';
 import {
   MONTHLY_PLANNING_PATTERN,
@@ -78,6 +78,7 @@ async function statusFor(
         ? {
           taskId: task.id, date: task.date, time: task.time, endTime: task.endTime,
           repeat: task.repeat, repeatWeekday: task.repeatWeekday, repeatNths: task.repeatNths,
+          repeatUntil: task.repeatUntil,
         }
         : null,
       off: s.off,
@@ -183,7 +184,12 @@ export async function POST(req: NextRequest) {
 
     const copy = PLANNING_COPY[kind];
     const date = firstPlanningDate(kind, time, { weekday }, today);
-    const repeating = repeatFields(repeat, date, kind === 'monthly' ? MONTHLY_PLANNING_PATTERN : {});
+    const repeating = {
+      ...repeatFields(repeat, date, kind === 'monthly' ? MONTHLY_PLANNING_PATTERN : {}),
+      // A month, like every repeat (REPEAT_ADVICE). When it runs out the card
+      // asks again, which is the renewal: a plan worth keeping is a click away.
+      repeatUntil: repeatEnd(repeat, date, undefined, null),
+    };
     // "At the time" only. The point is a nudge when the slot comes round, and
     // the card said so; anything earlier is the person's to add.
     const reminders = ['start' as const];

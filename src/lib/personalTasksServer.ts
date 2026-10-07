@@ -12,7 +12,10 @@ import {
   TASK_REMINDERS_COLLECTION,
   TASK_REMINDER_LEADS,
   TASK_REPEATS,
+  PERSONAL_TASK_HISTORY,
+  belongsInHistory,
   cleanNths,
+  historyCutoff,
   cleanContacts,
   cleanOrders,
   isTaskStatus,
@@ -38,6 +41,40 @@ export function taskItems(uid: string) {
 /** The parent document: holds the person's reminder settings and their board's columns. */
 export function taskOwnerDoc(uid: string) {
   return adminDb.collection(PERSONAL_TASKS_COLLECTION).doc(uid);
+}
+
+/** What is long over — see PERSONAL_TASK_HISTORY. */
+export function taskHistory(uid: string) {
+  return taskOwnerDoc(uid).collection(PERSONAL_TASK_HISTORY);
+}
+
+/**
+ * Move whatever has become history out of the list: once per office day per
+ * person, from the first GET, which has the whole list in hand already — so
+ * finding it costs nothing, and only the moves are writes. Same id in both
+ * places, written then deleted in one batch, so it is never in neither. A
+ * second tab doing the same at the same moment writes the same document twice
+ * and deletes one already gone, which is harmless.
+ *
+ * Returns the ids moved, for the caller to leave out of what it sends back.
+ */
+export async function sweepToHistory(
+  uid: string, docs: DocumentSnapshot[], tasks: PersonalTask[], today: string,
+): Promise<Set<string>> {
+  const cutoff = historyCutoff(today);
+  const moving = tasks.filter((t) => belongsInHistory(t, cutoff)).map((t) => t.id);
+  const byId = new Map(docs.map((d) => [d.id, d]));
+  // Two writes each against Firestore's 500 per batch.
+  for (let i = 0; i < moving.length; i += 200) {
+    const batch = adminDb.batch();
+    for (const id of moving.slice(i, i + 200)) {
+      batch.set(taskHistory(uid).doc(id), { ...byId.get(id)!.data(), movedToHistoryAt: FieldValue.serverTimestamp() });
+      batch.delete(taskItems(uid).doc(id));
+    }
+    await batch.commit();
+  }
+  await taskOwnerDoc(uid).set({ historySweptOn: today }, { merge: true });
+  return new Set(moving);
 }
 
 function iso(v: unknown): string | null {
@@ -74,6 +111,7 @@ export function toTask(snap: DocumentSnapshot): PersonalTask {
     repeatDay: typeof d.repeatDay === 'number' ? d.repeatDay : null,
     repeatWeekday: typeof d.repeatWeekday === 'number' ? d.repeatWeekday : null,
     repeatNths: cleanNths(d.repeatNths),
+    repeatUntil: d.repeat && d.repeat !== 'none' && typeof d.repeatUntil === 'string' ? d.repeatUntil : null,
     skipDates: Array.isArray(d.skipDates)
       ? (d.skipDates as unknown[]).filter((x): x is string => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x))
       : [],
@@ -137,6 +175,8 @@ export function nextCopyData(t: PersonalTask, nextDate: string): DocumentData {
     repeatDay: t.repeatDay,
     repeatWeekday: t.repeatWeekday,
     repeatNths: t.repeatNths,
+    // The same end: a copy past it is never made (nextOccurrence() says so).
+    repeatUntil: t.repeatUntil,
     suggestionId: t.suggestionId,
     // A planning slot stays one, and the card's pointer moves to the copy —
     // otherwise it would read the finished task and ask somebody who planned
@@ -198,7 +238,7 @@ export function syncReminderQueue(
   batch: Writes,
   uid: string,
   task: (Pick<PersonalTask, 'kind' | 'status' | 'date' | 'time' | 'reminders'>
-    & Partial<Pick<PersonalTask, 'repeat' | 'repeatDay' | 'repeatWeekday' | 'repeatNths' | 'skipDates'>>) | null,
+    & Partial<Pick<PersonalTask, 'repeat' | 'repeatDay' | 'repeatWeekday' | 'repeatNths' | 'skipDates' | 'repeatUntil'>>) | null,
   itemId: string,
   now: number = Date.now(),
 ) {

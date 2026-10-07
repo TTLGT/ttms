@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Bell, CalendarClock, Landmark, ListTodo, Mail, MessageCircle, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { usePersonalTasks } from '@/lib/personalTasks';
+import { usePersonalTasks, useTaskHistory } from '@/lib/personalTasks';
 import { fetchHolidayOverrides } from '@/lib/attendance';
 import TaskCalendar from '@/components/tasks/TaskCalendar';
 import PlanningPanel from '@/components/planning/PlanningPanel';
@@ -118,10 +118,15 @@ export default function CalendarPage() {
     return (byDate.get(date) ?? []).filter((o) => kinds[o.kind]);
   }, [people, occurrencesByYear, kinds]);
 
-  const items = useMemo(
-    () => (tasks ?? []).filter((t) => (t.kind === 'task' ? show.tasks : show.events)),
-    [tasks, show],
-  );
+  // What has moved to history is fetched only when the calendar is paged back
+  // that far; the list wins where both have something (the day of the move).
+  const { history, showRange } = useTaskHistory();
+  const items = useMemo(() => {
+    const live = tasks ?? [];
+    const ids = new Set(live.map((t) => t.id));
+    return [...live, ...history.filter((t) => !ids.has(t.id))]
+      .filter((t) => (t.kind === 'task' ? show.tasks : show.events));
+  }, [tasks, history, show]);
 
   const save = async (input: PersonalTaskInput) => {
     if (editing?.task) await update(editing.task.id, input);
@@ -232,6 +237,7 @@ export default function CalendarPage() {
       ) : (
         <TaskCalendar
           items={items}
+          onRangeChange={showRange}
           columns={columns}
           today={today}
           selected={selected}
