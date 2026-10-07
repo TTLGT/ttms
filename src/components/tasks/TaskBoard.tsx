@@ -452,7 +452,12 @@ function QuickAdd({ label, onAdd }: { label: string; onAdd: (title: string) => v
         maxLength={200}
         onChange={(e) => setText(e.target.value)}
         onBlur={() => { if (!text.trim()) setOpen(false); }}
-        onKeyDown={(e) => { if (e.key === 'Escape') { setText(''); setOpen(false); } }}
+        onKeyDown={(e) => {
+          if (e.key !== 'Escape') return;
+          // Escape throws the typed title away, so ask first, as the editor does.
+          if (text.trim() && !window.confirm('Discard this new task? What you have typed will be lost.')) return;
+          setText(''); setOpen(false);
+        }}
         placeholder="Type and press Enter"
         className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
       />

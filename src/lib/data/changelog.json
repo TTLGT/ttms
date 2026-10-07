@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "9d4b897b93e2e2c0a3b15b738dbc6b9a1530db2a",
+      "date": "2026-10-07T14:12:53-06:00",
+      "author": "erwindank",
+      "subject": "Let people add their own task colours",
+      "body": "Six extra colours (Olive, Lime, Moss, Grape, Orchid, Magenta) can be added\nfrom Edit colours on My tasks, named, and removed again. Each is a hue\npicked from the gaps between the six task colours, the calendar layers and\nred, and globals.css works out its shades for light, dim and dark the same\nway tailwind.config.ts does for a colour family, so none can come out\nunreadable. An extra colour exists while it has a name; removing one moves\nits tasks to yellow."
+    },
+    {
       "hash": "918db9fcb56f4fab561df4996d241399c52af823",
       "date": "2026-10-07T13:05:12-06:00",
       "author": "erwindank",

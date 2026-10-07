@@ -139,13 +139,36 @@ export default function TaskEditor({
   const [saving, setSaving]       = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
+  // Everything the person can type or pick, as one string. The first render's
+  // copy is what the dialog opened with — the day or column it was added
+  // from, or a suggestion's wording — so only what they changed counts.
+  const draft = JSON.stringify([
+    kind, eventType, title, notes, location, status, priority, color, date, time, endTime,
+    dueDate, dueTime, reminders, repeat, repeatWeekday, repeatNths, repeatUntil, steps,
+    contacts, orders, place,
+  ]);
+  const [opened] = useState(draft);
+
+  // Closing without saving throws away whatever was typed, with nothing to
+  // undo, and a click outside the window is easy to make by accident. So
+  // every way out — outside, Escape, the X and Cancel — asks first once
+  // anything has changed. Saving closes through the page, not through here.
+  const dismiss = () => {
+    if (!readOnly && draft !== opened && !window.confirm(task
+      ? 'Discard your changes? This item will stay as it was.'
+      : 'Discard this new item? What you have entered will be lost.')) return;
+    onClose();
+  };
+  const dismissRef = useRef(dismiss);
+  dismissRef.current = dismiss;
+
   useEffect(() => { titleRef.current?.focus(); }, []);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') dismissRef.current(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, []);
 
   const hasTime = !!time;
   // A planning slot is a task that keeps an end — the length picked on the
@@ -218,7 +241,7 @@ export default function TaskEditor({
   const label = 'mb-1 block text-xs font-medium text-gray-600';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={dismiss}>
       <form
         role="dialog"
         aria-modal="true"
@@ -235,7 +258,7 @@ export default function TaskEditor({
           <h2 className="flex-1 text-base font-semibold">
             {task ? 'Edit' : 'Add'} {kind === 'event' ? EVENT_TYPE_LABEL[eventType].toLowerCase() : 'task'}
           </h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-gray-400 hover:bg-gray-100">
+          <button type="button" onClick={dismiss} aria-label="Close" className="rounded-md p-1 text-gray-400 hover:bg-gray-100">
             <X size={18} />
           </button>
         </header>
@@ -641,7 +664,7 @@ export default function TaskEditor({
             </button>
           )}
           <div className="ml-auto flex gap-2">
-            <button type="button" onClick={onClose} className="rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
+            <button type="button" onClick={dismiss} className="rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
               {readOnly ? 'Close' : 'Cancel'}
             </button>
             {!readOnly && (
