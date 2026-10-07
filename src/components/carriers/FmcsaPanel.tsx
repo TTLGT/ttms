@@ -30,6 +30,7 @@ const LEVEL_STYLE: Record<FmcsaLevel, { box: string; pill: string; label: string
 const labelCls = 'block text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5';
 
 const FILL_LABELS: Partial<Record<keyof Carrier, string>> = {
+  dot: 'DOT number',
   phone: 'phone',
   email: 'email',
   address: 'address',
@@ -168,6 +169,11 @@ export default function FmcsaPanel({
     try {
       await updateCarrier(carrierId, fills);
       onFilled?.(fills);
+      // A new DOT changes what the check is about: it was asked by MC, and
+      // the record now has a DOT. Asking again files the answer under the
+      // numbers the record actually carries, instead of leaving it reading
+      // "the DOT/MC on record has changed since".
+      if (fills.dot) await run();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not fill in the carrier details.');
     } finally {

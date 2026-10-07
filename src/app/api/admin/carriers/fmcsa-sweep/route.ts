@@ -3,7 +3,10 @@ import { adminDb, requireAdmin, AdminAuthError } from '@/lib/firebase-admin';
 import { FmcsaNotConfiguredError } from '@/lib/fmcsa';
 import { carriersNeedingCheck, sweepCarriers, SWEEP_BATCH } from '@/lib/fmcsaSweep';
 
-export const maxDuration = 60;
+// Well past the sweep's own 35-second budget: a lookup already running when the
+// budget ends can still wait 30 seconds on FMCSA's census, twice when it goes
+// on to ask again by a DOT it has just found.
+export const maxDuration = 180;
 
 /**
  * Checking carriers with FMCSA in bulk — see `src/lib/fmcsaSweep.ts`.

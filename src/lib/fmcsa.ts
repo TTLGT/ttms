@@ -122,7 +122,16 @@ export async function lookupCarrier(dot: string, mc: string): Promise<FmcsaLooku
   // The open data is read alongside the docket list rather than after it; it
   // is the slower of the two and never fails the check (see fmcsaRegistry).
   const [docketNumbers, registry] = dotNumber
-    ? await Promise.all([docketsFor(dotNumber), lookupRegistry(dotNumber)])
+    ? await Promise.all([
+        docketsFor(dotNumber),
+        // What FMCSA says is on file now, so the registry can tell a policy
+        // from the pre-Motus file that is still standing from one that lapsed.
+        lookupRegistry(dotNumber, {
+          liability: num(carrier.bipdInsuranceOnFile),
+          cargo: num(carrier.cargoInsuranceOnFile),
+          bond: num(carrier.bondInsuranceOnFile),
+        }),
+      ])
     : [[], null];
 
   return {

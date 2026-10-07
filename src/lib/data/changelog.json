@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "77a7db4c63060125db882c49ab1d88d448fb31c6",
+      "date": "2026-10-07T06:54:54-06:00",
+      "author": "erwindank",
+      "subject": "Check imported carriers with FMCSA and fill in their blank details",
+      "body": "After a carriers file is imported in Settings -> Data, TTMS now checks each\nnew or changed carrier with FMCSA in batches, stores the answer, and fills in\nonly the fields that are blank: DOT (when FMCSA lists our MC under it), phone,\nemail, address, insurer, policy number and coverage amounts. A \"Check carriers\nnot yet checked\" button covers carriers added before this and retries any\nFMCSA did not answer for.\n\nThe blank-fill rule moves into src/types/fmcsa.ts so the carrier page and the\nbulk check share one definition. FMCSA blocks non-US connections with a bare\n403; that now reads as a blocked connection rather than a bad key."
+    },
+    {
       "hash": "a4e7f8fb7052b2053e691c433255cd02d3d343df",
       "date": "2026-10-06T19:20:17-06:00",
       "author": "erwindank",

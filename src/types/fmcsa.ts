@@ -418,7 +418,7 @@ export function fmcsaCarrierFill(a: FmcsaAnswer, kind: 'dot' | 'mc', typed: stri
 /** The carrier fields `fmcsaBlankFills()` may write. */
 export type FmcsaFillable = Pick<
   Carrier,
-  | 'phone' | 'phoneRegion' | 'email' | 'address'
+  | 'dot' | 'phone' | 'phoneRegion' | 'email' | 'address'
   | 'insuranceProvider' | 'insurancePolicyNumber'
   | 'insuranceCoverage' | 'insuranceCargoCoverage'
 >;
@@ -440,6 +440,10 @@ export function fmcsaBlankFills(carrier: Partial<Carrier>, check: FmcsaAnswer): 
   if (!check.found) return {};
   const f = fmcsaCarrierFill(check, check.lookedUpBy, check.query);
   const out: Partial<FmcsaFillable> = {};
+  const mc = (carrier.mc ?? '').replace(/\D+/g, '');
+  if (isBlank(carrier.dot) && check.lookedUpBy === 'mc' && check.dotNumber && mc && check.docketNumbers.includes(mc)) {
+    out.dot = check.dotNumber;
+  }
   if (isBlank(carrier.phone) && f.phone) {
     out.phone = f.phone;
     if (f.phoneRegion) out.phoneRegion = f.phoneRegion;

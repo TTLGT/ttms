@@ -18,11 +18,24 @@ import type {
  * one, requests are throttled per IP address, and on Vercel that address is
  * shared with other people's sites. A free token from the portal lifts it.
  *
- * **The "Motus" datasets, not the older ones of the same name.** FMCSA moved
- * registration into Motus on 2026-05-14, and the old `ActPendInsur` dataset
- * stopped receiving filings that day — it still answers, confidently, with
- * whatever was true in May. Census is the exception: it carried on, and is
- * where the phone and email are.
+ * **Insurance comes from two files, because neither is whole.** FMCSA moved
+ * registration into Motus on 2026-05-14. The old `ActPendInsur` file stopped
+ * receiving filings that day (nothing in it is transacted after 05/14/2026),
+ * but Motus did not take everything across: on 2026-10-07 the old file held
+ * about 468,000 active or pending filings and Motus's about 132,000. Route One
+ * LLC's policy, filed on the day of the switch, is in the old file and not the
+ * new one. Reading Motus alone left most carriers with no insurer at all.
+ *
+ * So Motus is read first and the old file fills the gaps, under three rules in
+ * `mergeLegacy()`: a newer Motus filing of the same kind wins; a cancellation
+ * Motus has recorded since applies to the old filing; and an old filing only
+ * counts while FMCSA's live answer says insurance of that kind is still on
+ * file. The third is the guard against the old file's frozen view: a policy
+ * cancelled after May without a Motus history row would otherwise read as
+ * current forever.
+ *
+ * Census is the exception to all this: it carried on through the switch, and
+ * is where the phone and email are.
  *
  * Motus's insurance file is messier than the one it replaced: a policy
  * appears once per transaction (J.B. Hunt's excess policy is there four
@@ -37,9 +50,19 @@ const DATASET = {
   insurance:   'c5y8-a4uz', // Motus Insur – All With History
   history:     '3uet-3z4i', // Motus InsHist – All With History
   suspensions: 'wb4f-neki', // Motus RevokeSuspend – All With History
+  legacy:      'qh9u-swkp', // ActPendInsur – All With History (pre-Motus, frozen 2026-05-14)
 } as const;
 
 const TIMEOUT_MS = 10_000;
+/**
+ * The census is the slow one: a lookup by DOT took 9 to 43 seconds when timed
+ * on 2026-10-07, against well under a second for the insurance files. At the
+ * ten seconds the others get it timed out on the live site and, back when the
+ * four were all-or-nothing, took the insurer and policy down with it.
+ */
+const CENSUS_TIMEOUT_MS = 30_000;
+/** Pauses before asking again after a "too many requests". */
+const RETRY_WAITS_MS = [2_000, 5_000];
 /** Far more than any one carrier has; the cap only stops a runaway answer. */
 const ROW_LIMIT = 200;
 /** How far back a suspension notice is still worth mentioning. */
@@ -47,21 +70,31 @@ const SUSPENSION_LOOKBACK_DAYS = 365;
 
 type Row = Record<string, string | undefined>;
 
-async function rows(dataset: string, where: string, select?: string): Promise<Row[]> {
+async function rows(dataset: string, where: string, select?: string, timeoutMs = TIMEOUT_MS): Promise<Row[]> {
   const url = new URL(`${BASE}/${dataset}.json`);
   url.searchParams.set('$where', where);
   url.searchParams.set('$limit', String(ROW_LIMIT));
   if (select) url.searchParams.set('$select', select);
 
   const token = process.env.DOT_DATA_APP_TOKEN?.trim();
-  const res = await fetch(url, {
-    headers: token ? { 'X-App-Token': token } : {},
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error(`data.transportation.gov answered ${res.status}`);
-  const body = await res.json();
-  return Array.isArray(body) ? (body as Row[]) : [];
+  // "Too many requests" comes back fast and passes: on 2026-10-07 the census
+  // refused the fourth lookup in a row even with a token, then answered again
+  // seconds later. Waiting and asking again keeps a bulk check from losing
+  // the phone and email of every other carrier.
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, {
+      headers: token ? { 'X-App-Token': token } : {},
+      signal: AbortSignal.timeout(timeoutMs),
+      cache: 'no-store',
+    });
+    if (res.status === 429 && attempt < RETRY_WAITS_MS.length) {
+      await new Promise((r) => setTimeout(r, RETRY_WAITS_MS[attempt]));
+      continue;
+    }
+    if (!res.ok) throw new Error(`data.transportation.gov answered ${res.status}`);
+    const body = await res.json();
+    return Array.isArray(body) ? (body as Row[]) : [];
+  }
 }
 
 const str = (v: string | undefined) => (v ?? '').trim();
@@ -93,7 +126,31 @@ function filingKey(r: Row): string {
 }
 
 /**
- * The policies on file today, and the cancellations that are coming.
+ * The same filing as seen from either file. The two write the insurer's name
+ * differently ("Great American Insurance Company of New York" against
+ * "OCCIDENTAL FIRE AND CASUALTY CO. OF N.C."), so the name is left out: kind,
+ * policy number and start date are what identify a filing across them.
+ */
+function crossKey(kind: FmcsaInsuranceKind, policyNo: string, effectiveDate: string): string {
+  return [kind, policyNo.toUpperCase().replace(/[^A-Z0-9]/g, ''), effectiveDate].join('|');
+}
+
+/** "05/28/2026" → "2026-05-28", the old file's way of writing a date. */
+function usDay(v: string | undefined): string {
+  const m = str(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : '';
+}
+
+interface LiveFiling {
+  cross: string;
+  policy: FmcsaPolicy;
+  /** A cancellation dated after today, when one is on file. */
+  cancelDate?: string;
+}
+
+/**
+ * Motus's view: the policies on file today, and what its history says about
+ * every filing it knows — including ones only the old file holds.
  *
  * A filing is gone once its history row says CANCEL or TERM/REPL with a
  * cancel date on or before today — or CANCEL with no date at all, which is
@@ -101,58 +158,129 @@ function filingKey(r: Row): string {
  * is still in the insurance file, cancelled, with no date on it).
  *
  * A cancellation dated in the future leaves the policy in place and is
- * reported as pending, marked `replaced` when another current filing of the
- * same kind will still be standing after that date. TERM/REPL rows are never
- * reported as pending: the words mean a new filing took the old one's place,
- * and that is a renewal, not a lapse.
+ * reported as pending. TERM/REPL rows are never reported as pending: the
+ * words mean a new filing took the old one's place, and that is a renewal,
+ * not a lapse.
  */
 function currentPolicies(insurance: Row[], history: Row[], today: string): {
-  policies: FmcsaPolicy[];
-  pendingCancellations: FmcsaPendingCancellation[];
+  live: LiveFiling[];
+  endedCross: Set<string>;
+  endingCross: Map<string, string>;
 } {
   const ended = new Set<string>();
   const ending = new Map<string, string>(); // filing → future cancel date
+  const endedCross = new Set<string>();
+  const endingCross = new Map<string, string>();
   for (const h of history) {
     const reason = str(h.filing_status_reason).toUpperCase();
     const cancel = isoDay(h.cancl_effective_date);
     const key = filingKey(h);
+    const cross = crossKey(kindOf(h.ins_type_code), policyNumber(h.policy_no), isoDay(h.effective_date));
     if (!cancel) {
-      if (reason === 'CANCEL') ended.add(key);
+      if (reason === 'CANCEL') { ended.add(key); endedCross.add(cross); }
     } else if (cancel <= today) {
       ended.add(key);
+      endedCross.add(cross);
     } else if (reason === 'CANCEL') {
       ending.set(key, cancel);
+      endingCross.set(cross, cancel);
     }
   }
 
   const seen = new Set<string>();
-  const live: { key: string; policy: FmcsaPolicy }[] = [];
+  const live: LiveFiling[] = [];
   for (const r of insurance) {
     const key = filingKey(r);
     if (seen.has(key) || ended.has(key)) continue;
     seen.add(key);
-    live.push({
-      key,
-      policy: {
-        kind: kindOf(r.ins_type_code),
-        excess: str(r.ins_class_code).toUpperCase() === 'E',
-        company: str(r.insurance_company_name),
-        policyNo: policyNumber(r.policy_no),
-        effectiveDate: isoDay(r.effective_date),
-        amount: Math.round(Number(r.max_cov_amount) || 0),
-      },
-    });
+    const policy: FmcsaPolicy = {
+      kind: kindOf(r.ins_type_code),
+      excess: str(r.ins_class_code).toUpperCase() === 'E',
+      company: str(r.insurance_company_name),
+      policyNo: policyNumber(r.policy_no),
+      effectiveDate: isoDay(r.effective_date),
+      amount: Math.round(Number(r.max_cov_amount) || 0),
+    };
+    live.push({ cross: crossKey(policy.kind, policy.policyNo, policy.effectiveDate), policy, cancelDate: ending.get(key) });
   }
 
-  const pendingCancellations: FmcsaPendingCancellation[] = [];
-  for (const { key, policy } of live) {
-    const cancelDate = ending.get(key);
-    if (!cancelDate) continue;
-    const replaced = live.some((o) => o.key !== key && o.policy.kind === policy.kind && !ending.has(o.key));
-    pendingCancellations.push({ kind: policy.kind, company: policy.company, policyNo: policy.policyNo, cancelDate, replaced });
-  }
+  return { live, endedCross, endingCross };
+}
 
-  return { policies: live.map((l) => l.policy), pendingCancellations };
+/** The old file names a kind in words rather than Motus's type code. */
+function legacyKind(label: string): FmcsaInsuranceKind {
+  const l = label.toUpperCase();
+  if (l.startsWith('BIPD')) return 'liability';
+  if (l.startsWith('CARGO')) return 'cargo';
+  if (l.startsWith('SURETY')) return 'bond';
+  return 'other'; // TRUST FUND, which Motus files as type 4
+}
+
+/** What FMCSA's live answer says is on file: the guard on the old file. */
+export interface OnFile {
+  liability: number;
+  cargo: number;
+  bond: number;
+}
+
+function onFileFor(kind: FmcsaInsuranceKind, onFile: OnFile): number {
+  return kind === 'liability' ? onFile.liability : kind === 'cargo' ? onFile.cargo : onFile.bond;
+}
+
+/**
+ * Add the old file's filings that Motus is missing. See the note at the top
+ * of this file for why each rule is there.
+ */
+function mergeLegacy(
+  motus: ReturnType<typeof currentPolicies>,
+  legacy: Row[],
+  onFile: OnFile,
+  today: string,
+): LiveFiling[] {
+  const out = [...motus.live];
+  const have = new Set(out.map((l) => l.cross));
+
+  for (const r of legacy) {
+    const label = str(r.mod_col_1);
+    const kind = legacyKind(label);
+    const policy: FmcsaPolicy = {
+      kind,
+      excess: /excess/i.test(label),
+      company: str(r.name_company),
+      policyNo: policyNumber(r.policy_no),
+      effectiveDate: usDay(r.effective_date),
+      // The old file counts in thousands: "750" is $750,000.
+      amount: Math.round((Number(r.max_cov_amount) || 0) * 1000),
+    };
+    const cross = crossKey(kind, policy.policyNo, policy.effectiveDate);
+    const cancel = usDay(r.cancl_effective_date);
+
+    if (have.has(cross)) continue;                   // Motus has it already
+    if (cancel && cancel <= today) continue;         // ended by its own date
+    if (motus.endedCross.has(cross)) continue;       // ended since, per Motus
+    if (onFileFor(kind, onFile) <= 0) continue;      // FMCSA has none of this kind now
+    const superseded = motus.live.some((m) =>
+      m.policy.kind === kind && m.policy.excess === policy.excess && m.policy.effectiveDate >= policy.effectiveDate);
+    if (superseded) continue;
+
+    have.add(cross);
+    out.push({ cross, policy, cancelDate: motus.endingCross.get(cross) ?? (cancel || undefined) });
+  }
+  return out;
+}
+
+/**
+ * Pending cancellations across the merged list, marked `replaced` when another
+ * current filing of the same kind will still be standing after that date.
+ */
+function pendingOf(live: LiveFiling[]): FmcsaPendingCancellation[] {
+  const out: FmcsaPendingCancellation[] = [];
+  for (const l of live) {
+    if (!l.cancelDate) continue;
+    const replaced = live.some((o) => o !== l && o.policy.kind === l.policy.kind && !o.cancelDate);
+    out.push({ kind: l.policy.kind, company: l.policy.company, policyNo: l.policy.policyNo, cancelDate: l.cancelDate, replaced });
+  }
+  return out;
 }
 
 /** Census `crgo_*` columns, in the words FMCSA's own snapshot uses. */
@@ -212,23 +340,34 @@ function mailing(r: Row): string {
  * not be read. Null rather than a throw: this is the supporting half of a
  * check, and the live answer is worth having without it.
  */
-export async function lookupRegistry(dot: string): Promise<FmcsaRegistry | null> {
+export async function lookupRegistry(dot: string, onFile: OnFile): Promise<FmcsaRegistry | null> {
   const digits = dot.replace(/\D+/g, '');
   if (!digits) return null;
   const today = officeDay();
   const since = new Date(Date.parse(today) - SUSPENSION_LOOKBACK_DAYS * 86_400_000).toISOString().slice(0, 10).replace(/-/g, '');
 
+  // The census (phone, email, address) is asked for on its own and allowed to
+  // fail alone: losing it costs the contact details, and the insurer and
+  // policy are still worth having. The other three stay all-or-nothing,
+  // because the panel reads an empty policy list as "nothing on file" and a
+  // timed-out query must not say that.
+  const censusRows = rows(DATASET.census, `dot_number='${digits}'`, undefined, CENSUS_TIMEOUT_MS).catch(() => [] as Row[]);
+
   try {
-    const [census, insurance, history, suspensions] = await Promise.all([
-      rows(DATASET.census, `dot_number='${digits}'`),
+    const [census, insurance, history, suspensions, legacy] = await Promise.all([
+      censusRows,
       rows(DATASET.insurance, `usdot_number='${digits}'`),
       rows(DATASET.history, `usdot_number='${digits}'`),
       rows(DATASET.suspensions, `usdot_number='${digits}' AND order1_effective_date >= '${since}'`),
+      // The old file writes a DOT as eight digits, zero-padded: 02783753.
+      rows(DATASET.legacy, `dot_number='${digits.padStart(8, '0')}'`),
     ]);
 
     const c: Row = census[0] ?? {};
     const country = str(c.phy_country).toUpperCase() || 'US';
-    const { policies, pendingCancellations } = currentPolicies(insurance, history, today);
+    const live = mergeLegacy(currentPolicies(insurance, history, today), legacy, onFile, today);
+    const policies = live.map((l) => l.policy);
+    const pendingCancellations = pendingOf(live);
 
     const sus: FmcsaSuspension[] = suspensions.map((s) => ({
       authorityType: str(s.op_auth_type),

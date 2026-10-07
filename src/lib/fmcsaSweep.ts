@@ -17,16 +17,20 @@ import type { FmcsaAnswer, FmcsaLevel } from '@/types/fmcsa';
  * Nothing a broker typed is replaced.
  *
  * It is run in small batches by the import panel, not in one request, because
- * a full carriers export is thousands of lookups and a route has a minute.
+ * a full carriers export is thousands of lookups and a route has a few minutes.
  * The browser holds the list and the progress; each call is independent, so
  * closing the tab halfway loses nothing that was already written, and the
  * "check carriers not yet checked" button picks up the rest.
  */
 
-/** Ids per call. Small enough that a slow FMCSA still finishes inside the route's minute. */
+/** Ids per call. Small enough that a slow FMCSA still finishes inside the route's `maxDuration`. */
 export const SWEEP_BATCH = 20;
-/** Lookups in flight at once. FMCSA is free but shared, and the open data throttles by IP. */
-const CONCURRENCY = 4;
+/**
+ * Lookups in flight at once. Two, because each one is five queries to the open
+ * data, which answered "too many requests" by the fourth census lookup in a
+ * row even with a token (2026-10-07).
+ */
+const CONCURRENCY = 2;
 /** Stop starting new lookups after this, so the ones in flight can finish before the route is cut off. */
 const BUDGET_MS = 35_000;
 
@@ -82,23 +86,6 @@ export async function carriersNeedingCheck(): Promise<string[]> {
   return ids;
 }
 
-/**
- * The DOT a carrier looked up by MC turned out to have, when it is safe to
- * write it onto the record: the record had none, and FMCSA lists our MC among
- * that DOT's dockets. The second test is the whole guard — an MC lookup that
- * came back with a company not holding that MC is exactly the mismatch the
- * panel warns about, and filing that DOT would make the warning disappear.
- *
- * The panel's "fill in" never fills a DOT, because a broker can see the number
- * and type it. Here nobody is looking, and BATS never exports one, so without
- * this every imported carrier stays checked by MC alone.
- */
-function dotToFill(carrier: Partial<Carrier>, check: FmcsaAnswer): string {
-  if (!check.found || check.lookedUpBy !== 'mc' || carrierNumber(carrier.dot)) return '';
-  const mc = carrierNumber(carrier.mc);
-  return check.dotNumber && check.docketNumbers.includes(mc) ? check.dotNumber : '';
-}
-
 async function sweepOne(id: string, checkedByName: string): Promise<SweepItem> {
   const ref  = adminDb.collection('carriers').doc(id);
   const snap = await ref.get();
@@ -111,18 +98,15 @@ async function sweepOne(id: string, checkedByName: string): Promise<SweepItem> {
   if (!dot && !mc) return { id, companyName, outcome: 'no_number', filled: [] };
 
   let lookup = await lookupCarrier(dot, mc);
-  const foundDot = dotToFill(carrier, lookup);
-  if (foundDot) {
+  const fills: Record<string, unknown> = { ...fmcsaBlankFills(carrier, lookup) };
+  if (typeof fills.dot === 'string') {
     // Asked again by the DOT, so the stored check is about the numbers now on
     // the record. Filed as the MC answer, the panel would read the new DOT as
     // "the numbers have changed since" and check again the first time anybody
     // opened it.
-    dot = foundDot;
+    dot = fills.dot;
     lookup = await lookupCarrier(dot, mc);
   }
-
-  const fills: Record<string, unknown> = { ...fmcsaBlankFills(carrier, lookup) };
-  if (dot !== carrierNumber(carrier.dot)) fills.dot = dot;
 
   // `updatedAt` is left alone, as the single check route leaves it: this is
   // FMCSA's answer arriving, not anybody editing the carrier, and bumping it
