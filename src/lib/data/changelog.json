@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "f870281e6a60588b023f280095e4efdb26d385f4",
+      "date": "2026-10-07T12:13:34-06:00",
+      "author": "erwindank",
+      "subject": "Let planning prompts take any time, keep weekly and monthly to their Friday afternoon, and pick the monthly day",
+      "body": ""
+    },
+    {
       "hash": "f3994b25b3877aef7990d92a0877be36280e4389",
       "date": "2026-10-07T11:47:57-06:00",
       "author": "erwindank",

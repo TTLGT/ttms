@@ -11,6 +11,13 @@
  * this adds is the asking, and a pointer back to the task so the card knows
  * when to stop.
  *
+ * **The pointer can name a task or event the person made themselves.** "Use
+ * one I already have" on the card links it (`PUT /api/me/planning`), and from
+ * then on it is treated exactly like a slot the card made — the task is
+ * marked with `planning` so a repeat's copy, a reschedule and a missed day all
+ * carry the pointer with them. The card never recognises one by its title;
+ * see `canBePlanningSlot()`.
+ *
  * **The two daily ones need not repeat.** People plan at different times on
  * different days, so the morning and end-of-day slots are "just this once"
  * unless the person ticks "every weekday" — and a one-off counts as covering
@@ -30,7 +37,7 @@
 
 import { OFFICE_UTC_OFFSET_MINUTES, STANDARD_SCHEDULE } from './attendance';
 import { officeToday } from './celebration';
-import { NTH_LAST, type TaskRepeat } from './task';
+import { NTH_LAST, type PersonalTask, type TaskRepeat } from './task';
 
 export const PLANNING_KINDS = ['morning', 'evening', 'weekly', 'monthly'] as const;
 export type PlanningKind = typeof PLANNING_KINDS[number];
@@ -215,6 +222,32 @@ export interface PlanningStatus {
   off: boolean;
   /** True when the card should ask about this kind today. */
   due: boolean;
+}
+
+/**
+ * Can this task or event stand as a planning slot the person already made
+ * themselves ("Use one I already have" on the card)?
+ *
+ * The person picks it; nothing here guesses from the title. Matching names
+ * would need a word list per language, miss "Revisar el día" and catch
+ * "Plan the Dallas load". So this only asks whether the item could cover a
+ * slot at all — the same test the planning GET applies to the pointer
+ * (`statusFor()`), written for an item nobody has pointed at yet:
+ *
+ * - it has a day and a time, because the card shows when it is;
+ * - it is not finished, archived or from history;
+ * - a one-off is today or later; a repeat has not run past its end, and is
+ *   not a missed copy already carried on (the copy is the one to pick).
+ */
+export function canBePlanningSlot(
+  t: Pick<PersonalTask, 'kind' | 'status' | 'date' | 'time' | 'repeat' | 'repeatUntil' | 'nextId' | 'archived' | 'fromHistory'>,
+  today: string,
+): boolean {
+  if (!t.date || !t.time || t.archived || t.fromHistory) return false;
+  if (t.kind === 'task' && t.status === 'done') return false;
+  if (t.repeat === 'none') return t.date >= today;
+  if (t.repeatUntil && t.repeatUntil < today) return false;
+  return !(t.nextId && t.date < today);
 }
 
 /* ------------------------------------------------------------------ times */

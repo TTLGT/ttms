@@ -2041,7 +2041,9 @@ personalTasks/{uid}
   }
   planning         : {                        // planning prompts (src/types/planning.ts); absent = never asked
     morning?, evening?, weekly?, monthly? : {
-      taskId,                                 // the repeating slot it made; moved to each repeat's copy
+      taskId,                                 // the slot it made, or the item the person linked
+                                              // ("Use one you have", PUT /api/me/planning);
+                                              // moved to each repeat's copy
       snoozedUntil,                           // 'YYYY-MM-DD', office time: "Not now" until then
       off                                     // "Don't ask again"; turned back on from the Calendar page
     }
@@ -2079,8 +2081,10 @@ personalTasks/{uid}/items/{itemId}
   everDone  : boolean              // game mode: has counted toward missions
   suggestionId : string | null     // added from src/types/brokerSuggestions.ts
   planning  : 'morning' | 'evening' | 'weekly' | 'monthly' | null
-                                   // a planning slot made by the planning card;
-                                   // server-set, carried onto each repeat
+                                   // a planning slot made by the planning card, or a
+                                   // task/event the person linked as one (never by
+                                   // title); server-set, carried onto each repeat,
+                                   // cleared when another item is linked in its place
   priority  : 'low' | 'normal' | 'high'
   color     : 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'orange'
   date      : 'YYYY-MM-DD' | null  // due date of a task; the day of an event

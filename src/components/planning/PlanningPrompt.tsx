@@ -2,11 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, BellRing, CalendarCheck, CalendarClock, MoveRight, Repeat, X } from 'lucide-react';
-import { getMyPlanning, getMyPlanningDay, scheduleMyPlanning, setMyPlanningPrompt } from '@/lib/planning';
-import { updateMyTask } from '@/lib/personalTasks';
+import {
+  AlertTriangle, ArrowLeft, BellRing, CalendarCheck, CalendarClock, CalendarDays, CheckSquare, MoveRight, Repeat, Search, X,
+} from 'lucide-react';
+import { getMyPlanning, getMyPlanningDay, linkMyPlanning, scheduleMyPlanning, setMyPlanningPrompt } from '@/lib/planning';
+import { listMyTasks, updateMyTask } from '@/lib/personalTasks';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { NTH_LABEL, calendarToday, formatTime, nthPatternLabel, oneMonthAfter, repeatText } from '@/types/task';
+import {
+  NTH_LABEL, calendarToday, formatTime, nthPatternLabel, oneMonthAfter, repeatText, timeRange, type PersonalTask,
+} from '@/types/task';
 import {
   PLANNING_ASK_EVENT,
   PLANNING_CHANGED_EVENT,
@@ -22,6 +26,7 @@ import {
   WEEKDAY_LONG,
   WEEKDAY_SHORT,
   addMinutes,
+  canBePlanningSlot,
   clashes,
   durationLabel,
   firstPlanningDate,
@@ -57,6 +62,11 @@ import TimeWheel from './TimeWheel';
  * a way to move things out of the way without leaving the card. Moving is an
  * ordinary save of that item; a date of a repeating event is the one thing it
  * cannot move, because that would move the whole series.
+ *
+ * **"Use one you have"** lists the person's own timed tasks and events and
+ * links the one they pick (PUT /api/me/planning) instead of making a new
+ * slot — for somebody who already put "Planeamiento diario" on their
+ * calendar. They choose; nothing is recognised by its title.
  *
  * The close button hides it for the rest of the day in this browser and saves
  * nothing — somebody closing it mid-call has not said "not now" to anything.
@@ -135,6 +145,15 @@ export default function PlanningPrompt() {
   const [day, setDay] = useState<PlanningDay | null>(null);
   const [moving, setMoving] = useState<string | null>(null);
 
+  // "Use one you have": the person's own list, read only when asked for —
+  // it is the whole list, so not on every card — and kept across kinds.
+  const [picking, setPicking] = useState(false);
+  const [candidates, setCandidates] = useState<PersonalTask[] | null>(null);
+  const [filter, setFilter] = useState('');
+  const [linked, setLinked] = useState<PersonalTask | null>(null);
+  // Items already standing for some kind, so one is not offered twice.
+  const [takenIds, setTakenIds] = useState<string[]>([]);
+
   const startKind = useCallback((k: PlanningKind) => {
     setTime(PLANNING_DEFAULT_TIME[k]);
     setTimeTouched(false);
@@ -146,6 +165,9 @@ export default function PlanningPrompt() {
     setMoving(null);
     setAdded(null);
     setError('');
+    setPicking(false);
+    setFilter('');
+    setLinked(null);
   }, []);
 
   useEffect(() => {
@@ -159,6 +181,7 @@ export default function PlanningPrompt() {
           ? kinds.filter((k) => k.kind === only && !k.scheduled).map((k) => k.kind)
           : kinds.filter((k) => k.due).map((k) => k.kind);
         if (cancelled || !due.length || (!only && closedToday())) return;
+        setTakenIds(kinds.flatMap((k) => (k.scheduled ? [k.scheduled.taskId] : [])));
         setQueue(due);
         setStep(0);
         startKind(due[0]);
@@ -266,6 +289,37 @@ export default function PlanningPrompt() {
     }
   }
 
+  async function openPicker() {
+    setPicking(true);
+    setError('');
+    if (candidates) return;
+    try {
+      const { tasks } = await listMyTasks();
+      const today = calendarToday();
+      setCandidates(tasks
+        .filter((t) => canBePlanningSlot(t, today))
+        .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load your list.');
+      setCandidates([]);
+    }
+  }
+
+  async function link(task: PersonalTask) {
+    setBusy(true);
+    setError('');
+    try {
+      setAdded(await linkMyPlanning(kind, task.id));
+      setLinked(task);
+      setTakenIds((ids) => [...ids, task.id]);
+      window.dispatchEvent(new Event(PLANNING_CHANGED_EVENT));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not use that one.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function answer(action: 'snooze' | 'off') {
     setBusy(true);
     try {
@@ -330,7 +384,7 @@ export default function PlanningPrompt() {
               <CalendarCheck size={28} />
             </div>
             <h2 id="planning-prompt-title" className="mt-4 text-lg font-bold text-gray-900">
-              {copy.title} is on your calendar
+              {linked ? `“${linked.title}” is your ${copy.label.toLowerCase()}` : `${copy.title} is on your calendar`}
             </h2>
             <p className="mt-1 text-sm text-gray-600">
               {added.scheduled?.date && <>{dayName(added.scheduled.date)}, </>}
@@ -339,7 +393,11 @@ export default function PlanningPrompt() {
               {added.scheduled && added.scheduled.repeat !== 'none' && <>. {repeatText(added.scheduled)}</>}.
             </p>
             {added.scheduled?.repeat === 'none' && (
-              <p className="mt-1 text-xs text-gray-500">Just this once — you will be asked again next working day.</p>
+              <p className="mt-1 text-xs text-gray-500">
+                {linked
+                  ? 'It does not repeat, so you will be asked again once it has passed.'
+                  : 'Just this once — you will be asked again next working day.'}
+              </p>
             )}
             {added.scheduled && added.scheduled.repeat !== 'none' && added.scheduled.repeatUntil && (
               <p className="mt-1 text-xs text-gray-500">
@@ -347,8 +405,12 @@ export default function PlanningPrompt() {
                 month at a time keeps it worth doing.
               </p>
             )}
+            {/* A linked item keeps the reminders its owner gave it; say so rather than add one. */}
             <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-gray-500">
-              <BellRing size={13} /> You will get a reminder when it is time.
+              <BellRing size={13} />
+              {linked && linked.reminders.length === 0
+                ? 'It has no reminder. Add one on the item if you want a nudge.'
+                : 'You will get a reminder when it is time.'}
             </p>
             <button type="button" onClick={next}
               className="mt-6 w-full rounded-xl bg-brand-600 py-3 text-sm font-bold uppercase tracking-wide text-white hover:bg-brand-700">
@@ -359,6 +421,18 @@ export default function PlanningPrompt() {
               Open my calendar
             </Link>
           </div>
+        ) : picking ? (
+          <PickExisting
+            label={copy.label}
+            candidates={candidates?.filter((t) => !takenIds.includes(t.id)) ?? null}
+            filter={filter}
+            onFilter={setFilter}
+            busy={busy}
+            error={error}
+            dayName={dayName}
+            onPick={link}
+            onBack={() => { setPicking(false); setError(''); }}
+          />
         ) : (
           <div className="overflow-y-auto px-5 pb-5 pt-4">
             {/* The headline is the ask itself, large: this card interrupts the
@@ -492,6 +566,10 @@ export default function PlanningPrompt() {
               className="mt-5 w-full rounded-xl bg-brand-600 py-3 text-sm font-bold uppercase tracking-wide text-white hover:bg-brand-700 disabled:opacity-60">
               {busy ? 'Saving…' : 'Add to calendar'}
             </button>
+            <button type="button" onClick={openPicker} disabled={busy}
+              className="mt-2 w-full text-center text-xs font-medium text-brand-600 hover:underline disabled:opacity-50">
+              Already on your calendar? Use one you have
+            </button>
             <div className="mt-3 flex items-center justify-between text-xs">
               <button type="button" onClick={() => answer('snooze')} disabled={busy}
                 className="font-medium text-gray-500 hover:text-gray-700">
@@ -503,6 +581,78 @@ export default function PlanningPrompt() {
               </button>
             </div>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * "Use one you have": the person's own tasks and events that could stand as
+ * this slot (`canBePlanningSlot()`), soonest first, with a box to narrow them
+ * by title. Picking one is the whole of the recognising.
+ */
+function PickExisting({
+  label, candidates, filter, onFilter, busy, error, dayName, onPick, onBack,
+}: {
+  label: string;
+  candidates: PersonalTask[] | null;
+  filter: string;
+  onFilter: (v: string) => void;
+  busy: boolean;
+  error: string;
+  dayName: (d: string) => string;
+  onPick: (t: PersonalTask) => void;
+  onBack: () => void;
+}) {
+  const words = filter.trim().toLowerCase();
+  const shown = candidates?.filter((t) => !words || t.title.toLowerCase().includes(words)) ?? null;
+  return (
+    <div className="flex min-h-0 flex-col px-5 pb-5 pt-4">
+      <button type="button" onClick={onBack}
+        className="flex items-center gap-1 self-start text-xs font-medium text-gray-500 hover:text-gray-700">
+        <ArrowLeft size={13} /> Back
+      </button>
+      <h2 id="planning-prompt-title" className="mt-2 text-lg font-bold text-gray-900">
+        Which one is your {label.toLowerCase()}?
+      </h2>
+      <p className="mt-0.5 text-sm text-gray-600">
+        Pick a task or event you already have. It stays as it is; you just won&rsquo;t be asked to add another.
+      </p>
+      <label className="mt-3 flex items-center gap-2 rounded-lg border border-gray-300 px-2.5 py-1.5">
+        <Search size={14} className="text-gray-400" />
+        <input type="text" value={filter} onChange={(e) => onFilter(e.target.value)} placeholder="Search by name"
+          className="w-full border-0 p-0 text-sm focus:ring-0" />
+      </label>
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      <div className="mt-2 min-h-0 flex-1 overflow-y-auto">
+        {!shown ? (
+          <p className="py-6 text-center text-xs text-gray-400">Loading your list…</p>
+        ) : shown.length === 0 ? (
+          <p className="py-6 text-center text-xs text-gray-400">
+            {candidates?.length
+              ? 'Nothing matches that.'
+              : 'Nothing to pick. Only tasks and events still to come, with a day and a time, can be used.'}
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {shown.map((t) => (
+              <li key={t.id}>
+                <button type="button" disabled={busy} onClick={() => onPick(t)}
+                  className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-gray-100 disabled:opacity-50">
+                  {t.kind === 'event'
+                    ? <CalendarDays size={14} className="mt-0.5 flex-shrink-0 text-gray-400" />
+                    : <CheckSquare size={14} className="mt-0.5 flex-shrink-0 text-gray-400" />}
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-gray-800">{t.title}</span>
+                    <span className="block text-xs text-gray-500">
+                      {t.repeat === 'none' ? dayName(t.date ?? '') : repeatText(t)}, {timeRange(t)}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>

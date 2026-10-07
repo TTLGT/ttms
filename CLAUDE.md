@@ -1026,7 +1026,11 @@ Types and pure rules in `src/types/task.ts`; server in
     Done or Not done, never deleted). A missed repeating one gets its next copy
     from the planning GET (`carryOn()`), so the slot and its reminders continue.
   - `personalTasks/{uid}.planning` only remembers the task it made and whether
-    to ask. "Not now" waits until the next day, Monday or first of the month;
+    to ask. **"Use one you have"** on the card points it at a task or event the
+    person already has instead (`PUT /api/me/planning`), marking that item's
+    `planning` field so it is treated exactly like a made slot. The person
+    picks it — never recognise one by its title; `canBePlanningSlot()` is the
+    whole of the eligibility test. "Not now" waits until the next day, Monday or first of the month;
     "Don't ask again" holds until it is turned back on from the Calendar page.
   - **The PATCH route moves the pointer to each repeat's copy** — drop that and
     the card asks people who already have the slot. GET is one read plus a

@@ -15,6 +15,7 @@ import {
   PLANNING_KINDS,
   PLANNING_WEEKDAYS,
   addMinutes,
+  canBePlanningSlot,
   cleanPlanningState,
   firstPlanningDate,
   isDailyKind,
@@ -69,6 +70,10 @@ async function statusFor(
     if (task.repeat === 'none') return task.date && task.date >= today ? task : null;
     // A missed one already carried on still sits open; the slot is its copy.
     const passed = !!task.nextId && !!task.date && task.date < today;
+    // A repeat past its end covers nothing more: a missed last copy has no
+    // next one to carry on to, and an event series is never marked done. The
+    // card asks again, which is the renewal (REPEAT_ADVICE).
+    if (task.repeatUntil && task.repeatUntil < today) return null;
     if (task.status !== 'done' && !passed) return task;
     return task.nextId && hops < 2 ? live(task.nextId, hops + 1) : null;
   };
@@ -247,6 +252,90 @@ export async function POST(req: NextRequest) {
       kind, scheduled: { taskId: ref.id, date, time, endTime, repeat, ...repeating }, off: false, due: false,
     };
     return NextResponse.json({ status }, { status: 201 });
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/**
+ * Use a task or event the caller already has as a planning slot: `{ kind,
+ * taskId }`. The person picked it on the card — nothing here matches titles.
+ *
+ * It changes one thing on the item, `planning`, which is what makes the rest
+ * of the app treat it as the slot: finishing a repeat, rescheduling and the
+ * missed-day carry-on all move the pointer along with it. Its time, length
+ * and reminders stay exactly as the person set them; the card says so when
+ * it has no reminder rather than adding one.
+ *
+ * Whatever the pointer named before loses its `planning` mark, so an old
+ * slot that is rescheduled later cannot pull the pointer back to itself.
+ */
+export async function PUT(req: NextRequest) {
+  try {
+    const { uid } = await requireCompanyUser(req);
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!isPlanningKind(body.kind)) {
+      return NextResponse.json({ error: 'Pick which planning this is for.' }, { status: 400 });
+    }
+    if (typeof body.taskId !== 'string' || !body.taskId || body.taskId.includes('/')) {
+      return NextResponse.json({ error: 'Pick one of your tasks or events.' }, { status: 400 });
+    }
+    const kind: PlanningKind = body.kind;
+    const taskId = body.taskId;
+    const today = officeToday();
+    const ownerRef = taskOwnerDoc(uid);
+    const taskRef = taskItems(uid).doc(taskId);
+
+    // Same guard as POST: a kind already on the calendar keeps its slot. The
+    // card only offers this when it is not.
+    const owner = await ownerRef.get();
+    const existing = (await statusFor(uid, cleanPlanningState(owner.data()?.planning), today, '00:00', true))
+      .find((s) => s.kind === kind);
+    if (existing?.scheduled) {
+      return NextResponse.json({ status: existing, already: true });
+    }
+
+    const result = await adminDb.runTransaction(async (tx) => {
+      const [ownerSnap, taskSnap] = await Promise.all([tx.get(ownerRef), tx.get(taskRef)]);
+      if (!taskSnap.exists) return { error: 'That one is no longer on your list.', code: 404 } as const;
+      const task = toTask(taskSnap);
+      if (!canBePlanningSlot(task, today)) {
+        return { error: 'Pick something still to come, with a day and a time.', code: 409 } as const;
+      }
+      const state = cleanPlanningState(ownerSnap.data()?.planning);
+      // One item stands for one kind: a morning review is not also the weekly plan.
+      if (task.planning && task.planning !== kind && state[task.planning].taskId === task.id) {
+        return { error: `That is already your ${PLANNING_COPY[task.planning].label.toLowerCase()}.`, code: 409 } as const;
+      }
+      const previous = state[kind].taskId && state[kind].taskId !== taskId
+        ? await tx.get(taskItems(uid).doc(state[kind].taskId))
+        : null;
+
+      if (previous?.exists && previous.data()?.planning === kind) {
+        tx.update(previous.ref, { planning: null, updatedAt: FieldValue.serverTimestamp() });
+      }
+      tx.update(taskRef, { planning: kind, updatedAt: FieldValue.serverTimestamp() });
+      tx.set(ownerRef, {
+        planning: { [kind]: { taskId, snoozedUntil: null, off: false } },
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return { task } as const;
+    });
+
+    if ('error' in result) {
+      return NextResponse.json({ error: result.error }, { status: result.code });
+    }
+    const t = result.task;
+    const status: PlanningStatus = {
+      kind,
+      scheduled: {
+        taskId: t.id, date: t.date, time: t.time, endTime: t.endTime,
+        repeat: t.repeat, repeatWeekday: t.repeatWeekday, repeatNths: t.repeatNths, repeatUntil: t.repeatUntil,
+      },
+      off: false,
+      due: false,
+    };
+    return NextResponse.json({ status });
   } catch (e) {
     return fail(e);
   }

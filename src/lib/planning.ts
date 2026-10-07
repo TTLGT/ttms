@@ -26,6 +26,15 @@ export async function scheduleMyPlanning(input: {
   return data.status;
 }
 
+/** Use a task or event the person already has as this kind's slot. */
+export async function linkMyPlanning(kind: PlanningKind, taskId: string): Promise<PlanningStatus> {
+  const data = await authedFetch<{ status: PlanningStatus }>('/api/me/planning', {
+    method: 'PUT',
+    body: JSON.stringify({ kind, taskId }),
+  });
+  return data.status;
+}
+
 export async function setMyPlanningPrompt(kind: PlanningKind, action: 'snooze' | 'off' | 'on'): Promise<void> {
   await authedFetch('/api/me/planning', { method: 'PATCH', body: JSON.stringify({ kind, action }) });
 }
