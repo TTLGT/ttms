@@ -10,7 +10,7 @@ import { runFmcsaCheck } from '@/lib/fmcsaClient';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   authorityLabel,
-  fmcsaCarrierFill,
+  fmcsaBlankFills,
   fmcsaConcerns,
   INSURANCE_KIND_LABEL,
   fmcsaDollars,
@@ -38,30 +38,6 @@ const FILL_LABELS: Partial<Record<keyof Carrier, string>> = {
   insuranceCoverage: 'liability amount',
   insuranceCargoCoverage: 'cargo amount',
 };
-
-const isBlank = (v: unknown) => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
-
-/**
- * What FMCSA could fill in on this carrier without overwriting anything:
- * only the fields that are blank on our record. Something a broker typed is
- * never replaced — it may well be newer than what the carrier registered.
- */
-function blankFills(carrier: Carrier, check: FmcsaCheck): Partial<Carrier> {
-  if (!check.found) return {};
-  const f = fmcsaCarrierFill(check, check.lookedUpBy, check.query);
-  const out: Partial<Carrier> = {};
-  if (isBlank(carrier.phone) && f.phone) {
-    out.phone = f.phone;
-    if (f.phoneRegion) out.phoneRegion = f.phoneRegion;
-  }
-  if (isBlank(carrier.email) && f.email) out.email = f.email;
-  if (isBlank(carrier.address) && f.address) out.address = f.address;
-  if (isBlank(carrier.insuranceProvider) && f.insuranceProvider) out.insuranceProvider = f.insuranceProvider;
-  if (isBlank(carrier.insurancePolicyNumber) && f.insurancePolicyNumber) out.insurancePolicyNumber = f.insurancePolicyNumber;
-  if (isBlank(carrier.insuranceCoverage) && f.insuranceCoverage !== null) out.insuranceCoverage = f.insuranceCoverage;
-  if (isBlank(carrier.insuranceCargoCoverage) && f.insuranceCargoCoverage !== null) out.insuranceCargoCoverage = f.insuranceCargoCoverage;
-  return out;
-}
 
 /** FMCSA's public page for the carrier, for anybody who wants the source. */
 function saferUrl(dot: string): string {
@@ -181,7 +157,7 @@ export default function FmcsaPanel({
 
   const concerns = fmcsaConcerns(check, mc, formatCalendarDate);
   const reg = check.registry;
-  const fills = carrier && can('carriers.edit') ? blankFills(carrier, check) : {};
+  const fills: Partial<Carrier> = carrier && can('carriers.edit') ? fmcsaBlankFills(carrier, check) : {};
   const fillNames = Object.keys(fills)
     .map((k) => FILL_LABELS[k as keyof Carrier])
     .filter(Boolean) as string[];

@@ -1,6 +1,7 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { PhoneRegion } from '@/lib/phone';
 import { isPhoneRegion } from '@/lib/phone';
+import type { Carrier } from './carrier';
 
 /**
  * What FMCSA said about a carrier the last time somebody looked, stored on the
@@ -412,4 +413,42 @@ export function fmcsaCarrierFill(a: FmcsaAnswer, kind: 'dot' | 'mc', typed: stri
     insuranceCoverage: liability && liability.amount > 0 ? liability.amount : null,
     insuranceCargoCoverage: cargo && cargo.amount > 0 ? cargo.amount : null,
   };
+}
+
+/** The carrier fields `fmcsaBlankFills()` may write. */
+export type FmcsaFillable = Pick<
+  Carrier,
+  | 'phone' | 'phoneRegion' | 'email' | 'address'
+  | 'insuranceProvider' | 'insurancePolicyNumber'
+  | 'insuranceCoverage' | 'insuranceCargoCoverage'
+>;
+
+const isBlank = (v: unknown) => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
+
+/**
+ * What FMCSA could fill in on this carrier without overwriting anything:
+ * only the fields that are blank on our record. Something a broker typed is
+ * never replaced — it may well be newer than what the carrier registered.
+ *
+ * The single definition, shared by the "fill in" button on the FMCSA panel and
+ * the check that runs after a BATS import (`src/lib/fmcsaSweep.ts`), so the two
+ * cannot disagree about what counts as safe to fill. The name and the numbers
+ * are deliberately not here — see the sweep for the one case where it fills a
+ * DOT.
+ */
+export function fmcsaBlankFills(carrier: Partial<Carrier>, check: FmcsaAnswer): Partial<FmcsaFillable> {
+  if (!check.found) return {};
+  const f = fmcsaCarrierFill(check, check.lookedUpBy, check.query);
+  const out: Partial<FmcsaFillable> = {};
+  if (isBlank(carrier.phone) && f.phone) {
+    out.phone = f.phone;
+    if (f.phoneRegion) out.phoneRegion = f.phoneRegion;
+  }
+  if (isBlank(carrier.email) && f.email) out.email = f.email;
+  if (isBlank(carrier.address) && f.address) out.address = f.address;
+  if (isBlank(carrier.insuranceProvider) && f.insuranceProvider) out.insuranceProvider = f.insuranceProvider;
+  if (isBlank(carrier.insurancePolicyNumber) && f.insurancePolicyNumber) out.insurancePolicyNumber = f.insurancePolicyNumber;
+  if (isBlank(carrier.insuranceCoverage) && f.insuranceCoverage !== null) out.insuranceCoverage = f.insuranceCoverage;
+  if (isBlank(carrier.insuranceCargoCoverage) && f.insuranceCargoCoverage !== null) out.insuranceCargoCoverage = f.insuranceCargoCoverage;
+  return out;
 }

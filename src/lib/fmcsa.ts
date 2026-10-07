@@ -44,6 +44,17 @@ async function get(path: string): Promise<unknown> {
   }
 
   const body = (await res.json().catch(() => null)) as { content?: unknown } | null;
+  // FMCSA's firewall refuses connections from outside the US with a bare HTML
+  // 403, before the key is even read — a made-up key gets the same page.
+  // Found from the Guatemala office on 2026-10-07. Reported as what it is,
+  // because "check the key" would send somebody to replace a key that works.
+  // It stops a bulk run like a missing key does: every carrier would fail the
+  // same way. Vercel runs in the US, so the live site is not affected.
+  if (res.status === 403 && !body) {
+    throw new FmcsaNotConfiguredError(
+      'FMCSA refused the connection. It blocks computers outside the US, so this works on the live site but not on an office PC.',
+    );
+  }
   // A bad key comes back as a 404 whose content is this sentence, which is
   // otherwise indistinguishable from "no such carrier".
   if (body?.content === 'Webkey not found' || res.status === 401 || res.status === 403) {

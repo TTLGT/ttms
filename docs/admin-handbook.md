@@ -1115,6 +1115,32 @@ The old BATS CRM data can be pulled in through the browser. **No commands needed
 > hasn't changed, so running a fresh export next week only writes what is
 > genuinely new. You will not create duplicates.
 
+**Carriers are checked with FMCSA by themselves.** When the import includes a
+carriers file, a second line appears under the results, reading *"FMCSA check —
+Checking… 40 of 312"*. Leave the page open until it finishes. For each new or
+changed carrier, TTMS asks FMCSA about its MC number and then:
+
+- stores FMCSA's answer on the carrier: whether it may haul, its authority,
+  insurance on file and safety record. This is the same as pressing **Check
+  FMCSA** on the carrier's own page.
+- fills in what BATS left blank: the DOT number, phone, email, address,
+  insurer, policy number and insurance amounts. **It only fills empty boxes.**
+  Nothing someone has typed is replaced.
+
+When it finishes, the line lists the carriers FMCSA does not know and the ones
+it shows a serious problem with. Open those before booking them.
+
+If you close the page halfway, nothing already checked is lost. Press **Check
+carriers not yet checked** to finish the rest. The same button checks carriers
+added before this existed, and retries any FMCSA did not answer for. It needs
+`FMCSA_WEB_KEY`, which is set on the live site. On a computer without it, the
+check stops with "FMCSA checks are not set up yet".
+
+> **Run it from the live site, not an office PC.** FMCSA blocks every
+> computer outside the US, so from the Guatemala office it stops with "FMCSA
+> refused the connection" even when the key is right. The live site runs on
+> US servers and is not affected.
+
 Also in Settings, on the **Organization** tab: **Sites** (your company
 locations) and **Work Groups** (teams that share client records). Both are
 simple add-and-name lists.
@@ -1369,6 +1395,7 @@ All under `src/app/api/`. Each guards itself with a helper from
 | `/api/admin/users/restore` | Put a removed person back | `people.manage` |
 | `/api/admin/users/events` | The access history | `people.manage` |
 | `/api/admin/import-bats` | Run the BATS import | `requireAdmin` |
+| `/api/admin/carriers/fmcsa-sweep` | Check many carriers with FMCSA and fill their blanks | `requireAdmin` |
 | `/api/orders/[id]/bol` | BOL PDF | authenticated |
 | `/api/orders/[id]/invoice` | Invoice PDF | authenticated |
 | `/api/orders/[id]/send-agreement` | Email the carrier agreement | authenticated |
@@ -1434,6 +1461,8 @@ All plain Node, all read `.env.local` themselves, all writers support
 ```bash
 # BATS CRM import. CSV exports go in the project root.
 # Re-running is safe: rows are hashed, unchanged ones skipped.
+# Does NOT check carriers with FMCSA. Afterwards, press "Check carriers not
+# yet checked" in Settings -> Data.
 node scripts/import-bats.js
 node scripts/import-bats.js --only orders
 

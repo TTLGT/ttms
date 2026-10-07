@@ -26,6 +26,12 @@ export interface ImportResult {
   notes?: string;
   /** How the BATS owner names in this file resolved — see OwnerReport. */
   owners?: OwnerReport;
+  /**
+   * The documents this run wrote, new or changed. Carriers only: the panel
+   * hands them to the FMCSA check next. Not kept for orders, where it would
+   * be ten thousand ids in a response nobody reads.
+   */
+  writtenIds?: string[];
 }
 
 /**
@@ -387,6 +393,7 @@ async function batchWrite(
   records: Record<string, unknown>[],
   collectionName: ImportCollection,
   getId: (rec: Record<string, unknown>) => string,
+  keepIds = false,
 ): Promise<ImportResult> {
   const existing = await loadExistingMeta(collectionName);
 
@@ -437,7 +444,10 @@ async function batchWrite(
     written += Math.min(CHUNK, toWrite.length - i);
   }
 
-  return { collection: collectionName, written, skipped, total: records.length };
+  return {
+    collection: collectionName, written, skipped, total: records.length,
+    ...(keepIds && { writtenIds: toWrite.map((w) => w.id).filter(Boolean) }),
+  };
 }
 
 // ── Party registry ───────────────────────────────────────────────────────────
@@ -720,7 +730,7 @@ export async function importCarriersCSV(text: string): Promise<ImportResult> {
     updatedAt:              now,
   })).filter((c) => c.batsId && c.companyName);
 
-  return batchWrite(records, 'carriers', (c) => `bats-${c.batsId}`);
+  return batchWrite(records, 'carriers', (c) => `bats-${c.batsId}`, true);
 }
 
 // ── Customers ───────────────────────────────────────────────────────────────
