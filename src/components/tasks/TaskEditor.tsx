@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Bell, Trash2, X } from 'lucide-react';
+import { Bell, CalendarClock, Trash2, X } from 'lucide-react';
 import DateField from '@/components/DateField';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   EVENT_TYPES,
   EVENT_TYPE_LABEL,
@@ -11,7 +12,15 @@ import {
   TASK_PRIORITY_LABEL,
   TASK_REPEATS,
   TASK_REPEAT_LABEL,
+  NTH_LABEL,
+  NTH_LAST,
+  WEEKDAY_NAMES,
   calendarToday,
+  nthOf,
+  outcomeOf,
+  type TaskOutcome,
+  nthPatternLabel,
+  weekdayNumberOf,
   colorLabel,
   leadsFor,
   placeOf,
@@ -52,6 +61,7 @@ export default function TaskEditor({
   queueSize = 0,
   onSave,
   onDelete,
+  onReschedule,
   onClose,
 }: {
   /** The item being edited; null to add one. */
@@ -73,6 +83,11 @@ export default function TaskEditor({
   /** `place` is a new spot in the queue when the person typed one, otherwise null. */
   onSave: (input: PersonalTaskInput, place: number | null) => Promise<void> | void;
   onDelete?: () => void;
+  /**
+   * Move an open task to another day, leaving it on this one marked
+   * Rescheduled. Absent where the page cannot (and for a new task).
+   */
+  onReschedule?: (date: string, time: string | null) => Promise<void> | void;
   onClose: () => void;
 }) {
   const start = task ?? initial ?? {};
@@ -82,6 +97,11 @@ export default function TaskEditor({
   const [notes, setNotes]         = useState(start.notes ?? '');
   const [location, setLocation]   = useState(start.location ?? '');
   const [status, setStatus]       = useState(placeOf(columns, start.status ?? 'todo'));
+  // How a closed task ended; see TASK_OUTCOMES. The status box carries it as
+  // two extra choices beside the board's columns.
+  const [outcome, setOutcome]     = useState<TaskOutcome | null>(task ? outcomeOf(task) : null);
+  const [moveTo, setMoveTo]       = useState<{ date: string; time: string } | null>(null);
+  const { formatCalendarDate } = useDateFormatters();
   const [priority, setPriority]   = useState(start.priority ?? 'normal');
   const [color, setColor]         = useState(start.color ?? 'yellow');
   const [date, setDate]           = useState(start.date ?? '');
@@ -89,6 +109,10 @@ export default function TaskEditor({
   const [endTime, setEndTime]     = useState(start.endTime ?? '');
   const [reminders, setReminders] = useState<TaskReminderLead[]>(start.reminders ?? []);
   const [repeat, setRepeat]       = useState<TaskRepeat>(start.repeat ?? 'none');
+  // monthlyNth: the weekday and which of them. Seeded from the date when the
+  // item has none yet, so picking the pattern on the 9th offers "2nd …day".
+  const [repeatWeekday, setRepeatWeekday] = useState<number | null>(start.repeatWeekday ?? null);
+  const [repeatNths, setRepeatNths]       = useState<number[]>(start.repeatNths ?? []);
   const [steps, setSteps]         = useState<TaskStep[]>(start.steps ?? []);
   const [contacts, setContacts]   = useState<TaskContact[]>(start.contacts ?? []);
   const [orders, setOrders]       = useState<TaskOrder[]>(start.orders ?? []);
@@ -112,7 +136,10 @@ export default function TaskEditor({
   // so rather than letting somebody believe a reminder is on its way.
   const instants = reminderInstants({
     kind, status: kind === 'event' ? 'todo' : status, date: date || null, time: time || null, reminders,
-  });
+    repeat, repeatDay: null, repeatWeekday, repeatNths,
+  }, Date.now());
+  const nthWeekday = repeatWeekday ?? (date ? weekdayNumberOf(date) : 1);
+  const nths = repeatNths.length ? repeatNths : date ? [nthOf(date)] : [1];
   const now = Date.now();
 
   const toggleLead = (lead: TaskReminderLead, on: boolean) =>
@@ -123,6 +150,7 @@ export default function TaskEditor({
     if (!title.trim()) { setProblem('Give it a title.'); return; }
     if (kind === 'event' && !date) { setProblem('An event needs a date.'); return; }
     if (kind === 'task' && repeat !== 'none' && !date) { setProblem('A repeating task needs a due date.'); return; }
+    if (repeat === 'monthlyNth' && !nths.length) { setProblem('Pick at least one week of the month.'); return; }
     if (kind === 'event' && time && endTime && endTime <= time) {
       setProblem('The end time is before the start time.');
       return;
@@ -138,12 +166,17 @@ export default function TaskEditor({
       notes,
       location: location.trim(),
       status: kind === 'event' ? 'todo' : status,
+      // A rescheduled one keeps saying so unless the box is changed; only the
+      // reschedule button makes one.
+      ...(kind === 'task' && status === 'done' && outcome !== 'rescheduled' ? { outcome: outcome ?? 'done' } : {}),
       priority,
       color,
       date: date || null,
       time: time || null,
       endTime: kind === 'event' ? (endTime || null) : null,
-      repeat: kind === 'task' ? repeat : 'none',
+      repeat,
+      repeatWeekday: repeat === 'monthlyNth' ? nthWeekday : null,
+      repeatNths: repeat === 'monthlyNth' ? nths : [],
       // Only the leads that apply to what is being saved: a "15 minutes
       // before" ticked while a time was set means nothing once it is cleared.
       reminders: date ? reminders.filter((l) => leads.includes(l)) : [],
@@ -347,9 +380,29 @@ export default function TaskEditor({
             {kind === 'task' && (
               <div>
                 <label className={label} htmlFor="task-status">Status</label>
-                <select id="task-status" value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className={input}>
+                <select
+                  id="task-status"
+                  value={status === 'done' && outcome && outcome !== 'done' ? `__${outcome}` : status}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === '__notdone') { setStatus('done'); setOutcome('notdone'); return; }
+                    if (v === '__rescheduled') return;
+                    setStatus(v as typeof status);
+                    setOutcome(v === 'done' ? 'done' : null);
+                  }}
+                  className={input}
+                >
                   {columns.filter((c) => !c.hidden).map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  {/* Closed, but not done: kept on the calendar as a record of the day. */}
+                  {task && <option value="__notdone">Not done</option>}
+                  {outcome === 'rescheduled' && <option value="__rescheduled" disabled>Rescheduled</option>}
                 </select>
+                {status === 'done' && outcome === 'notdone' && (
+                  <p className="mt-1 text-xs text-gray-500">Closed and kept on your calendar as not done. In game mode it costs XP.</p>
+                )}
+                {status === 'done' && outcome === 'rescheduled' && task?.rescheduledTo && (
+                  <p className="mt-1 text-xs text-gray-500">Moved to {formatCalendarDate(task.rescheduledTo)}; this one stays on its day as a record.</p>
+                )}
               </div>
             )}
             <div>
@@ -373,30 +426,55 @@ export default function TaskEditor({
                 />
               </div>
             )}
-            {kind === 'task' && (
-              <div className="sm:col-span-2">
-                <label className={label} htmlFor="task-repeat">Repeats</label>
-                <select
-                  id="task-repeat"
-                  value={repeat}
-                  onChange={(e) => {
-                    const next = e.target.value as TaskRepeat;
-                    setRepeat(next);
-                    // A repeat counts on from the due date, so it needs one;
-                    // today is the date somebody setting one up nearly always means.
-                    if (next !== 'none' && !date) setDate(calendarToday());
-                  }}
-                  className={input}
-                >
-                  {TASK_REPEATS.map((r) => <option key={r} value={r}>{TASK_REPEAT_LABEL[r]}</option>)}
-                </select>
-                {repeat !== 'none' && (
-                  <p className="mt-1.5 text-xs text-gray-500">
-                    When you mark it Done, the next one is added to To do with its new due date.
-                  </p>
-                )}
-              </div>
-            )}
+            <div className="sm:col-span-2">
+              <label className={label} htmlFor="task-repeat">Repeats</label>
+              <select
+                id="task-repeat"
+                value={repeat}
+                onChange={(e) => {
+                  const next = e.target.value as TaskRepeat;
+                  setRepeat(next);
+                  // A repeat counts on from the due date, so it needs one;
+                  // today is the date somebody setting one up nearly always means.
+                  if (next !== 'none' && !date) setDate(calendarToday());
+                }}
+                className={input}
+              >
+                {TASK_REPEATS.map((r) => <option key={r} value={r}>{TASK_REPEAT_LABEL[r]}</option>)}
+              </select>
+              {repeat === 'monthlyNth' && (
+                <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+                  <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Which weeks">
+                    {[1, 2, 3, 4, NTH_LAST].map((n) => {
+                      const on = nths.includes(n);
+                      return (
+                        <button key={n} type="button" aria-pressed={on}
+                          onClick={() => setRepeatNths(on ? nths.filter((x) => x !== n) : [...nths, n].sort((a, b) => a - b))}
+                          className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
+                            on ? 'bg-brand-600 text-white' : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-100'
+                          }`}>
+                          {NTH_LABEL[n]}
+                        </button>
+                      );
+                    })}
+                    <select value={nthWeekday} onChange={(e) => setRepeatWeekday(Number(e.target.value))}
+                      aria-label="Weekday" className="ml-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs">
+                      {WEEKDAY_NAMES.map((name, i) => <option key={name} value={i}>{name}</option>)}
+                    </select>
+                  </div>
+                  {nths.length > 0 && (
+                    <p className="mt-1.5 text-xs text-gray-600">On {nthPatternLabel(nthWeekday, nths)}.</p>
+                  )}
+                </div>
+              )}
+              {repeat !== 'none' && (
+                <p className="mt-1.5 text-xs text-gray-500">
+                  {kind === 'task'
+                    ? 'When you mark it Done, the next one is added to To do with its new due date.'
+                    : 'It shows on every date in the series, starting from the date above. Changes and deleting apply to all of them.'}
+                </p>
+              )}
+            </div>
           </div>
 
           <div>
@@ -417,6 +495,45 @@ export default function TaskEditor({
               ))}
             </div>
           </div>
+
+          {task && onReschedule && kind === 'task' && task.status !== 'done' && (
+            <div className="rounded-lg border border-gray-200 p-3">
+              {moveTo ? (
+                <div className="flex flex-wrap items-end gap-2">
+                  <div>
+                    <span className={label}>Move to</span>
+                    <DateField ariaLabel="Move to" value={moveTo.date} onChange={(v) => setMoveTo({ ...moveTo, date: v })} className={input} />
+                  </div>
+                  <div>
+                    <label className={label} htmlFor="task-move-time">Time</label>
+                    <input id="task-move-time" type="time" value={moveTo.time}
+                      onChange={(e) => setMoveTo({ ...moveTo, time: e.target.value })} className={input} />
+                  </div>
+                  <button type="button" disabled={!moveTo.date || saving}
+                    onClick={async () => {
+                      setSaving(true);
+                      await onReschedule(moveTo.date, moveTo.time || null);
+                      setSaving(false);
+                    }}
+                    className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+                    Reschedule
+                  </button>
+                  <button type="button" onClick={() => setMoveTo(null)}
+                    className="rounded-lg px-2 py-2 text-sm text-gray-500 hover:bg-gray-100">
+                    Cancel
+                  </button>
+                  <p className="w-full text-xs text-gray-500">
+                    It stays on {task.date ? 'its current day' : 'your calendar'} marked Rescheduled, and carries on from the new day with its steps.
+                  </p>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setMoveTo({ date: '', time: time })}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline">
+                  <CalendarClock size={14} /> Reschedule to another day
+                </button>
+              )}
+            </div>
+          )}
 
           {problem && <p className="text-sm text-red-600">{problem}</p>}
         </div>

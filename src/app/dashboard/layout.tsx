@@ -41,6 +41,7 @@ import ThemeSwitch from '@/components/dashboard/ThemeSwitch';
 import PreferenceSync from '@/components/dashboard/PreferenceSync';
 import LearnSwitch from '@/components/dashboard/LearnSwitch';
 import LearnLayer from '@/components/learn/LearnLayer';
+import PlanningPrompt from '@/components/planning/PlanningPrompt';
 import { LearnProvider } from '@/context/LearnContext';
 import { AttendanceProvider, useAttendance } from '@/context/AttendanceContext';
 import ClockWidget from '@/components/attendance/ClockWidget';
@@ -609,6 +610,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Learn English: nothing at all unless this browser has it turned on. */}
       <LearnLayer />
+
+      {/* "Pick a time for your daily planning" — nothing unless one is due. */}
+      <PlanningPrompt />
     </div>
   );
 }

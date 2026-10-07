@@ -143,7 +143,7 @@ function ScheduleEditor({
                     <input
                       type="checkbox"
                       checked={Boolean(shift)}
-                      onChange={(e) => setS({ ...s, days: { ...s.days, [d]: e.target.checked ? { start: '08:00', end: '17:00' } : null } })}
+                      onChange={(e) => setS({ ...s, days: { ...s.days, [d]: e.target.checked ? { ...STANDARD_SCHEDULE.days.mon! } : null } })}
                     />
                     {WEEKDAY_LABEL[d]}
                   </label>
@@ -187,7 +187,7 @@ function ScheduleEditor({
         </button>
         <button type="button" disabled={busy} onClick={() => setS(STANDARD_SCHEDULE)}
           className="rounded-lg border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50">
-          Standard week (Mon–Fri, 8–5)
+          Standard week (Mon–Fri, 7–4)
         </button>
         {initial && (
           <button type="button" disabled={busy} onClick={() => void save(null)}

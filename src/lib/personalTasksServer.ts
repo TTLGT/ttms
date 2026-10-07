@@ -1,6 +1,7 @@
 import type { DocumentData, DocumentReference, DocumentSnapshot } from 'firebase-admin/firestore';
 import { Timestamp } from 'firebase-admin/firestore';
-import { adminDb } from './firebase-admin';
+import { FieldValue, adminDb } from './firebase-admin';
+import { addDays, daysBetween } from '@/types/taskGame';
 import {
   DEFAULT_TASK_REMINDER_SETTINGS,
   EVENT_TYPES,
@@ -11,6 +12,7 @@ import {
   TASK_REMINDERS_COLLECTION,
   TASK_REMINDER_LEADS,
   TASK_REPEATS,
+  cleanNths,
   cleanContacts,
   cleanOrders,
   isTaskStatus,
@@ -19,6 +21,7 @@ import {
   type PersonalTask,
   type TaskReminderSettings,
 } from '@/types/task';
+import { isPlanningKind } from '@/types/planning';
 
 /**
  * Server side of the personal task list — see src/types/task.ts.
@@ -66,12 +69,27 @@ export function toTask(snap: DocumentSnapshot): PersonalTask {
     reminders: Array.isArray(d.reminders)
       ? TASK_REMINDER_LEADS.filter((l) => (d.reminders as unknown[]).includes(l))
       : [],
-    repeat:    d.kind === 'event' ? 'none' : pick(TASK_REPEATS, d.repeat, 'none'),
+    // Events have repeated since monthlyNth came in; one saved before then reads 'none', which it was.
+    repeat:    pick(TASK_REPEATS, d.repeat, 'none'),
     repeatDay: typeof d.repeatDay === 'number' ? d.repeatDay : null,
+    repeatWeekday: typeof d.repeatWeekday === 'number' ? d.repeatWeekday : null,
+    repeatNths: cleanNths(d.repeatNths),
+    skipDates: Array.isArray(d.skipDates)
+      ? (d.skipDates as unknown[]).filter((x): x is string => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x))
+      : [],
+    detachedFrom: typeof d.detachedFrom === 'string' ? d.detachedFrom : null,
+    outcome: d.kind !== 'event' && d.status === 'done'
+      ? (d.outcome === 'notdone' || d.outcome === 'rescheduled' ? d.outcome : 'done')
+      : null,
+    rescheduledTo: typeof d.rescheduledTo === 'string' ? d.rescheduledTo : null,
+    rescheduledFrom: typeof d.rescheduledFrom === 'string' ? d.rescheduledFrom : null,
+    archived: d.archived === true,
     nextId:    typeof d.nextId === 'string' ? d.nextId : null,
     xpEarned:  typeof d.xpEarned === 'number' ? d.xpEarned : 0,
+    xpLost:    typeof d.xpLost === 'number' ? d.xpLost : 0,
     everDone:  d.everDone === true,
     suggestionId: typeof d.suggestionId === 'string' ? d.suggestionId : null,
+    planning:  isPlanningKind(d.planning) ? d.planning : null,
     order:     typeof d.order === 'number' ? d.order : 0,
     // Items saved before steps and the queue existed have none and are unplaced.
     steps:     d.kind === 'event' ? [] : toSteps(d.steps),
@@ -91,6 +109,63 @@ export function toReminderSettings(raw: unknown): TaskReminderSettings {
   return {
     email: typeof r.email === 'boolean' ? r.email : DEFAULT_TASK_REMINDER_SETTINGS.email,
     chat:  typeof r.chat === 'boolean' ? r.chat : DEFAULT_TASK_REMINDER_SETTINGS.chat,
+  };
+}
+
+/**
+ * The next copy of a repeating task, due on `nextDate` — made when one is
+ * finished (the PATCH route), and when a planning slot's day went by undone
+ * (the planning route), which leaves the missed one where it is. One
+ * definition, so the two cannot make different copies.
+ */
+export function nextCopyData(t: PersonalTask, nextDate: string): DocumentData {
+  return {
+    kind: 'task',
+    title: t.title,
+    notes: t.notes,
+    status: 'todo',
+    priority: t.priority,
+    color: t.color,
+    date: nextDate,
+    time: t.time,
+    // Only a planning slot keeps an end; the caller passes null for anything else.
+    endTime: t.endTime,
+    eventType: 'other',
+    location: t.location,
+    reminders: t.reminders,
+    repeat: t.repeat,
+    repeatDay: t.repeatDay,
+    repeatWeekday: t.repeatWeekday,
+    repeatNths: t.repeatNths,
+    suggestionId: t.suggestionId,
+    // A planning slot stays one, and the card's pointer moves to the copy —
+    // otherwise it would read the finished task and ask somebody who planned
+    // this morning to schedule planning again.
+    planning: t.planning,
+    // The next one starts with the same steps, none of them done, and keeps
+    // its place in the queue. A step's due date moves with the task's — two
+    // days before it stays two days before it — and is dropped when the task
+    // had no date to measure from.
+    steps: t.steps.map((st) => ({
+      ...st,
+      done: false,
+      date: st.date && t.date ? addDays(st.date, daysBetween(t.date, nextDate)) : null,
+      xp: 0,
+      everDone: false,
+    })),
+    rank: t.rank ?? null,
+    // Still the same people next week.
+    contacts: t.contacts,
+    // But not the same load: a weekly "chase the POD" is a different order
+    // each week, and a link to last week's would be wrong, not empty.
+    orders: [],
+    nextId: null,
+    xpEarned: 0,
+    everDone: false,
+    order: Date.now(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+    doneAt: null,
   };
 }
 
@@ -122,11 +197,13 @@ interface Writes {
 export function syncReminderQueue(
   batch: Writes,
   uid: string,
-  task: Pick<PersonalTask, 'kind' | 'status' | 'date' | 'time' | 'reminders'> | null,
+  task: (Pick<PersonalTask, 'kind' | 'status' | 'date' | 'time' | 'reminders'>
+    & Partial<Pick<PersonalTask, 'repeat' | 'repeatDay' | 'repeatWeekday' | 'repeatNths' | 'skipDates'>>) | null,
   itemId: string,
+  now: number = Date.now(),
 ) {
-  const due = task ? reminderInstants(task) : {};
-  const now = Date.now();
+  // `now` matters only to a repeating event, whose next occurrence is the one queued.
+  const due = task ? reminderInstants(task, now) : {};
   for (const lead of TASK_REMINDER_LEADS) {
     const ref = adminDb.collection(TASK_REMINDERS_COLLECTION).doc(reminderQueueId(uid, itemId, lead));
     const at = due[lead];

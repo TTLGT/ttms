@@ -33,6 +33,7 @@
 
 import { OFFICE_UTC_OFFSET_MINUTES } from './attendance';
 import { officeToday } from './celebration';
+import type { PlanningKind } from './planning';
 
 export const PERSONAL_TASKS_COLLECTION = 'personalTasks';
 export const PERSONAL_TASK_ITEMS = 'items';
@@ -195,24 +196,102 @@ export function placeOf(columns: BoardColumn[], status: TaskStatus): TaskStatus 
 }
 
 /**
- * How a task comes back. Tasks only — an event is a single thing on a day.
+ * How an item comes back. The two kinds repeat differently, because one has
+ * something to finish and the other does not:
  *
- * A repeating task is one task at a time, not a series laid out in advance:
- * ticking it Done makes the next one, in To do, due on the next date — see
- * `nextOccurrence()` and the PATCH route. Nothing runs on a clock to do it,
- * so a repeat never fires for somebody who has left, and the board never
- * fills with copies nobody looked at.
+ * - A repeating **task** is one task at a time, not a series laid out in
+ *   advance: ticking it Done makes the next one, in To do, due on the next
+ *   date — see `nextOccurrence()` and the PATCH route. Nothing runs on a clock
+ *   to do it, so a repeat never fires for somebody who has left, and the board
+ *   never fills with copies nobody looked at.
+ * - A repeating **event** is one document standing for the whole series. Its
+ *   `date` is the first occurrence; the calendar draws the rest from the
+ *   pattern (`occurrencesBetween()`), and its reminders are queued for the
+ *   next occurrence and re-queued by the run after each one is sent. Editing
+ *   or deleting it changes the whole series.
+ *
+ * `monthlyNth` is "the 1st Tuesday", "the 2nd and 4th Wednesday", "the last
+ * Friday": a weekday (`repeatWeekday`) and which of them in the month
+ * (`repeatNths`, 1–4, with 5 meaning the last).
  */
-export const TASK_REPEATS = ['none', 'daily', 'weekdays', 'weekly', 'monthly'] as const;
+export const TASK_REPEATS = ['none', 'daily', 'weekdays', 'weekly', 'monthly', 'monthlyNth'] as const;
 export type TaskRepeat = typeof TASK_REPEATS[number];
 
 export const TASK_REPEAT_LABEL: Record<TaskRepeat, string> = {
-  none:     'Does not repeat',
-  daily:    'Every day',
-  weekdays: 'Every weekday (Mon–Fri)',
-  weekly:   'Every week',
-  monthly:  'Every month',
+  none:       'Does not repeat',
+  daily:      'Every day',
+  weekdays:   'Every weekday (Mon–Fri)',
+  weekly:     'Every week',
+  monthly:    'Every month, same date',
+  monthlyNth: 'Every month, by weekday (e.g. 1st Tuesday)',
 };
+
+/** 1–4 are the 1st to 4th of that weekday in the month; 5 is the last, whether that is the 4th or the 5th. */
+export const NTH_LAST = 5;
+export const NTH_LABEL: Record<number, string> = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: 'Last' };
+export const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** Which of its weekday a date is: the 1st Tuesday, the 3rd … — 1 to 5, read off the day of the month. */
+export function nthOf(date: string): number {
+  return Math.ceil(Number(date.slice(8, 10)) / 7);
+}
+
+export function weekdayNumberOf(date: string): number {
+  return new Date(`${date}T00:00:00Z`).getUTCDay();
+}
+
+/** "the 2nd and 4th Wednesday of every month". */
+export function nthPatternLabel(weekday: number, nths: number[]): string {
+  const names = nths.map((n) => (n === NTH_LAST ? 'last' : NTH_LABEL[n]));
+  const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] ?? '';
+  return `the ${list} ${WEEKDAY_NAMES[weekday]} of every month`;
+}
+
+/** The pattern of a `monthlyNth` item, falling back to its own date's ("the 2nd Tuesday") when unset. */
+export function nthPattern(
+  t: Pick<PersonalTask, 'repeatWeekday' | 'repeatNths' | 'date'>,
+): { weekday: number; nths: number[] } | null {
+  if (t.repeatWeekday !== null && t.repeatNths.length) return { weekday: t.repeatWeekday, nths: t.repeatNths };
+  if (!t.date) return null;
+  return { weekday: weekdayNumberOf(t.date), nths: [nthOf(t.date)] };
+}
+
+/** How it repeats, in words — the label, with the weekday pattern spelled out. */
+export function repeatText(t: Pick<PersonalTask, 'repeat' | 'repeatWeekday' | 'repeatNths' | 'date'>): string {
+  if (t.repeat === 'monthlyNth') {
+    const p = nthPattern(t);
+    return p ? `On ${nthPatternLabel(p.weekday, p.nths)}` : TASK_REPEAT_LABEL.monthlyNth;
+  }
+  if (t.repeat === 'weekly' && t.date) return `Every ${WEEKDAY_NAMES[weekdayNumberOf(t.date)]}`;
+  return TASK_REPEAT_LABEL[t.repeat];
+}
+
+/**
+ * The stored repeat fields for a repeat and a date, so every writer agrees:
+ * a monthly item's day of the month, and a `monthlyNth` item's weekday and
+ * weeks — taken from the request when it sent them, otherwise read off the
+ * date ("the 2nd Tuesday" for the 9th of a month that starts on a Sunday).
+ */
+export function repeatFields(
+  repeat: TaskRepeat,
+  date: string | null,
+  sent: { repeatWeekday?: number | null; repeatNths?: number[] } = {},
+): { repeatDay: number | null; repeatWeekday: number | null; repeatNths: number[] } {
+  if (repeat === 'monthly' && date) return { repeatDay: Number(date.slice(8, 10)), repeatWeekday: null, repeatNths: [] };
+  if (repeat === 'monthlyNth' && date) {
+    const weekday = sent.repeatWeekday ?? weekdayNumberOf(date);
+    const nths = sent.repeatNths?.length ? sent.repeatNths : [nthOf(date)];
+    return { repeatDay: null, repeatWeekday: weekday, repeatNths: nths };
+  }
+  return { repeatDay: null, repeatWeekday: null, repeatNths: [] };
+}
+
+/** Repeat weeks as sent: 1–5, unique, in order. */
+export function cleanNths(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  return [...new Set(raw.filter((n): n is number => Number.isInteger(n) && n >= 1 && n <= NTH_LAST))]
+    .sort((a, b) => a - b);
+}
 
 export const TASK_PRIORITIES = ['low', 'normal', 'high'] as const;
 export type TaskPriority = typeof TASK_PRIORITIES[number];
@@ -493,14 +572,35 @@ export interface PersonalTask {
    * rather than drifting to the 28th for good. Set by the server.
    */
   repeatDay: number | null;
+  /** `monthlyNth` only: the weekday, 0 (Sunday) to 6. Null on every other repeat. */
+  repeatWeekday: number | null;
+  /** `monthlyNth` only: which of that weekday — 1–4, and 5 for the last. Empty on every other repeat. */
+  repeatNths: number[];
+  /**
+   * A repeating event's dates that have been taken out of the series — moved
+   * or changed on their own, and now a separate event (`detachedFrom` on that
+   * one). Skipped wherever the series is laid out, reminders included. Empty
+   * on everything else.
+   */
+  skipDates: string[];
+  /** The series a separate event was taken out of, for the record. Null on everything else. */
+  detachedFrom: string | null;
   /** The copy finishing this one made. Set once, so un-ticking and re-ticking never makes two. */
   nextId: string | null;
   /** Game mode: the XP this task is holding, taken back if it is reopened. */
   xpEarned: number;
   /** Game mode: has counted toward missions once already, and never will again. */
   everDone: boolean;
+  /** Game mode: what closing it as Not done cost, given back if that changes. */
+  xpLost: number;
   /** Added from a suggested broker task — see src/types/brokerSuggestions.ts. */
   suggestionId: string | null;
+  /**
+   * The planning slot this task is — see src/types/planning.ts. Set by the
+   * server when the slot is made and carried onto each repeat, never taken
+   * from a save: it is how the planning card knows to stop asking.
+   */
+  planning: PlanningKind | null;
   /**
    * Position within its board column, and among the sticky notes. A fraction
    * between its neighbours, so a drag is one write rather than a renumbering
@@ -525,12 +625,56 @@ export interface PersonalTask {
   updatedAt: string | null;
   /** When it last went to Done. Null while it is open. */
   doneAt: string | null;
+  /**
+   * How a closed task ended — see TASK_OUTCOMES. Null while it is open; a
+   * task closed before outcomes existed reads 'done', which it was.
+   */
+  outcome: TaskOutcome | null;
+  /** On a task closed as 'rescheduled': the day it was moved to. */
+  rescheduledTo: string | null;
+  /** On the copy a reschedule made: the task it was moved from. */
+  rescheduledFrom: string | null;
+  /**
+   * Taken off My tasks by "Clear done", and kept: it still shows on the
+   * calendar on its day, so a day can be looked back on. Reopening it brings
+   * it back.
+   */
+  archived: boolean;
+}
+
+/**
+ * How a closed task ended. All three are status 'done' — closed, no
+ * reminders, out of the queue, never overdue — so everything that asks "is it
+ * finished?" needs no change. The outcome is the record of what happened on
+ * the day, which is what a calendar looked back on needs:
+ *
+ * - **done**: it was done. The only one that earns XP or moves a streak.
+ * - **notdone**: the day went by and it was not done — said, not deleted.
+ * - **rescheduled**: moved to another day. This one stays on the day it was
+ *   for, saying where it went; a copy carries on from the new day with its
+ *   progress (POST /api/me/tasks/{id}/reschedule). A repeating task carries
+ *   its repeat on from there.
+ */
+export const TASK_OUTCOMES = ['done', 'notdone', 'rescheduled'] as const;
+export type TaskOutcome = typeof TASK_OUTCOMES[number];
+
+export const TASK_OUTCOME_LABEL: Record<TaskOutcome, string> = {
+  done: 'Done',
+  notdone: 'Not done',
+  rescheduled: 'Rescheduled',
+};
+
+/** The outcome of a closed task (absent reads 'done'); null for an open one or an event. */
+export function outcomeOf(t: Pick<PersonalTask, 'kind' | 'status' | 'outcome'>): TaskOutcome | null {
+  if (t.kind !== 'task' || t.status !== 'done') return null;
+  return t.outcome ?? 'done';
 }
 
 /** What can be written. Everything else on a task is set by the server. */
 export type PersonalTaskInput = Partial<Pick<PersonalTask,
   'kind' | 'title' | 'notes' | 'status' | 'priority' | 'color' | 'date' | 'time' | 'endTime' | 'order'
-  | 'eventType' | 'location' | 'reminders' | 'repeat' | 'suggestionId' | 'steps' | 'rank' | 'contacts' | 'orders'>>;
+  | 'eventType' | 'location' | 'reminders' | 'repeat' | 'repeatWeekday' | 'repeatNths'
+  | 'suggestionId' | 'steps' | 'rank' | 'contacts' | 'orders' | 'outcome'>>;
 
 export const MAX_QUEUE_RANK = 100_000;
 
@@ -590,6 +734,11 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   if (oneOf(EVENT_TYPES, b.eventType)) out.eventType = b.eventType;
   if (typeof b.location === 'string') out.location = b.location.trim().slice(0, MAX_TASK_LOCATION);
   if (oneOf(TASK_REPEATS, b.repeat)) out.repeat = b.repeat;
+  if (b.repeatWeekday === null) out.repeatWeekday = null;
+  else if (Number.isInteger(b.repeatWeekday) && (b.repeatWeekday as number) >= 0 && (b.repeatWeekday as number) <= 6) {
+    out.repeatWeekday = b.repeatWeekday as number;
+  }
+  if (Array.isArray(b.repeatNths)) out.repeatNths = cleanNths(b.repeatNths);
   // Checked against the catalog by the route, which is the one that knows it.
   if (b.suggestionId === null) out.suggestionId = null;
   else if (typeof b.suggestionId === 'string' && /^[a-z_]{1,40}$/.test(b.suggestionId)) out.suggestionId = b.suggestionId;
@@ -601,6 +750,8 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   else if (typeof b.rank === 'number' && Number.isInteger(b.rank) && b.rank >= 1 && b.rank <= MAX_QUEUE_RANK) out.rank = b.rank;
   if (Array.isArray(b.contacts)) out.contacts = cleanContacts(b.contacts);
   if (Array.isArray(b.orders)) out.orders = cleanOrders(b.orders);
+  // 'rescheduled' only ever comes from the reschedule route, which makes the copy it points at.
+  if (b.outcome === 'done' || b.outcome === 'notdone') out.outcome = b.outcome;
   return out;
 }
 
@@ -714,6 +865,26 @@ export function isOverdue(t: PersonalTask, today: string): boolean {
   return t.kind === 'task' && t.status !== 'done' && !!t.date && t.date < today;
 }
 
+/**
+ * A planning slot whose day went by without it being done. It stays on the
+ * list as an ordinary task — overdue like any other, and tickable Done or
+ * moved to any status — and is never taken off. All this marks is that a
+ * repeating one is owed its next copy: the planning route makes it (see
+ * there), so the slot keeps coming round and keeps reminding.
+ */
+export function isLapsedPlanning(
+  t: Pick<PersonalTask, 'kind' | 'status' | 'date' | 'planning'>,
+  today: string,
+): boolean {
+  return t.kind === 'task' && !!t.planning && t.status !== 'done' && !!t.date && t.date < today;
+}
+
+/** "9:00 AM", or "9:00 AM – 9:30 AM" when it has an end — an event, or a planning slot. */
+export function timeRange(t: Pick<PersonalTask, 'time' | 'endTime'>): string {
+  if (!t.time) return '';
+  return t.endTime ? `${formatTime(t.time)} – ${formatTime(t.endTime)}` : formatTime(t.time);
+}
+
 /** "14:30" → "2:30 PM". Shown next to a date, never instead of one. */
 export function formatTime(hhmm: string | null): string {
   if (!hhmm) return '';
@@ -731,10 +902,32 @@ export function formatTime(hhmm: string | null): string {
  * than guessed at.
  */
 export function reminderInstants(
-  t: Pick<PersonalTask, 'kind' | 'status' | 'date' | 'time' | 'reminders'>,
+  t: Pick<PersonalTask, 'kind' | 'status' | 'date' | 'time' | 'reminders'> & Partial<RepeatShape>,
+  after?: number,
 ): Partial<Record<TaskReminderLead, number>> {
   const out: Partial<Record<TaskReminderLead, number>> = {};
   if (!t.date || (t.kind === 'task' && t.status === 'done')) return out;
+
+  // A repeating event: for each lead, the first occurrence whose reminder is
+  // still ahead of `after` (now, when queueing). Only the next one per lead is
+  // ever queued; the run queues the one after when it sends. Without `after`
+  // the series' first date stands for it, as a single event would.
+  if (t.kind === 'event' && t.repeat && t.repeat !== 'none' && after !== undefined) {
+    const shape: RepeatShape & Pick<PersonalTask, 'kind'> = {
+      kind: 'event', repeat: t.repeat, date: t.date,
+      repeatDay: t.repeatDay ?? null, repeatWeekday: t.repeatWeekday ?? null, repeatNths: t.repeatNths ?? [],
+      skipDates: t.skipDates ?? [],
+    };
+    const fromDate = new Date(after + OFFICE_UTC_OFFSET_MINUTES * 60_000).toISOString().slice(0, 10);
+    // Seventy days covers every pattern plus the longest lead (a week).
+    for (const date of occurrencesBetween(shape, fromDate, shiftDays(fromDate, 70))) {
+      const one = reminderInstants({ kind: t.kind, status: t.status, time: t.time, reminders: t.reminders, date });
+      for (const lead of Object.keys(one) as TaskReminderLead[]) {
+        if (out[lead] === undefined && one[lead]! > after) out[lead] = one[lead];
+      }
+    }
+    return out;
+  }
 
   const [y, m, d] = t.date.split('-').map(Number);
   const [hh, mm] = (t.time ?? UNTIMED_REMINDER_TIME).split(':').map(Number);
@@ -747,6 +940,11 @@ export function reminderInstants(
     out[lead] = start - LEAD_MINUTES[lead] * 60_000;
   }
   return out;
+}
+
+/** The office date an occurrence starts on, from one of its reminder instants. */
+export function occurrenceDateOf(at: number, lead: TaskReminderLead): string {
+  return new Date(at + (LEAD_MINUTES[lead] + OFFICE_UTC_OFFSET_MINUTES) * 60_000).toISOString().slice(0, 10);
 }
 
 /** A location worth drawing as a link: http(s) only, so nothing typed can become a `javascript:` URL. */
@@ -768,9 +966,52 @@ function shiftDays(date: string, n: number): string {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
-/** One step on from `date`. `day` is the month's anchor for a monthly task. */
-function stepRepeat(date: string, repeat: Exclude<TaskRepeat, 'none'>, day: number): string {
+/**
+ * The dates in one month (`month` 1–12) that a weekday pattern lands on, in
+ * order: `nths` [2, 4] with weekday 3 is that month's 2nd and 4th Wednesday.
+ * The 4th and the last are the same day in a month with four of them, and are
+ * listed once.
+ */
+export function nthDatesIn(year: number, month: number, weekday: number, nths: number[]): string[] {
+  const firstDow = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
+  const firstDay = 1 + ((weekday - firstDow + 7) % 7);
+  const daysIn = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const all: number[] = [];
+  for (let d = firstDay; d <= daysIn; d += 7) all.push(d);
+  const days = new Set<number>();
+  for (const n of nths) {
+    const d = n === NTH_LAST ? all[all.length - 1] : all[n - 1];
+    if (d) days.add(d);
+  }
+  return [...days].sort((a, b) => a - b)
+    .map((d) => `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+}
+
+/** The last Friday of a month (`month` 1–12) — where monthly planning sits. */
+export function lastFridayOf(year: number, month: number): string {
+  return nthDatesIn(year, month, 5, [NTH_LAST])[0];
+}
+
+type RepeatShape = Pick<PersonalTask, 'repeat' | 'repeatDay' | 'repeatWeekday' | 'repeatNths' | 'date'>
+  & Partial<Pick<PersonalTask, 'skipDates'>>;
+
+/** One step on from `date`, by the item's pattern. */
+function stepRepeat(date: string, t: RepeatShape): string {
+  const repeat = t.repeat;
   if (repeat === 'daily') return shiftDays(date, 1);
+  if (repeat === 'monthlyNth') {
+    // The first matching day after `date`: later this month, else the next
+    // month that has one. Every month has one; the cap does not assume it.
+    const p = nthPattern(t);
+    if (!p) return shiftDays(date, 28);
+    let [y, m] = date.split('-').map(Number);
+    for (let i = 0; i < 14; i++) {
+      const hit = nthDatesIn(y, m, p.weekday, p.nths).find((d) => d > date);
+      if (hit) return hit;
+      if (m === 12) { y++; m = 1; } else m++;
+    }
+    return shiftDays(date, 28);
+  }
   if (repeat === 'weekly') return shiftDays(date, 7);
   if (repeat === 'weekdays') {
     let d = shiftDays(date, 1);
@@ -778,6 +1019,7 @@ function stepRepeat(date: string, repeat: Exclude<TaskRepeat, 'none'>, day: numb
     while ([0, 6].includes(new Date(`${d}T00:00:00Z`).getUTCDay())) d = shiftDays(d, 1);
     return d;
   }
+  const day = t.repeatDay ?? Number((t.date ?? date).slice(8, 10));
   const [y, m] = date.split('-').map(Number);
   const ny = m === 12 ? y + 1 : y;
   const nm = m === 12 ? 1 : m + 1;
@@ -791,14 +1033,35 @@ function stepRepeat(date: string, repeat: Exclude<TaskRepeat, 'none'>, day: numb
  * daily task finished three days late makes one task due today, not three
  * overdue ones. Null for a task that does not repeat or has no date.
  */
-export function nextOccurrence(
-  t: Pick<PersonalTask, 'repeat' | 'repeatDay' | 'date'>,
-  today: string,
-): string | null {
+export function nextOccurrence(t: RepeatShape, today: string): string | null {
   if (t.repeat === 'none' || !t.date) return null;
-  const day = t.repeatDay ?? Number(t.date.slice(8, 10));
-  let d = stepRepeat(t.date, t.repeat, day);
+  let d = stepRepeat(t.date, t);
   // A daily task years overdue is a few hundred steps; the cap only guards a bug.
-  for (let i = 0; i < 2000 && d < today; i++) d = stepRepeat(d, t.repeat, day);
+  for (let i = 0; i < 2000 && d < today; i++) d = stepRepeat(d, t);
   return d;
+}
+
+/**
+ * Every date an item falls on between `from` and `to`, inclusive. A single
+ * item is its one date; a repeating event is its series, drawn from the
+ * pattern. A repeating task is not expanded — only its current copy exists,
+ * and drawing copies that will only exist once it is finished would show work
+ * that is not on the board.
+ */
+export function occurrencesBetween(t: RepeatShape & Pick<PersonalTask, 'kind'>, from: string, to: string): string[] {
+  if (!t.date) return [];
+  if (t.repeat === 'none' || t.kind !== 'event') return t.date >= from && t.date <= to ? [t.date] : [];
+  const out: string[] = [];
+  const skip = new Set(t.skipDates ?? []);
+  let d = t.date;
+  // A daily series started years ago walks a few thousand steps; the cap only guards a bug.
+  for (let i = 0; i < 5000 && d <= to; i++) {
+    if (d >= from && !skip.has(d)) out.push(d);
+    d = stepRepeat(d, t);
+  }
+  return out;
+}
+
+export function occursOn(t: RepeatShape & Pick<PersonalTask, 'kind'>, date: string): boolean {
+  return occurrencesBetween(t, date, date).length > 0;
 }

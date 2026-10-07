@@ -8,6 +8,8 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { usePersonalTasks } from '@/lib/personalTasks';
 import { fetchHolidayOverrides } from '@/lib/attendance';
 import TaskCalendar from '@/components/tasks/TaskCalendar';
+import PlanningPanel from '@/components/planning/PlanningPanel';
+import { PLANNING_CHANGED_EVENT } from '@/types/planning';
 import TaskEditor from '@/components/tasks/TaskEditor';
 import { TaskDirectoryProvider } from '@/components/tasks/TaskContacts';
 import { useTaskDirectory } from '@/lib/taskContacts';
@@ -50,7 +52,7 @@ import {
 export default function CalendarPage() {
   const { can } = useAuth();
   const { formatCalendarDate } = useDateFormatters();
-  const { tasks, settings, columns, colorLabels, game, notices, dismissNotice, saveSettings, error, setError, create, update, remove } = usePersonalTasks();
+  const { tasks, settings, columns, colorLabels, game, notices, dismissNotice, saveSettings, error, setError, create, update, detach, reschedule, remove, reload } = usePersonalTasks();
   const [editing, setEditing] = useState<{ task: PersonalTask | null; initial?: PersonalTaskInput } | null>(null);
   const [today, setToday] = useState('');
   const [selected, setSelected] = useState('');
@@ -164,6 +166,12 @@ export default function CalendarPage() {
     </div>
   );
 
+  // A planning slot added from the card lands on this calendar without a reload.
+  useEffect(() => {
+    window.addEventListener(PLANNING_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(PLANNING_CHANGED_EVENT, reload);
+  }, [reload]);
+
   const deliveryPanel = (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
@@ -231,6 +239,7 @@ export default function CalendarPage() {
           onOpen={(task) => setEditing({ task })}
           onAdd={(initial) => setEditing({ task: null, initial })}
           onUpdate={update}
+          onDetach={detach}
           holidaysOn={holidaysOn}
           celebrationsOn={hr && cel ? celebrationsOn : undefined}
           pickedOccurrence={picked}
@@ -251,6 +260,7 @@ export default function CalendarPage() {
           asideBottom={(
             <>
               {deliveryPanel}
+              <PlanningPanel />
               {hr && cel && (
                 <>
                   <UpcomingCelebrations
@@ -285,6 +295,10 @@ export default function CalendarPage() {
           noChannel={noChannel}
           onSave={save}
           onDelete={editing.task ? () => { remove(editing.task!.id); setEditing(null); } : undefined}
+          onReschedule={editing.task ? async (date, time) => {
+            await reschedule(editing.task!.id, { date, time });
+            setEditing(null);
+          } : undefined}
           onClose={() => setEditing(null)}
         />
         </TaskDirectoryProvider>

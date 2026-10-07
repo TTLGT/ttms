@@ -21,7 +21,7 @@ import { EMPTY_TASK_STREAK, type TaskStreak } from '@/types/taskStreak';
  * see src/types/task.ts for why it is not read direct.
  */
 
-async function authedFetch<T>(input: string, init: RequestInit = {}): Promise<T> {
+export async function authedFetch<T>(input: string, init: RequestInit = {}): Promise<T> {
   const user = auth.currentUser;
   if (!user) throw new Error('You are not signed in.');
 
@@ -110,13 +110,36 @@ export async function updateMyTask(
   });
 }
 
+/** Take one date out of a repeating event as an event of its own. See /api/me/tasks/{id}/detach. */
+export async function detachMyOccurrence(
+  id: string,
+  input: { date: string; newDate?: string; time?: string | null; endTime?: string | null },
+): Promise<{ series: PersonalTask; event: PersonalTask }> {
+  return authedFetch(`/api/me/tasks/${encodeURIComponent(id)}/detach`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export async function deleteMyTask(id: string): Promise<void> {
   await authedFetch(`/api/me/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
+/** Takes finished tasks off My tasks; they stay on the calendar. Returns the ids. */
 export async function clearMyDoneTasks(): Promise<string[]> {
-  const data = await authedFetch<{ deleted: string[] }>('/api/me/tasks?status=done', { method: 'DELETE' });
-  return data.deleted;
+  const data = await authedFetch<{ archived: string[] }>('/api/me/tasks?status=done', { method: 'DELETE' });
+  return data.archived;
+}
+
+/** Move an open task to another day, leaving it on the old one marked Rescheduled. */
+export async function rescheduleMyTask(
+  id: string,
+  input: { date: string; time?: string | null },
+): Promise<{ task: PersonalTask; copy: PersonalTask }> {
+  return authedFetch(`/api/me/tasks/${encodeURIComponent(id)}/reschedule`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 /** The whole queue, in its new order. */
@@ -222,6 +245,32 @@ export function usePersonalTasks() {
     }
   }, [fail, took]);
 
+  /** Not drawn first: the new event's id comes from the server, so the answer is drawn instead. */
+  const detach = useCallback(async (
+    id: string,
+    input: { date: string; newDate?: string; time?: string | null; endTime?: string | null },
+  ) => {
+    setError('');
+    try {
+      const { series, event } = await detachMyOccurrence(id, input);
+      setTasks((list) => [...(list ?? []).map((t) => (t.id === series.id ? series : t)), event]);
+    } catch (e) {
+      fail(e, 'Could not move that date');
+    }
+  }, [fail]);
+
+  const reschedule = useCallback(async (id: string, input: { date: string; time?: string | null }) => {
+    setError('');
+    try {
+      const { task, copy } = await rescheduleMyTask(id, input);
+      setTasks((list) => [...(list ?? []).map((t) => (t.id === task.id ? task : t)), copy]);
+      return copy;
+    } catch (e) {
+      fail(e, 'Could not reschedule that');
+      return null;
+    }
+  }, [fail]);
+
   const remove = useCallback(async (id: string) => {
     setError('');
     setTasks((list) => (list ?? []).filter((t) => t.id !== id));
@@ -236,7 +285,7 @@ export function usePersonalTasks() {
     setError('');
     try {
       const gone = new Set(await clearMyDoneTasks());
-      setTasks((list) => (list ?? []).filter((t) => !gone.has(t.id)));
+      setTasks((list) => (list ?? []).map((t) => (gone.has(t.id) ? { ...t, archived: true } : t)));
     } catch (e) {
       fail(e, 'Could not clear finished tasks');
     }
@@ -342,6 +391,6 @@ export function usePersonalTasks() {
 
   return {
     tasks, settings, columns, colorLabels, game, streak, notices, error, setError, reload,
-    create, update, remove, clearDone, move, rankQueue, saveSettings, saveColumns, saveColorLabels, saveGameOptions, dismissNotice,
+    create, update, detach, reschedule, remove, clearDone, move, rankQueue, saveSettings, saveColumns, saveColorLabels, saveGameOptions, dismissNotice,
   };
 }

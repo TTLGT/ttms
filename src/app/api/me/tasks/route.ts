@@ -10,7 +10,7 @@ import {
 import { gameClock, gameFrom, liveStreakFor, runDailyCheck, writeGame } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
 import { GameTurn, type GameEvent, type GameState } from '@/types/taskGame';
-import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanColorLabels, cleanTaskInput } from '@/types/task';
+import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanColorLabels, cleanTaskInput, repeatFields } from '@/types/task';
 
 /**
  * The caller's own task list and calendar — see src/types/task.ts.
@@ -65,10 +65,11 @@ export async function POST(req: NextRequest) {
     if (kind === 'event' && !input.date) {
       return NextResponse.json({ error: 'An event needs a date.' }, { status: 400 });
     }
-    const repeat = kind === 'event' ? 'none' : (input.repeat ?? 'none');
+    const repeat = input.repeat ?? 'none';
     if (repeat !== 'none' && !input.date) {
       return NextResponse.json({ error: 'A repeating task needs a due date.' }, { status: 400 });
     }
+    const repeating = repeatFields(repeat, input.date ?? null, input);
     const suggestionId = kind === 'task' && brokerSuggestion(input.suggestionId) ? input.suggestionId! : null;
 
     const items = taskItems(uid);
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
       location:  input.location ?? '',
       reminders: input.reminders ?? [],
       repeat,
-      repeatDay: repeat === 'monthly' && input.date ? Number(input.date.slice(8, 10)) : null,
+      ...repeating,
       nextId:    null,
       xpEarned:  0,
       everDone:  false,
@@ -120,6 +121,7 @@ export async function POST(req: NextRequest) {
     // Same batch, so an item never exists without the reminders it was saved with.
     syncReminderQueue(batch, uid, {
       kind, status, date: input.date ?? null, time: input.time ?? null, reminders: input.reminders ?? [],
+      repeat, ...repeating,
     }, ref.id);
     await batch.commit();
 
@@ -154,8 +156,14 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * "Clear done": deletes every finished task in one go. Events are left alone
- * — an event has no Done, and last month's calendar is worth keeping.
+ * "Clear done": takes every finished task off My tasks in one go — and
+ * keeps it. It is marked `archived`, which the board, the notes and the table
+ * leave out, while the calendar still shows it on its day as Done, Not done
+ * or Rescheduled: looking back at what happened on a day is the point of a
+ * calendar, and a clear that deleted would take that away. Deleting a task is
+ * still there, one at a time, from the task itself. Events are not touched.
+ *
+ * Kept as DELETE so an older page in an open tab still clears its board.
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -165,19 +173,19 @@ export async function DELETE(req: NextRequest) {
     }
 
     const snap = await taskItems(uid).where('status', '==', 'done').get();
-    const done = snap.docs.filter((d) => d.data().kind !== 'event');
+    const done = snap.docs.filter((d) => d.data().kind !== 'event' && d.data().archived !== true);
     // Six operations per task (the task and its five queue slots) against
     // Firestore's 500 per batch. A finished task has nothing queued, but the
     // slots are cleared anyway in case one was left by an older save.
     for (let i = 0; i < done.length; i += 80) {
       const batch = adminDb.batch();
       for (const d of done.slice(i, i + 80)) {
-        batch.delete(d.ref);
+        batch.update(d.ref, { archived: true, updatedAt: FieldValue.serverTimestamp() });
         syncReminderQueue(batch, uid, null, d.id);
       }
       await batch.commit();
     }
-    return NextResponse.json({ deleted: done.map((d) => d.id) });
+    return NextResponse.json({ archived: done.map((d) => d.id) });
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

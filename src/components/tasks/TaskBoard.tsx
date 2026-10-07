@@ -3,11 +3,13 @@
 import { useState, type DragEvent } from 'react';
 import { Bell, CalendarDays, Check, GripVertical, ListChecks, Plus, Repeat, StickyNote } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import OutcomeBadge from './OutcomeBadge';
 import {
   TASK_PRIORITY_LABEL,
-  TASK_REPEAT_LABEL,
   byOrder,
-  formatTime,
+  outcomeOf,
+  repeatText,
+  timeRange,
   isOverdue,
   moveColumn,
   orderBetween,
@@ -300,8 +302,9 @@ function Card({
         <span className="mt-1 flex">
           <StatusMark status={task.status} theme={null} size="sm" />
         </span>
-        <span className={`flex-1 text-sm ${task.status === 'done' ? 'line-through opacity-60' : ''}`}>
+        <span className={`flex-1 text-sm ${outcomeOf(task) === 'done' ? 'line-through opacity-60' : outcomeOf(task) ? 'opacity-70' : ''}`}>
           {task.title}
+          <OutcomeBadge task={task} className="ml-1 align-middle" />
         </span>
       </div>
       <TaskContactsLine contacts={task.contacts} prefix="with" className="mt-0.5 pl-[1.125rem] text-xs" />
@@ -319,11 +322,11 @@ function Card({
             }`}>
               <CalendarDays size={10} />
               {task.date === today ? 'Today' : formatCalendarDate(task.date)}
-              {task.time && ` ${formatTime(task.time)}`}
+              {task.time && ` ${timeRange(task)}`}
               {task.reminders.length > 0 && task.status !== 'done' && (
                 <Bell size={10} className="ml-0.5" aria-label="Reminder set" />
               )}
-              {task.repeat !== 'none' && <Repeat size={10} className="ml-0.5" aria-label={TASK_REPEAT_LABEL[task.repeat]} />}
+              {task.repeat !== 'none' && <Repeat size={10} className="ml-0.5" aria-label={repeatText(task)}><title>{repeatText(task)}</title></Repeat>}
             </span>
           )}
           {task.priority !== 'normal' && (

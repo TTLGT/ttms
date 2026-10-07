@@ -1,7 +1,7 @@
 import {
-  CalendarClock, MapPin, PartyPopper, Phone, Users, Video, type LucideIcon,
+  CalendarClock, CornerUpRight, MapPin, PartyPopper, Phone, Users, Video, XCircle, type LucideIcon,
 } from 'lucide-react';
-import type { BuiltInTaskStatus, EventType, TaskColor, TaskPriority, TaskStatus } from '@/types/task';
+import type { BuiltInTaskStatus, EventType, TaskColor, TaskOutcome, TaskPriority, TaskStatus } from '@/types/task';
 
 /**
  * Sticky-note colours as plain Tailwind families. Every one of them is mapped
@@ -75,6 +75,12 @@ export const PRIORITY_STYLE: Record<TaskPriority, string> = {
 
 /** Drag payload type, so a task dragged from here is never confused with a file dropped from the desktop. */
 export const TASK_DRAG_TYPE = 'application/x-ttms-task';
+/**
+ * Rides along with TASK_DRAG_TYPE: the date the dragged chip was drawn on.
+ * The same for a single item; for a repeating event it says which date of the
+ * series was picked up, which the item's own `date` (the first one) cannot.
+ */
+export const OCCURRENCE_DRAG_TYPE = 'application/x-ttms-occurrence';
 
 /** A board column being dragged into a new place — kept apart from a card so neither drop takes the other. */
 export const COLUMN_DRAG_TYPE = 'application/x-ttms-column';
@@ -87,4 +93,21 @@ export const EVENT_ICON: Record<EventType, LucideIcon> = {
   activity:    PartyPopper,
   appointment: MapPin,
   other:       CalendarClock,
+};
+
+/**
+ * How a closed task is drawn, by its outcome (see TASK_OUTCOMES): Done is
+ * struck through, as it always was; Not done keeps its words readable with a
+ * red edge, because it is the one worth noticing when looking back at a day;
+ * Rescheduled is faded and slanted, since it lives on elsewhere.
+ */
+export const OUTCOME_STYLE: Record<TaskOutcome, string> = {
+  done: 'line-through opacity-60',
+  notdone: 'opacity-75 ring-1 ring-red-400',
+  rescheduled: 'italic opacity-55',
+};
+
+export const OUTCOME_ICON: Record<Exclude<TaskOutcome, 'done'>, LucideIcon> = {
+  notdone: XCircle,
+  rescheduled: CornerUpRight,
 };

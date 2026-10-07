@@ -3,9 +3,12 @@
 import { useState, type DragEvent } from 'react';
 import { Check, Plus, Repeat } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import OutcomeBadge from './OutcomeBadge';
 import {
   byOrder,
-  formatTime,
+  outcomeOf,
+  repeatText,
+  timeRange,
   isOverdue,
   statusLabel,
   withStepToggled,
@@ -152,14 +155,16 @@ export default function TaskNotes({
                 <p className="mt-2 line-clamp-[18] whitespace-pre-line text-sm opacity-80">{t.notes}</p>
               )}
               <div className="mt-auto flex flex-wrap items-center gap-x-2 pt-3 text-[11px] opacity-70">
-                <span>{statusLabel(columns, t.status)}</span>
+                {outcomeOf(t) && outcomeOf(t) !== 'done'
+                  ? <OutcomeBadge task={t} />
+                  : <span>{statusLabel(columns, t.status)}</span>}
                 {t.date && (
                   <span className={isOverdue(t, today) ? 'font-semibold text-red-700 opacity-100' : ''}>
-                    · {t.date === today ? 'Today' : formatCalendarDate(t.date)}{t.time && ` ${formatTime(t.time)}`}
+                    · {t.date === today ? 'Today' : formatCalendarDate(t.date)}{t.time && ` ${timeRange(t)}`}
                   </span>
                 )}
                 {t.priority === 'high' && <span className="font-semibold">· High</span>}
-                {t.repeat !== 'none' && <Repeat size={10} aria-label="Repeats" />}
+                {t.repeat !== 'none' && <Repeat size={10} aria-label={repeatText(t)}><title>{repeatText(t)}</title></Repeat>}
                 {t.steps.length > 0 && (
                   <span>· {t.steps.filter((x) => x.done).length}/{t.steps.length} {stepWord}s</span>
                 )}

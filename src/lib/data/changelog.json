@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "426a933edcd2ac70e962c9ece9ae575dbb61842a",
+      "date": "2026-10-07T07:27:32-06:00",
+      "author": "erwindank",
+      "subject": "Find carrier insurers FMCSA left in its pre-Motus file, and fill in the DOT",
+      "body": "The insurer and policy came only from FMCSA's new Motus file, which is\nmissing most filings made before the May 2026 switch (about 132,000 against\n468,000 in the old active/pending file). The old file is now read too, by the\nDOT padded to eight digits, and its filings count only when Motus has nothing\nnewer of that kind, has not cancelled it since, and FMCSA's live answer still\nshows insurance of that kind on file.\n\nThe census lookup (phone, email) took 9 to 43 seconds and timed out at 10,\ntaking the insurance results with it. It now gets 30 seconds, fails on its\nown, and both it and the other open-data queries wait and retry when told\n\"too many requests\". The bulk check runs two carriers at a time.\n\nThe carrier page's \"Fill in from FMCSA\" now offers the DOT under the same\nguard the bulk check uses, then checks again by it."
+    },
+    {
       "hash": "77a7db4c63060125db882c49ab1d88d448fb31c6",
       "date": "2026-10-07T06:54:54-06:00",
       "author": "erwindank",

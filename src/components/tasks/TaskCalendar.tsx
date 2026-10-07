@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react';
-import { Bell, Check, ChevronLeft, ChevronRight, ExternalLink, Plus } from 'lucide-react';
+import { Bell, Check, ChevronLeft, ChevronRight, ExternalLink, Plus, X } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   EVENT_TYPE_LABEL,
@@ -14,11 +14,18 @@ import {
   type BoardColumn,
   type PersonalTask,
   type PersonalTaskInput,
+  occurrencesBetween,
+  outcomeOf,
+  repeatText,
 } from '@/types/task';
 import type { Holiday } from '@/types/holidays';
 import type { CalendarOccurrence } from '@/types/celebrationCalendar';
 import { HOLIDAY_STYLE, KIND_STYLE, holidayTitle, sameOccurrence, whatItIs } from '@/components/calendar/CelebrationPanels';
-import { EVENT_ICON, NOTE_STYLE, TASK_DRAG_TYPE } from './taskStyle';
+import { EVENT_ICON, NOTE_STYLE, OCCURRENCE_DRAG_TYPE, OUTCOME_ICON, OUTCOME_STYLE, TASK_DRAG_TYPE } from './taskStyle';
+import OutcomeBadge from './OutcomeBadge';
+import SeriesChoice, { type SeriesAsk } from './SeriesChoice';
+import TaskWeekGrid from './TaskWeekGrid';
+import { officeNowTime } from '@/types/planning';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 /** Things drawn in a month square before it says "+N more". The week view draws them all. */
@@ -76,6 +83,7 @@ export default function TaskCalendar({
   onOpen,
   onAdd,
   onUpdate,
+  onDetach,
   holidaysOn,
   celebrationsOn,
   pickedOccurrence = null,
@@ -93,6 +101,11 @@ export default function TaskCalendar({
   onOpen: (task: PersonalTask) => void;
   onAdd: (initial: PersonalTaskInput) => void;
   onUpdate: (id: string, input: PersonalTaskInput) => void;
+  /**
+   * Take one date out of a repeating event as its own event, with where it
+   * goes. Without it, dates of a series cannot be dragged or stretched.
+   */
+  onDetach?: (id: string, input: { date: string; newDate?: string; time?: string | null; endTime?: string | null }) => void;
   holidaysOn: (date: string) => Holiday[];
   celebrationsOn?: (date: string) => CalendarOccurrence[];
   pickedOccurrence?: CalendarOccurrence | null;
@@ -107,6 +120,15 @@ export default function TaskCalendar({
   const [cursor, setCursor] = useState(() => monthOf(selected));
   const [weekStart, setWeekStart] = useState(() => weekStartOf(selected));
   const [over, setOver] = useState<string | null>(null);
+  const [seriesAsk, setSeriesAsk] = useState<SeriesAsk | null>(null);
+  // The office clock for the week grid's "now" line; read after mount and once a minute.
+  const [nowMinutes, setNowMinutes] = useState<number | null>(null);
+  useEffect(() => {
+    const tick = () => { const t = officeNowTime(); setNowMinutes(Number(t.slice(0, 2)) * 60 + Number(t.slice(3))); };
+    tick();
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     try {
@@ -132,15 +154,28 @@ export default function TaskCalendar({
     try { window.localStorage.setItem(MODE_KEY, m); } catch { /* not worth telling anyone */ }
   };
 
+  /**
+   * Every day anything is drawn on. A repeating event is one item standing for
+   * its series, so it is laid out over the days on screen — the month shown,
+   * the week shown, the selected day's week and today, a week either side —
+   * rather than forever.
+   */
+  const monthStart = `${cursor.year}-${String(cursor.month).padStart(2, '0')}-01`;
+  const span = [addDays(monthStart, -7), addDays(monthStart, 38), weekStart, addDays(weekStart, 6),
+    weekStartOf(selected), addDays(weekStartOf(selected), 6), today].filter(Boolean).sort();
+  const rangeFrom = span[0];
+  const rangeTo = span[span.length - 1];
+
   const byDay = useMemo(() => {
     const map = new Map<string, PersonalTask[]>();
     for (const t of items) {
-      if (!t.date) continue;
-      map.set(t.date, [...(map.get(t.date) ?? []), t]);
+      for (const date of occurrencesBetween(t, rangeFrom, rangeTo)) {
+        map.set(date, [...(map.get(date) ?? []), t]);
+      }
     }
     for (const list of map.values()) list.sort(byTime);
     return map;
-  }, [items]);
+  }, [items, rangeFrom, rangeTo]);
 
   const first  = new Date(Date.UTC(cursor.year, cursor.month - 1, 1));
   const lead   = first.getUTCDay();
@@ -188,28 +223,42 @@ export default function TaskCalendar({
       setOver(null);
       const id = e.dataTransfer.getData(TASK_DRAG_TYPE);
       const item = items.find((t) => t.id === id);
+      // One date of a series: asked before it is taken out of it.
+      if (item && item.kind === 'event' && item.repeat !== 'none') {
+        const from = e.dataTransfer.getData(OCCURRENCE_DRAG_TYPE) || item.date || date;
+        if (from !== date) setSeriesAsk({ kind: 'move', task: item, date: from, to: { newDate: date } });
+        return;
+      }
       if (item && item.date !== date) onUpdate(id, { date });
     },
   });
 
-  const itemChip = (t: PersonalTask, roomy: boolean) => {
-    const EventIcon = t.kind === 'event' ? EVENT_ICON[t.eventType] : null;
+  const itemChip = (t: PersonalTask, roomy: boolean, date: string) => {
+    const outcome = outcomeOf(t);
+    // Not done and Rescheduled carry their mark where an event carries its type.
+    const EventIcon = t.kind === 'event' ? EVENT_ICON[t.eventType]
+      : outcome && outcome !== 'done' ? OUTCOME_ICON[outcome] : null;
+    // One date of a series can be dragged when the page can take it out of
+    // the series — and asks first. Otherwise it is moved by editing the event.
+    const series = t.kind === 'event' && t.repeat !== 'none';
+    const movable = !series || !!onDetach;
     return (
       <button
         key={t.id}
         type="button"
-        draggable
+        draggable={movable}
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = 'move';
           e.dataTransfer.setData(TASK_DRAG_TYPE, t.id);
+          e.dataTransfer.setData(OCCURRENCE_DRAG_TYPE, date);
           e.dataTransfer.setData('text/plain', t.title);
         }}
         onDragEnd={() => setOver(null)}
         onClick={(e) => { e.stopPropagation(); onOpen(t); }}
-        title={t.kind === 'event' ? `${EVENT_TYPE_LABEL[t.eventType]}: ${t.title}` : t.title}
-        className={`flex w-full cursor-grab rounded text-left font-medium ${
+        title={`${t.kind === 'event' ? `${EVENT_TYPE_LABEL[t.eventType]}: ${t.title}` : t.title}${series ? ` (${repeatText(t)})` : ''}`}
+        className={`flex w-full ${movable ? 'cursor-grab' : 'cursor-pointer'} rounded text-left font-medium ${
           roomy ? 'flex-col gap-0.5 px-2 py-1.5 text-xs' : 'items-center gap-1 truncate px-1.5 py-0.5 text-[11px]'
-        } ${NOTE_STYLE[t.color].chip} ${t.status === 'done' && t.kind === 'task' ? 'line-through opacity-60' : ''} ${
+        } ${NOTE_STYLE[t.color].chip} ${outcome ? OUTCOME_STYLE[outcome] : ''} ${
           isOverdue(t, today) ? 'ring-1 ring-red-400' : ''
         }`}
       >
@@ -268,7 +317,7 @@ export default function TaskCalendar({
   const dayContents = (date: string, roomy: boolean) => [
     ...holidaysOn(date).map(holidayChip),
     ...(celebrationsOn?.(date) ?? []).map(occurrenceChip),
-    ...(byDay.get(date) ?? []).map((t) => itemChip(t, roomy)),
+    ...(byDay.get(date) ?? []).map((t) => itemChip(t, roomy, date)),
   ];
 
   const title = mode === 'month'
@@ -359,14 +408,29 @@ export default function TaskCalendar({
             </div>
           </>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-7">
+          <>
+          <TaskWeekGrid
+            days={weekDays}
+            today={today}
+            selected={selected}
+            items={items}
+            itemsOn={(d) => byDay.get(d) ?? []}
+            extrasOn={(d) => [...holidaysOn(d).map(holidayChip), ...(celebrationsOn?.(d) ?? []).map(occurrenceChip)]}
+            untimedChip={(t, d) => itemChip(t, false, d)}
+            onSelect={onSelect}
+            onOpen={onOpen}
+            onUpdate={onUpdate}
+            onAdd={onAdd}
+            onAskSeries={onDetach ? setSeriesAsk : undefined}
+            nowMinutes={nowMinutes}
+          />
+          {/* A phone keeps the list: seven hour-columns do not fit it. */}
+          <div className="grid grid-cols-1 md:hidden">
             {weekDays.map((date, i) => (
               <div
                 key={date}
                 {...dayTarget(date)}
-                className={`flex min-h-[5rem] min-w-0 cursor-pointer flex-col border-b border-gray-100 p-1.5 hover:bg-gray-50 md:min-h-[28rem] md:border-b-0 ${
-                  i < 6 ? 'md:border-r' : ''
-                } ${date === selected ? 'bg-brand-50/60' : ''} ${
+                className={`flex min-h-[5rem] min-w-0 cursor-pointer flex-col border-b border-gray-100 p-1.5 hover:bg-gray-50 ${date === selected ? 'bg-brand-50/60' : ''} ${
                   over === date ? 'ring-2 ring-inset ring-brand-400' : ''
                 }`}
               >
@@ -391,10 +455,11 @@ export default function TaskCalendar({
               </div>
             ))}
           </div>
+          </>
         )}
 
         <p className="border-t border-gray-100 px-4 py-2 text-xs text-gray-400">
-          Drag your own tasks and events to another day to move them. Times are Guatemala office time.
+          Drag your own tasks and events to another day to move them{mode === 'week' ? ', or to another time in the week view. Pull the bottom edge of an event to change how long it lasts; double-click an empty spot to add one' : ''}. Times are Guatemala office time.
         </p>
       </section>
 
@@ -486,6 +551,24 @@ export default function TaskCalendar({
 
         {asideBottom}
       </aside>
+
+      {seriesAsk && onDetach && (
+        <SeriesChoice
+          ask={seriesAsk}
+          onCancel={() => setSeriesAsk(null)}
+          onThisOne={() => {
+            const a = seriesAsk;
+            setSeriesAsk(null);
+            if (a.kind === 'move') onDetach(a.task.id, { date: a.date, ...a.to });
+            else onDetach(a.task.id, { date: a.date, endTime: a.endTime });
+          }}
+          onAll={() => {
+            const a = seriesAsk;
+            setSeriesAsk(null);
+            if (a.kind === 'resize') onUpdate(a.task.id, { endTime: a.endTime });
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -537,6 +620,7 @@ function DayList({
 
       {items.map((t) => {
         const done = t.kind === 'task' && t.status === 'done';
+        const outcome = outcomeOf(t);
         const EventIcon = t.kind === 'event' ? EVENT_ICON[t.eventType] : null;
         const link = t.kind === 'event' ? locationUrl(t.location) : null;
         return (
@@ -546,25 +630,33 @@ function DayList({
             ) : (
               <button
                 type="button"
-                aria-label={done ? 'Mark as not done' : 'Mark as done'}
+                aria-label={done ? 'Reopen' : 'Mark as done'}
+                title={done ? 'Reopen' : 'Mark as done'}
                 onClick={() => onUpdate(t.id, { status: done ? 'todo' : 'done' })}
                 className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${
-                  done ? 'border-green-600 bg-green-600 text-white' : 'border-gray-400 hover:border-gray-600'
+                  outcome === 'notdone' ? 'border-red-500 bg-red-500 text-white'
+                    : outcome === 'rescheduled' ? 'border-gray-400 bg-gray-300 text-white'
+                    : done ? 'border-green-600 bg-green-600 text-white' : 'border-gray-400 hover:border-gray-600'
                 }`}
               >
-                {done && <Check size={11} />}
+                {outcome === 'done' && <Check size={11} />}
+                {outcome === 'notdone' && <X size={11} />}
               </button>
             )}
             <div className="min-w-0 flex-1">
               <button type="button" onClick={() => onOpen(t)} className="block w-full text-left">
-                <span className={`block text-sm text-gray-900 hover:underline ${done ? 'line-through text-gray-500' : ''}`}>
+                <span className={`block text-sm text-gray-900 hover:underline ${
+                  outcome === 'done' ? 'line-through text-gray-500' : outcome ? 'text-gray-500' : ''
+                }`}>
                   {t.title}
                 </span>
                 <span className="flex items-center gap-1 text-xs text-gray-500">
                   {t.time
                     ? `${formatTime(t.time)}${t.endTime ? ` – ${formatTime(t.endTime)}` : ''}`
                     : t.kind === 'event' ? 'All day' : 'Any time'}
-                  {t.kind === 'task' ? ` · ${statusLabel(columns, t.status)}` : ` · ${EVENT_TYPE_LABEL[t.eventType]}`}
+                  {t.kind === 'task'
+                    ? outcome && outcome !== 'done' ? <> · <OutcomeBadge task={t} /></> : ` · ${statusLabel(columns, t.status)}`
+                    : ` · ${EVENT_TYPE_LABEL[t.eventType]}`}
                   {t.reminders.length > 0 && !done && <Bell size={10} aria-label="Reminder set" />}
                 </span>
               </button>

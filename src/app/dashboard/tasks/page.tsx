@@ -50,7 +50,7 @@ const FOCUS_KEY = 'ttms.tasks.focus';
 export default function MyTasksPage() {
   const {
     tasks, settings, columns, colorLabels, game, streak, notices, error, setError,
-    create, update, remove, clearDone, move, rankQueue, saveColumns, saveColorLabels, saveGameOptions, dismissNotice,
+    create, update, reschedule, remove, clearDone, move, rankQueue, saveColumns, saveColorLabels, saveGameOptions, dismissNotice,
   } = usePersonalTasks();
   const playing = !!game?.enabled;
   // The theme is the game's costume, and it dresses the whole page: a room
@@ -96,8 +96,9 @@ export default function MyTasksPage() {
 
   const onlyTasks = useMemo(() => {
     const q = query.trim().toLowerCase();
+    // "Clear done" archives rather than deletes: gone from here, still on the calendar.
     return (tasks ?? []).filter((t) =>
-      t.kind === 'task'
+      t.kind === 'task' && !t.archived
       && (!q || t.title.toLowerCase().includes(q) || t.notes.toLowerCase().includes(q)
         || t.steps.some((s) => s.title.toLowerCase().includes(q))
         || t.contacts.some((c) => c.name.toLowerCase().includes(q))
@@ -170,6 +171,10 @@ export default function MyTasksPage() {
       queueSize={queue.length}
       onSave={save}
       onDelete={editing.task ? () => { remove(editing.task!.id); setEditing(null); } : undefined}
+      onReschedule={editing.task ? async (date, time) => {
+        await reschedule(editing.task!.id, { date, time });
+        setEditing(null);
+      } : undefined}
       onClose={() => setEditing(null)}
     />
   );
@@ -315,7 +320,7 @@ export default function MyTasksPage() {
           <button
             type="button"
             onClick={() => {
-              if (window.confirm(`Delete all ${doneCount} finished tasks? Appointments are kept.`)) clearDone();
+              if (window.confirm(`Clear ${doneCount} finished task${doneCount === 1 ? '' : 's'} off My tasks? They stay on your calendar, on their day.`)) clearDone();
             }}
             className="ml-auto text-sm text-gray-500 hover:text-red-600"
           >
@@ -373,7 +378,7 @@ export default function MyTasksPage() {
           today={today}
           // Every task in the column, not just what the filter box lets
           // through — a hide moves all of them.
-          countIn={(status) => (tasks ?? []).filter((t) => t.kind === 'task' && t.status === status).length}
+          countIn={(status) => (tasks ?? []).filter((t) => t.kind === 'task' && !t.archived && t.status === status).length}
           onColumnsChange={saveColumns}
           onOpen={(task) => setEditing({ task })}
           onMove={move}

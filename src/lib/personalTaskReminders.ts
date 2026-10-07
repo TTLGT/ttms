@@ -3,7 +3,7 @@ import type { QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { adminDb, FieldValue } from './firebase-admin';
 import { systemLine } from './chatAlerts';
 import { ALLOWED_USERS_COLLECTION, USERS_COLLECTION, isBootstrapAdmin, normalizeEmail } from './accessControl';
-import { taskItems, taskOwnerDoc, toReminderSettings, toTask } from './personalTasksServer';
+import { syncReminderQueue, taskItems, taskOwnerDoc, toReminderSettings, toTask } from './personalTasksServer';
 import { officeToday } from '@/types/celebration';
 import { spelledOutDay } from '@/types/celebrationCalendar';
 import { CONVERSATIONS_COLLECTION, NOTICE_ROOM_POLICY, SYSTEM_SENDER_UID } from '@/types/conversation';
@@ -11,6 +11,7 @@ import {
   EVENT_TYPE_LABEL,
   TASK_REMINDERS_COLLECTION,
   formatTime,
+  occurrenceDateOf,
   reminderInstants,
   type PersonalTask,
   type TaskReminderLead,
@@ -50,6 +51,8 @@ export interface TaskReminderRun {
 interface DueEntry {
   task: PersonalTask;
   lead: TaskReminderLead;
+  /** The day this reminder is about — a repeating event's occurrence, not its first date. */
+  date: string;
 }
 
 export async function runTaskReminders(now = Date.now()): Promise<TaskReminderRun> {
@@ -60,7 +63,9 @@ export async function runTaskReminders(now = Date.now()): Promise<TaskReminderRu
     .get();
 
   const run: TaskReminderRun = { due: snap.size, sent: 0, people: 0, dropped: 0, failed: 0 };
-  const byPerson = new Map<string, { entry: QueryDocumentSnapshot; lead: TaskReminderLead; itemId: string }[]>();
+  const byPerson = new Map<string, {
+    entry: QueryDocumentSnapshot; lead: TaskReminderLead; itemId: string; stale: boolean;
+  }[]>();
 
   for (const doc of snap.docs) {
     const d = doc.data();
@@ -73,12 +78,16 @@ export async function runTaskReminders(now = Date.now()): Promise<TaskReminderRu
       continue; // Another run has it, or the item was saved again in between.
     }
     const sendAt = (d.sendAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
-    if (now - sendAt > STALE_MS || typeof d.uid !== 'string' || typeof d.itemId !== 'string') {
+    if (typeof d.uid !== 'string' || typeof d.itemId !== 'string') {
       run.dropped++;
       continue;
     }
+    // A stale one is not sent, but is still read: if it belongs to a
+    // repeating event, the series' next reminder has to be queued all the same.
+    const stale = now - sendAt > STALE_MS;
+    if (stale) run.dropped++;
     const list = byPerson.get(d.uid) ?? [];
-    list.push({ entry: doc, lead: d.lead as TaskReminderLead, itemId: d.itemId });
+    list.push({ entry: doc, lead: d.lead as TaskReminderLead, itemId: d.itemId, stale });
     byPerson.set(d.uid, list);
   }
 
@@ -86,16 +95,31 @@ export async function runTaskReminders(now = Date.now()): Promise<TaskReminderRu
     try {
       const items = await Promise.all(claimed.map((c) => taskItems(uid).doc(c.itemId).get()));
       const due: DueEntry[] = [];
+      const series = new Map<string, PersonalTask>();
       items.forEach((snapItem, i) => {
         if (!snapItem.exists) return;
         const task = toTask(snapItem);
+        if (task.kind === 'event' && task.repeat !== 'none') series.set(task.id, task);
+        if (claimed[i].stale) return;
         // Belt and braces: the queue is rebuilt on every save, but if the item
-        // no longer asks for this reminder at this time, it is not sent.
-        const at = reminderInstants(task)[claimed[i].lead];
-        if (at === undefined || Math.abs(at - (claimed[i].entry.data().sendAt?.toMillis?.() ?? 0)) > 60_000) return;
-        due.push({ task, lead: claimed[i].lead });
+        // no longer asks for this reminder at this time, it is not sent. A
+        // repeating event is asked from just before the stored time, so the
+        // occurrence it finds is the one this entry was queued for.
+        const sentAt = claimed[i].entry.data().sendAt?.toMillis?.() ?? 0;
+        const at = reminderInstants(task, sentAt - 60_000)[claimed[i].lead];
+        if (at === undefined || Math.abs(at - sentAt) > 60_000) return;
+        due.push({ task, lead: claimed[i].lead, date: occurrenceDateOf(at, claimed[i].lead) });
       });
-      if (due.length === 0) { run.dropped += claimed.length; continue; }
+      // A repeating event's next occurrence is queued now that this one is
+      // claimed — the one place a series moves on, since nothing else touches
+      // it between saves. Whatever happens to the sending below.
+      if (series.size) {
+        const batch = adminDb.batch();
+        for (const [id, task] of series) syncReminderQueue(batch, uid, task, id, now + 60_000);
+        await batch.commit();
+      }
+      const fresh = claimed.filter((c) => !c.stale).length;
+      if (due.length === 0) { run.dropped += fresh; continue; }
 
       const outcome = await deliver(uid, due);
       if (outcome === 'sent') { run.sent += due.length; run.people++; }
@@ -106,7 +130,7 @@ export async function runTaskReminders(now = Date.now()): Promise<TaskReminderRu
       // Put them back so the next run tries again; the staleness rule stops
       // that going on forever.
       const batch = adminDb.batch();
-      for (const c of claimed) batch.set(c.entry.ref, c.entry.data());
+      for (const c of claimed) if (!c.stale) batch.set(c.entry.ref, c.entry.data());
       await batch.commit().catch(() => {});
     }
   }
@@ -152,19 +176,19 @@ async function deliver(uid: string, due: DueEntry[]): Promise<'sent' | 'not-allo
 /* ------------------------------------------------------------- the wording */
 
 /** "today at 10:00 AM", "tomorrow", "Friday, September 26 at 3:30 PM". */
-function whenText(t: PersonalTask): string {
+function whenText(t: PersonalTask, date: string): string {
   const today = officeToday();
   const [y, m, d] = today.split('-').map(Number);
   const tomorrow = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
-  const day = t.date === today ? 'today' : t.date === tomorrow ? 'tomorrow' : spelledOutDay(t.date!);
+  const day = date === today ? 'today' : date === tomorrow ? 'tomorrow' : spelledOutDay(date);
   if (!t.time) return day;
   return `${day} at ${formatTime(t.time)}${t.endTime ? `–${formatTime(t.endTime)}` : ''}`;
 }
 
-function reminderLine({ task }: DueEntry): string {
+function reminderLine({ task, date }: DueEntry): string {
   const what = task.kind === 'event' ? EVENT_TYPE_LABEL[task.eventType] : 'Task due';
   const where = task.location ? ` — ${task.location}` : '';
-  return `${task.title} — ${what}, ${whenText(task)}${where}`;
+  return `${task.title} — ${what}, ${whenText(task, date)}${where}`;
 }
 
 /** First line is the heading, one line per item after it — the shape the celebration reminders use. */
@@ -211,7 +235,7 @@ async function sendEmail(to: string, due: DueEntry[], text: string): Promise<voi
 
   const first = due[0].task;
   const subject = due.length === 1
-    ? `Reminder: ${first.title} — ${whenText(first)}`
+    ? `Reminder: ${first.title} — ${whenText(first, due[0].date)}`
     : `${due.length} reminders from your TTMS calendar`;
 
   const { error } = await resend.emails.send({

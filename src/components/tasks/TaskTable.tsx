@@ -3,10 +3,13 @@
 import { Fragment, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Check, ChevronRight, Repeat } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import OutcomeBadge from './OutcomeBadge';
 import {
   TASK_PRIORITIES,
   TASK_PRIORITY_LABEL,
-  formatTime,
+  outcomeOf,
+  repeatText,
+  timeRange,
   isOverdue,
   placeOf,
   withStepToggled,
@@ -172,9 +175,12 @@ export default function TaskTable({
                   <button type="button" onClick={() => onOpen(t)} className="flex min-w-0 flex-1 items-start gap-2 text-left">
                     <span className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${NOTE_STYLE[t.color].swatch}`} />
                     <span className="min-w-0">
-                      <span className={`flex items-center gap-1 text-gray-900 hover:underline ${done ? 'line-through text-gray-500' : ''}`}>
+                      <span className={`flex items-center gap-1 text-gray-900 hover:underline ${
+                        done ? (outcomeOf(t) === 'done' ? 'line-through text-gray-500' : 'text-gray-500') : ''
+                      }`}>
                         <span className="truncate">{t.title}</span>
-                        {t.repeat !== 'none' && <Repeat size={11} className="flex-shrink-0 text-gray-400" aria-label="Repeats" />}
+                        <OutcomeBadge task={t} />
+                        {t.repeat !== 'none' && <Repeat size={11} className="flex-shrink-0 text-gray-400" aria-label={repeatText(t)}><title>{repeatText(t)}</title></Repeat>}
                         {showXp && <XpBadge task={t} today={today} theme={theme} className="ml-1 flex-shrink-0 no-underline" />}
                       </span>
                       {t.notes && <span className="block truncate text-xs text-gray-500">{t.notes}</span>}
@@ -213,7 +219,7 @@ export default function TaskTable({
                   </select>
                 </td>
                 <td className={`whitespace-nowrap px-3 py-2 ${isOverdue(t, today) ? 'font-medium text-red-700' : 'text-gray-700'}`}>
-                  {t.date ? `${formatCalendarDate(t.date)}${t.time ? ` ${formatTime(t.time)}` : ''}` : '—'}
+                  {t.date ? `${formatCalendarDate(t.date)}${t.time ? ` ${timeRange(t)}` : ''}` : '—'}
                 </td>
                 <td className="hidden whitespace-nowrap px-3 py-2 text-gray-500 md:table-cell">{formatDate(t.createdAt)}</td>
               </tr>

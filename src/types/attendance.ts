@@ -173,11 +173,11 @@ export interface Schedule {
 /** What the "Standard week" button fills in. A starting point, not a default. */
 export const STANDARD_SCHEDULE: Schedule = {
   days: {
-    mon: { start: '08:00', end: '17:00' },
-    tue: { start: '08:00', end: '17:00' },
-    wed: { start: '08:00', end: '17:00' },
-    thu: { start: '08:00', end: '17:00' },
-    fri: { start: '08:00', end: '17:00' },
+    mon: { start: '07:00', end: '16:00' },
+    tue: { start: '07:00', end: '16:00' },
+    wed: { start: '07:00', end: '16:00' },
+    thu: { start: '07:00', end: '16:00' },
+    fri: { start: '07:00', end: '16:00' },
     sat: null,
     sun: null,
   },

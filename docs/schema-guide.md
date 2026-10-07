@@ -2039,6 +2039,13 @@ personalTasks/{uid}
     day, todayTasks, todaySteps,              // counts for the office date in `day`
     totalTasks, totalSteps                    // all-time, first completions only
   }
+  planning         : {                        // planning prompts (src/types/planning.ts); absent = never asked
+    morning?, evening?, weekly?, monthly? : {
+      taskId,                                 // the repeating slot it made; moved to each repeat's copy
+      snoozedUntil,                           // 'YYYY-MM-DD', office time: "Not now" until then
+      off                                     // "Don't ask again"; turned back on from the Calendar page
+    }
+  }
   updatedAt        : Timestamp
 
 personalTasks/{uid}/items/{itemId}
@@ -2054,19 +2061,29 @@ personalTasks/{uid}/items/{itemId}
                                    // deleting a column moves its tasks to the
                                    // nearest showing column on its left
                                    // (PUT /api/me/tasks/columns)
-  repeat    : 'none' | 'daily' | 'weekdays' | 'weekly' | 'monthly'
-                                   // finishing one makes the next copy, due on
+  repeat    : 'none' | 'daily' | 'weekdays' | 'weekly' | 'monthly' | 'monthlyNth'
+                                   // a task: one copy at a time (below). An event:
+                                   // one document for the whole series, from `date`
+                                   // A task: finishing one makes the next copy, due on
                                    // the next date that is today or later
-  repeatDay : number | null        // a monthly task's day of the month
+  repeatDay : number | null        // a monthly item's day of the month
+  repeatWeekday : number | null    // monthlyNth: 0 (Sunday) – 6
+  repeatNths : number[]            // monthlyNth: 1–4, 5 = last ("2nd and 4th" = [2, 4])
+  skipDates : string[]             // a repeating event's dates taken out of the series
+  detachedFrom : string | null     // on the separate event made from one of them: the series' id
   nextId    : string | null        // the copy finishing this one made; set once
   xpEarned  : number               // game mode: taken back if it is reopened
   everDone  : boolean              // game mode: has counted toward missions
   suggestionId : string | null     // added from src/types/brokerSuggestions.ts
+  planning  : 'morning' | 'evening' | 'weekly' | 'monthly' | null
+                                   // a planning slot made by the planning card;
+                                   // server-set, carried onto each repeat
   priority  : 'low' | 'normal' | 'high'
   color     : 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'orange'
   date      : 'YYYY-MM-DD' | null  // due date of a task; the day of an event
   time      : 'HH:MM' | null       // office time (UTC−6)
-  endTime   : 'HH:MM' | null       // events only
+  endTime   : 'HH:MM' | null       // events, and planning slots (follows the start
+                                   // when it moves, keeping the length); null on other tasks
   reminders : ('start' | '15m' | '1h' | '1d' | '1w')[]
                                    // without a time, only start/1d/1w, at 8am
   order     : number               // position on the board and the sticky notes
@@ -2092,6 +2109,13 @@ personalTasks/{uid}/items/{itemId}
                                    // opened. NOT carried onto a repeat's next copy
   createdAt, updatedAt : Timestamp
   doneAt    : Timestamp | null     // set when it goes to Done, cleared when it leaves
+  outcome   : 'done' | 'notdone' | 'rescheduled' | null
+                                   // how a closed task ended; all three are status
+                                   // 'done'. Absent on a closed task reads 'done'
+  rescheduledTo : 'YYYY-MM-DD' | null   // on a 'rescheduled' one: where it went
+  rescheduledFrom : string | null  // on the copy a reschedule made: the original's id
+  xpLost    : number               // game mode: what Not done cost, given back if undone
+  archived  : boolean              // taken off My tasks by "Clear done"; still on the calendar
 ```
 
 Items saved before `eventType`, `location`, `reminders`, `steps`, `rank`,

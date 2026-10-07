@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/firebase-admin';
-import { syncReminderQueue, taskItems, taskOwnerDoc, toTask } from '@/lib/personalTasksServer';
+import { nextCopyData, syncReminderQueue, taskItems, taskOwnerDoc, toTask } from '@/lib/personalTasksServer';
 import { gameClock, gameFrom, offDaysFor } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
 import { GameTurn, addDays, daysBetween, type GameEvent, type GameState } from '@/types/taskGame';
-import { cleanTaskInput, nextOccurrence, type PersonalTask, type TaskStep } from '@/types/task';
+import {
+  cleanTaskInput, nextOccurrence, outcomeOf, repeatFields, type PersonalTask, type TaskOutcome, type TaskStep,
+} from '@/types/task';
+import { shiftedEnd } from '@/types/planning';
 import { cleanTaskStreak, recordTaskProgress, type TaskStreak } from '@/types/taskStreak';
 
 class Refused extends Error {
@@ -47,24 +50,58 @@ export async function PATCH(
         const kind = input.kind ?? current.kind;
         const date = 'date' in input ? input.date ?? null : current.date;
         if (kind === 'event' && !date) throw new Refused('An event needs a date.', 400);
-        const repeat = kind === 'event' ? 'none' : input.repeat ?? current.repeat;
+        const repeat = input.repeat ?? current.repeat;
         if (repeat !== 'none' && !date) throw new Refused('A repeating task needs a due date.', 400);
 
         const update: Record<string, unknown> = { ...input, updatedAt: FieldValue.serverTimestamp() };
         // An event has nothing to finish and no end time is meaningful on a task;
         // turning one into the other tidies both rather than leaving stale fields.
-        if (kind === 'event') { update.status = 'todo'; update.repeat = 'none'; }
+        // An event repeats as a series rather than by copies — see TASK_REPEATS.
+        if (kind === 'event') { update.status = 'todo'; }
         if (kind === 'task') { update.endTime = null; update.eventType = 'other'; }
-        const repeatDay = 'date' in input || 'repeat' in input
-          ? (repeat === 'monthly' && date ? Number(date.slice(8, 10)) : null)
-          : current.repeatDay;
-        if (repeatDay !== current.repeatDay) update.repeatDay = repeatDay;
+        // Except a planning slot, which is a block of time: its end follows its
+        // start, keeping the length the person chose on the planning card —
+        // unless an end after the start was sent, which is the calendar's
+        // resize handle. The editor sends null for a task's end, and that is
+        // ignored rather than taken as "no end".
+        if (kind === 'task' && current.planning) {
+          const time = 'time' in input ? input.time ?? null : current.time;
+          update.endTime = time && input.endTime && input.endTime > time
+            ? input.endTime
+            : shiftedEnd(current.time, current.endTime, time);
+        }
+        // Worked out again whenever anything it depends on was sent; otherwise kept.
+        const touched = ['date', 'repeat', 'repeatWeekday', 'repeatNths'].some((k) => k in input);
+        const repeating = touched
+          ? repeatFields(repeat, date, {
+            repeatWeekday: 'repeatWeekday' in input ? input.repeatWeekday : current.repeatWeekday,
+            repeatNths: 'repeatNths' in input ? input.repeatNths : current.repeatNths,
+          })
+          : { repeatDay: current.repeatDay, repeatWeekday: current.repeatWeekday, repeatNths: current.repeatNths };
+        const { repeatDay } = repeating;
+        Object.assign(update, repeating);
 
         const status = (update.status as string | undefined) ?? current.status;
         const finishing = kind === 'task' && status === 'done' && current.status !== 'done';
         const reopening = current.status === 'done' && status !== 'done';
         if (finishing) update.doneAt = FieldValue.serverTimestamp();
         if (reopening) update.doneAt = null;
+
+        // How it ended (TASK_OUTCOMES). Closing without saying is Done; a
+        // closed task keeps its outcome until it is told another one; reopening
+        // clears it, and brings back a task "Clear done" took off the board.
+        const wasOutcome = outcomeOf(current);
+        const outcome: TaskOutcome | null = kind === 'task' && status === 'done'
+          ? input.outcome ?? wasOutcome ?? 'done'
+          : null;
+        update.outcome = outcome;
+        if (outcome !== 'rescheduled') update.rescheduledTo = null;
+        if (reopening) update.archived = false;
+        // Only Done earns; only Not done costs. Each is given back when it stops being true.
+        const gainsDone = outcome === 'done' && wasOutcome !== 'done';
+        const losesDone = wasOutcome === 'done' && outcome !== 'done';
+        const gainsNotDone = outcome === 'notdone' && wasOutcome !== 'notdone';
+        const losesNotDone = wasOutcome === 'notdone' && outcome !== 'notdone';
 
         // Steps: what was sent, with the server's own fields carried over from
         // the stored step of the same id. An event has nothing to finish.
@@ -89,13 +126,13 @@ export async function PATCH(
         }
         if (kind === 'event') update.rank = null;
 
-        const merged = { ...current, ...input, kind, date, repeat, repeatDay, status, steps } as PersonalTask;
+        const merged = { ...current, ...input, kind, date, repeat, ...repeating, status, steps } as PersonalTask;
 
         // Counted once ever, in both the game and the plain streak, so ticking
         // a box on and off cannot pad either.
-        const firstTasks = finishing && !current.everDone ? 1 : 0;
+        const firstTasks = gainsDone && !current.everDone ? 1 : 0;
         const firstSteps = newlyDone.filter((st) => !st.everDone).length;
-        if (finishing) update.everDone = true;
+        if (gainsDone) update.everDone = true;
         for (const st of newlyDone) st.everDone = true;
 
         // Game mode. A task that has counted toward missions once never does
@@ -105,12 +142,13 @@ export async function PATCH(
         const stored = gameFrom(ownerSnap);
         const storedStreak = cleanTaskStreak(ownerSnap.data()?.streak);
         const gameMoves = stored.enabled && (
-          finishing || (reopening && current.xpEarned > 0)
+          gainsDone || (losesDone && current.xpEarned > 0)
+          || gainsNotDone || (losesNotDone && current.xpLost > 0)
           || newlyDone.length > 0 || unticked.some((st) => st.xp > 0));
         const progress = firstTasks + firstSteps > 0;
         // The person's days off, read only when a streak can actually move
         // today — so an ordinary status change pays for no query.
-        const needOffDays = (gameMoves && (finishing || newlyDone.length > 0) && stored.lastActiveDate !== today)
+        const needOffDays = (gameMoves && (gainsDone || newlyDone.length > 0) && stored.lastActiveDate !== today)
           || (progress && storedStreak.lastActiveDate !== today);
         const offDays = needOffDays ? await offDaysFor(email, today, tx) : undefined;
 
@@ -118,11 +156,17 @@ export async function PATCH(
         let events: GameEvent[] = [];
         if (gameMoves) {
           const turn = new GameTurn(stored, today, now, offDays);
-          if (finishing) {
+          if (gainsDone) {
             update.xpEarned = turn.onTaskDone(merged, !current.everDone);
-          } else if (reopening && current.xpEarned > 0) {
+          } else if (losesDone && current.xpEarned > 0) {
             turn.onTaskReopened(merged.title, current.xpEarned);
             update.xpEarned = 0;
+          }
+          if (gainsNotDone) {
+            update.xpLost = turn.onTaskNotDone(merged);
+          } else if (losesNotDone && current.xpLost > 0) {
+            turn.onNotDoneWithdrawn(merged.title, current.xpLost);
+            update.xpLost = 0;
           }
           for (const st of newlyDone) st.xp = turn.onStepDone(st.title);
           for (const st of unticked) {
@@ -151,50 +195,20 @@ export async function PATCH(
           const nextRef = taskItems(uid).doc();
           nextId = nextRef.id;
           update.nextId = nextId;
-          tx.set(nextRef, {
-            kind: 'task',
-            title: merged.title,
-            notes: merged.notes,
-            status: 'todo',
-            priority: merged.priority,
-            color: merged.color,
-            date: nextDate,
-            time: merged.time,
-            endTime: null,
-            eventType: 'other',
-            location: merged.location,
-            reminders: merged.reminders,
+          tx.set(nextRef, nextCopyData({
+            ...merged,
             repeat,
-            repeatDay,
-            suggestionId: merged.suggestionId,
-            // The next one starts with the same steps, none of them done, and
-            // keeps its place in the queue. A step's due date moves with the
-            // task's — two days before it stays two days before it — and is
-            // dropped when the finished task had no date to measure from.
-            steps: merged.steps.map((st) => ({
-              ...st,
-              done: false,
-              date: st.date && merged.date ? addDays(st.date, daysBetween(merged.date, nextDate)) : null,
-              xp: 0,
-              everDone: false,
-            })),
-            rank: merged.rank ?? null,
-            // Still the same people next week.
-            contacts: merged.contacts,
-            // But not the same load: a weekly "chase the POD" is a different
-            // order each week, and a link to last week's would be wrong, not empty.
-            orders: [],
-            nextId: null,
-            xpEarned: 0,
-            everDone: false,
-            order: Date.now(),
-            createdAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-            doneAt: null,
-          });
+            ...repeating,
+            // Only a planning slot keeps an end; see the endTime rule above.
+            endTime: current.planning ? ((update.endTime as string | null | undefined) ?? null) : null,
+            planning: current.planning,
+          }, nextDate));
           syncReminderQueue(tx, uid, {
             kind: 'task', status: 'todo', date: nextDate, time: merged.time, reminders: merged.reminders,
           }, nextId);
+          if (current.planning) {
+            tx.set(owner, { planning: { [current.planning]: { taskId: nextId } } }, { merge: true });
+          }
         }
 
         // The queue is rebuilt from what the item will be after this save, in the
@@ -202,13 +216,16 @@ export async function PATCH(
         // it to another day moves them with it. A drag that changes only `order`
         // touches none of the fields a reminder depends on and skips it.
         tx.update(ref, update);
-        if (['kind', 'status', 'date', 'time', 'reminders'].some((k) => k in update)) {
+        if (['kind', 'status', 'date', 'time', 'reminders', 'repeat', 'repeatWeekday', 'repeatNths'].some((k) => k in update)) {
           syncReminderQueue(tx, uid, {
             kind,
             status,
             date,
             time: 'time' in input ? input.time ?? null : current.time,
             reminders: input.reminders ?? current.reminders,
+            repeat,
+            ...repeating,
+            skipDates: current.skipDates,
           }, taskId);
         }
         return { nextId, game, events, streak };

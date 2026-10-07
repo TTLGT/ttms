@@ -14,7 +14,8 @@
  *
  * **Penalties are real, as in DankQuest:** an open task past its due date
  * costs XP each working day it is first seen overdue, a broken streak costs
- * XP, reopening a finished task takes back what it earned, and XP lost can
+ * XP, closing a task as Not done costs half its worth, reopening a finished
+ * task takes back what it earned, and XP lost can
  * take a level with it. They are applied when the list is read, the same
  * "applied when read" shape as a mute or an order grant — there is no job.
  *
@@ -217,6 +218,15 @@ export function taskXp(
 /** Per open overdue task, each day it is first seen overdue: 5 XP a day late, capped at what it is worth. */
 export function overduePenalty(priority: TaskPriority, daysOverdue: number): number {
   return Math.min(daysOverdue * 5, TASK_XP[priority]);
+}
+
+/**
+ * A task closed as Not done: half what it was worth. Saying so is better
+ * than leaving it to rot overdue — which costs up to its full worth, a day at
+ * a time — so it costs less than that, but it is never free.
+ */
+export function notDonePenalty(priority: TaskPriority): number {
+  return Math.round(TASK_XP[priority] / 2);
 }
 
 /** A broken streak: 25 XP a day of it, at most 300. */
@@ -650,6 +660,23 @@ export class GameTurn {
   onStepUndone(title: string, earned: number) {
     if (!this.state.enabled || earned <= 0) return;
     this.award(-earned, `Unticked "${title}"`);
+  }
+
+  /**
+   * A task was closed as Not done. Returns what it cost, which the caller
+   * stores on the task (`xpLost`) so changing its mind gives back exactly that.
+   */
+  onTaskNotDone(task: Pick<PersonalTask, 'title' | 'priority'>): number {
+    if (!this.state.enabled) return 0;
+    const lost = notDonePenalty(task.priority);
+    this.award(-lost, `Not done: "${task.title}"`);
+    return lost;
+  }
+
+  /** A task marked Not done was reopened or marked Done after all: its penalty is given back. */
+  onNotDoneWithdrawn(title: string, lost: number) {
+    if (!this.state.enabled || lost <= 0) return;
+    this.award(lost, `No longer "not done": "${title}"`);
   }
 
   /** A finished task was reopened: what it earned is taken back. */

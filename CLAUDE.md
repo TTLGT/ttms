@@ -916,6 +916,18 @@ Types and pure rules in `src/types/task.ts`; server in
   `placeOf()` draws the same step back for anything caught in between. To do
   and Done can never be hidden — new tasks land in one, and the other is what
   stops reminders.
+- **A closed task says how it ended, and is never thrown away for it.**
+  `outcome` is Done, Not done or Rescheduled — all three are status `done`,
+  so everything that asks "is it finished?" is unchanged. Not done is a
+  choice in the editor's status box; in game mode it costs half the task's
+  worth (`notDonePenalty()`), stored as `xpLost` and given back if it is
+  reopened or marked Done. Only Done earns XP or moves a streak. Reschedule
+  (`POST /api/me/tasks/{id}/reschedule`) closes the task on its day as
+  Rescheduled and carries a copy on from the new day with its progress, so a
+  day can be looked back on. **"Clear done" archives (`archived`) rather than
+  deletes**: off My tasks, still on the calendar. Deleting is one task at a
+  time, from the task. Archived tasks still count toward the 1,000-item cap
+  and are read with the list.
 - **Repeating tasks make their next copy when finished**, in the PATCH
   route's transaction — no clock. `nextId` on the finished one is the guard
   against a second copy; missed dates are skipped (`nextOccurrence()`).
@@ -976,6 +988,55 @@ Types and pure rules in `src/types/task.ts`; server in
   drops anything over three hours late, and posts into a separate
   `notice_tasks_{uid}` room — never the celebration one. It grants and removes
   nothing.
+
+- **Planning prompts** (`src/types/planning.ts`, `PlanningPrompt.tsx` in the
+  dashboard layout) ask somebody to pick a time for four kinds of planning and,
+  in one click, add it as a task with a reminder at that time: a **morning
+  review** of today's plan, **end-of-day** planning for tomorrow, **weekly** on
+  Friday (movable) and **monthly** on the last Friday (`monthlyNth`). The two
+  daily ones are one-offs unless the person ticks "every weekday", because
+  people plan at different times; a one-off covers its own day, so the card
+  asks again the next working day. The morning one is not asked after 1pm.
+  - A slot keeps an `endTime` (the length picked on the card) — the one kind
+    of task that does; the PATCH route shifts it when the start moves.
+  - "Your day" on the card comes from `GET /api/me/planning/day`: the caller's
+    own shift (their schedule, the company default, or 7am–4pm weekdays when HR
+    has set neither — `PLANNING_FALLBACK_SHIFT`) and the timed items that day. It moves things with ordinary task
+    saves. A task with a time and no end counts as 30 minutes there.
+  - **A missed slot stays on the list as an ordinary task** (overdue, tickable
+    Done or Not done, never deleted). A missed repeating one gets its next copy
+    from the planning GET (`carryOn()`), so the slot and its reminders continue.
+  - `personalTasks/{uid}.planning` only remembers the task it made and whether
+    to ask. "Not now" waits until the next day, Monday or first of the month;
+    "Don't ask again" holds until it is turned back on from the Calendar page.
+  - **The PATCH route moves the pointer to each repeat's copy** — drop that and
+    the card asks people who already have the slot. GET is one read plus a
+    read or two per kind; keep it off the full list, since it runs on every
+    page load.
+- **Events repeat too, and differently from tasks.** A repeating task is still
+  one copy at a time, made when it is finished. A repeating event is one
+  document standing for its series: the calendar lays it out over the days on
+  screen (`occurrencesBetween()`), only the **next** occurrence's reminders are
+  queued, and the reminder run re-queues the series each time it claims one —
+  stale ones included, or a series would stop after a cron outage. Editing or
+  deleting the event changes them all. **One date can be taken out**: dragging
+  it asks "move just this date?", and stretching it asks "just this one or all
+  events?". Taking one out (`POST /api/me/tasks/{id}/detach`) adds the date to
+  the series' `skipDates` and writes a separate one-off event carrying
+  `detachedFrom`, in one transaction, re-queueing both. That event is in no
+  series, so changing it later asks nothing. Anything that lays out or reminds
+  about a series must honour `skipDates` — `occurrencesBetween()` does.
+  `syncReminderQueue()` therefore needs the repeat fields as well as the
+  others, and so does anything that calls it for an event.
+- **The Calendar's week view is an hour grid on desktop** (`TaskWeekGrid.tsx`),
+  Google style: pull an event's bottom edge to change its length, drag a block
+  to another day or time, double-click to add an event. One save on release,
+  never one per pixel. A date of a series is asked about first (`SeriesChoice.tsx`). A task has no end, so it is drawn 30 minutes tall and
+  cannot be stretched — except a planning slot, whose end the PATCH route
+  accepts when one is sent. Phones keep the per-day list.
+- **`monthlyNth`** is "the 1st Tuesday", "the 2nd and 4th Wednesday", "the last
+  Friday": `repeatWeekday` (0–6) and `repeatNths` (1–4, 5 = last).
+  `repeatFields()` is the one place the stored repeat fields are worked out.
 
 ### Learn English — underlines that never touch the page
 
