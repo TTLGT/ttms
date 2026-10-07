@@ -9,7 +9,7 @@ import { getMyPlanning, getMyPlanningDay, linkMyPlanning, scheduleMyPlanning, se
 import { listMyTasks, updateMyTask } from '@/lib/personalTasks';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
-  NTH_LABEL, calendarToday, formatTime, nthPatternLabel, oneMonthAfter, repeatText, timeRange, type PersonalTask,
+  MAX_TASK_TITLE, NTH_LABEL, calendarToday, formatTime, nthPatternLabel, oneMonthAfter, repeatText, timeRange, type PersonalTask,
 } from '@/types/task';
 import {
   PLANNING_ASK_EVENT,
@@ -138,6 +138,9 @@ export default function PlanningPrompt() {
   // daily ones follow their own shift when it arrives.
   const [timeTouched, setTimeTouched] = useState(false);
   const [minutes, setMinutes] = useState(PLANNING_DEFAULT_DURATION.morning);
+  // The slot's name. Starts as the kind's usual one; left blank, that is what
+  // is saved, so a cleared box never makes a task with no title.
+  const [title, setTitle] = useState(PLANNING_COPY.morning.title);
   const [weekday, setWeekday] = useState(PLANNING_DEFAULT_WEEKDAY);
   const [nth, setNth] = useState(PLANNING_DEFAULT_NTH);
   const [everyWeekday, setEveryWeekday] = useState(false);
@@ -158,6 +161,7 @@ export default function PlanningPrompt() {
     setTime(PLANNING_DEFAULT_TIME[k]);
     setTimeTouched(false);
     setMinutes(PLANNING_DEFAULT_DURATION[k]);
+    setTitle(PLANNING_COPY[k].title);
     setWeekday(PLANNING_DEFAULT_WEEKDAY);
     setNth(PLANNING_DEFAULT_NTH);
     setEveryWeekday(false);
@@ -207,6 +211,7 @@ export default function PlanningPrompt() {
   const [h, m] = time.split(':').map(Number);
   const half: 'AM' | 'PM' = h < 12 ? 'AM' : 'PM';
   const copy = kind ? PLANNING_COPY[kind] : null;
+  const slotTitle = title.trim() || copy?.title || '';
 
   // The day the slot lands on, worked out the same way the server will.
   const date = useMemo(
@@ -280,7 +285,7 @@ export default function PlanningPrompt() {
     setBusy(true);
     setError('');
     try {
-      setAdded(await scheduleMyPlanning({ kind, time, minutes, weekday, nth, everyWeekday }));
+      setAdded(await scheduleMyPlanning({ kind, time, title: slotTitle, minutes, weekday, nth, everyWeekday }));
       window.dispatchEvent(new Event(PLANNING_CHANGED_EVENT));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not add it to your calendar.');
@@ -384,7 +389,7 @@ export default function PlanningPrompt() {
               <CalendarCheck size={28} />
             </div>
             <h2 id="planning-prompt-title" className="mt-4 text-lg font-bold text-gray-900">
-              {linked ? `“${linked.title}” is your ${copy.label.toLowerCase()}` : `${copy.title} is on your calendar`}
+              {linked ? `“${linked.title}” is your ${copy.label.toLowerCase()}` : `${slotTitle} is on your calendar`}
             </h2>
             <p className="mt-1 text-sm text-gray-600">
               {added.scheduled?.date && <>{dayName(added.scheduled.date)}, </>}
@@ -459,8 +464,12 @@ export default function PlanningPrompt() {
             <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
               <div className="flex gap-3">
                 <div className="w-1 flex-shrink-0 rounded-full bg-green-500" />
-                <div className="min-w-0">
-                  <p className="font-semibold text-gray-900">{copy.title}</p>
+                <div className="min-w-0 flex-1">
+                  {/* Looks like the title it will be, and is a box to rename it in. */}
+                  <input type="text" value={title} maxLength={MAX_TASK_TITLE} aria-label="Title"
+                    placeholder={copy.title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="-mx-1.5 w-[calc(100%+0.75rem)] rounded-md border border-transparent bg-transparent px-1.5 py-0.5 font-semibold text-gray-900 hover:border-gray-300 focus:border-brand-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-brand-400" />
                   <p className="text-sm text-gray-500">{dayName(date)} · {range}</p>
                   <p className="text-xs text-gray-400">
                     {cadence(kind, weekday, nth, everyWeekday)}
@@ -546,7 +555,7 @@ export default function PlanningPrompt() {
             <DayView
               day={sameDay}
               dayLabel={dayName(date)}
-              slot={{ time, minutes, title: copy.title }}
+              slot={{ time, minutes, title: slotTitle }}
               overlapping={overlapping}
               outsideHours={outsideHours}
               full={full}

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "ef4a496388d90c3a1b3254a86a3736506b2545fe",
+      "date": "2026-10-07T12:50:37-06:00",
+      "author": "erwindank",
+      "subject": "Make the planning time picker move one row per wheel notch",
+      "body": "A mouse wheel notch scrolled two or three rows of the hour and minute\nwheels, so people overshot the time they wanted. The wheel now steps one\nrow per notch, a trackpad one row per row's height of travel, and arrow\nkeys and clicks glide to the row instead of jumping."
+    },
+    {
       "hash": "5ee6706744c172fbde7c78a795fd503f377f8057",
       "date": "2026-10-07T12:46:04-06:00",
       "author": "erwindank",
