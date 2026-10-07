@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "24540c934032b5503d30610c7d223dabd5b7c953",
+      "date": "2026-10-07T13:02:59-06:00",
+      "author": "erwindank",
+      "subject": "Give tasks a deadline separate from their planned day",
+      "body": "A task's date and time are now when it is planned to be worked on (calendar,\nreminders, repeats), and a new optional dueDate/dueTime is its deadline.\nOverdue, the queue order, Up next and game-mode lateness go through\ndeadlineOf(), which falls back to the planned day when there is no deadline,\nso tasks saved before this behave as they always did. The editor, table,\nboard, sticky notes, queue and calendar show both; the calendar marks a\ndeadline on its own day."
+    },
+    {
       "hash": "93ee88cb4d7c55d27a77e26516f69d89ea4bcd9c",
       "date": "2026-10-07T12:55:28-06:00",
       "author": "erwindank",

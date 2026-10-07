@@ -144,11 +144,13 @@ export default function CalendarPage() {
   const toolbar = (
     <div className="flex flex-wrap gap-1.5">
       <button type="button" aria-pressed={show.tasks} onClick={() => setShow((s) => ({ ...s, tasks: !s.tasks }))}
-        className={chip(show.tasks, 'bg-yellow-100 text-yellow-800')}>
+        // Brand, not a task colour: tasks and events wear the colours their
+        // owner gave them, so the switch for them must not look like one.
+        className={chip(show.tasks, 'bg-brand-50 text-brand-700')}>
         <ListTodo size={12} /> My tasks
       </button>
       <button type="button" aria-pressed={show.events} onClick={() => setShow((s) => ({ ...s, events: !s.events }))}
-        className={chip(show.events, 'bg-violet-100 text-violet-800')}>
+        className={chip(show.events, 'bg-brand-50 text-brand-700')}>
         <CalendarClock size={12} /> My events
       </button>
       {hr && (['birthday', 'anniversary'] as const).map((kind) => {

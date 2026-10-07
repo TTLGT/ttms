@@ -47,31 +47,43 @@ const UPCOMING_DAYS = 30;
  * How each kind is drawn. One place, so a chip, a list row and a reminder all
  * agree on which colour means which.
  */
+/**
+ * The calendar's layers keep clear of the six task colours (yellow, pink,
+ * sky, green, violet, orange — NOTE_STYLE in src/components/tasks/taskStyle.ts),
+ * so a pink chip on the calendar is always a pink task and never a birthday.
+ * Of the families tailwind.config.ts maps for dark and dim, indigo, teal and
+ * grey are the ones far enough from all six; a layer added later should take
+ * one of those, or red, which is left alone because it means overdue.
+ */
 export const KIND_STYLE: Record<CelebrationKind, {
-  Icon: LucideIcon; chip: string; chipOn: string; plural: string;
+  Icon: LucideIcon; chip: string; chipOn: string; icon: string; plural: string;
 }> = {
   birthday: {
     Icon: Cake,
-    chip: 'bg-pink-50 text-pink-700 hover:bg-pink-100',
-    chipOn: 'bg-pink-600 text-white',
+    chip: 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100',
+    chipOn: 'bg-indigo-600 text-white',
+    icon: 'text-indigo-500',
     plural: 'Birthdays',
   },
   anniversary: {
     Icon: Briefcase,
-    chip: 'bg-brand-50 text-brand-700 hover:bg-brand-100',
-    chipOn: 'bg-brand-600 text-white',
+    chip: 'bg-teal-50 text-teal-700 hover:bg-teal-100',
+    chipOn: 'bg-teal-600 text-white',
+    icon: 'text-teal-600',
     plural: 'Work anniversaries',
   },
 };
 
 /**
  * Holidays are drawn quieter than people: they are the backdrop the planning
- * happens against, not the thing being planned. Grey for Guatemala, where the
- * office is; sky for the US, where the freight is.
+ * happens against, not the thing being planned. Both grey, to stay clear of
+ * the task colours (see KIND_STYLE): filled for Guatemala, where the office
+ * is; outlined for the US, where the freight is. The GT/US tag on each says
+ * which as well, so the two never rest on shade alone.
  */
 export const HOLIDAY_STYLE: Record<HolidayCountry, string> = {
   GT: 'bg-gray-100 text-gray-700',
-  US: 'bg-sky-50 text-sky-700',
+  US: 'border border-gray-300 bg-white text-gray-700',
 };
 
 export function holidayTitle(h: Holiday): string {
@@ -327,7 +339,7 @@ export function OccurrenceList({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-gray-900">{o.person.name}</p>
                 <p className="flex items-center gap-1 text-xs text-gray-500">
-                  <Icon size={11} className={o.kind === 'birthday' ? 'text-pink-500' : 'text-brand-500'} />
+                  <Icon size={11} className={KIND_STYLE[o.kind].icon} />
                   {formatCalendarDate(o.date)} · {whatItIs(o)}
                 </p>
               </div>
@@ -391,7 +403,7 @@ export function CelebrationDetail({
         <div className="min-w-0 flex-1">
           <p className="text-base font-semibold text-gray-900">{person.name}</p>
           <p className="flex items-center gap-1.5 text-sm text-gray-600">
-            <Icon size={14} className={kind === 'birthday' ? 'text-pink-500' : 'text-brand-500'} />
+            <Icon size={14} className={KIND_STYLE[kind].icon} />
             {kind === 'birthday'
               ? `Birthday on ${formatCalendarDate(date)} — turning ${occurrence.years}`
               : `${years(occurrence.years)} with the company on ${formatCalendarDate(date)}`}

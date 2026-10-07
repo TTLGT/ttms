@@ -721,7 +721,7 @@ function DayList({
         const { Icon } = KIND_STYLE[o.kind];
         return (
           <li key={`c-${o.kind}-${o.person.email}`} className="flex items-start gap-2">
-            <Icon size={16} className={`mt-0.5 flex-shrink-0 ${o.kind === 'birthday' ? 'text-pink-500' : 'text-brand-500'}`} />
+            <Icon size={16} className={`mt-0.5 flex-shrink-0 ${KIND_STYLE[o.kind].icon}`} />
             <button type="button" onClick={() => onPickOccurrence?.(o)} className="min-w-0 flex-1 text-left">
               <span className="block text-sm text-gray-900 hover:underline">{o.person.name}</span>
               <span className="block text-xs text-gray-500">{whatItIs(o)}</span>
