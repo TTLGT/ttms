@@ -12,6 +12,11 @@ import { useEffect, useRef } from 'react';
  * value changes from outside, and reports a new value once the scrolling has
  * settled rather than on every pixel. Arrow keys and clicking a row work too,
  * so it never depends on a scroll gesture.
+ *
+ * A mouse wheel is taken over rather than left to the browser: one notch is
+ * about 100px in Chrome and Edge, which is two or three rows here, so people
+ * kept overshooting the time they wanted. Each notch now moves one row, and a
+ * trackpad moves one row per row's height of finger travel.
  */
 
 const ROW = 40;
@@ -28,10 +33,16 @@ export default function TimeWheel<T extends string | number>({
   const ref = useRef<HTMLDivElement>(null);
   const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const index = Math.max(0, options.indexOf(value));
+  // The row a wheel step or a key press is gliding to. The value is reported
+  // at once, so until the glide lands the scroll position is behind it and
+  // must not be "corrected" with a jump, nor read back as a new value.
+  const aim = useRef<number | null>(null);
+  const latest = useRef({ index, options, value, onChange });
+  latest.current = { index, options, value, onChange };
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || aim.current === index) return;
     // Only when it is somewhere else: a scroll that has just settled on this
     // row must not be yanked a pixel back to it.
     if (Math.round(el.scrollTop / ROW) !== index) el.scrollTo({ top: index * ROW });
@@ -40,10 +51,33 @@ export default function TimeWheel<T extends string | number>({
   useEffect(() => () => { if (settle.current) clearTimeout(settle.current); }, []);
 
   const go = (i: number) => {
+    const { options, value, onChange } = latest.current;
     const at = Math.min(options.length - 1, Math.max(0, i));
+    aim.current = at;
     ref.current?.scrollTo({ top: at * ROW, behavior: 'smooth' });
     if (options[at] !== value) onChange(options[at]);
   };
+
+  // Listened for here rather than through onWheel: React binds wheel as a
+  // passive listener, which cannot preventDefault the browser's own scroll.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let travel = 0;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      // Pixel deltas add up (a trackpad sends many small ones); line and page
+      // deltas (Firefox, some mice) are one notch each.
+      travel += e.deltaMode === 0 ? e.deltaY : Math.sign(e.deltaY) * ROW;
+      if (Math.abs(travel) < ROW) return;
+      const step = Math.sign(travel);
+      travel = 0;
+      go((aim.current ?? latest.current.index) + step);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+    // go reads everything it needs through refs.
+  }, []);
 
   return (
     <div
@@ -56,6 +90,8 @@ export default function TimeWheel<T extends string | number>({
         const top = e.currentTarget.scrollTop;
         if (settle.current) clearTimeout(settle.current);
         settle.current = setTimeout(() => {
+          aim.current = null;
+          const { options, value, onChange } = latest.current;
           const i = Math.min(options.length - 1, Math.max(0, Math.round(top / ROW)));
           if (options[i] !== value) onChange(options[i]);
         }, 90);

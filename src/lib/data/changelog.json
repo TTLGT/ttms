@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "5ee6706744c172fbde7c78a795fd503f377f8057",
+      "date": "2026-10-07T12:46:04-06:00",
+      "author": "erwindank",
+      "subject": "Let the task editor set a planning slot's end time",
+      "body": "The Ends box was drawn for events only, so a planning slot (a task that\nkeeps an end) could only be lengthened by stretching it on the calendar.\nThe editor now shows Ends for a planning slot, sends it on save, and moves\nthe end with the start so a changed start keeps the same length."
+    },
+    {
       "hash": "d74461f9404c27951c3ebcf6c090167e81686c25",
       "date": "2026-10-07T12:43:03-06:00",
       "author": "erwindank",
