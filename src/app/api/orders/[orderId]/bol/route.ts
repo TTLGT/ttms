@@ -4,9 +4,9 @@ import { adminDb, adminStorage, requirePermission, AdminAuthError } from '@/lib/
 import { documentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { actorForUid, updateWithHistory } from '@/lib/recordHistory';
 import { generateBolBuffer } from '@/lib/bol-pdf';
-import type { BolData } from '@/lib/bol-pdf';
+import type { BolData, BolStopLine } from '@/lib/bol-pdf';
 import { formatDimensions, itemWeightLb, orderCommodityItems, orderDisplayNumber } from '@/types/order';
-import type { Order } from '@/types/order';
+import type { Order, OrderStop } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -64,6 +64,21 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     partyPhone(order.consigneeId),
   ]);
 
+  // Every pickup and delivery after the first, numbered the way the order
+  // screen numbers them, so the driver and the carrier read the same list.
+  const stopLine = (kind: string) => async (s: OrderStop, i: number): Promise<BolStopLine> => ({
+    label:   `${kind} ${i + 2}`,
+    company: s.partyName ?? '',
+    phone:   await partyPhone(s.partyId),
+    street:  s.address?.street ?? '',
+    place:   [s.address?.city, s.address?.state, s.address?.zip].filter(Boolean).join(', '),
+    date:    formatLongDateRange(s.date, s.dateEnd, ''),
+  });
+  const extraStops = [
+    ...await Promise.all(((order.extraPickups ?? []) as OrderStop[]).map(stopLine('PICKUP'))),
+    ...await Promise.all(((order.extraDeliveries ?? []) as OrderStop[]).map(stopLine('DELIVERY'))),
+  ];
+
   const data: BolData = {
     // The number the load is known by, which for a BATS-era order is its BATS
     // id — see orderDisplayNumber(). A document must carry what the carrier
@@ -98,6 +113,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     destZip:          order.destination?.zip   ?? '',
     pickupDate:       formatLongDateRange(order.pickupDate, order.pickupDateEnd),
     deliveryDate:     formatLongDateRange(order.deliveryDate, order.deliveryDateEnd),
+    extraStops,
     agreedRate:       order.agreedRate         ?? 0,
     brokerFee:        order.brokerFee          ?? 0,
     carrierPay:       order.carrierPay         ?? 0,

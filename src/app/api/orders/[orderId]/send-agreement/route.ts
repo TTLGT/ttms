@@ -7,7 +7,7 @@ import { agreementSentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { actorForUid, recordEvent } from '@/lib/recordHistory';
 import { signUrl } from '@/lib/appUrl';
 import { randomBytes } from 'crypto';
-import { clientSignatureSatisfied, dimensionsSummary, orderCommodityItems, orderDisplayNumber } from '@/types/order';
+import { clientSignatureSatisfied, dimensionsSummary, orderCommodityItems, orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@/types/order';
 import type { Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -76,8 +76,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const now        = Timestamp.now();
   const expiresAt  = Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
 
-  const originStr      = [order.origin?.city, order.origin?.state].filter(Boolean).join(', ') || '—';
-  const destinationStr = [order.destination?.city, order.destination?.state].filter(Boolean).join(', ') || '—';
+  // Every pickup and every delivery, in order — a load with extra stops lists
+  // them all rather than quoting only the first of each.
+  const originStr      = stopPlaces(orderPickups(order)) || '—';
+  const destinationStr = stopPlaces(orderDeliveries(order)) || '—';
   // A window when dispatch gave one — a carrier held to a single day it was
   // never promised is how a load gets refused at the dock.
   const pickupStr      = formatLongDateRange(order.pickupDate, order.pickupDateEnd);

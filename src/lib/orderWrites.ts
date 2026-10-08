@@ -31,7 +31,7 @@ import { can, canEditSource, canSeeOrder } from './accessControl';
 import { allocateOrderNumber } from './orderNumber';
 import { actorOf, diffFields, sameValue, writeChange } from './recordHistory';
 import type { Caller } from './partyAccess';
-import { orderSearchTerms } from '@/types/order';
+import { cleanStops, orderSearchTerms, stopPartyIdsOf } from '@/types/order';
 
 const COL = 'orders';
 
@@ -61,7 +61,19 @@ const SIGNATURE_FIELDS = [
 const SERVER_KEPT_FIELDS = ['partyApprovals', 'coverPhotoId', 'photoCount', 'createdBy', 'orderNumber'] as const;
 
 /** Bookkeeping the server sets itself; dropped from a patch rather than refused. */
-const IGNORED_FIELDS = ['id', 'createdAt', 'updatedAt', 'searchTerms', 'coverThumbUrl'] as const;
+const IGNORED_FIELDS = ['id', 'createdAt', 'updatedAt', 'searchTerms', 'coverThumbUrl', 'stopPartyIds'] as const;
+
+/** The extra pickups and deliveries — see OrderStop in src/types/order.ts. */
+const STOP_FIELDS = ['extraPickups', 'extraDeliveries'] as const;
+
+/**
+ * Trim any stop lists in a save to the stored shape. The screens only ever
+ * send that shape; this is here because the route takes whatever JSON it is
+ * given. Done before the change is diffed, so the log records what was kept.
+ */
+function cleanStopFields(record: Record<string, unknown>) {
+  for (const f of STOP_FIELDS) if (f in record) record[f] = cleanStops(record[f]);
+}
 
 /**
  * The fields orderSearchTerms reads. A patch touching none of them leaves the
@@ -72,7 +84,7 @@ const IGNORED_FIELDS = ['id', 'createdAt', 'updatedAt', 'searchTerms', 'coverThu
 const SEARCHABLE_FIELDS = [
   'orderNumber', 'batsId', 'previousOrderNumber',
   'shipperName', 'clientName', 'consigneeName', 'carrierName',
-  'commodity', 'origin', 'destination',
+  'commodity', 'origin', 'destination', 'extraPickups', 'extraDeliveries',
 ] as const;
 
 function touched(before: Record<string, unknown>, patch: Record<string, unknown>, fields: readonly string[]) {
@@ -111,6 +123,7 @@ export async function updateOrderAsCaller(
 
   const patch: Record<string, unknown> = { ...rawPatch };
   for (const f of IGNORED_FIELDS) delete patch[f];
+  cleanStopFields(patch);
 
   if (touched(before, patch, OWNERSHIP_FIELDS).length) {
     throw new AdminAuthError('Owners are changed from the Owners panel, by an admin or dispatcher.', 403);
@@ -144,6 +157,9 @@ export async function updateOrderAsCaller(
   // tab closed — where a renamed load could not be found and a load moved
   // to another client was still visible to the old client's owners.
   if (SEARCHABLE_FIELDS.some((f) => f in patch)) write.searchTerms = orderSearchTerms(after);
+  // Same reasoning for the stop parties: a load saved without them would be
+  // missing from the page of the company at its second pickup, silently.
+  if (STOP_FIELDS.some((f) => f in patch)) write.stopPartyIds = stopPartyIdsOf(after);
   if ('clientId' in patch && !sameValue(before.clientId, patch.clientId)) {
     Object.assign(write, await clientOwnerMirror(patch.clientId));
   }
@@ -188,6 +204,9 @@ export async function createOrderAsCaller(
   record.partyApprovals  = [];
 
   Object.assign(record, await clientOwnerMirror(record.clientId));
+
+  cleanStopFields(record);
+  record.stopPartyIds = stopPartyIdsOf(record);
 
   record.orderNumber = orderNumber;
   record.createdBy   = caller.uid;

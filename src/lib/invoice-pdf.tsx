@@ -11,10 +11,9 @@ export type InvoiceData = {
   commodity: string;
   pieces: number;
   weight: number;
-  originCity: string;
-  originState: string;
-  destCity: string;
-  destState: string;
+  /** "Dallas, TX", or several joined with "; " when the load had more than one pickup. */
+  pickupPlaces: string;
+  deliveryPlaces: string;
   pickupDate: string;
   deliveryDate: string;
   agreedRate: number;
@@ -87,9 +86,7 @@ function fmt(n: number) {
 const LOGO_PATH = path.join(process.cwd(), 'public', 'logo-circle.png');
 
 function InvoiceDocument({ d }: { d: InvoiceData }) {
-  const route = [d.originCity, d.originState].filter(Boolean).join(', ')
-    + ' → '
-    + [d.destCity, d.destState].filter(Boolean).join(', ');
+  const route = `${d.pickupPlaces} → ${d.deliveryPlaces}`;
 
   return (
     <Document>

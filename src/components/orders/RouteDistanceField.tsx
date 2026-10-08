@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, Route } from 'lucide-react';
 import { formatLaneMiles, isRoutableAddress, laneMilesAtNote, laneMilesCaption, laneMilesLabel } from '@/types/order';
 import type { Address, LaneMilesSource } from '@/types/order';
-import { fetchLaneDistance } from '@/lib/routeDistanceClient';
+import { fetchTripDistance } from '@/lib/routeDistanceClient';
 import type { DistanceResult } from '@/lib/routeDistanceClient';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 
@@ -23,14 +23,16 @@ export interface LaneDistanceValue {
 }
 
 interface Props {
-  origin: Address;
-  destination: Address;
+  /** Every stop in driving order — every pickup, then every delivery. */
+  stops: Address[];
   value: LaneDistanceValue;
   onChange: (value: LaneDistanceValue) => void;
 }
 
 /**
- * Lane distance for the order, filled in as the two addresses take shape.
+ * Lane distance for the order, filled in as the addresses take shape. With
+ * more than one pickup or delivery it is the whole trip, leg by leg — see
+ * fetchTripDistance.
  *
  * Which method runs is the admin's choice in Settings, not this component's —
  * it renders whatever the server sends back and labels it accordingly. When
@@ -46,7 +48,7 @@ interface Props {
  * The spending rule itself lives in /api/route-distance; this component only
  * decides how to ask.
  */
-export default function RouteDistanceField({ origin, destination, value, onChange }: Props) {
+export default function RouteDistanceField({ stops, value, onChange }: Props) {
   const { formatDateTime } = useDateFormatters();
   const [message, setMessage] = useState('');
   const [disabled, setDisabled] = useState(false);
@@ -54,11 +56,12 @@ export default function RouteDistanceField({ origin, destination, value, onChang
   const [needsLookup, setNeedsLookup] = useState(false);
   const [looking, setLooking] = useState(false);
 
-  const routable = isRoutableAddress(origin) && isRoutableAddress(destination);
+  const routable = stops.length >= 2 && stops.every(isRoutableAddress);
   // Google routes off the full address; the estimate only reads the ZIP. Key
   // on the whole thing so a corrected street address re-runs under Routes.
-  const lane = `${origin?.street ?? ''}|${origin?.city ?? ''}|${origin?.state ?? ''}|${origin?.zip ?? ''}`
-    + `>${destination?.street ?? ''}|${destination?.city ?? ''}|${destination?.state ?? ''}|${destination?.zip ?? ''}`;
+  const lane = stops
+    .map((a) => `${a?.street ?? ''}|${a?.city ?? ''}|${a?.state ?? ''}|${a?.zip ?? ''}`)
+    .join('>');
 
   // Held in a ref so the effect below does not depend on it — the parent hands
   // over a fresh closure on every render, which would restart the debounce on
@@ -120,7 +123,11 @@ export default function RouteDistanceField({ origin, destination, value, onChang
     }
 
     onChangeRef.current({ laneMiles: null, laneMilesSource: null, laneMilesAt: null });
-    if (result.status === 'need_zip') setMessage('Add a ZIP to both addresses to work out the distance');
+    if (result.status === 'need_zip') {
+      setMessage(stops.length > 2
+        ? 'Add a ZIP to every stop to work out the distance'
+        : 'Add a ZIP to both addresses to work out the distance');
+    }
     if (result.status === 'unknown_zip') setMessage(`ZIP ${result.zip} was not recognised`);
     if (result.status === 'error') setMessage(result.message);
   }, []);
@@ -132,7 +139,7 @@ export default function RouteDistanceField({ origin, destination, value, onChang
       // Never asked as `manual`: this fires while somebody is still typing, so
       // under Google Routes it can only be answered from the cache. Nothing on
       // this path can bill.
-      const result = await fetchLaneDistance(origin, destination);
+      const result = await fetchTripDistance(stops);
       if (!cancelled) apply(result);
     }, 600);
 
@@ -145,7 +152,7 @@ export default function RouteDistanceField({ origin, destination, value, onChang
   async function lookUpNow() {
     setLooking(true);
     setMessage('');
-    const result = await fetchLaneDistance(origin, destination, true);
+    const result = await fetchTripDistance(stops, true);
     setLooking(false);
     apply(result);
   }
@@ -184,10 +191,14 @@ export default function RouteDistanceField({ origin, destination, value, onChang
         ) : (
           <p className="text-sm text-gray-500">
             {message || (showButton
-              ? 'Not worked out yet — each new lane is charged, so it waits for you'
+              ? (stops.length > 2
+                ? `Not worked out yet — each leg not looked up before is charged (${stops.length - 1} legs), so it waits for you`
+                : 'Not worked out yet — each new lane is charged, so it waits for you')
               : routable
                 ? 'Not worked out yet'
-                : 'Enter both addresses to work out the distance')}
+                : stops.length > 2
+                  ? 'Enter the address of every stop to work out the distance'
+                  : 'Enter both addresses to work out the distance')}
           </p>
         )}
         {showButton && (

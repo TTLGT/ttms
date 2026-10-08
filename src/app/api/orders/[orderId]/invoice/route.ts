@@ -5,7 +5,7 @@ import { documentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { actorForUid, updateWithHistory } from '@/lib/recordHistory';
 import { generateInvoiceBuffer } from '@/lib/invoice-pdf';
 import type { InvoiceData } from '@/lib/invoice-pdf';
-import { orderDisplayNumber } from '@/types/order';
+import { orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -56,10 +56,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     commodity:         order.commodity            ?? '',
     pieces:            order.pieces               ?? 0,
     weight:            order.weight               ?? 0,
-    originCity:        order.origin?.city         ?? '',
-    originState:       order.origin?.state        ?? '',
-    destCity:          order.destination?.city    ?? '',
-    destState:         order.destination?.state   ?? '',
+    // Every stop, so a multi-stop load is billed against the route it ran.
+    pickupPlaces:      stopPlaces(orderPickups(order)),
+    deliveryPlaces:    stopPlaces(orderDeliveries(order)),
     pickupDate:        formatLongDateRange(order.pickupDate, order.pickupDateEnd),
     deliveryDate:      formatLongDateRange(order.deliveryDate, order.deliveryDateEnd),
     agreedRate:        order.agreedRate           ?? 0,

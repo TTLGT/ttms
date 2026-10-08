@@ -15,6 +15,9 @@ import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
+import AddressFields, { BLANK_ADDRESS } from '@/components/orders/AddressFields';
+import ExtraStopsFields, { stopDraftsFrom, stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
+import type { StopDraft } from '@/components/orders/ExtraStopsFields';
 import { commoditySummary, orderCommodityItems, totalPieces, totalWeightLb, totalCommodityValue, orderDisplayNumber } from '@/types/order';
 import type { Order, Address, CommodityItem } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
@@ -28,45 +31,9 @@ import DateRangeField, { dateRangeProblem } from '@/components/DateRangeField';
 import { ORDER_SECTION_LABEL, isOrderSection } from '@/components/orders/SectionEditLink';
 import type { OrderSection } from '@/components/orders/SectionEditLink';
 
-const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
-
-const US_STATES = [
-  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
-  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
-  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
-  'VA','WA','WV','WI','WY',
-];
-
 function tsToDateStr(ts: Order['pickupDate']): string {
   if (!ts || typeof (ts as { toDate?: unknown }).toDate !== 'function') return '';
   return (ts as { toDate: () => Date }).toDate().toISOString().slice(0, 10);
-}
-
-function AddressFields({ label, value, onChange }: {
-  label: string; value: Address; onChange: (a: Address) => void;
-}) {
-  const set = (k: keyof Address) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    onChange({ ...value, [k]: e.target.value });
-  return (
-    <div>
-      <p className="text-sm font-semibold text-gray-700 mb-3">{label}</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="col-span-1 sm:col-span-2">
-          <input placeholder="Street address" value={value.street} onChange={set('street')}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-        </div>
-        <input placeholder="City" value={value.city} onChange={set('city')}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-        <select value={value.state} onChange={set('state')}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
-          <option value="">State</option>
-          {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <input placeholder="ZIP" value={value.zip} onChange={set('zip')}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-      </div>
-    </div>
-  );
 }
 
 /**
@@ -117,6 +84,8 @@ export default function EditOrderPage() {
   const [commodities, setCommodities]   = useState<CommodityItem[]>([]);
   const [origin, setOrigin]             = useState<Address>(BLANK_ADDRESS);
   const [destination, setDest]          = useState<Address>(BLANK_ADDRESS);
+  const [extraPickups, setExtraPickups]       = useState<StopDraft[]>([]);
+  const [extraDeliveries, setExtraDeliveries] = useState<StopDraft[]>([]);
   const [routeMapUrl, setRouteMapUrl]   = useState('');
   const [distance, setDistance]         = useState<LaneDistanceValue>({ laneMiles: null, laneMilesSource: null, laneMilesAt: null });
   const [sourceId, setSourceId] = useState<string | null>(null);
@@ -135,6 +104,12 @@ export default function EditOrderPage() {
   // Narrower than the right to edit the order at all — dispatch and finance can
   // work a load without being able to change what it is credited to.
   const canEditThisSource = !!user && !!order && canEditSource(order, user.uid, profile);
+
+  // Every stop in driving order, for the mileage and the map link.
+  const tripStops = [
+    origin, ...extraPickups.map((d) => d.address),
+    destination, ...extraDeliveries.map((d) => d.address),
+  ];
 
   // The legacy single-value fields are kept in sync from the items — see the
   // note on Order.commodity.
@@ -167,6 +142,8 @@ export default function EditOrderPage() {
         setCommodities(orderCommodityItems(o));
         setOrigin(o.origin ?? BLANK_ADDRESS);
         setDest(o.destination ?? BLANK_ADDRESS);
+        setExtraPickups(stopDraftsFrom(o.extraPickups));
+        setExtraDeliveries(stopDraftsFrom(o.extraDeliveries));
         setRouteMapUrl(o.routeMapUrl ?? '');
         setDistance({
           laneMiles:       o.laneMiles ?? null,
@@ -221,18 +198,29 @@ export default function EditOrderPage() {
         || dateRangeProblem('Delivery Date', deliveryDate, deliveryDateEnd)
       : '';
     if (badRange) { setError(badRange); return; }
+    const badStop = shows('route')
+      ? stopsProblem('pickup', extraPickups) || stopsProblem('delivery', extraDeliveries)
+      : '';
+    if (badStop) { setError(badStop); return; }
 
     setError('');
     setSaving(true);
     try {
       // Reassigning a party to a role it has not held before must show up in
-      // that role's list.
+      // that role's list — the extra stops' parties too, when they are on screen.
+      const partyRoles: [PartyRole, string][] = [
+        ...partyBoxes.map(([role, sel]): [PartyRole, string] => [role, sel.id]),
+        ...(shows('route') ? [
+          ...stopPartyIdsIn(extraPickups).map((pid): [PartyRole, string] => ['shipper', pid]),
+          ...stopPartyIdsIn(extraDeliveries).map((pid): [PartyRole, string] => ['consignee', pid]),
+        ] : []),
+      ];
       await Promise.all(
-        partyBoxes
-          .filter(([, sel]) => sel.id)
+        partyRoles
+          .filter(([, pid]) => pid)
           // Best-effort: a party used under an approval is not writable by the
           // requester, and failing to tag a role must not block the order.
-          .map(([role, sel]) => tagRoleIfNew(sel.id, role).catch(() => {})),
+          .map(([role, pid]) => tagRoleIfNew(pid, role).catch(() => {})),
       );
 
       const ts = (d: string) => (d ? Timestamp.fromDate(new Date(d + 'T12:00:00')) : null);
@@ -274,6 +262,8 @@ export default function EditOrderPage() {
           shipperName:   shipper.name.trim(),
           consigneeId:   consignee.id,
           consigneeName: consignee.name.trim(),
+          extraPickups:    stopsForSave(extraPickups),
+          extraDeliveries: stopsForSave(extraDeliveries),
           origin,
           destination,
           routeMapUrl:  routeMapUrl.trim(),
@@ -402,22 +392,24 @@ export default function EditOrderPage() {
                 <PartyCombobox role="shipper"   label="Shipper (pickup)"     parties={parties}
                   value={shipper}   onChange={setShipper}   onPartyCreated={cacheParty} />
                 <AddressFields label="Origin" value={origin} onChange={setOrigin} />
+                <ExtraStopsFields kind="pickup" value={extraPickups} onChange={setExtraPickups}
+                  parties={parties} onPartyCreated={cacheParty} />
               </div>
               <div className="space-y-4">
                 <PartyCombobox role="consignee" label="Consignee (delivery)" parties={parties}
                   value={consignee} onChange={setConsignee} onPartyCreated={cacheParty} />
                 <AddressFields label="Destination" value={destination} onChange={setDest} />
+                <ExtraStopsFields kind="delivery" value={extraDeliveries} onChange={setExtraDeliveries}
+                  parties={parties} onPartyCreated={cacheParty} />
               </div>
             </div>
             <RouteDistanceField
-              origin={origin}
-              destination={destination}
+              stops={tripStops}
               value={distance}
               onChange={setDistance}
             />
             <RouteMapLinkField
-              origin={origin}
-              destination={destination}
+              stops={tripStops}
               value={routeMapUrl}
               onChange={setRouteMapUrl}
             />

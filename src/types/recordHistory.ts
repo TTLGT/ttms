@@ -83,6 +83,8 @@ export const UNRECORDED_FIELDS: ReadonlySet<string> = new Set([
   // The ids beside a name: the name is what changed as far as a reader is
   // concerned, and it is saved in the same patch every time the id is.
   'clientId', 'shipperId', 'consigneeId', 'carrierId', 'driverId',
+  // Worked out from the extra stops, which are recorded.
+  'stopPartyIds',
 ]);
 
 /** What each field is called on screen, where the field name is not already plain. */
@@ -104,6 +106,8 @@ const LABELS: Record<string, string> = {
   complexTerms: 'Complex terms',
   origin: 'Pickup address',
   destination: 'Delivery address',
+  extraPickups: 'Extra pickups',
+  extraDeliveries: 'Extra deliveries',
   routeMapUrl: 'Route map link',
   laneMiles: 'Lane miles',
   laneMilesSource: 'Mileage method',
@@ -185,6 +189,9 @@ const OPAQUE_FIELDS = new Set([
   'parentOrderId', 'signatureWaivedByUid', 'partyApprovals', 'fmcsa',
 ]);
 
+/** An order's extra pickups and deliveries — see OrderStop in src/types/order.ts. */
+const STOP_FIELDS = new Set(['extraPickups', 'extraDeliveries']);
+
 const DATE_FIELDS = new Set([
   'firstAvailablePickup', 'pickupDate', 'deliveryDate', 'pickupDateEnd',
   'deliveryDateEnd', 'dispatchedAt', 'pickedUpAt', 'deliveredAt',
@@ -227,6 +234,15 @@ export function describeChangeValue(
 
   if (field === 'status' && typeof value === 'string') {
     return STATUS_LABEL[value as OrderStatus] ?? value;
+  }
+  if (STOP_FIELDS.has(field) && Array.isArray(value)) {
+    // A stop is a party, an address and a date. Flattened like any other map
+    // it would print the party's document id and a raw timestamp.
+    return clip(value.map((s) => {
+      const stop = (s ?? {}) as { partyName?: string; address?: unknown; date?: DateLike };
+      const when = toDate(stop.date ?? null) ? formatDate(stop.date as DateLike) : '';
+      return [stop.partyName, flatten(stop.address ?? ''), when].filter(Boolean).join(', ');
+    }).join('; '));
   }
   if (MONEY_FIELDS.has(field) && typeof value === 'number') {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);

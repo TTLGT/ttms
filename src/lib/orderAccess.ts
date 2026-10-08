@@ -43,6 +43,8 @@ const COL = 'orders';
 const LIST_FIELDS = [
   'orderNumber', 'batsId', 'previousOrderNumber',
   'clientName', 'shipperName', 'origin', 'destination',
+  // Only to say "+2 stops" beside the lane; absent on most orders.
+  'extraPickups', 'extraDeliveries',
   'commodity', 'status', 'pickupDate', 'agreedRate',
   'parentOrderId', 'createdAt',
   // Not a column: the thumbnail beside the order number, signed in the route.
@@ -76,6 +78,12 @@ export interface OrderQuery {
   clientId?: string;
   shipperId?: string;
   consigneeId?: string;
+  /**
+   * A party at one of the extra pickups or deliveries — see OrderStop. Its own
+   * filter because those are a list on the order, matched with array-contains
+   * on `stopPartyIds`, where the first pickup and delivery are plain fields.
+   */
+  stopPartyId?: string;
   /** '' selects top-level orders; an id selects that order's suborders. */
   parentOrderId?: string;
   /**
@@ -180,6 +188,7 @@ export async function listVisibleOrdersPage(
     if (query.clientId)             q = q.where('clientId', '==', query.clientId);
     if (query.shipperId)            q = q.where('shipperId', '==', query.shipperId);
     if (query.consigneeId)          q = q.where('consigneeId', '==', query.consigneeId);
+    if (query.stopPartyId)          q = q.where('stopPartyIds', 'array-contains', query.stopPartyId);
     // `!= null` rather than `> ''`: the field is written as null when there is
     // no file, and an inequality also excludes documents missing it entirely,
     // which is what "has an attachment" should mean.
@@ -288,6 +297,7 @@ function unionFields(
   if (query.clientId)    fields.add('clientId');
   if (query.shipperId)   fields.add('shipperId');
   if (query.consigneeId) fields.add('consigneeId');
+  if (query.stopPartyId) fields.add('stopPartyIds');
   if (query.hasDocument) fields.add(query.hasDocument);
   if (query.search)      fields.add('searchTerms');
   if (query.pickupFrom)  fields.add('pickupDate');
@@ -716,6 +726,7 @@ function matchesFilters(order: Record<string, unknown>, query: OrderQuery): bool
   if (query.clientId && order.clientId !== query.clientId) return false;
   if (query.shipperId && order.shipperId !== query.shipperId) return false;
   if (query.consigneeId && order.consigneeId !== query.consigneeId) return false;
+  if (query.stopPartyId && !((order.stopPartyIds as string[] | undefined) ?? []).includes(query.stopPartyId)) return false;
   if (query.hasDocument && !order[query.hasDocument]) return false;
   if (query.search && !matchesSearch(order, query.search)) return false;
   if (query.pickupFrom && toMillis(order.pickupDate) < query.pickupFrom) return false;

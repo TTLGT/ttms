@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
       clientId:      p.get('clientId')     ?? undefined,
       shipperId:     p.get('shipperId')    ?? undefined,
       consigneeId:   p.get('consigneeId')  ?? undefined,
+      stopPartyId:   p.get('stopPartyId')  ?? undefined,
       // Validated against the known list rather than passed through: this
       // becomes a field name in a query, and an arbitrary one from the client
       // would let a caller probe fields the projection deliberately withholds.

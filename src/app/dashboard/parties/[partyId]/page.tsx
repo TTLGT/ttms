@@ -12,6 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import { partyDisplayName, PARTY_ROLES, ROLE_LABEL, BLANK_ADDRESS } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
 import type { Address, Order } from '@/types/order';
+import ExtraStopsNote from '@/components/orders/ExtraStopsNote';
 import type { UserProfile } from '@/types/userProfile';
 import type { WorkGroup } from '@/types/workGroup';
 import StatusBadge from '@/components/orders/StatusBadge';
@@ -76,8 +77,10 @@ function millis(value: unknown): number {
 function rolesOnOrder(order: Order, partyId: string): PartyRole[] {
   const roles: PartyRole[] = [];
   if (order.clientId === partyId)    roles.push('client');
-  if (order.shipperId === partyId)   roles.push('shipper');
-  if (order.consigneeId === partyId) roles.push('consignee');
+  // A shipper or consignee at an extra stop played the same role as the first.
+  const atStop = (stops: Order['extraPickups']) => (stops ?? []).some((s) => s.partyId === partyId);
+  if (order.shipperId === partyId || atStop(order.extraPickups))       roles.push('shipper');
+  if (order.consigneeId === partyId || atStop(order.extraDeliveries))  roles.push('consignee');
   return roles;
 }
 
@@ -150,13 +153,18 @@ export default function PartyDetailPage() {
         // the role lives on the order, so each is asked for separately and the
         // results merged — a party that was both shipper and consignee on the
         // same order would otherwise appear twice.
-        const [asClient, asShipper, asConsignee] = await Promise.all([
+        const [asClient, asShipper, asConsignee, atStop] = await Promise.all([
           listOrders({ clientId: partyId }),
           listOrders({ shipperId: partyId }),
           listOrders({ consigneeId: partyId }),
+          // A second or later pickup or delivery. Allowed to fail on its own:
+          // this one needs a composite index of its own (stopPartyIds +
+          // createdAt), and until that is built the rest of the page should
+          // still list the loads it always did.
+          listOrders({ stopPartyId: partyId }).catch(() => [] as Order[]),
         ]);
         const byId = new Map<string, Order>();
-        for (const o of [...asClient, ...asShipper, ...asConsignee]) byId.set(o.id, o);
+        for (const o of [...asClient, ...asShipper, ...asConsignee, ...atStop]) byId.set(o.id, o);
         setOrders([...byId.values()].sort(
           (a, b) => millis(b.createdAt) - millis(a.createdAt),
         ));
@@ -545,6 +553,7 @@ export default function PartyDetailPage() {
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
                     {[formatRouteEnd(o.origin), formatRouteEnd(o.destination)].filter(Boolean).join(' → ') || '—'}
+                    <ExtraStopsNote order={o} />
                   </td>
                   <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
                   <td className="px-4 py-3 text-sm text-gray-600">{formatDate(o.pickupDate)}</td>

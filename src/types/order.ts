@@ -342,10 +342,154 @@ export function buildRouteMapUrl(
   origin: Address | null | undefined,
   destination: Address | null | undefined,
 ): string {
-  const from = addressToQuery(origin);
-  const to = addressToQuery(destination);
-  if (!from || !to) return '';
-  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&travelmode=driving`;
+  return buildTripMapUrl([origin, destination]);
+}
+
+/**
+ * The same link through every stop, in the order they are driven. Stops with
+ * no address yet are left out rather than refusing the whole link, but the two
+ * ends still have to be there.
+ */
+export function buildTripMapUrl(stops: readonly (Address | null | undefined)[]): string {
+  const points = stops.map(addressToQuery);
+  const from = points[0];
+  const to = points[points.length - 1];
+  if (points.length < 2 || !from || !to) return '';
+  const via = points.slice(1, -1).filter(Boolean);
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(from)}`
+    + `&destination=${encodeURIComponent(to)}`
+    + (via.length ? `&waypoints=${encodeURIComponent(via.join('|'))}` : '')
+    + '&travelmode=driving';
+}
+
+// ── Stops ────────────────────────────────────────────────────────────────────
+
+/**
+ * A pickup or delivery beyond the first.
+ *
+ * The first pickup and the first delivery are still the order's own
+ * `shipperId` / `origin` / `pickupDate` and `consigneeId` / `destination` /
+ * `deliveryDate`, and the extra ones sit beside them in `extraPickups` and
+ * `extraDeliveries`. Done that way, rather than moving every stop into one
+ * list, so that every query, index, view, list column, PDF and import that
+ * reads those fields keeps working unchanged on every order — the ten thousand
+ * imported ones included — with no migration. A load with one of each simply
+ * has two empty lists, or none at all.
+ *
+ * The route is driven in the order shown: every pickup, then every delivery.
+ * That is the order the map link and the trip distance follow.
+ */
+export interface OrderStop {
+  /** The party at this stop. Empty only for a stop typed in with no record. */
+  partyId: string;
+  partyName: string;
+  address: Address;
+  /** Appointment day (or first day of a window), and its last day. */
+  date: Timestamp | null;
+  dateEnd: Timestamp | null;
+}
+
+export type StopKind = 'pickup' | 'delivery';
+
+/**
+ * How many extra stops of each kind one order may carry. Google Maps takes at
+ * most nine stops between the two ends of a directions link, and this keeps
+ * the whole trip inside that: 1 + 4 pickups, 1 + 4 deliveries.
+ */
+export const MAX_EXTRA_STOPS = 4;
+
+type StopFields = Partial<Pick<Order,
+  'shipperId' | 'shipperName' | 'origin' | 'pickupDate' | 'pickupDateEnd'
+  | 'consigneeId' | 'consigneeName' | 'destination' | 'deliveryDate' | 'deliveryDateEnd'
+  | 'extraPickups' | 'extraDeliveries'>>;
+
+/** Every pickup, first one included, in the order they are made. */
+export function orderPickups(order: StopFields): OrderStop[] {
+  return [
+    {
+      partyId:   order.shipperId ?? '',
+      partyName: order.shipperName ?? '',
+      address:   order.origin ?? { street: '', city: '', state: '', zip: '', country: 'US' },
+      date:      order.pickupDate ?? null,
+      dateEnd:   order.pickupDateEnd ?? null,
+    },
+    ...(order.extraPickups ?? []),
+  ];
+}
+
+/** Every delivery, first one included, in the order they are made. */
+export function orderDeliveries(order: StopFields): OrderStop[] {
+  return [
+    {
+      partyId:   order.consigneeId ?? '',
+      partyName: order.consigneeName ?? '',
+      address:   order.destination ?? { street: '', city: '', state: '', zip: '', country: 'US' },
+      date:      order.deliveryDate ?? null,
+      dateEnd:   order.deliveryDateEnd ?? null,
+    },
+    ...(order.extraDeliveries ?? []),
+  ];
+}
+
+/** The whole trip as addresses, in driving order — what the map and the mileage follow. */
+export function tripAddresses(order: StopFields): Address[] {
+  return [...orderPickups(order), ...orderDeliveries(order)].map((s) => s.address);
+}
+
+/** How many stops the load makes beyond one pickup and one delivery. */
+export function extraStopCount(order: StopFields): number {
+  return (order.extraPickups?.length ?? 0) + (order.extraDeliveries?.length ?? 0);
+}
+
+/**
+ * The parties at the extra stops — see `stopPartyIds` on Order. Only the
+ * extras: the first pickup and delivery are already queryable as
+ * `shipperId` / `consigneeId`.
+ */
+export function stopPartyIdsOf(order: StopFields): string[] {
+  const ids = [...(order.extraPickups ?? []), ...(order.extraDeliveries ?? [])]
+    .map((s) => s.partyId)
+    .filter(Boolean);
+  return [...new Set(ids)];
+}
+
+/**
+ * A list of stops as it arrived in a save, made safe to store: a list, at most
+ * MAX_EXTRA_STOPS long, each entry carrying exactly the stop's fields. The
+ * screens only ever send this shape; the server trims to it anyway because the
+ * route takes whatever JSON it is given.
+ */
+export function cleanStops(value: unknown): OrderStop[] {
+  if (!Array.isArray(value)) return [];
+  const text = (v: unknown) => (typeof v === 'string' ? v : '');
+  return value.slice(0, MAX_EXTRA_STOPS).filter((v) => v && typeof v === 'object').map((v) => {
+    const s = v as Record<string, unknown>;
+    const a = (s.address && typeof s.address === 'object' ? s.address : {}) as Record<string, unknown>;
+    return {
+      partyId:   text(s.partyId),
+      partyName: text(s.partyName).trim(),
+      address: {
+        street:  text(a.street),
+        city:    text(a.city),
+        state:   text(a.state),
+        zip:     text(a.zip),
+        country: text(a.country) || 'US',
+      },
+      date:    (s.date ?? null) as Timestamp | null,
+      dateEnd: (s.dateEnd ?? null) as Timestamp | null,
+    };
+  });
+}
+
+/**
+ * "Dallas, TX" for one stop, or every stop of a kind joined up — what the
+ * agreement emails, the signing page and the invoice print as From and To.
+ */
+export function stopPlaces(stops: readonly OrderStop[]): string {
+  return stops
+    .map((s) => [s.address?.city, s.address?.state].filter(Boolean).join(', '))
+    .filter(Boolean)
+    .join('; ');
 }
 
 export interface Order {
@@ -371,6 +515,20 @@ export interface Order {
   /** Destination party / delivery location — receives the load. */
   consigneeId: string;
   consigneeName: string;
+  /**
+   * Pickups and deliveries after the first — see `OrderStop`. Absent on every
+   * order that has only the one of each. Read the whole trip through
+   * `orderPickups()` / `orderDeliveries()`, never these alone.
+   */
+  extraPickups?: OrderStop[];
+  extraDeliveries?: OrderStop[];
+  /**
+   * The parties at the extra stops, so a party's page can find a load it is
+   * only the second pickup on — Firestore cannot look inside a list of maps,
+   * but it can ask `array-contains` of a list of ids. Worked out on save by
+   * src/lib/orderWrites.ts; never sent by the browser.
+   */
+  stopPartyIds?: string[];
   parentOrderId: string | null;
   status: OrderStatus;
   /**
@@ -693,6 +851,11 @@ function searchableText(order: Record<string, unknown>): string[] {
     const v = a as { city?: string; state?: string } | null | undefined;
     return [v?.city ?? '', v?.state ?? ''];
   };
+  // The extra stops are searched like the first ones: by who and where.
+  const stops = [
+    ...((order.extraPickups as OrderStop[] | undefined) ?? []),
+    ...((order.extraDeliveries as OrderStop[] | undefined) ?? []),
+  ].flatMap((s) => [String(s?.partyName ?? ''), ...address(s?.address)]);
   return [
     String(order.shipperName ?? ''),
     String(order.clientName ?? ''),
@@ -701,6 +864,7 @@ function searchableText(order: Record<string, unknown>): string[] {
     String(order.commodity ?? ''),
     ...address(order.origin),
     ...address(order.destination),
+    ...stops,
   ];
 }
 

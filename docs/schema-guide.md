@@ -164,10 +164,13 @@ orders/{orderId}
   commodities     : CommodityItem[] // itemised freight — source of truth
   pieces          : number          // DERIVED: sum of commodities[].quantity
   weight          : number          // DERIVED: total lbs across commodities
-  origin          : Address
-  destination     : Address
-  routeMapUrl     : string          // Google Maps directions link; auto-built, editable
-  laneMiles       : number | null   // distance between the two addresses; see below
+  origin          : Address         // the FIRST pickup's address
+  destination     : Address         // the FIRST delivery's address
+  extraPickups    : OrderStop[]     // optional — pickups after the first; see "More than one pickup or delivery"
+  extraDeliveries : OrderStop[]     // optional — deliveries after the first
+  stopPartyIds    : string[]        // DERIVED on save: party ids at the extra stops, for array-contains
+  routeMapUrl     : string          // Google Maps directions link through every stop; auto-built, editable
+  laneMiles       : number | null   // distance of the whole trip, every stop in order; see below
   laneMilesSource : "estimate" | "routes" | null   // how laneMiles was obtained
   laneMilesAt     : Timestamp | null   // when laneMiles was worked out; see below
   pickupDate      : Timestamp | null
@@ -311,6 +314,43 @@ clock, taking the lane's own `lastRefreshedAt ?? createdAt` on a cache hit. An
 admin recheck moves it with the mileage. It is null on orders written before
 the field existed, which is why every screen hides the line rather than showing
 a blank.
+
+### More than one pickup or delivery
+
+A load can stop at up to five pickups and five deliveries. The **first** of each
+is still the order's own fields — `shipperId` / `shipperName` / `origin` /
+`pickupDate` and `consigneeId` / `consigneeName` / `destination` /
+`deliveryDate` — and any further ones are listed in `extraPickups` and
+`extraDeliveries`:
+
+```
+OrderStop
+  partyId    : string            // → parties/{partyId}
+  partyName  : string
+  address    : Address
+  date       : Timestamp | null  // appointment, or first day of a window
+  dateEnd    : Timestamp | null  // last day of the window
+```
+
+It is built that way, rather than as one list of every stop, so that every
+query, index, dashboard view, PDF and import that reads the first-stop fields
+keeps working on every order with no migration. Both lists are absent on a
+load with one of each. Read the whole trip through `orderPickups()` /
+`orderDeliveries()` in `src/types/order.ts`, never the two lists alone.
+
+- **The route is driven in the order shown**: every pickup, then every
+  delivery. The map link passes the stops in between as waypoints, and
+  `laneMiles` is the sum of each leg, each looked up as an ordinary two-stop
+  lane — so under Google Routes a leg already in `laneDistances` is not bought
+  again, and a trip with a new leg waits for the button like a new lane does.
+  If any leg is an estimate, the total is labelled one.
+- **`stopPartyIds` exists so a party's page can find a load it is only the
+  second pickup on.** Firestore cannot look inside a list of maps; it can ask
+  `array-contains` of a list of ids. `src/lib/orderWrites.ts` works it out in
+  the same write as the stops, and the browser cannot send it. It needs the
+  `stopPartyIds` + `createdAt` index; until that is built the party page lists
+  everything else and skips these.
+- Search covers the extra stops' party names and cities too.
 
 ## Collection: `appSettings`
 
@@ -661,6 +701,7 @@ page boundary and be served twice or skipped.
 | orders   | `parentOrderId` ASC + `searchTerms` ARRAY + `createdAt` DESC | The Orders search box |
 | orders   | `parentOrderId` ASC + `status` ASC + `searchTerms` ARRAY + `createdAt` DESC | Searching within a status tab |
 | orders   | `shipperId` ASC + `createdAt` DESC | A party's orders, as shipper |
+| orders   | `stopPartyIds` ARRAY + `createdAt` DESC | A party's orders, as a second or later pickup or delivery |
 | messages (collection id, any conversation) | `searchTerms` ARRAY + `createdAt` DESC | The chat search box |
 | replies (collection id, any conversation)  | `searchTerms` ARRAY + `createdAt` DESC | The same, reaching inside threads |
 | messages (collection id, any conversation) | `contentKinds` ARRAY + `createdAt` DESC | The Files and links panel |

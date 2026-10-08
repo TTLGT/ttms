@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "e15a52bdeffc9aa7838cc34f2f7b2056ed4b68f7",
+      "date": "2026-10-07T22:41:12-06:00",
+      "author": "erwindank",
+      "subject": "Count deliveries for the week and cut dashboard dates at the user's midnight",
+      "body": "The \"Delivered today\" card is now \"Delivered this week\": loads whose\ndelivery date falls between Sunday 00:00 and the next Sunday, whatever\ntheir status now, so a load closed out after delivering still counts.\nOld ?view=delivered_today links open the weekly list.\n\nEvery date card (today, this week, this month) and the list each one\nopens now start at midnight in the browser's time zone, falling back to\nGuatemala, instead of the server's UTC clock, which put midnight at 6pm\nthe evening before."
+    },
+    {
       "hash": "e4a1a2c2778198944c657ce86409ef608fe52d0b",
       "date": "2026-10-07T22:15:50-06:00",
       "author": "erwindank",

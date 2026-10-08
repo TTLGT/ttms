@@ -188,6 +188,8 @@ export interface OrderQuery {
   clientId?: string;
   shipperId?: string;
   consigneeId?: string;
+  /** A party at a pickup or delivery after the first — see OrderStop. */
+  stopPartyId?: string;
   /** '' asks for top-level orders only; an id asks for that order's suborders. */
   parentOrderId?: string;
   /** Only orders carrying this attachment. */
@@ -226,6 +228,7 @@ function orderQueryString(q: OrderQuery): string {
   if (q.clientId)     p.set('clientId', q.clientId);
   if (q.shipperId)    p.set('shipperId', q.shipperId);
   if (q.consigneeId)  p.set('consigneeId', q.consigneeId);
+  if (q.stopPartyId)  p.set('stopPartyId', q.stopPartyId);
   if (q.fields)       p.set('fields', q.fields);
   if (q.hasDocument)  p.set('hasDocument', q.hasDocument);
   if (q.pickupFrom)   p.set('pickupFrom', String(q.pickupFrom));

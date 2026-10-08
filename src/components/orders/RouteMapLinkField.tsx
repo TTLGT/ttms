@@ -2,18 +2,19 @@
 
 import { useEffect, useRef } from 'react';
 import { ExternalLink, RefreshCw } from 'lucide-react';
-import { buildRouteMapUrl } from '@/types/order';
+import { buildTripMapUrl } from '@/types/order';
 import type { Address } from '@/types/order';
 
 interface Props {
-  origin: Address;
-  destination: Address;
+  /** Every stop in driving order — every pickup, then every delivery. */
+  stops: Address[];
   value: string;
   onChange: (url: string) => void;
 }
 
 /**
- * The Google Maps route link, kept in step with the two addresses.
+ * The Google Maps route link, kept in step with the addresses — through every
+ * stop, in order, when the load has more than one pickup or delivery.
  *
  * It rewrites itself while the field still holds a link this component
  * generated, and stops the moment a broker types their own — pasting a link to
@@ -21,8 +22,8 @@ interface Props {
  * editable, and having it overwritten on the next keystroke in the address
  * would make that impossible.
  */
-export default function RouteMapLinkField({ origin, destination, value, onChange }: Props) {
-  const auto = buildRouteMapUrl(origin, destination);
+export default function RouteMapLinkField({ stops, value, onChange }: Props) {
+  const auto = buildTripMapUrl(stops);
   // The last URL this component produced. Anything else already in the box —
   // a link loaded from a saved order, say — is the broker's own.
   const lastAuto = useRef(value);
@@ -86,7 +87,7 @@ export default function RouteMapLinkField({ origin, destination, value, onChange
         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
       />
       <p className="mt-1 text-xs text-gray-500">
-        Built from the origin and destination above. Paste your own link to override it — a custom
+        Built from the stops above. Paste your own link to override it — a custom
         link is never overwritten.
       </p>
     </div>

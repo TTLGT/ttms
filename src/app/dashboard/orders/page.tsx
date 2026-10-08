@@ -13,6 +13,7 @@ import ResizableTh from '@/components/table/ResizableTh';
 import { useColumnWidths, type ColumnWidths } from '@/lib/useColumnWidths';
 import { personHref } from '@/lib/directoryProfile';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import ExtraStopsNote from '@/components/orders/ExtraStopsNote';
 
 const FILTER_TABS: { label: string; value: OrderStatus | 'all' }[] = [
   { label: 'All',            value: 'all' },
@@ -440,6 +441,7 @@ function OrdersList() {
                     {order.origin?.city}, {order.origin?.state}
                     <span className="mx-1 text-gray-300">→</span>
                     {order.destination?.city}, {order.destination?.state}
+                    <ExtraStopsNote order={order} />
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 break-words">{order.commodity || '—'}</td>
                   <td className="px-4 py-3">

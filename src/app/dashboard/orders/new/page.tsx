@@ -21,6 +21,9 @@ import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
+import AddressFields, { BLANK_ADDRESS } from '@/components/orders/AddressFields';
+import ExtraStopsFields, { stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
+import type { StopDraft } from '@/components/orders/ExtraStopsFields';
 import { partyDisplayName, ROLE_LABEL } from '@/types/party';
 import { blankCommodityItem, commoditySummary, totalPieces, totalWeightLb, totalCommodityValue } from '@/types/order';
 import type { Address, CommodityItem } from '@/types/order';
@@ -28,42 +31,6 @@ import type { Party, PartyRole } from '@/types/party';
 import LeadSourceField from '@/components/orders/LeadSourceField';
 import DateField from '@/components/DateField';
 import DateRangeField, { dateRangeProblem } from '@/components/DateRangeField';
-
-const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
-
-const US_STATES = [
-  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
-  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
-  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
-  'VA','WA','WV','WI','WY',
-];
-
-function AddressFields({ label, value, onChange }: {
-  label: string; value: Address; onChange: (a: Address) => void;
-}) {
-  const set = (k: keyof Address) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    onChange({ ...value, [k]: e.target.value });
-  return (
-    <div>
-      <p className="text-sm font-semibold text-gray-700 mb-3">{label}</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="col-span-1 sm:col-span-2">
-          <input placeholder="Street address" value={value.street} onChange={set('street')}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-        </div>
-        <input placeholder="City" value={value.city} onChange={set('city')}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-        <select value={value.state} onChange={set('state')}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
-          <option value="">State</option>
-          {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <input placeholder="ZIP" value={value.zip} onChange={set('zip')}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-      </div>
-    </div>
-  );
-}
 
 /**
  * Names typed into a party box that never became a record.
@@ -108,6 +75,8 @@ function NewOrderForm() {
   const [commodities, setCommodities]   = useState<CommodityItem[]>([blankCommodityItem()]);
   const [origin, setOrigin]             = useState<Address>(BLANK_ADDRESS);
   const [destination, setDest]          = useState<Address>(BLANK_ADDRESS);
+  const [extraPickups, setExtraPickups]       = useState<StopDraft[]>([]);
+  const [extraDeliveries, setExtraDeliveries] = useState<StopDraft[]>([]);
   const [routeMapUrl, setRouteMapUrl]   = useState('');
   const [distance, setDistance]         = useState<LaneDistanceValue>({ laneMiles: null, laneMilesSource: null, laneMilesAt: null });
   const [sourceId, setSourceId] = useState<string | null>(null);
@@ -125,6 +94,12 @@ function NewOrderForm() {
 
   // The legacy single-value fields stay on the order, derived from the items,
   // so lists, PDFs and agreement emails keep working unchanged.
+  // Every stop in driving order, for the mileage and the map link.
+  const tripStops = [
+    origin, ...extraPickups.map((d) => d.address),
+    destination, ...extraDeliveries.map((d) => d.address),
+  ];
+
   const commodityItems = commodities.filter((c) => c.description.trim() || c.weight || c.length || c.width || c.height || c.value != null);
 
   useEffect(() => {
@@ -193,18 +168,26 @@ function NewOrderForm() {
     const badRange = dateRangeProblem('Pickup Date', pickupDate, pickupDateEnd)
       || dateRangeProblem('Delivery Date', deliveryDate, deliveryDateEnd);
     if (badRange) { setError(badRange); return; }
+    const badStop = stopsProblem('pickup', extraPickups) || stopsProblem('delivery', extraDeliveries);
+    if (badStop) { setError(badStop); return; }
 
     setError('');
     setSaving(true);
     try {
+      // Every party on the load, extra stops included, in the role it plays.
+      const partyRoles: [PartyRole, string][] = [
+        ['client', client.id], ['shipper', shipper.id], ['consignee', consignee.id],
+        ...stopPartyIdsIn(extraPickups).map((pid): [PartyRole, string] => ['shipper', pid]),
+        ...stopPartyIdsIn(extraDeliveries).map((pid): [PartyRole, string] => ['consignee', pid]),
+      ];
       // A party may be reused in a role it has never held before; record that
       // so role-filtered lists pick it up.
       await Promise.all(
-        ([['client', client], ['shipper', shipper], ['consignee', consignee]] as const)
-          .filter(([, sel]) => sel.id)
+        partyRoles
+          .filter(([, pid]) => pid)
           // Best-effort: a party used under an approval is not writable by the
           // requester, and failing to tag a role must not block the order.
-          .map(([role, sel]) => tagRoleIfNew(sel.id, role).catch(() => {})),
+          .map(([role, pid]) => tagRoleIfNew(pid, role).catch(() => {})),
       );
 
       const clientParty = parties.find((p) => p.id === client.id);
@@ -216,6 +199,8 @@ function NewOrderForm() {
         shipperName:   shipper.name.trim(),
         consigneeId:   consignee.id,
         consigneeName: consignee.name.trim(),
+        extraPickups:    stopsForSave(extraPickups),
+        extraDeliveries: stopsForSave(extraDeliveries),
         parentOrderId: null,
         status:       'quote',
         commodity:    commoditySummary(commodityItems),
@@ -298,9 +283,9 @@ function NewOrderForm() {
       // Stamp proof of authorization for any party the creator does not own.
       // Server-side, so the record cannot be fabricated by its beneficiary.
       await Promise.all(
-        ([['client', client], ['shipper', shipper], ['consignee', consignee]] as const)
-          .filter(([, sel]) => sel.id)
-          .map(([role, sel]) => recordPartyApproval(id, sel.id, role).catch(() => {})),
+        partyRoles
+          .filter(([, pid]) => pid)
+          .map(([role, pid]) => recordPartyApproval(id, pid, role).catch(() => {})),
       );
 
       router.push(`/dashboard/orders/${id}`);
@@ -395,6 +380,8 @@ function NewOrderForm() {
                   onPartyCreated={cacheParty}
                 />
                 <AddressFields label="Origin" value={origin} onChange={setOrigin} />
+                <ExtraStopsFields kind="pickup" value={extraPickups} onChange={setExtraPickups}
+                  parties={parties} onPartyCreated={cacheParty} />
               </div>
               <div className="space-y-4">
                 <PartyCombobox
@@ -406,17 +393,17 @@ function NewOrderForm() {
                   onPartyCreated={cacheParty}
                 />
                 <AddressFields label="Destination" value={destination} onChange={setDest} />
+                <ExtraStopsFields kind="delivery" value={extraDeliveries} onChange={setExtraDeliveries}
+                  parties={parties} onPartyCreated={cacheParty} />
               </div>
             </div>
             <RouteDistanceField
-              origin={origin}
-              destination={destination}
+              stops={tripStops}
               value={distance}
               onChange={setDistance}
             />
             <RouteMapLinkField
-              origin={origin}
-              destination={destination}
+              stops={tripStops}
               value={routeMapUrl}
               onChange={setRouteMapUrl}
             />

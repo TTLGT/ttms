@@ -336,7 +336,10 @@ function orderSearchTerms(order) {
     .map((v) => String(v || ''));
   const text = [order.shipperName, order.clientName, order.consigneeName,
                 order.carrierName, order.commodity,
-                ...addr(order.origin), ...addr(order.destination)]
+                ...addr(order.origin), ...addr(order.destination),
+                // The extra pickups and deliveries, by who and where.
+                ...[...(order.extraPickups || []), ...(order.extraDeliveries || [])]
+                  .flatMap((st) => [(st && st.partyName) || '', ...addr(st && st.address)])]
     .map((v) => String(v || ''));
 
   const terms = new Set();

@@ -24,7 +24,10 @@ import {
   itemWeightLb,
   orderCommodityItems,
   totalCommodityValue,
-  buildRouteMapUrl,
+  buildTripMapUrl,
+  tripAddresses,
+  orderPickups,
+  orderDeliveries,
   formatLaneMiles,
   isRoutableAddress,
   laneMilesAtNote,
@@ -33,7 +36,7 @@ import {
   orderDisplayNumber,
   orderAltNumber,
 } from '@/types/order';
-import { fetchLaneDistance } from '@/lib/routeDistanceClient';
+import { fetchTripDistance } from '@/lib/routeDistanceClient';
 import { toDate } from '@/lib/dateFormat';
 import type { Timestamp } from 'firebase/firestore';
 import StatusBadge from '@/components/orders/StatusBadge';
@@ -347,8 +350,11 @@ export default function OrderDetailPage() {
   const clientId    = order?.clientId    ?? '';
   const shipperId   = order?.shipperId   ?? '';
   const consigneeId = order?.consigneeId ?? '';
+  // The extra stops' parties, as one string so the effect re-runs only when
+  // the set of them changes rather than on every render.
+  const stopIds = (order?.stopPartyIds ?? []).join(',');
   useEffect(() => {
-    const ids = [...new Set([clientId, shipperId, consigneeId].filter(Boolean))];
+    const ids = [...new Set([clientId, shipperId, consigneeId, ...stopIds.split(',')].filter(Boolean))];
     if (!ids.length) { setPartyById({}); return; }
     let cancelled = false;
     Promise.all(ids.map((id) => getParty(id).catch(() => null))).then((results) => {
@@ -358,7 +364,7 @@ export default function OrderDetailPage() {
       setPartyById(next);
     });
     return () => { cancelled = true; };
-  }, [clientId, shipperId, consigneeId]);
+  }, [clientId, shipperId, consigneeId, stopIds]);
 
   /**
    * Fill in the distance for an order that has none — one created before this
@@ -373,13 +379,13 @@ export default function OrderDetailPage() {
    */
   useEffect(() => {
     if (!order || order.laneMiles !== null && order.laneMiles !== undefined) return;
-    if (!isRoutableAddress(order.origin) || !isRoutableAddress(order.destination)) return;
+    if (!tripAddresses(order).every(isRoutableAddress)) return;
     if (backfilledRef.current === order.id) return;
     backfilledRef.current = order.id;
 
     let cancelled = false;
     (async () => {
-      const result = await fetchLaneDistance(order.origin, order.destination);
+      const result = await fetchTripDistance(tripAddresses(order));
       if (cancelled) return;
       if (result.status === 'needs_lookup') { setMilesNeedLookup(true); return; }
       if (result.status !== 'ok') return;
@@ -410,7 +416,7 @@ export default function OrderDetailPage() {
 
     setRefreshingMiles(true);
     setMilesNote('');
-    const result = await fetchLaneDistance(order.origin, order.destination, true);
+    const result = await fetchTripDistance(tripAddresses(order), true);
     setRefreshingMiles(false);
 
     if (result.status !== 'ok') {
@@ -444,10 +450,19 @@ export default function OrderDetailPage() {
   async function handleRefreshMiles() {
     if (!order || !user) return;
 
+    // One lookup per leg. A load with extra stops is rechecked leg by leg, the
+    // same lanes the trip distance was added up from — see fetchTripDistance.
+    const stops = tripAddresses(order);
+    const legs = stops.slice(1).map((to, i) => [stops[i], to] as const);
+
     const ok = window.confirm(
-      'Ask Google for this lane again?\n\n'
-      + 'This charges for one lookup and replaces the mileage stored for this '
-      + 'order. Other orders on the same lane keep their current mileage.',
+      legs.length === 1
+        ? 'Ask Google for this lane again?\n\n'
+          + 'This charges for one lookup and replaces the mileage stored for this '
+          + 'order. Other orders on the same lane keep their current mileage.'
+        : `Ask Google for every leg of this trip again?\n\n`
+          + `This load has ${stops.length} stops, so this charges for ${legs.length} lookups, `
+          + 'and replaces the mileage stored for this order. Other orders keep their current mileage.',
     );
     if (!ok) return;
 
@@ -455,32 +470,37 @@ export default function OrderDetailPage() {
     setMilesNote('');
     try {
       const idToken = await user.getIdToken();
-      const res = await fetch('/api/route-distance/refresh', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({
-          origin: order.origin,
-          destination: order.destination,
-          orderId: order.id,
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? 'Refresh failed');
+      let miles = 0;
+      let calculatedAt: string | null = null;
+      // One at a time, so a leg Google cannot route stops the rest from being
+      // bought for a total that would not be saved anyway.
+      for (const [from, to] of legs) {
+        const res = await fetch('/api/route-distance/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify({ origin: from, destination: to, orderId: order.id }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error ?? 'Refresh failed');
+        miles += body.miles as number;
+        calculatedAt = calculatedAt ?? (body.calculatedAt as string | null);
+      }
+      const previousMiles = order.laneMiles ?? null;
 
       const patch = {
-        laneMiles: body.miles as number,
+        laneMiles: miles,
         laneMilesSource: 'routes' as const,
         // Moves with the number: the point of a recheck is that the figure is
         // as of now, and a date left behind would say the opposite.
-        laneMilesAt: laneMilesStamp(body.calculatedAt as string | null),
+        laneMilesAt: laneMilesStamp(calculatedAt),
       };
       setOrder((prev) => (prev ? { ...prev, ...patch } : prev));
       await updateOrder(order.id, patch);
 
       setMilesNote(
-        body.previousMiles === null || body.previousMiles === body.miles
+        previousMiles === null || previousMiles === miles
           ? 'Rechecked — unchanged.'
-          : `Updated from ${body.previousMiles} mi.`,
+          : `Updated from ${previousMiles} mi.`,
       );
     } catch (e: unknown) {
       setMilesNote(e instanceof Error ? e.message : 'Refresh failed');
@@ -789,6 +809,11 @@ export default function OrderDetailPage() {
         weight:       0,
         origin:       order.origin,
         destination:  order.destination,
+        // The whole route, extra stops included, so the copied mileage below
+        // still describes it. Their dates are left for dispatch, as the first
+        // pickup's and delivery's are.
+        extraPickups:    (order.extraPickups ?? []).map((s) => ({ ...s, date: null, dateEnd: null })),
+        extraDeliveries: (order.extraDeliveries ?? []).map((s) => ({ ...s, date: null, dateEnd: null })),
         routeMapUrl:  order.routeMapUrl ?? '',
         // Same origin and destination as the parent, so the same lane — and
         // under Google Routes, no reason to buy the identical lookup twice.
@@ -1091,25 +1116,40 @@ export default function OrderDetailPage() {
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Route</h3>
               <SectionEditLink orderId={orderId} section="route" />
             </div>
+            {/* Every pickup on the left and every delivery on the right, in
+                the order they are driven. A load with one of each reads
+                exactly as it always has; the numbering and the per-stop
+                dates only appear once there is more than one. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <DetailRow label="Shipper (Pick-Up Location)" value={<><PartyLink id={order.shipperId} name={order.shipperName} /><PartyContact party={partyById[order.shipperId ?? '']} /></>} />
-                <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">Origin</p>
-                  <p className="text-sm text-gray-900">
-                    {[order.origin?.street, order.origin?.city, order.origin?.state, order.origin?.zip].filter(Boolean).join(', ') || '—'}
-                  </p>
+              {([['pickup', orderPickups(order)], ['delivery', orderDeliveries(order)]] as const).map(([kind, stops]) => (
+                <div key={kind} className="space-y-4">
+                  {stops.map((s, i) => {
+                    const many = stops.length > 1;
+                    const label = kind === 'pickup'
+                      ? (many ? `Pickup ${i + 1} — Shipper` : 'Shipper (Pick-Up Location)')
+                      : (many ? `Delivery ${i + 1} — Consignee` : 'Consignee (Delivery Location)');
+                    return (
+                      <div key={i} className={`space-y-3 ${i > 0 ? 'pt-4 border-t border-gray-100' : ''}`}>
+                        <DetailRow label={label} value={<><PartyLink id={s.partyId} name={s.partyName} /><PartyContact party={partyById[s.partyId ?? '']} /></>} />
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 mb-1">
+                            {many ? 'Address' : kind === 'pickup' ? 'Origin' : 'Destination'}
+                          </p>
+                          <p className="text-sm text-gray-900">
+                            {[s.address?.street, s.address?.city, s.address?.state, s.address?.zip].filter(Boolean).join(', ') || '—'}
+                          </p>
+                        </div>
+                        {many && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 mb-1">Date</p>
+                            <p className="text-sm text-gray-900">{formatDateRange(s.date, s.dateEnd) || '—'}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-              <div className="space-y-3">
-                <DetailRow label="Consignee (Delivery Location)" value={<><PartyLink id={order.consigneeId} name={order.consigneeName} /><PartyContact party={partyById[order.consigneeId ?? '']} /></>} />
-                <div>
-                  <p className="text-xs font-medium text-gray-500 mb-1">Destination</p>
-                  <p className="text-sm text-gray-900">
-                    {[order.destination?.street, order.destination?.city, order.destination?.state, order.destination?.zip].filter(Boolean).join(', ') || '—'}
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
             {order.laneMiles !== null && order.laneMiles !== undefined ? (
               <div className="mt-4 flex items-center gap-2.5">
@@ -1160,7 +1200,9 @@ export default function OrderDetailPage() {
                     {refreshingMiles ? 'Asking Google…' : 'Work out the distance'}
                   </button>
                   <p className="text-xs text-gray-500">
-                    {milesNote || 'Nobody has looked this lane up before, and each new lane is charged.'}
+                    {milesNote || (tripAddresses(order).length > 2
+                      ? 'Part of this trip has not been looked up before, and each new leg is charged.'
+                      : 'Nobody has looked this lane up before, and each new lane is charged.')}
                   </p>
                 </div>
               </div>
@@ -1168,7 +1210,7 @@ export default function OrderDetailPage() {
             {/* Falls back to a link built on the fly, so orders saved before
                 the field existed still get a usable route. */}
             {(() => {
-              const mapUrl = order.routeMapUrl || buildRouteMapUrl(order.origin, order.destination);
+              const mapUrl = order.routeMapUrl || buildTripMapUrl(tripAddresses(order));
               if (!mapUrl) return null;
               return (
                 <a href={mapUrl} target="_blank" rel="noopener noreferrer"

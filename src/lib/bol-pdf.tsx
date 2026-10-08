@@ -13,6 +13,19 @@ export type BolCommodityLine = {
   weight: string;
 };
 
+/** One pickup or delivery after the first, pre-formatted like the rest. */
+export type BolStopLine = {
+  /** "PICKUP 2", "DELIVERY 3". */
+  label: string;
+  company: string;
+  phone: string;
+  street: string;
+  /** City, state and ZIP. */
+  place: string;
+  /** '' when no date was set for the stop. */
+  date: string;
+};
+
 export type BolData = {
   orderNumber: string;
   clientName: string;
@@ -40,6 +53,8 @@ export type BolData = {
   destZip: string;
   pickupDate: string;
   deliveryDate: string;
+  /** Every stop after the first pickup and the first delivery; usually none. */
+  extraStops: BolStopLine[];
   agreedRate: number;
   brokerFee: number;
   carrierPay: number;
@@ -205,6 +220,28 @@ function BolDocument({ d }: { d: BolData }) {
             <Field label="City / State / Zip" value={destLine} />
           </View>
         </View>
+
+        {/* The rest of the route. The two cards above are the first pickup
+            and the first delivery; a multi-stop load lists the others here,
+            in the order they are driven — pickups, then deliveries. */}
+        {d.extraStops.length > 0 && (
+          <View style={s.table}>
+            <View style={s.tHead}>
+              <Text style={s.th}>ADDITIONAL STOP</Text>
+              <Text style={s.thWide}>COMPANY</Text>
+              <Text style={s.thWide}>ADDRESS</Text>
+              <Text style={s.th}>DATE</Text>
+            </View>
+            {d.extraStops.map((st, i) => (
+              <View key={i} style={i === 0 ? s.tRow : s.tRowDivided}>
+                <Text style={s.td}>{st.label}</Text>
+                <Text style={s.tdWide}>{[st.company || '—', st.phone].filter(Boolean).join('\n')}</Text>
+                <Text style={s.tdWide}>{[st.street, st.place].filter(Boolean).join('\n') || '—'}</Text>
+                <Text style={s.td}>{st.date || '—'}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Financials */}
         <View style={s.table}>
