@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "2ce3421e68962bd185b624ca9e056d94643372b9",
+      "date": "2026-10-07T22:57:35-06:00",
+      "author": "erwindank",
+      "subject": "Let an order have more than one pickup and more than one delivery",
+      "body": "The first pickup and delivery stay in their existing fields; further stops\nare listed in extraPickups / extraDeliveries beside them, so every existing\norder, query, index and import keeps working with no migration. The forms,\norder page, BOL, agreement emails, invoice, search, change log, trip distance\nand map link all cover every stop. A party's page finds loads it is a later\nstop on through stopPartyIds and its new index."
+    },
+    {
       "hash": "e15a52bdeffc9aa7838cc34f2f7b2056ed4b68f7",
       "date": "2026-10-07T22:41:12-06:00",
       "author": "erwindank",

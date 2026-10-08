@@ -79,7 +79,9 @@ const SHOW_AFTER_MS = 2500;
 
 // All 24 hours on one wheel, drawn 12-hour: scrolling on from 11 AM reaches
 // 12 PM and flips the AM/PM wheel with it, instead of stopping at the end of
-// a twelve-row list.
+// a twelve-row list. The wheel loops, so 11 PM rolls on to 12 AM. The minutes
+// loop too, but 59 rolling to 00 does not move the hour — a phone's does not
+// either, and carrying it would make the hour change under somebody's eye.
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 // Every minute. People plan at 7:40, not only on the quarter hour.
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
@@ -539,11 +541,11 @@ export default function PlanningPrompt() {
                 <div className="relative mt-1 flex items-center justify-center gap-1">
                   {/* The middle row, marked the way a phone's picker marks it. */}
                   <div className="pointer-events-none absolute inset-x-2 top-1/2 h-10 -translate-y-1/2 border-y border-gray-200" />
-                  <TimeWheel label="Hour" options={HOURS} value={h}
+                  <TimeWheel label="Hour" options={HOURS} value={h} loop
                     render={(v) => String(v % 12 || 12)}
                     onChange={(v) => pickTime(toHHMM(v, m))} />
                   <span className="text-xl font-semibold text-gray-900">:</span>
-                  <TimeWheel label="Minutes" options={MINUTES} value={m}
+                  <TimeWheel label="Minutes" options={MINUTES} value={m} loop
                     render={(v) => String(v).padStart(2, '0')}
                     onChange={(v) => pickTime(toHHMM(h, v))} />
                   <TimeWheel label="AM or PM" options={HALVES} value={half}
