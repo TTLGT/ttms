@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "1b502f1772db9f699ea40f748bf92a62e22d852d",
+      "date": "2026-10-08T12:24:27-06:00",
+      "author": "erwindank",
+      "subject": "Let a planning slot be any length from the prompt, and keep the Planning time card in step with the calendar",
+      "body": ""
+    },
+    {
       "hash": "515e0f5b4ad88addae9112eabcb76ef5086c4dfb",
       "date": "2026-10-08T12:04:24-06:00",
       "author": "erwindank",

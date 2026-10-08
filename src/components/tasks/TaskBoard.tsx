@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, type DragEvent } from 'react';
-import { Bell, CalendarDays, Check, CornerDownRight, Flag, GripVertical, ListChecks, Plus, Repeat, StickyNote } from 'lucide-react';
+import { useEffect, useRef, useState, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { ArrowRight, Bell, CalendarDays, Check, CornerDownRight, Flag, GripVertical, ListChecks, Pencil, Plus, Repeat, StickyNote } from 'lucide-react';
+import { useDragAutoScroll } from './useDragAutoScroll';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import OutcomeBadge from './OutcomeBadge';
 import {
@@ -54,6 +55,11 @@ import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
  *
  * Columns drag too, by their header. The two drags carry different payload
  * types, so a card can never be dropped as a column or the other way round.
+ *
+ * Every column is as tall as the longest one, so a card picked up low in a
+ * long column has somewhere to land in a short one, and the page scrolls
+ * while a card is held near its top or bottom (useDragAutoScroll). Right-click
+ * on a card or a step is the same move without the drag: a "Move to" menu.
  */
 export default function TaskBoard({
   tasks,
@@ -89,6 +95,10 @@ export default function TaskBoard({
   /** The column being dragged by its header, and the one it is over. */
   const [draggingColumn, setDraggingColumn] = useState<TaskStatus | null>(null);
   const [columnOver, setColumnOver] = useState<TaskStatus | null>(null);
+  /** The right-click menu: where it opened, and the task or step it moves. */
+  const [menu, setMenu] = useState<{ x: number; y: number; task: PersonalTask; step: TaskStep | null } | null>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  useDragAutoScroll(boardRef);
 
   const visible = columns.filter((c) => !c.hidden);
   // A task whose column is hidden or gone is drawn one step back rather than
@@ -125,10 +135,38 @@ export default function TaskBoard({
     const [taskId, stepId] = e.dataTransfer.getData(BOARD_STEP_DRAG_TYPE).split('/');
     const task = tasks.find((t) => t.id === taskId);
     const step = task?.steps.find((s) => s.id === stepId);
-    if (!task || !step) return;
+    if (task && step) moveStep(task, step, status);
+  };
+
+  const moveStep = (task: PersonalTask, step: TaskStep, status: TaskStatus) => {
     const next = stepPlacedIn(step, status, placeOf(columns, task.status));
     if (next.status === step.status && next.done === step.done) return;
-    onUpdate(task.id, { steps: task.steps.map((s) => (s.id === stepId ? next : s)) });
+    onUpdate(task.id, { steps: task.steps.map((s) => (s.id === step.id ? next : s)) });
+  };
+
+  /** The menu's move: to the bottom of the column, as a drop on its empty part does. */
+  const moveTask = (task: PersonalTask, status: TaskStatus) => {
+    if (placeOf(columns, task.status) === status) return;
+    const column = board.find((c) => c.column.id === status)?.cards ?? [];
+    onMove(task.id, column.filter((t) => t.id !== task.id), null, { status });
+  };
+
+  /** The column a task or step is drawn in now — the one the menu ticks. */
+  const shownIn = (task: PersonalTask, step: TaskStep | null) =>
+    step && !hangs(task, step) ? placeOf(columns, step.status!) : placeOf(columns, task.status);
+
+  const openMenu = (e: ReactMouseEvent, task: PersonalTask, step: TaskStep | null = null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // The keyboard's menu key (or Shift+F10) fires this with no pointer, at
+    // 0,0; open it under the card instead of in the corner of the screen.
+    let { clientX: x, clientY: y } = e;
+    if (x === 0 && y === 0) {
+      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      x = r.left + 12;
+      y = r.bottom;
+    }
+    setMenu({ x, y, task, step });
   };
 
   const drop = (e: DragEvent, status: TaskStatus, beforeId: string | null) => {
@@ -171,7 +209,9 @@ export default function TaskBoard({
   };
 
   return (
-    <div className="flex items-start gap-4 overflow-x-auto pb-4">
+    // items-stretch makes every column as tall as the longest, and the whole
+    // column is the drop target, so a short column is never out of reach.
+    <div ref={boardRef} className="flex items-stretch gap-4 overflow-x-auto pb-4">
       {board.map(({ column, cards }) => {
         const status = column.id;
         const side = dropSide(status);
@@ -220,7 +260,9 @@ export default function TaskBoard({
               <GripVertical size={14} className="ml-auto text-gray-300 opacity-0 group-hover:opacity-100" />
             </header>
 
-            <div className="flex-1 space-y-2 px-2 pb-2">
+            {/* Not flex-1: the add button stays under the last card, and the
+                stretched space below it is still the section's drop area. */}
+            <div className="space-y-2 px-2 pb-2">
               {cards.map((t, i) => (
                 <div key={t.id} className={dragging === t.id ? 'opacity-40' : ''}>
                   {target?.status === status && target.beforeId === t.id && dragging !== t.id && (
@@ -234,6 +276,7 @@ export default function TaskBoard({
                     showXp={skin.themed}
                     theme={skin.id}
                     onOpen={() => onOpen(t)}
+                    onContextMenu={(e) => openMenu(e, t)}
                     onDragStart={(e) => {
                       setDragging(t.id);
                       e.dataTransfer.effectAllowed = 'move';
@@ -256,6 +299,7 @@ export default function TaskBoard({
                       task={t}
                       shows={(s) => hangs(t, s)}
                       onStepDragStart={(e, s) => startStepDrag(e, t, s)}
+                      onStepMenu={(e, s) => openMenu(e, t, s)}
                       word={skin.step}
                       today={today}
                       look={`${NOTE_STYLE[t.color].note} ${skin.cardHover}`}
@@ -291,6 +335,7 @@ export default function TaskBoard({
                   onOpen={() => onOpen(t)}
                   onToggle={() => onUpdate(t.id, { steps: withStepToggled(t, s.id) })}
                   onDragStart={(e) => startStepDrag(e, t, s)}
+                  onContextMenu={(e) => openMenu(e, t, s)}
                 />
               ))}
             </div>
@@ -307,6 +352,120 @@ export default function TaskBoard({
       })}
 
       <BoardColumnsMenu columns={columns} theme={skin.id} countIn={countIn} onChange={onColumnsChange} />
+
+      {menu && (
+        <MoveMenu
+          x={menu.x}
+          y={menu.y}
+          title={menu.step ? menu.step.title : menu.task.title}
+          columns={visible}
+          current={shownIn(menu.task, menu.step)}
+          onOpen={() => onOpen(menu.task)}
+          onPick={(status) => (menu.step ? moveStep(menu.task, menu.step, status) : moveTask(menu.task, status))}
+          onClose={() => setMenu(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The right-click menu on a card or a step: every column showing, the one it
+ * is in ticked, and Open. Picking a column is exactly a drag to it — the same
+ * onMove / stepPlacedIn path — so Done still ticks a step and still asks
+ * nothing a drag would not.
+ *
+ * Fixed to the viewport, like the columns panel, because the board scrolls
+ * sideways and its overflow would clip anything absolutely placed.
+ */
+function MoveMenu({
+  x, y, title, columns, current, onOpen, onPick, onClose,
+}: {
+  x: number;
+  y: number;
+  title: string;
+  columns: BoardColumn[];
+  current: TaskStatus;
+  onOpen: () => void;
+  onPick: (status: TaskStatus) => void;
+  onClose: () => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const [at, setAt] = useState({ top: y, left: x });
+
+  // Kept on screen: measured once drawn, then nudged up or left if it would
+  // hang off the bottom or the right.
+  useEffect(() => {
+    const r = box.current?.getBoundingClientRect();
+    if (!r) return;
+    setAt({
+      top: Math.max(8, Math.min(y, window.innerHeight - r.height - 8)),
+      left: Math.max(8, Math.min(x, window.innerWidth - r.width - 8)),
+    });
+    box.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true });
+  }, [x, y]);
+
+  useEffect(() => {
+    const away = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) onClose(); };
+    const keys = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      e.preventDefault();
+      const items = [...(box.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])];
+      const i = items.indexOf(document.activeElement as HTMLButtonElement);
+      items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+    };
+    // Pinned to where the click was; once the page moves it points at nothing.
+    const shut = () => onClose();
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', keys);
+    window.addEventListener('resize', shut);
+    window.addEventListener('scroll', shut, true);
+    window.addEventListener('blur', shut);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', keys);
+      window.removeEventListener('resize', shut);
+      window.removeEventListener('scroll', shut, true);
+      window.removeEventListener('blur', shut);
+    };
+  }, [onClose]);
+
+  const item = 'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none disabled:cursor-default disabled:hover:bg-transparent';
+
+  return (
+    <div
+      ref={box}
+      role="menu"
+      aria-label={`Move ${title}`}
+      style={{ top: at.top, left: at.left }}
+      // A right-click on the menu itself should not open the browser's.
+      onContextMenu={(e) => e.preventDefault()}
+      className="fixed z-40 w-56 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg"
+    >
+      <p className="truncate px-2 pb-1 pt-0.5 text-xs text-gray-500" title={title}>{title}</p>
+      <button type="button" role="menuitem" className={item} onClick={() => { onClose(); onOpen(); }}>
+        <Pencil size={14} className="text-gray-400" /> Open
+      </button>
+      <div className="my-1 border-t border-gray-200" />
+      <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-gray-400">Move to</p>
+      {columns.map((c) => {
+        const here = c.id === current;
+        return (
+          <button
+            key={c.id}
+            type="button"
+            role="menuitem"
+            disabled={here}
+            onClick={() => { onClose(); onPick(c.id); }}
+            className={item}
+          >
+            <StatusMark status={c.id} theme={null} size="sm" />
+            <span className={`flex-1 truncate ${here ? 'font-medium text-gray-900' : ''}`}>{c.label}</span>
+            {here ? <Check size={14} className="text-gray-400" /> : <ArrowRight size={14} className="text-gray-300" />}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -330,6 +489,7 @@ function Card({
   showXp: boolean;
   theme: GameTheme | null;
   onOpen: () => void;
+  onContextMenu: (e: ReactMouseEvent) => void;
   onDragStart: (e: DragEvent) => void;
   onDragEnd: () => void;
   onDragOver: (e: DragEvent) => void;
@@ -420,12 +580,13 @@ function Card({
  * where steps are added, renamed and reordered.
  */
 function StepCards({
-  task, shows, word, today, look, onOpen, onToggle, onStepDragStart, onDragOver, onDrop,
+  task, shows, word, today, look, onOpen, onToggle, onStepDragStart, onStepMenu, onDragOver, onDrop,
 }: {
   task: PersonalTask;
   /** The steps still hanging here; the rest are drawn in columns of their own. */
   shows: (step: TaskStep) => boolean;
   onStepDragStart: (e: DragEvent, step: TaskStep) => void;
+  onStepMenu: (e: ReactMouseEvent, step: TaskStep) => void;
   today: string;
   /** The theme's word for a step, lower case — see taskSkins.ts. */
   word: string;
@@ -452,6 +613,7 @@ function StepCards({
             tabIndex={0}
             draggable
             onDragStart={(e) => onStepDragStart(e, s)}
+            onContextMenu={(e) => onStepMenu(e, s)}
             onClick={onOpen}
             onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
             title="Drag to another column to give it a status of its own"
@@ -487,7 +649,7 @@ function StepCards({
  * task's colour. Dragging it to its task's column hangs it back under the task.
  */
 function LooseStepCard({
-  task, step, n, word, today, look, onOpen, onToggle, onDragStart,
+  task, step, n, word, today, look, onOpen, onToggle, onDragStart, onContextMenu,
 }: {
   task: PersonalTask;
   step: TaskStep;
@@ -499,6 +661,7 @@ function LooseStepCard({
   onOpen: () => void;
   onToggle: () => void;
   onDragStart: (e: DragEvent) => void;
+  onContextMenu: (e: ReactMouseEvent) => void;
 }) {
   const label = word.charAt(0).toUpperCase() + word.slice(1);
   return (
@@ -507,6 +670,7 @@ function LooseStepCard({
       tabIndex={0}
       draggable
       onDragStart={onDragStart}
+      onContextMenu={onContextMenu}
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
       className={`flex w-full cursor-grab items-start gap-2 rounded-md border px-2 py-1.5 text-left text-xs shadow-sm hover:shadow active:cursor-grabbing ${look} ${
