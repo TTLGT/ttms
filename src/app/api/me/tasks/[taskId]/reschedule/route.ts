@@ -53,8 +53,8 @@ export async function POST(
         if (task.date === to.date && !('time' in to)) throw new Refused('It is already on that day.', 400);
 
         const time = 'time' in to ? to.time ?? null : task.time;
-        // A planning slot keeps its length; any other task has no end.
-        const endTime = task.planning ? shiftedEnd(task.time, task.endTime, time) : null;
+        // The copy keeps the block's length at its new start.
+        const endTime = shiftedEnd(task.time, task.endTime, time);
 
         // The record, left on its day. Its steps' XP moves to the copy, which
         // now holds that progress, so unticking either cannot give it back twice.

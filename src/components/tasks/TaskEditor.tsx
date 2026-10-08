@@ -183,10 +183,6 @@ export default function TaskEditor({
   }, []);
 
   const hasTime = !!time;
-  // A planning slot is a task that keeps an end — the length picked on the
-  // planning card — so it gets the Ends box an event has. The PATCH route
-  // takes an end after the start and otherwise keeps the slot's length.
-  const hasEnd = kind === 'event' || (kind === 'task' && !!task?.planning);
   const leads = leadsFor(hasTime);
   // Which of the ticked reminders are already in the past, so the box can say
   // so rather than letting somebody believe a reminder is on its way.
@@ -210,7 +206,7 @@ export default function TaskEditor({
     if (repeat === 'monthlyNth' && !nths.length) { setProblem('Pick at least one week of the month.'); return; }
     if (repeat !== 'none' && !repeatUntil) { setProblem('Pick the day it stops repeating. Nothing repeats for ever.'); return; }
     if (repeat !== 'none' && date && repeatUntil < date) { setProblem('It stops repeating before it starts.'); return; }
-    if (hasEnd && time && endTime && endTime <= time) {
+    if (time && endTime && endTime <= time) {
       setProblem('The end time is before the start time.');
       return;
     }
@@ -235,7 +231,9 @@ export default function TaskEditor({
       color,
       date: date || null,
       time: time || null,
-      endTime: hasEnd ? (endTime || null) : null,
+      // Tasks and events both have a start and an end: the block they take
+      // on the calendar. A task's deadline is the separate Due by.
+      endTime: time ? (endTime || null) : null,
       dueDate: kind === 'task' ? (dueDate || null) : null,
       dueTime: kind === 'task' && dueDate ? (dueTime || null) : null,
       repeat,
@@ -349,7 +347,7 @@ export default function TaskEditor({
               <DateField value={date} onChange={setDate} className={input} ariaLabel={kind === 'event' ? 'Date' : 'Planned date'} />
             </div>
             <div>
-              <label className={label} htmlFor="task-time">{kind === 'event' ? 'Starts' : 'Time'}</label>
+              <label className={label} htmlFor="task-time">Starts</label>
               <input
                 id="task-time"
                 type="time"
@@ -358,18 +356,17 @@ export default function TaskEditor({
                   // The end moves with the start, keeping the length — the
                   // same as dragging the block on the calendar.
                   const next = e.target.value;
-                  if (hasEnd && time && endTime && next) setEndTime(shiftedEnd(time, endTime, next) ?? endTime);
+                  if (time && endTime && next) setEndTime(shiftedEnd(time, endTime, next) ?? endTime);
                   setTime(next);
                 }}
                 className={input}
               />
             </div>
-            {hasEnd && (
-              <div>
-                <label className={label} htmlFor="task-end">Ends</label>
-                <input id="task-end" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={input} />
-              </div>
-            )}
+            <div>
+              <label className={label} htmlFor="task-end">Ends</label>
+              <input id="task-end" type="time" value={endTime} disabled={!time}
+                onChange={(e) => setEndTime(e.target.value)} className={`${input} disabled:opacity-50`} />
+            </div>
           </div>
           {kind === 'task' && (
             <div className="grid gap-3 sm:grid-cols-3">
@@ -386,7 +383,7 @@ export default function TaskEditor({
           )}
           <p className="-mt-2 text-xs text-gray-400">
             {kind === 'task'
-              ? 'Planned is when you will work on it — it goes on your calendar and reminders count from it. Due is the deadline. With no due date, the planned day counts as the deadline. Times are Guatemala office time.'
+              ? 'Planned, Starts and Ends are when you will work on it — the block it takes on your calendar, and reminders count from the start. Due is the deadline to finish it. With no due date, the planned day counts as the deadline. Times are Guatemala office time.'
               : 'Times are Guatemala office time.'}
           </p>
 

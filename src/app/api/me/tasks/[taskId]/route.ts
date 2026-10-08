@@ -60,17 +60,21 @@ export async function PATCH(
         if (kind === 'event') { update.status = 'todo'; update.dueDate = null; update.dueTime = null; }
         // A deadline time means nothing without its day.
         if (kind === 'task' && !('dueDate' in input ? input.dueDate : current.dueDate)) update.dueTime = null;
-        if (kind === 'task') { update.endTime = null; update.eventType = 'other'; }
-        // Except a planning slot, which is a block of time: its end follows its
-        // start, keeping the length the person chose on the planning card —
-        // unless an end after the start was sent, which is the calendar's
-        // resize handle. The editor sends null for a task's end, and that is
-        // ignored rather than taken as "no end".
-        if (kind === 'task' && current.planning) {
+        // A task is a block of time like an event: start and end are when it
+        // is on the calendar, and the deadline is dueDate/dueTime. An end after
+        // the start that was sent is taken (the editor, the resize handle); a
+        // null sent clears it; otherwise the end follows the start, keeping the
+        // length — a drag on the calendar sends only the start. A planning
+        // slot never loses its end to a null: its length is what the planning
+        // card picked, and "Your day" counts on it.
+        if (kind === 'task') {
+          update.eventType = 'other';
           const time = 'time' in input ? input.time ?? null : current.time;
           update.endTime = time && input.endTime && input.endTime > time
             ? input.endTime
-            : shiftedEnd(current.time, current.endTime, time);
+            : 'endTime' in input && !input.endTime && !current.planning
+              ? null
+              : shiftedEnd(current.time, current.endTime, time);
         }
         // Worked out again whenever anything it depends on was sent; otherwise kept.
         const touched = ['date', 'repeat', 'repeatWeekday', 'repeatNths'].some((k) => k in input);
@@ -207,8 +211,8 @@ export async function PATCH(
             ...merged,
             repeat,
             ...repeating,
-            // Only a planning slot keeps an end; see the endTime rule above.
-            endTime: current.planning ? ((update.endTime as string | null | undefined) ?? null) : null,
+            // The copy keeps the block's length; see the endTime rule above.
+            endTime: (update.endTime as string | null | undefined) ?? null,
             planning: current.planning,
           }, nextDate));
           syncReminderQueue(tx, uid, {

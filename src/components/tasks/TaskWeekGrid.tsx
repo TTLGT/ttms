@@ -63,9 +63,12 @@ const toHhmm = (total: number) => {
 };
 const snap = (min: number) => Math.round(min / SNAP) * SNAP;
 
-/** Has an end the person can pull: an event, or a planning slot. */
+/**
+ * Has an end the person can pull: anything with a start. A task with no end
+ * yet is drawn NO_END_MINUTES tall, and pulling it gives it one.
+ */
 function stretchable(t: PersonalTask): boolean {
-  return !!t.time && (t.kind === 'event' || (!!t.planning && !!t.endTime));
+  return !!t.time;
 }
 
 function endMinutes(t: PersonalTask): number {
@@ -204,11 +207,9 @@ export default function TaskWeekGrid({
     const start = landingStart(e, movedLength(t));
     const time = toHhmm(start);
     if (from === date && t.time === time) return;
-    // Keeps its length. A task has no end of its own; a planning slot and an
-    // event do, and theirs moves with the start.
-    const endTime = t.kind === 'event' || t.planning
-      ? (t.time && t.endTime ? shiftedEnd(t.time, t.endTime, time) : null)
-      : undefined;
+    // Keeps its length: the end moves with the start. Sent only when there is
+    // one, so dropping a task with no end does not read as clearing it.
+    const endTime = t.time && t.endTime ? shiftedEnd(t.time, t.endTime, time) ?? undefined : undefined;
     if (isSeries(t)) {
       onAskSeries?.({ kind: 'move', task: t, date: from, to: { newDate: date, time, endTime: endTime ?? null } });
       return;

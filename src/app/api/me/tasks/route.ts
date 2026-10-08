@@ -107,7 +107,11 @@ export async function POST(req: NextRequest) {
       color:     input.color ?? defaultColorFor(kind),
       date:      input.date ?? null,
       time:      input.time ?? null,
-      endTime:   kind === 'event' ? (input.endTime ?? null) : null,
+      // Events and tasks both take a block of time: the start and end are
+      // when it is on the calendar. A task's deadline is dueDate/dueTime.
+      endTime:   kind === 'event'
+        ? (input.endTime ?? null)
+        : (input.time && input.endTime && input.endTime > input.time ? input.endTime : null),
       // A deadline is a task's; an event simply happens on its day.
       dueDate:   kind === 'task' ? (input.dueDate ?? null) : null,
       dueTime:   kind === 'task' && input.dueDate ? (input.dueTime ?? null) : null,

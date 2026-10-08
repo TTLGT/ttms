@@ -1050,8 +1050,9 @@ Types and pure rules in `src/types/task.ts`; server in
   people plan at different times; weekly and monthly start ticked to repeat
   but can be unticked for just this week or month. A one-off covers its own
   day, so the card asks again on its next ask day. The morning one is not asked after 1pm.
-  - A slot keeps an `endTime` (the length picked on the card) — the one kind
-    of task that does; the PATCH route shifts it when the start moves.
+  - A slot keeps an `endTime` (the length picked on the card), as any task
+    may; the PATCH route shifts it when the start moves, and unlike other
+    tasks a slot's end is never cleared by a null.
   - "Your day" on the card comes from `GET /api/me/planning/day`: the caller's
     own shift (their schedule, the company default, or 7am–4pm weekdays when HR
     has set neither — `PLANNING_FALLBACK_SHIFT`) and the timed items that day. It moves things with ordinary task
@@ -1088,9 +1089,10 @@ Types and pure rules in `src/types/task.ts`; server in
 - **The Calendar's week view is an hour grid on desktop** (`TaskWeekGrid.tsx`),
   Google style: pull an event's bottom edge to change its length, drag a block
   to another day or time, double-click to add an event. One save on release,
-  never one per pixel. A date of a series is asked about first (`SeriesChoice.tsx`). A task has no end, so it is drawn 30 minutes tall and
-  cannot be stretched — except a planning slot, whose end the PATCH route
-  accepts when one is sent. Phones keep the per-day list.
+  never one per pixel. A date of a series is asked about first (`SeriesChoice.tsx`). A task has a start and an
+  end like an event (`time` / `endTime`, the block it takes; `dueDate` /
+  `dueTime` is the separate deadline). One with no end yet is drawn 30
+  minutes tall, and pulling its edge gives it one. Phones keep the per-day list.
 - **`monthlyNth`** is "the 1st Tuesday", "the 2nd and 4th Wednesday", "the last
   Friday": `repeatWeekday` (0–6) and `repeatNths` (1–4, 5 = last).
   `repeatFields()` is the one place the stored repeat fields are worked out.

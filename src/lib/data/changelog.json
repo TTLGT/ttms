@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "6862855a5997b4ed9da580c049769bb0580a2fd4",
+      "date": "2026-10-08T08:42:16-06:00",
+      "author": "erwindank",
+      "subject": "Start new tasks and events in the colours of their calendar switches",
+      "body": "A new task starts royal blue and a new event cyan, matching the My tasks\nand My events switches on the Calendar, instead of yellow for both. The\neditor follows the Task/Event toggle until a colour is picked. Items\nalready saved keep their colours."
+    },
+    {
       "hash": "53a169897122623faf76f4b0145734c4760ce078",
       "date": "2026-10-08T08:16:37-06:00",
       "author": "erwindank",
