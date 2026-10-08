@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "5051a3e4583f63013af0221e77449b012e7bce6e",
+      "date": "2026-10-07T20:40:55-06:00",
+      "author": "erwindank",
+      "subject": "Open a client, shipper or consignee by clicking its name",
+      "body": ""
+    },
+    {
       "hash": "d250e0aa159e6baeaa4afddebff389ab5c2bab81",
       "date": "2026-10-07T14:35:41-06:00",
       "author": "erwindank",

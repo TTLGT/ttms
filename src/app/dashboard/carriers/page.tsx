@@ -164,7 +164,11 @@ function CarriersList() {
             <tbody className="divide-y divide-gray-100">
               {filtered.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50 transition">
-                  <td className="px-4 py-3 text-sm font-semibold text-gray-900">{c.companyName}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-gray-900">
+                    <Link href={`/dashboard/carriers/${c.id}`} className="hover:text-brand-600 hover:underline">
+                      {c.companyName}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 text-xs text-gray-500 font-mono">
                     {c.dot && <div>DOT {c.dot}</div>}
                     {c.mc  && <div>MC {c.mc}</div>}
