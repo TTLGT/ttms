@@ -11,6 +11,16 @@ export type BolCommodityLine = {
   quantity: string;
   dimensions: string;
   weight: string;
+  /**
+   * "Pickup 1 to Delivery 2" — words, because the built-in Helvetica cannot
+   * draw an arrow. '' on a load with one pickup and one delivery, where it
+   * could only say the obvious; a dash stands in for a side nobody set. The column is drawn only when some line has one.
+   */
+  route: string;
+  /** "2019 Toyota Camry · Silver · Sedan · Operable", or '' when not a vehicle. */
+  vehicle: string;
+  /** '' when none was entered. */
+  vin: string;
 };
 
 /** One pickup or delivery after the first, pre-formatted like the rest. */
@@ -24,6 +34,8 @@ export type BolStopLine = {
   place: string;
   /** '' when no date was set for the stop. */
   date: string;
+  /** What comes on or off here, "Excavator; Crated parts" — '' when nobody said. */
+  freight: string;
 };
 
 export type BolData = {
@@ -55,6 +67,13 @@ export type BolData = {
   deliveryDate: string;
   /** Every stop after the first pickup and the first delivery; usually none. */
   extraStops: BolStopLine[];
+  /**
+   * What is loaded at the first pickup and unloaded at the first delivery, on
+   * a multi-stop load — '' otherwise. The cards above the stop table are those
+   * two stops, so this is where they say it.
+   */
+  originFreight: string;
+  destFreight: string;
   agreedRate: number;
   brokerFee: number;
   carrierPay: number;
@@ -97,6 +116,8 @@ const s = StyleSheet.create({
   thWide:    { flex: 2, padding: 6, fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#6b7280' },
   td:        { flex: 1, padding: 6, fontSize: 9, color: '#111827' },
   tdWide:    { flex: 2, padding: 6, fontSize: 9, color: '#111827' },
+  tdSub:     { fontSize: 8, color: '#4b5563', marginTop: 2 },
+  tdVin:     { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#111827', marginTop: 2 },
   tdBold:    { flex: 1, padding: 6, fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#111827' },
 
   notesBox:  { borderWidth: 1, borderColor: GRAY, borderStyle: 'solid', borderRadius: 3, padding: 8, marginBottom: 10 },
@@ -126,6 +147,12 @@ function fmt(n: number) {
 const LOGO_PATH = path.join(process.cwd(), 'public', 'logo-circle.png');
 
 function BolDocument({ d }: { d: BolData }) {
+  // A multi-stop load says which line goes where, so the driver loads and
+  // drops against the paper rather than from memory.
+  const showRoute = d.items.some((it) => it.route);
+  // Numbered once there is more than one of a kind, matching the stop table.
+  const multiPickup  = d.extraStops.some((st) => st.label.startsWith('PICKUP'));
+  const multiDeliver = d.extraStops.some((st) => st.label.startsWith('DELIVERY'));
   const originLine = [d.originCity, d.originState, d.originZip].filter(Boolean).join(', ');
   const destLine   = [d.destCity,   d.destState,   d.destZip  ].filter(Boolean).join(', ');
 
@@ -186,13 +213,22 @@ function BolDocument({ d }: { d: BolData }) {
             <Text style={s.th}>PIECES</Text>
             <Text style={s.thWide}>DIMENSIONS (L × W × H)</Text>
             <Text style={s.th}>WEIGHT</Text>
+            {showRoute && <Text style={s.thWide}>PICKED UP AT / DELIVERED TO</Text>}
           </View>
           {d.items.map((it, i) => (
             <View key={i} style={i === 0 ? s.tRow : s.tRowDivided}>
-              <Text style={s.tdWide}>{it.description || '—'}</Text>
+              {/* The vehicle prints under its line; the VIN on its own line
+                  in bold, since it is what the driver checks at pickup and
+                  what an inspection or claim is written against. */}
+              <View style={s.tdWide}>
+                <Text>{it.description || '—'}</Text>
+                {it.vehicle ? <Text style={s.tdSub}>{it.vehicle}</Text> : null}
+                {it.vin ? <Text style={s.tdVin}>VIN: {it.vin}</Text> : null}
+              </View>
               <Text style={s.td}>{it.quantity || '—'}</Text>
               <Text style={s.tdWide}>{it.dimensions || '—'}</Text>
               <Text style={s.td}>{it.weight || '—'}</Text>
+              {showRoute && <Text style={s.tdWide}>{it.route || '—'}</Text>}
             </View>
           ))}
           {d.items.length > 1 && (
@@ -201,6 +237,7 @@ function BolDocument({ d }: { d: BolData }) {
               <Text style={s.td}>{d.pieces ? String(d.pieces) : '—'}</Text>
               <Text style={s.tdWide}> </Text>
               <Text style={s.td}>{d.weight ? `${d.weight.toLocaleString()} lbs` : '—'}</Text>
+              {showRoute && <Text style={s.tdWide}> </Text>}
             </View>
           )}
         </View>
@@ -208,16 +245,18 @@ function BolDocument({ d }: { d: BolData }) {
         {/* Origin + Destination */}
         <View style={s.row2}>
           <View style={s.card}>
-            <Text style={s.secTitle}>ORIGIN (PICKUP)</Text>
+            <Text style={s.secTitle}>{multiPickup ? 'ORIGIN (PICKUP 1)' : 'ORIGIN (PICKUP)'}</Text>
             <Field label="Date"    value={d.pickupDate} />
             {d.originStreet ? <Field label="Address" value={d.originStreet} /> : null}
             <Field label="City / State / Zip" value={originLine} />
+            {d.originFreight ? <Field label="Load here" value={d.originFreight} /> : null}
           </View>
           <View style={s.cardLast}>
-            <Text style={s.secTitle}>DESTINATION (DELIVERY)</Text>
+            <Text style={s.secTitle}>{multiDeliver ? 'DESTINATION (DELIVERY 1)' : 'DESTINATION (DELIVERY)'}</Text>
             <Field label="Date"    value={d.deliveryDate} />
             {d.destStreet ? <Field label="Address" value={d.destStreet} /> : null}
             <Field label="City / State / Zip" value={destLine} />
+            {d.destFreight ? <Field label="Unload here" value={d.destFreight} /> : null}
           </View>
         </View>
 
@@ -231,6 +270,7 @@ function BolDocument({ d }: { d: BolData }) {
               <Text style={s.thWide}>COMPANY</Text>
               <Text style={s.thWide}>ADDRESS</Text>
               <Text style={s.th}>DATE</Text>
+              {d.extraStops.some((st) => st.freight) && <Text style={s.thWide}>FREIGHT</Text>}
             </View>
             {d.extraStops.map((st, i) => (
               <View key={i} style={i === 0 ? s.tRow : s.tRowDivided}>
@@ -238,6 +278,7 @@ function BolDocument({ d }: { d: BolData }) {
                 <Text style={s.tdWide}>{[st.company || '—', st.phone].filter(Boolean).join('\n')}</Text>
                 <Text style={s.tdWide}>{[st.street, st.place].filter(Boolean).join('\n') || '—'}</Text>
                 <Text style={s.td}>{st.date || '—'}</Text>
+                {d.extraStops.some((x) => x.freight) && <Text style={s.tdWide}>{st.freight || '—'}</Text>}
               </View>
             ))}
           </View>

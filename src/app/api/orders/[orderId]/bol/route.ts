@@ -5,8 +5,11 @@ import { documentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { actorForUid, updateWithHistory } from '@/lib/recordHistory';
 import { generateBolBuffer } from '@/lib/bol-pdf';
 import type { BolData, BolStopLine } from '@/lib/bol-pdf';
-import { formatDimensions, itemWeightLb, orderCommodityItems, orderDisplayNumber } from '@/types/order';
-import type { Order, OrderStop } from '@/types/order';
+import {
+  formatDimensions, itemStop, itemWeightLb, orderCommodityItems, orderDeliveries, orderDisplayNumber,
+  orderPickups, stopLabel, vehicleSummary,
+} from '@/types/order';
+import type { CommodityItem, Order, OrderStop, StopKind } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -64,19 +67,48 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     partyPhone(order.consigneeId),
   ]);
 
+  // Which freight goes through which stop. Only asked on a load with more
+  // than one stop of a kind — see itemStop() — so a plain A-to-B load prints
+  // exactly as it always has.
+  const items = orderCommodityItems(order as Partial<Order>);
+  const pickupCount   = orderPickups(order as Partial<Order>).length;
+  const deliveryCount = orderDeliveries(order as Partial<Order>).length;
+  const multiStop = pickupCount > 1 || deliveryCount > 1;
+  const countOf = (kind: StopKind) => (kind === 'pickup' ? pickupCount : deliveryCount);
+  const routeOf = (it: CommodityItem) => {
+    if (!multiStop) return '';
+    const side = (kind: StopKind) => {
+      const i = itemStop(it, kind, countOf(kind));
+      return i == null ? '—' : stopLabel(kind, i);
+    };
+    return `${side('pickup')} to ${side('delivery')}`;
+  };
+  // "Excavator; 2 x Crated parts" — what comes on or off at one stop.
+  const freightAt = (kind: StopKind, index: number) => {
+    if (!multiStop) return '';
+    return items
+      .filter((it) => itemStop(it, kind, countOf(kind)) === index)
+      .map((it) => {
+        const name = it.description.trim() || 'Unnamed item';
+        return it.quantity > 1 ? `${it.quantity} x ${name}` : name;
+      })
+      .join('; ');
+  };
+
   // Every pickup and delivery after the first, numbered the way the order
   // screen numbers them, so the driver and the carrier read the same list.
-  const stopLine = (kind: string) => async (s: OrderStop, i: number): Promise<BolStopLine> => ({
-    label:   `${kind} ${i + 2}`,
+  const stopLine = (kind: StopKind) => async (s: OrderStop, i: number): Promise<BolStopLine> => ({
+    label:   stopLabel(kind, i + 1).toUpperCase(),
     company: s.partyName ?? '',
     phone:   await partyPhone(s.partyId),
     street:  s.address?.street ?? '',
     place:   [s.address?.city, s.address?.state, s.address?.zip].filter(Boolean).join(', '),
     date:    formatLongDateRange(s.date, s.dateEnd, ''),
+    freight: freightAt(kind, i + 1),
   });
   const extraStops = [
-    ...await Promise.all(((order.extraPickups ?? []) as OrderStop[]).map(stopLine('PICKUP'))),
-    ...await Promise.all(((order.extraDeliveries ?? []) as OrderStop[]).map(stopLine('DELIVERY'))),
+    ...await Promise.all(((order.extraPickups ?? []) as OrderStop[]).map(stopLine('pickup'))),
+    ...await Promise.all(((order.extraDeliveries ?? []) as OrderStop[]).map(stopLine('delivery'))),
   ];
 
   const data: BolData = {
@@ -97,11 +129,14 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     commodity:        order.commodity          ?? '',
     pieces:           order.pieces             ?? 0,
     weight:           order.weight             ?? 0,
-    items:            orderCommodityItems(order as Partial<Order>).map((it) => ({
+    items:            items.map((it) => ({
       description: it.description,
       quantity:    it.quantity ? String(it.quantity) : '',
       dimensions:  formatDimensions(it),
       weight:      itemWeightLb(it) ? `${Math.round(itemWeightLb(it)).toLocaleString()} lbs` : '',
+      vehicle:     vehicleSummary(it),
+      vin:         it.vin?.trim() ?? '',
+      route:       routeOf(it),
     })),
     originStreet:     order.origin?.street     ?? '',
     originCity:       order.origin?.city       ?? '',
@@ -114,6 +149,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     pickupDate:       formatLongDateRange(order.pickupDate, order.pickupDateEnd),
     deliveryDate:     formatLongDateRange(order.deliveryDate, order.deliveryDateEnd),
     extraStops,
+    originFreight:    freightAt('pickup', 0),
+    destFreight:      freightAt('delivery', 0),
     agreedRate:       order.agreedRate         ?? 0,
     brokerFee:        order.brokerFee          ?? 0,
     carrierPay:       order.carrierPay         ?? 0,

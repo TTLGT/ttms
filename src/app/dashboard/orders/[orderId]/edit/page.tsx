@@ -16,10 +16,10 @@ import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
 import AddressFields, { BLANK_ADDRESS } from '@/components/orders/AddressFields';
-import ExtraStopsFields, { stopDraftsFrom, stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
+import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopDraftsFrom, stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
 import type { StopDraft } from '@/components/orders/ExtraStopsFields';
-import { commoditySummary, orderCommodityItems, totalPieces, totalWeightLb, totalCommodityValue, orderDisplayNumber } from '@/types/order';
-import type { Order, Address, CommodityItem } from '@/types/order';
+import { commoditySummary, hasVehicleDetails, orderCommodityItems, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue, orderDisplayNumber } from '@/types/order';
+import type { Order, Address, CommodityItem, StopKind } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import { ROLE_LABEL } from '@/types/party';
 import LeadSourceField from '@/components/orders/LeadSourceField';
@@ -113,7 +113,21 @@ export default function EditOrderPage() {
 
   // The legacy single-value fields are kept in sync from the items — see the
   // note on Order.commodity.
-  const commodityItems = commodities.filter((c) => c.description.trim() || c.weight || c.length || c.width || c.height || c.value != null);
+  // Each line's stops renumbered to where they land once blank stops are
+  // dropped on save — see savedStopIndex.
+  const commodityItems = remapItemStops(
+    remapItemStops(commodities.filter((c) => c.description.trim() || c.weight || c.length || c.width || c.height || c.value != null || hasVehicleDetails(c)), 'pickup', savedStopIndex(extraPickups)),
+    'delivery', savedStopIndex(extraDeliveries),
+  );
+
+  // What each line can be picked up at and delivered to, numbered as on screen.
+  const pickupChoices = stopChoices('pickup', { name: shipper.name, address: origin }, extraPickups);
+  const deliveryChoices = stopChoices('delivery', { name: consignee.name, address: destination }, extraDeliveries);
+
+  // A stop taken out moves every line that pointed past it up by one, and
+  // leaves the lines that pointed at it unsaid.
+  const removeStop = (kind: StopKind) => (index: number) =>
+    setCommodities((items) => remapItemStops(items, kind, afterRemoving(index)));
 
   useEffect(() => {
     async function load() {
@@ -225,6 +239,16 @@ export default function EditOrderPage() {
 
       const ts = (d: string) => (d ? Timestamp.fromDate(new Date(d + 'T12:00:00')) : null);
 
+      // Whether any freight line now points at a different stop than the one
+      // on file — which, from the Route card, only a removed stop can cause.
+      // Compared by line id, so an order whose lines were never itemised (or
+      // carry a blank one the save would drop) does not read as changed.
+      const stopsOf = (items: CommodityItem[]) =>
+        new Map(items.map((c) => [c.id, `${c.pickupStop ?? ''}/${c.deliveryStop ?? ''}`]));
+      const onFile = order ? stopsOf(orderCommodityItems(order)) : new Map<string, string>();
+      const stopsRenumbered = commodityItems.some((c) =>
+        onFile.has(c.id) && onFile.get(c.id) !== `${c.pickupStop ?? ''}/${c.deliveryStop ?? ''}`);
+
       // Split by section so a one-section save writes that section and
       // nothing else. Writing the whole form back would overwrite whatever a
       // colleague changed elsewhere on the load since this page was opened —
@@ -270,6 +294,10 @@ export default function EditOrderPage() {
           laneMiles:       distance.laneMiles,
           laneMilesSource: distance.laneMilesSource,
           laneMilesAt:     distance.laneMilesAt ? Timestamp.fromDate(distance.laneMilesAt) : null,
+          // Taking a stop out renumbers the freight lines that point at the
+          // stops after it. A Route-only save must carry that too, or the
+          // lines would go on naming a position some other company now holds.
+          ...(stopsRenumbered ? { commodities: commodityItems } : {}),
         },
         notes: {
           notes:        notes.trim(),
@@ -369,7 +397,8 @@ export default function EditOrderPage() {
                 weight are added up for you.
               </p>
             </div>
-            <CommodityItemsFields value={commodities} onChange={setCommodities} />
+            <CommodityItemsFields value={commodities} onChange={setCommodities}
+              pickups={pickupChoices} deliveries={deliveryChoices} />
           </section>
           </>)}
 
@@ -393,14 +422,14 @@ export default function EditOrderPage() {
                   value={shipper}   onChange={setShipper}   onPartyCreated={cacheParty} />
                 <AddressFields label="Origin" value={origin} onChange={setOrigin} />
                 <ExtraStopsFields kind="pickup" value={extraPickups} onChange={setExtraPickups}
-                  parties={parties} onPartyCreated={cacheParty} />
+                  parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('pickup')} />
               </div>
               <div className="space-y-4">
                 <PartyCombobox role="consignee" label="Consignee (delivery)" parties={parties}
                   value={consignee} onChange={setConsignee} onPartyCreated={cacheParty} />
                 <AddressFields label="Destination" value={destination} onChange={setDest} />
                 <ExtraStopsFields kind="delivery" value={extraDeliveries} onChange={setExtraDeliveries}
-                  parties={parties} onPartyCreated={cacheParty} />
+                  parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('delivery')} />
               </div>
             </div>
             <RouteDistanceField

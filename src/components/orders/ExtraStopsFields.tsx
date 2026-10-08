@@ -96,6 +96,45 @@ export function stopsProblem(kind: StopKind, drafts: readonly StopDraft[]): stri
   return '';
 }
 
+/**
+ * Where each stop of a kind ends up once blank ones are dropped on save, as a
+ * position among all the stops of that kind (0 is the first, which is never
+ * dropped). A commodity line pointing at a blank stop points at nothing.
+ */
+export function savedStopIndex(drafts: readonly StopDraft[]): (index: number) => number | null {
+  const kept: (number | null)[] = [0];
+  let n = 1;
+  for (const d of drafts) kept.push(isBlank(d) ? null : n++);
+  return (index) => kept[index] ?? null;
+}
+
+/**
+ * Where each stop of a kind moves after the extra one at `removed` (its
+ * position in the drafts) is taken out.
+ */
+export function afterRemoving(removed: number): (index: number) => number | null {
+  const gone = removed + 1;
+  return (index) => (index === gone ? null : index > gone ? index - 1 : index);
+}
+
+/**
+ * The choices a commodity line is offered for one kind of stop, the first stop
+ * first: "Pickup 2 · Acme Steel, Dallas, TX". Every stop on the form is
+ * listed, blank ones included, so the numbers match the boxes on screen.
+ */
+export function stopChoices(
+  kind: StopKind,
+  first: { name: string; address: Address },
+  drafts: readonly StopDraft[],
+): string[] {
+  const all = [first, ...drafts.map((d) => ({ name: d.party.name, address: d.address }))];
+  return all.map((st, i) => {
+    const place = [st.address.city, st.address.state].filter(Boolean).join(', ');
+    const who = [st.name.trim(), place].filter(Boolean).join(', ');
+    return `${KIND_WORD[kind]} ${i + 1}${who ? ` · ${who}` : ''}`;
+  });
+}
+
 /** The party ids at these stops, for the role tagging and approval stamps the first stop gets. */
 export function stopPartyIdsIn(drafts: readonly StopDraft[]): string[] {
   return drafts.map((d) => d.party.id).filter(Boolean);
@@ -107,9 +146,14 @@ interface Props {
   onChange: (value: StopDraft[]) => void;
   parties: Party[];
   onPartyCreated?: (party: Party) => void;
+  /**
+   * Told the draft position of a stop just removed, so commodity lines pointing
+   * at it and at the stops after it can be renumbered — see `afterRemoving`.
+   */
+  onRemove?: (index: number) => void;
 }
 
-export default function ExtraStopsFields({ kind, value, onChange, parties, onPartyCreated }: Props) {
+export default function ExtraStopsFields({ kind, value, onChange, parties, onPartyCreated, onRemove }: Props) {
   const word = KIND_WORD[kind];
   const role = kind === 'pickup' ? 'shipper' : 'consignee';
 
@@ -132,7 +176,7 @@ export default function ExtraStopsFields({ kind, value, onChange, parties, onPar
         <div key={d.key} className="rounded-lg border border-gray-200 p-4 space-y-4">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-semibold text-gray-900">{word} {i + 2}</p>
-            <button type="button" onClick={() => onChange(value.filter((x) => x.key !== d.key))}
+            <button type="button" onClick={() => { onChange(value.filter((x) => x.key !== d.key)); onRemove?.(i); }}
               className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-red-600">
               <Trash2 className="w-3.5 h-3.5" /> Remove
             </button>

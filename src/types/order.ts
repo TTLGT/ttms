@@ -58,6 +58,78 @@ export interface CommodityItem {
    * field existed have no value on record, and "$0" would claim one.
    */
   value?: number | null;
+  /**
+   * Which pickup this line is loaded at and which delivery it comes off at,
+   * as a position in `orderPickups()` / `orderDeliveries()` — 0 is the first
+   * stop, the order's own shipper or consignee.
+   *
+   * Positions rather than party ids because the same company can be two
+   * stops on one load, and a stop typed in with no record has no id at all.
+   * The cost is that removing a stop shifts the ones after it, so the forms
+   * renumber the lines when that happens (`remapItemStops`).
+   *
+   * Absent or null means "not said", which is only a question worth asking
+   * on a load with more than one stop of that kind — read through
+   * `itemStop()`, never the raw field.
+   */
+  pickupStop?: number | null;
+  deliveryStop?: number | null;
+  /**
+   * The vehicle this line is, when it is one. Per line rather than per order
+   * because a car hauler carries several on one load, each with its own VIN.
+   *
+   * All optional and '' for "not said": lines written before these existed
+   * have none, and plenty of freight is not a vehicle at all. Year is a string
+   * so a blank box stays blank instead of becoming 0. Read through
+   * `vehicleSummary()` / `hasVehicleDetails()` rather than field by field.
+   */
+  year?: string;
+  make?: string;
+  model?: string;
+  color?: string;
+  /** Upper-cased on entry. Not checked for 17 characters — pre-1981 VINs are shorter. */
+  vin?: string;
+  vehicleType?: string;
+  /** Null when nobody said — "operable" must never be assumed for a car that needs a winch. */
+  condition?: VehicleCondition | null;
+}
+
+export type VehicleCondition = 'operable' | 'inoperable';
+export const VEHICLE_CONDITIONS: VehicleCondition[] = ['operable', 'inoperable'];
+export const VEHICLE_CONDITION_LABEL: Record<VehicleCondition, string> = {
+  operable: 'Operable',
+  inoperable: 'Inoperable',
+};
+
+/** Offered as suggestions on the form; anything else may still be typed. */
+export const VEHICLE_TYPE_SUGGESTIONS = [
+  'Sedan', 'Coupe', 'Convertible', 'Hatchback', 'Wagon', 'SUV', 'Pickup', 'Van',
+  'Minivan', 'Motorcycle', 'ATV / UTV', 'Boat', 'RV / Camper', 'Trailer',
+  'Box truck', 'Semi truck', 'Bus', 'Heavy equipment', 'Farm equipment',
+];
+
+/** True when any vehicle detail was entered on the line. */
+export function hasVehicleDetails(item: CommodityItem): boolean {
+  return Boolean(
+    item.year?.trim() || item.make?.trim() || item.model?.trim() || item.color?.trim() ||
+    item.vin?.trim() || item.vehicleType?.trim() || item.condition,
+  );
+}
+
+/**
+ * "2019 Toyota Camry · Silver · Sedan · Inoperable", or '' when the line has
+ * no vehicle details. The VIN is left to the caller: on the BOL and the order
+ * page it gets its own labelled line, because it is what a driver checks
+ * against the dashboard plate and must not be lost in a run of words.
+ */
+export function vehicleSummary(item: CommodityItem): string {
+  const name = [item.year, item.make, item.model].map((v) => v?.trim()).filter(Boolean).join(' ');
+  return [
+    name,
+    item.color?.trim(),
+    item.vehicleType?.trim(),
+    item.condition ? VEHICLE_CONDITION_LABEL[item.condition] : '',
+  ].filter(Boolean).join(' · ');
 }
 
 const INCHES_PER: Record<DimensionUnit, number> = { in: 1, ft: 12, cm: 1 / 2.54, m: 100 / 2.54 };
@@ -102,6 +174,13 @@ export function blankCommodityItem(): CommodityItem {
     weight: 0,
     weightUnit: 'lb',
     value: null,
+    year: '',
+    make: '',
+    model: '',
+    color: '',
+    vin: '',
+    vehicleType: '',
+    condition: null,
   };
 }
 
@@ -151,7 +230,10 @@ export function formatDimensions(item: CommodityItem): string {
  * and still read it, so it is kept in sync rather than dropped.
  */
 export function commoditySummary(items: CommodityItem[]): string {
-  const named = items.map((i) => i.description.trim()).filter(Boolean);
+  // A vehicle line with no commodity typed is still named by the car itself.
+  const named = items
+    .map((i) => i.description.trim() || [i.year, i.make, i.model].map((v) => v?.trim()).filter(Boolean).join(' '))
+    .filter(Boolean);
   if (!named.length) return '';
   if (named.length === 1) return named[0];
   return `${named[0]} + ${named.length - 1} more`;
@@ -478,6 +560,43 @@ export function cleanStops(value: unknown): OrderStop[] {
       date:    (s.date ?? null) as Timestamp | null,
       dateEnd: (s.dateEnd ?? null) as Timestamp | null,
     };
+  });
+}
+
+/**
+ * Where a commodity line is picked up or delivered, as a position among the
+ * `count` stops of that kind, or null when it has not been said. A load with
+ * one stop of a kind needs no answer: everything goes through it.
+ * An index past the end — a stop removed outside the forms — reads as unsaid
+ * rather than pointing at whatever now sits in that place.
+ */
+export function itemStop(item: CommodityItem, kind: StopKind, count: number): number | null {
+  if (count <= 1) return 0;
+  const i = kind === 'pickup' ? item.pickupStop : item.deliveryStop;
+  return typeof i === 'number' && Number.isInteger(i) && i >= 0 && i < count ? i : null;
+}
+
+/** "Pickup 2", "Delivery 1" — numbered the way the order screen and the BOL number stops. */
+export function stopLabel(kind: StopKind, index: number): string {
+  return `${kind === 'pickup' ? 'Pickup' : 'Delivery'} ${index + 1}`;
+}
+
+/**
+ * Renumber every line's stop of one kind after the list of stops changed.
+ * `map` takes a line's old position and gives its new one, or null when its
+ * stop is gone — the line then reads as unsaid rather than quietly moving to
+ * a different company's dock.
+ */
+export function remapItemStops(
+  items: CommodityItem[],
+  kind: StopKind,
+  map: (index: number) => number | null,
+): CommodityItem[] {
+  const key = kind === 'pickup' ? 'pickupStop' : 'deliveryStop';
+  return items.map((it) => {
+    const i = it[key];
+    if (typeof i !== 'number') return it;
+    return { ...it, [key]: map(i) };
   });
 }
 

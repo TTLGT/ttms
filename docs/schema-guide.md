@@ -464,6 +464,18 @@ piece). `order.commodityValue` is their sum, derived on save like `pieces` and
 `weight` (`totalCommodityValue`). Null or absent on either means nobody entered
 one; it is never written as 0 for "unknown". It is not the rate.
 
+On a load with more than one pickup or delivery, each line may also say where
+it goes on and comes off: `pickupStop` and `deliveryStop` (`number | null`), a
+position in `orderPickups()` / `orderDeliveries()` — 0 is the order's own
+shipper or consignee, 1 the first of `extraPickups` / `extraDeliveries`, and so
+on. Null or absent means nobody said. Positions rather than party ids because
+one company can be two stops on a load and a typed-in stop has no id; the cost
+is that removing a stop shifts the ones after it, so the order forms renumber
+the lines when that happens (`remapItemStops`). Read them through
+`itemStop()`, which answers 0 when there is only one stop of the kind and
+treats a position past the end as unsaid. The BOL prints them as a "Picked up
+at / Delivered to" column and lists what is loaded or unloaded at each stop.
+
 ### `OrderStatus` enum
 ```
 "quote"          — initial quote, not yet accepted

@@ -22,11 +22,11 @@ import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
 import AddressFields, { BLANK_ADDRESS } from '@/components/orders/AddressFields';
-import ExtraStopsFields, { stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
+import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
 import type { StopDraft } from '@/components/orders/ExtraStopsFields';
 import { partyDisplayName, ROLE_LABEL } from '@/types/party';
-import { blankCommodityItem, commoditySummary, totalPieces, totalWeightLb, totalCommodityValue } from '@/types/order';
-import type { Address, CommodityItem } from '@/types/order';
+import { blankCommodityItem, commoditySummary, hasVehicleDetails, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue } from '@/types/order';
+import type { Address, CommodityItem, StopKind } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import LeadSourceField from '@/components/orders/LeadSourceField';
 import DateField from '@/components/DateField';
@@ -100,7 +100,21 @@ function NewOrderForm() {
     destination, ...extraDeliveries.map((d) => d.address),
   ];
 
-  const commodityItems = commodities.filter((c) => c.description.trim() || c.weight || c.length || c.width || c.height || c.value != null);
+  // Each line's stops renumbered to where they land once blank stops are
+  // dropped on save — see savedStopIndex.
+  const commodityItems = remapItemStops(
+    remapItemStops(commodities.filter((c) => c.description.trim() || c.weight || c.length || c.width || c.height || c.value != null || hasVehicleDetails(c)), 'pickup', savedStopIndex(extraPickups)),
+    'delivery', savedStopIndex(extraDeliveries),
+  );
+
+  // What each line can be picked up at and delivered to, numbered as on screen.
+  const pickupChoices = stopChoices('pickup', { name: shipper.name, address: origin }, extraPickups);
+  const deliveryChoices = stopChoices('delivery', { name: consignee.name, address: destination }, extraDeliveries);
+
+  // A stop taken out moves every line that pointed past it up by one, and
+  // leaves the lines that pointed at it unsaid.
+  const removeStop = (kind: StopKind) => (index: number) =>
+    setCommodities((items) => remapItemStops(items, kind, afterRemoving(index)));
 
   useEffect(() => {
     listParties().then(setParties).catch(() => {});
@@ -355,7 +369,8 @@ function NewOrderForm() {
                 weight are added up for you.
               </p>
             </div>
-            <CommodityItemsFields value={commodities} onChange={setCommodities} />
+            <CommodityItemsFields value={commodities} onChange={setCommodities}
+              pickups={pickupChoices} deliveries={deliveryChoices} />
           </section>
 
           <PriceAndTermsSection
@@ -381,7 +396,7 @@ function NewOrderForm() {
                 />
                 <AddressFields label="Origin" value={origin} onChange={setOrigin} />
                 <ExtraStopsFields kind="pickup" value={extraPickups} onChange={setExtraPickups}
-                  parties={parties} onPartyCreated={cacheParty} />
+                  parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('pickup')} />
               </div>
               <div className="space-y-4">
                 <PartyCombobox
@@ -394,7 +409,7 @@ function NewOrderForm() {
                 />
                 <AddressFields label="Destination" value={destination} onChange={setDest} />
                 <ExtraStopsFields kind="delivery" value={extraDeliveries} onChange={setExtraDeliveries}
-                  parties={parties} onPartyCreated={cacheParty} />
+                  parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('delivery')} />
               </div>
             </div>
             <RouteDistanceField

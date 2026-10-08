@@ -14,13 +14,15 @@ import DiscussButton from '@/components/chat/DiscussButton';
 import { listCarriers } from '@/lib/carriers';
 import PriceAndTermsCard from '@/components/orders/PriceAndTermsCard';
 import SectionEditLink from '@/components/orders/SectionEditLink';
-import type { Order, OrderStatus } from '@/types/order';
+import type { CommodityItem, Order, OrderStatus, StopKind } from '@/types/order';
 import type { Carrier } from '@/types/carrier';
 import {
   STATUS_LABEL,
   STATUS_NEXT,
   clientSignatureSatisfied,
   formatDimensions,
+  hasVehicleDetails,
+  vehicleSummary,
   itemWeightLb,
   orderCommodityItems,
   totalCommodityValue,
@@ -28,6 +30,8 @@ import {
   tripAddresses,
   orderPickups,
   orderDeliveries,
+  itemStop,
+  stopLabel,
   formatLaneMiles,
   isRoutableAddress,
   laneMilesAtNote,
@@ -148,6 +152,23 @@ async function lastDriverForCarrier(
     driverLicenseStoragePath: prev.driverLicenseStoragePath ?? null,
     sourceOrderNumber: orderDisplayNumber(prev),
   };
+}
+
+/**
+ * "Pickup 1 → Delivery 2" under a freight line, or '' on a load with one
+ * pickup and one delivery, where every line goes the same way.
+ */
+function itemRoute(order: Order, item: CommodityItem): string {
+  const counts: Record<StopKind, number> = {
+    pickup: orderPickups(order).length,
+    delivery: orderDeliveries(order).length,
+  };
+  if (counts.pickup <= 1 && counts.delivery <= 1) return '';
+  const side = (kind: StopKind) => {
+    const i = itemStop(item, kind, counts[kind]);
+    return i == null ? `${kind === 'pickup' ? 'Pickup' : 'Delivery'} not set` : stopLabel(kind, i);
+  };
+  return `${side('pickup')} → ${side('delivery')}`;
 }
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -1078,7 +1099,23 @@ export default function OrderDetailPage() {
                 <tbody>
                   {orderCommodityItems(order).map((item) => (
                     <tr key={item.id} className="border-b border-gray-100 last:border-0">
-                      <td className="py-2 pr-4 text-gray-900">{item.description || '—'}</td>
+                      <td className="py-2 pr-4 text-gray-900">
+                        {item.description || '—'}
+                        {/* The vehicle under its line rather than in columns of
+                            its own: most loads have none, and five empty
+                            columns would crowd out the ones every load uses. */}
+                        {hasVehicleDetails(item) && (
+                          <div className="mt-0.5 text-xs text-gray-500 space-y-0.5">
+                            {vehicleSummary(item) && <div>{vehicleSummary(item)}</div>}
+                            {item.vin && <div>VIN <span className="font-mono text-gray-700">{item.vin}</span></div>}
+                          </div>
+                        )}
+                        {/* Where the line goes on and comes off — only on a
+                            load with somewhere to choose between. */}
+                        {itemRoute(order, item) && (
+                          <div className="mt-0.5 text-xs text-gray-500">{itemRoute(order, item)}</div>
+                        )}
+                      </td>
                       <td className="py-2 pr-4 text-gray-600">{item.quantity || '—'}</td>
                       <td className="py-2 pr-4 text-gray-600">{formatDimensions(item) || '—'}</td>
                       <td className="py-2 pr-4 text-gray-600">

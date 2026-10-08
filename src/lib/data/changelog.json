@@ -1,6 +1,20 @@
 {
   "changes": [
     {
+      "hash": "0940af434c71d4751187a14d596a3cf27ebf0f79",
+      "date": "2026-10-08T17:23:19-06:00",
+      "author": "erwindank",
+      "subject": "Count steps as well as tasks in each board column's badge",
+      "body": ""
+    },
+    {
+      "hash": "4842a0aab8b63b997c2854ef4bdfc9ae409d550e",
+      "date": "2026-10-08T17:21:52-06:00",
+      "author": "erwindank",
+      "subject": "Add break, lunch and active pause reminders, with a daily set of exercises in English and Spanish",
+      "body": "A reminder at 10am to take the 20-minute break by 11, and at 1pm for lunch\n(1 to 2), Monday to Friday, for anybody clocked in and not already on a\nbreak. A card in the corner of TTMS and a desktop notification; either\nstarts the break in one click.\n\nAn optional active pause once a day (8:30, off until HR turns it on) shows\nthree short desk exercises, different every day, in English and Spanish.\n\nHR and admins change all three for the company or one person in\nAttendance > Setup > Break reminders. Worked out in the browser from the\nclock state, so there is no new cron and no extra reads per check."
+    },
+    {
       "hash": "cee324c0b52a3947eb1dc92572ca819ece174cab",
       "date": "2026-10-08T13:04:36-06:00",
       "author": "erwindank",
