@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { formatLongDateRange } from '@/lib/dateFormat';
 import { adminDb, adminStorage, requirePermission, AdminAuthError } from '@/lib/firebase-admin';
 import { documentAlert, postOrderAlert } from '@/lib/chatAlerts';
+import { actorForUid, updateWithHistory } from '@/lib/recordHistory';
 import { generateBolBuffer } from '@/lib/bol-pdf';
 import type { BolData } from '@/lib/bol-pdf';
 import { formatDimensions, itemWeightLb, orderCommodityItems, orderDisplayNumber } from '@/types/order';
@@ -30,8 +31,9 @@ async function getSignedUrl(filePath: string): Promise<string> {
 }
 
 export async function POST(req: NextRequest, { params }: RouteContext) {
+  let caller: { uid: string; email: string | undefined };
   try {
-    await requirePermission(req, 'orders.bol');
+    caller = await requirePermission(req, 'orders.bol');
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });
@@ -113,10 +115,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     metadata: { contentType: 'application/pdf' },
   });
 
-  await adminDb.collection('orders').doc(orderId).update({
+  await updateWithHistory(adminDb.collection('orders').doc(orderId), {
     bolStoragePath: filePath,
     updatedAt:      new Date(),
-  });
+  }, await actorForUid(caller.uid, caller.email), order.bolStoragePath ? 'Generated the BOL again' : 'Generated the BOL');
 
   // The room about this load, if anybody has started one. Best-effort: the
   // BOL exists and is about to be handed back, and a chat write that failed

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, FieldValue } from '@/lib/firebase-admin';
+import { diffFields, writeChange } from '@/lib/recordHistory';
 import { Timestamp } from 'firebase-admin/firestore';
 import { postOrderAlert, signedAlert } from '@/lib/chatAlerts';
 import { STATUS_RANK } from '@/types/order';
@@ -133,6 +134,27 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         signerIp:   ip,
       });
       tx.update(orderRef, orderUpdate);
+
+      // The order's change history, in the same transaction so it can never
+      // disagree with the signature it describes. This is an addition beside
+      // the legal record on the token, not a replacement for it: the token
+      // still carries the signer's name, IP and time. There is no account
+      // behind an outside signer, so the entry names who they said they were
+      // and the address the link was emailed to.
+      if (orderSnap.exists) {
+        writeChange(tx, orderRef, {
+          action:  'event',
+          summary: isClient
+            ? `${signer} signed the load confirmation for the client`
+            : `${signer} signed the rate confirmation for the carrier`,
+          fields:  diffFields(orderSnap.data()!, orderUpdate),
+        }, {
+          uid:   '',
+          name:  signer,
+          email: String((isClient ? data.clientEmail : data.carrierEmail) ?? ''),
+          via:   'signer',
+        }, now);
+      }
 
       return {
         orderId: data.orderId as string,

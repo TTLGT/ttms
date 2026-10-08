@@ -298,64 +298,12 @@ service cloud.firestore {
       );
     }
 
-    // Ownership decides who can read a record, so it must not be writable by
-    // the same people who can read it — otherwise anyone who could see an
-    // unowned client could claim it and shut everybody else out, silently.
-    // All ownership changes go through /api/{orders,parties}/{id}/owners,
-    // which is admin- and dispatcher-only and writes the history entry in the
-    // same batch.
-    function ownershipUnchanged(fields) {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
-    }
-
-    // Whether this write leaves the lead source alone. Source is attribution —
-    // it decides whose campaign or referral gets credited for a load — so it is
-    // held to a narrower test than the rest of the record below.
-    function sourceUnchanged() {
-      return !request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['sourceId', 'sourceName']);
-    }
-
-    /*
-     * Whether this write leaves the signature record alone.
-     *
-     * Both the client's signature and the decision to dispatch without it are
-     * written only by the Admin SDK — the signing route and
-     * /api/orders/{id}/waive-signature — so the client SDK has no business
-     * touching either, and "anyone who can see an order can edit it" would
-     * otherwise let any broker mark a load as signed, or waive their own way
-     * past the carrier-agreement gate without holding `orders.waiveSignature`.
-     *
-     * A blanket refusal rather than a permission test on purpose: a rule
-     * cannot check that a waiver carries the name of the person who made it,
-     * so there is nothing to be gained by letting a holder of the permission
-     * write it here instead of through the route that records that.
-     */
-    function signatureRecordUnchanged() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-        'carrierSignedAt', 'carrierSignerName', 'carrierSignerIp',
-        'shipperSignedAt', 'shipperSignerName', 'shipperSignerIp',
-        'signatureWaivedAt', 'signatureWaivedByUid', 'signatureWaivedByName',
-        'signatureWaivedReason', 'signatureWaived',
-      ]);
-    }
-
-    // Keep in sync with canEditSource() in src/lib/accessControl.ts.
-    //
-    // Narrower than "can edit this record" on purpose. Anyone who can see an
-    // order can edit it, which takes in dispatch and finance, but changing what
-    // a load is attributed to belongs to the people who own the relationship,
-    // plus admins who have to be able to correct a mistake. A record nobody
-    // owns therefore leaves only an admin able to set it — which falls out of
-    // the rule rather than being a special case, and errs closed.
-    function canEditSource() {
-      return can('source.editAny')
-        || (request.auth.uid in resource.data.get('assignedToUids', []))
-        || resource.data.get('assignedToGroupIds', []).hasAny(myGroups())
-        // A manager settling attribution on their own team's record is the
-        // person who would be asked to settle it anyway.
-        || managesRecord();
-    }
+    // Orders, parties and carriers are no longer written from the browser at
+    // all — see the blocks below. The checks that used to live here as
+    // ownershipUnchanged(), sourceUnchanged(), signatureRecordUnchanged() and
+    // canEditSource() are made by the server save routes instead, in
+    // src/lib/orderWrites.ts and src/lib/partyWrites.ts, which is what lets
+    // every save write its change-history entry in the same batch.
 
     // The allowlist itself: readable by admins so Settings can render it, and
     // by HR, who need the payroll fields these entries carry (legal name, date
@@ -416,19 +364,23 @@ service cloud.firestore {
     // rules cannot express without a query. Direct client reads are still
     // gated here so a bypass of the API gains nothing.
     //
-    // Creates go through /api/parties so the name-collision check can see
-    // records the caller cannot; the client path is closed.
+    // Every write goes through the server: creates through POST /api/parties
+    // (so the name-collision check can see records the caller cannot), edits
+    // through PATCH /api/parties/{id}, which makes the checks this rule used
+    // to (src/lib/partyWrites.ts) and writes the change-history entry in the
+    // same batch. A client write would be a change with no history, so the
+    // path is closed — deletes included. The app has no delete for a party;
+    // when one is added it must be a route that records it, not a reopening
+    // of this rule.
     match /parties/{partyId} {
-      allow read:   if isAllowedUser() && partyVisible();
-      allow create: if false;
-      allow update: if isAllowedUser() && partyVisible() && ownershipUnchanged([
-        'assignedToUids', 'assignedToGroupIds', 'assignedToEmails', 'assignedToName'
-      ]) && (sourceUnchanged() || canEditSource());
-      // A Sales Manager may delete their own team's records, on the same
-      // reasoning as everything else scoped to them: within the team they have
-      // what an admin has. Outside it they have nothing.
-      allow delete: if can('parties.delete') || (isAllowedUser() && managesRecord());
+      allow read:  if isAllowedUser() && partyVisible();
+      allow write: if false;
 
+      // The change history. Read through GET /api/parties/{id}/history, for
+      // the same reason ownerEvents below is.
+      match /changes/{changeId} {
+        allow read, write: if false; // Admin SDK only
+      }
 
       // See the same block under /orders for why this is closed rather than
       // gated on partyVisible(). Read through GET /api/parties/{id}/owners.
@@ -508,7 +460,8 @@ service cloud.firestore {
     // show its source label; written only through /api/lead-sources, which is
     // admin-only and refuses to delete a source anything still points at.
     // Note the asymmetry: reading the *list* grants nothing, but setting a
-    // source *on a record* is restricted — see canEditSource() above.
+    // source *on a record* is restricted — see canEditSource() in
+    // src/lib/accessControl.ts, applied by the server save routes.
     match /leadSources/{sourceId} {
       allow read:  if isAllowedUser();
       allow write: if false;
@@ -569,14 +522,18 @@ service cloud.firestore {
     // from being handed the whole carrier book by default.
     match /carriers/{carrierId} {
       allow read: if can('carriers.view');
-      // `fmcsa` is FMCSA's answer about this carrier, written only by
-      // POST /api/carriers/{id}/fmcsa with the Admin SDK. Closed here so a
-      // broker cannot mark a carrier as checked and authorized without FMCSA
-      // having been asked. The app's saves name their fields and never send it.
-      allow create: if can('carriers.edit') && !('fmcsa' in request.resource.data);
-      allow update: if can('carriers.edit')
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fmcsa']);
-      allow delete: if can('carriers.edit');
+      // Writes go through POST /api/carriers and PATCH /api/carriers/{id},
+      // which check `carriers.edit`, refuse `fmcsa` (FMCSA's answer, written
+      // only by POST /api/carriers/{id}/fmcsa) and write the change-history
+      // entry in the same batch — see src/lib/carrierWrites.ts. A client write
+      // would be a change with no history, so the path is closed, deletes
+      // included.
+      allow write: if false;
+
+      // Read through GET /api/carriers/{id}/history.
+      match /changes/{changeId} {
+        allow read, write: if false; // Admin SDK only
+      }
     }
 
     // Drivers hang off a carrier and are gated by the carrier permissions
@@ -604,19 +561,22 @@ service cloud.firestore {
     match /orders/{orderId} {
       allow read: if isAllowedUser() && orderVisible();
 
-      // The creator has to be on the order. Orders are closed by default, so
-      // an order created without an owner would be invisible to the person who
-      // just wrote it.
-      allow create: if can('orders.create')
-        && (request.auth.uid in request.resource.data.get('assignedToUids', []));
+      // Every write goes through the server — POST /api/orders and
+      // PATCH /api/orders/{id} — which makes the checks these rules used to
+      // (src/lib/orderWrites.ts: the creator on the order, ownership and the
+      // signature record untouched, the lead source only by an owner) and
+      // writes the change-history entry in the same batch. A client write
+      // would be a change with no history, so the path is closed, deletes
+      // included. The app has no delete for a load; when one is added it must
+      // be a route that records it, not a reopening of this rule.
+      allow write: if false;
 
-      allow update: if isAllowedUser() && orderVisible() && ownershipUnchanged([
-        'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
-        'clientOwnerUids', 'clientOwnerGroupIds', 'assignedTo'
-      ]) && (sourceUnchanged() || canEditSource())
-        && signatureRecordUnchanged();
-
-      allow delete: if can('orders.delete') || (isAllowedUser() && managesRecord());
+      // The change history. Read through GET /api/orders/{id}/history, which
+      // checks the caller against the order first — closed here for the
+      // reason given on ownerEvents just below.
+      match /changes/{changeId} {
+        allow read, write: if false; // Admin SDK only
+      }
 
       // There is deliberately no `documents` subcollection rule here, nor under
       // parties or carriers. docs/schema-guide.md describes one, but it was

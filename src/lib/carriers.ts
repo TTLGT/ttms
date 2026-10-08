@@ -1,8 +1,6 @@
 import {
   collection,
   doc,
-  addDoc,
-  updateDoc,
   getDocs,
   getDoc,
   query,
@@ -11,12 +9,13 @@ import {
   limit as limitTo,
   startAfter,
   getCountFromServer,
-  serverTimestamp,
   type QueryConstraint,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { auth, db } from './firebase';
+import { encodeRecordPatch } from './recordWire';
 import type { Carrier } from '@/types/carrier';
+import type { ChangeEntry } from '@/types/recordHistory';
 import { carrierNameKey, carrierNumber } from '@/types/carrier';
 
 const COL = 'carriers';
@@ -29,20 +28,34 @@ const COL = 'carriers';
  * eleven thousand of them, which is why nothing below fetches them all.
  */
 
+/**
+ * Writes go through the server, unlike reads, so that every save writes its
+ * change-history entry in the same batch — see src/lib/carrierWrites.ts. The
+ * name key and the digits-only DOT and MC are worked out there now.
+ */
+async function carrierRequest<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not signed in');
+  const res = await fetch(url, {
+    method,
+    headers: {
+      'Authorization': `Bearer ${await user.getIdToken()}`,
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? `Request failed (${res.status})`);
+  return data as T;
+}
+
 export async function createCarrier(
   data: Omit<Carrier, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
-  const ref = await addDoc(collection(db, COL), {
-    ...data,
-    // Written on every save so search keeps working. See carrierNameKey.
-    nameKey: carrierNameKey(data.companyName),
-    // Digits only, so the number search can find it. See carrierNumber.
-    mc:  carrierNumber(data.mc),
-    dot: carrierNumber(data.dot),
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  const { id } = await carrierRequest<{ id: string }>('POST', '/api/carriers', {
+    carrier: encodeRecordPatch(data),
   });
-  return ref.id;
+  return id;
 }
 
 export async function getCarrier(carrierId: string): Promise<Carrier | null> {
@@ -166,14 +179,15 @@ export async function updateCarrier(
   carrierId: string,
   data: Partial<Omit<Carrier, 'id' | 'createdAt'>>
 ): Promise<void> {
-  await updateDoc(doc(db, COL, carrierId), {
-    ...data,
-    // Only when the name actually changed — writing it unconditionally would
-    // blank the key on every edit that does not touch companyName.
-    ...(data.companyName !== undefined && { nameKey: carrierNameKey(data.companyName) }),
-    // Same guard, same reason: normalizing an absent key would blank it.
-    ...(data.mc  !== undefined && { mc:  carrierNumber(data.mc) }),
-    ...(data.dot !== undefined && { dot: carrierNumber(data.dot) }),
-    updatedAt: serverTimestamp(),
+  await carrierRequest<{ ok: true }>('PATCH', `/api/carriers/${carrierId}`, {
+    patch: encodeRecordPatch(data),
   });
+}
+
+/** Everything that has happened to this carrier, newest first. */
+export async function listCarrierHistory(carrierId: string): Promise<ChangeEntry[]> {
+  const { entries } = await carrierRequest<{ entries: ChangeEntry[] }>(
+    'GET', `/api/carriers/${carrierId}/history`,
+  );
+  return entries ?? [];
 }

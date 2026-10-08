@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "502fb37686d46ed661a4f0b22d31893f16ce9e07",
+      "date": "2026-10-07T21:23:32-06:00",
+      "author": "erwindank",
+      "subject": "Show city, state and ZIP in a client's order routes",
+      "body": ""
+    },
+    {
       "hash": "893f7593792812ef78f88f87a8b3d670163ef339",
       "date": "2026-10-07T21:16:15-06:00",
       "author": "erwindank",

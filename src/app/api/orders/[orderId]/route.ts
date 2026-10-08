@@ -3,6 +3,8 @@ import { AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { readOrder } from '@/lib/orderAccess';
 import { withCoverThumbs } from '@/lib/loadPhotosServer';
+import { decodePatch } from '@/lib/recordHistory';
+import { updateOrderAsCaller } from '@/lib/orderWrites';
 
 /**
  * One order, or 403 when the caller does not own it and does not own its client.
@@ -48,6 +50,29 @@ export async function GET(
     // The header draws the load's profile picture; see withCoverThumbs().
     const [order] = await withCoverThumbs([access.order]);
     return NextResponse.json({ order });
+  } catch (e) {
+    if (e instanceof AdminAuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    throw e;
+  }
+}
+
+/**
+ * Save part of an order, recording what changed. The browser used to write
+ * the patch straight to Firestore; see updateOrderAsCaller() for the checks
+ * that moved here from the rules with it.
+ */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ orderId: string }> },
+) {
+  try {
+    const { orderId } = await params;
+    const caller = await requireCaller(req);
+    const body   = await req.json().catch(() => ({}));
+    await updateOrderAsCaller(caller, orderId, decodePatch(body.patch));
+    return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

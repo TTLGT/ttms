@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Timestamp } from 'firebase/firestore';
-import { getCarrier, updateCarrier } from '@/lib/carriers';
+import { getCarrier, listCarrierHistory, updateCarrier } from '@/lib/carriers';
+import ChangeHistory from '@/components/history/ChangeHistory';
 import ContactTitleSelect from '@/components/carriers/ContactTitleSelect';
 import PersonNameFields from '@/components/PersonNameFields';
 import { listOrders } from '@/lib/orders';
@@ -55,7 +56,7 @@ export default function CarrierDetailPage() {
   const [editing, setEditing]   = useState(false);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState('');
-  const [tab, setTab]           = useState<'details' | 'drivers' | 'orders'>('details');
+  const [tab, setTab]           = useState<'details' | 'drivers' | 'orders' | 'history'>('details');
 
   // Drivers on file for this carrier. Loaded alongside the record rather than
   // when the tab is opened, so the tab label can carry the count.
@@ -291,13 +292,14 @@ export default function CarrierDetailPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
-        {(['details', 'drivers', 'orders'] as const).map((t) => (
+        {(['details', 'drivers', 'orders', 'history'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition ${
               tab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}>
             {t === 'orders'  ? `Orders (${orders.length})`
               : t === 'drivers' ? `Drivers (${drivers.length})`
+              : t === 'history' ? 'History'
               : 'Details'}
           </button>
         ))}
@@ -647,6 +649,11 @@ export default function CarrierDetailPage() {
           onSaved={handleDriverSaved}
           onCancel={() => { setAddingDriver(false); setEditDriver(null); }}
         />
+      )}
+
+      {/* History tab — read only when opened; see ChangeHistory. */}
+      {tab === 'history' && (
+        <ChangeHistory load={() => listCarrierHistory(carrierId)} refreshKey={carrier} startOpen />
       )}
 
       {/* Orders tab */}

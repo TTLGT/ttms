@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller, readParty } from '@/lib/partyAccess';
+import { decodePatch } from '@/lib/recordHistory';
+import { updatePartyAsCaller } from '@/lib/partyWrites';
 
 /**
  * One party by id.
@@ -50,6 +52,32 @@ export async function GET(
     }
 
     return NextResponse.json({ party: access.party });
+  } catch (e) {
+    if (e instanceof AdminAuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    throw e;
+  }
+}
+
+/**
+ * Edit a party, recording what changed. `{ patch }` saves fields; `{ addRole }`
+ * tags a role it has now been used in. See updatePartyAsCaller() for the
+ * checks that moved here from firestore.rules.
+ */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ partyId: string }> },
+) {
+  try {
+    const { partyId } = await params;
+    const caller = await requireCaller(req);
+    const body   = await req.json().catch(() => ({}));
+    await updatePartyAsCaller(caller, partyId, {
+      patch:   body.patch === undefined ? undefined : decodePatch(body.patch),
+      addRole: body.addRole === undefined ? undefined : String(body.addRole),
+    });
+    return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

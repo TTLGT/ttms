@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { formatLongDateRange } from '@/lib/dateFormat';
 import { adminDb, adminStorage, requirePermission, AdminAuthError } from '@/lib/firebase-admin';
 import { documentAlert, postOrderAlert } from '@/lib/chatAlerts';
+import { actorForUid, updateWithHistory } from '@/lib/recordHistory';
 import { generateInvoiceBuffer } from '@/lib/invoice-pdf';
 import type { InvoiceData } from '@/lib/invoice-pdf';
 import { orderDisplayNumber } from '@/types/order';
@@ -27,8 +28,9 @@ async function getSignedUrl(filePath: string): Promise<string> {
 }
 
 export async function POST(req: NextRequest, { params }: RouteContext) {
+  let caller: { uid: string; email: string | undefined };
   try {
-    await requirePermission(req, 'orders.invoice');
+    caller = await requirePermission(req, 'orders.invoice');
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });
@@ -75,10 +77,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     metadata: { contentType: 'application/pdf' },
   });
 
-  await adminDb.collection('orders').doc(orderId).update({
+  await updateWithHistory(adminDb.collection('orders').doc(orderId), {
     invoiceStoragePath: filePath,
     updatedAt:          new Date(),
-  });
+  }, await actorForUid(caller.uid, caller.email), order.invoiceStoragePath ? 'Generated the invoice again' : 'Generated the invoice');
 
   // Best-effort, like the BOL: the invoice is generated either way.
   await postOrderAlert(orderId, documentAlert('Invoice', true)).catch(() => {});

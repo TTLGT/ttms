@@ -3,6 +3,7 @@ import { adminDb, requirePermission, AdminAuthError } from '@/lib/firebase-admin
 import { Timestamp } from 'firebase-admin/firestore';
 import { lookupCarrier, FmcsaNotConfiguredError, FmcsaUnavailableError } from '@/lib/fmcsa';
 import { carrierNumber } from '@/types/carrier';
+import { updateWithHistory } from '@/lib/recordHistory';
 
 type RouteContext = { params: Promise<{ carrierId: string }> };
 
@@ -68,7 +69,14 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   // `updatedAt` is left alone: a check is not an edit to the carrier, and
   // bumping it would make every carrier anybody looked at read as changed.
-  await ref.update({ fmcsa: { ...lookup, checkedAt, checkedByName } });
+  // It does go into the carrier's change history: who checked a carrier, and
+  // when, is exactly what somebody asks after a load goes wrong.
+  await updateWithHistory(
+    ref,
+    { fmcsa: { ...lookup, checkedAt, checkedByName } },
+    { uid: caller.uid, name: checkedByName, email: caller.email ?? '', via: 'app' },
+    lookup.found ? 'Checked with FMCSA' : 'Checked with FMCSA — no carrier found under its number',
+  );
 
   return NextResponse.json({
     check: { ...lookup, checkedByName, checkedAt: checkedAt.toDate().toISOString() },

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, requireAdmin, AdminAuthError } from '@/lib/firebase-admin';
 import { FmcsaNotConfiguredError } from '@/lib/fmcsa';
 import { carriersNeedingCheck, sweepCarriers, SWEEP_BATCH } from '@/lib/fmcsaSweep';
+import type { ChangeActor } from '@/lib/recordHistory';
 
 // Well past the sweep's own 35-second budget: a lookup already running when the
 // budget ends can still wait 30 seconds on FMCSA's census, twice when it goes
@@ -57,7 +58,8 @@ export async function POST(req: NextRequest) {
   const checkedByName = `${who} (bulk check)`;
 
   try {
-    return NextResponse.json(await sweepCarriers(ids, checkedByName));
+    const actor: ChangeActor = { uid: g.caller.uid, name: who, email: g.caller.email ?? '', via: 'app' };
+    return NextResponse.json(await sweepCarriers(ids, checkedByName, actor));
   } catch (e) {
     if (e instanceof FmcsaNotConfiguredError) {
       return NextResponse.json({ error: e.message }, { status: 503 });

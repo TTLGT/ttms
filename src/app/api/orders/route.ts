@@ -13,6 +13,8 @@ import { resolveOwnerFilter } from '@/lib/ownerFilter';
 import { withCoverThumbs } from '@/lib/loadPhotosServer';
 import { ORDER_STATUSES } from '@/types/order';
 import { isOrderView } from '@/types/orderView';
+import { decodePatch } from '@/lib/recordHistory';
+import { createOrderAsCaller } from '@/lib/orderWrites';
 
 /**
  * Every order the caller may see, a page at a time.
@@ -110,6 +112,26 @@ export async function GET(req: NextRequest) {
     // Only for `fields=list`: nothing else that pages orders draws one.
     if (query.fields === 'list') page.orders = await withCoverThumbs(page.orders);
     return NextResponse.json(page);
+  } catch (e) {
+    if (e instanceof AdminAuthError) {
+      return NextResponse.json({ error: e.message }, { status: e.status });
+    }
+    throw e;
+  }
+}
+
+/**
+ * Create an order. The browser used to write it straight to Firestore; it
+ * comes through here so the history's opening entry is written with it. See
+ * createOrderAsCaller() for what is checked and what is set regardless of
+ * what was sent.
+ */
+export async function POST(req: NextRequest) {
+  try {
+    const caller = await requireCaller(req);
+    const body   = await req.json().catch(() => ({}));
+    const created = await createOrderAsCaller(caller, decodePatch(body.order));
+    return NextResponse.json(created, { status: 201 });
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

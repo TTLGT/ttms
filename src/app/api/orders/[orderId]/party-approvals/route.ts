@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError } from '@/lib/firebase-admin';
+import { actorOf, writeChange } from '@/lib/recordHistory';
 import { requireCaller, findApproval } from '@/lib/partyAccess';
 import { canSeeParty } from '@/lib/accessControl';
 import { PARTY_ROLES } from '@/types/party';
@@ -65,6 +66,11 @@ export async function POST(
         }),
         updatedAt: FieldValue.serverTimestamp(),
       });
+      writeChange(tx, orderRef, {
+        action:  'event',
+        summary: `Used ${party.companyName || party.contactName || 'a party'} as ${role}, `
+          + `on an access request approved by ${a.decidedByName || 'its owner'}`,
+      }, actorOf(caller));
       tx.update(approval.ref, {
         status:            'expired',
         consumedByOrderId: orderId,

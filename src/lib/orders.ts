@@ -1,14 +1,8 @@
-import {
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  serverTimestamp,
-} from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { auth } from './firebase';
 import { trackActivity } from './attendance';
+import { encodeRecordPatch } from './recordWire';
 import type { Order, OrderStatus } from '@/types/order';
-import { orderSearchTerms } from '@/types/order';
+import type { ChangeEntry } from '@/types/recordHistory';
 import type { CarrierCoiRow, OrderDocumentKind } from '@/types/orderDocument';
 import type { OrderAccessRequest } from '@/types/orderAccessRequest';
 import type { OwnerContact } from '@/types/order';
@@ -16,46 +10,27 @@ import type { OwnerEvent } from '@/types/ownerEvent';
 import type { OrderViewId } from '@/types/orderView';
 import type { ActiveClient, DashboardSummary } from './orderSummary';
 
-const COL = 'orders';
-
 /**
- * Draws the next number in the sequence. See src/lib/orderNumber.ts for the
- * format and why the counter lives server-side.
+ * Creates an order through the server, which draws its number, works out its
+ * search terms and the client-owner mirror, and writes the opening entry of
+ * its history in the same batch. See src/lib/orderWrites.ts.
  *
- * The number used to be four random digits generated here. With 9,000 of them
- * and no check for one already in use, two loads sharing a number was a matter
- * of a few hundred orders, and nothing about the number said which came first.
+ * The number used to be drawn here first and the order written with the
+ * client SDK. That is what had to change for the history to be trustworthy:
+ * a log the browser writes is one the browser can leave out.
  */
-async function nextOrderNumber(): Promise<string> {
-  const res = await fetch('/api/orders/number', {
-    method: 'POST',
-    headers: await authHeaders(),
-  });
-  const { orderNumber } = await unwrap<{ orderNumber: string }>(res);
-  return orderNumber;
-}
-
 export async function createOrder(
   data: Omit<Order, 'id' | 'orderNumber' | 'createdAt' | 'updatedAt'>
 ): Promise<string> {
-  // Drawn first, and the save is abandoned if it fails. An order written
-  // without a number, or with a guessed one, would be worse than no order:
-  // the number is the load's identity on every document that leaves here.
-  const orderNumber = await nextOrderNumber();
-
-  const ref = await addDoc(collection(db, COL), {
-    ...data,
-    orderNumber,
-    // Computed here because this is the one place holding the whole order.
-    // An order saved without these exists but cannot be found by the search
-    // box — see orderSearchTerms in src/types/order.ts.
-    searchTerms: orderSearchTerms({ ...data, orderNumber }),
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  const res = await fetch('/api/orders', {
+    method:  'POST',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ order: encodeRecordPatch(data) }),
   });
+  const { id } = await unwrap<{ id: string }>(res);
   // Counted for the day's attendance record — see trackActivity.
   trackActivity('ordersCreated');
-  return ref.id;
+  return id;
 }
 
 /**
@@ -393,58 +368,38 @@ export async function updateOrderStatus(
   orderId: string,
   status: OrderStatus
 ): Promise<void> {
-  await updateDoc(doc(db, COL, orderId), {
-    status,
-    updatedAt: serverTimestamp(),
-    ...(status === 'delivered' && { deliveredAt: serverTimestamp() }),
-  });
+  // The server stamps deliveredAt when the status moves to delivered.
+  await saveOrderPatch(orderId, { status });
   trackActivity('statusChanges');
 }
 
-/**
- * The fields orderSearchTerms reads. Listed here so a patch that cannot affect
- * search does not cost a round trip — most saves are a status change.
- *
- * ⚠️  KEEP IN SYNC with searchableValues() in src/types/order.ts. Miss a field
- * and renaming through it leaves the order findable only under its old value.
- */
-const SEARCHABLE_FIELDS = [
-  'orderNumber', 'batsId', 'previousOrderNumber',
-  'shipperName', 'clientName', 'consigneeName', 'carrierName',
-  'commodity', 'origin', 'destination',
-] as const;
+async function saveOrderPatch(orderId: string, patch: Record<string, unknown>): Promise<void> {
+  const res = await fetch(`/api/orders/${orderId}`, {
+    method:  'PATCH',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ patch: encodeRecordPatch(patch) }),
+  });
+  await unwrap<{ ok: true }>(res);
+}
 
+/**
+ * Saves part of an order, and records who changed what.
+ *
+ * The search terms and the client-owner mirror used to be refreshed by two
+ * follow-up calls from here, fire-and-forget. The server now works both out
+ * in the same write — see updateOrderAsCaller().
+ */
 export async function updateOrder(
   orderId: string,
   data: Partial<Omit<Order, 'id' | 'createdAt'>>
 ): Promise<void> {
-  await updateDoc(doc(db, COL, orderId), {
-    ...data,
-    updatedAt: serverTimestamp(),
-  });
+  await saveOrderPatch(orderId, data as Record<string, unknown>);
   trackActivity('status' in data ? 'statusChanges' : 'ordersUpdated');
+}
 
-  // A change to any field the search box looks at makes the stored fragments
-  // wrong, and this patch is only part of an order — the fragments come from
-  // all of those fields together, so the server rereads the saved record and
-  // recomputes them. Fire-and-forget, like the client-owner refresh below: the
-  // save has already succeeded and must not be undone by a derived field.
-  if (SEARCHABLE_FIELDS.some((f) => f in data)) {
-    fetch(`/api/orders/${orderId}/search-terms`, {
-      method:  'POST',
-      headers: await authHeaders(),
-    }).catch(() => {});
-  }
-
-  // Moving an order to a different client invalidates its copy of that client's
-  // owners, which is what the rules read to decide who may see the order. The
-  // browser is deliberately not allowed to write those fields, so the server
-  // recomputes them. Without this, changing the client would leave the previous
-  // client's owners able to see the order and the new one's unable to.
-  if (data.clientId !== undefined) {
-    await fetch(`/api/orders/${orderId}/client-owners`, {
-      method:  'POST',
-      headers: await authHeaders(),
-    }).catch(() => {});
-  }
+/** Everything that has happened to this order, newest first. */
+export async function listOrderHistory(orderId: string): Promise<ChangeEntry[]> {
+  const res = await fetch(`/api/orders/${orderId}/history`, { headers: await authHeaders() });
+  const { entries } = await unwrap<{ entries: ChangeEntry[] }>(res);
+  return entries ?? [];
 }

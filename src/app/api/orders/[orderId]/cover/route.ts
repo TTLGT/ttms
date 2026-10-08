@@ -3,6 +3,7 @@ import { adminDb, AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { LOAD_PHOTOS_COLLECTION } from '@/types/loadPhoto';
+import { actorOf, updateWithHistory } from '@/lib/recordHistory';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -38,7 +39,12 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
       }
     }
 
-    await adminDb.collection('orders').doc(orderId).update({ coverPhotoId: photoId });
+    await updateWithHistory(
+      adminDb.collection('orders').doc(orderId),
+      { coverPhotoId: photoId },
+      actorOf(caller),
+      photoId ? 'Changed the profile picture' : 'Removed the profile picture',
+    );
     return NextResponse.json({ coverPhotoId: photoId });
   } catch (e) {
     if (e instanceof AdminAuthError) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, adminStorage, AdminAuthError, FieldValue } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
+import { actorOf, writeChange } from '@/lib/recordHistory';
 import { deletePhotoFiles, listOrderPhotos, toLoadPhoto } from '@/lib/loadPhotosServer';
 import {
   LOAD_PHOTOS_COLLECTION,
@@ -141,6 +142,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       photoCount: FieldValue.increment(1),
       ...(hasCover ? {} : { coverPhotoId: ref.id }),
     });
+    writeChange(batch, adminDb.collection('orders').doc(orderId), {
+      action:  'event',
+      summary: caption ? `Added a picture: ${caption}` : 'Added a picture',
+    }, actorOf(caller));
     try {
       await batch.commit();
     } catch (err) {

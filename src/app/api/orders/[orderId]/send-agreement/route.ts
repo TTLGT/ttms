@@ -4,6 +4,7 @@ import { adminDb, requirePermission, AdminAuthError } from '@/lib/firebase-admin
 import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
 import { agreementSentAlert, postOrderAlert } from '@/lib/chatAlerts';
+import { actorForUid, recordEvent } from '@/lib/recordHistory';
 import { signUrl } from '@/lib/appUrl';
 import { randomBytes } from 'crypto';
 import { clientSignatureSatisfied, dimensionsSummary, orderCommodityItems, orderDisplayNumber } from '@/types/order';
@@ -12,8 +13,9 @@ import type { Order } from '@/types/order';
 type RouteContext = { params: Promise<{ orderId: string }> };
 
 export async function POST(req: NextRequest, { params }: RouteContext) {
+  let caller: { uid: string; email: string | undefined };
   try {
-    await requirePermission(req, 'orders.sendAgreement');
+    caller = await requirePermission(req, 'orders.sendAgreement');
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });
@@ -136,6 +138,15 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   // Said in the room so that "has anybody sent the rate con yet" stops being
   // a question. Best-effort: the email has already left.
+  // After the send, never before: an entry saying it went out must mean it
+  // did. Best-effort for the same reason as the alert — the email has left,
+  // and failing the request now would invite somebody to send it twice.
+  await recordEvent(
+    adminDb.collection('orders').doc(orderId),
+    `Emailed the rate confirmation to the carrier at ${carrier.email}`,
+    await actorForUid(caller.uid, caller.email),
+  ).catch(() => {});
+
   await postOrderAlert(orderId, agreementSentAlert('carrier', carrier.email)).catch(() => {});
 
   return NextResponse.json({ success: true, sentTo: carrier.email });

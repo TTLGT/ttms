@@ -12,6 +12,7 @@ import { resolveOwnerFilter } from '@/lib/ownerFilter';
 import { callerIp, labelOwners, ownerTargets, writeOwnerEvents } from '@/lib/ownership';
 import { toNameKey, partyPhoneKeys } from '@/types/party';
 import { phoneRegionOf } from '@/lib/phone';
+import { actorOf, writeChange } from '@/lib/recordHistory';
 
 /**
  * The parties the caller may see. Filtering happens here, never in the browser.
@@ -201,6 +202,8 @@ export async function POST(req: NextRequest) {
       { uid: caller.uid, name: caller.displayName, ip: callerIp(req) },
       now,
     );
+    // And the opening entry of its change history, for the same reason.
+    writeChange(batch, ref, { action: 'created', summary: `Created ${companyName || contactName}` }, actorOf(caller), now);
     await batch.commit();
 
     const snap = await ref.get();

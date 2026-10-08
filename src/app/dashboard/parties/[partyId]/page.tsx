@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { getParty, updateParty, tagPartyRole, addPartyOwners, removePartyOwners, requestPartyAccessById } from '@/lib/parties';
+import { getParty, updateParty, tagPartyRole, addPartyOwners, removePartyOwners, requestPartyAccessById, listPartyHistory } from '@/lib/parties';
+import ChangeHistory from '@/components/history/ChangeHistory';
 import { listOrders } from '@/lib/orders';
 import { listUserProfiles } from '@/lib/userProfiles';
 import { listWorkGroups } from '@/lib/workGroups';
@@ -560,6 +561,8 @@ export default function PartyDetailPage() {
           </div>
         )}
       </section>
+
+      <ChangeHistory load={() => listPartyHistory(partyId)} refreshKey={party} />
     </div>
   );
 }

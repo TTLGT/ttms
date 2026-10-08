@@ -1,18 +1,10 @@
-import {
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  arrayUnion,
-  serverTimestamp,
-} from 'firebase/firestore';
-import { db, auth } from './firebase';
-import { toNameKey, partyDisplayName, partyPhoneKeys, toPhoneKey, BLANK_ADDRESS } from '@/types/party';
+import { auth } from './firebase';
+import { encodeRecordPatch } from './recordWire';
+import type { ChangeEntry } from '@/types/recordHistory';
+import { partyDisplayName, toPhoneKey, BLANK_ADDRESS } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
 import type { OwnerEvent } from '@/types/ownerEvent';
 import type { AccessRequest } from '@/types/accessRequest';
-
-const COL = 'parties';
 
 /**
  * Extra owners to put on a record at the moment it is created.
@@ -326,68 +318,41 @@ async function unwrap<T>(res: Response): Promise<T> {
 }
 
 /**
- * Fields no client write may touch. Ownership decides who can see a record, so
- * letting the browser set it meant any user who could see a party could take
+ * Fields no edit may touch. Ownership decides who can see a record, so
+ * letting an edit set it meant any user who could see a party could take
  * it — and because an unowned party is visible to everyone, that was every
  * unclaimed client in the system, with nothing recording who did it.
  *
- * Ownership now moves only through /api/parties/{id}/owners, which is limited
- * to admins and dispatchers and writes the history entry in the same batch.
- * The rules enforce this too; stripping the fields here keeps an honest caller
- * from writing a patch the rules would simply reject.
+ * Ownership moves only through /api/parties/{id}/owners, which is limited to
+ * admins and dispatchers and writes the history entry in the same batch. The
+ * save route refuses these too; stripping them here keeps an honest caller
+ * from sending a patch that would simply be refused.
  */
 const OWNERSHIP_FIELDS = ['assignedToUids', 'assignedToGroupIds', 'assignedToEmails', 'assignedToName'] as const;
 
+/**
+ * Saves a party through the server, which rebuilds its name and phone keys
+ * from the saved record and writes the change into its history in the same
+ * batch. See src/lib/partyWrites.ts.
+ */
 export async function updateParty(
   partyId: string,
   data: Partial<Omit<Party, 'id' | 'createdAt'>>,
 ): Promise<void> {
-  const patch: Record<string, unknown> = { ...data, updatedAt: serverTimestamp() };
+  const patch: Record<string, unknown> = { ...data };
   for (const field of OWNERSHIP_FIELDS) delete patch[field];
-
-  // A country changing without the number changing still re-keys: the same
-  // digits filed as Guatemalan rather than American are different keys.
-  const touchesPhone = data.phone !== undefined || data.phone2 !== undefined
-    || data.phoneRegion !== undefined || data.phone2Region !== undefined;
-  const touchesName  = data.companyName !== undefined || data.contactName !== undefined;
-
-  // Both derived keys are built from a pair of fields and a patch may carry
-  // only one half of either, so the saved record supplies the rest. Read once
-  // even when a single edit changes a name and a phone together. An unreadable
-  // record means the update is about to be rejected anyway; falling back to the
-  // empty string keeps that as the rules' decision rather than throwing here.
-  let saved: Party | null = null;
-  if (touchesPhone || touchesName) {
-    const access = await getParty(partyId);
-    saved = access.status === 'ok' ? access.party : null;
-  }
-
-  if (touchesPhone) {
-    // Same contract as nameKey: a phone changed without its key rewritten
-    // leaves the party findable only under the number it used to have.
-    patch.phoneKeys = partyPhoneKeys({
-      phone:        data.phone        ?? saved?.phone        ?? '',
-      phone2:       data.phone2       ?? saved?.phone2       ?? '',
-      phoneRegion:  data.phoneRegion  ?? saved?.phoneRegion,
-      phone2Region: data.phone2Region ?? saved?.phone2Region,
-    });
-  }
-
-  if (touchesName) {
-    const companyName = (data.companyName ?? saved?.companyName ?? '').trim();
-    const contactName = (data.contactName ?? saved?.contactName ?? '').trim();
-    patch.nameKey = toNameKey(companyName || contactName);
-  }
-
-  await updateDoc(doc(db, COL, partyId), patch);
+  await apiSend<{ ok: true }>('PATCH', `/api/parties/${partyId}`, { patch: encodeRecordPatch(patch) });
 }
 
 /** Records that a party has now been used in `role`, without clobbering others. */
 export async function tagPartyRole(partyId: string, role: PartyRole): Promise<void> {
-  await updateDoc(doc(db, COL, partyId), {
-    roles:     arrayUnion(role),
-    updatedAt: serverTimestamp(),
-  });
+  await apiSend<{ ok: true }>('PATCH', `/api/parties/${partyId}`, { addRole: role });
+}
+
+/** Everything that has happened to this party, newest first. */
+export async function listPartyHistory(partyId: string): Promise<ChangeEntry[]> {
+  const { entries } = await apiGet<{ entries: ChangeEntry[] }>(`/api/parties/${partyId}/history`);
+  return entries ?? [];
 }
 
 /**

@@ -704,9 +704,9 @@ Consequences worth knowing:
 - `searchTerms` is left out of the list projection and only fetched when a
   second word has to be checked against it, then stripped before the rows are
   sent. It is ~62 fragments per order and nothing displays it.
-- **Anything that writes an order must refresh it.** `createOrder` computes it
-  directly; `updateOrder` posts to `/api/orders/{id}/search-terms`, which
-  rereads the saved order because a patch is only part of one.
+- **Anything that writes an order must refresh it.** Both save paths in
+  `src/lib/orderWrites.ts` compute it in the same write, from the order as it
+  will be once saved, because a patch is only part of one.
 
 ### How the party phone lookup works
 
@@ -744,8 +744,9 @@ its own.
   region reads as US via `phoneRegionOf()`, which is what every record written
   before the picker existed relies on.
 - **Anything that writes a party's phone must refresh it.** `/api/parties`
-  computes it on create; `updateParty` rebuilds it whenever `phone` or `phone2`
-  is in the patch, reading back the half it was not given. A party saved
+  computes it on create; `updatePartyAsCaller()` (`src/lib/partyWrites.ts`)
+  rebuilds it whenever a phone or its country is in the patch, from the record
+  as it will be once saved. A party saved
   without it exists but cannot be found by phone, and nothing fails loudly —
   the same contract as `nameKey` and `carrierNameKey`.
 - **The query runs server-side, at `POST /api/parties/by-phone`.** The number
@@ -829,6 +830,26 @@ Closed to the client SDK entirely — read it through
 parent record first. A subcollection rather than an array field so the log
 cannot be rewritten by a document update, and so a record changing hands for
 years cannot grow its parent without bound.
+
+### `changes` subcollection — the change log
+
+`orders/{id}/changes`, `parties/{id}/changes` and `carriers/{id}/changes` keep
+every change made to the record:
+
+```
+{ action: 'created' | 'updated' | 'event',
+  summary,                       // a sentence for created/event; '' for a plain save
+  fields: [{ field, from, to }], // stored values; Timestamps stay Timestamps
+  actorUid, actorName, actorEmail,
+  via: 'app' | 'signer',         // 'signer' = outside e-signer, actorUid ''
+  at }
+```
+
+Written only by the server, in the same batch as the change (`src/lib/recordHistory.ts`).
+Closed to the client SDK; read through `GET /api/{orders,parties,carriers}/{id}/history`,
+which checks the reader may open the record and merges `ownerEvents` into the
+same timeline. Long values are cut at 2,000 characters on the entry (the record
+keeps the whole value). Single-field index on `at` only — no composite index.
 
 ---
 

@@ -6,7 +6,7 @@ import { ExternalLink, Map, Plus, RefreshCw, Route } from 'lucide-react';
 import Link from 'next/link';
 import {
   announceOrderEvent, getOrder, orderDocumentUrl, requestOrderAccess, updateOrderStatus, updateOrder,
-  listOrdersPage, createOrder,
+  listOrdersPage, createOrder, listOrderHistory,
 } from '@/lib/orders';
 import NoAccessPanel from '@/components/access/NoAccessPanel';
 import CopyLinkButton from '@/components/CopyLinkButton';
@@ -58,6 +58,7 @@ import type { OwnerContact } from '@/types/order';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { trackActivity } from '@/lib/attendance';
 import OrderPhotos from '@/components/photos/OrderPhotos';
+import ChangeHistory from '@/components/history/ChangeHistory';
 import { OrderCoverThumb } from '@/components/photos/PhotoBits';
 
 // Sentinel value for the dropdown's "add a new carrier" row. Not a document id,
@@ -202,8 +203,9 @@ export default function OrderDetailPage() {
   */
   const searchParams = useSearchParams();
   const askedTab     = searchParams.get('tab');
-  const [tab, setTab] = useState<'details' | 'documents' | 'pictures' | 'suborders'>(
-    askedTab === 'documents' || askedTab === 'suborders' || askedTab === 'pictures' ? askedTab : 'details',
+  const [tab, setTab] = useState<'details' | 'documents' | 'pictures' | 'suborders' | 'history'>(
+    askedTab === 'documents' || askedTab === 'suborders' || askedTab === 'pictures' || askedTab === 'history'
+      ? askedTab : 'details',
   );
   // Kept apart from `order` so the tab label can count pictures added or
   // removed on this visit without refetching the load.
@@ -999,7 +1001,7 @@ export default function OrderDetailPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
-        {(['details', 'documents', 'pictures', 'suborders'] as const).map((t) => (
+        {(['details', 'documents', 'pictures', 'suborders', 'history'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition ${
               tab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -1007,6 +1009,7 @@ export default function OrderDetailPage() {
             {t === 'suborders' ? `Suborders (${suborders.length})`
               : t === 'documents' ? 'Documents'
               : t === 'pictures' ? `Pictures (${photoCount ?? order.photoCount ?? 0})`
+              : t === 'history' ? 'History'
               : 'Details'}
           </button>
         ))}
@@ -1656,6 +1659,11 @@ export default function OrderDetailPage() {
           onCoverChange={(coverPhotoId, coverThumbUrl) =>
             setOrder((prev) => (prev ? { ...prev, coverPhotoId, coverThumbUrl } : prev))}
         />
+      )}
+
+      {/* History tab — read only when opened; see ChangeHistory. */}
+      {tab === 'history' && (
+        <ChangeHistory load={() => listOrderHistory(orderId)} refreshKey={order} startOpen />
       )}
 
       {/* Suborders tab */}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, requirePermission, AdminAuthError, FieldValue } from '@/lib/firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
 import { postOrderAlert, signatureWaivedAlert } from '@/lib/chatAlerts';
+import { updateWithHistory } from '@/lib/recordHistory';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     'Someone';
   const waivedAt  = Timestamp.now();
 
-  await orderRef.update({
+  await updateWithHistory(orderRef, {
     signatureWaivedAt:     waivedAt,
     signatureWaivedByUid:  caller.uid,
     signatureWaivedByName: byName,
@@ -83,7 +84,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     // The queryable mirror. See the field's note in src/types/order.ts.
     signatureWaived:       true,
     updatedAt:             FieldValue.serverTimestamp(),
-  });
+  }, { uid: caller.uid, name: byName, email: caller.email ?? '', via: 'app' },
+  reason ? `Dispatched without the client's signature: ${reason}` : "Dispatched without the client's signature");
 
   // After the write and swallowed: the decision is recorded either way, and a
   // chat room being unreachable is not a reason to fail it.

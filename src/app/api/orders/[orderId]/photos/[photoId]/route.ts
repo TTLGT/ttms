@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, AdminAuthError, FieldValue } from '@/lib/firebase-admin';
+import { actorOf, writeChange } from '@/lib/recordHistory';
 import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { canSeeAllOrders } from '@/lib/accessControl';
@@ -113,6 +114,10 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
       photoCount: FieldValue.increment(-1),
       ...(nextCover !== undefined ? { coverPhotoId: nextCover } : {}),
     });
+    writeChange(batch, adminDb.collection('orders').doc(orderId), {
+      action:  'event',
+      summary: data.caption ? `Removed a picture: ${data.caption}` : 'Removed a picture',
+    }, actorOf(caller));
     await batch.commit();
     // After the records, not before: a file with no record is invisible and
     // merely wasted, while a record with no file is a broken picture on screen.

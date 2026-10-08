@@ -288,8 +288,6 @@ Changing one without the other creates a silent security hole:
 | `canSeeDirectory()` | `canSeeDirectory()` + the `allowedUsers` read rule |
 | `canSeeParty()` | `partyVisible()` |
 | `canSeeOrder()` | `orderVisible()` |
-| `canEditSource()` | `canEditSource()` |
-| `clientSignatureSatisfied()` (the gate it feeds) | `signatureRecordUnchanged()` — the rules only refuse the fields; the gate itself is API-side |
 | `managesRecord()` | `managesRecord()` |
 | `ROLE_PERMISSIONS` (pre-permission access) | `legacyList()` — transitional, see below |
 | `NON_DELEGABLE` in `/api/admin/users` | the same array in `settings/people/page.tsx` |
@@ -345,11 +343,12 @@ scripts cannot import TypeScript either:
 | `src/types/order.ts` | mirrored in |
 |---|---|
 | `orderSearchTerms()` + `searchWords()` | `scripts/backfill-order-search-terms.js`, `scripts/import-bats.js` |
-| `searchableValues()` | `SEARCHABLE_FIELDS` in `src/lib/orders.ts` |
+| `searchableValues()` | `SEARCHABLE_FIELDS` in `src/lib/orderWrites.ts` |
 
 `orderSearchTerms` is what the Orders search box looks up. **Anything that
-writes an order must refresh it** — `createOrder` computes it inline,
-`updateOrder` posts to `/api/orders/{id}/search-terms`. An order saved without
+writes an order must refresh it** — `createOrderAsCaller()` and
+`updateOrderAsCaller()` in `src/lib/orderWrites.ts` compute it in the same
+write. An order saved without
 it exists but cannot be found by searching, and nothing fails loudly.
 
 **A dashboard card and the list it opens are one definition.** Each card links
@@ -374,15 +373,15 @@ Adding a view means checking whether its query needs an index it does not have:
 a missing one fails outright.
 
 `carrierNameKey` is what the carriers list searches on. **Anything that writes a
-carrier must write `nameKey` alongside `companyName`** — `createCarrier`,
-`updateCarrier` and both BATS importers do. A carrier saved without one exists
+carrier must write `nameKey` alongside `companyName`** — `src/lib/carrierWrites.ts`
+and both BATS importers do. A carrier saved without one exists
 but cannot be found by name, and one whose name changes without its key being
 rewritten stays findable only under the name it used to have.
 
 `phoneKeys` is what the party phone lookup searches on — the BATS habit of
 typing the number that rang in. **Anything that writes a party's `phone` or
-`phone2` must rewrite it** — `POST /api/parties` computes it, `updateParty`
-rebuilds it from the pair. Same failure mode as the two above: findable only
+`phone2` must rewrite it** — `POST /api/parties` computes it,
+`updatePartyAsCaller()` in `src/lib/partyWrites.ts` rebuilds it from the pair. Same failure mode as the two above: findable only
 under the number it used to have, with nothing failing loudly.
 `scripts/backfill-party-phone-keys.js` fills in the imported records.
 
@@ -818,6 +817,40 @@ the same batch. Every owner a record has ever had is kept, including the
 original BATS name as a `text` target that grants nothing. Ownership fields are
 closed to client writes in the rules — before that, any broker could claim any
 unowned client and lock everyone else out, untraceably.
+
+### Change log — every change to an order, a party or a carrier
+
+Each order, client/shipper/consignee and carrier keeps a history of every
+change — who, when, which fields, from what to what — in a `changes`
+subcollection, shown as the **Change log** (a History tab on orders and
+carriers, a section at the foot of a party). Types and wording in
+`src/types/recordHistory.ts`; writing and reading in `src/lib/recordHistory.ts`.
+Not to be confused with `/dashboard/changes`, which is the history of the
+*code* (`src/types/changelog.ts` — note the case: on Windows the two names are
+the same file, which is why this one is called `recordHistory`).
+
+- **The browser no longer writes `orders`, `parties` or `carriers` at all.**
+  `firestore.rules` is `allow write: if false` on all three. Saves go through
+  `POST /api/orders`, `PATCH /api/orders/{id}`, `PATCH /api/parties/{id}`,
+  `POST /api/carriers`, `PATCH /api/carriers/{id}`, which do in
+  `src/lib/{order,party,carrier}Writes.ts` what the rules used to — read the
+  header of `orderWrites.ts` for the table — and write the entry **in the same
+  batch** as the change. A log the browser writes is one the browser can skip;
+  that is the whole reason for the move. Do not reopen a client write path.
+- **Anything new that writes one of these records writes an entry with it** —
+  `writeChange()` into the same batch or transaction, or `updateWithHistory()`
+  for a plain update. The BOL, invoice, waiver, both agreement emails, the
+  e-signature (in its transaction, as an `outside signer`), photos, the cover
+  picture, party approvals and FMCSA checks all do.
+- **Ownership is not copied in.** `ownerEvents` is already written atomically
+  with each owner change; `readHistory()` merges it into the same timeline.
+- Not recorded: derived fields (`UNRECORDED_FIELDS`), the BATS import and the
+  scripts in `scripts/` (bulk Admin SDK writes), and drivers, which are still
+  written from the browser under `carriers.edit`.
+- **There is still no delete** for any of the three, and the rules now refuse
+  one from the browser outright. When one is built it is a route that writes an
+  entry first; the subcollection survives its parent, since Firestore does not
+  cascade deletes.
 
 Someone who exists on the allowlist but has never signed in can still be
 assigned records and added to work groups: there is no uid yet, so the

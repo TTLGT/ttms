@@ -527,7 +527,9 @@ export function canSeeOrder(
  * see, so letting them all write its source would be the same free-for-all
  * that unrestricted ownership writes used to be.
  *
- * Keep in sync with canEditSource() in firestore.rules.
+ * Applied by the save routes in src/lib/orderWrites.ts and partyWrites.ts.
+ * The rules once carried a copy; they no longer let the browser write
+ * orders or parties at all, so this is now the only definition.
  */
 export function canEditSource(
   record: {

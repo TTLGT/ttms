@@ -5,6 +5,7 @@ import { carrierNumber } from '@/types/carrier';
 import { fmcsaBlankFills, fmcsaConcerns, fmcsaLevel } from '@/types/fmcsa';
 import type { Carrier } from '@/types/carrier';
 import type { FmcsaAnswer, FmcsaLevel } from '@/types/fmcsa';
+import { updateWithHistory, type ChangeActor } from './recordHistory';
 
 /**
  * Checking many carriers with FMCSA at once, and filling in what their records
@@ -86,7 +87,7 @@ export async function carriersNeedingCheck(): Promise<string[]> {
   return ids;
 }
 
-async function sweepOne(id: string, checkedByName: string): Promise<SweepItem> {
+async function sweepOne(id: string, checkedByName: string, actor: ChangeActor): Promise<SweepItem> {
   const ref  = adminDb.collection('carriers').doc(id);
   const snap = await ref.get();
   const carrier = (snap.data() ?? {}) as Partial<Carrier>;
@@ -111,10 +112,12 @@ async function sweepOne(id: string, checkedByName: string): Promise<SweepItem> {
   // `updatedAt` is left alone, as the single check route leaves it: this is
   // FMCSA's answer arriving, not anybody editing the carrier, and bumping it
   // would put every imported carrier at the top of "recently changed".
-  await ref.update({
+  // Through the change history, so a blank FMCSA filled in reads in the
+  // carrier's history as filled by this check rather than appearing unexplained.
+  await updateWithHistory(ref, {
     ...fills,
     fmcsa: { ...lookup, checkedAt: Timestamp.now(), checkedByName },
-  });
+  }, actor, 'Checked with FMCSA (bulk check)');
 
   return {
     id,
@@ -130,7 +133,11 @@ async function sweepOne(id: string, checkedByName: string): Promise<SweepItem> {
  * is missing or refused, so the caller can stop rather than fail every
  * carrier one at a time.
  */
-export async function sweepCarriers(ids: string[], checkedByName: string): Promise<SweepResult> {
+export async function sweepCarriers(
+  ids: string[],
+  checkedByName: string,
+  actor: ChangeActor,
+): Promise<SweepResult> {
   const started = Date.now();
   const queue = [...ids];
   const items: SweepItem[] = [];
@@ -139,7 +146,7 @@ export async function sweepCarriers(ids: string[], checkedByName: string): Promi
     while (queue.length && Date.now() - started < BUDGET_MS) {
       const id = queue.shift()!;
       try {
-        items.push(await sweepOne(id, checkedByName));
+        items.push(await sweepOne(id, checkedByName, actor));
       } catch (e) {
         // A missing key fails every carrier the same way, so the run stops.
         // Anything else — FMCSA down, one bad record — is that carrier's
