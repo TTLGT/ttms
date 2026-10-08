@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarCheck, CalendarClock } from 'lucide-react';
 import { getMyPlanning, setMyPlanningPrompt } from '@/lib/planning';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { formatTime, repeatText } from '@/types/task';
+import { formatTime, repeatText, type PersonalTask } from '@/types/task';
 import {
   PLANNING_ASK_EVENT,
   PLANNING_CHANGED_EVENT,
@@ -21,13 +21,13 @@ import {
  * It changes only whether the card asks. A slot already on the calendar is a
  * task, moved or deleted from the task itself.
  */
-export default function PlanningPanel() {
+export default function PlanningPanel({ tasks }: { tasks?: PersonalTask[] | null }) {
   const { formatCalendarDate } = useDateFormatters();
-  const [kinds, setKinds] = useState<PlanningStatus[] | null>(null);
+  const [fetched, setFetched] = useState<PlanningStatus[] | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    try { setKinds(await getMyPlanning()); } catch { setKinds([]); }
+    try { setFetched(await getMyPlanning()); } catch { setFetched([]); }
   }, []);
 
   useEffect(() => {
@@ -35,6 +35,44 @@ export default function PlanningPanel() {
     window.addEventListener(PLANNING_CHANGED_EVENT, load);
     return () => window.removeEventListener(PLANNING_CHANGED_EVENT, load);
   }, [load]);
+
+  // Which items on the calendar are planning slots. When that set changes — a
+  // slot deleted, rescheduled into a copy, a repeat carried on — ask the
+  // server again, since only it follows the pointer from one to the next.
+  // Run after the calendar's own save has landed, not on its optimistic draw.
+  const slotIds = useMemo(
+    () => (tasks ?? []).filter((t) => t.planning).map((t) => t.id).sort().join(','),
+    [tasks],
+  );
+  const [seenSlotIds, setSeenSlotIds] = useState(slotIds);
+  useEffect(() => {
+    if (slotIds === seenSlotIds) return;
+    setSeenSlotIds(slotIds);
+    const timer = setTimeout(load, 1500);
+    return () => clearTimeout(timer);
+  }, [slotIds, seenSlotIds, load]);
+
+  // The calendar's copy of a slot wins over what the server said when the
+  // panel loaded: a block dragged or stretched on the grid is saved from the
+  // page's own list, and this reads its time from the same list, so the two
+  // never show different lengths. Missing from a loaded list means deleted.
+  const kinds = useMemo(() => {
+    if (!fetched || !tasks) return fetched;
+    const byId = new Map(tasks.map((t) => [t.id, t]));
+    return fetched.map((k): PlanningStatus => {
+      if (!k.scheduled) return k;
+      const t = byId.get(k.scheduled.taskId);
+      if (!t) return { ...k, scheduled: null };
+      return {
+        ...k,
+        scheduled: {
+          ...k.scheduled,
+          date: t.date, time: t.time, endTime: t.endTime,
+          repeat: t.repeat, repeatWeekday: t.repeatWeekday, repeatNths: t.repeatNths, repeatUntil: t.repeatUntil,
+        },
+      };
+    });
+  }, [fetched, tasks]);
 
   async function askNow(k: PlanningStatus) {
     setBusy(true);

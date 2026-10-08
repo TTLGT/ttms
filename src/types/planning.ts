@@ -167,8 +167,18 @@ export const WEEKDAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursd
  */
 export const MORNING_ASK_UNTIL = '13:00';
 
-/** How long the slot is, in minutes. The card offers these; the end time is drawn on the calendar. */
-export const PLANNING_DURATIONS = [15, 30, 45, 60, 90] as const;
+/**
+ * How long the slot is, in minutes. The card offers these; the end time is
+ * drawn on the calendar. Monthly swaps 15 minutes for 2 hours: nobody plans a
+ * month in a quarter of an hour, and a month's plan can want a whole morning.
+ * Five per kind, because that is what fits on the card's row of chips.
+ */
+export const PLANNING_DURATIONS: Record<PlanningKind, readonly number[]> = {
+  morning: [15, 30, 45, 60, 90],
+  evening: [15, 30, 45, 60, 90],
+  weekly: [15, 30, 45, 60, 90],
+  monthly: [30, 45, 60, 90, 120],
+};
 export const PLANNING_DEFAULT_DURATION: Record<PlanningKind, number> = {
   morning: 15,
   evening: 15,
@@ -176,13 +186,31 @@ export const PLANNING_DEFAULT_DURATION: Record<PlanningKind, number> = {
   monthly: 60,
 };
 
+/**
+ * The chips are suggestions, not the limit: "Other" on the card steps past
+ * them in PLANNING_STEP_MINUTES, up to PLANNING_MAX_MINUTES — so a long plan
+ * is set on the card rather than by stretching the block on the calendar
+ * afterwards. A working day is the ceiling; past that it is not a slot.
+ */
+export const PLANNING_STEP_MINUTES = 15;
+export const PLANNING_MAX_MINUTES = 8 * 60;
+
 export function isPlanningDuration(v: unknown): v is number {
-  return (PLANNING_DURATIONS as readonly unknown[]).includes(v);
+  return typeof v === 'number' && Number.isInteger(v)
+    && v >= PLANNING_STEP_MINUTES && v <= PLANNING_MAX_MINUTES && v % PLANNING_STEP_MINUTES === 0;
+}
+
+/** "2 h 30 min" — the longer form, for the stepper, where there is room for it. */
+export function durationLong(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (!h) return `${m} min`;
+  return m ? `${h} h ${m} min` : `${h} h`;
 }
 
 export function durationLabel(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
-  // "1.5 h" rather than "1 h 30 min": it has to fit on a chip beside four others.
+  // "1.5 h" rather than "1 h 30 min": it has to fit on a chip beside five others.
   return `${minutes / 60} h`;
 }
 

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "515e0f5b4ad88addae9112eabcb76ef5086c4dfb",
+      "date": "2026-10-08T12:04:24-06:00",
+      "author": "erwindank",
+      "subject": "Keep the calendar's side panels beside it when zoomed in, and widen the page instead",
+      "body": "Zooming used to move the Today panel below the grid. Now the page drops its\nwidth cap while zoomed, so the calendar grows into the rest of the screen and\npushes the panels to the right edge."
+    },
+    {
       "hash": "3062458ad6f0fd6a488061a6efbace9e1432e13b",
       "date": "2026-10-08T11:59:59-06:00",
       "author": "erwindank",

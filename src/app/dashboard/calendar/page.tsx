@@ -274,7 +274,7 @@ export default function CalendarPage() {
           asideBottom={(
             <>
               {deliveryPanel}
-              <PlanningPanel />
+              <PlanningPanel tasks={tasks} />
               {hr && cel && (
                 <>
                   <UpcomingCelebrations

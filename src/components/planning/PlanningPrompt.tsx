@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  AlertTriangle, ArrowLeft, BellRing, CalendarCheck, CalendarClock, CalendarDays, CheckSquare, MoveRight, Repeat, Search, X,
+  AlertTriangle, ArrowLeft, BellRing, CalendarCheck, CalendarClock, CalendarDays, CheckSquare, Minus, MoveRight, Plus, Repeat, Search, X,
 } from 'lucide-react';
 import { getMyPlanning, getMyPlanningDay, linkMyPlanning, scheduleMyPlanning, setMyPlanningPrompt } from '@/lib/planning';
 import { listMyTasks, updateMyTask } from '@/lib/personalTasks';
@@ -21,7 +21,9 @@ import {
   PLANNING_DEFAULT_WEEKDAY,
   PLANNING_DURATIONS,
   PLANNING_FALLBACK_SHIFT,
+  PLANNING_MAX_MINUTES,
   PLANNING_NTHS,
+  PLANNING_STEP_MINUTES,
   PLANNING_WEEKDAYS,
   WEEKDAY_LONG,
   WEEKDAY_SHORT,
@@ -29,6 +31,7 @@ import {
   canBePlanningSlot,
   clashes,
   durationLabel,
+  durationLong,
   firstPlanningDate,
   freeStarts,
   isDailyKind,
@@ -170,6 +173,9 @@ export default function PlanningPrompt() {
   // daily ones follow their own shift when it arrives.
   const [timeTouched, setTimeTouched] = useState(false);
   const [minutes, setMinutes] = useState(PLANNING_DEFAULT_DURATION.morning);
+  // "Other" picked: the stepper shows, and stays shown even when it lands on
+  // a length one of the chips also offers.
+  const [otherLength, setOtherLength] = useState(false);
   // The slot's name. Starts as the kind's usual one; left blank, that is what
   // is saved, so a cleared box never makes a task with no title.
   const [title, setTitle] = useState(PLANNING_COPY.morning.title);
@@ -193,6 +199,7 @@ export default function PlanningPrompt() {
     setTime(PLANNING_DEFAULT_TIME[k]);
     setTimeTouched(false);
     setMinutes(PLANNING_DEFAULT_DURATION[k]);
+    setOtherLength(false);
     setTitle(PLANNING_COPY[k].title);
     setWeekday(PLANNING_DEFAULT_WEEKDAY);
     setNth(PLANNING_DEFAULT_NTH);
@@ -562,13 +569,44 @@ export default function PlanningPrompt() {
 
               <p className="mt-3 text-center text-xs font-semibold text-gray-400">How long</p>
               <div className="mt-1.5 flex justify-between gap-1" role="radiogroup" aria-label="How long">
-                {PLANNING_DURATIONS.map((d) => (
-                  <button key={d} type="button" role="radio" aria-checked={minutes === d}
-                    onClick={() => setMinutes(d)} className={`flex-1 ${chip(minutes === d)}`}>
+                {PLANNING_DURATIONS[kind].map((d) => (
+                  <button key={d} type="button" role="radio" aria-checked={!otherLength && minutes === d}
+                    onClick={() => { setOtherLength(false); setMinutes(d); }}
+                    className={`flex-1 ${chip(!otherLength && minutes === d)}`}>
                     {durationLabel(d)}
                   </button>
                 ))}
+                <button type="button" role="radio" aria-checked={otherLength}
+                  onClick={() => {
+                    // Starts one step past the longest chip, since wanting
+                    // longer is the usual reason to reach for it.
+                    if (!otherLength) {
+                      const longest = PLANNING_DURATIONS[kind][PLANNING_DURATIONS[kind].length - 1];
+                      setMinutes(Math.min(longest + 30, PLANNING_MAX_MINUTES));
+                    }
+                    setOtherLength(true);
+                  }}
+                  className={`flex-1 ${chip(otherLength)}`}>
+                  Other
+                </button>
               </div>
+              {otherLength && (
+                <div className="mt-2 flex items-center justify-center gap-3">
+                  <button type="button" aria-label="Shorter" disabled={minutes <= PLANNING_STEP_MINUTES}
+                    onClick={() => setMinutes((v) => Math.max(PLANNING_STEP_MINUTES, v - PLANNING_STEP_MINUTES))}
+                    className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-40">
+                    <Minus size={14} />
+                  </button>
+                  <span className="min-w-[6.5rem] text-center text-sm font-semibold text-gray-900" aria-live="polite">
+                    {durationLong(minutes)}
+                  </span>
+                  <button type="button" aria-label="Longer" disabled={minutes >= PLANNING_MAX_MINUTES}
+                    onClick={() => setMinutes((v) => Math.min(PLANNING_MAX_MINUTES, v + PLANNING_STEP_MINUTES))}
+                    className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-600 hover:bg-gray-100 disabled:opacity-40">
+                    <Plus size={14} />
+                  </button>
+                </div>
+              )}
 
               {/* Every kind can be a one-off: this week's plan at a time that
                   suits this week, and asked again next time round. */}
