@@ -43,11 +43,18 @@ import type { SeriesAsk } from './SeriesChoice';
  */
 
 /**
- * Pixels per hour. 48 makes a quarter hour 12px — a target a mouse can hit;
- * the roomy size makes it 18px, with room in a half-hour block for its times.
+ * The zoom steps, smallest first. Pixels per hour: 48 makes a quarter hour
+ * 12px — a target a mouse can hit; 72 gives a half-hour block room for its
+ * times, and the steps above that are for reading long names, which wrap
+ * instead of being cut off from the second step up.
  */
-const HOUR_PX_NORMAL = 48;
-const HOUR_PX_ROOMY = 72;
+export const ZOOM_STEPS = [
+  { hourPx: 48,  text: 'text-[11px]', slotText: 'text-[10px]', icon: 10, label: '100%' },
+  { hourPx: 72,  text: 'text-xs',     slotText: 'text-xs',     icon: 12, label: '150%' },
+  { hourPx: 96,  text: 'text-sm',     slotText: 'text-xs',     icon: 13, label: '200%' },
+  { hourPx: 120, text: 'text-sm',     slotText: 'text-sm',     icon: 14, label: '250%' },
+] as const;
+export const MAX_ZOOM = ZOOM_STEPS.length - 1;
 const SNAP = 15;
 /** How tall a timed task (no end) is drawn, and an event with no end. */
 const NO_END_MINUTES = 30;
@@ -112,7 +119,7 @@ function layOut(items: PersonalTask[], endOf: (t: PersonalTask) => number): Plac
 
 export default function TaskWeekGrid({
   days, today, selected, items, itemsOn, extrasOn, untimedChip, onSelect, onOpen, onUpdate, onAdd, onAskSeries, nowMinutes,
-  roomy = false,
+  zoom = 0,
 }: {
   days: string[];
   today: string;
@@ -131,11 +138,14 @@ export default function TaskWeekGrid({
   onAskSeries?: (ask: SeriesAsk) => void;
   /** The office clock in minutes, for the red line on today. Null before mount. */
   nowMinutes: number | null;
-  /** Taller hours, a taller window and larger type. */
-  roomy?: boolean;
+  /** An index into ZOOM_STEPS: taller hours, larger type, and above 0 a taller window and wrapped names. */
+  zoom?: number;
 }) {
-  const HOUR_PX = roomy ? HOUR_PX_ROOMY : HOUR_PX_NORMAL;
+  const step = ZOOM_STEPS[Math.max(0, Math.min(zoom, MAX_ZOOM))];
+  const HOUR_PX = step.hourPx;
+  const wrapNames = zoom > 0;
   const scroller = useRef<HTMLDivElement>(null);
+  const shownPx = useRef<number | null>(null);
   // Where in the block it was picked up, so a drop puts the block's top where
   // the block's top was dragged to, not where the pointer was. Zeroed at the
   // start of every drag, so a chip picked up from the top row does not
@@ -157,8 +167,15 @@ export default function TaskWeekGrid({
   // date being pulled should grow while the pointer is down.
   const [stretch, setStretch] = useState<{ id: string; date: string; end: number } | null>(null);
 
+  // Opens at the start of the office day. A zoom after that keeps the hour
+  // that was at the top of the window there, rather than jumping back to 7am
+  // from wherever somebody had scrolled to.
   useEffect(() => {
-    scroller.current?.scrollTo({ top: FIRST_HOUR_SHOWN * HOUR_PX - 8 });
+    const el = scroller.current;
+    if (!el) return;
+    const before = shownPx.current;
+    shownPx.current = HOUR_PX;
+    el.scrollTo({ top: before === null ? FIRST_HOUR_SHOWN * HOUR_PX - 8 : (el.scrollTop * HOUR_PX) / before });
   }, [HOUR_PX]);
 
   const endOf = (t: PersonalTask, date: string) =>
@@ -254,7 +271,7 @@ export default function TaskWeekGrid({
   // whole in the source, and the column count varies.
   const cols = 'grid';
   const colStyle = { gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))` };
-  const blockText = roomy ? 'text-xs' : 'text-[11px]';
+  const blockText = step.text;
 
   return (
     <div className="hidden md:block"
@@ -311,11 +328,11 @@ export default function TaskWeekGrid({
         ))}
       </div>
 
-      <div ref={scroller} className={`overflow-y-auto ${roomy ? 'h-[calc(100vh-16rem)] min-h-[34rem]' : 'h-[34rem]'}`}>
+      <div ref={scroller} className={`overflow-y-auto ${zoom > 0 ? 'h-[calc(100vh-16rem)] min-h-[34rem]' : 'h-[34rem]'}`}>
         <div className={`${cols} relative`} style={{ ...colStyle, height: 24 * HOUR_PX }}>
           <div className="relative">
             {Array.from({ length: 24 }, (_, h) => (
-              <div key={h} className="absolute right-1.5 -translate-y-1/2 text-[10px] text-gray-400" style={{ top: h * HOUR_PX }}>
+              <div key={h} className={`absolute right-1.5 -translate-y-1/2 ${zoom > 1 ? 'text-xs' : 'text-[10px]'} text-gray-400`} style={{ top: h * HOUR_PX }}>
                 {h === 0 ? '' : formatTime(`${String(h).padStart(2, '0')}:00`).replace(':00', '')}
               </div>
             ))}
@@ -371,10 +388,10 @@ export default function TaskWeekGrid({
                 )}
                 {slot && (
                   <div aria-hidden
-                    className={`pointer-events-none absolute inset-x-0.5 z-0 flex items-start gap-1 rounded border border-dashed border-brand-400 bg-brand-50/70 px-1.5 py-0.5 font-medium text-brand-700 ${roomy ? 'text-xs' : 'text-[10px]'}`}
+                    className={`pointer-events-none absolute inset-x-0.5 z-0 flex items-start gap-1 rounded border border-dashed border-brand-400 bg-brand-50/70 px-1.5 py-0.5 font-medium text-brand-700 ${step.slotText}`}
                     style={{ top: (slot.start / 60) * HOUR_PX, height: HOUR_PX }}
                   >
-                    <Plus size={roomy ? 12 : 10} className="mt-px flex-shrink-0" />
+                    <Plus size={step.icon} className="mt-px flex-shrink-0" />
                     {formatTime(toHhmm(slot.start))} – {formatTime(toHhmm(Math.min(slot.start + 60, 24 * 60 - 1)))}
                   </div>
                 )}
@@ -427,11 +444,13 @@ export default function TaskWeekGrid({
                         width: `calc(${100 / lanes}% - 4px)`,
                       }}
                     >
-                      <span className="flex items-center gap-1 font-medium">
-                        {EventIcon && <EventIcon size={10} className="flex-shrink-0" />}
-                        <span className="truncate">{t.title}</span>
+                      {/* Zoomed in, the name wraps over as many lines as the
+                          block has room for; the block's overflow clips the rest. */}
+                      <span className={`flex gap-1 font-medium ${wrapNames ? 'items-start' : 'items-center'}`}>
+                        {EventIcon && <EventIcon size={step.icon} className={`flex-shrink-0 ${wrapNames ? 'mt-0.5' : ''}`} />}
+                        <span className={wrapNames ? 'min-w-0 break-words' : 'truncate'}>{t.title}</span>
                       </span>
-                      {height > 28 && (
+                      {height > (wrapNames ? 36 : 28) && (
                         <span className="block truncate opacity-75">
                           {formatTime(toHhmm(start))} – {formatTime(toHhmm(end))}
                         </span>

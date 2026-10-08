@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react';
-import { Bell, Check, Flag, ChevronLeft, ChevronRight, ExternalLink, Maximize2, Minimize2, Plus, X } from 'lucide-react';
+import { Bell, Check, Flag, ChevronLeft, ChevronRight, ExternalLink, Plus, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   EVENT_TYPE_LABEL,
@@ -24,13 +24,16 @@ import { HOLIDAY_STYLE, KIND_STYLE, holidayTitle, sameOccurrence, whatItIs } fro
 import { EVENT_ICON, NOTE_STYLE, OCCURRENCE_DRAG_TYPE, OUTCOME_ICON, OUTCOME_STYLE, TASK_DRAG_TYPE } from './taskStyle';
 import OutcomeBadge from './OutcomeBadge';
 import SeriesChoice, { type SeriesAsk } from './SeriesChoice';
-import TaskWeekGrid from './TaskWeekGrid';
+import TaskWeekGrid, { MAX_ZOOM, ZOOM_STEPS } from './TaskWeekGrid';
 import { officeNowTime } from '@/types/planning';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-/** Things drawn in a month square before it says "+N more". The hour grid draws them all. */
-const PER_DAY = 3;
-const PER_DAY_ROOMY = 6;
+/**
+ * The month view at each zoom step (see ZOOM_STEPS): how tall a square is, and
+ * how many things it draws before it says "+N more". The hour grid draws them all.
+ */
+const MONTH_CELL = ['min-h-[6rem] p-1', 'min-h-[9.5rem] p-1.5', 'min-h-[12rem] p-1.5', 'min-h-[15rem] p-2'];
+const PER_DAY = [3, 6, 8, 10];
 
 type Mode = 'month' | 'week' | 'four' | 'day';
 const MODES: { id: Mode; label: string }[] = [
@@ -43,8 +46,10 @@ const MODES: { id: Mode; label: string }[] = [
 const SPAN: Record<Exclude<Mode, 'month'>, number> = { day: 1, four: 4, week: 7 };
 /** Per browser, like the task view: which one somebody likes is not worth a write. */
 const MODE_KEY = 'ttms.calendar.mode';
-/** Normal or roomy, per browser for the same reason. */
-const SIZE_KEY = 'ttms.calendar.size';
+/** The zoom step, per browser for the same reason. */
+const ZOOM_KEY = 'ttms.calendar.zoom';
+/** What the old Bigger/Smaller switch saved; 'roomy' becomes the second step. */
+const OLD_SIZE_KEY = 'ttms.calendar.size';
 
 /** "September 2026" — a month, not a date, so not the company date setting's business. */
 function monthTitle(year: number, month: number): string {
@@ -143,7 +148,7 @@ export default function TaskCalendar({
   const [cursor, setCursor] = useState(() => monthOf(selected));
   // The first day of the hour grid, in the day, four-day and week views.
   const [gridStart, setGridStart] = useState(() => weekStartOf(selected));
-  const [roomy, setRoomy] = useState(false);
+  const [zoom, setZoom] = useState(0);
   const [over, setOver] = useState<string | null>(null);
   const [seriesAsk, setSeriesAsk] = useState<SeriesAsk | null>(null);
   // The office clock for the week grid's "now" line; read after mount and once a minute.
@@ -160,18 +165,25 @@ export default function TaskCalendar({
       const saved = window.localStorage.getItem(MODE_KEY);
       const m = MODES.find((x) => x.id === saved)?.id;
       if (m && m !== 'month') { setMode(m); setGridStart(gridStartFor(m, selected)); }
-      if (window.localStorage.getItem(SIZE_KEY) === 'roomy') setRoomy(true);
+      const z = Number(window.localStorage.getItem(ZOOM_KEY));
+      if (Number.isInteger(z) && z > 0 && z <= MAX_ZOOM) setZoom(z);
+      else if (window.localStorage.getItem(OLD_SIZE_KEY) === 'roomy') setZoom(1);
     } catch { /* private window: month it is */ }
     // Once, on mount: `selected` is only the starting point.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const toggleRoomy = () => {
-    setRoomy((r) => {
-      try { window.localStorage.setItem(SIZE_KEY, r ? 'normal' : 'roomy'); } catch { /* not worth telling anyone */ }
-      return !r;
-    });
+  const zoomBy = (by: number) => {
+    const next = Math.max(0, Math.min(zoom + by, MAX_ZOOM));
+    setZoom(next);
+    try { window.localStorage.setItem(ZOOM_KEY, String(next)); } catch { /* not worth telling anyone */ }
   };
+  // From the second step up the calendar takes the whole width, as Bigger
+  // did: longer names need the room more than the side panels need to be beside it.
+  const wide = zoom > 0;
+  // Month squares and the top row switch to the two-line chip (time above a
+  // wrapped name) once the type is large enough to want it.
+  const roomyChips = zoom > 1;
 
   // Follow the selected day when it is moved from outside. Only on a change
   // of `selected`, so paging away with the arrows is not undone. The grid
@@ -408,7 +420,7 @@ export default function TaskCalendar({
       ? formatCalendarDate(gridDays[0])
       : `${formatCalendarDate(gridDays[0])} – ${formatCalendarDate(gridDays[gridDays.length - 1])}`;
   const unit = mode === 'month' ? 'month' : mode === 'week' ? 'week' : mode === 'day' ? 'day' : 'four days';
-  const perDay = roomy ? PER_DAY_ROOMY : PER_DAY;
+  const perDay = PER_DAY[zoom];
 
   // Beside the month only: the week view already is this list, drawn wide.
   const selectedWeek = Array.from({ length: 7 }, (_, i) => addDays(weekStartOf(selected), i));
@@ -419,8 +431,8 @@ export default function TaskCalendar({
   const isCurrentWeek = weekStartOf(selected) === weekStartOf(today);
 
   return (
-    // Roomy gives the calendar the whole width: the side panels move below it.
-    <div className={`grid gap-6 ${roomy ? '' : 'lg:grid-cols-[1fr_320px]'}`}>
+    // Zoomed in, the calendar takes the whole width: the side panels move below it.
+    <div className={`grid gap-6 ${wide ? '' : 'lg:grid-cols-[1fr_320px]'}`}>
       <section className="min-w-0 rounded-xl border border-gray-200 bg-white">
         <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 py-3">
           <button type="button" onClick={() => shift(-1)} aria-label={`Previous ${unit}`}
@@ -441,16 +453,37 @@ export default function TaskCalendar({
           </button>
 
           <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              onClick={toggleRoomy}
-              aria-pressed={roomy}
-              title={roomy ? 'Back to the normal size, with the side panels beside it' : 'Bigger: taller hours and the full width'}
-              className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-            >
-              {roomy ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-              {roomy ? 'Smaller' : 'Bigger'}
-            </button>
+            <div className="inline-flex items-center rounded-lg border border-gray-200 p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => zoomBy(-1)}
+                disabled={zoom === 0}
+                aria-label="Zoom out"
+                title="Zoom out: shorter hours and smaller names"
+                className="rounded-md p-1 text-gray-600 hover:bg-gray-50 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+              >
+                <ZoomOut size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => zoomBy(-zoom)}
+                disabled={zoom === 0}
+                title="Back to the normal size"
+                className="min-w-[3rem] rounded-md px-1 py-0.5 text-center font-medium tabular-nums text-gray-600 hover:bg-gray-50 disabled:cursor-default disabled:hover:bg-transparent"
+              >
+                {ZOOM_STEPS[zoom].label}
+              </button>
+              <button
+                type="button"
+                onClick={() => zoomBy(1)}
+                disabled={zoom === MAX_ZOOM}
+                aria-label="Zoom in"
+                title="Zoom in: taller hours and larger names, with the full width"
+                className="rounded-md p-1 text-gray-600 hover:bg-gray-50 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+              >
+                <ZoomIn size={14} />
+              </button>
+            </div>
             <div className="inline-flex rounded-lg border border-gray-200 p-0.5 text-xs">
               {MODES.map(({ id, label }) => (
                 <button
@@ -478,12 +511,12 @@ export default function TaskCalendar({
             </div>
             <div className="grid grid-cols-7">
               {cells.map((date, i) => {
-                const here = date ? dayContents(date, false) : [];
+                const here = date ? dayContents(date, roomyChips) : [];
                 return (
                   <div
                     key={date ?? `blank-${i}`}
                     {...(date ? dayTarget(date) : {})}
-                    className={`${roomy ? 'min-h-[9.5rem] p-1.5' : 'min-h-[6rem] p-1'} min-w-0 border-b border-r border-gray-100 ${
+                    className={`${MONTH_CELL[zoom]} min-w-0 border-b border-r border-gray-100 ${
                       date === null ? 'bg-gray-50/60' : 'cursor-pointer hover:bg-gray-50'
                     } ${i % 7 === 6 ? 'border-r-0' : ''} ${
                       date && date === selected ? 'bg-brand-50/60' : ''
@@ -522,14 +555,14 @@ export default function TaskCalendar({
               ...(celebrationsOn?.(d) ?? []).map(occurrenceChip),
               ...(dueByDay.get(d) ?? []).map(dueChip),
             ]}
-            untimedChip={(t, d) => itemChip(t, false, d)}
+            untimedChip={(t, d) => itemChip(t, roomyChips, d)}
             onSelect={onSelect}
             onOpen={onOpen}
             onUpdate={onUpdate}
             onAdd={onAdd}
             onAskSeries={onDetach ? setSeriesAsk : undefined}
             nowMinutes={nowMinutes}
-            roomy={roomy}
+            zoom={zoom}
           />
           {/* A phone keeps the list: seven hour-columns do not fit it. */}
           <div className="grid grid-cols-1 md:hidden">

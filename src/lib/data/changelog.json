@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "bb109835f60a1b111db7b34be697fbe20c4450f2",
+      "date": "2026-10-08T08:51:10-06:00",
+      "author": "erwindank",
+      "subject": "Give tasks a start and end time that set their block on the calendar",
+      "body": "The due date and time stay the deadline. A task's end can be pulled on the\nweek grid, and moving or repeating a task keeps its length."
+    },
+    {
       "hash": "6862855a5997b4ed9da580c049769bb0580a2fd4",
       "date": "2026-10-08T08:42:16-06:00",
       "author": "erwindank",
