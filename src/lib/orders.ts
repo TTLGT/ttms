@@ -8,6 +8,7 @@ import type { OrderAccessRequest } from '@/types/orderAccessRequest';
 import type { OwnerContact } from '@/types/order';
 import type { OwnerEvent } from '@/types/ownerEvent';
 import type { OrderViewId } from '@/types/orderView';
+import { browserTimeZone } from '@/types/timeZone';
 import type { ActiveClient, DashboardSummary } from './orderSummary';
 
 /**
@@ -200,6 +201,8 @@ export interface OrderQuery {
    * stat card links to, so the list shows exactly what the card counted.
    */
   view?: OrderViewId;
+  /** Filled in from the browser by orderQueryString — see @/types/timeZone. */
+  timeZone?: string;
   /**
    * One colleague's loads, named by their email — the identifier the directory
    * links on. Resolved to a uid server-side; see lib/ownerFilter.ts.
@@ -228,6 +231,9 @@ function orderQueryString(q: OrderQuery): string {
   if (q.pickupFrom)   p.set('pickupFrom', String(q.pickupFrom));
   if (q.owner)        p.set('owner', q.owner);
   if (q.view)         p.set('view', q.view);
+  // Only a date view reads it, so only a view sends it.
+  const tz = q.view ? (q.timeZone ?? browserTimeZone()) : undefined;
+  if (tz)             p.set('tz', tz);
   // Set even when empty — an empty value is a meaningful request.
   if (q.parentOrderId !== undefined) p.set('parentOrderId', q.parentOrderId);
   return p.toString();
@@ -253,7 +259,9 @@ export async function listOrdersPage(query: OrderQuery = {}): Promise<OrderPage>
  * whole order book and filtering it in the browser.
  */
 export async function fetchDashboardSummary(): Promise<DashboardSummary> {
-  const res = await fetch('/api/orders/summary', { headers: await authHeaders() });
+  const tz = browserTimeZone();
+  const url = tz ? `/api/orders/summary?tz=${encodeURIComponent(tz)}` : '/api/orders/summary';
+  const res = await fetch(url, { headers: await authHeaders() });
   return unwrap<DashboardSummary>(res);
 }
 

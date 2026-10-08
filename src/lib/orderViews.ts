@@ -3,6 +3,7 @@ import {
   INVOICEABLE, ORDER_VIEW_SORT_FIELDS, PENDING_PICKUP, SIGNABLE, STALE_DAYS,
   type OrderViewId,
 } from '@/types/orderView';
+import { calendarBounds, resolveTimeZone } from '@/types/timeZone';
 
 export type { OrderViewId };
 
@@ -44,14 +45,25 @@ export type { OrderViewId };
 /** The moments every view is measured against, worked out once per request. */
 export interface ViewClock {
   dayStart: Timestamp;
+  /** Sunday 00:00 in the caller's zone, and the Sunday after it — the week is [start, end). */
+  weekStart: Timestamp;
+  weekEnd: Timestamp;
   monthStart: Timestamp;
   staleBefore: Timestamp;
 }
 
-export function viewClock(now = new Date()): ViewClock {
+/**
+ * Every boundary in the caller's time zone — the browser's, or the office's
+ * when it sends none. See `@/types/timeZone` for why not the server's clock,
+ * which on Vercel is UTC and put midnight at 6pm the day before in Guatemala.
+ */
+export function viewClock(timeZone?: string, now = new Date()): ViewClock {
+  const b = calendarBounds(now.getTime(), resolveTimeZone(timeZone));
   return {
-    dayStart:    Timestamp.fromDate(new Date(now.getFullYear(), now.getMonth(), now.getDate())),
-    monthStart:  Timestamp.fromDate(new Date(now.getFullYear(), now.getMonth(), 1)),
+    dayStart:    Timestamp.fromMillis(b.dayStart),
+    weekStart:   Timestamp.fromMillis(b.weekStart),
+    weekEnd:     Timestamp.fromMillis(b.weekEnd),
+    monthStart:  Timestamp.fromMillis(b.monthStart),
     staleBefore: Timestamp.fromMillis(now.getTime() - STALE_DAYS * 24 * 60 * 60 * 1000),
   };
 }
@@ -90,9 +102,21 @@ const VIEWS: Record<OrderViewId, OrderView> = {
     matches: (o) => statusOf(o) === 'in_transit',
   },
 
-  delivered_today: {
-    queries: (col, c) => [col.where('status', '==', 'delivered').where('deliveredAt', '>=', c.dayStart)],
-    matches: (o, c) => statusOf(o) === 'delivered' && at(o.deliveredAt) >= c.dayStart.toMillis(),
+  /*
+    Delivered this week — by when it was delivered, not by what it is now.
+    The day card this replaced also required status 'delivered', which over a
+    week would drop every load closed out after delivering on Monday. Bounded
+    on both sides so a mistyped future delivery stamp cannot count either.
+    Served by the parentOrderId + deliveredAt index `delivered_month` uses.
+  */
+  delivered_week: {
+    queries: (col, c) => [
+      col.where('deliveredAt', '>=', c.weekStart).where('deliveredAt', '<', c.weekEnd),
+    ],
+    matches: (o, c) => {
+      const t = at(o.deliveredAt);
+      return t >= c.weekStart.toMillis() && t < c.weekEnd.toMillis();
+    },
   },
 
   booked_today: {

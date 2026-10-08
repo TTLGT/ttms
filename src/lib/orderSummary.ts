@@ -27,7 +27,7 @@ import { canSeeAllOrders } from './accessControl';
 import { listVisibleOrdersPage } from './orderAccess';
 import { listVisibleParties } from './partyAccess';
 import type { Caller } from './partyAccess';
-import { viewClock, viewQuery, type ViewClock } from './orderViews';
+import { matchesView, viewClock, viewQuery, type ViewClock } from './orderViews';
 import { PENDING_PICKUP, SIGNABLE, INVOICEABLE } from '@/types/orderView';
 
 const COL = 'orders';
@@ -62,7 +62,7 @@ export interface DashboardSummary {
   activeOrders: SummaryStat;
   pendingPickup: SummaryStat;
   inTransit: SummaryStat;
-  deliveredToday: SummaryStat;
+  deliveredThisWeek: SummaryStat;
   bookedToday: SummaryStat;
   thisMonth: {
     revenue: number;
@@ -110,14 +110,14 @@ const CARD_FIELDS = [
   'deliveryDate', 'invoiceStoragePath', 'createdAt',
 ] as const;
 
-export async function buildDashboardSummary(caller: Caller): Promise<DashboardSummary> {
+export async function buildDashboardSummary(caller: Caller, timeZone?: string): Promise<DashboardSummary> {
   // The same clock the views are measured against, so a card and the list it
   // links to agree on where midnight and the first of the month fall.
-  const clock: ViewClock = viewClock();
-  const { dayStart, monthStart, staleBefore } = clock;
+  const clock: ViewClock = viewClock(timeZone);
+  const { monthStart } = clock;
 
   if (!canSeeAllOrders(caller.profile)) {
-    return summariseInMemory(caller, { dayStart, monthStart, staleBefore });
+    return summariseInMemory(caller, clock);
   }
 
   const col = adminDb.collection(COL).where('parentOrderId', '==', null);
@@ -170,7 +170,7 @@ export async function buildDashboardSummary(caller: Caller): Promise<DashboardSu
   ];
 
   const [
-    statusCounts, active, pendingPickup, inTransit, deliveredToday, bookedToday,
+    statusCounts, active, pendingPickup, inTransit, deliveredThisWeek, bookedToday,
     monthOrders, deliveredThisMonth, overdue, unsigned, stale, docsMissing,
     newClients, expiringCarriers,
   ] = await Promise.all([
@@ -183,7 +183,7 @@ export async function buildDashboardSummary(caller: Caller): Promise<DashboardSu
     stat((q) => viewQuery('active', q, clock), null),
     stat((q) => viewQuery('pending_pickup', q, clock), null),
     stat((q) => viewQuery('in_transit', q, clock)),
-    stat((q) => viewQuery('delivered_today', q, clock), 'deliveredAt', true),
+    stat((q) => viewQuery('delivered_week', q, clock), 'deliveredAt', true),
     stat((q) => viewQuery('booked_today', q, clock), 'createdAt', true),
 
     // This month's book is small enough to total exactly. Firestore's sum()
@@ -215,7 +215,7 @@ export async function buildDashboardSummary(caller: Caller): Promise<DashboardSu
     activeOrders: active,
     pendingPickup,
     inTransit,
-    deliveredToday,
+    deliveredThisWeek,
     bookedToday,
     thisMonth: {
       revenue:     live.reduce((s, o) => s + (Number(o.agreedRate) || 0), 0),
@@ -445,7 +445,7 @@ async function missingDocumentsStat(col: FirebaseFirestore.Query): Promise<Summa
  */
 async function summariseInMemory(
   caller: Caller,
-  at: { dayStart: Timestamp; monthStart: Timestamp; staleBefore: Timestamp },
+  at: ViewClock,
 ): Promise<DashboardSummary> {
   const { orders } = await listVisibleOrdersPage(caller, { parentOrderId: '' });
 
@@ -480,7 +480,8 @@ async function summariseInMemory(
     activeOrders:   pick(orders.filter((o) => !['completed', 'cancelled'].includes(status(o)))),
     pendingPickup:  pick(orders.filter((o) => (PENDING_PICKUP as readonly string[]).includes(status(o)))),
     inTransit:      pick(orders.filter((o) => status(o) === 'in_transit')),
-    deliveredToday: pick(orders.filter((o) => status(o) === 'delivered' && ms(o.deliveredAt) >= at.dayStart.toMillis())),
+    // The same test the card's list applies — the week is defined once, in orderViews.
+    deliveredThisWeek: pick(orders.filter((o) => matchesView('delivered_week', o, at))),
     bookedToday:    pick(orders.filter((o) => ms(o.createdAt) >= at.dayStart.toMillis())),
     thisMonth: {
       revenue:     live.reduce((s, o) => s + (Number(o.agreedRate) || 0), 0),

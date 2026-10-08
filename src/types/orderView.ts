@@ -12,7 +12,7 @@
  */
 
 export const ORDER_VIEW_IDS = [
-  'active', 'pending_pickup', 'in_transit', 'delivered_today', 'booked_today',
+  'active', 'pending_pickup', 'in_transit', 'delivered_week', 'booked_today',
   'this_month', 'cancelled_month', 'delivered_month', 'overdue_invoices',
   'unsigned', 'stale_quotes', 'documents_missing',
 ] as const;
@@ -23,12 +23,26 @@ export function isOrderView(value: unknown): value is OrderViewId {
   return ORDER_VIEW_IDS.includes(value as OrderViewId);
 }
 
+/**
+ * Ids that used to exist, and the view a link carrying one should open now.
+ * `delivered_today` became `delivered_week` when the card widened to the week.
+ */
+const RENAMED_VIEWS: Record<string, OrderViewId> = {
+  delivered_today: 'delivered_week',
+};
+
+/** A `?view=` value as a current view id, following renames; null if unknown. */
+export function toOrderView(value: unknown): OrderViewId | null {
+  if (isOrderView(value)) return value;
+  return typeof value === 'string' ? RENAMED_VIEWS[value] ?? null : null;
+}
+
 /** What the Orders screen calls each filter while it is on. */
 export const ORDER_VIEW_LABELS: Record<OrderViewId, string> = {
   active:            'Active orders',
   pending_pickup:    'Pending pick-ups',
   in_transit:        'In transit',
-  delivered_today:   'Delivered today',
+  delivered_week:    'Delivered this week',
   booked_today:      'Booked today',
   this_month:        'Booked this month',
   cancelled_month:   'Cancelled this month',
@@ -62,7 +76,7 @@ export const ORDER_VIEW_SORT_FIELDS: Record<OrderViewId, string | null> = {
   active:            null,
   pending_pickup:    'createdAt',
   in_transit:        'createdAt',
-  delivered_today:   'deliveredAt',
+  delivered_week:    'deliveredAt',
   booked_today:      'createdAt',
   this_month:        'createdAt',
   cancelled_month:   'createdAt',

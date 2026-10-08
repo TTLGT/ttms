@@ -12,7 +12,7 @@ import {
 import { resolveOwnerFilter } from '@/lib/ownerFilter';
 import { withCoverThumbs } from '@/lib/loadPhotosServer';
 import { ORDER_STATUSES } from '@/types/order';
-import { isOrderView } from '@/types/orderView';
+import { toOrderView } from '@/types/orderView';
 import { decodePatch } from '@/lib/recordHistory';
 import { createOrderAsCaller } from '@/lib/orderWrites';
 
@@ -97,7 +97,8 @@ export async function GET(req: NextRequest) {
       // Checked against the catalog rather than passed through: a view becomes
       // a set of query filters, and an unknown one must not fall through to an
       // unfiltered list of the whole book.
-      view:          isOrderView(p.get('view')) ? p.get('view') as never : undefined,
+      view:          toOrderView(p.get('view')) ?? undefined,
+      timeZone:      p.get('tz') ?? undefined,
       fields:        (['list', 'analytics'] as const).find((f) => f === p.get('fields')) ?? 'full',
       owner,
     };

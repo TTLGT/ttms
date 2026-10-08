@@ -29,7 +29,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ activeClientLoads: loads, activeClients: top });
     }
 
-    const summary = await buildDashboardSummary(caller);
+    // The browser's zone places midnight for the date cards; see @/types/timeZone.
+    const summary = await buildDashboardSummary(caller, req.nextUrl.searchParams.get('tz') ?? undefined);
     return NextResponse.json(summary);
   } catch (e) {
     if (e instanceof AdminAuthError) {

@@ -361,7 +361,7 @@ export default function DashboardPage() {
   const activeOrders        = s?.activeOrders   ?? empty;
   const pendingPickupOrders = s?.pendingPickup  ?? empty;
   const inTransitOrders     = s?.inTransit      ?? empty;
-  const deliveredToday      = s?.deliveredToday ?? empty;
+  const deliveredThisWeek   = s?.deliveredThisWeek ?? empty;
   const bookedToday         = s?.bookedToday    ?? empty;
 
   const revenueThisMonth   = s?.thisMonth.revenue     ?? 0;
@@ -418,13 +418,13 @@ export default function DashboardPage() {
       emptyMsg: 'No loads in transit',
     },
     {
-      label: 'Delivered Today',
-      value: deliveredToday.count,
+      label: 'Delivered This Week',
+      value: deliveredThisWeek.count,
       color: 'bg-green-50 border-green-200 text-green-700',
       icon: PackageCheck,
-      href: ordersView('delivered_today'),
-      items: as(deliveredToday.items).map((o) => orderToItem(o, formatCurrency(o.agreedRate))),
-      emptyMsg: 'No deliveries today yet',
+      href: ordersView('delivered_week'),
+      items: as(deliveredThisWeek.items).map((o) => orderToItem(o, formatCurrency(o.agreedRate))),
+      emptyMsg: 'No deliveries this week yet',
     },
   ];
 

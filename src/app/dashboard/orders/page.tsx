@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { isOrderView, orderViewLabel, viewIsSorted } from '@/types/orderView';
+import { orderViewLabel, toOrderView, viewIsSorted } from '@/types/orderView';
 import { listOrdersPage, countOrdersByStatus } from '@/lib/orders';
 import type { Order, OrderStatus } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
@@ -120,7 +120,7 @@ function OrdersList() {
     returns up to two hundred, newest first, and says so below.
   */
   const viewParam = searchParams.get('view');
-  const view = isOrderView(viewParam) ? viewParam : null;
+  const view = toOrderView(viewParam);
   const filter: OrderStatus | 'all' = isStatus(searchParams.get('status'))
     ? (searchParams.get('status') as OrderStatus)
     : 'all';

@@ -647,7 +647,7 @@ page boundary and be served twice or skipped.
 | orders   | `consigneeId` ASC + `createdAt` DESC | A party's orders, as consignee |
 | orders   | `parentOrderId` ASC + `bolStoragePath` ASC | Documents: bills of lading |
 | orders   | `parentOrderId` ASC + `createdAt` DESC | The orders list; suborders; dashboard "booked today" and this month |
-| orders   | `parentOrderId` ASC + `deliveredAt` DESC | Dashboard "delivered this month" |
+| orders   | `parentOrderId` ASC + `deliveredAt` DESC | Dashboard "delivered this week" and "delivered this month" |
 | orders   | `parentOrderId` ASC + `driverLicenseStoragePath` ASC | Documents: driver licenses |
 | orders   | `parentOrderId` ASC + `invoiceStoragePath` ASC | Documents: invoices |
 | orders   | `parentOrderId` ASC + `podStoragePath` ASC | Documents: proofs of delivery |
@@ -656,7 +656,7 @@ page boundary and be served twice or skipped.
 | orders   | `parentOrderId` ASC + `status` ASC + `clientOwnerUids` ARRAY | Book of business: their open loads reached through a client they own |
 | orders   | `parentOrderId` ASC + `status` ASC + `assignedToEmails` ARRAY | The same, for somebody set up who has never signed in |
 | orders   | `parentOrderId` ASC + `status` ASC + `createdAt` DESC | The orders list with a status tab selected |
-| orders   | `parentOrderId` ASC + `status` ASC + `deliveredAt` DESC | Dashboard "delivered today" |
+| orders   | `parentOrderId` ASC + `status` ASC + `deliveredAt` DESC | Was the dashboard "delivered today" card; nothing queries it since that became "delivered this week" (kept — the CLI deletes indexes missing from the file) |
 | orders   | `parentOrderId` ASC + `status` ASC + `updatedAt` DESC | Dashboard "stale quotes" |
 | orders   | `parentOrderId` ASC + `searchTerms` ARRAY + `createdAt` DESC | The Orders search box |
 | orders   | `parentOrderId` ASC + `status` ASC + `searchTerms` ARRAY + `createdAt` DESC | Searching within a status tab |

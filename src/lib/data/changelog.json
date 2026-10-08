@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "e4a1a2c2778198944c657ce86409ef608fe52d0b",
+      "date": "2026-10-07T22:15:50-06:00",
+      "author": "erwindank",
+      "subject": "Show commas in money amount boxes as they are typed",
+      "body": ""
+    },
+    {
       "hash": "29a06a46327e955bedada7c97d82656239b36562",
       "date": "2026-10-07T22:10:08-06:00",
       "author": "erwindank",

@@ -79,6 +79,11 @@ export interface OrderQuery {
   /** '' selects top-level orders; an id selects that order's suborders. */
   parentOrderId?: string;
   /**
+   * The browser's time zone, which places midnight for the date views
+   * ("delivered this week"). Absent or unknown means the office's.
+   */
+  timeZone?: string;
+  /**
    * One of the named slices a dashboard card stands for — see lib/orderViews.
    *
    * It is what makes a card clickable: the card counts the view and the Orders
@@ -167,7 +172,7 @@ export async function listVisibleOrdersPage(
   if (canSeeAllOrders(caller.profile)) {
     // A named view is its own shape of query and cannot share the cursor paging
     // below — see viewPage.
-    if (query.view) return viewPage(col, query.view, projection);
+    if (query.view) return viewPage(col, query.view, projection, query.timeZone);
 
     let q: FirebaseFirestore.Query = col;
     if (query.status)               q = q.where('status', '==', query.status);
@@ -317,8 +322,9 @@ async function viewPage(
   col: FirebaseFirestore.CollectionReference,
   view: OrderViewId,
   projection: readonly string[] | null,
+  timeZone?: string,
 ): Promise<OrderPage> {
-  const clock: ViewClock = viewClock();
+  const clock: ViewClock = viewClock(timeZone);
   const top = col.where('parentOrderId', '==', null);
 
   // Descending, matching the direction of the composite index the dashboard
@@ -720,7 +726,7 @@ function matchesFilters(order: Record<string, unknown>, query: OrderQuery): bool
   // The clock is built here rather than passed in because this runs over one
   // caller's own records — a few hundred at most — and a view's boundaries
   // (midnight, the first of the month) do not move while a list is being cut.
-  if (query.view && !matchesView(query.view, order, viewClock())) return false;
+  if (query.view && !matchesView(query.view, order, viewClock(query.timeZone))) return false;
   return true;
 }
 
