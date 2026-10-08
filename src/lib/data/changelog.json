@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "cee324c0b52a3947eb1dc92572ca819ece174cab",
+      "date": "2026-10-08T13:04:36-06:00",
+      "author": "erwindank",
+      "subject": "Make board columns equal height, scroll the page while dragging near its edges, and add a right-click Move to menu on cards and steps",
+      "body": ""
+    },
+    {
       "hash": "1b502f1772db9f699ea40f748bf92a62e22d852d",
       "date": "2026-10-08T12:24:27-06:00",
       "author": "erwindank",

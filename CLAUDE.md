@@ -923,6 +923,20 @@ report), `attendanceAdmin.ts` (schedules, holidays, requests) and
   (3am office time) and the "not in yet" alerts (every 15 minutes, office
   hours) finish records and post notices; they grant and remove nothing. The
   rule that access never runs on a clock is untouched.
+- **Break reminders are not a clock.** The 10am break, 1pm lunch and the
+  optional once-a-day active pause (`src/types/breakReminders.ts`, drawn by
+  `BreakReminder.tsx` in the dashboard layout) are worked out in the browser
+  from the clock state it already holds — no cron, no reads per check. So
+  nobody without TTMS open is reminded, which is fine because only somebody
+  clocked in ever is. They record nothing: "Start break" is the ordinary
+  clock action, and dismissals live in localStorage. Company settings are
+  `attendanceConfig/general.reminders`; one person's are on
+  `attendancePrefs/{email}.reminders`, which `clockState()` already reads.
+  Only `attendance.manage` writes either — **do not let `PATCH
+  /api/attendance/me` read that key**, or people could switch their own off.
+  The pause shows three exercises a day from a fixed, hand-written bilingual
+  list (`src/types/pauseExercises.ts`). It is health advice to the whole
+  company: keep it written and read, never generated.
 - **`attendance.view` and `attendance.manage` widened HR** when they were added.
   **What is recorded is written out for staff** in
   `src/components/attendance/AttendancePolicy.tsx`. Record something new and

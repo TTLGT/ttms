@@ -14,6 +14,7 @@ import type {
   TimeOffKind,
   TimeOffRequest,
 } from '@/types/attendance';
+import type { BreakReminderSettings, ReminderOverride } from '@/types/breakReminders';
 import type { HolidayOverride, HolidayCountry } from '@/types/holidays';
 import type { UserStatus } from '@/types/presence';
 
@@ -209,6 +210,16 @@ export const deleteHolidayOverride = (id: string) =>
 export const fetchConfig = () => call<{ config: AttendanceConfig; yourIp: string | null }>('/api/attendance/config');
 export const saveConfig = (patch: Partial<AttendanceConfig>) =>
   call<{ config: AttendanceConfig }>('/api/attendance/config', json('PUT', patch));
+
+export interface RemindersResponse {
+  company: BreakReminderSettings;
+  byEmail: Record<string, ReminderOverride>;
+  people: { email: string; name: string; pending: boolean }[];
+}
+
+export const fetchReminders = () => call<RemindersResponse>('/api/attendance/reminders');
+export const saveReminderOverride = (target: string, reminders: ReminderOverride | null) =>
+  call('/api/attendance/reminders', json('PUT', { target, reminders }));
 
 // ── Requests ─────────────────────────────────────────────────────────────────
 

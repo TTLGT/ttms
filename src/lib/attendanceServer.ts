@@ -49,6 +49,7 @@ import {
   type TimeOffRequest,
 } from '@/types/attendance';
 import { observedHolidaysInYear, type HolidayOverride } from '@/types/holidays';
+import { effectiveReminders, storedReminderOverride, storedReminderSettings } from '@/types/breakReminders';
 import { PRESENCE_COLLECTION, isUserStatus, MAX_STATUS_NOTE, type UserStatus } from '@/types/presence';
 
 /**
@@ -212,6 +213,7 @@ export async function loadConfig(): Promise<AttendanceConfig> {
     officeNetworks: Array.isArray(d.officeNetworks) ? d.officeNetworks : DEFAULT_ATTENDANCE_CONFIG.officeNetworks,
     alerts: typeof d.alerts === 'boolean' ? d.alerts : DEFAULT_ATTENDANCE_CONFIG.alerts,
     alertAfterMinutes: typeof d.alertAfterMinutes === 'number' ? d.alertAfterMinutes : DEFAULT_ATTENDANCE_CONFIG.alertAfterMinutes,
+    reminders: storedReminderSettings(d.reminders),
   };
 }
 
@@ -403,11 +405,14 @@ export async function recordBeat(
 
 export async function clockState(caller: { uid: string; email: string }, now: number): Promise<ClockState> {
   const today = officeDateOf(now);
-  const [open, todayDay, presence, prefs] = await Promise.all([
+  // The config is one more read on every clock action and page load; it is
+  // what lets the browser time break reminders without a cron of its own.
+  const [open, todayDay, presence, prefs, config] = await Promise.all([
     openDay(caller.email, now),
     getDay(caller.email, today),
     adminDb.collection(PRESENCE_COLLECTION).doc(caller.uid).get(),
     adminDb.collection(ATTENDANCE_PREFS_COLLECTION).doc(caller.email).get(),
+    loadConfig(),
   ]);
   const day = open?.day ?? todayDay;
   const last = open ? open.day.sessions[open.day.sessions.length - 1] : null;
@@ -423,6 +428,8 @@ export async function clockState(caller: { uid: string; email: string }, now: nu
     status: isUserStatus(p.status) ? p.status : null,
     statusNote: typeof p.statusNote === 'string' ? p.statusNote : '',
     hideLastSeen: prefs.data()?.hideLastSeen === true,
+    breaksTaken: [...new Set((day?.breaks ?? []).map((b) => b.kind))],
+    reminders: effectiveReminders(config.reminders, storedReminderOverride(prefs.data()?.reminders)),
   };
 }
 

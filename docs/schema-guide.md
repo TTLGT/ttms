@@ -1869,9 +1869,18 @@ the Celebrations calendar uses it too.
 
 ### The rest
 
-- `attendanceConfig/general` — `{ officeNetworks: { ip, label }[], alerts, alertAfterMinutes }`.
+- `attendanceConfig/general` — `{ officeNetworks: { ip, label }[], alerts, alertAfterMinutes, reminders }`.
+  `reminders` is the company's break reminders — `break`, `lunch` and
+  `activePause`, each `{ enabled, at, until, minutes, days }`, once a day
+  (`src/types/breakReminders.ts`). Absent means the defaults: break at 10:00
+  to be taken by 11:00, lunch 13:00–14:00, Mon–Fri; active pause off, 8:30
+  for 5 minutes when on.
 - `attendanceDevices/{email}` — `{ ids: string[] }`, the browsers somebody has clocked in from.
-- `attendancePrefs/{email}` — `{ hideLastSeen }`.
+- `attendancePrefs/{email}` — `{ hideLastSeen, reminders? }`. `reminders`
+  is a person's own break reminders, written only by `attendance.manage`
+  through `PUT /api/attendance/reminders`; each kind present replaces the
+  company's whole, each absent follows it. The person cannot write it —
+  `PATCH /api/attendance/me` reads `hideLastSeen` alone.
 - `attendanceAlerts/{date}_{email}` — the lock that stops a "not in yet" alert
   going twice; claimed with `create()`.
 

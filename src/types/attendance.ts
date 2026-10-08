@@ -1,5 +1,6 @@
 import type { HolidayCountry } from './holidays';
 import type { UserStatus } from './presence';
+import type { BreakReminderSettings } from './breakReminders';
 
 /**
  * Attendance: when people clock in and out, their breaks, and how a day is
@@ -708,9 +709,14 @@ export interface AttendanceConfig {
   alerts: boolean;
   /** How long past someone's start (after their grace) before the alert. */
   alertAfterMinutes: number;
+  /** The company's break reminders. People can have their own on `attendancePrefs`. */
+  reminders: BreakReminderSettings;
 }
 
-export const DEFAULT_ATTENDANCE_CONFIG: AttendanceConfig = {
+// Without `reminders`: their defaults live in breakReminders.ts, which imports
+// from this file, and a value imported back the other way would be undefined
+// while the two modules load. loadConfig() fills it in.
+export const DEFAULT_ATTENDANCE_CONFIG: Omit<AttendanceConfig, 'reminders'> = {
   officeNetworks: [],
   alerts: true,
   alertAfterMinutes: 30,
@@ -784,6 +790,10 @@ export interface ClockState {
   status: UserStatus | null;
   statusNote: string;
   hideLastSeen: boolean;
+  /** Kinds of break already started on the open day — a reminder for one is then not due. */
+  breaksTaken: BreakKind[];
+  /** This person's break reminders: the company's, with any of their own over it. */
+  reminders: BreakReminderSettings;
 }
 
 export interface ReportPerson {

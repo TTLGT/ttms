@@ -42,6 +42,7 @@ import PreferenceSync from '@/components/dashboard/PreferenceSync';
 import LearnSwitch from '@/components/dashboard/LearnSwitch';
 import LearnLayer from '@/components/learn/LearnLayer';
 import PlanningPrompt from '@/components/planning/PlanningPrompt';
+import BreakReminder from '@/components/attendance/BreakReminder';
 import { LearnProvider } from '@/context/LearnContext';
 import { AttendanceProvider, useAttendance } from '@/context/AttendanceContext';
 import ClockWidget from '@/components/attendance/ClockWidget';
@@ -613,6 +614,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* "Pick a time for your daily planning" — nothing unless one is due. */}
       <PlanningPrompt />
+
+      {/* Break, lunch and active-pause reminders — nothing unless clocked in and one is due. */}
+      <BreakReminder />
     </div>
   );
 }

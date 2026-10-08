@@ -127,6 +127,8 @@ export function showMessageNotification(options: {
   body: string;
   tag: string;
   onClick: () => void;
+  /** Stay on screen until clicked or closed — for a reminder that is no use once it has faded. */
+  requireInteraction?: boolean;
 }): void {
   if (desktopPermission() !== 'granted') return;
   try {
@@ -134,6 +136,7 @@ export function showMessageNotification(options: {
       body: options.body,
       tag:  options.tag,
       icon: '/logo-circle.png',
+      requireInteraction: options.requireInteraction ?? false,
     });
     n.onclick = () => {
       window.focus();

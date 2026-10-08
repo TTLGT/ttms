@@ -1,4 +1,4 @@
-import { adminDb } from './firebase-admin';
+import { adminDb, FieldValue } from './firebase-admin';
 import { ALLOWED_USERS_COLLECTION, normalizeEmail } from './accessControl';
 import {
   AttendanceError,
@@ -15,6 +15,7 @@ import {
   ATTENDANCE_CONFIG_COLLECTION,
   ATTENDANCE_CONFIG_DOC,
   ATTENDANCE_DAYS_COLLECTION,
+  ATTENDANCE_PREFS_COLLECTION,
   ATTENDANCE_SCHEDULES_COLLECTION,
   CORRECTIONS_COLLECTION,
   DEFAULT_SCHEDULE_ID,
@@ -39,6 +40,12 @@ import {
   type TimeOffKind,
   type TimeOffRequest,
 } from '@/types/attendance';
+import {
+  readReminderOverride,
+  readReminderSettings,
+  storedReminderOverride,
+  type ReminderOverride,
+} from '@/types/breakReminders';
 import { overrideIdFor, type HolidayCountry, type HolidayOverride } from '@/types/holidays';
 
 /**
@@ -161,11 +168,49 @@ export async function saveConfig(caller: AttendanceCaller, raw: Record<string, u
     if (!Number.isFinite(n) || n < 5 || n > 240) throw new AttendanceError('The alert delay must be between 5 and 240 minutes.');
     next.alertAfterMinutes = n;
   }
+  if ('reminders' in raw) {
+    const reminders = readReminderSettings(raw.reminders);
+    if (typeof reminders === 'string') throw new AttendanceError(reminders);
+    next.reminders = reminders;
+  }
 
   await adminDb.collection(ATTENDANCE_CONFIG_COLLECTION).doc(ATTENDANCE_CONFIG_DOC).set({
     ...next, updatedAt: Date.now(), updatedByEmail: caller.email,
   });
   return next;
+}
+
+// ── Break reminders, per person ─────────────────────────────────────────────
+
+/**
+ * Everybody who has reminders of their own. They sit on `attendancePrefs`
+ * beside "hide last seen" because the clock state already reads that
+ * document, so a person's own settings cost no extra read. Only this file
+ * writes them — PATCH /api/attendance/me reads `hideLastSeen` and nothing
+ * else, so nobody can switch their own reminders off.
+ */
+export async function listReminderOverrides(): Promise<Record<string, ReminderOverride>> {
+  const snap = await adminDb.collection(ATTENDANCE_PREFS_COLLECTION).get();
+  const out: Record<string, ReminderOverride> = {};
+  for (const doc of snap.docs) {
+    const own = storedReminderOverride(doc.data().reminders);
+    if (Object.keys(own).length > 0) out[doc.id] = own;
+  }
+  return out;
+}
+
+/** Set one person's own reminders; null (or nothing in it) puts them back on the company's. */
+export async function saveReminderOverride(caller: AttendanceCaller, target: string, raw: unknown): Promise<void> {
+  const { email } = await personEntry(target);
+  const own = raw === null ? {} : readReminderOverride(raw);
+  if (typeof own === 'string') throw new AttendanceError(own);
+  const ref = adminDb.collection(ATTENDANCE_PREFS_COLLECTION).doc(email);
+  await ref.set(
+    Object.keys(own).length === 0
+      ? { reminders: FieldValue.delete() }
+      : { reminders: own, remindersUpdatedAt: Date.now(), remindersUpdatedByEmail: caller.email },
+    { merge: true },
+  );
 }
 
 // ── Time off ─────────────────────────────────────────────────────────────────

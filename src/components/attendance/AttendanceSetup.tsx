@@ -7,10 +7,13 @@ import {
   deleteHolidayOverride,
   fetchConfig,
   fetchHolidayOverrides,
+  fetchReminders,
   fetchSchedules,
   saveConfig,
   saveHolidayOverride,
+  saveReminderOverride,
   saveSchedule,
+  type RemindersResponse,
   type SchedulesResponse,
 } from '@/lib/attendance';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -22,7 +25,17 @@ import {
   WEEKDAY_LABEL,
   type AttendanceConfig,
   type Schedule,
+  type WeekdayKey,
 } from '@/types/attendance';
+import {
+  MINUTES_LIMITS,
+  REMINDER_KINDS,
+  REMINDER_LABEL,
+  type BreakReminderSettings,
+  type ReminderKind,
+  type ReminderOverride,
+  type SlotReminder,
+} from '@/types/breakReminders';
 import {
   HOLIDAY_COUNTRY_LABEL,
   observedHolidaysInYear,
@@ -32,7 +45,7 @@ import {
 
 /**
  * Everything HR sets up once and then leaves: schedules, holidays, the office
- * networks, and the "not in yet" alerts. `attendance.manage` — every route
+ * networks, the "not in yet" alerts and the break reminders. `attendance.manage` — every route
  * behind these panels checks it again.
  */
 export default function AttendanceSetup() {
@@ -41,6 +54,7 @@ export default function AttendanceSetup() {
       <SchedulesPanel />
       <div className="space-y-6">
         <HolidaysPanel />
+        <RemindersPanel />
         <NetworkPanel />
       </div>
     </div>
@@ -198,6 +212,182 @@ function ScheduleEditor({
       </div>
       {msg && <p className="text-green-700">{msg}</p>}
       {error && <p className="text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+// ── Break reminders ──────────────────────────────────────────────────────────
+
+const COMPANY = '_company';
+
+function RemindersPanel() {
+  const [data, setData] = useState<RemindersResponse | null>(null);
+  const [target, setTarget] = useState(COMPANY);
+  const [error, setError] = useState('');
+
+  const load = useCallback(async () => {
+    try { setData(await fetchReminders()); } catch (e) { setError(e instanceof Error ? e.message : 'Could not load reminders'); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  if (!data) return <section className={card}><h2 className={h2}>Break reminders</h2><p className={lede}>{error || 'Loading…'}</p></section>;
+
+  const isCompany = target === COMPANY;
+
+  return (
+    <section className={card}>
+      <h2 className={h2}>Break reminders</h2>
+      <p className={lede}>
+        A reminder in the corner of TTMS, and on the desktop where the browser allows it, with a button that starts the
+        break. Only for people who are clocked in and not already on a break, and only while TTMS is open. Times are
+        office time (Guatemala). Change them for everybody, or for one person.
+      </p>
+
+      <select value={target} onChange={(e) => setTarget(e.target.value)} className="mt-4 w-full rounded-lg border border-gray-300 py-1.5 pl-3 pr-8 text-sm">
+        <option value={COMPANY}>Company reminders (everyone without their own)</option>
+        {data.people.map((p) => (
+          <option key={p.email} value={p.email}>
+            {p.name}{data.byEmail[p.email] ? ' — own reminders' : ''}{p.pending ? ' (not signed in yet)' : ''}
+          </option>
+        ))}
+      </select>
+
+      <RemindersEditor
+        key={target}
+        company={data.company}
+        own={isCompany ? null : data.byEmail[target] ?? {}}
+        onSave={async (next) => {
+          if (isCompany) await saveConfig({ reminders: next as BreakReminderSettings });
+          else await saveReminderOverride(target, Object.keys(next).length > 0 ? next : null);
+          await load();
+        }}
+      />
+    </section>
+  );
+}
+
+/**
+ * `own` null edits the company's. Otherwise each kind either follows the
+ * company or carries the person's own, starting from the company's values.
+ */
+function RemindersEditor({
+  company, own, onSave,
+}: {
+  company: BreakReminderSettings;
+  own: ReminderOverride | null;
+  onSave: (next: ReminderOverride) => Promise<void>;
+}) {
+  const [values, setValues] = useState<BreakReminderSettings>(() => ({ ...company, ...(own ?? {}) }));
+  const [custom, setCustom] = useState<Record<ReminderKind, boolean>>(() => ({
+    break: Boolean(own?.break), lunch: Boolean(own?.lunch), activePause: Boolean(own?.activePause),
+  }));
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
+
+  async function save() {
+    setBusy(true); setMsg(''); setError('');
+    try {
+      const next: ReminderOverride = own === null
+        ? values
+        : Object.fromEntries(REMINDER_KINDS.filter((k) => custom[k]).map((k) => [k, values[k]]));
+      await onSave(next);
+      setMsg('Saved. Open copies of TTMS pick it up the next time they load the clock.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const set = <K extends ReminderKind>(kind: K, patch: Partial<BreakReminderSettings[K]>) =>
+    setValues((v) => ({ ...v, [kind]: { ...v[kind], ...patch } }));
+
+  return (
+    <div className="mt-4 space-y-4 text-sm">
+      {REMINDER_KINDS.map((kind) => {
+        const editable = own === null || custom[kind];
+        const r = editable ? values[kind] : company[kind];
+        return (
+          <fieldset key={kind} className="rounded-lg border border-gray-200 p-3">
+            <legend className="px-1 font-semibold text-gray-900">{REMINDER_LABEL[kind]}</legend>
+            {own !== null && (
+              <label className="mb-2 flex items-center gap-2 text-gray-600">
+                <input type="checkbox" checked={!custom[kind]}
+                  onChange={(e) => {
+                    setCustom((c) => ({ ...c, [kind]: !e.target.checked }));
+                    if (!e.target.checked) setValues((v) => ({ ...v, [kind]: company[kind] }));
+                  }} />
+                Same as the company
+              </label>
+            )}
+            <div className={editable ? '' : 'opacity-50'}>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={r.enabled} disabled={!editable}
+                  onChange={(e) => set(kind, { enabled: e.target.checked })} />
+                {kind === 'activePause' ? 'Remind people to take an active pause' : 'Send this reminder'}
+              </label>
+              <SlotFields kind={kind} r={r} disabled={!editable} onChange={(p) => set(kind, p)} />
+              {kind === 'activePause' && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Once a day: three short desk exercises in English and Spanish, different every day. 8:30 sits in the
+                  middle of the longest stretch without a break, 7 to 10. Not recorded on anybody&rsquo;s attendance.
+                </p>
+              )}
+              <DaysField days={r.days} disabled={!editable} onChange={(days) => set(kind, { days })} />
+            </div>
+          </fieldset>
+        );
+      })}
+      <button type="button" disabled={busy} onClick={() => void save()}
+        className="rounded-lg bg-brand-600 px-4 py-1.5 font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+        Save
+      </button>
+      {msg && <p className="text-green-700">{msg}</p>}
+      {error && <p className="text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+const numberBox = 'w-16 rounded-lg border border-gray-300 px-2 py-1';
+const timeBox = 'rounded-lg border border-gray-300 px-2 py-1';
+
+function SlotFields({
+  kind, r, disabled, onChange,
+}: { kind: ReminderKind; r: SlotReminder; disabled: boolean; onChange: (p: Partial<SlotReminder>) => void }) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <label className="flex items-center gap-1.5">
+        At
+        <input type="time" value={r.at} disabled={disabled} onChange={(e) => onChange({ at: e.target.value })} className={timeBox} />
+      </label>
+      <label className="flex items-center gap-1.5">
+        {kind === 'break' ? 'to be taken by' : kind === 'lunch' ? 'until' : 'shown until'}
+        <input type="time" value={r.until} disabled={disabled} onChange={(e) => onChange({ until: e.target.value })} className={timeBox} />
+      </label>
+      <label className="flex items-center gap-1.5">
+        lasting
+        <input type="number" min={MINUTES_LIMITS[kind].min} max={MINUTES_LIMITS[kind].max} value={r.minutes} disabled={disabled}
+          onChange={(e) => onChange({ minutes: Number(e.target.value) })} className={numberBox} />
+        minutes
+      </label>
+    </div>
+  );
+}
+
+function DaysField({ days, disabled, onChange }: { days: WeekdayKey[]; disabled: boolean; onChange: (d: WeekdayKey[]) => void }) {
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {WEEKDAYS.map((d) => {
+        const on = days.includes(d);
+        return (
+          <button key={d} type="button" disabled={disabled} aria-pressed={on}
+            onClick={() => onChange(WEEKDAYS.filter((x) => (x === d ? !on : days.includes(x))))}
+            className={`rounded-md border px-2 py-0.5 text-xs ${on ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+            {WEEKDAY_LABEL[d].slice(0, 3)}
+          </button>
+        );
+      })}
     </div>
   );
 }
