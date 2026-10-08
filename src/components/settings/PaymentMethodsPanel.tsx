@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Check, Plus, Trash2 } from 'lucide-react';
+import MoneyInput from '@/components/MoneyInput';
 import { getAppSettings, savePaymentMethods } from '@/lib/appSettings';
 import {
   FEE_PAYERS,
@@ -191,17 +192,27 @@ function MethodList({ side, title, percentOf, placeholder, initial }: {
                 <label className="block text-xs font-medium text-gray-600 mb-1">
                   {m.feeType === 'percent' ? 'Percent' : 'Amount (USD)'}
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  max={m.feeType === 'percent' ? 100 : undefined}
-                  step="0.01"
-                  disabled={m.feeType === 'none'}
-                  value={m.feeType === 'none' ? '' : (amounts[m.id] ?? '')}
-                  onChange={(e) => { setAmounts((a) => ({ ...a, [m.id]: e.target.value })); setDone(false); }}
-                  placeholder={m.feeType === 'percent' ? '3' : '0.00'}
-                  className={INPUT}
-                />
+                {/* A percent never reaches the thousands, so only a dollar amount gets the commas. */}
+                {m.feeType === 'percent' ? (
+                  <input
+                    type="number"
+                    min="0"
+                    max={100}
+                    step="0.01"
+                    value={amounts[m.id] ?? ''}
+                    onChange={(e) => { setAmounts((a) => ({ ...a, [m.id]: e.target.value })); setDone(false); }}
+                    placeholder="3"
+                    className={INPUT}
+                  />
+                ) : (
+                  <MoneyInput
+                    disabled={m.feeType === 'none'}
+                    value={m.feeType === 'none' ? '' : (amounts[m.id] ?? '')}
+                    onChange={(v) => { setAmounts((a) => ({ ...a, [m.id]: v })); setDone(false); }}
+                    placeholder="0.00"
+                    className={INPUT}
+                  />
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Paid by (default)</label>

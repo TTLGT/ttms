@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "29a06a46327e955bedada7c97d82656239b36562",
+      "date": "2026-10-07T22:10:08-06:00",
+      "author": "erwindank",
+      "subject": "Keep a change log of every order, client, shipper, consignee and carrier",
+      "body": "Every save now records who changed what, from what to what, and when, in a\nchanges subcollection, shown as a History tab on orders and carriers and a\nChange log section on parties. Saves moved from the browser to server routes\nso the entry is written in the same batch as the change and cannot be\nskipped; firestore.rules now refuses client writes to all three collections."
+    },
+    {
       "hash": "502fb37686d46ed661a4f0b22d31893f16ce9e07",
       "date": "2026-10-07T21:23:32-06:00",
       "author": "erwindank",

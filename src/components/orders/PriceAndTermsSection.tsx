@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import MoneyInput from '@/components/MoneyInput';
 import PaymentTermsField from '@/components/orders/PaymentTermsField';
 import { getAppSettingsOrDefaults } from '@/lib/appSettings';
 import {
@@ -133,12 +134,12 @@ export default function PriceAndTermsSection({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Agreed Rate (USD)</label>
-          <input type="number" min="0" step="0.01" value={agreedRate} onChange={(e) => onAgreedRate(e.target.value)}
+          <MoneyInput value={agreedRate} onChange={onAgreedRate}
             placeholder="0.00" className={INPUT} />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Broker Fee (USD)</label>
-          <input type="number" min="0" step="0.01" value={brokerFee} onChange={(e) => onBrokerFee(e.target.value)}
+          <MoneyInput value={brokerFee} onChange={onBrokerFee}
             placeholder="0.00" className={INPUT} />
         </div>
         <div>
@@ -223,12 +224,9 @@ function ComplexTermsFields({ terms, onChange, carrierPay, brokerFee }: {
         {COMPLEX_LEGS.map((leg) => (
           <div key={leg}>
             <label className="block text-xs font-medium text-gray-600 mb-1">{COMPLEX_LEG_LABEL[leg]}</label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={terms[leg] ?? ''}
-              onChange={(e) => onChange({ [leg]: money(e.target.value) })}
+            <MoneyInput
+              value={terms[leg] == null ? '' : String(terms[leg])}
+              onChange={(v) => onChange({ [leg]: money(v) })}
               placeholder="0.00"
               className={INPUT}
             />

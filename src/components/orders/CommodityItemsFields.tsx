@@ -1,6 +1,7 @@
 'use client';
 
 import { Plus, Trash2 } from 'lucide-react';
+import MoneyInput from '@/components/MoneyInput';
 import {
   blankCommodityItem,
   itemVolumeFt3,
@@ -111,12 +112,9 @@ export default function CommodityItemsFields({ value, onChange }: Props) {
               </div>
               <div className="col-span-3">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Line value (USD)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={item.value ?? ''}
-                  onChange={(e) => patch(item.id, { value: money(e.target.value) })}
+                <MoneyInput
+                  value={item.value == null ? '' : String(item.value)}
+                  onChange={(v) => patch(item.id, { value: money(v) })}
                   placeholder="0.00"
                   title="What the goods on this line are worth, all pieces together"
                   className={INPUT}
