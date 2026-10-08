@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "7ef51bc7a584865e4e63804790bd455cbbdc6bbe",
+      "date": "2026-10-08T11:51:10-06:00",
+      "author": "erwindank",
+      "subject": "Let a task or event be duplicated from its editor",
+      "body": ""
+    },
+    {
       "hash": "0d06ff8db8e5cbbf63e33998f636f9c612f1cc51",
       "date": "2026-10-08T10:18:19-06:00",
       "author": "erwindank",

@@ -2116,7 +2116,8 @@ personalTasks/{uid}
 
 personalTasks/{uid}/items/{itemId}
   kind      : 'task' | 'event'     // an event is calendar-only
-  eventType : 'call' | 'online' | 'meeting' | 'activity' | 'appointment' | 'other'
+  eventType : 'call' | 'online' | 'meeting' | 'focus' | 'planning' | 'training' | 'break' | 'activity' | 'other'
+              // 'appointment' was dropped 2026-10-08; a stored one reads as 'other'
                                    // a label; 'other' on every task
   title     : string               // up to 200 characters
   notes     : string               // up to 4,000

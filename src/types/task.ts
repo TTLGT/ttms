@@ -458,17 +458,27 @@ export function cleanColorLabels(raw: unknown): ColorLabels {
  * joined through TTMS and a "company activity" is still only on the calendar
  * of the person who added it. A calendar the whole company shares would be a
  * different feature, with its own question of who may post on it.
+ *
+ * The order is the editor's button order, so `other` stays last. There used
+ * to be an `appointment`; it was dropped on 2026-10-08, and an event still
+ * stored with it reads as `other` through the fallback in
+ * personalTasksServer.ts rather than by any migration.
  */
-export const EVENT_TYPES = ['call', 'online', 'meeting', 'activity', 'appointment', 'other'] as const;
+export const EVENT_TYPES = [
+  'call', 'online', 'meeting', 'focus', 'planning', 'training', 'break', 'activity', 'other',
+] as const;
 export type EventType = typeof EVENT_TYPES[number];
 
 export const EVENT_TYPE_LABEL: Record<EventType, string> = {
-  call:        'Call',
-  online:      'Online meeting',
-  meeting:     'In-person meeting',
-  activity:    'Company activity',
-  appointment: 'Appointment',
-  other:       'Other event',
+  call:     'Call',
+  online:   'Online meeting',
+  meeting:  'In-person meeting',
+  focus:    'Focus time',
+  planning: 'Planning',
+  training: 'Training',
+  break:    'Break',
+  activity: 'Company activity',
+  other:    'Other event',
 };
 
 /**

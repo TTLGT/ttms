@@ -1,5 +1,6 @@
 import {
-  CalendarClock, CornerUpRight, MapPin, PartyPopper, Phone, Users, Video, XCircle, type LucideIcon,
+  CalendarClock, ClipboardList, Coffee, CornerUpRight, GraduationCap, PartyPopper, Phone, Target, Users, Video,
+  XCircle, type LucideIcon,
 } from 'lucide-react';
 import {
   EXTRA_COLORS,
@@ -128,12 +129,15 @@ export const BOARD_STEP_DRAG_TYPE = 'application/x-ttms-step-card';
 
 /** One icon per sort of event, used everywhere an event is drawn. */
 export const EVENT_ICON: Record<EventType, LucideIcon> = {
-  call:        Phone,
-  online:      Video,
-  meeting:     Users,
-  activity:    PartyPopper,
-  appointment: MapPin,
-  other:       CalendarClock,
+  call:     Phone,
+  online:   Video,
+  meeting:  Users,
+  focus:    Target,
+  planning: ClipboardList,
+  training: GraduationCap,
+  break:    Coffee,
+  activity: PartyPopper,
+  other:    CalendarClock,
 };
 
 /**
