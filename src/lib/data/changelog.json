@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "3062458ad6f0fd6a488061a6efbace9e1432e13b",
+      "date": "2026-10-08T11:59:59-06:00",
+      "author": "erwindank",
+      "subject": "Add Break, Focus time, Training and Planning event types, and drop Appointment",
+      "body": "An event still stored as an appointment reads as Other event."
+    },
+    {
       "hash": "7ef51bc7a584865e4e63804790bd455cbbdc6bbe",
       "date": "2026-10-08T11:51:10-06:00",
       "author": "erwindank",

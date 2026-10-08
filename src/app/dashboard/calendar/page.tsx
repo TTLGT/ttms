@@ -58,6 +58,10 @@ export default function CalendarPage() {
   const [today, setToday] = useState('');
   const [selected, setSelected] = useState('');
   const [picked, setPicked] = useState<CalendarOccurrence | null>(null);
+  // Zoomed in, the page drops its width cap so the calendar can grow into
+  // the rest of the screen with its side panels still beside it.
+  const [zoomed, setZoomed] = useState(false);
+  const onZoomChange = useCallback((z: number) => setZoomed(z > 0), []);
   // For the editor's "With" box. The calendar draws no contacts itself, so
   // only an open editor is worth reading the directory for.
   const { people: directory } = useTaskDirectory(!!editing);
@@ -212,7 +216,7 @@ export default function CalendarPage() {
   const cel = celebrations.data;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl">
+    <div className={`p-4 sm:p-6 lg:p-8 ${zoomed ? '' : 'max-w-7xl'}`}>
       <div className="mb-5">
         <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
         <p className="mt-0.5 flex flex-wrap items-center gap-1 text-sm text-gray-500">
@@ -254,6 +258,7 @@ export default function CalendarPage() {
           pickedOccurrence={picked}
           onPickOccurrence={hr ? (o) => { setSelected(o.date); setPicked(o); } : undefined}
           toolbar={toolbar}
+          onZoomChange={onZoomChange}
           asideTop={hr && cel && picked ? (
             <CelebrationDetail
               occurrence={picked}

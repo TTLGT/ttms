@@ -117,6 +117,7 @@ export default function TaskCalendar({
   toolbar,
   asideTop,
   asideBottom,
+  onZoomChange,
 }: {
   items: PersonalTask[];
   /** The person's board columns, for the name of a task's status. */
@@ -142,6 +143,8 @@ export default function TaskCalendar({
   toolbar?: ReactNode;
   asideTop?: ReactNode;
   asideBottom?: ReactNode;
+  /** The zoom step whenever it changes, so the page can widen around it. */
+  onZoomChange?: (zoom: number) => void;
 }) {
   const { formatCalendarDate } = useDateFormatters();
   const [mode, setMode] = useState<Mode>('month');
@@ -178,9 +181,10 @@ export default function TaskCalendar({
     setZoom(next);
     try { window.localStorage.setItem(ZOOM_KEY, String(next)); } catch { /* not worth telling anyone */ }
   };
-  // From the second step up the calendar takes the whole width, as Bigger
-  // did: longer names need the room more than the side panels need to be beside it.
-  const wide = zoom > 0;
+  // Zoomed in, the page lets go of its width cap so the calendar can grow
+  // and push the side panels to the right edge. The panels stay beside it:
+  // moving them below meant scrolling past the whole grid to see the day.
+  useEffect(() => { onZoomChange?.(zoom); }, [zoom, onZoomChange]);
   // Month squares and the top row switch to the two-line chip (time above a
   // wrapped name) once the type is large enough to want it.
   const roomyChips = zoom > 1;
@@ -431,8 +435,7 @@ export default function TaskCalendar({
   const isCurrentWeek = weekStartOf(selected) === weekStartOf(today);
 
   return (
-    // Zoomed in, the calendar takes the whole width: the side panels move below it.
-    <div className={`grid gap-6 ${wide ? '' : 'lg:grid-cols-[1fr_320px]'}`}>
+    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       <section className="min-w-0 rounded-xl border border-gray-200 bg-white">
         <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 py-3">
           <button type="button" onClick={() => shift(-1)} aria-label={`Previous ${unit}`}
@@ -478,7 +481,7 @@ export default function TaskCalendar({
                 onClick={() => zoomBy(1)}
                 disabled={zoom === MAX_ZOOM}
                 aria-label="Zoom in"
-                title="Zoom in: taller hours and larger names, with the full width"
+                title="Zoom in: taller hours and larger names, across the whole screen"
                 className="rounded-md p-1 text-gray-600 hover:bg-gray-50 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
               >
                 <ZoomIn size={14} />
