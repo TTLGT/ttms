@@ -844,6 +844,41 @@ export type PersonalTaskInput = Partial<Pick<PersonalTask,
   | 'eventType' | 'location' | 'reminders' | 'repeat' | 'repeatWeekday' | 'repeatNths' | 'repeatUntil'
   | 'suggestionId' | 'steps' | 'rank' | 'contacts' | 'orders' | 'outcome'>>;
 
+/**
+ * The starting values for a copy of an item: what it says and when, never how
+ * far it got. The copy is open, its steps unticked and back under it with new
+ * ids, and it carries no outcome, queue place, planning slot or link to a
+ * series — so finishing, rescheduling or deleting one never touches the other.
+ * It opens in the Add dialog and is saved by the ordinary create route, which
+ * is what queues its reminders and counts it against the cap.
+ */
+export function duplicateInput(t: PersonalTask): PersonalTaskInput {
+  return {
+    kind: t.kind,
+    eventType: t.eventType,
+    title: t.title,
+    notes: t.notes,
+    location: t.location,
+    status: 'todo',
+    priority: t.priority,
+    difficulty: t.difficulty,
+    color: t.color,
+    date: t.date,
+    time: t.time,
+    endTime: t.endTime,
+    dueDate: t.dueDate,
+    dueTime: t.dueTime,
+    reminders: [...t.reminders],
+    repeat: t.repeat,
+    repeatWeekday: t.repeatWeekday,
+    repeatNths: [...t.repeatNths],
+    repeatUntil: t.repeatUntil,
+    contacts: [...t.contacts],
+    orders: [...t.orders],
+    steps: t.steps.map((s) => ({ ...s, id: newStepId(), done: false, status: null, xp: 0, everDone: false })),
+  };
+}
+
 export const MAX_QUEUE_RANK = 100_000;
 
 export const MAX_TASK_TITLE = 200;

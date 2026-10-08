@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "0d06ff8db8e5cbbf63e33998f636f9c612f1cc51",
+      "date": "2026-10-08T10:18:19-06:00",
+      "author": "erwindank",
+      "subject": "Let a step be dragged to its own column on the board, and show that status in every view",
+      "body": ""
+    },
+    {
       "hash": "908ff37108057b526b2a9c75608eb0b5cc0c0307",
       "date": "2026-10-08T09:45:43-06:00",
       "author": "erwindank",

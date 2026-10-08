@@ -22,7 +22,7 @@ import {
   UpcomingCelebrations,
   useCelebrationCalendar,
 } from '@/components/calendar/CelebrationPanels';
-import { calendarToday, defaultColorFor, type PersonalTask, type PersonalTaskInput } from '@/types/task';
+import { calendarToday, defaultColorFor, duplicateInput, type PersonalTask, type PersonalTaskInput } from '@/types/task';
 import { NOTE_STYLE } from '@/components/tasks/taskStyle';
 import {
   HOLIDAY_COUNTRY_LABEL,
@@ -54,7 +54,7 @@ export default function CalendarPage() {
   const { can } = useAuth();
   const { formatCalendarDate } = useDateFormatters();
   const { tasks, settings, columns, colorLabels, game, notices, dismissNotice, saveSettings, error, setError, create, update, detach, reschedule, remove, reload } = usePersonalTasks();
-  const [editing, setEditing] = useState<{ task: PersonalTask | null; initial?: PersonalTaskInput } | null>(null);
+  const [editing, setEditing] = useState<{ task: PersonalTask | null; initial?: PersonalTaskInput; copyOf?: PersonalTask } | null>(null);
   const [today, setToday] = useState('');
   const [selected, setSelected] = useState('');
   const [picked, setPicked] = useState<CalendarOccurrence | null>(null);
@@ -297,14 +297,18 @@ export default function CalendarPage() {
       {editing && (
         <TaskDirectoryProvider people={directory}>
         <TaskEditor
+          // A copy opening in the original's place must be a fresh dialog.
+          key={editing.task?.id ?? (editing.copyOf ? `copy-${editing.copyOf.id}` : 'new')}
           task={editing.task}
           initial={editing.initial}
+          copyOf={editing.copyOf?.title}
           columns={columns}
           colorLabels={colorLabels}
           noChannel={noChannel}
           playing={!!game?.enabled}
           onSave={save}
           onDelete={editing.task ? () => { remove(editing.task!.id); setEditing(null); } : undefined}
+          onDuplicate={editing.task ? () => setEditing({ task: null, initial: duplicateInput(editing.task!), copyOf: editing.task! }) : undefined}
           onReschedule={editing.task ? async (date, time) => {
             await reschedule(editing.task!.id, { date, time });
             setEditing(null);

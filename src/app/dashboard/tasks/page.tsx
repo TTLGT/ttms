@@ -19,7 +19,7 @@ import TaskFocus from '@/components/tasks/TaskFocus';
 import TaskPath from '@/components/tasks/TaskPath';
 import { StreakCard, UpNextCard } from '@/components/tasks/UpNext';
 import {
-  TASK_COLORS, calendarToday, nextStepOf, placeInQueue, stepWithDone, taskQueue, upNextTask,
+  TASK_COLORS, calendarToday, duplicateInput, nextStepOf, placeInQueue, stepWithDone, taskQueue, upNextTask,
   type PersonalTask, type PersonalTaskInput, type TaskColor,
 } from '@/types/task';
 
@@ -65,7 +65,7 @@ export default function MyTasksPage() {
   // purpose: a filter that quietly comes back next morning reads as tasks
   // that have gone missing.
   const [tag, setTag] = useState<TaskColor | null>(null);
-  const [editing, setEditing] = useState<{ task: PersonalTask | null; initial?: PersonalTaskInput } | null>(null);
+  const [editing, setEditing] = useState<{ task: PersonalTask | null; initial?: PersonalTaskInput; copyOf?: PersonalTask } | null>(null);
   // Read after mount: the server has no idea what day it is where the viewer is.
   const [today, setToday] = useState('');
   // The directory, for the "with @Name" contacts: only once something needs it.
@@ -161,8 +161,12 @@ export default function MyTasksPage() {
 
   const editor = editing && (
     <TaskEditor
+      // The dialog holds its fields in state, so a copy opening in its place
+      // must be a fresh one rather than the original re-rendered.
+      key={editing.task?.id ?? (editing.copyOf ? `copy-${editing.copyOf.id}` : 'new')}
       task={editing.task}
       initial={editing.initial}
+      copyOf={editing.copyOf?.title}
       columns={columns}
       colorLabels={colorLabels}
       noChannel={!settings.email && !settings.chat}
@@ -172,6 +176,7 @@ export default function MyTasksPage() {
       queueSize={queue.length}
       onSave={save}
       onDelete={editing.task ? () => { remove(editing.task!.id); setEditing(null); } : undefined}
+      onDuplicate={editing.task ? () => setEditing({ task: null, initial: duplicateInput(editing.task!), copyOf: editing.task! }) : undefined}
       onReschedule={editing.task ? async (date, time) => {
         await reschedule(editing.task!.id, { date, time });
         setEditing(null);

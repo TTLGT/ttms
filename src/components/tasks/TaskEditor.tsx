@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Bell, CalendarClock, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarClock, Copy, Trash2, X } from 'lucide-react';
 import DateField from '@/components/DateField';
 import TimeField from '@/components/TimeField';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -72,6 +72,8 @@ export default function TaskEditor({
   queueSize = 0,
   onSave,
   onDelete,
+  onDuplicate,
+  copyOf,
   onReschedule,
   onClose,
 }: {
@@ -96,6 +98,13 @@ export default function TaskEditor({
   /** `place` is a new spot in the queue when the person typed one, otherwise null. */
   onSave: (input: PersonalTaskInput, place: number | null) => Promise<void> | void;
   onDelete?: () => void;
+  /**
+   * Open a new item with this one's details (`duplicateInput()`). The page
+   * swaps the dialog over; nothing is saved until the copy is added.
+   */
+  onDuplicate?: () => void;
+  /** The title of the item a new one was copied from, for the note at the top. */
+  copyOf?: string;
   /**
    * Move an open task to another day, leaving it on this one marked
    * Rescheduled. Absent where the page cannot (and for a new task).
@@ -281,6 +290,11 @@ export default function TaskEditor({
             disabled fieldset turns off every control inside it at once. */}
         <fieldset disabled={readOnly} className="min-w-0">
         <div className="space-y-4 px-5 py-4">
+          {copyOf !== undefined && (
+            <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+              A copy of &ldquo;{copyOf}&rdquo;, with its steps unticked. Change what you need — nothing is saved until you press Add.
+            </p>
+          )}
           {readOnly && (
             <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
               From your history — over {HISTORY_AFTER_DAYS} days ago — so it can be read but not changed.
@@ -680,6 +694,22 @@ export default function TaskEditor({
               className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50"
             >
               <Trash2 size={14} /> Delete
+            </button>
+          )}
+          {/* Offered on history too: an old task is a fair thing to start a new one from. */}
+          {task && onDuplicate && (
+            <button
+              type="button"
+              onClick={() => {
+                // The copy is taken from the item as saved, so edits made
+                // here first would be lost — the same question as closing.
+                if (!readOnly && draft !== opened
+                  && !window.confirm('Duplicate without saving your changes? The copy is made from this item as it was saved.')) return;
+                onDuplicate();
+              }}
+              className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100"
+            >
+              <Copy size={14} /> Duplicate
             </button>
           )}
           <div className="ml-auto flex gap-2">
