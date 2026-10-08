@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Bell, CalendarClock, Trash2, X } from 'lucide-react';
 import DateField from '@/components/DateField';
+import TimeField from '@/components/TimeField';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   EVENT_TYPES,
@@ -348,14 +349,12 @@ export default function TaskEditor({
             </div>
             <div>
               <label className={label} htmlFor="task-time">Starts</label>
-              <input
+              <TimeField
                 id="task-time"
-                type="time"
                 value={time}
-                onChange={(e) => {
+                onChange={(next) => {
                   // The end moves with the start, keeping the length — the
                   // same as dragging the block on the calendar.
-                  const next = e.target.value;
                   if (time && endTime && next) setEndTime(shiftedEnd(time, endTime, next) ?? endTime);
                   setTime(next);
                 }}
@@ -364,8 +363,8 @@ export default function TaskEditor({
             </div>
             <div>
               <label className={label} htmlFor="task-end">Ends</label>
-              <input id="task-end" type="time" value={endTime} disabled={!time}
-                onChange={(e) => setEndTime(e.target.value)} className={`${input} disabled:opacity-50`} />
+              <TimeField id="task-end" value={endTime} disabled={!time}
+                onChange={setEndTime} className={`${input} disabled:opacity-50`} />
             </div>
           </div>
           {kind === 'task' && (
@@ -376,8 +375,8 @@ export default function TaskEditor({
               </div>
               <div>
                 <label className={label} htmlFor="task-due-time">Due time</label>
-                <input id="task-due-time" type="time" value={dueTime} disabled={!dueDate}
-                  onChange={(e) => setDueTime(e.target.value)} className={`${input} disabled:opacity-50`} />
+                <TimeField id="task-due-time" value={dueTime} disabled={!dueDate}
+                  onChange={setDueTime} className={`${input} disabled:opacity-50`} />
               </div>
             </div>
           )}
@@ -640,8 +639,8 @@ export default function TaskEditor({
                   </div>
                   <div>
                     <label className={label} htmlFor="task-move-time">Time</label>
-                    <input id="task-move-time" type="time" value={moveTo.time}
-                      onChange={(e) => setMoveTo({ ...moveTo, time: e.target.value })} className={input} />
+                    <TimeField id="task-move-time" value={moveTo.time}
+                      onChange={(v) => setMoveTo({ ...moveTo, time: v })} className={input} />
                   </div>
                   <button type="button" disabled={!moveTo.date || saving}
                     onClick={async () => {

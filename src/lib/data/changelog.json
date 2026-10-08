@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "adec9f86e273a944c3272ae29de13e2b95e3ec31",
+      "date": "2026-10-08T08:56:53-06:00",
+      "author": "erwindank",
+      "subject": "Replace the calendar's Bigger switch with zoom in and zoom out",
+      "body": "Four steps, 100% to 250%: taller hours, larger type, and from the second\nstep up the full width and event names that wrap instead of being cut\noff. Month squares grow and show more before \"+N more\". Zooming keeps the\nhour at the top of the window in place. Saved per browser; anyone who had\nBigger on opens at 150%."
+    },
+    {
       "hash": "bb109835f60a1b111db7b34be697fbe20c4450f2",
       "date": "2026-10-08T08:51:10-06:00",
       "author": "erwindank",
