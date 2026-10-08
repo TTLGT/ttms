@@ -379,6 +379,7 @@ function NewOrderForm() {
             carrierPay={carrierPay}
             laneMiles={distance.laneMiles}
             terms={priceTerms} onTerms={setPriceTerms}
+            commodities={commodities}
           />
 
           {/* Route */}

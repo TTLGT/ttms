@@ -1111,6 +1111,27 @@ Types and pure rules in `src/types/task.ts`; server in
   Friday": `repeatWeekday` (0–6) and `repeatNths` (1–4, 5 = last).
   `repeatFields()` is the one place the stored repeat fields are worked out.
 
+### Quote calculator — a scratch pad, priced from an admin's rate card
+
+`/dashboard/quote-calculator`, and the same component over the order form from
+a button in Price and Terms (new and edit). Distance from two ZIPs or typed,
+freight in any unit, a fit check against each truck, then price, driver pay,
+broker fee and a uShip column. Pure maths in `src/types/quoteRates.ts`; the
+rate card is `appSettings/quoteRates`, edited in Settings → Operations → Quote
+Rates under `quoteRates.manage` (admin only by default). See the Schema Guide.
+
+- **Nothing it works out is stored.** "Apply to order" fills Agreed Rate and
+  Broker Fee in the form, and the broker saves the order as usual — so the
+  change log and every order-write rule apply unchanged.
+- **The ZIP lookup is never `manual`.** Under Google Routes a new lane waits
+  for the "Look up with Google" button, exactly as on the order form. Do not
+  make typing a ZIP reach Google.
+- **Rates are the client's price; the market figures are carrier pay.** DAT's
+  weekly national averages are typed in by hand — there is no free feed — and
+  are only ever compared with driver pay. Do not turn them into a price.
+- The dialog is portalled to `<body>`: inside the order `<form>`, Enter in any
+  calculator box would save the order.
+
 ### Learn English — underlines that never touch the page
 
 A per-browser switch at the foot of the sidebar (`LearnContext`) that underlines

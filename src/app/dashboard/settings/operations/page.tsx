@@ -7,6 +7,7 @@ import LaneDistancePanel from '@/components/settings/LaneDistancePanel';
 import LeadSourcesPanel from '@/components/settings/LeadSourcesPanel';
 import PaymentMethodsPanel from '@/components/settings/PaymentMethodsPanel';
 import PresencePanel from '@/components/settings/PresencePanel';
+import QuoteRatesPanel from '@/components/settings/QuoteRatesPanel';
 
 /**
  * Company-wide choices that change how orders behave, rather than who can see
@@ -23,7 +24,8 @@ import PresencePanel from '@/components/settings/PresencePanel';
  * Celebrations and Online Status (`celebrations.manage` / `presence.manage`,
  * HR), Lead Sources
  * (`leadSources.manage`, dispatch), and Lane Distance and Payment Terms
- * (`laneDistance.manage` / `paymentTerms.manage`, finance). The layout lets
+ * (`laneDistance.manage` / `paymentTerms.manage`, finance), and Quote Rates
+ * (`quoteRates.manage`, granted one person at a time). The layout lets
  * each of them through the door; this decides what is in the room. Drawing
  * a control somebody cannot use is worse than hiding it: the route refuses the
  * save, and they find out after choosing.
@@ -39,8 +41,9 @@ export default function SettingsOperationsPage() {
   const paymentTerms = settings || can('paymentTerms.manage');
   const leadSources  = settings || can('leadSources.manage');
   const presence     = settings || can('presence.manage');
+  const quoteRates   = settings || can('quoteRates.manage');
 
-  const left  = laneDistance || settings || paymentTerms;
+  const left  = laneDistance || settings || paymentTerms || quoteRates;
   const right = leadSources || celebrations || presence;
 
   // One column when only one side has anything in it. Two columns with a
@@ -65,6 +68,11 @@ export default function SettingsOperationsPage() {
           {paymentTerms && (
             <div id="payment-methods" className="scroll-mt-44">
               <PaymentMethodsPanel />
+            </div>
+          )}
+          {quoteRates && (
+            <div id="quote-rates" className="scroll-mt-44">
+              <QuoteRatesPanel />
             </div>
           )}
         </div>

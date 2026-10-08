@@ -379,6 +379,49 @@ show a distance. Written only through `PUT /api/app-settings`, admin-only, like
 every other collection that shapes app behaviour. The default is `"estimate"`
 and not `"routes"`: a default must never be the option that spends money.
 
+### `appSettings/quoteRates` — the quote calculator's rate card
+
+A second document in the same collection, kept apart from `general` because
+`general` is read on nearly every page and this one only by the calculator.
+Types, defaults, validation and every bit of pricing maths are in
+`src/types/quoteRates.ts`.
+
+```
+appSettings/quoteRates
+  trucks : TruckType[]               // in the order the calculator lists them
+    id      : string                 // stable slug — "flatbed"
+    code    : string                 // "F", "L/RGN"
+    name    : string
+    pricing : "perMile" | "hourly" | "towing"
+    perMile : { partial, ltl, tl }   // each { low, high } $/mile, or null = not offered
+    hourly  : { low, high } | null   // $/hour — the Landoll
+    towing  : { localUpToMiles, local, long } | null
+              // each tier { hookup: {low, high}, includedMiles, perMile: {low, high} }
+    limits  : { lengthFt, widthFt, heightFt, weightLb } | null  // null on any = not checked
+    notes   : string
+    market  : "van" | "reefer" | "flatbed" | null
+  market : { van, reefer, flatbed, asOf: "YYYY-MM-DD", source }  // $/mile, broker to carrier
+  targetBrokerFee : number           // default 500 — flags a quote under it, never refuses one
+  ushipFeePercent : number | null    // pre-fills the uShip column
+  updatedAt, updatedBy
+```
+
+**Absent until somebody saves it.** Until then `GET /api/quote-rates` answers
+with `DEFAULT_QUOTE_RATES`, which are the old "Calculator" Google Sheet's
+numbers, and says `isDefault: true` so the calculator can tell the broker so.
+
+The per-mile rates are what the **client** is charged. The `market` figures
+are DAT's free weekly national averages, which are what brokers pay
+**carriers**, so the calculator compares them with driver pay, never with the
+price. There is no free live source of lane rates; an admin types these in.
+
+Read through `GET /api/quote-rates` (`orders.create`, `settings.manage` or
+`quoteRates.manage`), written whole by `PUT` (`settings.manage` or
+`quoteRates.manage`). Re-validated on read, so a hand edit in the Console that
+breaks it puts the defaults on screen rather than a NaN in a quote. Nothing the
+calculator works out is stored; "Apply to order" only fills the order form's
+Agreed Rate and Broker Fee.
+
 ### Price and Terms: `PaymentMethod`, `OrderPaymentTerms`, `ComplexTerms`
 
 BATS's "Price and Terms" block, adapted. BATS's *Total Tariff* is `agreedRate`

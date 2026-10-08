@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import MoneyInput from '@/components/MoneyInput';
 import PaymentTermsField from '@/components/orders/PaymentTermsField';
+import QuoteCalculatorDialog, { quotePrefillFromItems } from '@/components/quotes/QuoteCalculatorDialog';
 import { getAppSettingsOrDefaults } from '@/lib/appSettings';
 import {
   COMPLEX_LEGS,
@@ -15,7 +16,7 @@ import {
   usd,
 } from '@/types/paymentMethod';
 import type { ComplexTerms, OrderPaymentTerms, PaymentMethod, PaymentSide } from '@/types/paymentMethod';
-import type { Order } from '@/types/order';
+import type { CommodityItem, Order } from '@/types/order';
 
 const INPUT =
   'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
@@ -82,6 +83,11 @@ interface Props {
   laneMiles: number | null;
   terms: PriceTerms;
   onTerms: (t: PriceTerms) => void;
+  /**
+   * The order's freight lines, so the quote calculator opens on the load's
+   * size and weight. Optional: without them it opens on the miles alone.
+   */
+  commodities?: readonly CommodityItem[];
 }
 
 /**
@@ -92,7 +98,7 @@ interface Props {
  * Carrier Pay stays worked out from the other two, as it always has been here.
  */
 export default function PriceAndTermsSection({
-  agreedRate, onAgreedRate, brokerFee, onBrokerFee, carrierPay, laneMiles, terms, onTerms,
+  agreedRate, onAgreedRate, brokerFee, onBrokerFee, carrierPay, laneMiles, terms, onTerms, commodities,
 }: Props) {
   const [methods, setMethods] = useState<Record<PaymentSide, PaymentMethod[]>>({
     client: [], carrier: [], brokerFee: [],
@@ -122,13 +128,31 @@ export default function PriceAndTermsSection({
 
   return (
     <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-      <div>
-        <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Price and Terms</h2>
-        <p className="text-xs text-gray-500 mt-1">
-          Total mileage: {laneMiles ? Math.round(laneMiles).toLocaleString() : '—'}
-          {' · '}Total PPM: {ppm !== null ? usd(ppm) : '—'}
-          {' · '}Carrier pay PPM: {payPpm !== null ? usd(payPpm) : '—'}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Price and Terms</h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Total mileage: {laneMiles ? Math.round(laneMiles).toLocaleString() : '—'}
+            {' · '}Total PPM: {ppm !== null ? usd(ppm) : '—'}
+            {' · '}Carrier pay PPM: {payPpm !== null ? usd(payPpm) : '—'}
+          </p>
+        </div>
+        {/* Starts from the form as it stands when opened — the miles, the
+            freight, and whatever price is already on it — so on an existing
+            order it checks the current figures rather than replacing them. */}
+        <QuoteCalculatorDialog
+          prefill={() => ({
+            miles: laneMiles,
+            milesNote: laneMiles ? 'The mileage on this order.' : undefined,
+            ...quotePrefillFromItems(commodities ?? []),
+            customerPrice: rate > 0 ? rate : null,
+            driverPay: rate > 0 && pay > 0 ? pay : null,
+          })}
+          onApply={(r) => {
+            onAgreedRate(String(r.agreedRate));
+            onBrokerFee(String(r.brokerFee));
+          }}
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

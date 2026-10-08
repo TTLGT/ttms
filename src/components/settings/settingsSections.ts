@@ -45,7 +45,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
   // and finance for Lane Distance and Payment Terms — each for its own panels
   // and nothing else on it.
   { id: 'operations',   label: 'Operations',   href: '/dashboard/settings/operations',   adminOnly: true,
-    permissions: ['celebrations.manage', 'presence.manage', 'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage'] },
+    permissions: ['celebrations.manage', 'presence.manage', 'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage', 'quoteRates.manage'] },
   { id: 'data',         label: 'Data',         href: '/dashboard/settings/data',         adminOnly: true  },
 ];
 
@@ -175,6 +175,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     keywords: 'payment terms pay method cod cash check ach zelle wire credit card quick pay factoring fee surcharge carrier pay terms broker fee terms charge on dispatch',
     adminOnly: true,
     permissions: ['paymentTerms.manage'],
+  },
+  {
+    id: 'quote-rates',
+    label: 'Quote Rates',
+    tab: 'operations',
+    blurb: 'What the quote calculator charges per mile for each truck, how big a load each takes, and the market figures it checks driver pay against.',
+    keywords: 'quote calculator rate rates per mile price pricing truck trailer flatbed van reefer step deck hot shot lowboy rgn conestoga towing landoll dat market broker fee uship margin',
+    adminOnly: true,
+    permissions: ['quoteRates.manage'],
   },
   {
     id: 'lead-sources',

@@ -409,6 +409,7 @@ export default function EditOrderPage() {
             carrierPay={carrierPay}
             laneMiles={distance.laneMiles}
             terms={priceTerms} onTerms={setPriceTerms}
+            commodities={commodities}
           />
           </>)}
 

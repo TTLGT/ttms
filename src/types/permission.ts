@@ -160,6 +160,18 @@ export const PERMISSIONS = [
   'leadSources.manage',
   'laneDistance.manage',
   'paymentTerms.manage',
+  /**
+   * The quote calculator's rate card: the per-mile ranges for each truck type,
+   * their size limits, the market figures and the target broker fee. See
+   * src/types/quoteRates.ts.
+   *
+   * Its own permission rather than `settings.manage`, so whoever prices loads
+   * can keep the card current without being handed offices, teams and work
+   * groups. Admin only by default — no role was widened when it was added —
+   * and granted to anybody else one person at a time. Using the calculator
+   * needs nothing beyond `orders.create`.
+   */
+  'quoteRates.manage',
 
   // ── Everything else ──────────────────────────────────────────────────────
   'chat.use',
@@ -329,6 +341,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'leadSources.manage',  label: 'Manage lead sources',  detail: 'Add, rename and retire the lead sources offered on clients and loads. Dispatch has this already.' },
       { key: 'laneDistance.manage', label: 'Manage lane distance', detail: 'Choose how order mileage is worked out, and recheck a load’s mileage with Google — each recheck is charged. Finance has this already.' },
       { key: 'paymentTerms.manage', label: 'Manage payment terms', detail: 'The payment methods and fee terms offered for clients and carriers, and the fee each one carries. Finance has this already.' },
+      { key: 'quoteRates.manage', label: 'Manage quote rates', detail: 'The rates, truck sizes and market figures the quote calculator prices loads with. Everyone who books loads uses the calculator; this changes what it says.' },
     ],
   },
   {

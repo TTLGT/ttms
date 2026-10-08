@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "8611b6e33a1a99ae88402a5f36aede84d475a96d",
+      "date": "2026-10-08T17:31:21-06:00",
+      "author": "erwindank",
+      "subject": "Let each freight line say which pickup and delivery it goes through, and record vehicle details per line, both shown on the BOL",
+      "body": "On a load with more than one pickup or delivery, every commodity line can\nname its stops (\"Picked up at\" / \"Delivered to\"). The BOL gets a column for\nit and lists what is loaded or unloaded at each stop; the order page shows it\nunder each line. Removing a stop renumbers the lines that pointed past it.\n\nFreight lines can also carry year, make, model, colour, VIN, type and\ncondition when the freight is a vehicle."
+    },
+    {
       "hash": "0940af434c71d4751187a14d596a3cf27ebf0f79",
       "date": "2026-10-08T17:23:19-06:00",
       "author": "erwindank",

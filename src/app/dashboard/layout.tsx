@@ -22,6 +22,7 @@ import {
   GraduationCap,
   ListTodo,
   CalendarDays,
+  Calculator,
   History,
   Menu,
   X,
@@ -75,6 +76,11 @@ const NAV_ITEMS: {
 }[] = [
   { href: '/dashboard',           label: 'Dashboard', Icon: LayoutDashboard },
   { href: '/dashboard/orders',    label: 'Orders',    Icon: ClipboardList, needs: 'orders.view' },
+  // Beside Orders because pricing is the first step of one. Also opens from
+  // Price and Terms on the order form; this is for a price asked for before
+  // there is an order. See src/types/quoteRates.ts.
+  { href: '/dashboard/quote-calculator', label: 'Quote calculator', Icon: Calculator,
+    anyOf: ['orders.create', 'quoteRates.manage'] },
   { href: '/dashboard/carriers',  label: 'Carriers',  Icon: Truck,         needs: 'carriers.view' },
   { href: '/dashboard/clients',   label: 'Clients',   Icon: Users,         needs: 'clients.view' },
   { href: '/dashboard/shippers',  label: 'Shippers',  Icon: Building2,     needs: 'shippers.view' },
@@ -112,7 +118,7 @@ const NAV_ITEMS: {
   { href: '/dashboard/settings',  label: 'Settings',  Icon: Settings,
     anyOf: ['people.manage', 'people.view', 'settings.manage',
             'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage',
-            'celebrations.manage', 'presence.manage'] },
+            'celebrations.manage', 'presence.manage', 'quoteRates.manage'] },
   { href: '/dashboard/handbook',  label: 'Handbook',  Icon: BookOpen,      needs: 'handbook.view' },
 ];
 
