@@ -12,7 +12,7 @@ import {
 import { gameClock, gameFrom, liveStreakFor, runDailyCheck, writeGame } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
 import { GameTurn, type GameEvent, type GameState } from '@/types/taskGame';
-import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanColorLabels, cleanTaskInput, repeatEnd, repeatFields } from '@/types/task';
+import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanColorLabels, cleanTaskInput, defaultColorFor, repeatEnd, repeatFields } from '@/types/task';
 
 /**
  * The caller's own task list and calendar — see src/types/task.ts.
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
       status,
       priority:  input.priority ?? 'normal',
       difficulty: input.difficulty ?? 'medium',
-      color:     input.color ?? 'yellow',
+      color:     input.color ?? defaultColorFor(kind),
       date:      input.date ?? null,
       time:      input.time ?? null,
       endTime:   kind === 'event' ? (input.endTime ?? null) : null,

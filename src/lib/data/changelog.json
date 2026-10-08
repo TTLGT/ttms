@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "53a169897122623faf76f4b0145734c4760ce078",
+      "date": "2026-10-08T08:16:37-06:00",
+      "author": "erwindank",
+      "subject": "Base a task's XP on its difficulty instead of its priority",
+      "body": "Game mode now asks for a difficulty (Trivial, Easy, Medium, Hard, Very hard,\nEpic) in the task editor, and that alone sets what a task earns and what it\ncosts when overdue or not done. Priority no longer touches XP. The\nhard-task missions count Hard and above. Tasks saved before this read as\nMedium."
+    },
+    {
       "hash": "f3de75af6fe5c4b14086ba66b128af9172cd9f65",
       "date": "2026-10-08T08:02:39-06:00",
       "author": "erwindank",

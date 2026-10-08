@@ -8,6 +8,7 @@ import {
   EVENT_TYPES,
   EVENT_TYPE_LABEL,
   colorsInUse,
+  defaultColorFor,
   TASK_PRIORITIES,
   TASK_PRIORITY_LABEL,
   TASK_DIFFICULTIES,
@@ -116,7 +117,11 @@ export default function TaskEditor({
   const { formatCalendarDate } = useDateFormatters();
   const [priority, setPriority]   = useState(start.priority ?? 'normal');
   const [difficulty, setDifficulty] = useState(start.difficulty ?? 'medium');
-  const [color, setColor]         = useState(start.color ?? 'yellow');
+  // A new item wears its kind's default and follows the Task/Event switch
+  // until somebody picks a colour; one passed in (a tag filter, a saved item)
+  // counts as picked.
+  const [color, setColor]         = useState(start.color ?? defaultColorFor(start.kind ?? 'task'));
+  const [colorPicked, setColorPicked] = useState(!!start.color);
   const [date, setDate]           = useState(start.date ?? '');
   const [time, setTime]           = useState(start.time ?? '');
   const [endTime, setEndTime]     = useState(start.endTime ?? '');
@@ -290,7 +295,7 @@ export default function TaskEditor({
                 key={k}
                 type="button"
                 aria-pressed={kind === k}
-                onClick={() => setKind(k)}
+                onClick={() => { setKind(k); if (!colorPicked) setColor(defaultColorFor(k)); }}
                 className={`rounded-md px-3 py-1 ${kind === k ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
               >
                 {k === 'task' ? 'Task' : 'Event'}
@@ -619,7 +624,7 @@ export default function TaskEditor({
                   aria-label={colorLabel(colorLabels, c)}
                   title={colorLabel(colorLabels, c)}
                   aria-pressed={color === c}
-                  onClick={() => setColor(c)}
+                  onClick={() => { setColor(c); setColorPicked(true); }}
                   className={`h-7 w-7 rounded-full ${NOTE_STYLE[c].swatch} ${
                     color === c ? 'ring-2 ring-brand-600 ring-offset-2 ring-offset-transparent' : ''
                   }`}

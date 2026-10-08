@@ -25,6 +25,19 @@ import {
  * generates classes it can find spelled out in the source.
  */
 const BASE_NOTE_STYLE: Record<BaseColor, { note: string; chip: string; swatch: string }> = {
+  // These two chips are exactly the Calendar's My tasks and My events
+  // switches. Brand has no 200, so its dark step is 100 → 300. Its swatch is
+  // the deep 500 rather than 400, which would sit too close to the sky of "Blue".
+  brand: {
+    note: 'bg-brand-50 border-brand-100 text-brand-900 dark:bg-brand-100 dark:border-brand-300',
+    chip: 'bg-brand-50 text-brand-700',
+    swatch: 'bg-brand-500',
+  },
+  cyan: {
+    note: 'bg-cyan-100 border-cyan-200 text-cyan-900 dark:bg-cyan-200 dark:border-cyan-300',
+    chip: 'bg-cyan-100 text-cyan-800',
+    swatch: 'bg-cyan-500',
+  },
   yellow: {
     note: 'bg-yellow-100 border-yellow-200 text-yellow-900 dark:bg-yellow-200 dark:border-yellow-300',
     chip: 'bg-yellow-100 text-yellow-800',

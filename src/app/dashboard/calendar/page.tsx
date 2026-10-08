@@ -22,7 +22,8 @@ import {
   UpcomingCelebrations,
   useCelebrationCalendar,
 } from '@/components/calendar/CelebrationPanels';
-import { calendarToday, type PersonalTask, type PersonalTaskInput } from '@/types/task';
+import { calendarToday, defaultColorFor, type PersonalTask, type PersonalTaskInput } from '@/types/task';
+import { NOTE_STYLE } from '@/components/tasks/taskStyle';
 import {
   HOLIDAY_COUNTRY_LABEL,
   observedHolidaysInYear,
@@ -144,13 +145,13 @@ export default function CalendarPage() {
   const toolbar = (
     <div className="flex flex-wrap gap-1.5">
       <button type="button" aria-pressed={show.tasks} onClick={() => setShow((s) => ({ ...s, tasks: !s.tasks }))}
-        // Brand, not a task colour: tasks and events wear the colours their
-        // owner gave them, so the switch for them must not look like one.
-        className={chip(show.tasks, 'bg-brand-50 text-brand-700')}>
+        // Each switch is drawn in the colour a new item of its kind starts in
+        // (defaultColorFor() and NOTE_STYLE) — change one and change the other.
+        className={chip(show.tasks, NOTE_STYLE[defaultColorFor('task')].chip)}>
         <ListTodo size={12} /> My tasks
       </button>
       <button type="button" aria-pressed={show.events} onClick={() => setShow((s) => ({ ...s, events: !s.events }))}
-        className={chip(show.events, 'bg-brand-50 text-brand-700')}>
+        className={chip(show.events, NOTE_STYLE[defaultColorFor('event')].chip)}>
         <CalendarClock size={12} /> My events
       </button>
       {hr && (['birthday', 'anniversary'] as const).map((kind) => {

@@ -362,9 +362,26 @@ export const TASK_DIFFICULTY_LABEL: Record<TaskDifficulty, string> = {
   trivial: 'Trivial', easy: 'Easy', medium: 'Medium', hard: 'Hard', veryHard: 'Very hard', epic: 'Epic',
 };
 
-/** Sticky-note colours every person has. All six are families `tailwind.config.ts` maps for dark mode. */
-export const BASE_COLORS = ['yellow', 'pink', 'blue', 'green', 'purple', 'orange'] as const;
+/**
+ * Sticky-note colours every person has. All are families `tailwind.config.ts`
+ * maps for dark mode. `brand` and `cyan` are the colours of the Calendar's My
+ * tasks and My events switches, which is what a new task or event wears until
+ * somebody picks another (defaultColorFor()). Yellow was the default before
+ * they existed, so items saved then stay yellow.
+ */
+export const BASE_COLORS = ['brand', 'cyan', 'yellow', 'pink', 'blue', 'green', 'purple', 'orange'] as const;
 export type BaseColor = typeof BASE_COLORS[number];
+
+/**
+ * The colour a new item starts in: the one its layer switch on the Calendar
+ * is drawn in, so a fresh item looks like the toggle that hides it. Change a
+ * switch's colour on the Calendar page and change it here too.
+ */
+const DEFAULT_COLOR: Record<TaskKind, TaskColor> = { task: 'brand', event: 'cyan' };
+
+export function defaultColorFor(kind: TaskKind): TaskColor {
+  return DEFAULT_COLOR[kind];
+}
 
 /**
  * Colours a person can add as tags of their own, on top of the six. Each one
@@ -375,8 +392,8 @@ export type BaseColor = typeof BASE_COLORS[number];
  * in light mode has no right answer in dark.
  *
  * The hues are the gaps left once everything else on the calendar is placed:
- * clear of the six above, of the layers (indigo birthdays, teal anniversaries,
- * brand blue, grey holidays — KIND_STYLE in CelebrationPanels.tsx) and of red,
+ * clear of the base colours above, of the layers (indigo birthdays, teal anniversaries,
+ * brand blue and cyan, which are also task colours, grey holidays — KIND_STYLE in CelebrationPanels.tsx) and of red,
  * which means overdue. Three between yellow and green, three between violet
  * and pink; past that the next one would look like a colour already in use.
  *
@@ -411,7 +428,7 @@ export type ColorLabels = Partial<Record<TaskColor, string>>;
 export const COLOR_LABEL_MAX = 40;
 
 export const TASK_COLOR_NAME: Record<TaskColor, string> = {
-  yellow: 'Yellow', pink: 'Pink', blue: 'Blue', green: 'Green', purple: 'Purple', orange: 'Orange',
+  brand: 'Royal blue', cyan: 'Cyan', yellow: 'Yellow', pink: 'Pink', blue: 'Blue', green: 'Green', purple: 'Purple', orange: 'Orange',
   h70: 'Olive', h90: 'Lime', h110: 'Moss', h274: 'Grape', h292: 'Orchid', h310: 'Magenta',
 };
 
