@@ -19,7 +19,7 @@ import TaskFocus from '@/components/tasks/TaskFocus';
 import TaskPath from '@/components/tasks/TaskPath';
 import { StreakCard, UpNextCard } from '@/components/tasks/UpNext';
 import {
-  TASK_COLORS, calendarToday, nextStepOf, placeInQueue, taskQueue, upNextTask,
+  TASK_COLORS, calendarToday, nextStepOf, placeInQueue, stepWithDone, taskQueue, upNextTask,
   type PersonalTask, type PersonalTaskInput, type TaskColor,
 } from '@/types/task';
 
@@ -133,7 +133,7 @@ export default function MyTasksPage() {
   const advance = (t: PersonalTask) => {
     const step = nextStepOf(t);
     if (!step) { update(t.id, { status: 'done' }); return; }
-    const steps = t.steps.map((s) => (s.id === step.id ? { ...s, done: true } : s));
+    const steps = t.steps.map((s) => (s.id === step.id ? stepWithDone(s, true) : s));
     update(t.id, steps.every((s) => s.done) ? { steps, status: 'done' } : { steps });
   };
 
@@ -201,6 +201,7 @@ export default function MyTasksPage() {
           task={focused}
           number={placeOf(focused.id)}
           today={today}
+          columns={columns}
           playing={playing}
           skin={skin}
           upNext={upNext && upNext.id !== focused.id ? upNext : null}
@@ -362,6 +363,7 @@ export default function MyTasksPage() {
       ) : view === 'path' ? (
         <TaskPath
           queue={queue}
+          columns={columns}
           shown={new Set(shown.map((t) => t.id))}
           upNextId={upNext?.id ?? null}
           today={today}

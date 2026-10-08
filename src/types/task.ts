@@ -535,6 +535,18 @@ export interface TaskStep {
    * itself overdue — the task's own date is still the one that counts.
    */
   date: string | null;
+  /**
+   * The board column this step sits in on its own, or null to hang under its
+   * task and travel with it — which is every step until somebody drags one
+   * away. Only the board places a step by it; every other view just names it.
+   *
+   * Kept in step with `done`: a step placed in Done is ticked, and ticking a
+   * placed step sends it there — see `stepWithDone()` and `stepPlacedIn()`.
+   * Hiding or deleting a column does not move its steps the way it moves
+   * tasks; `placeOf()` draws them one column back, as it does a task caught in
+   * between, and they are back where they were if the column is shown again.
+   */
+  status: TaskStatus | null;
   /** Game mode: the XP this step is holding, taken back if it is unticked. */
   xp: number;
   /** Has counted toward the streak and today's count once, and never will again. */
@@ -561,7 +573,12 @@ export function cleanSteps(raw: unknown): TaskStep[] {
     if (!title) continue;
     seen.add(r.id);
     const date = typeof r.date === 'string' && isRealDate(r.date) ? r.date : null;
-    out.push({ id: r.id, title, done: r.done === true, date, xp: 0, everDone: false });
+    const done = r.done === true;
+    // The column and the tick cannot disagree: a ticked placed step is in
+    // Done, and a step in Done that is not ticked goes back to its task.
+    const placed = isTaskStatus(r.status) ? r.status : null;
+    const status = placed === null ? null : done ? 'done' : placed === 'done' ? null : placed;
+    out.push({ id: r.id, title, done, date, status, xp: 0, everDone: false });
     if (out.length >= MAX_TASK_STEPS) break;
   }
   return out;
@@ -1030,7 +1047,27 @@ export function nextStepOf(t: Pick<PersonalTask, 'steps'>): TaskStep | null {
  * what a save sends. The server carries each step's XP over by id.
  */
 export function withStepToggled(t: Pick<PersonalTask, 'steps'>, stepId: string): TaskStep[] {
-  return t.steps.map((s) => (s.id === stepId ? { ...s, done: !s.done } : s));
+  return t.steps.map((s) => (s.id === stepId ? stepWithDone(s, !s.done) : s));
+}
+
+/**
+ * A step ticked or unticked. One hanging under its task stays there; one
+ * placed in a column of its own goes to Done when ticked, and back under its
+ * task when unticked — there is no telling which column it came from.
+ */
+export function stepWithDone(s: TaskStep, done: boolean): TaskStep {
+  return { ...s, done, status: s.status === null ? null : done ? 'done' : null };
+}
+
+/**
+ * A step dropped in `column` on the board, or picked in the editor's column
+ * box. Its task's own column hangs it back under the task (`null` does the
+ * same and leaves the tick alone); anywhere else places it on its own. The
+ * column decides the tick: Done ticks it, any other column unticks it.
+ */
+export function stepPlacedIn(s: TaskStep, column: TaskStatus | null, taskColumn: TaskStatus): TaskStep {
+  if (column === null) return { ...s, status: null };
+  return { ...s, status: column === taskColumn ? null : column, done: column === 'done' };
 }
 
 /** `ids` is the whole queue in its new order; each gets its position as its rank. */

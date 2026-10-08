@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Check, Crosshair, Pencil, RotateCcw, StickyNote, Timer, Zap } from 'lucide-react';
-import { TASK_PRIORITY_LABEL, nextStepOf, type PersonalTask, type PersonalTaskInput, type TaskStep } from '@/types/task';
+import { TASK_PRIORITY_LABEL, nextStepOf, type BoardColumn, type PersonalTask, type PersonalTaskInput, type TaskStep } from '@/types/task';
 import StepList from './StepList';
 import { TaskWhen } from './TaskQueue';
 import { PRIORITY_STYLE } from './taskStyle';
@@ -24,6 +24,7 @@ export default function TaskFocus({
   task,
   number,
   today,
+  columns,
   playing,
   skin = PLAIN_SKIN,
   upNext,
@@ -37,6 +38,8 @@ export default function TaskFocus({
   /** Its place in the queue; null once it is done. */
   number: number | null;
   today: string;
+  /** The board's columns: the choices in each step's column box. */
+  columns: BoardColumn[];
   playing: boolean;
   skin?: TaskSkin;
   /** What comes after this one, offered once it is finished. */
@@ -183,7 +186,7 @@ export default function TaskFocus({
 
         <div className="mt-6">
           <h2 className="mb-2 text-sm font-semibold capitalize text-gray-900">{skin.steps}</h2>
-          <StepList steps={task.steps} onChange={saveSteps} one={skin.step} many={skin.steps} large taskDate={task.date} />
+          <StepList steps={task.steps} onChange={saveSteps} one={skin.step} many={skin.steps} large taskDate={task.date} columns={columns} taskStatus={task.status} />
           {!finished && step === null && task.steps.length === 0 && (
             <p className="mt-2 text-xs text-gray-500">
               Big task? Break it into {skin.steps} and the Done button walks you through them one at a time.

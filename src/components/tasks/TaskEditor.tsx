@@ -429,7 +429,7 @@ export default function TaskEditor({
           {kind === 'task' && (
             <div>
               <span className={`${label} capitalize`}>{stepWords.many}</span>
-              <StepList steps={steps} onChange={setSteps} one={stepWords.one} many={stepWords.many} taskDate={dueDate || date || null} />
+              <StepList steps={steps} onChange={setSteps} one={stepWords.one} many={stepWords.many} taskDate={dueDate || date || null} columns={columns} taskStatus={status} />
             </div>
           )}
 

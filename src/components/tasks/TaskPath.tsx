@@ -1,9 +1,10 @@
 'use client';
 
 import { Check, Crosshair, Flag, Zap } from 'lucide-react';
-import { nextStepOf, type PersonalTask, type PersonalTaskInput } from '@/types/task';
+import { nextStepOf, withStepToggled, type BoardColumn, type PersonalTask, type PersonalTaskInput } from '@/types/task';
 import { DueChip, TaskWhen } from './TaskQueue';
 import { NOTE_STYLE } from './taskStyle';
+import { StepStatusChip } from './StatusMark';
 import XpBadge from './XpBadge';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
 import { TaskContactsLine } from './TaskContacts';
@@ -25,6 +26,7 @@ export default function TaskPath({
   shown,
   upNextId,
   today,
+  columns,
   playing,
   skin = PLAIN_SKIN,
   onOpen,
@@ -37,6 +39,8 @@ export default function TaskPath({
   shown: Set<string>;
   upNextId: string | null;
   today: string;
+  /** The board's columns, to name a step that has one of its own. */
+  columns: BoardColumn[];
   playing: boolean;
   skin?: TaskSkin;
   onOpen: (task: PersonalTask) => void;
@@ -94,6 +98,7 @@ export default function TaskPath({
                   task={t}
                   upNext={upNext}
                   today={today}
+                  columns={columns}
                   playing={playing}
                   skin={skin}
                   onOpen={() => onOpen(t)}
@@ -116,11 +121,12 @@ export default function TaskPath({
 }
 
 function PathCard({
-  task, upNext, today, playing, skin, onOpen, onFocus, onUpdate,
+  task, upNext, today, columns, playing, skin, onOpen, onFocus, onUpdate,
 }: {
   task: PersonalTask;
   upNext: boolean;
   today: string;
+  columns: BoardColumn[];
   playing: boolean;
   skin: TaskSkin;
   onOpen: () => void;
@@ -133,7 +139,7 @@ function PathCard({
   const pct = task.steps.length ? Math.round((done / task.steps.length) * 100) : 0;
 
   const tick = (id: string) =>
-    onUpdate({ steps: task.steps.map((s) => (s.id === id ? { ...s, done: !s.done } : s)) });
+    onUpdate({ steps: withStepToggled(task, id) });
 
   return (
     <article
@@ -214,6 +220,7 @@ function PathCard({
                     }`}>
                       {s.title}
                     </span>
+                    <StepStatusChip step={s} columns={columns} />
                     {s.date && !s.done && <DueChip date={s.date} today={today} className="flex-shrink-0" />}
                     {isNext && (
                       <span className="flex-shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600">

@@ -4,7 +4,7 @@ import {
   Sparkles, Sprout, Swords, Telescope, Timer, Truck, WandSparkles, type LucideIcon,
 } from 'lucide-react';
 import type { GameTheme } from '@/types/taskGame';
-import type { BuiltInTaskStatus, TaskStatus } from '@/types/task';
+import { placeOf, statusLabel, type BoardColumn, type BuiltInTaskStatus, type TaskStatus, type TaskStep } from '@/types/task';
 import { statusDot } from './taskStyle';
 
 /**
@@ -56,6 +56,31 @@ export default function StatusMark({
           className={`flex-shrink-0 ${STATUS_INK[status as BuiltInTaskStatus]}`}
         />
       )}
+    </span>
+  );
+}
+
+/**
+ * A step's own column, named beside it wherever steps are listed, so a step
+ * moved to In progress on the board says so in the editor, the notes and the
+ * table too. Nothing for a step still hanging under its task, and nothing for
+ * a ticked one: the tick already says Done.
+ */
+export function StepStatusChip({
+  step,
+  columns,
+  className = '',
+}: {
+  step: TaskStep;
+  columns: BoardColumn[];
+  className?: string;
+}) {
+  if (step.status === null || step.done) return null;
+  const column = placeOf(columns, step.status);
+  return (
+    <span className={`inline-flex flex-shrink-0 items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 ${className}`}>
+      <StatusMark status={column} theme={null} size="sm" />
+      {statusLabel(columns, column)}
     </span>
   );
 }

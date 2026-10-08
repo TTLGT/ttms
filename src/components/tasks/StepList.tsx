@@ -4,9 +4,13 @@ import { useState, type DragEvent } from 'react';
 import { AlertTriangle, CalendarDays, Check, ChevronDown, ChevronUp, GripVertical, Plus, X } from 'lucide-react';
 import DateField from '@/components/DateField';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { MAX_STEP_TITLE, MAX_TASK_STEPS, calendarToday, newStepId, type TaskStep } from '@/types/task';
+import {
+  MAX_STEP_TITLE, MAX_TASK_STEPS, calendarToday, newStepId, placeOf, stepPlacedIn, stepWithDone,
+  type BoardColumn, type TaskStatus, type TaskStep,
+} from '@/types/task';
 import { DueChip } from './TaskQueue';
 import { STEP_DRAG_TYPE } from './taskStyle';
+import { StepStatusChip } from './StatusMark';
 
 /**
  * A task's steps as a checklist: tick, add, rename, move, remove. Every
@@ -26,6 +30,10 @@ import { STEP_DRAG_TYPE } from './taskStyle';
  * The warning stays on the step until one of the two dates changes.
  *
  * Steps are reordered by dragging the grip, or with the arrows.
+ *
+ * The same box as the due date holds the step's column: "With the task", or a
+ * board column of its own — what dragging its card on the board sets. See
+ * `TaskStep.status`.
  */
 export default function StepList({
   steps,
@@ -34,6 +42,8 @@ export default function StepList({
   many = 'steps',
   large = false,
   taskDate = null,
+  columns,
+  taskStatus,
 }: {
   steps: TaskStep[];
   onChange: (next: TaskStep[]) => void;
@@ -43,6 +53,10 @@ export default function StepList({
   large?: boolean;
   /** The task's own due date, `YYYY-MM-DD`, to warn about a step due after it. */
   taskDate?: string | null;
+  /** The board's columns, for the column box. */
+  columns: BoardColumn[];
+  /** The task's own column as it stands in the form — picking it is "with the task". */
+  taskStatus: TaskStatus;
 }) {
   const [text, setText] = useState('');
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
@@ -62,13 +76,18 @@ export default function StepList({
   const late = (s: TaskStep) => !s.done && !!s.date && !!taskDate && s.date > taskDate;
   const setDate = (id: string, date: string) =>
     onChange(steps.map((s) => (s.id === id ? { ...s, date: date || null } : s)));
+  const taskColumn = placeOf(columns, taskStatus);
+  const setColumn = (id: string, column: string) =>
+    onChange(steps.map((s) => (s.id === id ? stepPlacedIn(s, (column || null) as TaskStatus | null, taskColumn) : s)));
+  // Its own task's column is "With the task", so it is not offered twice.
+  const otherColumns = columns.filter((c) => !c.hidden && c.id !== taskColumn);
   const done = steps.filter((s) => s.done).length;
   const full = steps.length >= MAX_TASK_STEPS;
 
   const add = () => {
     const title = text.trim();
     if (!title || full) return;
-    onChange([...steps, { id: newStepId(), title, done: false, date: null, xp: 0, everDone: false }]);
+    onChange([...steps, { id: newStepId(), title, done: false, date: null, status: null, xp: 0, everDone: false }]);
     setText('');
   };
 
@@ -163,7 +182,7 @@ export default function StepList({
                 role="checkbox"
                 aria-checked={s.done}
                 aria-label={s.done ? `Untick ${s.title}` : `Tick ${s.title}`}
-                onClick={() => onChange(steps.map((x) => (x.id === s.id ? { ...x, done: !x.done } : x)))}
+                onClick={() => onChange(steps.map((x) => (x.id === s.id ? stepWithDone(x, !x.done) : x)))}
                 className={`grid flex-shrink-0 place-items-center rounded border-2 ${large ? 'h-6 w-6' : 'h-5 w-5'} ${
                   s.done ? 'border-green-500 bg-green-500 text-white' : 'border-gray-300 hover:border-green-500'
                 }`}
@@ -197,6 +216,7 @@ export default function StepList({
                 </button>
               )}
 
+              <StepStatusChip step={s} columns={columns} />
               {s.date && !s.done && (
                 <button type="button" onClick={() => setDating(dating === s.id ? null : s.id)} title="Change the due date" className="flex-shrink-0">
                   <DueChip date={s.date} today={today} />
@@ -214,7 +234,8 @@ export default function StepList({
                 <button
                   type="button"
                   onClick={() => setDating(dating === s.id ? null : s.id)}
-                  aria-label={s.date ? `Change the due date of ${s.title}` : `Give ${s.title} a due date`}
+                  aria-label={`Due date and column of ${s.title}`}
+                  title="Due date and column"
                   aria-expanded={dating === s.id}
                   className={`rounded p-0.5 hover:text-gray-700 ${dating === s.id ? 'text-brand-600' : 'text-gray-400'}`}
                 >
@@ -243,7 +264,7 @@ export default function StepList({
             </p>
           )}
           {dating === s.id && (
-            <div className="mt-1.5 flex items-center gap-2 pl-7">
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 pl-7">
               <span className="text-xs text-gray-500">Due</span>
               <DateField
                 value={s.date ?? ''}
@@ -256,6 +277,16 @@ export default function StepList({
                   Clear
                 </button>
               )}
+              <span className="ml-2 text-xs text-gray-500">Column</span>
+              <select
+                value={s.status === null || placeOf(columns, s.status) === taskColumn ? '' : placeOf(columns, s.status)}
+                onChange={(e) => setColumn(s.id, e.target.value)}
+                aria-label={`Column of ${s.title}`}
+                className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none"
+              >
+                <option value="">With the task</option>
+                {otherColumns.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
               <button type="button" onClick={() => setDating(null)} className="ml-auto text-xs text-gray-500 hover:text-gray-800">
                 Close
               </button>

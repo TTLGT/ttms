@@ -2167,11 +2167,15 @@ personalTasks/{uid}/items/{itemId}
   reminders : ('start' | '15m' | '1h' | '1d' | '1w')[]
                                    // without a time, only start/1d/1w, at 8am
   order     : number               // position on the board and the sticky notes
-  steps     : [{ id, title, done, date, xp, everDone }]
+  steps     : [{ id, title, done, date, status, xp, everDone }]
                                    // a task's checklist, up to 50; ids 's_' + 4–16
                                    // chars. date is 'YYYY-MM-DD' | null, a label
                                    // only (no reminder, no XP, never makes the task
                                    // overdue), shifted with the task on a repeat.
+                                   // status is a board column the step was dragged
+                                   // to on its own, or null (absent on older steps)
+                                   // to hang under its task; 'done' iff ticked
+                                   // when set, reset to null on a repeat's copy.
                                    // xp/everDone are server-set like the task's
                                    // own; [] on an event
   rank      : number | null        // place in the queue, lower first; null = not

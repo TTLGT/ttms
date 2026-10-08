@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
       everDone: false,
       suggestionId: null,
       planning: kind,
-      steps: copy.steps.map((title) => ({ id: newStepId(), title, done: false, date: null, xp: 0, everDone: false })),
+      steps: copy.steps.map((title) => ({ id: newStepId(), title, done: false, date: null, status: null, xp: 0, everDone: false })),
       rank: null,
       contacts: [],
       orders: [],

@@ -1,6 +1,20 @@
 {
   "changes": [
     {
+      "hash": "908ff37108057b526b2a9c75608eb0b5cc0c0307",
+      "date": "2026-10-08T09:45:43-06:00",
+      "author": "erwindank",
+      "subject": "Let steps be dragged into a new order, and give the daily planning tasks new starting steps",
+      "body": ""
+    },
+    {
+      "hash": "ff5f95210cabb9e145de67d94f6d28573be33fa6",
+      "date": "2026-10-08T09:45:31-06:00",
+      "author": "erwindank",
+      "subject": "Let task times be typed, and pick them on slower wheels",
+      "body": "The task editor's time boxes were the browser's own, whose drop-down flings\npast several rows per mouse-wheel notch and which few people realised could\nbe typed into. TimeField takes a time written any ordinary way and opens the\nplanning card's one-row-per-notch wheels from a clock button."
+    },
+    {
       "hash": "adec9f86e273a944c3272ae29de13e2b95e3ec31",
       "date": "2026-10-08T08:56:53-06:00",
       "author": "erwindank",

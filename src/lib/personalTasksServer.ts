@@ -201,6 +201,8 @@ export function nextCopyData(t: PersonalTask, nextDate: string): DocumentData {
       ...st,
       done: false,
       date: st.date && t.date ? addDays(st.date, daysBetween(t.date, nextDate)) : null,
+      // A fresh copy starts in To do, so its steps start with it.
+      status: null,
       xp: 0,
       everDone: false,
     })),

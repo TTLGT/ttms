@@ -119,6 +119,13 @@ export const COLUMN_DRAG_TYPE = 'application/x-ttms-column';
 /** A step being dragged within its task's list — ignored by the board and the calendar behind the editor. */
 export const STEP_DRAG_TYPE = 'application/x-ttms-step';
 
+/**
+ * A step's card on the board being dragged to another column. Not the
+ * editor's STEP_DRAG_TYPE: that one reorders within a list and carries only
+ * the step's id, this one moves it between columns and carries `taskId/stepId`.
+ */
+export const BOARD_STEP_DRAG_TYPE = 'application/x-ttms-step-card';
+
 /** One icon per sort of event, used everywhere an event is drawn. */
 export const EVENT_ICON: Record<EventType, LucideIcon> = {
   call:        Phone,

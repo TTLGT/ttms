@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type DragEvent } from 'react';
-import { Bell, CalendarDays, Check, Flag, GripVertical, ListChecks, Plus, Repeat, StickyNote } from 'lucide-react';
+import { Bell, CalendarDays, Check, CornerDownRight, Flag, GripVertical, ListChecks, Plus, Repeat, StickyNote } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import OutcomeBadge from './OutcomeBadge';
 import {
@@ -15,13 +15,15 @@ import {
   moveColumn,
   orderBetween,
   placeOf,
+  stepPlacedIn,
   withStepToggled,
   type BoardColumn,
   type PersonalTask,
   type PersonalTaskInput,
   type TaskStatus,
+  type TaskStep,
 } from '@/types/task';
-import { COLUMN_DRAG_TYPE, NOTE_STYLE, PRIORITY_STYLE, TASK_DRAG_TYPE } from './taskStyle';
+import { BOARD_STEP_DRAG_TYPE, COLUMN_DRAG_TYPE, NOTE_STYLE, PRIORITY_STYLE, TASK_DRAG_TYPE } from './taskStyle';
 import StatusMark from './StatusMark';
 import type { GameTheme } from '@/types/taskGame';
 import XpBadge from './XpBadge';
@@ -41,9 +43,14 @@ import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
  * empty part of a column puts it at the bottom.
  *
  * A task's steps are cards of their own, hung under it in its colour and
- * joined to it by a line down the left. They have no status of their own, so
- * they sit in their task's column and move with it; a finished task folds its
- * steps away, since the Done column is for looking back, not ticking.
+ * joined to it by a line down the left, moving with it. A step dragged to
+ * another column takes that column as its own status (`TaskStep.status`) and
+ * is drawn there on its own, under its task's name, until it is dragged back
+ * to its task's column. Done ticks it and any other column unticks it — see
+ * `stepPlacedIn()`. A finished task folds away the steps still hanging under
+ * it, since the Done column is for looking back, not ticking. A placed step
+ * has no order of its own: it sits below the column's tasks, in its task's
+ * order.
  *
  * Columns drag too, by their header. The two drags carry different payload
  * types, so a card can never be dropped as a column or the other way round.
@@ -90,9 +97,39 @@ export default function TaskBoard({
     column: c,
     cards: tasks.filter((t) => placeOf(columns, t.status) === c.id).sort(byOrder),
   }));
+  /** Whether a step hangs under its task — in the column its task is drawn in. */
+  const hangs = (t: PersonalTask, s: TaskStep) =>
+    s.status === null || placeOf(columns, s.status) === placeOf(columns, t.status);
+  /** Steps sitting in `status` on their own, away from their tasks. */
+  const looseIn = (status: TaskStatus) =>
+    [...tasks].sort(byOrder).flatMap((t) => t.steps
+      .map((s, i) => ({ task: t, step: s, n: i + 1 }))
+      .filter(({ step }) => !hangs(t, step) && placeOf(columns, step.status!) === status));
 
   const acceptsCard = (e: DragEvent) => e.dataTransfer.types.includes(TASK_DRAG_TYPE);
   const acceptsColumn = (e: DragEvent) => e.dataTransfer.types.includes(COLUMN_DRAG_TYPE);
+  const acceptsStep = (e: DragEvent) => e.dataTransfer.types.includes(BOARD_STEP_DRAG_TYPE);
+
+  const startStepDrag = (e: DragEvent, task: PersonalTask, step: TaskStep) => {
+    e.stopPropagation();
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData(BOARD_STEP_DRAG_TYPE, `${task.id}/${step.id}`);
+    e.dataTransfer.setData('text/plain', step.title);
+  };
+
+  /** A step dropped anywhere in a column: only the column matters, not the spot. */
+  const dropStep = (e: DragEvent, status: TaskStatus) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTarget(null);
+    const [taskId, stepId] = e.dataTransfer.getData(BOARD_STEP_DRAG_TYPE).split('/');
+    const task = tasks.find((t) => t.id === taskId);
+    const step = task?.steps.find((s) => s.id === stepId);
+    if (!task || !step) return;
+    const next = stepPlacedIn(step, status, placeOf(columns, task.status));
+    if (next.status === step.status && next.done === step.done) return;
+    onUpdate(task.id, { steps: task.steps.map((s) => (s.id === stepId ? next : s)) });
+  };
 
   const drop = (e: DragEvent, status: TaskStatus, beforeId: string | null) => {
     if (!acceptsCard(e)) return;
@@ -148,12 +185,14 @@ export default function TaskBoard({
                 if (columnOver !== status) setColumnOver(status);
                 return;
               }
-              if (!acceptsCard(e)) return;
+              if (!acceptsCard(e) && !acceptsStep(e)) return;
               e.preventDefault();
               e.dataTransfer.dropEffect = 'move';
               if (target?.status !== status || target.beforeId !== null) setTarget({ status, beforeId: null });
             }}
-            onDrop={(e) => (acceptsColumn(e) ? dropColumn(e, status) : drop(e, status, null))}
+            onDrop={(e) => (
+              acceptsColumn(e) ? dropColumn(e, status) : acceptsStep(e) ? dropStep(e, status) : drop(e, status, null)
+            )}
             // The drop target is a ring rather than a border colour, so it
             // shows over whatever border the theme draws.
             className={`relative flex w-72 flex-shrink-0 flex-col rounded-xl border border-gray-200 bg-gray-50 ${skin.columnTop} ${
@@ -212,9 +251,11 @@ export default function TaskBoard({
                     }}
                     onDrop={(e) => drop(e, status, t.id)}
                   />
-                  {t.status !== 'done' && t.steps.length > 0 && (
+                  {t.status !== 'done' && t.steps.some((s) => hangs(t, s)) && (
                     <StepCards
                       task={t}
+                      shows={(s) => hangs(t, s)}
+                      onStepDragStart={(e, s) => startStepDrag(e, t, s)}
                       word={skin.step}
                       today={today}
                       look={`${NOTE_STYLE[t.color].note} ${skin.cardHover}`}
@@ -238,6 +279,20 @@ export default function TaskBoard({
               {target?.status === status && target.beforeId === null && dragging && (
                 <div className="h-1 rounded-full bg-brand-400" />
               )}
+              {looseIn(status).map(({ task: t, step: s, n }) => (
+                <LooseStepCard
+                  key={s.id}
+                  task={t}
+                  step={s}
+                  n={n}
+                  word={skin.step}
+                  today={today}
+                  look={`${NOTE_STYLE[t.color].note} ${skin.cardHover}`}
+                  onOpen={() => onOpen(t)}
+                  onToggle={() => onUpdate(t.id, { steps: withStepToggled(t, s.id) })}
+                  onDragStart={(e) => startStepDrag(e, t, s)}
+                />
+              ))}
             </div>
 
             <QuickAdd
@@ -365,9 +420,12 @@ function Card({
  * where steps are added, renamed and reordered.
  */
 function StepCards({
-  task, word, today, look, onOpen, onToggle, onDragOver, onDrop,
+  task, shows, word, today, look, onOpen, onToggle, onStepDragStart, onDragOver, onDrop,
 }: {
   task: PersonalTask;
+  /** The steps still hanging here; the rest are drawn in columns of their own. */
+  shows: (step: TaskStep) => boolean;
+  onStepDragStart: (e: DragEvent, step: TaskStep) => void;
   today: string;
   /** The theme's word for a step, lower case — see taskSkins.ts. */
   word: string;
@@ -385,16 +443,19 @@ function StepCards({
       aria-label={`${label}s of ${task.title}`}
       className="ml-3 mt-1 space-y-1 border-l-2 border-gray-300 pl-2"
     >
-      {task.steps.map((s, i) => (
+      {task.steps.map((s, i) => shows(s) && (
         <li key={s.id} className="relative">
           {/* The tick from the line to the card. */}
           <span className="absolute -left-2 top-1/2 h-0.5 w-2 bg-gray-300" />
           <div
             role="button"
             tabIndex={0}
+            draggable
+            onDragStart={(e) => onStepDragStart(e, s)}
             onClick={onOpen}
             onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
-            className={`flex w-full cursor-pointer items-start gap-2 rounded-md border px-2 py-1.5 text-left text-xs shadow-sm hover:shadow ${look} ${
+            title="Drag to another column to give it a status of its own"
+            className={`flex w-full cursor-grab items-start gap-2 rounded-md border px-2 py-1.5 text-left text-xs shadow-sm hover:shadow active:cursor-grabbing ${look} ${
               s.done ? 'opacity-60' : ''
             }`}
           >
@@ -417,6 +478,61 @@ function StepCards({
         </li>
       ))}
     </ol>
+  );
+}
+
+/**
+ * A step sitting in a column away from its task. Its task's name on top is
+ * the link back, in place of the line a hanging step has; it keeps the
+ * task's colour. Dragging it to its task's column hangs it back under the task.
+ */
+function LooseStepCard({
+  task, step, n, word, today, look, onOpen, onToggle, onDragStart,
+}: {
+  task: PersonalTask;
+  step: TaskStep;
+  /** Its place in its task's list, from 1. */
+  n: number;
+  word: string;
+  today: string;
+  look: string;
+  onOpen: () => void;
+  onToggle: () => void;
+  onDragStart: (e: DragEvent) => void;
+}) {
+  const label = word.charAt(0).toUpperCase() + word.slice(1);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      draggable
+      onDragStart={onDragStart}
+      onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === 'Enter') onOpen(); }}
+      className={`flex w-full cursor-grab items-start gap-2 rounded-md border px-2 py-1.5 text-left text-xs shadow-sm hover:shadow active:cursor-grabbing ${look} ${
+        step.done ? 'opacity-60' : ''
+      }`}
+    >
+      <button
+        type="button"
+        aria-label={step.done ? `Untick ${step.title}` : `Tick ${step.title}`}
+        onClick={(e) => { e.stopPropagation(); onToggle(); }}
+        className={`mt-px flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border ${
+          step.done ? 'border-green-600 bg-green-600 text-white' : 'border-current opacity-60 hover:opacity-100'
+        }`}
+      >
+        {step.done && <Check size={9} />}
+      </button>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1 text-[10px] opacity-60">
+          <CornerDownRight size={10} className="flex-shrink-0" />
+          <span className="truncate">{task.title}</span>
+        </span>
+        <span className={`block ${step.done ? 'line-through' : ''}`}>{step.title}</span>
+        <span className="block text-[10px] opacity-60">{label} {n} of {task.steps.length}</span>
+        {step.date && !step.done && <DueChip date={step.date} today={today} className="mt-1" />}
+      </span>
+    </div>
   );
 }
 
