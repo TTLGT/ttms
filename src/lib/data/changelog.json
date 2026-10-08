@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "d250e0aa159e6baeaa4afddebff389ab5c2bab81",
+      "date": "2026-10-07T14:35:41-06:00",
+      "author": "erwindank",
+      "subject": "Let weekly and monthly planning be set for just this week or month",
+      "body": "The planning card's repeat box now shows for every kind. Weekly and\nmonthly start ticked, as before, but can be unticked to add a one-off;\nthe card then asks again on the next Friday afternoon or the last Friday\nof next month."
+    },
+    {
       "hash": "c105422455b0dc6fbc7d57855457db4db12a7d20",
       "date": "2026-10-07T14:31:36-06:00",
       "author": "erwindank",

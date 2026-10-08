@@ -230,7 +230,11 @@ function PartyList({ role, title, blurb }: Props) {
                 const otherRoles = (p.roles ?? []).filter((r) => r !== role);
                 return (
                   <tr key={p.id} className="hover:bg-gray-50 transition">
-                    <td className="px-4 py-3 text-sm font-semibold text-gray-900">{partyDisplayName(p)}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-900">
+                      <Link href={`/dashboard/parties/${p.id}`} className="hover:text-brand-600 hover:underline">
+                        {partyDisplayName(p)}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-700">{p.contactName || primary?.name || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">
                       <PhoneValue
