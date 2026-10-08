@@ -215,6 +215,12 @@ export default function TaskBoard({
       {board.map(({ column, cards }) => {
         const status = column.id;
         const side = dropSide(status);
+        // The badge counts every card drawn in the column, steps included:
+        // those hanging under their task (not drawn under a finished one,
+        // so not counted there) and those moved here on their own.
+        const shown = cards.length
+          + cards.reduce((n, t) => n + (t.status === 'done' ? 0 : t.steps.filter((s) => hangs(t, s)).length), 0)
+          + looseIn(status).length;
         return (
           <section
             key={status}
@@ -256,7 +262,7 @@ export default function TaskBoard({
             >
               <StatusMark status={status} theme={skin.id} />
               <h3 className={`${skin.columnTitleSize ?? 'text-sm'} font-semibold text-gray-900 ${skin.heading}`}>{column.label}</h3>
-              <span className="rounded-full bg-gray-200 px-1.5 text-xs text-gray-600">{cards.length}</span>
+              <span className="rounded-full bg-gray-200 px-1.5 text-xs text-gray-600">{shown}</span>
               <GripVertical size={14} className="ml-auto text-gray-300 opacity-0 group-hover:opacity-100" />
             </header>
 
