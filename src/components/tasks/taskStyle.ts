@@ -116,6 +116,9 @@ export const OCCURRENCE_DRAG_TYPE = 'application/x-ttms-occurrence';
 /** A board column being dragged into a new place — kept apart from a card so neither drop takes the other. */
 export const COLUMN_DRAG_TYPE = 'application/x-ttms-column';
 
+/** A step being dragged within its task's list — ignored by the board and the calendar behind the editor. */
+export const STEP_DRAG_TYPE = 'application/x-ttms-step';
+
 /** One icon per sort of event, used everywhere an event is drawn. */
 export const EVENT_ICON: Record<EventType, LucideIcon> = {
   call:        Phone,

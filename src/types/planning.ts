@@ -66,9 +66,9 @@ export const PLANNING_COPY: Record<PlanningKind, {
     ask: 'When will you go over today’s plan?',
     detail: 'Look over what you planned for today and adjust it — or make the plan now if you have not yet.',
     steps: [
-      'Check today on my calendar and my queue',
+      'Make a list of everything I have pending',
       'Make sure the three things that matter most are at the top',
-      'Move anything that will not fit today',
+      'Move anything that will not fit today to another day',
     ],
   },
   evening: {
@@ -78,9 +78,9 @@ export const PLANNING_COPY: Record<PlanningKind, {
     ask: 'When will you plan tomorrow?',
     detail: 'Before you log off: what is left over, what is due tomorrow, and what goes first.',
     steps: [
-      'Move whatever did not get done today',
-      'Check tomorrow on my calendar',
-      'Pick the three things that matter most tomorrow',
+      'Make a list of everything I still have pending',
+      'Make sure the three things that matter most tomorrow are at the top',
+      'Move anything that will not fit tomorrow to another day',
     ],
   },
   weekly: {

@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { AlertTriangle, CalendarDays, Check, ChevronDown, ChevronUp, Plus, X } from 'lucide-react';
+import { useState, type DragEvent } from 'react';
+import { AlertTriangle, CalendarDays, Check, ChevronDown, ChevronUp, GripVertical, Plus, X } from 'lucide-react';
 import DateField from '@/components/DateField';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { MAX_STEP_TITLE, MAX_TASK_STEPS, calendarToday, newStepId, type TaskStep } from '@/types/task';
 import { DueChip } from './TaskQueue';
+import { STEP_DRAG_TYPE } from './taskStyle';
 
 /**
  * A task's steps as a checklist: tick, add, rename, move, remove. Every
@@ -23,6 +24,8 @@ import { DueChip } from './TaskQueue';
  * still saves, because the person may be about to move the task's date, and
  * the editor's date box sits above this list where that is one click away.
  * The warning stays on the step until one of the two dates changes.
+ *
+ * Steps are reordered by dragging the grip, or with the arrows.
  */
 export default function StepList({
   steps,
@@ -45,6 +48,14 @@ export default function StepList({
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
   /** The step whose date box is open. */
   const [dating, setDating] = useState<string | null>(null);
+  /**
+   * Dragging, the way the Columns menu does it: only the row whose grip is
+   * held is draggable, so pressing in the rename box selects text instead of
+   * picking the row up. The up/down arrows stay for the keyboard.
+   */
+  const [armed, setArmed] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
   const today = calendarToday();
   const { formatCalendarDate } = useDateFormatters();
   // Plain string order is date order for YYYY-MM-DD.
@@ -69,6 +80,20 @@ export default function StepList({
     onChange(next);
   };
 
+  /** Drops the dragged step where `target` is, pushing the rest along. */
+  const moveTo = (id: string, target: string) => {
+    const from = steps.findIndex((s) => s.id === id);
+    const to = steps.findIndex((s) => s.id === target);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = [...steps];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    onChange(next);
+  };
+
+  // Its own type, so a task card dragged over this list is ignored by it.
+  const accepts = (e: DragEvent) => e.dataTransfer.types.includes(STEP_DRAG_TYPE);
+
   const rename = () => {
     if (!renaming) return;
     const title = renaming.title.trim();
@@ -92,8 +117,47 @@ export default function StepList({
 
       <ul className={large ? 'space-y-1.5' : 'space-y-1'}>
         {steps.map((s, i) => (
-          <li key={s.id} className={`group rounded-lg border border-gray-200 bg-white ${large ? 'px-3 py-2.5' : 'px-2 py-1.5'}`}>
+          <li
+            key={s.id}
+            draggable={armed === s.id}
+            onDragStart={(e) => {
+              setDragging(s.id);
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData(STEP_DRAG_TYPE, s.id);
+              e.dataTransfer.setData('text/plain', s.title);
+            }}
+            onDragEnd={() => { setDragging(null); setOver(null); setArmed(null); }}
+            onDragOver={(e) => {
+              if (!accepts(e)) return;
+              e.preventDefault();
+              e.stopPropagation();
+              e.dataTransfer.dropEffect = 'move';
+              if (over !== s.id) setOver(s.id);
+            }}
+            onDrop={(e) => {
+              if (!accepts(e)) return;
+              e.preventDefault();
+              e.stopPropagation();
+              const id = e.dataTransfer.getData(STEP_DRAG_TYPE);
+              setDragging(null);
+              setOver(null);
+              if (id) moveTo(id, s.id);
+            }}
+            className={`group rounded-lg border bg-white ${large ? 'px-3 py-2.5' : 'px-2 py-1.5'} ${
+              over === s.id && dragging !== s.id ? 'border-brand-400' : 'border-gray-200'
+            } ${dragging === s.id ? 'opacity-40' : ''}`}
+          >
           <div className="flex items-center gap-2">
+              {steps.length > 1 && (
+                <span
+                  onMouseDown={() => setArmed(s.id)}
+                  onMouseUp={() => setArmed(null)}
+                  title="Drag to move"
+                  className="-mx-1 flex-shrink-0 cursor-grab text-gray-400 active:cursor-grabbing"
+                >
+                  <GripVertical size={large ? 16 : 14} />
+                </span>
+              )}
               <button
                 type="button"
                 role="checkbox"
