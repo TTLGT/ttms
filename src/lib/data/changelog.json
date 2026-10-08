@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "893f7593792812ef78f88f87a8b3d670163ef339",
+      "date": "2026-10-07T21:16:15-06:00",
+      "author": "erwindank",
+      "subject": "Open a carrier by clicking its name",
+      "body": ""
+    },
+    {
       "hash": "5051a3e4583f63013af0221e77449b012e7bce6e",
       "date": "2026-10-07T20:40:55-06:00",
       "author": "erwindank",

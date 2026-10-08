@@ -542,8 +542,8 @@ export default function PartyDetailPage() {
                       ))}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {[o.origin?.city, o.destination?.city].filter(Boolean).join(' → ') || '—'}
+                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    {[formatRouteEnd(o.origin), formatRouteEnd(o.destination)].filter(Boolean).join(' → ') || '—'}
                   </td>
                   <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
                   <td className="px-4 py-3 text-sm text-gray-600">{formatDate(o.pickupDate)}</td>
@@ -606,4 +606,12 @@ function hasAny(a: Address): boolean {
 function formatAddress(a: Address | null | undefined): string {
   if (!a) return '';
   return [a.street, a.city, a.state, a.zip].filter(Boolean).join(', ');
+}
+
+// One end of a lane as "Camarillo, CA 93010" — the street is left off
+// because the route column has to fit two of these on one line.
+function formatRouteEnd(a: Address | null | undefined): string {
+  if (!a) return '';
+  const stateZip = [a.state, a.zip].map((v) => (v ?? '').trim()).filter(Boolean).join(' ');
+  return [(a.city ?? '').trim(), stateZip].filter(Boolean).join(', ');
 }
