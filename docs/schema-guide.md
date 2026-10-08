@@ -2149,6 +2149,7 @@ personalTasks/{uid}/items/{itemId}
                                    // title); server-set, carried onto each repeat,
                                    // cleared when another item is linked in its place
   priority  : 'low' | 'normal' | 'high'
+  difficulty: 'trivial' | 'easy' | 'medium' | 'hard' | 'veryHard' | 'epic'   // game mode's measure and the only thing that sets XP; absent reads 'medium'
   color     : 'yellow' | 'pink' | 'blue' | 'green' | 'purple' | 'orange'
             | 'h70' | 'h90' | 'h110' | 'h274' | 'h292' | 'h310'
                                    // the h-values are extra colours a person added

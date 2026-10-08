@@ -167,6 +167,7 @@ export default function MyTasksPage() {
       colorLabels={colorLabels}
       noChannel={!settings.email && !settings.chat}
       stepWords={{ one: skin.step, many: skin.steps }}
+      playing={playing}
       queuePlace={editing.task ? placeOf(editing.task.id) : null}
       queueSize={queue.length}
       onSave={save}

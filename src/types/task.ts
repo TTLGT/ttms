@@ -345,6 +345,23 @@ export const TASK_PRIORITY_LABEL: Record<TaskPriority, string> = {
   low: 'Low', normal: 'Normal', high: 'High',
 };
 
+/**
+ * How hard a task is — game mode's measure, and the only thing that sets a
+ * task's XP (TASK_XP in taskGame.ts). Kept apart from priority on purpose:
+ * how urgent something is and how much work it is are different questions,
+ * and a quick urgent call should not pay like a day's work. Asked for only in
+ * game mode; with it off the field is still stored, unseen, as Medium.
+ */
+// In order, easiest first. New levels go in by worth, not at the end: the
+// editor lists them in this order. Stored values are the strings, so the
+// order itself is never saved.
+export const TASK_DIFFICULTIES = ['trivial', 'easy', 'medium', 'hard', 'veryHard', 'epic'] as const;
+export type TaskDifficulty = typeof TASK_DIFFICULTIES[number];
+
+export const TASK_DIFFICULTY_LABEL: Record<TaskDifficulty, string> = {
+  trivial: 'Trivial', easy: 'Easy', medium: 'Medium', hard: 'Hard', veryHard: 'Very hard', epic: 'Epic',
+};
+
 /** Sticky-note colours every person has. All six are families `tailwind.config.ts` maps for dark mode. */
 export const BASE_COLORS = ['yellow', 'pink', 'blue', 'green', 'purple', 'orange'] as const;
 export type BaseColor = typeof BASE_COLORS[number];
@@ -635,6 +652,11 @@ export interface PersonalTask {
   /** Always 'todo' on an event, which has nothing to finish. */
   status: TaskStatus;
   priority: TaskPriority;
+  /**
+   * Game mode only. Absent on everything saved before it existed, which reads
+   * as Medium — never worked out from the priority, which no longer touches XP.
+   */
+  difficulty: TaskDifficulty;
   color: TaskColor;
   /**
    * `YYYY-MM-DD`. When a task is planned to be worked on — the day it sits on
@@ -784,7 +806,7 @@ export function outcomeOf(t: Pick<PersonalTask, 'kind' | 'status' | 'outcome'>):
 
 /** What can be written. Everything else on a task is set by the server. */
 export type PersonalTaskInput = Partial<Pick<PersonalTask,
-  'kind' | 'title' | 'notes' | 'status' | 'priority' | 'color' | 'date' | 'time' | 'endTime' | 'dueDate' | 'dueTime' | 'order'
+  'kind' | 'title' | 'notes' | 'status' | 'priority' | 'difficulty' | 'color' | 'date' | 'time' | 'endTime' | 'dueDate' | 'dueTime' | 'order'
   | 'eventType' | 'location' | 'reminders' | 'repeat' | 'repeatWeekday' | 'repeatNths' | 'repeatUntil'
   | 'suggestionId' | 'steps' | 'rank' | 'contacts' | 'orders' | 'outcome'>>;
 
@@ -870,6 +892,7 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   if (typeof b.notes === 'string') out.notes = b.notes.slice(0, MAX_TASK_NOTES);
   if (isTaskStatus(b.status)) out.status = b.status;
   if (oneOf(TASK_PRIORITIES, b.priority)) out.priority = b.priority;
+  if (oneOf(TASK_DIFFICULTIES, b.difficulty)) out.difficulty = b.difficulty;
   if (oneOf(TASK_COLORS, b.color)) out.color = b.color;
 
   for (const key of ['date', 'dueDate'] as const) {

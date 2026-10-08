@@ -24,7 +24,7 @@
  */
 
 import { holidaysInYear } from './holidays';
-import { deadlineDay, type PersonalTask, type TaskPriority } from './task';
+import { deadlineDay, type PersonalTask, type TaskDifficulty } from './task';
 
 /* ------------------------------------------------------------------ levels */
 
@@ -182,8 +182,19 @@ export function levelProgress(xp: number): number {
 
 /* --------------------------------------------------------------------- XP */
 
-/** What a finished task is worth, by priority — a task's "difficulty" here. */
-export const TASK_XP: Record<TaskPriority, number> = { low: 15, normal: 30, high: 60 };
+/**
+ * What a finished task is worth, by its difficulty — and only by that.
+ * Priority used to set it and no longer touches XP at all: urgency is not
+ * effort. Penalties below scale from the same table.
+ */
+export const TASK_XP: Record<TaskDifficulty, number> = {
+  trivial: 5, easy: 15, medium: 30, hard: 60, veryHard: 90, epic: 120,
+};
+
+/** What the "hard task" missions count: Hard and everything above it. */
+export function isHardTask(difficulty: TaskDifficulty): boolean {
+  return difficulty === 'hard' || difficulty === 'veryHard' || difficulty === 'epic';
+}
 /** On top, for finishing one of the suggested broker tasks. */
 export const SUGGESTION_BONUS_XP = 15;
 /** The first task finished on a day, for keeping the streak going. */
@@ -207,10 +218,10 @@ export function lateShare(daysLate: number): number {
  * "+30 XP" beforehand, so the number on a card is the number that lands.
  */
 export function taskXp(
-  task: Pick<PersonalTask, 'priority' | 'date' | 'suggestionId'> & Partial<Pick<PersonalTask, 'dueDate'>>,
+  task: Pick<PersonalTask, 'difficulty' | 'date' | 'suggestionId'> & Partial<Pick<PersonalTask, 'dueDate'>>,
   today: string,
 ): { xp: number; full: number; daysLate: number } {
-  const full = TASK_XP[task.priority] + (task.suggestionId ? SUGGESTION_BONUS_XP : 0);
+  const full = TASK_XP[task.difficulty] + (task.suggestionId ? SUGGESTION_BONUS_XP : 0);
   // Late against the deadline, not the planned day: doing Tuesday's planned
   // work on Wednesday is not late when it is due Friday.
   const due = deadlineDay(task);
@@ -219,8 +230,8 @@ export function taskXp(
 }
 
 /** Per open overdue task, each day it is first seen overdue: 5 XP a day late, capped at what it is worth. */
-export function overduePenalty(priority: TaskPriority, daysOverdue: number): number {
-  return Math.min(daysOverdue * 5, TASK_XP[priority]);
+export function overduePenalty(difficulty: TaskDifficulty, daysOverdue: number): number {
+  return Math.min(daysOverdue * 5, TASK_XP[difficulty]);
 }
 
 /**
@@ -228,8 +239,8 @@ export function overduePenalty(priority: TaskPriority, daysOverdue: number): num
  * than leaving it to rot overdue — which costs up to its full worth, a day at
  * a time — so it costs less than that, but it is never free.
  */
-export function notDonePenalty(priority: TaskPriority): number {
-  return Math.round(TASK_XP[priority] / 2);
+export function notDonePenalty(difficulty: TaskDifficulty): number {
+  return Math.round(TASK_XP[difficulty] / 2);
 }
 
 /** A broken streak: 25 XP a day of it, at most 300. */
@@ -324,8 +335,8 @@ export const DAILY_MISSIONS: MissionDef[] = [
   { id: 'd_done3',   title: 'Momentum',         desc: 'Finish 3 tasks today',                     target: 3,  counter: 'done',      xp: 100 },
   { id: 'd_done5',   title: 'On a roll',        desc: 'Finish 5 tasks today',                     target: 5,  counter: 'done',      xp: 200 },
   { id: 'd_done10',  title: 'Clean desk',       desc: 'Finish 10 tasks today',                    target: 10, counter: 'done',      xp: 350 },
-  { id: 'd_high1',   title: 'Big fish',         desc: 'Finish a high-priority task',              target: 1,  counter: 'high',      xp: 120 },
-  { id: 'd_high2',   title: 'Heavy lifting',    desc: 'Finish 2 high-priority tasks',             target: 2,  counter: 'high',      xp: 220 },
+  { id: 'd_high1',   title: 'Big fish',         desc: 'Finish a hard task',                       target: 1,  counter: 'high',      xp: 120 },
+  { id: 'd_high2',   title: 'Heavy lifting',    desc: 'Finish 2 hard tasks',                      target: 2,  counter: 'high',      xp: 220 },
   { id: 'd_ontime2', title: 'Right on time',    desc: 'Finish 2 tasks on or before their due date', target: 2, counter: 'onTime',   xp: 120 },
   { id: 'd_added2',  title: 'Planner',          desc: 'Add 2 new tasks',                          target: 2,  counter: 'added',     xp: 60 },
   { id: 'd_sugg1',   title: 'Hustle',           desc: 'Finish a suggested broker task',           target: 1,  counter: 'suggested', xp: 100 },
@@ -336,8 +347,8 @@ export const WEEKLY_MISSIONS: MissionDef[] = [
   { id: 'w_done10',   title: 'Busy week',       desc: 'Finish 10 tasks this week',                   target: 10, counter: 'done',       xp: 300 },
   { id: 'w_done25',   title: 'Workhorse',       desc: 'Finish 25 tasks this week',                   target: 25, counter: 'done',       xp: 600 },
   { id: 'w_done50',   title: 'Unstoppable',     desc: 'Finish 50 tasks this week',                   target: 50, counter: 'done',       xp: 1000 },
-  { id: 'w_high3',    title: 'Closer',          desc: 'Finish 3 high-priority tasks this week',      target: 3,  counter: 'high',       xp: 400 },
-  { id: 'w_high6',    title: 'Heavy hauler',    desc: 'Finish 6 high-priority tasks this week',      target: 6,  counter: 'high',       xp: 700 },
+  { id: 'w_high3',    title: 'Closer',          desc: 'Finish 3 hard tasks this week',               target: 3,  counter: 'high',       xp: 400 },
+  { id: 'w_high6',    title: 'Heavy hauler',    desc: 'Finish 6 hard tasks this week',               target: 6,  counter: 'high',       xp: 700 },
   { id: 'w_ontime5',  title: 'Punctual',        desc: 'Finish 5 tasks on or before their due date',  target: 5,  counter: 'onTime',     xp: 350 },
   { id: 'w_ontime10', title: 'Like clockwork',  desc: 'Finish 10 tasks on or before their due date', target: 10, counter: 'onTime',     xp: 600 },
   { id: 'w_added5',   title: 'Pipeline',        desc: 'Add 5 new tasks this week',                   target: 5,  counter: 'added',      xp: 200 },
@@ -568,7 +579,7 @@ export class GameTurn {
    * on a weekend, a holiday or a day the person has off — a page opened on a
    * day off is not a day late.
    */
-  onNewDay(openTasks: (Pick<PersonalTask, 'kind' | 'status' | 'date' | 'priority'> & Partial<Pick<PersonalTask, 'dueDate'>>)[]) {
+  onNewDay(openTasks: (Pick<PersonalTask, 'kind' | 'status' | 'date' | 'difficulty'> & Partial<Pick<PersonalTask, 'dueDate'>>)[]) {
     const s = this.state;
     if (!s.enabled || s.lastCheckDate === this.today) return;
     const charge = s.lastCheckDate !== null && isWorkingDay(this.today, this.offDays);
@@ -586,7 +597,7 @@ export class GameTurn {
       for (const t of openTasks) {
         const due = deadlineDay(t);
         if (t.kind !== 'task' || t.status === 'done' || !due || due >= this.today) continue;
-        penalty += overduePenalty(t.priority, daysBetween(due, this.today));
+        penalty += overduePenalty(t.difficulty, daysBetween(due, this.today));
         late++;
       }
       if (penalty > 0) this.award(-penalty, `${late} overdue task${late === 1 ? '' : 's'}`);
@@ -604,7 +615,7 @@ export class GameTurn {
    * not, or ticking one task on and off would finish every mission.
    */
   onTaskDone(
-    task: Pick<PersonalTask, 'title' | 'priority' | 'date' | 'suggestionId'> & Partial<Pick<PersonalTask, 'dueDate'>>,
+    task: Pick<PersonalTask, 'title' | 'difficulty' | 'date' | 'suggestionId'> & Partial<Pick<PersonalTask, 'dueDate'>>,
     firstTime: boolean,
   ): number {
     const s = this.state;
@@ -620,7 +631,9 @@ export class GameTurn {
     if (firstTime) {
       s.tasksDone++;
       this.bump('done');
-      if (task.priority === 'high') this.bump('high');
+      // The counter is still called 'high': it is a stored key in live game
+      // state, from when it counted high-priority tasks. It now counts hard ones.
+      if (isHardTask(task.difficulty)) this.bump('high');
       if (deadlineDay(task) && daysLate <= 0) this.bump('onTime');
       if (task.suggestionId) this.bump('suggested');
       const week = this.state.weekly!;
@@ -670,9 +683,9 @@ export class GameTurn {
    * A task was closed as Not done. Returns what it cost, which the caller
    * stores on the task (`xpLost`) so changing its mind gives back exactly that.
    */
-  onTaskNotDone(task: Pick<PersonalTask, 'title' | 'priority'>): number {
+  onTaskNotDone(task: Pick<PersonalTask, 'title' | 'difficulty'>): number {
     if (!this.state.enabled) return 0;
-    const lost = notDonePenalty(task.priority);
+    const lost = notDonePenalty(task.difficulty);
     this.award(-lost, `Not done: "${task.title}"`);
     return lost;
   }

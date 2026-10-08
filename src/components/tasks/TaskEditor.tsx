@@ -10,6 +10,8 @@ import {
   colorsInUse,
   TASK_PRIORITIES,
   TASK_PRIORITY_LABEL,
+  TASK_DIFFICULTIES,
+  TASK_DIFFICULTY_LABEL,
   TASK_REPEATS,
   TASK_REPEAT_LABEL,
   NTH_LABEL,
@@ -43,6 +45,7 @@ import {
   type TaskStep,
 } from '@/types/task';
 import { shiftedEnd } from '@/types/planning';
+import { TASK_XP } from '@/types/taskGame';
 import { EVENT_ICON, NOTE_STYLE } from './taskStyle';
 import StepList from './StepList';
 import { TaskContactPicker } from './TaskContacts';
@@ -62,6 +65,7 @@ export default function TaskEditor({
   colorLabels = {},
   noChannel,
   stepWords = { one: 'step', many: 'steps' },
+  playing = false,
   queuePlace = null,
   queueSize = 0,
   onSave,
@@ -81,6 +85,8 @@ export default function TaskEditor({
   noChannel?: boolean;
   /** What the steps are called under the person's theme. */
   stepWords?: { one: string; many: string };
+  /** Game mode is on: the difficulty box is shown. Off, it is neither shown nor sent. */
+  playing?: boolean;
   /** Where an open task sits in the queue now (1-based); null for a new or finished one. */
   queuePlace?: number | null;
   /** How many open tasks the queue holds, not counting a new one. */
@@ -109,6 +115,7 @@ export default function TaskEditor({
   const [moveTo, setMoveTo]       = useState<{ date: string; time: string } | null>(null);
   const { formatCalendarDate } = useDateFormatters();
   const [priority, setPriority]   = useState(start.priority ?? 'normal');
+  const [difficulty, setDifficulty] = useState(start.difficulty ?? 'medium');
   const [color, setColor]         = useState(start.color ?? 'yellow');
   const [date, setDate]           = useState(start.date ?? '');
   const [time, setTime]           = useState(start.time ?? '');
@@ -143,7 +150,7 @@ export default function TaskEditor({
   // copy is what the dialog opened with — the day or column it was added
   // from, or a suggestion's wording — so only what they changed counts.
   const draft = JSON.stringify([
-    kind, eventType, title, notes, location, status, priority, color, date, time, endTime,
+    kind, eventType, title, notes, location, status, priority, difficulty, color, date, time, endTime,
     dueDate, dueTime, reminders, repeat, repeatWeekday, repeatNths, repeatUntil, steps,
     contacts, orders, place,
   ]);
@@ -217,6 +224,9 @@ export default function TaskEditor({
       // reschedule button makes one.
       ...(kind === 'task' && status === 'done' && outcome !== 'rescheduled' ? { outcome: outcome ?? 'done' } : {}),
       priority,
+      // Only sent while the box is on screen, so a save with game mode off
+      // cannot quietly reset a difficulty somebody picked while playing.
+      ...(playing && kind === 'task' ? { difficulty } : {}),
       color,
       date: date || null,
       time: time || null,
@@ -498,6 +508,14 @@ export default function TaskEditor({
                 {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{TASK_PRIORITY_LABEL[p]}</option>)}
               </select>
             </div>
+            {playing && kind === 'task' && (
+              <div>
+                <label className={label} htmlFor="task-difficulty">Difficulty</label>
+                <select id="task-difficulty" value={difficulty} onChange={(e) => setDifficulty(e.target.value as typeof difficulty)} className={input}>
+                  {TASK_DIFFICULTIES.map((d) => <option key={d} value={d}>{TASK_DIFFICULTY_LABEL[d]} · {TASK_XP[d]} XP</option>)}
+                </select>
+              </div>
+            )}
             {kind === 'task' && status !== 'done' && (
               <div>
                 <label className={label} htmlFor="task-place">Priority number (place in queue)</label>

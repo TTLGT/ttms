@@ -301,6 +301,7 @@ export default function CalendarPage() {
           columns={columns}
           colorLabels={colorLabels}
           noChannel={noChannel}
+          playing={!!game?.enabled}
           onSave={save}
           onDelete={editing.task ? () => { remove(editing.task!.id); setEditing(null); } : undefined}
           onReschedule={editing.task ? async (date, time) => {

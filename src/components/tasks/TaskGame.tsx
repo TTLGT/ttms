@@ -24,7 +24,7 @@ import {
   type GameTheme,
   type MissionSet,
 } from '@/types/taskGame';
-import { TASK_PRIORITY_LABEL, calendarToday, type PersonalTaskInput } from '@/types/task';
+import { TASK_DIFFICULTIES, TASK_DIFFICULTY_LABEL, calendarToday, type PersonalTaskInput } from '@/types/task';
 
 /**
  * Game mode on My tasks — see src/types/taskGame.ts for the rules.
@@ -222,7 +222,7 @@ function Suggestions({ onAdd }: { onAdd: (input: PersonalTaskInput) => void }) {
   const list = all ? BROKER_SUGGESTIONS : user && today ? suggestionsFor(user.uid, today) : [];
 
   const add = (s: BrokerSuggestion) => {
-    onAdd({ title: s.title, notes: s.hint, priority: s.priority, suggestionId: s.id, date: today || null });
+    onAdd({ title: s.title, notes: s.hint, priority: s.priority, difficulty: s.difficulty, suggestionId: s.id, date: today || null });
     setAdded((a) => [...a, s.id]);
   };
 
@@ -232,7 +232,7 @@ function Suggestions({ onAdd }: { onAdd: (input: PersonalTaskInput) => void }) {
         {all ? 'Broker task ideas' : 'Suggested for today'}
       </h3>
       <p className="mb-2 text-xs text-gray-500">
-        Each is worth its priority's XP plus {SUGGESTION_BONUS_XP} bonus, and counts for the &ldquo;suggested&rdquo; missions.
+        Each is worth its difficulty's XP plus {SUGGESTION_BONUS_XP} bonus, and counts for the &ldquo;suggested&rdquo; missions.
       </p>
       <ul className={`space-y-1.5 ${all ? 'max-h-80 overflow-y-auto pr-1' : ''}`}>
         {list.map((s) => (
@@ -240,7 +240,7 @@ function Suggestions({ onAdd }: { onAdd: (input: PersonalTaskInput) => void }) {
             <div className="min-w-0 flex-1">
               <p className="text-sm text-gray-900">{s.title}</p>
               <p className="text-xs text-gray-500">
-                {TASK_PRIORITY_LABEL[s.priority]} · {TASK_XP[s.priority] + SUGGESTION_BONUS_XP} XP
+                {TASK_DIFFICULTY_LABEL[s.difficulty]} · {TASK_XP[s.difficulty] + SUGGESTION_BONUS_XP} XP
               </p>
             </div>
             <button
@@ -304,7 +304,7 @@ function GameOptions({
       <details className="mt-3 text-xs text-gray-500">
         <summary className="cursor-pointer">How XP works</summary>
         <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
-          <li>Finishing a task: {TASK_XP.low} / {TASK_XP.normal} / {TASK_XP.high} XP for low, normal and high priority.</li>
+          <li>Finishing a task, by its difficulty: {TASK_DIFFICULTIES.map((d) => `${TASK_DIFFICULTY_LABEL[d]} ${TASK_XP[d]} XP`).join(', ')}. Priority does not change it. Very hard and Epic tasks count as hard for missions.</li>
           <li>Finished late: 75% up to 3 days late, 50% up to a week, then 25%.</li>
           <li>Each step of a task you tick off: +{STEP_XP} XP. Unticking it takes that back.</li>
           <li>First task or step of each day: +50 XP and your streak grows. Only Monday to Friday count.</li>

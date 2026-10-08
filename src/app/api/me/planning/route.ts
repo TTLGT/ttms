@@ -221,6 +221,7 @@ export async function POST(req: NextRequest) {
       notes: copy.detail,
       status: 'todo',
       priority: 'normal',
+      difficulty: 'medium',
       color: 'blue',
       date,
       time,

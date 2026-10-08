@@ -13,37 +13,40 @@
  * strands the bonus on tasks already added.
  */
 
-import type { TaskPriority } from './task';
+import type { TaskDifficulty, TaskPriority } from './task';
 
 export interface BrokerSuggestion {
   id: string;
   title: string;
   /** A line under it, saying what good looks like. Copied into the task's notes. */
   hint: string;
+  /** Copied onto the task. Has no bearing on XP. */
   priority: TaskPriority;
+  /** Copied onto the task, and what its XP is worked out from. */
+  difficulty: TaskDifficulty;
 }
 
 export const BROKER_SUGGESTIONS: BrokerSuggestion[] = [
-  { id: 'cold_calls',     priority: 'normal', title: 'Make 10 cold calls',                        hint: 'Shippers you have never spoken to. Note who to try again.' },
-  { id: 'find_lead',      priority: 'normal', title: 'Find a new lead online',                    hint: 'A shipper on a lane you already run. Add them as a party.' },
-  { id: 'send_quote',     priority: 'high',   title: 'Send a new quote',                          hint: 'To a client or a prospect, with the rate and the transit time.' },
-  { id: 'follow_quote',   priority: 'high',   title: 'Follow up on an open quote',                hint: 'Anything quoted more than two days ago with no answer.' },
-  { id: 'check_transit',  priority: 'normal', title: 'Check in on every load in transit',         hint: 'Call or text each driver. Update the client before they ask.' },
-  { id: 'call_dormant',   priority: 'normal', title: 'Call a client you have not shipped for in a month', hint: 'Ask what is moving this week.' },
-  { id: 'referral',       priority: 'low',    title: 'Ask a happy client for a referral',         hint: 'Right after a load that went well is the best time.' },
-  { id: 'post_load',      priority: 'normal', title: 'Post an open load on a load board',         hint: 'With the rate, equipment and dates filled in.' },
-  { id: 'vet_carrier',    priority: 'normal', title: 'Vet a new carrier',                         hint: 'Authority, insurance, safety rating — before they are needed.' },
-  { id: 'carrier_thanks', priority: 'low',    title: 'Thank a carrier who did a good job',        hint: 'A good carrier you keep is worth ten you find.' },
-  { id: 'lane_rates',     priority: 'normal', title: 'Check market rates on your top lane',       hint: 'So the next quote on it is not a guess.' },
-  { id: 'paperwork',      priority: 'high',   title: 'Chase a missing BOL or POD',                hint: 'A delivered load with no paperwork cannot be invoiced.' },
-  { id: 'clean_book',     priority: 'low',    title: 'Update a client\'s contacts',               hint: 'Phone, email, who to call after hours.' },
-  { id: 'backhaul',       priority: 'normal', title: 'Find a backhaul for a carrier',             hint: 'A carrier who gets a load home remembers who found it.' },
-  { id: 'new_lane',       priority: 'normal', title: 'Pitch a client on a new lane',              hint: 'Somewhere they ship that you do not cover for them yet.' },
-  { id: 'linkedin',       priority: 'low',    title: 'Connect with 5 shippers on LinkedIn',       hint: 'Logistics managers and shipping coordinators.' },
-  { id: 'capacity_list',  priority: 'low',    title: 'Add 3 carriers to your capacity list',      hint: 'For the lanes you run most.' },
-  { id: 'review_week',    priority: 'low',    title: 'Plan tomorrow\'s calls',                    hint: 'Five names, written down before you leave.' },
-  { id: 'margin_check',   priority: 'normal', title: 'Review the margin on this week\'s loads',   hint: 'Which lanes paid, which did not, and why.' },
-  { id: 'learn_word',     priority: 'low',    title: 'Learn one new freight term',               hint: 'Turn on Learn English in the sidebar and add it to My words.' },
+  { id: 'cold_calls',     priority: 'normal', difficulty: 'medium', title: 'Make 10 cold calls',                        hint: 'Shippers you have never spoken to. Note who to try again.' },
+  { id: 'find_lead',      priority: 'normal', difficulty: 'medium', title: 'Find a new lead online',                    hint: 'A shipper on a lane you already run. Add them as a party.' },
+  { id: 'send_quote',     priority: 'high',   difficulty: 'hard',   title: 'Send a new quote',                          hint: 'To a client or a prospect, with the rate and the transit time.' },
+  { id: 'follow_quote',   priority: 'high',   difficulty: 'hard',   title: 'Follow up on an open quote',                hint: 'Anything quoted more than two days ago with no answer.' },
+  { id: 'check_transit',  priority: 'normal', difficulty: 'medium', title: 'Check in on every load in transit',         hint: 'Call or text each driver. Update the client before they ask.' },
+  { id: 'call_dormant',   priority: 'normal', difficulty: 'medium', title: 'Call a client you have not shipped for in a month', hint: 'Ask what is moving this week.' },
+  { id: 'referral',       priority: 'low',    difficulty: 'easy',   title: 'Ask a happy client for a referral',         hint: 'Right after a load that went well is the best time.' },
+  { id: 'post_load',      priority: 'normal', difficulty: 'medium', title: 'Post an open load on a load board',         hint: 'With the rate, equipment and dates filled in.' },
+  { id: 'vet_carrier',    priority: 'normal', difficulty: 'medium', title: 'Vet a new carrier',                         hint: 'Authority, insurance, safety rating — before they are needed.' },
+  { id: 'carrier_thanks', priority: 'low',    difficulty: 'easy',   title: 'Thank a carrier who did a good job',        hint: 'A good carrier you keep is worth ten you find.' },
+  { id: 'lane_rates',     priority: 'normal', difficulty: 'medium', title: 'Check market rates on your top lane',       hint: 'So the next quote on it is not a guess.' },
+  { id: 'paperwork',      priority: 'high',   difficulty: 'hard',   title: 'Chase a missing BOL or POD',                hint: 'A delivered load with no paperwork cannot be invoiced.' },
+  { id: 'clean_book',     priority: 'low',    difficulty: 'easy',   title: 'Update a client\'s contacts',               hint: 'Phone, email, who to call after hours.' },
+  { id: 'backhaul',       priority: 'normal', difficulty: 'medium', title: 'Find a backhaul for a carrier',             hint: 'A carrier who gets a load home remembers who found it.' },
+  { id: 'new_lane',       priority: 'normal', difficulty: 'medium', title: 'Pitch a client on a new lane',              hint: 'Somewhere they ship that you do not cover for them yet.' },
+  { id: 'linkedin',       priority: 'low',    difficulty: 'easy',   title: 'Connect with 5 shippers on LinkedIn',       hint: 'Logistics managers and shipping coordinators.' },
+  { id: 'capacity_list',  priority: 'low',    difficulty: 'easy',   title: 'Add 3 carriers to your capacity list',      hint: 'For the lanes you run most.' },
+  { id: 'review_week',    priority: 'low',    difficulty: 'easy',   title: 'Plan tomorrow\'s calls',                    hint: 'Five names, written down before you leave.' },
+  { id: 'margin_check',   priority: 'normal', difficulty: 'medium', title: 'Review the margin on this week\'s loads',   hint: 'Which lanes paid, which did not, and why.' },
+  { id: 'learn_word',     priority: 'low',    difficulty: 'easy',   title: 'Learn one new freight term',               hint: 'Turn on Learn English in the sidebar and add it to My words.' },
 ];
 
 const BY_ID = new Map(BROKER_SUGGESTIONS.map((s) => [s.id, s]));

@@ -103,6 +103,7 @@ export async function POST(req: NextRequest) {
       notes:     input.notes ?? '',
       status,
       priority:  input.priority ?? 'normal',
+      difficulty: input.difficulty ?? 'medium',
       color:     input.color ?? 'yellow',
       date:      input.date ?? null,
       time:      input.time ?? null,
