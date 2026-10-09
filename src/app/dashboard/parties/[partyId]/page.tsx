@@ -94,10 +94,9 @@ export default function PartyDetailPage() {
   // Where "Back" goes. Somebody who opened this from a load's client, shipper
   // or consignee wants that load again, not the clients list — set by
   // PartyLink on the order page. Same idea as `from` on the order page.
-  const fromOrder = useSearchParams().get('fromOrder');
-  const back = fromOrder
-    ? { href: `/dashboard/orders/${encodeURIComponent(fromOrder)}`, label: 'Back to order' }
-    : { href: '/dashboard/clients', label: 'Back to Clients' };
+  const searchParams = useSearchParams();
+  const fromOrder = searchParams.get('fromOrder');
+  const fromList  = searchParams.get('from') as PartyRole | null;
   // Ownership is admins and dispatchers; everything else on this form is open
   // to anyone who can already see the record.
   // Admins and dispatchers hold this by role; anybody else has to be given it
@@ -289,6 +288,20 @@ export default function PartyDetailPage() {
     await tagPartyRole(partyId, role);
     setParty((prev) => (prev ? { ...prev, roles: [...(prev.roles ?? []), role] } : prev));
   }
+
+  // Otherwise back to the list it was opened from (PartyListPage tags its
+  // links), and failing that — a copied link — the list for its own role, so a
+  // shipper does not send somebody to Clients.
+  const listRole: PartyRole =
+    fromList && PARTY_ROLES.includes(fromList) ? fromList
+    : party?.roles?.includes('client') || !party?.roles?.length ? 'client'
+    : party.roles[0];
+  const listPath: Record<PartyRole, string> = {
+    client: '/dashboard/clients', shipper: '/dashboard/shippers', consignee: '/dashboard/consignees',
+  };
+  const back = fromOrder
+    ? { href: `/dashboard/orders/${encodeURIComponent(fromOrder)}`, label: 'Back to order' }
+    : { href: listPath[listRole], label: `Back to ${ROLE_LABEL[listRole]}s` };
 
   if (loading) return (
     <div className="flex justify-center py-20">

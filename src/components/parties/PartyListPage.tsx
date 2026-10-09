@@ -231,7 +231,7 @@ function PartyList({ role, title, blurb }: Props) {
                 return (
                   <tr key={p.id} className="hover:bg-gray-50 transition">
                     <td className="px-4 py-3 text-sm font-semibold text-gray-900">
-                      <Link href={`/dashboard/parties/${p.id}`} className="hover:text-brand-600 hover:underline">
+                      <Link href={`/dashboard/parties/${p.id}?from=${role}`} className="hover:text-brand-600 hover:underline">
                         {partyDisplayName(p)}
                       </Link>
                     </td>
@@ -264,7 +264,7 @@ function PartyList({ role, title, blurb }: Props) {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Link
-                        href={`/dashboard/parties/${p.id}`}
+                        href={`/dashboard/parties/${p.id}?from=${role}`}
                         className="text-xs text-brand-600 hover:underline font-medium"
                       >
                         View →
