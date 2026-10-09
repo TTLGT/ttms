@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, BellOff } from 'lucide-react';
 import { useChat } from '@/context/ChatContext';
 import {
@@ -21,7 +22,9 @@ export default function NotifyMenu() {
   const { notifyPrefs, setNotifyPrefs } = useChat();
   const [open, setOpen] = useState(false);
   const [permission, setPermission] = useState<PermissionState>('unsupported');
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const box = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
 
   // Read in an effect: the server renders this too, and it has no Notification.
   // Re-read on every open, because ChatContext asks on the first click anywhere
@@ -31,15 +34,35 @@ export default function NotifyMenu() {
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (!box.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!box.current?.contains(t) && !menu.current?.contains(t)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    // A fixed menu does not follow its button, so a scroll or resize closes it
+    // rather than leaving it floating somewhere the bell no longer is.
+    const away = (e: Event) => {
+      if (!menu.current?.contains(e.target as Node)) setOpen(false);
+    };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', away, true);
+    window.addEventListener('resize', away);
     return () => {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', away, true);
+      window.removeEventListener('resize', away);
     };
+  }, [open]);
+
+  // Under the bell, right edges lined up, then pushed back on screen.
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    const a = box.current?.getBoundingClientRect();
+    const m = menu.current?.getBoundingClientRect();
+    if (!a || !m) return;
+    const left = Math.max(8, Math.min(a.right - m.width, window.innerWidth - m.width - 8));
+    setPos({ top: a.bottom + 4, left });
   }, [open]);
 
   // Silent is anything that would not actually reach someone looking away:
@@ -65,12 +88,17 @@ export default function NotifyMenu() {
         {silent ? <BellOff size={20} /> : <Bell size={20} />}
       </button>
 
-      {open && (
-        /* w-60, not w-72: the conversation column is itself 288px wide, and the
-           dashboard <main> is overflow-y-auto — which clips horizontally too —
-           so anything wider than the gap between this button and the column's
-           left edge is cut off under the sidebar rather than spilling over it. */
-        <div className="absolute right-0 top-full z-30 mt-1 w-60 rounded-lg border border-gray-200 bg-white p-3 shadow-xl">
+      {open && createPortal(
+        /* Portalled to <body> at a fixed position. Drawn in place it sat inside
+           the dashboard <main>, which is overflow-y-auto — and that clips
+           horizontally too — so whatever reached past the conversation
+           column's left edge was cut off under the sidebar. Narrowing it only
+           held until the header gained another button and the bell moved left. */
+        <div
+          ref={menu}
+          style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999 }}
+          className="fixed z-[60] w-60 rounded-lg border border-gray-200 bg-white p-3 shadow-xl"
+        >
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
             When a message arrives
           </p>
@@ -128,7 +156,8 @@ export default function NotifyMenu() {
             All of this needs TTMS open in a tab. Nothing can reach you once you
             have closed it — that needs TTMS to be properly deployed first.
           </p>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
