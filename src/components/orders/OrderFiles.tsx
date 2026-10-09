@@ -28,7 +28,12 @@ const INPUT =
 
 type Upload = { key: string; name: string; percent: number; error: string };
 
-export default function OrderFiles({ orderId, readOnly = false }: { orderId: string; readOnly?: boolean }) {
+export default function OrderFiles({ orderId, readOnly = false, onChange }: {
+  orderId: string;
+  readOnly?: boolean;
+  /** A file was added, re-labelled or removed — the page re-checks for a signed SA. */
+  onChange?: () => void;
+}) {
   const { user, can } = useAuth();
   const { formatDateTime } = useDateFormatters();
   const [files, setFiles] = useState<OrderFile[] | null>(null);
@@ -60,6 +65,7 @@ export default function OrderFiles({ orderId, readOnly = false }: { orderId: str
           (percent) => set({ percent }));
         setFiles((f) => [...(f ?? []), saved]);
         setUploads((u) => u.filter((x) => x.key !== key));
+        onChange?.();
       } catch (e) {
         set({ error: e instanceof Error ? e.message : 'Upload failed' });
       }
@@ -72,6 +78,7 @@ export default function OrderFiles({ orderId, readOnly = false }: { orderId: str
     try {
       const saved = await updateOrderFile(orderId, file.id, { kind: next });
       setFiles((f) => f?.map((x) => (x.id === file.id ? saved : x)) ?? f);
+      onChange?.();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Could not change it');
     } finally {
@@ -85,6 +92,7 @@ export default function OrderFiles({ orderId, readOnly = false }: { orderId: str
     try {
       await deleteOrderFile(orderId, file.id);
       setFiles((f) => f?.filter((x) => x.id !== file.id) ?? f);
+      onChange?.();
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Could not remove it');
     } finally {

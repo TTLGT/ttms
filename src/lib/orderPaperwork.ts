@@ -85,3 +85,11 @@ export async function downloadAgreementPdf(orderId: string, ref?: string): Promi
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
+
+/** How many signed-SA copies the load holds. See src/lib/signedSaProof.ts. */
+export async function fetchSignedSaProof(orderId: string): Promise<{ files: number; photos: number }> {
+  const res = await fetch(`/api/orders/${orderId}/signed-sa-proof`, { headers: await authHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not check for a signed SA');
+  return data as { files: number; photos: number };
+}

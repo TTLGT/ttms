@@ -597,7 +597,7 @@ index scope the service account cannot create. Types: `src/types/loadPhoto.ts`.
 |---|---|---|
 | `orderId` | string | The load. The only link — no ownership is copied here. |
 | `caption` | string | Optional, up to 300 characters. |
-| `stage` | `pickup` \| `in_transit` \| `delivery` \| `damage` \| `truck` \| `other` | Chosen by the uploader; defaults from the load's status. `truck` is the driver's truck and trailer, which the SA review asks for. |
+| `stage` | `pickup` \| `in_transit` \| `delivery` \| `damage` \| `truck` \| `signed_sa` \| `other` | Chosen by the uploader; defaults from the load's status. `truck` is the driver's truck and trailer, which the SA review asks for. `signed_sa` is a photo of the client's SA signed on paper — see below. |
 | `commodity` | string | Which of the load's commodity lines it shows, or the load's summary. Copied, not linked. |
 | `commodityKey` | string | `commodityKey(commodity)` — lower-cased, spaces collapsed. |
 | `width`, `height` | number | Pixels of the stored picture. |
@@ -636,8 +636,8 @@ an order's Documents tab. See `src/types/orderFile.ts`.
 orderFiles/{fileId}                 // fileId is random, made by the browser
   orderId        : string
   name           : string           // as it was on the uploader's computer
-  kind           : "rate_confirmation" | "receipt" | "customs" | "permit"
-                 | "insurance" | "correspondence" | "other"
+  kind           : "signed_sa" | "rate_confirmation" | "receipt" | "customs"
+                 | "permit" | "insurance" | "correspondence" | "other"
   note           : string
   contentType    : string           // read off the stored object, not the request
   size           : number           // bytes, likewise
@@ -656,6 +656,14 @@ upload cannot be filed twice). Listing, signed links, edits and deletes go
 through the same route; removing is the uploader or `orders.viewAll`. The
 collection is closed to the client SDK. `orders.fileCount` counts them.
 Adding and removing write the order's change log.
+
+**A signed SA by hand.** Moving a load to Client Signed without an
+e-signature needs at least one `orderFiles` of kind `signed_sa` or
+`loadPhotos` of stage `signed_sa` on it (`signedSaProof()` in
+`src/lib/signedSaProof.ts`, two equality counts — no composite index).
+`updateOrderAsCaller()` refuses the move without one, and the change-log entry
+says it was by hand and on what. The button is greyed out until then, from
+`GET /api/orders/{id}/signed-sa-proof`.
 
 ## Collection: `saRequests` — "Request SA"
 

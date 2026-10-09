@@ -32,11 +32,18 @@ export const ORDER_FILES_COLLECTION = 'orderFiles';
 
 /** What the file is. Free text says the rest; this is for scanning a list. */
 export const ORDER_FILE_KINDS = [
-  'rate_confirmation', 'receipt', 'customs', 'permit', 'insurance', 'correspondence', 'other',
+  'signed_sa', 'rate_confirmation', 'receipt', 'customs', 'permit', 'insurance', 'correspondence', 'other',
 ] as const;
 export type OrderFileKind = (typeof ORDER_FILE_KINDS)[number];
 
 export const ORDER_FILE_KIND_LABEL: Record<OrderFileKind, string> = {
+  /**
+   * The client's Shipper Agreement signed some other way — on paper, by
+   * email — and scanned or saved here. It is the proof that lets staff move a
+   * load to Client Signed by hand; see `signedSaProof()` in
+   * src/lib/signedSaProof.ts.
+   */
+  signed_sa:         'Signed SA (client)',
   rate_confirmation: 'Rate confirmation',
   receipt:           'Receipt (lumper, fuel, scale…)',
   customs:           'Customs',

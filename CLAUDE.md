@@ -524,8 +524,10 @@ deliberately absent from `STATUS_RANK`. **`carrier_assigned` is retired**
 It stays in the type for old change-log entries, is read as `booked` through
 `displayStatus()`, and `updateOrderAsCaller()` refuses to write it
 (`LEGACY_STATUSES`). Booked → Client Signed may be pressed by hand for a client
-who signed some other way; that moves the status only — the carrier agreement
-still asks `clientSignatureSatisfied()`. `parentOrderId` set
+who signed some other way, **only once a signed SA is uploaded to the load**
+(a `signed_sa` file or picture — `signedSaProof()`, enforced in
+`updateOrderAsCaller()`, not just on the button). That moves the status only —
+the carrier agreement still asks `clientSignatureSatisfied()`. `parentOrderId` set
 means a suborder — its own carrier, dates and BOL.
 
 **The client signs before the carrier does**, and `POST

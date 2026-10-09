@@ -27,7 +27,7 @@ export const LOAD_PHOTOS_COLLECTION = 'loadPhotos';
  * one the uploader knows and a clock does not: pickup photos are routinely
  * sent in hours after the truck has left.
  */
-export const PHOTO_STAGES = ['pickup', 'in_transit', 'delivery', 'damage', 'truck', 'other'] as const;
+export const PHOTO_STAGES = ['pickup', 'in_transit', 'delivery', 'damage', 'truck', 'signed_sa', 'other'] as const;
 export type PhotoStage = (typeof PHOTO_STAGES)[number];
 
 export const PHOTO_STAGE_LABEL: Record<PhotoStage, string> = {
@@ -42,6 +42,12 @@ export const PHOTO_STAGE_LABEL: Record<PhotoStage, string> = {
    * double-brokered load shows itself at the dock.
    */
   truck:      'Truck',
+  /**
+   * A photo of the client's Shipper Agreement signed on paper. Like a
+   * `signed_sa` file, it is what lets staff move the load to Client Signed by
+   * hand — see src/lib/signedSaProof.ts.
+   */
+  signed_sa:  'Signed SA',
   other:      'Other',
 };
 

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "740f5ada5f0459e0747b2dfefa5beebac4c32e06",
+      "date": "2026-10-09T13:46:19-06:00",
+      "author": "erwindank",
+      "subject": "Email the client a PDF of their signed SA as soon as they sign, copied to whoever the SA was copied to",
+      "body": ""
+    },
+    {
       "hash": "a516e4e9eb5ec1dd7c1c3c836cbdf20809e8a00f",
       "date": "2026-10-09T13:44:20-06:00",
       "author": "erwindank",

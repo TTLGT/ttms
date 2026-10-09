@@ -64,6 +64,7 @@ import OrderReadinessCard from '@/components/orders/OrderReadinessCard';
 import { RequestSaButton, SaRequestPanel } from '@/components/orders/SaRequestPanel';
 import SaVerificationRecord from '@/components/orders/SaVerificationRecord';
 import SaAgreementVersions from '@/components/orders/SaAgreementVersions';
+import { fetchSignedSaProof } from '@/lib/orderPaperwork';
 import ClientSignLink from '@/components/orders/ClientSignLink';
 import { useAuth } from '@/context/AuthContext';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
@@ -250,6 +251,26 @@ export default function OrderDetailPage() {
   // Kept apart from `order` so the tab label can count pictures added or
   // removed on this visit without refetching the load.
   const [photoCount, setPhotoCount] = useState<number | null>(null);
+
+  /*
+   * Whether "→ Client Signed" may be pressed by hand: only with the client's
+   * signed SA uploaded to the load (src/lib/signedSaProof.ts). Asked only
+   * while the button would be offered, and again whenever a file or picture
+   * may have changed — a tab switch, the picture count, a file saved — so it
+   * is not stale after an upload. The save refuses without it regardless.
+   */
+  const [signedSaCopies, setSignedSaCopies] = useState<number | null>(null);
+  const [filesVersion, setFilesVersion] = useState(0);
+  const handSignable = Boolean(order && !order.shipperSignedAt
+    && (order.status === 'booked' || order.status === 'carrier_assigned'));
+  useEffect(() => {
+    if (!handSignable) return;
+    let live = true;
+    fetchSignedSaProof(orderId)
+      .then((p) => { if (live) setSignedSaCopies(p.files + p.photos); })
+      .catch(() => { if (live) setSignedSaCopies(null); });
+    return () => { live = false; };
+  }, [handSignable, orderId, tab, photoCount, filesVersion]);
 
   /*
     Where "back" goes. Orders is right for somebody who came from the orders
@@ -823,9 +844,9 @@ export default function OrderDetailPage() {
      */
     if (next === 'shipper_signed' && !order.shipperSignedAt && !confirm(
       'Mark this load as Client Signed?\n\n'
-      + 'The client has not signed electronically. Use this only if they signed some other way. '
-      + 'Your name goes on the change log. To send the carrier agreement you will still need the '
-      + 'client’s e-signature or a waiver.',
+      + 'The client has not signed electronically. This goes on the change log under your name, '
+      + 'with the signed SA you uploaded as the proof. To send the carrier agreement you will still '
+      + 'need the client’s e-signature or a waiver.',
     )) return;
     setAdvancing(true);
     try {
@@ -1046,12 +1067,19 @@ export default function OrderDetailPage() {
               setSaRefresh((n) => n + 1);
             }} />
           )}
-          {nextStatus && order.status !== 'cancelled' && order.status !== 'quote' && (
-            <button onClick={handleAdvance} disabled={advancing}
-              className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
-              {advancing ? 'Updating…' : `→ ${STATUS_LABEL[nextStatus]}`}
-            </button>
-          )}
+          {nextStatus && order.status !== 'cancelled' && order.status !== 'quote' && (() => {
+            // By hand, Client Signed needs the signed SA uploaded first.
+            const needsCopy = nextStatus === 'shipper_signed' && handSignable && !signedSaCopies;
+            return (
+              <button onClick={handleAdvance} disabled={advancing || needsCopy}
+                title={needsCopy
+                  ? 'Upload the client’s signed SA first: Documents → Other files as “Signed SA (client)”, or Pictures as “Signed SA”. It moves on its own when the client e-signs.'
+                  : undefined}
+                className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                {advancing ? 'Updating…' : `→ ${STATUS_LABEL[nextStatus]}`}
+              </button>
+            );
+          })()}
         </div>
       </div>
 
@@ -1378,6 +1406,21 @@ export default function OrderDetailPage() {
                   only while unsigned: a signed link cannot be used again. */}
               {!(order.shipperSignedAt || order.shipperSignerName) && (
                 <ClientSignLink orderId={orderId} refreshKey={linkRefresh} />
+              )}
+
+              {/* What "→ Client Signed" by hand is waiting for, said where
+                  somebody looking at the signature will read it. */}
+              {handSignable && signedSaCopies === 0 && (
+                <p className="mt-3 text-xs text-gray-600">
+                  Client signed on paper or by email? Upload the signed SA under <strong>Documents → Other files</strong> as
+                  &ldquo;Signed SA (client)&rdquo;, or under <strong>Pictures</strong> as &ldquo;Signed SA&rdquo;. Then the load can be
+                  marked Client Signed.
+                </p>
+              )}
+              {handSignable && !!signedSaCopies && (
+                <p className="mt-3 text-xs text-green-700">
+                  Signed SA uploaded ({signedSaCopies}). The load can be marked Client Signed from the button at the top.
+                </p>
               )}
 
               {/* The signed SA as a PDF, and every version the load has had. */}
@@ -1816,7 +1859,7 @@ export default function OrderDetailPage() {
             </tbody>
           </table>
         </div>
-        <OrderFiles orderId={orderId} />
+        <OrderFiles orderId={orderId} onChange={() => setFilesVersion((n) => n + 1)} />
         </div>
       )}
 

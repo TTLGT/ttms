@@ -32,6 +32,7 @@ import { allocateOrderNumber } from './orderNumber';
 import { actorOf, diffFields, sameValue, writeChange } from './recordHistory';
 import type { Caller } from './partyAccess';
 import { planAgreementHold } from './clientAgreements';
+import { NO_SIGNED_SA_PROOF, signedSaProof } from './signedSaProof';
 import { LEGACY_STATUSES, cleanStops, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
 
 const COL = 'orders';
@@ -144,6 +145,20 @@ export async function updateOrderAsCaller(
   if (touched(before, patch, ['status']).length && LEGACY_STATUSES.includes(patch.status as OrderStatus)) {
     throw new AdminAuthError(`"${String(patch.status)}" is no longer a status an order can be moved to.`, 400);
   }
+  /*
+   * Client Signed by hand needs the signed SA on the load. The e-signature
+   * sets the status through the signing route, not here, and is its own
+   * record; a person pressing the button is only believed with a copy of
+   * what the client signed attached. Checked here, not only on the button.
+   */
+  let handSignedNote = '';
+  if (touched(before, patch, ['status']).length && patch.status === 'shipper_signed' && !before.shipperSignedAt) {
+    const proof = await signedSaProof(orderId);
+    if (proof.files + proof.photos === 0) throw new AdminAuthError(NO_SIGNED_SA_PROOF, 409);
+    handSignedNote = `Marked Client Signed by hand, on the signed SA uploaded to the load (${
+      [proof.files && `${proof.files} file${proof.files === 1 ? '' : 's'}`, proof.photos && `${proof.photos} picture${proof.photos === 1 ? '' : 's'}`]
+        .filter(Boolean).join(' and ')}). There is no e-signature.`;
+  }
 
   const now = Timestamp.now();
   const fields = diffFields(before, patch);
@@ -180,7 +195,11 @@ export async function updateOrderAsCaller(
   const hold = fields.length ? await planAgreementHold(orderId, after, actorOf(caller), now) : null;
 
   const batch = adminDb.batch();
-  if (fields.length) writeChange(batch, ref, { action: 'updated', fields }, actorOf(caller), now);
+  if (fields.length) {
+    writeChange(batch, ref, handSignedNote
+      ? { action: 'event', summary: handSignedNote, fields }
+      : { action: 'updated', fields }, actorOf(caller), now);
+  }
   hold?.apply(batch, write);
   batch.update(ref, write);
   await batch.commit();
