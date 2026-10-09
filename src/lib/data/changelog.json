@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "8cc4dc06e9d3acc2846bfe4ca43f3f264ddb5b3d",
+      "date": "2026-10-08T18:17:26-06:00",
+      "author": "erwindank",
+      "subject": "Replace \"Booked\" with Request SA, and give admin and dispatch a review-and-send flow for the Shipper Agreement",
+      "body": "A quote's next step is now Request SA: it records a request\n(saRequests/{orderId}), moves the order to booked, adds admin and dispatch\nto the load's discussion room and posts there, which puts it in their chat\ninbox with a notification. On the order they see what TTMS checked (SA and\nBOL fields, insurance date, FMCSA concerns, a carrier phone that differs\nfrom FMCSA's) beside a double-check list they tick, each tick named. Send\nSA is unlocked by the list, emails the client and posts the e-signature\nlink in the room; Mark done closes it and names who did. Requests can be\nsent back to the broker with a reason. Approvals lists them all.\n\nThe e-signature now also records the signer's device (user agent and a\nreadable summary) beside name, IP and time.\n\nfirestore.rules changes (saRequests closed): not live until deployed."
+    },
+    {
       "hash": "c22a3ca9a9ff3f7a508807aac9028bfc8ea04fc5",
       "date": "2026-10-08T18:08:05-06:00",
       "author": "erwindank",

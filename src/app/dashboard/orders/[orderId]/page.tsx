@@ -1104,7 +1104,7 @@ export default function OrderDetailPage() {
               <SectionEditLink orderId={orderId} section="general" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <DetailRow label="Client"    value={<><PartyLink id={order.clientId}    name={order.clientName} /><PartyContact party={partyById[order.clientId ?? '']} /></>} />
+              <DetailRow label="Client"    value={<><PartyLink id={order.clientId}    name={order.clientName} fromOrderId={orderId} /><PartyContact party={partyById[order.clientId ?? '']} /></>} />
               <DetailRow label="Lead Source" value={leadSourceLabel(leadSources, order.sourceId, order.sourceName)} />
               <DetailRow label="First Available" value={formatDate(order.firstAvailablePickup as { toDate: () => Date } | null)} />
               <DetailRow label="Pickup Date" value={formatDateRange(order.pickupDate, order.pickupDateEnd)} />
@@ -1200,7 +1200,7 @@ export default function OrderDetailPage() {
                       : (many ? `Delivery ${i + 1} — Consignee` : 'Consignee (Delivery Location)');
                     return (
                       <div key={i} className={`space-y-3 ${i > 0 ? 'pt-4 border-t border-gray-100' : ''}`}>
-                        <DetailRow label={label} value={<><PartyLink id={s.partyId} name={s.partyName} /><PartyContact party={partyById[s.partyId ?? '']} /></>} />
+                        <DetailRow label={label} value={<><PartyLink id={s.partyId} name={s.partyName} fromOrderId={orderId} /><PartyContact party={partyById[s.partyId ?? '']} /></>} />
                         <div>
                           <p className="text-xs font-medium text-gray-500 mb-1">
                             {many ? 'Address' : kind === 'pickup' ? 'Origin' : 'Destination'}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getParty, updateParty, tagPartyRole, addPartyOwners, removePartyOwners, requestPartyAccessById, listPartyHistory } from '@/lib/parties';
 import ChangeHistory from '@/components/history/ChangeHistory';
@@ -91,6 +91,13 @@ export default function PartyDetailPage() {
   const params  = useParams();
   const partyId = params.partyId as string;
   const { user, profile, can } = useAuth();
+  // Where "Back" goes. Somebody who opened this from a load's client, shipper
+  // or consignee wants that load again, not the clients list — set by
+  // PartyLink on the order page. Same idea as `from` on the order page.
+  const fromOrder = useSearchParams().get('fromOrder');
+  const back = fromOrder
+    ? { href: `/dashboard/orders/${encodeURIComponent(fromOrder)}`, label: 'Back to order' }
+    : { href: '/dashboard/clients', label: 'Back to Clients' };
   // Ownership is admins and dispatchers; everything else on this form is open
   // to anyone who can already see the record.
   // Admins and dispatchers hold this by role; anybody else has to be given it
@@ -294,8 +301,8 @@ export default function PartyDetailPage() {
       kind="client"
       status={noAccess?.status ?? 'missing'}
       ownerName={noAccess?.ownerName}
-      backHref="/dashboard/clients"
-      backLabel="Back to Clients"
+      backHref={back.href}
+      backLabel={back.label}
       grantNote="If approved, you will be able to open this client and use it on one order. An admin or dispatcher can instead hand it over for good, along with its orders."
       // Only offered on a denial: there is nobody to ask about a record that
       // has been deleted.
@@ -313,8 +320,8 @@ export default function PartyDetailPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
-      <Link href="/dashboard/clients" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
-        ← Back
+      <Link href={back.href} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
+        ← {fromOrder ? 'Back to order' : 'Back'}
       </Link>
 
       <div className="flex items-start justify-between mb-6">
