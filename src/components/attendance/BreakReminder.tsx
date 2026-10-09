@@ -1,14 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Coffee, PersonStanding, UtensilsCrossed, X } from 'lucide-react';
+import { Clock, Coffee, PersonStanding, UtensilsCrossed, X } from 'lucide-react';
 import { useAttendance } from '@/context/AttendanceContext';
 import { showMessageNotification } from '@/lib/chatNotify';
 import { SNOOZE_MINUTES, dueReminder, type DueReminder } from '@/types/breakReminders';
 import { PAUSE_SAFETY } from '@/types/pauseExercises';
+import { officeDateOf } from '@/types/attendance';
 
 /**
- * The break, lunch and active-pause reminders: a card in the corner of every
+ * The clock-in, break, lunch and active-pause reminders: a card in the corner of every
  * page, and a desktop notification when the browser allows one. Both can
  * start the break in one click — clicking the notification itself does it,
  * because a notification raised by a page (rather than a service worker)
@@ -22,6 +23,7 @@ import { PAUSE_SAFETY } from '@/types/pauseExercises';
 
 const STORE_KEY = 'ttms.breakReminders';
 const TICK_MS = 30_000;
+const STALE_RELOAD_MS = 30 * 60_000;
 
 interface Stored {
   /** Reminder key → when it may show again. */
@@ -59,10 +61,10 @@ function save(s: Stored): void {
   }
 }
 
-const ICON = { break: Coffee, lunch: UtensilsCrossed, activePause: PersonStanding } as const;
+const ICON = { clockIn: Clock, break: Coffee, lunch: UtensilsCrossed, activePause: PersonStanding } as const;
 
 export default function BreakReminder() {
-  const { state, startBreak, busy } = useAttendance();
+  const { state, startBreak, clockIn, refresh, busy } = useAttendance();
   const [stored, setStored] = useState<Stored>(EMPTY);
   const [now, setNow] = useState(() => Date.now());
 
@@ -77,6 +79,20 @@ export default function BreakReminder() {
   const update = useCallback((fn: (s: Stored) => Stored) => {
     setStored((prev) => { const next = fn(prev); save(next); return next; });
   }, []);
+
+  // A tab left open overnight still holds yesterday's clock, which cannot
+  // say whether today is a workday or whether somebody has clocked in
+  // (perhaps on their phone), so the clock-in reminder waits for a fresh one.
+  // Read again while the state is for an earlier day — every half hour, not
+  // once: a session left open last night keeps the state on yesterday until
+  // the 3am close, and a single read at midnight would see only that.
+  const today = officeDateOf(now);
+  const lastReload = useRef(0);
+  useEffect(() => {
+    if (!state || state.date === today || Date.now() - lastReload.current < STALE_RELOAD_MS) return;
+    lastReload.current = Date.now();
+    void refresh();
+  }, [state, today, now, refresh]);
 
   const due: DueReminder | null = useMemo(
     () => (state ? dueReminder(state, now, stored.snoozed) : null),
@@ -97,8 +113,9 @@ export default function BreakReminder() {
 
   const act = useCallback((r: DueReminder) => {
     finish(r);
-    if (r.starts) void startBreak(r.starts);
-  }, [finish, startBreak]);
+    if (r.kind === 'clockIn') void clockIn();
+    else if (r.starts) void startBreak(r.starts);
+  }, [finish, startBreak, clockIn]);
 
   // Once per reminder per browser. The tag is the reminder's key, so a second
   // tab racing the first replaces its notification rather than adding one.
@@ -111,7 +128,7 @@ export default function BreakReminder() {
     // names the day's exercises in both languages and leaves the steps to the card.
     const body = due.exercises
       ? [due.exercises.map((x) => x.name.en).join(', '), due.exercises.map((x) => x.name.es).join(', '), 'Click to see the steps.'].join('\n')
-      : `${due.body}\n${due.starts ? `Click to start your ${due.starts}.` : 'Click when you are done.'}`;
+      : `${due.body}\n${due.kind === 'clockIn' ? 'Click to clock in.' : due.starts ? `Click to start your ${due.starts}.` : 'Click when you are done.'}`;
     showMessageNotification({
       title: due.title,
       body,
@@ -119,7 +136,7 @@ export default function BreakReminder() {
       requireInteraction: true,
       // A pause's click only brings TTMS forward: the steps are on the card,
       // and marking it done before reading them would hide them.
-      onClick: () => { if (due.starts) actRef.current(due); },
+      onClick: () => { if (due.starts || due.kind === 'clockIn') actRef.current(due); },
     });
   }, [due, stored.notified, update]);
 
@@ -177,7 +194,7 @@ export default function BreakReminder() {
         </button>
         <button type="button" disabled={busy} onClick={() => act(due)}
           className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
-          {due.starts === 'lunch' ? 'Start lunch' : due.starts === 'break' ? 'Start break' : 'Done · Listo'}
+          {due.kind === 'clockIn' ? 'Clock in' : due.starts === 'lunch' ? 'Start lunch' : due.starts === 'break' ? 'Start break' : 'Done · Listo'}
         </button>
       </div>
     </div>

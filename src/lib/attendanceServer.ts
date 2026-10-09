@@ -24,6 +24,7 @@ import {
   DEFAULT_ATTENDANCE_CONFIG,
   DEFAULT_SCHEDULE_ID,
   HOLIDAY_OVERRIDES_COLLECTION,
+  STANDARD_SCHEDULE,
   MAX_ACTIVITY_PER_FLUSH,
   TIME_OFF_COLLECTION,
   addDays,
@@ -46,6 +47,7 @@ import {
   type ClockDetails,
   type DaySummary,
   type Schedule,
+  type TimeOffKind,
   type TimeOffRequest,
 } from '@/types/attendance';
 import { observedHolidaysInYear, type HolidayOverride } from '@/types/holidays';
@@ -418,6 +420,11 @@ export async function clockState(caller: { uid: string; email: string }, now: nu
   const last = open ? open.day.sessions[open.day.sessions.length - 1] : null;
   const brk = open ? openBreak(open.day) : null;
   const p = presence.data() ?? {};
+  const reminders = effectiveReminders(config.reminders, storedReminderOverride(prefs.data()?.reminders));
+  // Only somebody not in yet today can be reminded to clock in, so only they
+  // pay the reads — which is most page loads before the shift and none after.
+  const notInYet = !open && !(todayDay?.sessions.length);
+  const dueAt = notInYet && reminders.clockIn.enabled ? await dueToday(caller.email, today, now) : null;
   return {
     date: open?.date ?? today,
     clockedIn: Boolean(open),
@@ -429,8 +436,58 @@ export async function clockState(caller: { uid: string; email: string }, now: nu
     statusNote: typeof p.statusNote === 'string' ? p.statusNote : '',
     hideLastSeen: prefs.data()?.hideLastSeen === true,
     breaksTaken: [...new Set((day?.breaks ?? []).map((b) => b.kind))],
-    reminders: effectiveReminders(config.reminders, storedReminderOverride(prefs.data()?.reminders)),
+    reminders,
+    dueAt,
   };
+}
+
+/**
+ * The shift somebody is due to work today, or null when today is not a
+ * working day for them — the same verdict the report gives, from the same
+ * summarizeDay(), so the reminder and the report cannot disagree about it.
+ *
+ * Two deliberate differences from the report, both because this only decides
+ * whether to nudge somebody, never how a day is judged:
+ *
+ * - **Pending time off counts.** Somebody who has asked for the day off
+ *   should not be told to clock in on it while HR has yet to answer. The game
+ *   streak takes the same view (offDaysFor() in taskGameServer.ts).
+ * - **No schedule anywhere means the standard week**, not a day off. The
+ *   company default does not exist until HR saves one, and "never remind
+ *   anybody" is the wrong reading of that; the planning card guesses the same.
+ *
+ * Reads: the person's schedule and the default, the holiday overrides, and
+ * the person's own time-off requests — all small.
+ */
+async function dueToday(email: string, today: string, now: number): Promise<{ start: string; end: string } | null> {
+  const schedules = adminDb.collection(ATTENDANCE_SCHEDULES_COLLECTION);
+  const [own, fallback, overrides, requests] = await Promise.all([
+    schedules.doc(email).get(),
+    schedules.doc(DEFAULT_SCHEDULE_ID).get(),
+    loadOverrides(),
+    adminDb.collection(TIME_OFF_COLLECTION).where('email', '==', email).get(),
+  ]);
+  const parsed = [own, fallback]
+    .map((d) => (d.exists ? readSchedule(d.data()) : null))
+    .find((s): s is Schedule => !!s && typeof s !== 'string');
+  const schedule = parsed ?? STANDARD_SCHEDULE;
+
+  const holiday = observedHolidaysInYear(Number(today.slice(0, 4)), overrides)
+    .find((h) => h.country === schedule.holidayCountry && h.date === today)?.name ?? null;
+  const off = requests.docs
+    .map((d) => d.data())
+    .find((r) => (r.status === 'approved' || r.status === 'pending') && r.from <= today && today <= r.to);
+
+  const summary = summarizeDay({
+    date: today,
+    day: null,
+    schedule,
+    holiday,
+    timeOff: off ? (off.kind as TimeOffKind) : null,
+    now,
+  });
+  if (summary.outcome === 'off' || summary.outcome === 'holiday' || summary.outcome === 'timeOff') return null;
+  return summary.shift ? { start: summary.shift.start, end: summary.shift.end } : null;
 }
 
 async function clockDetails(req: Request, email: string, deviceIdRaw: unknown, now: number): Promise<ClockDetails> {

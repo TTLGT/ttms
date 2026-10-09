@@ -15,14 +15,15 @@ import { exercisesFor, type PauseExercise } from './pauseExercises';
 /**
  * Break reminders: "you have an hour left to take your break", "time for
  * lunch", and the optional active pause — a few minutes to stand up and
- * stretch.
+ * stretch. And, first thing in the morning, "time to clock in" for anybody
+ * who has TTMS open and has not.
  *
  * **Run in the browser, not on a clock.** Each tab works out from the clock
  * state it already holds whether a reminder is due, so there is no cron, no
  * queue and no read per check. The cost is the same limit chatNotify.ts
  * states: nobody without TTMS open is reminded. That is acceptable here
- * because a reminder only ever goes to somebody clocked in, and the clock is
- * in TTMS.
+ * because the clock is in TTMS: a break reminder only goes to somebody
+ * clocked in, and the clock-in one to somebody who already has TTMS open.
  *
  * **They grant and record nothing.** A reminder is a nudge with a shortcut to
  * the Break button; taking the break is the ordinary clock action, recorded
@@ -33,7 +34,7 @@ import { exercisesFor, type PauseExercise } from './pauseExercises';
  */
 
 /**
- * A reminder at a time of day, once a day. All three kinds have this shape:
+ * A reminder at a time of day, once a day. Every kind has this shape:
  * the active pause was a repeating timer first, and was made a single daily
  * slot (2026-10-08) because the break and lunch already split the day — the
  * only long stretch without one is the start of the morning.
@@ -50,14 +51,25 @@ export interface SlotReminder {
 }
 
 export interface BreakReminderSettings {
+  /**
+   * "Time to clock in", for somebody who has TTMS open and has not clocked in
+   * yet (asked for 2026-10-09). The only kind shown to somebody clocked *out*.
+   *
+   * Only `enabled` is read. When it shows comes from the person's work
+   * schedule instead (ClockState.dueAt): from the start of their shift to the
+   * end of it, and never on a day off, a holiday or time off. `at`, `until`,
+   * `minutes` and `days` keep the shape every kind shares and are ignored.
+   */
+  clockIn: SlotReminder;
   break: SlotReminder;
   lunch: SlotReminder;
   activePause: SlotReminder;
 }
 
 export type ReminderKind = keyof BreakReminderSettings;
-export const REMINDER_KINDS: ReminderKind[] = ['break', 'lunch', 'activePause'];
+export const REMINDER_KINDS: ReminderKind[] = ['clockIn', 'break', 'lunch', 'activePause'];
 export const REMINDER_LABEL: Record<ReminderKind, string> = {
+  clockIn: 'Clock in',
   break: 'Morning break',
   lunch: 'Lunch',
   activePause: 'Active pause',
@@ -80,6 +92,8 @@ const WEEKDAYS_ONLY: WeekdayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri'];
  * which the company judged not to need one.
  */
 export const DEFAULT_BREAK_REMINDERS: BreakReminderSettings = {
+  // Times unused — see `clockIn` above. Stored only to keep the common shape.
+  clockIn:     { enabled: true,  at: '07:00', until: '16:00', minutes: 0,  days: WEEKDAYS_ONLY },
   break:       { enabled: true,  at: '10:00', until: '11:00', minutes: 20, days: WEEKDAYS_ONLY },
   lunch:       { enabled: true,  at: '13:00', until: '14:00', minutes: 60, days: WEEKDAYS_ONLY },
   activePause: { enabled: false, at: '08:30', until: '09:30', minutes: 5,  days: WEEKDAYS_ONLY },
@@ -87,6 +101,7 @@ export const DEFAULT_BREAK_REMINDERS: BreakReminderSettings = {
 
 /** How long each kind may last. A pause is a stretch, not a second break. */
 export const MINUTES_LIMITS: Record<ReminderKind, { min: number; max: number }> = {
+  clockIn:     { min: 0, max: 0 },
   break:       { min: 5, max: 120 },
   lunch:       { min: 5, max: 120 },
   activePause: { min: 1, max: 15 },
@@ -167,6 +182,7 @@ export function storedReminderOverride(raw: unknown): ReminderOverride {
 
 export function effectiveReminders(company: BreakReminderSettings, own: ReminderOverride): BreakReminderSettings {
   return {
+    clockIn:     own.clockIn     ?? company.clockIn,
     break:       own.break       ?? company.break,
     lunch:       own.lunch       ?? company.lunch,
     activePause: own.activePause ?? company.activePause,
@@ -177,7 +193,12 @@ export function effectiveReminders(company: BreakReminderSettings, own: Reminder
 
 /** What the browser needs from the clock state to decide. */
 export interface ReminderClock {
+  /** The day the state was read for. */
+  date: string;
   clockedIn: boolean;
+  firstClockIn: number | null;
+  /** Today's shift if the person is due in — see ClockState.dueAt. */
+  dueAt: { start: string; end: string } | null;
   onBreak: BreakKind | null;
   /** Kinds of break already started on the open day. */
   breaksTaken: BreakKind[];
@@ -190,7 +211,7 @@ export interface DueReminder {
   key: string;
   title: string;
   body: string;
-  /** The break kind "Start" begins, or null for an active pause. */
+  /** The break kind "Start" begins, or null for an active pause and for clock-in. */
   starts: BreakKind | null;
   /** The active pause's exercises for the day — see src/types/pauseExercises.ts. */
   exercises?: PauseExercise[];
@@ -215,17 +236,38 @@ export function dueReminder(
   now: number,
   snoozed: Record<string, number>,
 ): DueReminder | null {
-  if (!clock.clockedIn || clock.onBreak) return null;
+  if (clock.onBreak) return null;
   const date = officeDateOf(now);
   const weekday = weekdayOf(date);
   const minute = officeMinuteOf(now);
 
   for (const kind of REMINDER_KINDS) {
     const r = clock.reminders[kind];
-    if (!r.enabled || !r.days.includes(weekday)) continue;
+    if (!r.enabled) continue;
+    if (kind === 'clockIn') {
+      // A state read on an earlier day says nothing about today, so says
+      // nothing at all; BreakReminder reads it again when the date moves on.
+      // `dueAt` is null on a day off, and once somebody has clocked in today.
+      const shift = clock.date === date && !clock.clockedIn && clock.firstClockIn == null ? clock.dueAt : null;
+      if (!shift) continue;
+      const from = hhmmToMinutes(shift.start);
+      const endMin = hhmmToMinutes(shift.end);
+      // A shift past midnight is asked about until midnight; the next
+      // office day is a different question.
+      const to = endMin > from ? endMin : 24 * 60;
+      if (minute < from || minute >= to) continue;
+      const key = `${date}|${kind}`;
+      if (snoozed[key] > now) continue;
+      return {
+        kind, key, starts: null,
+        title: 'Time to clock in',
+        body: `Your shift started at ${officeClock(officeTimeToMs(date, shift.start))}. Clock in so your hours are counted.`,
+      };
+    }
+    if (!r.days.includes(weekday) || !clock.clockedIn) continue;
     // An active pause is not a clock action, so nothing on the day says one
     // was taken; "Done" snoozing it for the day is the whole record.
-    if (kind !== 'activePause' && clock.breaksTaken.includes(kind)) continue;
+    if ((kind === 'break' || kind === 'lunch') && clock.breaksTaken.includes(kind)) continue;
     const from = hhmmToMinutes(r.at);
     const to = hhmmToMinutes(r.until);
     if (minute < from || minute >= to) continue;

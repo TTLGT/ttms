@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "88b499baa0c67592ca7e1fd1b1dd7724763f0730",
+      "date": "2026-10-08T23:56:50-06:00",
+      "author": "erwindank",
+      "subject": "Let dispatch copy the SA to extra addresses, and check carrier age, the driver's license, truck pictures and accessorials before it goes out",
+      "body": ""
+    },
+    {
       "hash": "a6a365653055717cd91f2f893e81d54bc29d68f5",
       "date": "2026-10-08T23:38:52-06:00",
       "author": "erwindank",

@@ -794,6 +794,14 @@ export interface ClockState {
   breaksTaken: BreakKind[];
   /** This person's break reminders: the company's, with any of their own over it. */
   reminders: BreakReminderSettings;
+  /**
+   * When this person is due in on `date`, for the clock-in reminder, or null
+   * when they are not: a day off on their schedule, a holiday, time off
+   * (pending included), or the reminder switched off. Worked out only before
+   * the first clock-in of the day — after it nothing reads this, and it is
+   * left null to save the reads.
+   */
+  dueAt: { start: string; end: string } | null;
 }
 
 export interface ReportPerson {

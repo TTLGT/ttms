@@ -238,9 +238,10 @@ function RemindersPanel() {
     <section className={card}>
       <h2 className={h2}>Break reminders</h2>
       <p className={lede}>
-        A reminder in the corner of TTMS, and on the desktop where the browser allows it, with a button that starts the
-        break. Only for people who are clocked in and not already on a break, and only while TTMS is open. Times are
-        office time (Guatemala). Change them for everybody, or for one person.
+        A reminder in the corner of TTMS, and on the desktop where the browser allows it, with a button that clocks in
+        or starts the break. Clock in is for people who have not clocked in yet that day; the others only for people who
+        are clocked in and not already on a break. Only while TTMS is open. Times are office time (Guatemala). Change
+        them for everybody, or for one person.
       </p>
 
       <select value={target} onChange={(e) => setTarget(e.target.value)} className="mt-4 w-full rounded-lg border border-gray-300 py-1.5 pl-3 pr-8 text-sm">
@@ -279,7 +280,7 @@ function RemindersEditor({
 }) {
   const [values, setValues] = useState<BreakReminderSettings>(() => ({ ...company, ...(own ?? {}) }));
   const [custom, setCustom] = useState<Record<ReminderKind, boolean>>(() => ({
-    break: Boolean(own?.break), lunch: Boolean(own?.lunch), activePause: Boolean(own?.activePause),
+    clockIn: Boolean(own?.clockIn), break: Boolean(own?.break), lunch: Boolean(own?.lunch), activePause: Boolean(own?.activePause),
   }));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -327,14 +328,22 @@ function RemindersEditor({
                   onChange={(e) => set(kind, { enabled: e.target.checked })} />
                 {kind === 'activePause' ? 'Remind people to take an active pause' : 'Send this reminder'}
               </label>
-              <SlotFields kind={kind} r={r} disabled={!editable} onChange={(p) => set(kind, p)} />
+              {kind !== 'clockIn' && <SlotFields kind={kind} r={r} disabled={!editable} onChange={(p) => set(kind, p)} />}
+              {kind === 'clockIn' && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Follows each person&rsquo;s work schedule: shown from the start of their shift until they clock in,
+                  dismiss it or the shift ends. Never on a day off, a public holiday or a day of time off (pending
+                  requests too). With no schedule set, 7:00 to 4:00 on weekdays. Not recorded on anybody&rsquo;s
+                  attendance.
+                </p>
+              )}
               {kind === 'activePause' && (
                 <p className="mt-2 text-xs text-gray-500">
                   Once a day: three short desk exercises in English and Spanish, different every day. 8:30 sits in the
                   middle of the longest stretch without a break, 7 to 10. Not recorded on anybody&rsquo;s attendance.
                 </p>
               )}
-              <DaysField days={r.days} disabled={!editable} onChange={(days) => set(kind, { days })} />
+              {kind !== 'clockIn' && <DaysField days={r.days} disabled={!editable} onChange={(days) => set(kind, { days })} />}
             </div>
           </fieldset>
         );

@@ -2012,11 +2012,15 @@ the Celebrations calendar uses it too.
 ### The rest
 
 - `attendanceConfig/general` — `{ officeNetworks: { ip, label }[], alerts, alertAfterMinutes, reminders }`.
-  `reminders` is the company's break reminders — `break`, `lunch` and
-  `activePause`, each `{ enabled, at, until, minutes, days }`, once a day
-  (`src/types/breakReminders.ts`). Absent means the defaults: break at 10:00
-  to be taken by 11:00, lunch 13:00–14:00, Mon–Fri; active pause off, 8:30
-  for 5 minutes when on.
+  `reminders` is the company's break reminders — `clockIn`, `break`, `lunch`
+  and `activePause`, each `{ enabled, at, until, minutes, days }`, once a day
+  (`src/types/breakReminders.ts`). Of `clockIn` only `enabled` is read: it
+  follows each person's schedule (start to end of shift; never on a day off,
+  holiday or time off, pending included), and its times are unused. Absent
+  means the defaults: clock-in on, break
+  at 10:00 to be taken by 11:00, lunch 13:00–14:00, Mon–Fri; active pause
+  off, 8:30 for 5 minutes when on. A kind missing from a stored document
+  takes its default, which is how `clockIn` arrived with no backfill.
 - `attendanceDevices/{email}` — `{ ids: string[] }`, the browsers somebody has clocked in from.
 - `attendancePrefs/{email}` — `{ hideLastSeen, reminders? }`. `reminders`
   is a person's own break reminders, written only by `attendance.manage`

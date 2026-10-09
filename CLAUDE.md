@@ -923,12 +923,18 @@ report), `attendanceAdmin.ts` (schedules, holidays, requests) and
   (3am office time) and the "not in yet" alerts (every 15 minutes, office
   hours) finish records and post notices; they grant and remove nothing. The
   rule that access never runs on a clock is untouched.
-- **Break reminders are not a clock.** The 10am break, 1pm lunch and the
+- **Break reminders are not a clock.** The 7am "time to clock in", the 10am
+  break, 1pm lunch and the
   optional once-a-day active pause (`src/types/breakReminders.ts`, drawn by
   `BreakReminder.tsx` in the dashboard layout) are worked out in the browser
   from the clock state it already holds — no cron, no reads per check. So
-  nobody without TTMS open is reminded, which is fine because only somebody
-  clocked in ever is. They record nothing: "Start break" is the ordinary
+  nobody without TTMS open is reminded, which is fine because the clock is in
+  TTMS. Clock-in goes only to somebody not in yet today, from the start of
+  their shift: `clockState()` works out `dueAt` with `summarizeDay()` from
+  their schedule (standard week if none is set), holidays and time off —
+  pending counts — and only before the day's first clock-in, so only those
+  page loads pay the reads. The rest go only to somebody clocked in. A tab
+  whose state is for an earlier day re-reads it every half hour until fresh. They record nothing: "Start break" is the ordinary
   clock action, and dismissals live in localStorage. Company settings are
   `attendanceConfig/general.reminders`; one person's are on
   `attendancePrefs/{email}.reminders`, which `clockState()` already reads.
