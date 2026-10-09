@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Timestamp } from 'firebase/firestore';
 import { getCarrier, listCarrierHistory, updateCarrier } from '@/lib/carriers';
@@ -49,6 +49,13 @@ export default function CarrierDetailPage() {
   const { formatDate } = useDateFormatters();
   const params    = useParams();
   const carrierId = params.carrierId as string;
+  // Where "Back" goes: the load this was opened from, when it was — set by the
+  // carrier link on the order page — otherwise the carriers list. Same idea as
+  // `fromOrder` on a client's page.
+  const fromOrder = useSearchParams().get('fromOrder');
+  const back = fromOrder
+    ? { href: `/dashboard/orders/${encodeURIComponent(fromOrder)}`, label: 'Back to order' }
+    : { href: '/dashboard/carriers', label: 'Back to Carriers' };
 
   const [carrier, setCarrier]   = useState<Carrier | null>(null);
   const [orders, setOrders]     = useState<Order[]>([]);
@@ -237,14 +244,14 @@ export default function CarrierDetailPage() {
   if (!carrier) return (
     <div className="p-4 sm:p-6 lg:p-8">
       <p className="text-gray-500">Carrier not found.</p>
-      <Link href="/dashboard/carriers" className="text-sm text-brand-600 hover:underline mt-2 block">← Back to Carriers</Link>
+      <Link href={back.href} className="text-sm text-brand-600 hover:underline mt-2 block">← {back.label}</Link>
     </div>
   );
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
-      <Link href="/dashboard/carriers" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
-        ← Carriers
+      <Link href={back.href} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
+        ← {fromOrder ? 'Back to order' : 'Carriers'}
       </Link>
 
       {/* Header */}

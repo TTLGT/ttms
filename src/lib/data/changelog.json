@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "9f3661f126bb27ae49937662e62aec6bf802a201",
+      "date": "2026-10-08T21:17:04-06:00",
+      "author": "erwindank",
+      "subject": "Send Back on a shipper or consignee to the list it was opened from, not Clients",
+      "body": ""
+    },
+    {
       "hash": "3bfa74b1c1225f6f0e17dc27b200e57ebe25c84f",
       "date": "2026-10-08T21:13:23-06:00",
       "author": "erwindank",

@@ -1557,7 +1557,7 @@ export default function OrderDetailPage() {
               const carrierCell = (
                 <DetailRow label="Carrier" value={
                   order.carrierId
-                    ? <Link href={`/dashboard/carriers/${order.carrierId}`} className="text-brand-600 hover:underline">{order.carrierName}</Link>
+                    ? <Link href={`/dashboard/carriers/${order.carrierId}?fromOrder=${encodeURIComponent(orderId)}`} className="text-brand-600 hover:underline">{order.carrierName}</Link>
                     : null
                 } />
               );
