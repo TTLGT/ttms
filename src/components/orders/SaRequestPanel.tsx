@@ -127,11 +127,13 @@ export function RequestSaButton({ orderId, onRequested }: { orderId: string; onR
  * and names who made it, so the second person sees what the first already
  * did; the panel reloads after every action rather than trusting its own copy.
  */
-export function SaRequestPanel({ orderId, refreshKey, onStatusChange }: {
+export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: {
   orderId: string;
   refreshKey?: unknown;
   /** The order's status moved because of something done here. */
   onStatusChange: (status: 'quote' | 'booked') => void;
+  /** The SA was emailed from here — the signing-link box on the page refreshes. */
+  onSent?: () => void;
 }) {
   const { formatDateTime, formatDate } = useDateFormatters();
   const [data, setData] = useState<{ request: SaRequest | null; isReviewer: boolean; review: SaReview } | null>(null);
@@ -172,12 +174,15 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange }: {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-brand-600" /> Shipper Agreement request
+            <ShieldCheck className="w-4 h-4 text-brand-600" /> {r.reason === 'changed' ? 'Shipper Agreement update' : 'Shipper Agreement request'}
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Asked by {r.requestedByName} · {formatDateTime(new Date(r.requestedAt))}
+            {r.reason === 'changed' ? 'Opened by TTMS after a change by' : 'Asked by'} {r.requestedByName} · {formatDateTime(new Date(r.requestedAt))}
           </p>
-          {r.note && <p className="text-sm text-gray-800 mt-1.5 whitespace-pre-wrap">&ldquo;{r.note}&rdquo;</p>}
+          {r.note && (r.reason === 'changed'
+            // TTMS's own words, so not in quotes as if somebody had written them.
+            ? <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-1.5">{r.note}</p>
+            : <p className="text-sm text-gray-800 mt-1.5 whitespace-pre-wrap">&ldquo;{r.note}&rdquo;</p>)}
         </div>
         <StatusPill request={r} />
       </div>
@@ -255,9 +260,12 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange }: {
                 <button type="button" disabled={busy !== '' || left.length > 0 || !review.sendTo}
                   title={left.length ? 'Finish the double check first' : !review.sendTo ? 'The client has no email address' : ''}
                   onClick={() => void run('send', async () => {
-                    if (!confirm(`Email the Shipper Agreement to ${review.sendTo?.email}?`)) return;
+                    if (!confirm(r.reason === 'changed'
+                      ? `Email the updated Shipper Agreement to ${review.sendTo?.email}? Their existing link and QR code will show the update.`
+                      : `Email the Shipper Agreement to ${review.sendTo?.email}?`)) return;
                     await sendShipperAgreement(orderId);
                     trackActivity('agreementsSent');
+                    onSent?.();
                   })}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
                   {busy === 'send' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

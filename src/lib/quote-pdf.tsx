@@ -1,6 +1,6 @@
 import React from 'react';
 import path from 'path';
-import { Document, Page, Text, View, StyleSheet, Image as PdfImage, renderToBuffer } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Image as PdfImage, Link, renderToBuffer } from '@react-pdf/renderer';
 
 /**
  * The quote a broker hands a client before anything is signed: the lane, the
@@ -32,6 +32,19 @@ export type QuoteData = {
   preparedByEmail: string;
   /** What the client still has to give us before an SA can go out. Empty when nothing. */
   stillNeeded: string[];
+  /**
+   * The QR code for the load confirmation's signing page, as a PNG data URL —
+   * only on the copy attached to that email, so a client who prints the quote
+   * can still get to the agreement. The Quote button's download has no link to
+   * give and leaves it out.
+   */
+  signQr?: string;
+  /**
+   * The signing page the QR code points at. The code and the line beside it
+   * are links to it as well, so somebody reading the PDF on the phone the
+   * code would have to be scanned with can tap it instead.
+   */
+  signLink?: string;
 };
 
 const NAVY = '#1e3a5f';
@@ -64,6 +77,9 @@ const s = StyleSheet.create({
   needBox:  { borderWidth: 1, borderColor: '#fde68a', borderStyle: 'solid', backgroundColor: '#fffbeb', borderRadius: 3, padding: 8, marginBottom: 12 },
   needTtl:  { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#92400e', marginBottom: 4 },
   needLine: { fontSize: 8, color: '#92400e', marginBottom: 2 },
+  qrBox:    { borderWidth: 1, borderColor: GRAY, borderStyle: 'solid', borderRadius: 3, padding: 8, marginBottom: 12, flexDirection: 'row', alignItems: 'center' },
+  qrTitle:  { fontSize: 9, fontFamily: 'Helvetica-Bold', color: NAVY, marginBottom: 3 },
+  qrText:   { fontSize: 8, color: '#4b5563', lineHeight: 1.4 },
   terms:    { fontSize: 7.5, color: '#4b5563', lineHeight: 1.4, marginBottom: 12 },
   footer:   { borderTopWidth: 1, borderTopColor: GRAY, borderTopStyle: 'solid', paddingTop: 8, flexDirection: 'row', justifyContent: 'space-between' },
   footTxt:  { fontSize: 7, color: '#9ca3af' },
@@ -164,6 +180,30 @@ function QuoteDocument({ d }: { d: QuoteData }) {
             <Text style={s.secTitle}>NOTES</Text>
             <Text style={{ ...s.terms, color: '#111827', fontSize: 8.5 }}>{d.notes}</Text>
           </>
+        ) : null}
+
+        {d.signQr ? (
+          <View style={s.qrBox} wrap={false}>
+            {d.signLink ? (
+              <Link src={d.signLink} style={{ marginRight: 12 }}>
+                <PdfImage src={d.signQr} style={{ width: 72, height: 72 }} />
+              </Link>
+            ) : (
+              <PdfImage src={d.signQr} style={{ width: 72, height: 72, marginRight: 12 }} />
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={s.qrTitle}>Scan or tap to review and sign the load confirmation</Text>
+              <Text style={s.qrText}>
+                The same link as the button in our email. It shows the rate, the pickup and delivery details, the
+                payment terms and our terms and conditions, and lets you sign electronically.
+              </Text>
+              {d.signLink ? (
+                <Link src={d.signLink} style={{ ...s.qrText, color: '#2563eb', marginTop: 3 }}>
+                  Open the load confirmation
+                </Link>
+              ) : null}
+            </View>
+          </View>
         ) : null}
 
         {d.stillNeeded.length > 0 && (

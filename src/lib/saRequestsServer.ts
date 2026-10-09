@@ -39,6 +39,7 @@ export function toSaRequest(d: FirebaseFirestore.DocumentData): SaRequest {
     returnedAt:      millis(d.returnedAt),
     returnedByName:  d.returnedByName ?? null,
     returnReason:    d.returnReason ?? null,
+    reason:          d.reason === 'changed' ? 'changed' : 'requested',
   };
 }
 

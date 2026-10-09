@@ -45,7 +45,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
   // and finance for Lane Distance and Payment Terms — each for its own panels
   // and nothing else on it.
   { id: 'operations',   label: 'Operations',   href: '/dashboard/settings/operations',   adminOnly: true,
-    permissions: ['celebrations.manage', 'presence.manage', 'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage', 'quoteRates.manage'] },
+    permissions: ['celebrations.manage', 'presence.manage', 'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage', 'quoteRates.manage', 'agreementTerms.manage'] },
   { id: 'data',         label: 'Data',         href: '/dashboard/settings/data',         adminOnly: true  },
 ];
 
@@ -184,6 +184,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     keywords: 'quote calculator rate rates per mile price pricing truck trailer flatbed van reefer step deck hot shot lowboy rgn conestoga towing landoll dat market broker fee uship margin',
     adminOnly: true,
     permissions: ['quoteRates.manage'],
+  },
+  {
+    id: 'agreement-terms',
+    label: 'Agreement Terms',
+    tab: 'operations',
+    blurb: 'The terms and conditions clients read and accept when they sign a load confirmation.',
+    keywords: 'terms conditions agreement contract legal fine print shipper agreement sa load confirmation e-sign signature client',
+    adminOnly: true,
+    permissions: ['agreementTerms.manage'],
   },
   {
     id: 'lead-sources',

@@ -37,8 +37,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
    * - A Sales Manager: the People tab, writable for their own team and nobody
    *   else. That narrowing happens inside the page — see canEditPerson there.
    * - Somebody holding one Operations panel — HR's Celebrations, dispatch's
-   *   Lead Sources, finance's Lane Distance and Payment Terms: that tab, with
-   *   only their panels on it.
+   *   Lead Sources and Agreement Terms, finance's Lane Distance and Payment
+   *   Terms: that tab, with only their panels on it.
    *
    * Anyone else is bounced, and the Firestore rules refuse them independently
    * of this. Gating in the layout rather than in each page means a new tab
@@ -56,6 +56,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     || can('laneDistance.manage')
     || can('paymentTerms.manage')
     || can('quoteRates.manage')
+    || can('agreementTerms.manage')
     || profile?.isSalesManager === true;
 
   useEffect(() => {

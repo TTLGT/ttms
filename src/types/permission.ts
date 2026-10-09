@@ -172,6 +172,17 @@ export const PERMISSIONS = [
    * needs nothing beyond `orders.create`.
    */
   'quoteRates.manage',
+  /**
+   * The terms and conditions on the client's load confirmation — what a client
+   * reads and accepts on the signing page. See src/types/agreementTerms.ts.
+   *
+   * Admin and dispatch by default. Dispatch already sends every agreement and
+   * is who the client calls about the fine print, so they keep the wording.
+   * Not part of `settings.manage`'s slices on purpose: it is a legal text,
+   * not a setting, and a finance or HR person holding the broad permission by
+   * hand still reaches it through `settings.manage` below.
+   */
+  'agreementTerms.manage',
 
   // ── Everything else ──────────────────────────────────────────────────────
   'chat.use',
@@ -342,6 +353,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'laneDistance.manage', label: 'Manage lane distance', detail: 'Choose how order mileage is worked out, and recheck a load’s mileage with Google — each recheck is charged. Finance has this already.' },
       { key: 'paymentTerms.manage', label: 'Manage payment terms', detail: 'The payment methods and fee terms offered for clients and carriers, and the fee each one carries. Finance has this already.' },
       { key: 'quoteRates.manage', label: 'Manage quote rates', detail: 'The rates, truck sizes and market figures the quote calculator prices loads with. Everyone who books loads uses the calculator; this changes what it says.' },
+      { key: 'agreementTerms.manage', label: 'Edit agreement terms', detail: 'The terms and conditions clients read and accept when they sign a load confirmation. Admin and dispatch have this already.' },
     ],
   },
   {
@@ -443,6 +455,10 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     // The lead-source list: dispatch hears where a new client came from
     // first, and is who notices when the list is missing the answer.
     'leadSources.manage',
+    // The terms on the client's load confirmation: dispatch sends every one of
+    // them and answers the client's questions about it. Added 2026-10-08,
+    // widening every dispatcher at their next sign-in.
+    'agreementTerms.manage',
   ],
 
   // Finance: every record, and the paperwork that bills for it.

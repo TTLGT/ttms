@@ -58,7 +58,9 @@ export default function SaRequestsSection() {
                       ? `Sent back by ${r.returnedByName}`
                       : r.status === 'sent' && r.sentAt
                         ? `Sent by ${r.sentByName} · ${formatDateTime(new Date(r.sentAt))}`
-                        : `Asked by ${r.requestedByName} · ${formatDateTime(new Date(r.requestedAt))}`}
+                        : r.reason === 'changed'
+                          ? `Order changed by ${r.requestedByName} after the SA was sent · ${formatDateTime(new Date(r.requestedAt))}`
+                          : `Asked by ${r.requestedByName} · ${formatDateTime(new Date(r.requestedAt))}`}
                 </span>
                 <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
                   r.status === 'done' ? 'bg-green-50 text-green-700 border-green-200'

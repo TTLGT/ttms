@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "ebf9a3636fdb4dfa7afea9477b424b145d25a92a",
+      "date": "2026-10-08T22:04:07-06:00",
+      "author": "erwindank",
+      "subject": "Show links in chat alerts in full, clickable, with a Copy link button",
+      "body": ""
+    },
+    {
       "hash": "83529930ac0bc34a213115f4877c9bedac4d0edf",
       "date": "2026-10-08T21:32:41-06:00",
       "author": "erwindank",

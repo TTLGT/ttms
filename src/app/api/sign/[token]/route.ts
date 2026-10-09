@@ -5,6 +5,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { postOrderAlert, signedAlert } from '@/lib/chatAlerts';
 import { STATUS_RANK } from '@/types/order';
 import { describeDevice } from '@/types/saRequest';
+import { markSigned } from '@/lib/clientAgreements';
 import type { OrderStatus } from '@/types/order';
 
 type RouteContext = { params: Promise<{ token: string }> };
@@ -25,10 +26,29 @@ class SignError extends Error {
 export async function POST(req: NextRequest, { params }: RouteContext) {
   const { token } = await params;
 
-  const { signerName } = (await req.json()) as { signerName: string };
-  if (!signerName?.trim()) {
+  const body = (await req.json().catch(() => ({}))) as {
+    signerName?: unknown; signerTitle?: unknown; esignConsent?: unknown; acceptTerms?: unknown; version?: unknown;
+  };
+  // The version of the agreement the page showed. A link can be revised in
+  // place (src/lib/clientAgreements.ts), so the signature has to say which
+  // version it is for — and must not land on one the signer never saw.
+  const shownVersion = typeof body.version === 'number' ? body.version : null;
+  const signerName = typeof body.signerName === 'string' ? body.signerName : '';
+  if (!signerName.trim()) {
     return NextResponse.json({ error: 'Signer name is required' }, { status: 400 });
   }
+  // Optional, and capped for the same reason as the user agent: it is the
+  // signer's to write, and it lands on the order.
+  const signerTitle = typeof body.signerTitle === 'string' ? body.signerTitle.trim().slice(0, 120) : '';
+  /*
+   * The two boxes on the form, recorded as given. Strictly `true`: a missing
+   * key or a string "false" is not consent. Required below for a client
+   * agreement; a carrier's link records them when sent and is not refused
+   * without them, because carrier links already in inboxes were sent with a
+   * page that had one box.
+   */
+  const esignConsent = body.esignConsent === true;
+  const acceptTerms  = body.acceptTerms === true;
 
   const ip =
     req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
@@ -46,7 +66,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   // again if the token document is contended, and the signature should record
   // when the carrier submitted rather than which retry happened to win.
   const now    = Timestamp.now();
-  const signer = signerName.trim();
+  const signer = signerName.trim().slice(0, 120);
 
   const tokenRef = adminDb.collection('signing_tokens').doc(token);
 
@@ -87,6 +107,14 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
       const data = snap.data()!;
 
+      // Checked before "already signed": a signed link that has since been
+      // put on hold or cancelled must say that, not invite a second look.
+      if (data.revokedAt) {
+        throw new SignError('This link is no longer valid. Please contact your dispatcher for a new one.', 410);
+      }
+      if (data.heldAt) {
+        throw new SignError('This agreement is being updated. You will be sent the new version shortly, on this same link.', 409);
+      }
       if (data.usedAt) {
         throw new SignError('This document has already been signed', 409);
       }
@@ -98,6 +126,26 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       // is historical — it names the field it writes, not who receives it.
       const isClient = data.type === 'shipper_agreement';
 
+      // The page will not submit without both boxes ticked; this is the check
+      // that counts. A client signature recorded without either consent is
+      // one we could not stand behind. A page opened before this was deployed
+      // sends neither, and is told to reload rather than signing on the old one.
+      // A versioned link (every client link sent since revisions existed) must
+      // be signed against the version on screen. A revision sent while the
+      // page was open would otherwise take a signature for wording the client
+      // never read.
+      const linkVersion = typeof data.version === 'number' ? data.version : null;
+      if (linkVersion !== null && shownVersion !== linkVersion) {
+        throw new SignError('This agreement was updated after you opened it. Please reload the page and review the new version before signing.', 409);
+      }
+
+      if (isClient && (!esignConsent || !acceptTerms)) {
+        throw new SignError(
+          'Please tick both boxes — consent to sign electronically and acceptance of the terms. If you do not see them, reload the page.',
+          400,
+        );
+      }
+
       const orderRef = adminDb.collection('orders').doc(data.orderId);
       const orderSnap = await tx.get(orderRef);
 
@@ -108,6 +156,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
             shipperSignerIp:    ip,
             shipperSignerUserAgent: userAgent,
             shipperSignerDevice:    device,
+            shipperSignerTitle:     signerTitle,
+            shipperSignedVersion:   linkVersion,
             updatedAt:          FieldValue.serverTimestamp(),
           }
         : {
@@ -116,6 +166,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
             carrierSignerIp:   ip,
             carrierSignerUserAgent: userAgent,
             carrierSignerDevice:    device,
+            carrierSignerTitle:     signerTitle,
             updatedAt:         FieldValue.serverTimestamp(),
           };
 
@@ -146,7 +197,19 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         signerIp:   ip,
         signerUserAgent: userAgent,
         signerDevice:    device,
+        signerTitle,
+        // What they agreed to sits on this same document as `termsText` (for
+        // a client link) — the copy they were shown, not today's setting.
+        esignConsent,
+        termsAccepted: acceptTerms,
+        signedVersion: linkVersion,
       });
+      // The order's link pointer learns this version is signed, in the same
+      // transaction, so an edit a second later knows to ask for a re-sign.
+      if (isClient && linkVersion !== null) {
+        const mark = markSigned(data.orderId, linkVersion, now);
+        tx.set(mark.ref, mark.data, { merge: true });
+      }
       tx.update(orderRef, orderUpdate);
 
       // The order's change history, in the same transaction so it can never
@@ -159,8 +222,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         writeChange(tx, orderRef, {
           action:  'event',
           summary: isClient
-            ? `${signer} signed the load confirmation for the client`
-            : `${signer} signed the rate confirmation for the carrier`,
+            ? `${signer}${signerTitle ? ` (${signerTitle})` : ''} signed the load confirmation for the client`
+            : `${signer}${signerTitle ? ` (${signerTitle})` : ''} signed the rate confirmation for the carrier`,
           fields:  diffFields(orderSnap.data()!, orderUpdate),
         }, {
           uid:   '',

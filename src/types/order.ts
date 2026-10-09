@@ -861,6 +861,8 @@ export interface Order {
    */
   carrierSignerUserAgent?: string | null;
   carrierSignerDevice?: string | null;
+  /** The job title the signer gave, if any. Absent on signatures before it was asked. */
+  carrierSignerTitle?: string;
   /**
    * When the client signed the load confirmation, and who.
    *
@@ -877,6 +879,14 @@ export interface Order {
    */
   shipperSignerUserAgent?: string | null;
   shipperSignerDevice?: string | null;
+  /** The job title the signer gave, if any. Absent on signatures before it was asked. */
+  shipperSignerTitle?: string;
+  /**
+   * Which version of the client's signing link was signed. The link is
+   * revised in place when the order changes (src/lib/clientAgreements.ts);
+   * earlier versions and their signatures are kept on the link's history.
+   */
+  shipperSignedVersion?: number | null;
   /**
    * Set when somebody dispatched this load without waiting for the client to
    * sign — see the `orders.waiveSignature` permission.

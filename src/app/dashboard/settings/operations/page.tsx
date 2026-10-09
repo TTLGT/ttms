@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/context/AuthContext';
+import AgreementTermsPanel from '@/components/settings/AgreementTermsPanel';
 import CelebrationsPanel from '@/components/settings/CelebrationsPanel';
 import DateFormatPanel from '@/components/settings/DateFormatPanel';
 import LaneDistancePanel from '@/components/settings/LaneDistancePanel';
@@ -23,7 +24,8 @@ import QuoteRatesPanel from '@/components/settings/QuoteRatesPanel';
  * `settings.manage`, but four panels have a narrower permission of their own:
  * Celebrations and Online Status (`celebrations.manage` / `presence.manage`,
  * HR), Lead Sources
- * (`leadSources.manage`, dispatch), and Lane Distance and Payment Terms
+ * (`leadSources.manage`, dispatch), Agreement Terms (`agreementTerms.manage`,
+ * dispatch), and Lane Distance and Payment Terms
  * (`laneDistance.manage` / `paymentTerms.manage`, finance), and Quote Rates
  * (`quoteRates.manage`, granted one person at a time). The layout lets
  * each of them through the door; this decides what is in the room. Drawing
@@ -42,9 +44,10 @@ export default function SettingsOperationsPage() {
   const leadSources  = settings || can('leadSources.manage');
   const presence     = settings || can('presence.manage');
   const quoteRates   = settings || can('quoteRates.manage');
+  const terms        = settings || can('agreementTerms.manage');
 
   const left  = laneDistance || settings || paymentTerms || quoteRates;
-  const right = leadSources || celebrations || presence;
+  const right = leadSources || terms || celebrations || presence;
 
   // One column when only one side has anything in it. Two columns with a
   // single card in the left of them is a card floating beside an empty
@@ -83,6 +86,11 @@ export default function SettingsOperationsPage() {
           {leadSources && (
             <div id="lead-sources" className="scroll-mt-44">
               <LeadSourcesPanel />
+            </div>
+          )}
+          {terms && (
+            <div id="agreement-terms" className="scroll-mt-44">
+              <AgreementTermsPanel />
             </div>
           )}
           {celebrations && (

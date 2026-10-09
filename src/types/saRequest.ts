@@ -69,6 +69,14 @@ export interface SaRequest {
   returnedAt: number | null;
   returnedByName: string | null;
   returnReason: string | null;
+  /**
+   * Why the round was opened. `requested` is a broker pressing Request SA;
+   * `changed` is TTMS reopening it because the order changed after the SA was
+   * sent, which holds the client's link until it is sent again — see
+   * src/lib/clientAgreements.ts. The person named as requester is whoever
+   * made the change, and the note is TTMS's own wording, not theirs.
+   */
+  reason: 'requested' | 'changed';
 }
 
 /**

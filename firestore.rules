@@ -1310,6 +1310,10 @@ service cloud.firestore {
     // SA requests. Read and written only through /api/orders/{id}/sa-request
     // and /api/sa-requests — see src/types/saRequest.ts.
     match /saRequests/{id}              { allow read, write: if false; }
+    // The client's signing link per order — which link, which version, held
+    // or not. Read and written only by the SA routes and the order save; see
+    // src/lib/clientAgreements.ts. Identical to the default deny.
+    match /clientAgreements/{id}        { allow read, write: if false; }
     match /attendanceAlerts/{id}        { allow read, write: if false; }
     match /attendanceCorrections/{id}   { allow read, write: if false; }
     match /timeOffRequests/{id}         { allow read, write: if false; }

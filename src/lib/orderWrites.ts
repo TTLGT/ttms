@@ -31,6 +31,7 @@ import { can, canEditSource, canSeeOrder } from './accessControl';
 import { allocateOrderNumber } from './orderNumber';
 import { actorOf, diffFields, sameValue, writeChange } from './recordHistory';
 import type { Caller } from './partyAccess';
+import { planAgreementHold } from './clientAgreements';
 import { cleanStops, orderSearchTerms, stopPartyIdsOf } from '@/types/order';
 
 const COL = 'orders';
@@ -47,7 +48,9 @@ const SOURCE_FIELDS = ['sourceId', 'sourceName'] as const;
 /** Written only by the signing route and /waive-signature. */
 const SIGNATURE_FIELDS = [
   'carrierSignedAt', 'carrierSignerName', 'carrierSignerIp', 'carrierSignerUserAgent', 'carrierSignerDevice',
+  'carrierSignerTitle',
   'shipperSignedAt', 'shipperSignerName', 'shipperSignerIp', 'shipperSignerUserAgent', 'shipperSignerDevice',
+  'shipperSignerTitle', 'shipperSignedVersion',
   'signatureWaivedAt', 'signatureWaivedByUid', 'signatureWaivedByName',
   'signatureWaivedReason', 'signatureWaived',
 ] as const;
@@ -164,10 +167,20 @@ export async function updateOrderAsCaller(
     Object.assign(write, await clientOwnerMirror(patch.clientId));
   }
 
+  /*
+   * The client's signing link, if this save changed anything printed on it.
+   * Planned now and written in this same batch, so a change and the hold on
+   * the link land together — see src/lib/clientAgreements.ts. One read on
+   * every save; nothing at all for a load whose SA has never been sent.
+   */
+  const hold = fields.length ? await planAgreementHold(orderId, after, actorOf(caller), now) : null;
+
   const batch = adminDb.batch();
-  batch.update(ref, write);
   if (fields.length) writeChange(batch, ref, { action: 'updated', fields }, actorOf(caller), now);
+  hold?.apply(batch, write);
+  batch.update(ref, write);
   await batch.commit();
+  if (hold) await hold.afterCommit();
 }
 
 /**

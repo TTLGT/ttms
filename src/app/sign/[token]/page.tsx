@@ -1,18 +1,8 @@
 import { adminDb } from '@/lib/firebase-admin';
-import { formatLongDateRange } from '@/lib/dateFormat';
+import { longDate as fmt, signFormData } from '@/lib/signFormProps';
 import SignForm from './SignForm';
 
 type Props = { params: Promise<{ token: string }> };
-
-function fmt(ts: { toDate?: () => Date } | null | undefined) {
-  if (!ts?.toDate) return '—';
-  return ts.toDate().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-}
-
-function fmtCurrency(n: number) {
-  if (!n) return '—';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
-}
 
 function Shell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -52,6 +42,41 @@ export default async function SignPage({ params }: Props) {
 
   const data = snap.data()!;
 
+  // Before "already signed": a link that was signed and has since been put
+  // on hold or cancelled must say so, or the client is told a stale signature
+  // still stands. See src/lib/clientAgreements.ts.
+  if (data.revokedAt) {
+    return (
+      <Shell title={pageTitle}>
+        <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-10 text-center">
+          <p className="text-4xl mb-4">🔗</p>
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">Link No Longer Valid</h2>
+          <p className="text-sm text-gray-500">This agreement has been withdrawn. Please contact your dispatcher if you have questions.</p>
+          <p className="text-xs text-gray-400 mt-3">Order {data.orderNumber}</p>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (data.heldAt) {
+    return (
+      <Shell title={pageTitle}>
+        <div className="bg-white rounded-xl border border-amber-200 p-6 sm:p-10 text-center">
+          <p className="text-4xl mb-4">📝</p>
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">This Agreement Is Being Updated</h2>
+          <p className="text-sm text-gray-600">
+            Something about this load changed after we sent you the agreement. We are reviewing the change and will
+            email you the updated version shortly.
+          </p>
+          <p className="text-sm text-gray-600 mt-2">
+            This same link and QR code will show it, so there is no need to look for a new one.
+          </p>
+          <p className="text-xs text-gray-400 mt-3">Order {data.orderNumber}</p>
+        </div>
+      </Shell>
+    );
+  }
+
   if (data.usedAt) {
     const signedDate = data.usedAt.toDate().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' });
     return (
@@ -80,37 +105,9 @@ export default async function SignPage({ params }: Props) {
     );
   }
 
-  /*
-   * Who the document names.
-   *
-   * `shipperName` is the fallback: links emailed before the load confirmation
-   * was readdressed to the client stored the name under that key, and they
-   * stay live for seven days. Without it, a carrier or client part-way through
-   * signing would see a blank party name on a legal document.
-   */
-  const partyName = data.type === 'shipper_agreement'
-    ? (data.clientName || data.shipperName || '')
-    : (data.carrierName || '');
-
   return (
     <Shell title={pageTitle}>
-      <SignForm
-        token={token}
-        type={data.type === 'shipper_agreement' ? 'shipper_agreement' : 'carrier_agreement'}
-        orderNumber={data.orderNumber}
-        partyName={partyName}
-        driverName={data.driverName || ''}
-        commodity={data.commodity}
-        weight={data.weight ? `${Number(data.weight).toLocaleString()} lbs` : '—'}
-        pieces={data.pieces ? String(data.pieces) : '—'}
-        dimensions={data.dimensions || ''}
-        originStr={data.originStr}
-        destinationStr={data.destinationStr}
-        pickupDate={formatLongDateRange(data.pickupDate, data.pickupDateEnd)}
-        deliveryDate={formatLongDateRange(data.deliveryDate, data.deliveryDateEnd)}
-        rate={fmtCurrency(data.type === 'shipper_agreement' ? data.agreedRate : data.carrierPay)}
-        notes={data.notes || ''}
-      />
+      <SignForm token={token} {...signFormData(data)} />
     </Shell>
   );
 }

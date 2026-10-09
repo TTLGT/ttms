@@ -61,6 +61,7 @@ import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload
 import OrderFiles from '@/components/orders/OrderFiles';
 import OrderReadinessCard from '@/components/orders/OrderReadinessCard';
 import { RequestSaButton, SaRequestPanel } from '@/components/orders/SaRequestPanel';
+import ClientSignLink from '@/components/orders/ClientSignLink';
 import { useAuth } from '@/context/AuthContext';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
@@ -193,6 +194,10 @@ export default function OrderDetailPage() {
   const { user, can } = useAuth();
   // Bumped after an SA request is made, so its panel reads the new one.
   const [saRefresh, setSaRefresh] = useState(0);
+  // Bumped by every SA send, from either button, so the signing-link box
+  // shows the link's new state — a resend to the same address changes nothing
+  // else the box could key on.
+  const [linkRefresh, setLinkRefresh] = useState(0);
 
   const [refreshingMiles, setRefreshingMiles] = useState(false);
   const [milesNote, setMilesNote]             = useState('');
@@ -706,6 +711,10 @@ export default function OrderDetailPage() {
       setError(e instanceof Error ? e.message : 'Failed to send shipper agreement');
     } finally {
       setSendingShipperAgreement(false);
+      // Also after a refusal: "the order changed" puts the link on hold and
+      // opens a review, and the box should say so straight away.
+      setLinkRefresh((n) => n + 1);
+      setSaRefresh((n) => n + 1);
     }
   }
 
@@ -1067,6 +1076,7 @@ export default function OrderDetailPage() {
         orderId={orderId}
         refreshKey={`${saRefresh}-${order.status}`}
         onStatusChange={(status) => setOrder((prev) => (prev ? { ...prev, status } : prev))}
+        onSent={() => setLinkRefresh((n) => n + 1)}
       />
 
       {(order.status === 'quote' || order.status === 'booked') && (
@@ -1339,6 +1349,12 @@ export default function OrderDetailPage() {
                 >
                   {sendingShipperAgreement ? 'Sending…' : '✉ Send for Client Signature'}
                 </button>
+              )}
+
+              {/* The live link, for sending another way. Its own fetch, and
+                  only while unsigned: a signed link cannot be used again. */}
+              {!(order.shipperSignedAt || order.shipperSignerName) && (
+                <ClientSignLink orderId={orderId} refreshKey={linkRefresh} />
               )}
 
               {/* The waiver, once it has been used. Kept on the record and on
