@@ -63,6 +63,7 @@ import OrderFiles from '@/components/orders/OrderFiles';
 import OrderReadinessCard from '@/components/orders/OrderReadinessCard';
 import { RequestSaButton, SaRequestPanel } from '@/components/orders/SaRequestPanel';
 import SaVerificationRecord from '@/components/orders/SaVerificationRecord';
+import SaAgreementVersions from '@/components/orders/SaAgreementVersions';
 import ClientSignLink from '@/components/orders/ClientSignLink';
 import { useAuth } from '@/context/AuthContext';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
@@ -1378,6 +1379,9 @@ export default function OrderDetailPage() {
               {!(order.shipperSignedAt || order.shipperSignerName) && (
                 <ClientSignLink orderId={orderId} refreshKey={linkRefresh} />
               )}
+
+              {/* The signed SA as a PDF, and every version the load has had. */}
+              <SaAgreementVersions orderId={orderId} signed={Boolean(order.shipperSignedAt)} refreshKey={linkRefresh} />
 
               {/* The waiver, once it has been used. Kept on the record and on
                   the screen even after the client signs late: it explains why

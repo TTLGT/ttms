@@ -721,6 +721,20 @@ saRequests/{orderId}/rounds/{roundId}     // the verification record, kept for g
   queries only (`status in`, `doneAt >=`, `requestedByUid ==`) — no composite
   index. Closed to the client SDK.
 
+### The signed SA as a PDF, and every version of it
+
+Nothing new is stored. Each client link (`signing_tokens/{token}`) and each
+version it replaced (`signing_tokens/{token}/versions/{n}`) already hold the
+full copy the client was shown and, if signed, the signature. The PDF is drawn
+from that copy on request by `src/lib/signed-agreement-pdf.tsx` through
+`signFormData()` — the same mapping the signing page uses — so it can never
+show what the order says today instead of what was signed.
+
+- `GET /api/orders/{id}/agreements` lists every version on the load (both
+  links if the client changed), for anyone who can see the load.
+- `GET /api/orders/{id}/agreements/pdf?ref={token}~{n}` renders one; with no
+  `ref`, the newest signed one. A ref from another load opens nothing.
+
 ### Signer device on an e-signature
 
 `POST /api/sign/[token]` now records, beside name, IP and time, the signer's

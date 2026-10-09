@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "14032392c97c0d51ce567919b3ec6f4d7de4c7e4",
+      "date": "2026-10-09T13:37:00-06:00",
+      "author": "erwindank",
+      "subject": "Keep every SA review round as a verification record, with who ticked what and the facts when it was sent, opened from Client Confirmation",
+      "body": ""
+    },
+    {
       "hash": "341f440281a690cd999c6c27a5662f4d0a1f94ad",
       "date": "2026-10-09T13:29:56-06:00",
       "author": "erwindank",
