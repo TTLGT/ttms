@@ -62,7 +62,11 @@ const SIGNATURE_FIELDS = [
  * The rules let the browser write these; there was never a reason to, and an
  * approval record a broker could write for themselves proves nothing.
  */
-const SERVER_KEPT_FIELDS = ['partyApprovals', 'coverPhotoId', 'photoCount', 'fileCount', 'createdBy', 'orderNumber'] as const;
+const SERVER_KEPT_FIELDS = [
+  'partyApprovals', 'coverPhotoId', 'photoCount', 'fileCount', 'createdBy', 'orderNumber',
+  // The client-acceptance email for a signed SA uploaded by hand — /signed-sa-confirmation.
+  'paperSaConfirmedAt', 'paperSaConfirmedTo', 'paperSaConfirmedByName',
+] as const;
 
 /** Bookkeeping the server sets itself; dropped from a patch rather than refused. */
 const IGNORED_FIELDS = ['id', 'createdAt', 'updatedAt', 'searchTerms', 'coverThumbUrl', 'stopPartyIds'] as const;

@@ -8,7 +8,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   MAX_ORDER_FILE_BYTES,
   MAX_ORDER_FILE_NOTE,
-  ORDER_FILE_KINDS,
+  OTHER_FILE_KINDS,
   ORDER_FILE_KIND_LABEL,
   formatFileSize,
   type OrderFile,
@@ -100,6 +100,8 @@ export default function OrderFiles({ orderId, readOnly = false, onChange }: {
     }
   }
 
+  // A signed SA has its own slot (SignedSaUploads), not a line among receipts.
+  const others = files?.filter((f) => f.kind !== 'signed_sa') ?? null;
   const mayRemove = (f: OrderFile) => !readOnly && (f.uploadedByUid === user?.uid || can('orders.viewAll'));
 
   return (
@@ -118,7 +120,7 @@ export default function OrderFiles({ orderId, readOnly = false, onChange }: {
         <div className="space-y-2">
           <div className="grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-2">
             <select value={kind} onChange={(e) => setKind(e.target.value as OrderFileKind)} className={INPUT} aria-label="What kind of file">
-              {ORDER_FILE_KINDS.map((k) => <option key={k} value={k}>{ORDER_FILE_KIND_LABEL[k]}</option>)}
+              {OTHER_FILE_KINDS.map((k) => <option key={k} value={k}>{ORDER_FILE_KIND_LABEL[k]}</option>)}
             </select>
             <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={MAX_ORDER_FILE_NOTE}
               placeholder="Note (optional) — e.g. lumper at delivery, paid by driver" className={INPUT} />
@@ -156,11 +158,11 @@ export default function OrderFiles({ orderId, readOnly = false, onChange }: {
 
       {loadError && <p className="text-sm text-red-700">{loadError}</p>}
       {files === null && !loadError && <p className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="w-4 h-4 animate-spin" />Loading…</p>}
-      {files?.length === 0 && <p className="text-sm text-gray-500">No other files on this load yet.</p>}
+      {others?.length === 0 && <p className="text-sm text-gray-500">No other files on this load yet.</p>}
 
-      {files && files.length > 0 && (
+      {others && others.length > 0 && (
         <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
-          {files.map((f) => (
+          {others.map((f) => (
             <li key={f.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
               <FileText className="w-5 h-5 shrink-0 text-gray-400" />
               <div className="min-w-0 flex-1">
@@ -177,7 +179,7 @@ export default function OrderFiles({ orderId, readOnly = false, onChange }: {
               ) : (
                 <select value={f.kind} disabled={busy === f.id} onChange={(e) => void changeKind(f, e.target.value as OrderFileKind)}
                   className={`${INPUT} text-xs py-1`} aria-label="What kind of file">
-                  {ORDER_FILE_KINDS.map((k) => <option key={k} value={k}>{ORDER_FILE_KIND_LABEL[k]}</option>)}
+                  {OTHER_FILE_KINDS.map((k) => <option key={k} value={k}>{ORDER_FILE_KIND_LABEL[k]}</option>)}
                 </select>
               )}
               {mayRemove(f) && (

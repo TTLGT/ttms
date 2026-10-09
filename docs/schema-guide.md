@@ -657,6 +657,17 @@ through the same route; removing is the uploader or `orders.viewAll`. The
 collection is closed to the client SDK. `orders.fileCount` counts them.
 Adding and removing write the order's change log.
 
+**The Signed SA slot.** `kind: "signed_sa"` is the client's agreement signed
+some other way than the link — a scan, a PDF or a photo, PDFs and pictures
+only (checked on registration). It is kept out of "Other files" and shown in
+its own slot, in Client Confirmation and as **Signed SA** on the Documents tab
+(`SignedSaUploads.tsx`); the upload disappears once the client e-signs.
+`POST /api/orders/{id}/signed-sa-confirmation` (`orders.sendAgreement`) emails
+the client that their acceptance is registered with those files attached, to
+the SA's contact and CC list, and records it on the order as
+`paperSaConfirmedAt` / `paperSaConfirmedTo` / `paperSaConfirmedByName`
+(server-kept fields) and in the change log.
+
 **A signed SA by hand.** Moving a load to Client Signed without an
 e-signature needs at least one `orderFiles` of kind `signed_sa` or
 `loadPhotos` of stage `signed_sa` on it (`signedSaProof()` in

@@ -65,6 +65,7 @@ import { RequestSaButton, SaRequestPanel } from '@/components/orders/SaRequestPa
 import SaVerificationRecord from '@/components/orders/SaVerificationRecord';
 import SaAgreementVersions from '@/components/orders/SaAgreementVersions';
 import { fetchSignedSaProof } from '@/lib/orderPaperwork';
+import SignedSaUploads from '@/components/orders/SignedSaUploads';
 import ClientSignLink from '@/components/orders/ClientSignLink';
 import { useAuth } from '@/context/AuthContext';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
@@ -1073,7 +1074,7 @@ export default function OrderDetailPage() {
             return (
               <button onClick={handleAdvance} disabled={advancing || needsCopy}
                 title={needsCopy
-                  ? 'Upload the client’s signed SA first: Documents → Other files as “Signed SA (client)”, or Pictures as “Signed SA”. It moves on its own when the client e-signs.'
+                  ? 'Upload the client’s signed SA first, in Client Confirmation or under Documents → Signed SA. It moves on its own when the client e-signs.'
                   : undefined}
                 className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                 {advancing ? 'Updating…' : `→ ${STATUS_LABEL[nextStatus]}`}
@@ -1408,20 +1409,21 @@ export default function OrderDetailPage() {
                 <ClientSignLink orderId={orderId} refreshKey={linkRefresh} />
               )}
 
-              {/* What "→ Client Signed" by hand is waiting for, said where
-                  somebody looking at the signature will read it. */}
-              {handSignable && signedSaCopies === 0 && (
-                <p className="mt-3 text-xs text-gray-600">
-                  Client signed on paper or by email? Upload the signed SA under <strong>Documents → Other files</strong> as
-                  &ldquo;Signed SA (client)&rdquo;, or under <strong>Pictures</strong> as &ldquo;Signed SA&rdquo;. Then the load can be
-                  marked Client Signed.
-                </p>
-              )}
-              {handSignable && !!signedSaCopies && (
-                <p className="mt-3 text-xs text-green-700">
-                  Signed SA uploaded ({signedSaCopies}). The load can be marked Client Signed from the button at the top.
-                </p>
-              )}
+              {/* A client who cannot sign on the link: staff upload what they
+                  signed, mark the load Client Signed on it, and email the
+                  client that it is registered. Gone once they e-sign. */}
+              <div className="mt-3">
+                <SignedSaUploads
+                  orderId={orderId}
+                  eSigned={Boolean(order.shipperSignedAt)}
+                  confirmation={order.paperSaConfirmedAt && order.paperSaConfirmedTo
+                    ? { at: order.paperSaConfirmedAt, to: order.paperSaConfirmedTo, byName: order.paperSaConfirmedByName ?? '' }
+                    : null}
+                  canMarkSigned={handSignable && STATUS_NEXT[order.status] === 'shipper_signed'}
+                  onMarkSigned={() => void handleAdvance()}
+                  onChange={() => setFilesVersion((n) => n + 1)}
+                />
+              </div>
 
               {/* The signed SA as a PDF, and every version the load has had. */}
               <SaAgreementVersions orderId={orderId} signed={Boolean(order.shipperSignedAt)} refreshKey={linkRefresh} />
@@ -1859,6 +1861,33 @@ export default function OrderDetailPage() {
             </tbody>
           </table>
         </div>
+        {/* The client's signed SA: the e-signed PDF when they signed on the
+            link, otherwise the copy staff uploaded. Its own section — the
+            same slot as in Client Confirmation — not one of the other files. */}
+        <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Signed SA</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              {order.shipperSignedAt
+                ? <>Signed electronically by <strong>{order.shipperSignerName || 'the client'}</strong>
+                    {order.shipperSignedAt && <> on {formatDate(order.shipperSignedAt as { toDate: () => Date })}</>}.</>
+                : 'The client’s signed Shipper Agreement. When they sign on the link it appears here by itself; if they sign on paper or by email, upload it here.'}
+            </p>
+          </div>
+          {order.shipperSignedAt && (
+            <SaAgreementVersions orderId={orderId} signed refreshKey={linkRefresh} />
+          )}
+          <SignedSaUploads
+            orderId={orderId}
+            eSigned={Boolean(order.shipperSignedAt)}
+            confirmation={order.paperSaConfirmedAt && order.paperSaConfirmedTo
+              ? { at: order.paperSaConfirmedAt, to: order.paperSaConfirmedTo, byName: order.paperSaConfirmedByName ?? '' }
+              : null}
+            canMarkSigned={handSignable && STATUS_NEXT[order.status] === 'shipper_signed'}
+            onMarkSigned={() => void handleAdvance()}
+            onChange={() => setFilesVersion((n) => n + 1)}
+          />
+        </section>
         <OrderFiles orderId={orderId} onChange={() => setFilesVersion((n) => n + 1)} />
         </div>
       )}

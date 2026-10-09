@@ -914,6 +914,15 @@ export interface Order {
   signatureWaivedByName: string | null;
   signatureWaivedReason: string | null;
   /**
+   * The last email telling the client we registered their acceptance from a
+   * signed SA uploaded to the load (paper, scan, photo) rather than signed on
+   * the link. Written only by POST /api/orders/{id}/signed-sa-confirmation;
+   * every send is also on the change log. Absent until the first one.
+   */
+  paperSaConfirmedAt?: Timestamp | null;
+  paperSaConfirmedTo?: string | null;
+  paperSaConfirmedByName?: string | null;
+  /**
    * Mirror of `signatureWaivedAt != null`, and the only reason it exists is
    * that Firestore cannot ask "is this field null or absent" in one query.
    * The dashboard's unsigned-agreements count is an aggregation, so it needs a

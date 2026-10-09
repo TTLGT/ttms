@@ -43,7 +43,7 @@ export const ORDER_FILE_KIND_LABEL: Record<OrderFileKind, string> = {
    * load to Client Signed by hand; see `signedSaProof()` in
    * src/lib/signedSaProof.ts.
    */
-  signed_sa:         'Signed SA (client)',
+  signed_sa:         'Signed SA',
   rate_confirmation: 'Rate confirmation',
   receipt:           'Receipt (lumper, fuel, scale…)',
   customs:           'Customs',
@@ -52,6 +52,21 @@ export const ORDER_FILE_KIND_LABEL: Record<OrderFileKind, string> = {
   correspondence:    'Correspondence',
   other:             'Other',
 };
+
+/**
+ * What the "Other files" list offers and shows. `signed_sa` is filed through
+ * the same upload and the same records, but it has its own place — the Signed
+ * SA slot in Client Confirmation and on the Documents tab — so it is kept out
+ * of the general list rather than being one more kind among receipts.
+ */
+export const OTHER_FILE_KINDS = ORDER_FILE_KINDS.filter((k) => k !== 'signed_sa');
+
+/** A signed SA can be a scan or a phone photo: PDFs and pictures only. */
+export const SIGNED_SA_ACCEPT = 'application/pdf,image/*';
+
+export function isSignedSaUpload(contentType: string): boolean {
+  return contentType === 'application/pdf' || contentType.startsWith('image/');
+}
 
 export function isOrderFileKind(value: unknown): value is OrderFileKind {
   return typeof value === 'string' && (ORDER_FILE_KINDS as readonly string[]).includes(value);

@@ -13,6 +13,7 @@ import {
   ORDER_FILE_ID_RE,
   ORDER_FILE_KIND_LABEL,
   isOrderFileKind,
+  isSignedSaUpload,
   orderFilePath,
 } from '@/types/orderFile';
 
@@ -81,6 +82,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       // that pair of braces, and a refused file is not left behind.
       await file.delete({ ignoreNotFound: true }).catch(() => {});
       return NextResponse.json({ error: 'That file is too large' }, { status: 413 });
+    }
+
+    // A signed SA is a scan or a photo — it is emailed to the client as their
+    // copy, so a spreadsheet or a zip filed under that name is refused.
+    if (kind === 'signed_sa' && !isSignedSaUpload(String(meta.contentType ?? ''))) {
+      await file.delete({ ignoreNotFound: true }).catch(() => {});
+      return NextResponse.json({ error: 'A signed SA must be a PDF or a picture.' }, { status: 400 });
     }
 
     const ref = adminDb.collection(ORDER_FILES_COLLECTION).doc(fileId);

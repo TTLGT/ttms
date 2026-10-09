@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "677e221d8fc8c730e8367d67a0de987ffcf03a17",
+      "date": "2026-10-09T14:10:33-06:00",
+      "author": "erwindank",
+      "subject": "Only let a load be marked Client Signed by hand once the client's signed SA is uploaded as a document or picture",
+      "body": ""
+    },
+    {
       "hash": "740f5ada5f0459e0747b2dfefa5beebac4c32e06",
       "date": "2026-10-09T13:46:19-06:00",
       "author": "erwindank",

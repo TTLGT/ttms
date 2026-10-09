@@ -93,3 +93,14 @@ export async function fetchSignedSaProof(orderId: string): Promise<{ files: numb
   if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not check for a signed SA');
   return data as { files: number; photos: number };
 }
+
+/**
+ * Emails the client that their acceptance is registered, with the uploaded
+ * signed SA attached. See /api/orders/{id}/signed-sa-confirmation.
+ */
+export async function sendSignedSaConfirmation(orderId: string): Promise<{ sentTo: string; cc: string[]; at: number }> {
+  const res = await fetch(`/api/orders/${orderId}/signed-sa-confirmation`, { method: 'POST', headers: await authHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not send the confirmation');
+  return data as { sentTo: string; cc: string[]; at: number };
+}

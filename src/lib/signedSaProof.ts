@@ -27,5 +27,5 @@ export async function signedSaProof(orderId: string): Promise<{ files: number; p
 }
 
 export const NO_SIGNED_SA_PROOF =
-  'Upload the client’s signed SA first — under Documents → Other files as “Signed SA (client)”, '
-  + 'or under Pictures as “Signed SA”. Without it the load cannot be marked Client Signed by hand.';
+  'Upload the client’s signed SA first, in Client Confirmation or under Documents → Signed SA. '
+  + 'Without it the load cannot be marked Client Signed by hand.';
