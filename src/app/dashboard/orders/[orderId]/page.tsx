@@ -58,6 +58,7 @@ import { getParty } from '@/lib/parties';
 import type { Party } from '@/types/party';
 import PersonNameFields from '@/components/PersonNameFields';
 import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload';
+import OrderFiles from '@/components/orders/OrderFiles';
 import { useAuth } from '@/context/AuthContext';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
@@ -1619,6 +1620,7 @@ export default function OrderDetailPage() {
 
       {/* Documents tab */}
       {tab === 'documents' && (
+        <div className="space-y-6">
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
@@ -1727,6 +1729,8 @@ export default function OrderDetailPage() {
               </tr>
             </tbody>
           </table>
+        </div>
+        <OrderFiles orderId={orderId} />
         </div>
       )}
 

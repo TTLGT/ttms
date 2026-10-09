@@ -110,6 +110,21 @@ service firebase.storage {
     }
     match /avatars/{allPaths=**} { allow read, write: if isAllowedUser(); }
 
+    // An order's other files — receipts, permits, customs papers. Create-only:
+    // no read, no overwrite, no delete from the browser. A file is not one of
+    // the order's until POST /api/orders/{id}/files has checked canSeeOrder()
+    // and recorded it, and it is read only through the signed links that
+    // route hands back. Each file has a random id the browser made up, so
+    // `create` (never `update`) means nobody can replace somebody else's.
+    //
+    // 25 MB matches MAX_ORDER_FILE_BYTES in src/types/orderFile.ts. Interns are
+    // kept out for the reason they are kept out of licences: they cannot open
+    // a load, so they have no business filing paperwork on one.
+    match /order-files/{orderId}/{fileId} {
+      allow create: if isAllowedUser() && !isIntern()
+        && request.resource.size <= 25 * 1024 * 1024;
+    }
+
     // Load pictures (`load-photos/`) deliberately have no match here, so the
     // client SDK can neither read nor write them. They are uploaded and served
     // only through /api/orders/{id}/photos, which checks canSeeOrder() with the

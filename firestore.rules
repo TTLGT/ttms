@@ -1304,6 +1304,9 @@ service cloud.firestore {
     // See src/types/loadPhoto.ts. Identical to the default deny; written out so
     // nobody "fixes" the missing rule by opening it.
     match /loadPhotos/{id}              { allow read, write: if false; }
+    // An order's other files. Same reasoning as loadPhotos: read and written
+    // only through /api/orders/{id}/files. See src/types/orderFile.ts.
+    match /orderFiles/{id}              { allow read, write: if false; }
     match /attendanceAlerts/{id}        { allow read, write: if false; }
     match /attendanceCorrections/{id}   { allow read, write: if false; }
     match /timeOffRequests/{id}         { allow read, write: if false; }

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "e5157ce8b4703413f4f97da10802bf75cb310a7e",
+      "date": "2026-10-08T17:58:27-06:00",
+      "author": "erwindank",
+      "subject": "Add a quote calculator, on its own page and from Price and Terms on the order form, with an admin-editable rate card",
+      "body": "Distance from two ZIP codes or typed in miles, km or meters; freight in any\nunit with a fit check against every truck; price from the rate card at a\nlow-to-high point; driver pay, broker fee and margin, a uShip column, a\ncheck of driver pay against DAT's weekly national averages, and copy-out\ntext with or without costs. \"Apply to order\" fills Agreed Rate and Broker Fee.\n\nRates start from the old Google Sheet and live in appSettings/quoteRates,\nedited in Settings > Operations > Quote Rates under the new\nquoteRates.manage permission (admin only by default)."
+    },
+    {
       "hash": "8611b6e33a1a99ae88402a5f36aede84d475a96d",
       "date": "2026-10-08T17:31:21-06:00",
       "author": "erwindank",

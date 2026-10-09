@@ -625,6 +625,37 @@ single-field indexes (`orderId ==`, `createdAt desc`) — nothing to deploy.
 
 ---
 
+## Collection: `orderFiles`
+
+Any other file on a load — receipts, scale tickets, customs papers, permits,
+emails — any number, any type, up to 25 MB each. Shown under "Other files" on
+an order's Documents tab. See `src/types/orderFile.ts`.
+
+```
+orderFiles/{fileId}                 // fileId is random, made by the browser
+  orderId        : string
+  name           : string           // as it was on the uploader's computer
+  kind           : "rate_confirmation" | "receipt" | "customs" | "permit"
+                 | "insurance" | "correspondence" | "other"
+  note           : string
+  contentType    : string           // read off the stored object, not the request
+  size           : number           // bytes, likewise
+  uploadedByUid  : string
+  uploadedByName : string
+  createdAt      : Timestamp
+```
+
+The file is at `order-files/{orderId}/{fileId}`, worked out from the two ids
+and never stored. That prefix is **create-only** in `storage.rules` — the
+BOL/POD arrangement, used instead of the load-photo one because a Vercel
+function refuses a body over 4.5 MB. The browser uploads, then
+`POST /api/orders/{id}/files` checks `canSeeOrder()` and that the object is
+really in that order's folder before writing the record (`create()`, so one
+upload cannot be filed twice). Listing, signed links, edits and deletes go
+through the same route; removing is the uploader or `orders.viewAll`. The
+collection is closed to the client SDK. `orders.fileCount` counts them.
+Adding and removing write the order's change log.
+
 ## Collection: `agreements`
 
 Tracks the e-sign lifecycle for both Carrier and Shipper agreements.
