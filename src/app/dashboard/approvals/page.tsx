@@ -16,6 +16,7 @@ import { changeSummary, type ProfileUpdateRequest } from '@/types/profileUpdateR
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { useApprovals } from '@/context/ApprovalsContext';
+import SaRequestsSection from '@/components/orders/SaRequestsSection';
 
 type Box = 'incoming' | 'outgoing';
 
@@ -188,6 +189,11 @@ export default function ApprovalsPage() {
           written straight onto the person&rsquo;s record when you approve it.
         </p>
       </div>
+
+      {/* Its own block, above the access requests: a different kind of
+          approval, decided by different people, ending in a send rather than
+          a yes or no. See src/types/saRequest.ts. */}
+      <SaRequestsSection />
 
       <div className="flex gap-1 mb-5 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
         {([

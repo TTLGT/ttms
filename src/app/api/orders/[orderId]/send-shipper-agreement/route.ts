@@ -5,6 +5,8 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
 import { agreementSentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { actorForUid, recordEvent } from '@/lib/recordHistory';
+import { saRequestRef } from '@/lib/saRequestsServer';
+import { outstandingChecks } from '@/types/saRequest';
 import { signUrl } from '@/lib/appUrl';
 import { randomBytes } from 'crypto';
 import { dimensionsSummary, orderCommodityItems, orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@/types/order';
@@ -64,6 +66,27 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       : null);
   if (!contact) {
     return NextResponse.json({ error: 'Client has no email address on file' }, { status: 400 });
+  }
+
+  /*
+   * The review comes before the send when somebody asked for it.
+   *
+   * A load that went through "Request SA" has a review list dispatch works
+   * through; sending before it is finished is the one thing that list exists
+   * to stop, so it is refused here rather than only greyed out on screen. A
+   * load with no request — older orders, or one dispatch is handling directly
+   * — sends exactly as it always did.
+   */
+  const saRequest = await saRequestRef(orderId).get();
+  const saStatus = saRequest.exists ? saRequest.data()!.status : null;
+  if (saStatus === 'open') {
+    const left = outstandingChecks(saRequest.data()!.checks ?? {}, Boolean(order.carrierId || order.carrierName));
+    if (left.length > 0) {
+      return NextResponse.json(
+        { error: `Finish the review first: ${left.map((c) => c.label.toLowerCase()).join(', ')}.` },
+        { status: 409 },
+      );
+    }
   }
 
   const token     = randomBytes(32).toString('hex');
@@ -143,7 +166,24 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     await actorForUid(caller.uid, caller.email),
   ).catch(() => {});
 
-  await postOrderAlert(orderId, agreementSentAlert('client', contact.email)).catch(() => {});
+  const actor = await actorForUid(caller.uid, caller.email).catch(() => null);
+  if (saStatus === 'open') {
+    await saRequestRef(orderId).update({
+      status: 'sent',
+      sentAt: now,
+      sentByName: actor?.name ?? caller.email ?? 'Dispatch',
+      sentTo: contact.email,
+    }).catch(() => {});
+  }
+
+  // The signing link goes in the room as well as in the email, so whoever is
+  // on the phone with the client can open exactly what they were sent. It is
+  // the client's link: everybody in this room is staff who can already see
+  // the load, and a signature made from it records the device and address it
+  // came from, so it could not pass for the client's own.
+  await postOrderAlert(orderId,
+    `${agreementSentAlert('client', contact.email)}${actor ? ` Sent by ${actor.name}.` : ''} E-signature link: ${link}`,
+  ).catch(() => {});
 
   return NextResponse.json({ success: true, sentTo: contact.email });
 }

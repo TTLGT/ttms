@@ -46,8 +46,8 @@ const SOURCE_FIELDS = ['sourceId', 'sourceName'] as const;
 
 /** Written only by the signing route and /waive-signature. */
 const SIGNATURE_FIELDS = [
-  'carrierSignedAt', 'carrierSignerName', 'carrierSignerIp',
-  'shipperSignedAt', 'shipperSignerName', 'shipperSignerIp',
+  'carrierSignedAt', 'carrierSignerName', 'carrierSignerIp', 'carrierSignerUserAgent', 'carrierSignerDevice',
+  'shipperSignedAt', 'shipperSignerName', 'shipperSignerIp', 'shipperSignerUserAgent', 'shipperSignerDevice',
   'signatureWaivedAt', 'signatureWaivedByUid', 'signatureWaivedByName',
   'signatureWaivedReason', 'signatureWaived',
 ] as const;
@@ -58,7 +58,7 @@ const SIGNATURE_FIELDS = [
  * The rules let the browser write these; there was never a reason to, and an
  * approval record a broker could write for themselves proves nothing.
  */
-const SERVER_KEPT_FIELDS = ['partyApprovals', 'coverPhotoId', 'photoCount', 'createdBy', 'orderNumber'] as const;
+const SERVER_KEPT_FIELDS = ['partyApprovals', 'coverPhotoId', 'photoCount', 'fileCount', 'createdBy', 'orderNumber'] as const;
 
 /** Bookkeeping the server sets itself; dropped from a patch rather than refused. */
 const IGNORED_FIELDS = ['id', 'createdAt', 'updatedAt', 'searchTerms', 'coverThumbUrl', 'stopPartyIds'] as const;

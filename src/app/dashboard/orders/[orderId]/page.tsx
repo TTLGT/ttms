@@ -60,6 +60,7 @@ import PersonNameFields from '@/components/PersonNameFields';
 import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload';
 import OrderFiles from '@/components/orders/OrderFiles';
 import OrderReadinessCard from '@/components/orders/OrderReadinessCard';
+import { RequestSaButton, SaRequestPanel } from '@/components/orders/SaRequestPanel';
 import { useAuth } from '@/context/AuthContext';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
@@ -190,6 +191,8 @@ export default function OrderDetailPage() {
   const orderId  = params.orderId as string;
   const router   = useRouter();
   const { user, can } = useAuth();
+  // Bumped after an SA request is made, so its panel reads the new one.
+  const [saRefresh, setSaRefresh] = useState(0);
 
   const [refreshingMiles, setRefreshingMiles] = useState(false);
   const [milesNote, setMilesNote]             = useState('');
@@ -1006,7 +1009,16 @@ export default function OrderDetailPage() {
             className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
             Edit
           </Link>
-          {nextStatus && order.status !== 'cancelled' && (
+          {/* A quote's next step is a request to dispatch, not a status
+              change — see src/types/saRequest.ts. Every later rung keeps the
+              plain advance button. */}
+          {order.status === 'quote' && (
+            <RequestSaButton orderId={orderId} onRequested={() => {
+              setOrder({ ...order, status: 'booked' });
+              setSaRefresh((n) => n + 1);
+            }} />
+          )}
+          {nextStatus && order.status !== 'cancelled' && order.status !== 'quote' && (
             <button onClick={handleAdvance} disabled={advancing}
               className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
               {advancing ? 'Updating…' : `→ ${STATUS_LABEL[nextStatus]}`}
@@ -1051,6 +1063,12 @@ export default function OrderDetailPage() {
           come — a quote, or a load waiting on its SA. The quote PDF only while
           it is a quote: after that the client has the SA, and two documents
           with a price on them is one too many. */}
+      <SaRequestPanel
+        orderId={orderId}
+        refreshKey={`${saRefresh}-${order.status}`}
+        onStatusChange={(status) => setOrder((prev) => (prev ? { ...prev, status } : prev))}
+      />
+
       {(order.status === 'quote' || order.status === 'booked') && (
         <OrderReadinessCard
           orderId={orderId}
@@ -1294,6 +1312,9 @@ export default function OrderDetailPage() {
                     {order.shipperSignerIp && (
                       <span className="text-green-600 font-mono text-xs ml-1">({order.shipperSignerIp})</span>
                     )}
+                    {order.shipperSignerDevice && (
+                      <span className="text-green-600 text-xs ml-1">· {order.shipperSignerDevice}</span>
+                    )}
                   </span>
                 </div>
               ) : shipperAgreementSentTo ? (
@@ -1301,6 +1322,15 @@ export default function OrderDetailPage() {
                   <span>✉</span>
                   <span>Load confirmation sent to <strong>{shipperAgreementSentTo}</strong> — awaiting signature</span>
                 </div>
+              ) : !can('orders.sendAgreement') ? (
+                // Sending is admin and dispatch's, after their review. A
+                // button that only ever answers "not allowed" is worse than
+                // saying where it goes instead.
+                <p className="text-sm text-gray-600">
+                  {order.status === 'quote'
+                    ? 'Once the client accepts the quote, use Request SA and dispatch will send it.'
+                    : 'Dispatch sends this after reviewing the load. Its progress is shown above.'}
+                </p>
               ) : (
                 <button
                   onClick={handleSendShipperAgreement}

@@ -1132,6 +1132,28 @@ Rates under `quoteRates.manage` (admin only by default). See the Schema Guide.
 - The dialog is portalled to `<body>`: inside the order `<form>`, Enter in any
   calculator box would save the order.
 
+### Request SA — a quote's next step is a request to dispatch
+
+The button after a quote reads **Request SA**, not "→ Booked". It opens an
+`saRequests/{orderId}` (see the Schema Guide and `src/types/saRequest.ts`),
+moves the order to the stored status `booked`, and puts admin and dispatch
+into the load's discussion room with a line saying so. They work it from the
+order — `SaRequestPanel`: facts TTMS checks (fields via `orderReadiness()`,
+insurance date, FMCSA concerns, a carrier phone that differs from FMCSA's)
+beside `SA_REVIEW_CHECKS` a person ticks — then send the SA, then mark it done.
+Every reviewer sees every tick and who closed it; Approvals lists them.
+
+- **`orderReadiness()` is the one definition of "complete"** for the SA and
+  the BOL: the quote checklist, the quote PDF's "still need" list, the request
+  guard and the review all read it. Add a line to either PDF, add it there.
+- **The review gate is in the send route**, not only the button: an open
+  request with unticked items makes `send-shipper-agreement` answer 409.
+- **The signing link is posted in the load's room** on purpose (asked for);
+  a signature records IP and device, so a staff member signing from it would
+  not pass for the client.
+- The e-signature now also records the signer's device. Same rule as the
+  rest of that route: a legal audit trail — do not drop the fields.
+
 ### Learn English — underlines that never touch the page
 
 A per-browser switch at the foot of the sidebar (`LearnContext`) that underlines

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "c22a3ca9a9ff3f7a508807aac9028bfc8ea04fc5",
+      "date": "2026-10-08T18:08:05-06:00",
+      "author": "erwindank",
+      "subject": "Add a quote PDF and a paperwork checklist to orders in the quote phase",
+      "body": "While an order is a quote, the broker can download a client-facing quote\nPDF built from the order as it stands: lane, dates, freight, price, and a\n\"to confirm this load we still need\" list. Beside it, a checklist shows\nwhat the Shipper Agreement and the BOL still need, from one definition\n(src/types/orderReadiness.ts) that dispatch's SA review will share."
+    },
+    {
       "hash": "58d2ef1d2ec902c1751433e5c1987556f44b0073",
       "date": "2026-10-08T18:02:42-06:00",
       "author": "erwindank",

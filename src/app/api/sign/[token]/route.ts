@@ -4,6 +4,7 @@ import { diffFields, writeChange } from '@/lib/recordHistory';
 import { Timestamp } from 'firebase-admin/firestore';
 import { postOrderAlert, signedAlert } from '@/lib/chatAlerts';
 import { STATUS_RANK } from '@/types/order';
+import { describeDevice } from '@/types/saRequest';
 import type { OrderStatus } from '@/types/order';
 
 type RouteContext = { params: Promise<{ token: string }> };
@@ -33,6 +34,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
     req.headers.get('x-real-ip') ??
     'unknown';
+
+  // The device, beside the IP: part of the same legal record. The raw user
+  // agent is kept as evidence; the summary ("Chrome on Windows") is what the
+  // order screen and the room show. Capped, because the header is the
+  // signer's to write and a 50 KB one should not land on the order.
+  const userAgent = (req.headers.get('user-agent') ?? '').slice(0, 500);
+  const device    = describeDevice(userAgent);
 
   // Computed once, outside the transaction: Firestore may run the callback
   // again if the token document is contended, and the signature should record
@@ -98,12 +106,16 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
             shipperSignedAt:    now,
             shipperSignerName:  signer,
             shipperSignerIp:    ip,
+            shipperSignerUserAgent: userAgent,
+            shipperSignerDevice:    device,
             updatedAt:          FieldValue.serverTimestamp(),
           }
         : {
             carrierSignedAt:   now,
             carrierSignerName: signer,
             carrierSignerIp:   ip,
+            carrierSignerUserAgent: userAgent,
+            carrierSignerDevice:    device,
             updatedAt:         FieldValue.serverTimestamp(),
           };
 
@@ -132,6 +144,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         usedAt:     now,
         signerName: signer,
         signerIp:   ip,
+        signerUserAgent: userAgent,
+        signerDevice:    device,
       });
       tx.update(orderRef, orderUpdate);
 
@@ -181,7 +195,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
    * carrier is owed a success either way.
    */
   if (signed) {
-    await postOrderAlert(signed.orderId, signedAlert(signed.by, signer)).catch(() => {});
+    await postOrderAlert(signed.orderId, `${signedAlert(signed.by, signer)} Signed electronically on ${device}.`).catch(() => {});
   }
 
   return NextResponse.json({ success: true });

@@ -855,6 +855,13 @@ export interface Order {
   carrierSignerName: string | null;
   carrierSignerIp: string | null;
   /**
+   * The device the e-signature was made on: the raw user agent as evidence,
+   * and a readable summary ("Chrome on Windows"). Absent on signatures made
+   * before they were recorded. Written only by POST /api/sign/[token].
+   */
+  carrierSignerUserAgent?: string | null;
+  carrierSignerDevice?: string | null;
+  /**
    * When the client signed the load confirmation, and who.
    *
    * Named for the shipper for historical reasons only — the document is the
@@ -863,6 +870,13 @@ export interface Order {
   shipperSignedAt: Timestamp | null;
   shipperSignerName: string | null;
   shipperSignerIp: string | null;
+  /**
+   * The device the e-signature was made on: the raw user agent as evidence,
+   * and a readable summary ("Chrome on Windows"). Absent on signatures made
+   * before they were recorded. Written only by POST /api/sign/[token].
+   */
+  shipperSignerUserAgent?: string | null;
+  shipperSignerDevice?: string | null;
   /**
    * Set when somebody dispatched this load without waiting for the client to
    * sign — see the `orders.waiveSignature` permission.

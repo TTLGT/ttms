@@ -1307,6 +1307,9 @@ service cloud.firestore {
     // An order's other files. Same reasoning as loadPhotos: read and written
     // only through /api/orders/{id}/files. See src/types/orderFile.ts.
     match /orderFiles/{id}              { allow read, write: if false; }
+    // SA requests. Read and written only through /api/orders/{id}/sa-request
+    // and /api/sa-requests — see src/types/saRequest.ts.
+    match /saRequests/{id}              { allow read, write: if false; }
     match /attendanceAlerts/{id}        { allow read, write: if false; }
     match /attendanceCorrections/{id}   { allow read, write: if false; }
     match /timeOffRequests/{id}         { allow read, write: if false; }

@@ -656,6 +656,51 @@ through the same route; removing is the uploader or `orders.viewAll`. The
 collection is closed to the client SDK. `orders.fileCount` counts them.
 Adding and removing write the order's change log.
 
+## Collection: `saRequests` — "Request SA"
+
+A broker asking dispatch to send the Shipper Agreement (the client's load
+confirmation) once the client has accepted the quote. One document per order,
+id = the order's id, holding the current round. See `src/types/saRequest.ts`.
+
+```
+saRequests/{orderId}
+  orderId, orderNumber, clientName : string
+  status          : "open" | "sent" | "done" | "returned"
+  note            : string           // the broker's note for dispatch
+  requestedByUid, requestedByName : string
+  requestedAt     : Timestamp
+  checks          : { [key]: { byUid, byName, at } }   // dispatch's double check, SA_REVIEW_CHECKS
+  sentAt, sentByName, sentTo        // set by send-shipper-agreement
+  doneAt, doneByUid, doneByName     // who closed it — shown to every reviewer
+  returnedAt, returnedByName, returnReason
+```
+
+- **Asking** (`POST /api/orders/{id}/sa-request`, anyone who can see the load
+  and holds `orders.create`) is refused while anything the SA prints is
+  missing (`orderReadiness()`), moves the order `quote → booked` in the same
+  transaction, adds every `orders.sendAgreement` holder who sees all loads to
+  the order's discussion room (creating it if needed) and posts a line there —
+  which is what puts it in their chat inbox with a notification.
+- **Reviewing** (`PATCH`, `orders.sendAgreement`): ticks, "send back" (with a
+  reason; the order returns to `quote`), and "mark done", which needs the SA
+  sent and every applicable tick in place. Carrier ticks apply only once a
+  carrier is on the load.
+- **Sending** is still `POST /api/orders/{id}/send-shipper-agreement`, which
+  now refuses while an open request has unticked items, moves it to `sent`,
+  and posts the e-signature link in the room.
+- Listed for the Approvals screen by `GET /api/sa-requests` with single-field
+  queries only (`status in`, `doneAt >=`, `requestedByUid ==`) — no composite
+  index. Closed to the client SDK.
+
+### Signer device on an e-signature
+
+`POST /api/sign/[token]` now records, beside name, IP and time, the signer's
+user agent (capped at 500 characters) and a readable summary from
+`describeDevice()`: `signerUserAgent` / `signerDevice` on the token, and
+`shipperSignerUserAgent` / `shipperSignerDevice` or `carrierSigner…` on the
+order. Absent on signatures made before 2026-10-08. Server-written only
+(`SIGNATURE_FIELDS` in `orderWrites.ts`).
+
 ## Collection: `agreements`
 
 Tracks the e-sign lifecycle for both Carrier and Shipper agreements.
