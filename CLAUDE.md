@@ -405,6 +405,13 @@ already-used, or expired) and records the signer's name, IP, user agent and
 timestamp. **That is a legal audit trail — do not weaken those checks or drop
 those fields.**
 
+The second, beside it, is `GET /api/sign/[token]/pdf` — the client's own copy
+of what they signed, offered on the completion screen and on every later visit
+to the link. Same credential (the token), and narrower: it answers only for a
+**signed, uncancelled client** link, and only with the copy stored on the link.
+Do not let it answer for an unsigned or revoked link, and do not let it read
+the order.
+
 ### Security rules do not deploy themselves
 
 Editing `firestore.rules` / `storage.rules` and committing changes **nothing**.

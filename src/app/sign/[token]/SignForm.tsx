@@ -57,6 +57,20 @@ interface Props {
   preview?: boolean;
 }
 
+/**
+ * The client's signed copy, as a PDF, from GET /api/sign/[token]/pdf. A plain
+ * link: the client has no account, and the token in the URL is the whole
+ * credential, as it is for signing.
+ */
+export function SignedCopyLink({ token, label = 'Download your signed agreement (PDF)' }: { token: string; label?: string }) {
+  return (
+    <a href={`/api/sign/${token}/pdf`}
+      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">
+      {label}
+    </a>
+  );
+}
+
 const CARRIER_TERMS = `CARRIER AGREEMENT & RATE CONFIRMATION
 
 This Rate Confirmation ("Agreement") is entered into between Total Transport Logistics ("Broker") and the carrier identified above ("Carrier").
@@ -202,6 +216,14 @@ export default function SignForm({
         <p className="text-sm text-gray-600">
           {isClient ? 'Load confirmation' : 'Rate confirmation'} <strong>{orderNumber}</strong> is now complete.
         </p>
+        {isClient && token && (
+          <div className="mt-5">
+            <SignedCopyLink token={token} />
+            <p className="text-xs text-gray-500 mt-2">
+              You can come back to this link any time to download it again.
+            </p>
+          </div>
+        )}
         <p className="text-xs text-gray-400 mt-4">You may close this window.</p>
       </div>
     );

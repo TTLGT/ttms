@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "97906786bd3dc3c35d4e27fcb9fd2f9f56eb39fe",
+      "date": "2026-10-09T13:41:54-06:00",
+      "author": "erwindank",
+      "subject": "Download the signed SA as a PDF from Client Confirmation, and list every SA version on the load with its own PDF",
+      "body": ""
+    },
+    {
       "hash": "14032392c97c0d51ce567919b3ec6f4d7de4c7e4",
       "date": "2026-10-09T13:37:00-06:00",
       "author": "erwindank",

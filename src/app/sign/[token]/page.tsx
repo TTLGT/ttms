@@ -1,6 +1,6 @@
 import { adminDb } from '@/lib/firebase-admin';
 import { longDate as fmt, signFormData } from '@/lib/signFormProps';
-import SignForm from './SignForm';
+import SignForm, { SignedCopyLink } from './SignForm';
 
 type Props = { params: Promise<{ token: string }> };
 
@@ -71,6 +71,10 @@ export default async function SignPage({ params }: Props) {
           <p className="text-sm text-gray-600 mt-2">
             This same link and QR code will show it, so there is no need to look for a new one.
           </p>
+          {/* Signed before the change: the version they signed is still theirs. */}
+          {isClient && data.usedAt && (
+            <div className="mt-4"><SignedCopyLink token={token} label="Download the version you signed (PDF)" /></div>
+          )}
           <p className="text-xs text-gray-400 mt-3">Order {data.orderNumber}</p>
         </div>
       </Shell>
@@ -83,10 +87,16 @@ export default async function SignPage({ params }: Props) {
       <Shell title={pageTitle}>
         <div className="bg-white rounded-xl border border-green-200 p-6 sm:p-10 text-center">
           <p className="text-4xl mb-4">✅</p>
-          <h2 className="text-lg font-semibold text-gray-800 mb-2">Already Signed</h2>
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">{isClient ? 'Signed' : 'Already Signed'}</h2>
           <p className="text-sm text-gray-600">
             This confirmation was signed by <strong>{data.signerName}</strong> on {signedDate}.
           </p>
+          {/* Every time the client comes back to the link, their signed copy is here. */}
+          {isClient && (
+            <div className="mt-5">
+              <SignedCopyLink token={token} />
+            </div>
+          )}
           <p className="text-xs text-gray-400 mt-3">Order {data.orderNumber}</p>
         </div>
       </Shell>
