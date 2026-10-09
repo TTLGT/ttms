@@ -32,7 +32,7 @@ import { allocateOrderNumber } from './orderNumber';
 import { actorOf, diffFields, sameValue, writeChange } from './recordHistory';
 import type { Caller } from './partyAccess';
 import { planAgreementHold } from './clientAgreements';
-import { cleanStops, orderSearchTerms, stopPartyIdsOf } from '@/types/order';
+import { LEGACY_STATUSES, cleanStops, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
 
 const COL = 'orders';
 
@@ -139,6 +139,10 @@ export async function updateOrderAsCaller(
   }
   if (touched(before, patch, SOURCE_FIELDS).length && !canEditSource(before, caller.uid, caller.profile)) {
     throw new AdminAuthError('Only an owner of this order can change its lead source.', 403);
+  }
+  // A retired status is read but never written again — see LEGACY_STATUSES.
+  if (touched(before, patch, ['status']).length && LEGACY_STATUSES.includes(patch.status as OrderStatus)) {
+    throw new AdminAuthError(`"${String(patch.status)}" is no longer a status an order can be moved to.`, 400);
   }
 
   const now = Timestamp.now();

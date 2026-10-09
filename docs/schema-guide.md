@@ -523,8 +523,9 @@ at / Delivered to" column and lists what is loaded or unloaded at each stop.
 ```
 "quote"          — initial quote, not yet accepted
 "booked"         — client accepted the rate
-"carrier_assigned" — carrier matched
-"shipper_signed" — Load Confirmation e-signed by the CLIENT
+"carrier_assigned" — RETIRED 2026-10-09; read as "booked", never written
+"shipper_signed" — "Client Signed": Load Confirmation e-signed by the CLIENT,
+                   or marked by hand by staff (change log names who)
 "carrier_signed" — Carrier Agreement e-signed
 "in_transit"     — picked up, en route
 "delivered"      — delivered; awaiting BOL + invoice upload

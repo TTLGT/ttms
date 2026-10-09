@@ -19,7 +19,7 @@ const FILTER_TABS: { label: string; value: OrderStatus | 'all' }[] = [
   { label: 'All',            value: 'all' },
   { label: 'Quote',          value: 'quote' },
   { label: 'Booked',         value: 'booked' },
-  { label: 'Carrier Assigned', value: 'carrier_assigned' },
+  { label: 'Client Signed',  value: 'shipper_signed' },
   { label: 'In Transit',     value: 'in_transit' },
   { label: 'Delivered',      value: 'delivered' },
   { label: 'Completed',      value: 'completed' },

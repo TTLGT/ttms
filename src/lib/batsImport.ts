@@ -240,9 +240,12 @@ function mapOrderStatus(batsStatus: string): string {
     SearchingForCarriers:      'quote',
     Unposted:                  'quote',
     AwaitingCustomerSignature: 'booked',
-    AwaitingCarrierSignature:  'carrier_assigned',
-    AwaitingDispatch:          'carrier_assigned',
-    Dispatched:                'carrier_assigned',
+    // Carrier Assigned is no longer a step here (2026-10-09). BATS's three
+    // "a carrier is lined up" states say nothing about the client having
+    // signed, so they land on Booked, where the client's signature is next.
+    AwaitingCarrierSignature:  'booked',
+    AwaitingDispatch:          'booked',
+    Dispatched:                'booked',
     PickedUp:                  'in_transit',
     Delivered:                 'delivered',
     Cancelled:                 'cancelled',
@@ -321,7 +324,9 @@ const PRESERVE: Record<ImportCollection, string[]> = {
  * a load died, a re-import will not quietly revive it.
  */
 function reconcileStatus(prior: unknown, incoming: unknown): unknown {
-  const a = prior as OrderStatus | undefined;
+  // A stored Carrier Assigned is read as the Booked it now counts as, so a
+  // refresh moves it there rather than keeping a retired status alive.
+  const a = prior === 'carrier_assigned' ? 'booked' : prior as OrderStatus | undefined;
   const b = incoming as OrderStatus;
   if (!a) return b;
   if (a === 'cancelled' || b === 'cancelled') return 'cancelled';

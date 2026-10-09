@@ -20,6 +20,7 @@ import {
   STATUS_LABEL,
   STATUS_NEXT,
   clientSignatureSatisfied,
+  displayStatus,
   formatDimensions,
   hasVehicleDetails,
   vehicleSummary,
@@ -76,8 +77,11 @@ import { OrderCoverThumb } from '@/components/photos/PhotoBits';
 // so it can never collide with a real carrier.
 const NEW_CARRIER = '__new__';
 
+// No Carrier Assigned: a carrier is found whenever one is found, before or
+// after the client signs, so it is not a step in the load's order. See the
+// note on `carrier_assigned` in src/types/order.ts.
 const PIPELINE: OrderStatus[] = [
-  'quote', 'booked', 'carrier_assigned', 'shipper_signed',
+  'quote', 'booked', 'shipper_signed',
   'carrier_signed', 'in_transit', 'delivered', 'completed',
 ];
 
@@ -808,6 +812,19 @@ export default function OrderDetailPage() {
     if (!order) return;
     const next = STATUS_NEXT[order.status];
     if (!next) return;
+    /*
+     * Client Signed by hand is allowed — a client who signed on paper or by
+     * email — but it is not an e-signature, and says so before it happens.
+     * It records who pressed it, in the change log, and nothing else: the
+     * carrier agreement still asks clientSignatureSatisfied(), which reads
+     * the signature or a waiver and never the status.
+     */
+    if (next === 'shipper_signed' && !order.shipperSignedAt && !confirm(
+      'Mark this load as Client Signed?\n\n'
+      + 'The client has not signed electronically. Use this only if they signed some other way. '
+      + 'Your name goes on the change log. To send the carrier agreement you will still need the '
+      + 'client’s e-signature or a waiver.',
+    )) return;
     setAdvancing(true);
     try {
       await updateOrderStatus(orderId, next);
@@ -964,7 +981,7 @@ export default function OrderDetailPage() {
   );
 
   const nextStatus  = STATUS_NEXT[order.status];
-  const currentStep = PIPELINE.indexOf(order.status);
+  const currentStep = PIPELINE.indexOf(displayStatus(order.status));
   const milesAtNote = laneMilesAtNote(order.laneMilesSource, formatDateTime(order.laneMilesAt, ''));
 
 

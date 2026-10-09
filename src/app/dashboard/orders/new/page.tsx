@@ -237,9 +237,7 @@ function NewOrderForm() {
         deliveryDateEnd: deliveryDateEnd ? (new Date(deliveryDateEnd) as unknown as import('firebase/firestore').Timestamp) : null,
         // Booking the truck at the same time as the load is normal here, so
         // the carrier can be set now. The status still starts at quote: a
-        // carrier lined up is not the client agreeing to the rate, and
-        // advancing to carrier_assigned would skip booked and report the load
-        // as further along than it is.
+        // carrier lined up is not the client agreeing to the rate.
         carrierId:    carrier.id || null,
         carrierName:  carrier.name.trim(),
         // Only ever set from a driver record here — the free-text driver

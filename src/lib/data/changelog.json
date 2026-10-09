@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "5af09cf1ba4689ce5fca13028b73358d1dd29242",
+      "date": "2026-10-09T09:56:40-06:00",
+      "author": "erwindank",
+      "subject": "Let a task be picked as planning time, including one already done today or with no set time",
+      "body": "The \"Use one you have\" list now offers tasks with a day but no time, and a\none-off task already ticked done today, which already counted as covering\nthe slot. The Calendar's Planning time card gets its own \"Use one you have\"\nlink that opens the list directly."
+    },
+    {
       "hash": "4697018a239fe640b81c52786caa396964e06bad",
       "date": "2026-10-09T07:47:53-06:00",
       "author": "erwindank",

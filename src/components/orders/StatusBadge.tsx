@@ -1,5 +1,5 @@
 import type { OrderStatus } from '@/types/order';
-import { STATUS_LABEL } from '@/types/order';
+import { STATUS_LABEL, displayStatus } from '@/types/order';
 
 const STYLES: Record<OrderStatus, string> = {
   quote:            'bg-gray-100 text-gray-600',
@@ -13,7 +13,9 @@ const STYLES: Record<OrderStatus, string> = {
   cancelled:        'bg-red-100 text-red-600',
 };
 
-export default function StatusBadge({ status }: { status: OrderStatus }) {
+export default function StatusBadge({ status: stored }: { status: OrderStatus }) {
+  // A retired status is shown as the step it now counts as.
+  const status = displayStatus(stored);
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${STYLES[status]}`}>
       {STATUS_LABEL[status]}

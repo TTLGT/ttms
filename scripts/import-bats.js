@@ -259,9 +259,12 @@ function mapOrderStatus(batsStatus) {
     SearchingForCarriers:      'quote',
     Unposted:                  'quote',
     AwaitingCustomerSignature: 'booked',
-    AwaitingCarrierSignature:  'carrier_assigned',
-    AwaitingDispatch:          'carrier_assigned',
-    Dispatched:                'carrier_assigned',
+    // Carrier Assigned is no longer a step here (2026-10-09). BATS's three
+    // "a carrier is lined up" states say nothing about the client having
+    // signed, so they land on Booked, where the client's signature is next.
+    AwaitingCarrierSignature:  'booked',
+    AwaitingDispatch:          'booked',
+    Dispatched:                'booked',
     PickedUp:                  'in_transit',
     Delivered:                 'delivered',
     Cancelled:                 'cancelled',
@@ -492,7 +495,7 @@ const AUDIT_FIELDS = {
 const STATUS_RANK = {
   quote:            0,
   booked:           1,
-  carrier_assigned: 2,
+  carrier_assigned: 1,
   carrier_signed:   3,
   shipper_signed:   4,
   in_transit:       5,
@@ -512,7 +515,9 @@ const STATUS_RANK = {
  * died, a re-import will not quietly revive it.
  */
 function reconcileStatus(prior, incoming) {
-  const a = prior, b = incoming;
+  // A stored Carrier Assigned is read as the Booked it now counts as.
+  // Mirrors displayStatus() in src/types/order.ts.
+  const a = prior === 'carrier_assigned' ? 'booked' : prior, b = incoming;
   if (!a) return b;
   if (a === 'cancelled' || b === 'cancelled') return 'cancelled';
 

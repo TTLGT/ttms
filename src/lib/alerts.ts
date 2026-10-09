@@ -38,8 +38,11 @@ export function getAlerts(orders: Order[]): OrderAlert[] {
     const pickup   = hoursFromNow(o.pickupDate);
     const delivery = hoursFromNow(o.deliveryDate);
 
-    // No carrier assigned — warn at 48h, critical at 24h
-    if ((o.status === 'quote' || o.status === 'booked') && pickup !== null && pickup >= 0 && pickup <= 48) {
+    // No carrier assigned — warn at 48h, critical at 24h. Asked of the load,
+    // not read off the status: with Carrier Assigned retired, a booked load
+    // may well have its truck already.
+    if ((o.status === 'quote' || o.status === 'booked') && !o.carrierId && !o.carrierName
+      && pickup !== null && pickup >= 0 && pickup <= 48) {
       alerts.push({
         orderId: o.id, orderNumber: orderDisplayNumber(o), shipperName: o.shipperName,
         severity: pickup <= 24 ? 'critical' : 'warning',
@@ -48,8 +51,10 @@ export function getAlerts(orders: Order[]): OrderAlert[] {
       continue;
     }
 
-    // Carrier not signed — warn at 48h, critical at 24h
-    if (o.status === 'carrier_assigned' && pickup !== null && pickup >= 0 && pickup <= 48) {
+    // Carrier not signed — warn at 48h, critical at 24h. The client has
+    // signed (or a load was moved past Booked) and the carrier has not yet.
+    // `carrier_assigned` is the retired step, until the migration has run.
+    if ((o.status === 'shipper_signed' || o.status === 'carrier_assigned') && pickup !== null && pickup >= 0 && pickup <= 48) {
       alerts.push({
         orderId: o.id, orderNumber: orderDisplayNumber(o), shipperName: o.shipperName,
         severity: pickup <= 24 ? 'critical' : 'warning',

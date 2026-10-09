@@ -510,9 +510,15 @@ PDF are what was true on the day, and correcting a phone number must not
 rewrite paperwork that has already left the building. `scripts/backfill-drivers.js`
 seeds the collection from drivers already named on orders.
 
-`orders` follow `quote → booked → carrier_assigned → shipper_signed →
-carrier_signed → in_transit → delivered → completed`, with `cancelled` a
-terminal side-exit deliberately absent from `STATUS_RANK`. `parentOrderId` set
+`orders` follow `quote → booked → shipper_signed → carrier_signed →
+in_transit → delivered → completed`, with `cancelled` a terminal side-exit
+deliberately absent from `STATUS_RANK`. **`carrier_assigned` is retired**
+(2026-10-09): a carrier is found whenever one is found, so it was never a step.
+It stays in the type for old change-log entries, is read as `booked` through
+`displayStatus()`, and `updateOrderAsCaller()` refuses to write it
+(`LEGACY_STATUSES`). Booked → Client Signed may be pressed by hand for a client
+who signed some other way; that moves the status only — the carrier agreement
+still asks `clientSignatureSatisfied()`. `parentOrderId` set
 means a suborder — its own carrier, dates and BOL.
 
 **The client signs before the carrier does**, and `POST

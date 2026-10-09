@@ -1494,8 +1494,10 @@ owners; an unowned one is shared reference data; using someone else's requires
 an approval recorded on the order.
 
 **`orders`** is a freight load on the ladder
-`quote → booked → carrier_assigned → carrier_signed → shipper_signed →
+`quote → booked → shipper_signed (Client Signed) → carrier_signed →
 in_transit → delivered → completed`, with `cancelled` as a terminal side-exit.
+`carrier_assigned` was a step until 2026-10-09 and is no longer written;
+`scripts/migrate-carrier-assigned.js` moves old loads to `booked`.
 An order with `parentOrderId` set is a **suborder** — its own carrier, dates and
 BOL. **`carriers`** are trucking companies, insurance expiry driving a dashboard
 alert. **`agreements`** and **`signing_tokens`** run the e-sign lifecycle.

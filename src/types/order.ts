@@ -6,6 +6,14 @@ import type { ComplexTerms, OrderPaymentTerms } from './paymentMethod';
 export type OrderStatus =
   | 'quote'
   | 'booked'
+  /**
+   * Retired 2026-10-09: no longer a step. Assigning a carrier happens whenever
+   * a truck is found, not at any point in the load's order, so a status for
+   * it only ever said "a broker remembered to click". Kept in the type
+   * because change-log entries and BATS refreshes still carry the string;
+   * `scripts/migrate-carrier-assigned.js` moves live orders to `booked`.
+   * Nothing writes it any more — see LEGACY_STATUSES.
+   */
   | 'carrier_assigned'
   | 'carrier_signed'
   | 'shipper_signed'
@@ -954,6 +962,18 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
  */
 export const ORDER_STATUSES = Object.keys(STATUS_LABEL) as OrderStatus[];
 
+/**
+ * Statuses that may still be read but are never written again. Their labels
+ * stay so an old change-log entry still reads as what happened, and the
+ * screens fold them into the step they now count as (`displayStatus()`).
+ */
+export const LEGACY_STATUSES: readonly OrderStatus[] = ['carrier_assigned'];
+
+/** The step a status is drawn as — a retired one shows as where it now belongs. */
+export function displayStatus(status: OrderStatus): OrderStatus {
+  return status === 'carrier_assigned' ? 'booked' : status;
+}
+
 // ── Search ───────────────────────────────────────────────────────────────────
 
 /** Shortest fragment worth storing. One letter would match most of the book. */
@@ -1112,7 +1132,9 @@ export function orderSearchTerm(query: string): string {
 export const STATUS_RANK: Record<Exclude<OrderStatus, 'cancelled'>, number> = {
   quote:            0,
   booked:           1,
-  carrier_assigned: 2,
+  // Retired, and ranked with `booked` rather than above it: a carrier on the
+  // load is not the client having agreed to anything.
+  carrier_assigned: 1,
   // The client signs before the carrier does. A rate confirmation commits us to
   // paying a carrier, so it does not go out until the client has agreed to pay
   // us — see `clientSignatureSatisfied()` below for the one way past that.
@@ -1139,7 +1161,11 @@ export function clientSignatureSatisfied(
 
 export const STATUS_NEXT: Partial<Record<OrderStatus, OrderStatus>> = {
   quote:            'booked',
-  booked:           'carrier_assigned',
+  // The client's signature is the next thing that happens to a booked load,
+  // whether or not a carrier has been found yet. It normally arrives by
+  // itself, from the signing link; the button is for a client who signed some
+  // other way, and records who pressed it.
+  booked:           'shipper_signed',
   carrier_assigned: 'shipper_signed',
   shipper_signed:   'carrier_signed',
   carrier_signed:   'in_transit',
