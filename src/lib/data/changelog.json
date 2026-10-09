@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "58d2ef1d2ec902c1751433e5c1987556f44b0073",
+      "date": "2026-10-08T18:02:42-06:00",
+      "author": "erwindank",
+      "subject": "Let any other file be attached to an order, from its Documents tab",
+      "body": "Receipts, scale tickets, customs papers, permits, emails: any number of\nfiles of any type, up to 25 MB each, with a kind and a note. Uploaded into\na create-only order-files/ prefix, then checked and recorded by\nPOST /api/orders/{id}/files; read only through signed links after the\nsame canSeeOrder() check. Adding and removing write the change log.\n\nstorage.rules and firestore.rules change: not live until deployed."
+    },
+    {
       "hash": "e5157ce8b4703413f4f97da10802bf75cb310a7e",
       "date": "2026-10-08T17:58:27-06:00",
       "author": "erwindank",

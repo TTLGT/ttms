@@ -59,6 +59,7 @@ import type { Party } from '@/types/party';
 import PersonNameFields from '@/components/PersonNameFields';
 import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload';
 import OrderFiles from '@/components/orders/OrderFiles';
+import OrderReadinessCard from '@/components/orders/OrderReadinessCard';
 import { useAuth } from '@/context/AuthContext';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
@@ -1045,6 +1046,19 @@ export default function OrderDetailPage() {
       </div>
 
       {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600 mb-4">{error}</div>}
+
+      {/* What the paperwork still needs, while there is still paperwork to
+          come — a quote, or a load waiting on its SA. The quote PDF only while
+          it is a quote: after that the client has the SA, and two documents
+          with a price on them is one too many. */}
+      {(order.status === 'quote' || order.status === 'booked') && (
+        <OrderReadinessCard
+          orderId={orderId}
+          orderNumber={orderDisplayNumber(order)}
+          showQuotePdf={order.status === 'quote'}
+          refreshKey={order}
+        />
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 mb-4 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
