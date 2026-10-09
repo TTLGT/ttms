@@ -9,6 +9,7 @@ import {
   type AgreementSection,
 } from './loadConfirmationServer';
 import { orderDisplayNumber } from '@/types/order';
+import { cleanCcList } from '@/types/saRequest';
 
 /**
  * One signing link per order for the client's load confirmation, kept for the
@@ -66,6 +67,8 @@ export interface ClientAgreementPointer {
   signedVersion: number | null;
   sentAt: Timestamp | null;
   sentTo: string;
+  /** Who the last send was copied to. Absent on links sent before CCs existed. */
+  cc?: string[];
 }
 
 /** The order's signature fields, as the sign route writes them. Cleared together. */
@@ -178,6 +181,11 @@ export async function planAgreementHold(
         doneAt: null, doneByName: null,
         returnedAt: null, returnedByName: null, returnReason: null,
         reason: 'changed',
+        // The people copied last time are copied on the update, which is
+        // what they would expect — unless the load moved to another client,
+        // whose rate those people must never be sent.
+        ccEmails: clientChanged ? [] : cleanCcList(p.cc),
+        sentCc: [],
       });
     },
     async afterCommit() {

@@ -26,6 +26,9 @@
  * /api/orders/{id}/sa-request.
  */
 
+import { MIN_OPERATING_MONTHS, isNewCarrier, officeDay, type OperatingSince } from './fmcsa';
+import { hasVehicleDetails, type CommodityItem } from './order';
+
 export const SA_REQUESTS_COLLECTION = 'saRequests';
 
 /**
@@ -77,6 +80,41 @@ export interface SaRequest {
    * made the change, and the note is TTMS's own wording, not theirs.
    */
   reason: 'requested' | 'changed';
+  /**
+   * Extra addresses the SA email is copied to — the client's AP desk, a
+   * second contact — added by dispatch on the review. Copied, never sent to
+   * instead: the client contact stays the one asked to sign. Everybody on
+   * this list receives the client's rate, so it is set only by a reviewer and
+   * every send names who it was copied to. Carried into the next round
+   * unless the client changes.
+   */
+  ccEmails: string[];
+  /** Who the last send was copied to. */
+  sentCc: string[];
+}
+
+/** Most addresses one SA is copied to. Enough for a team; not a mailing list. */
+export const MAX_SA_CC = 5;
+
+const SA_CC_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function isCcEmail(value: string): boolean {
+  return value.length <= 254 && SA_CC_RE.test(value);
+}
+
+/**
+ * A CC list as it may be stored: trimmed, lower-cased, valid, de-duplicated,
+ * capped. Anything else in the input is dropped rather than refused, because
+ * this also cleans what is read back from a document.
+ */
+export function cleanCcList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const v of value) {
+    const e = typeof v === 'string' ? v.trim().toLowerCase() : '';
+    if (e && isCcEmail(e) && !out.includes(e)) out.push(e);
+  }
+  return out.slice(0, MAX_SA_CC);
 }
 
 /**
@@ -109,6 +147,8 @@ export const SA_REVIEW_CHECKS: SaReviewCheck[] = [
     detail: 'Every pickup and delivery, including appointment windows and any extra stops.' },
   { key: 'freight', label: 'Freight matches the truck',
     detail: 'Description, dimensions and weight fit the equipment, and nothing needs a permit nobody has arranged.' },
+  { key: 'accessorials', label: 'Accessorials arranged',
+    detail: 'Ramps, a winch, a liftgate, tarps, straps or chains, a pilot car — whatever this freight needs to load and unload is on the truck and priced in.' },
   { key: 'terms', label: 'Payment terms agreed',
     detail: 'How and when the client pays is set on the order and is what they agreed to.' },
   { key: 'carrierAuthority', label: 'Carrier authority active on FMCSA', carrier: true,
@@ -117,17 +157,88 @@ export const SA_REVIEW_CHECKS: SaReviewCheck[] = [
     detail: 'The certificate covers the pickup date and the cargo value.' },
   { key: 'carrierIdentity', label: 'Carrier contact matches FMCSA', carrier: true,
     detail: 'Call the number FMCSA lists, not the one in the email. This is how a double broker is caught.' },
+  { key: 'carrierAge', label: `Carrier operating for ${MIN_OPERATING_MONTHS} months or more`, carrier: true,
+    detail: 'From the date FMCSA granted its authority, shown on the left. If TTMS has no date, look the carrier up on SAFER.' },
   { key: 'driver', label: 'Driver name and phone confirmed', carrier: true,
     detail: 'With the carrier’s dispatcher, before the driver is named on any paperwork.' },
+  { key: 'driverLicense', label: 'Driver’s license on file', carrier: true,
+    detail: 'A copy uploaded on this load or on the driver’s record, in date, with the same name as the driver.' },
+  { key: 'truckPhotos', label: 'Pictures of the driver’s truck on file', carrier: true,
+    detail: 'In Pictures on this load, as “Truck”: truck and trailer, with the plate and the DOT number on the door readable.' },
 ];
+
+/**
+ * What TTMS can tell about the three items a file answers — the license, the
+ * truck pictures, the carrier's age — worked out on the server by
+ * `saGateFactsFor()`.
+ */
+export interface SaGateFacts {
+  licenseOnFile: boolean;
+  /** Epoch ms, or null when no expiry is recorded. */
+  licenseExpiration: number | null;
+  truckPhotos: number;
+  operatingSince: OperatingSince | null;
+}
+
+/**
+ * What the freight lines say the truck will need, beside the accessorials
+ * item. A prompt, never a verdict: the order has no field for accessorials,
+ * so this reads only what the lines already carry — whether a line is a
+ * vehicle, and whether it runs. Nothing here blocks the tick.
+ */
+export function accessorialHints(commodities: readonly CommodityItem[] | null | undefined): string[] {
+  const lines = commodities ?? [];
+  const count = (pred: (c: CommodityItem) => boolean) =>
+    lines.filter(pred).reduce((n, c) => n + Math.max(1, Number(c.quantity) || 1), 0);
+  const inoperable = count((c) => c.condition === 'inoperable');
+  const vehicles = count((c) => hasVehicleDetails(c) && c.condition !== 'inoperable');
+  const out: string[] = [];
+  if (inoperable) out.push(`${inoperable} inoperable vehicle${inoperable === 1 ? '' : 's'}: the truck needs a winch, and both ends a way to load it.`);
+  if (vehicles) out.push(`${vehicles} vehicle${vehicles === 1 ? '' : 's'} on board: ramps on the truck, or a dock at both ends.`);
+  return out;
+}
+
+/**
+ * Why a review item cannot be ticked yet, or null when it can.
+ *
+ * For these three a tick saying "yes" against a file that says "no" would be
+ * a tick nobody can trust, so the file decides and the tick only confirms a
+ * person looked. An unknown carrier age is not refused — that is for the
+ * reviewer to settle on SAFER — but a known one under six months is.
+ */
+export function checkBlockedBy(key: string, f: SaGateFacts | null | undefined, today: string = officeDay()): string | null {
+  if (!f) return null;
+  if (key === 'driverLicense') {
+    if (!f.licenseOnFile) return 'No driver’s license uploaded on this load or the driver’s record.';
+    if (f.licenseExpiration !== null && new Date(f.licenseExpiration).toISOString().slice(0, 10) < today) {
+      return 'The driver’s license on file has expired.';
+    }
+  }
+  if (key === 'truckPhotos' && f.truckPhotos === 0) {
+    return 'No pictures marked “Truck” on this load yet.';
+  }
+  if (key === 'carrierAge' && isNewCarrier(f.operatingSince, today)) {
+    return `This carrier has been operating less than ${MIN_OPERATING_MONTHS} months.`;
+  }
+  return null;
+}
 
 export function isReviewCheckKey(value: unknown): value is string {
   return typeof value === 'string' && SA_REVIEW_CHECKS.some((c) => c.key === value);
 }
 
-/** The ticks still needed, given whether a carrier is on the load yet. */
-export function outstandingChecks(checks: Record<string, unknown>, hasCarrier: boolean): SaReviewCheck[] {
-  return SA_REVIEW_CHECKS.filter((c) => (hasCarrier || !c.carrier) && !checks[c.key]);
+/**
+ * The items still needed, given whether a carrier is on the load yet. With
+ * `facts`, an item ticked earlier whose file has since gone — a license
+ * deleted, a picture removed — counts as outstanding again.
+ */
+export function outstandingChecks(
+  checks: Record<string, unknown>,
+  hasCarrier: boolean,
+  facts?: SaGateFacts | null,
+): SaReviewCheck[] {
+  return SA_REVIEW_CHECKS.filter((c) =>
+    (hasCarrier || !c.carrier) && (!checks[c.key] || checkBlockedBy(c.key, facts) !== null));
 }
 
 /** "Chrome on Windows", "Safari on iPhone" — the device line on a signature. */

@@ -11,6 +11,7 @@ export const STAGE_COLOR: Record<PhotoStage, string> = {
   delivery:   'bg-green-50 text-green-700 border-green-200',
   // Red because a damage photo is the one somebody will be looking for.
   damage:     'bg-red-50 text-red-700 border-red-200',
+  truck:      'bg-purple-50 text-purple-700 border-purple-200',
   other:      'bg-gray-100 text-gray-600 border-gray-200',
 };
 

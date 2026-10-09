@@ -148,6 +148,15 @@ export interface FmcsaRegistry {
   mailingAddress: string;
   /** YYYY-MM-DD of the last MCS-150 update, '' when unknown. */
   mcs150Date: string;
+  /**
+   * YYYY-MM-DD FMCSA first granted this DOT a for-hire **carrier** authority
+   * (an MC as a carrier, not as a broker), '' when no grant could be found.
+   * Optional: checks made before 2026-10-08 do not have it. Read it through
+   * `operatingSince()`, never on its own.
+   */
+  authorityGranted?: string;
+  /** YYYY-MM-DD the DOT number was registered (the census `add_date`). Optional, as above. */
+  dotAdded?: string;
   /** What the carrier says it hauls: "General Freight", "Refrigerated Food"… */
   cargoTypes: string[];
   /** Policies on file now, cancelled ones already removed. */
@@ -196,6 +205,44 @@ const MIN_INSPECTIONS_FOR_RATE = 5;
 const OOS_RATE_MARGIN = 1.25;
 
 const AUTHORITY_ACTIVE = 'A';
+
+/**
+ * How long a carrier must have been operating before we use it. A carrier a
+ * few weeks old has no record to look at, and new authorities — bought,
+ * borrowed or set up for one load — are where most freight fraud starts.
+ */
+export const MIN_OPERATING_MONTHS = 6;
+
+export interface OperatingSince {
+  /** YYYY-MM-DD. */
+  day: string;
+  /**
+   * `authority` when FMCSA's grant date was found; `dot` when only the date
+   * the DOT number was registered was. The DOT date can be years older than
+   * the authority — a private fleet that went for-hire last month — so it is
+   * the weaker answer, and the screen says which one it is showing.
+   */
+  source: 'authority' | 'dot';
+}
+
+/** Since when this carrier has been operating, as far as FMCSA says; null when unknown. */
+export function operatingSince(r: FmcsaRegistry | null | undefined): OperatingSince | null {
+  if (r?.authorityGranted) return { day: r.authorityGranted, source: 'authority' };
+  if (r?.dotAdded) return { day: r.dotAdded, source: 'dot' };
+  return null;
+}
+
+/** YYYY-MM-DD the carrier reaches `MIN_OPERATING_MONTHS`, from a YYYY-MM-DD start. */
+export function operatingThreshold(since: string): string {
+  const [y, m, d] = since.split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1 + MIN_OPERATING_MONTHS, d));
+  return t.toISOString().slice(0, 10);
+}
+
+/** True when it is known to be newer than `MIN_OPERATING_MONTHS`. Unknown is not "new". */
+export function isNewCarrier(since: OperatingSince | null, today: string = officeDay()): boolean {
+  return Boolean(since && operatingThreshold(since.day) > today);
+}
 
 /** FMCSA's rates come with a dozen decimals. One is plenty. */
 export function fmcsaRate(n: number): string {
@@ -280,6 +327,16 @@ export function fmcsaConcerns(
   }
 
   if (c.mcs150Outdated === 'Y') out.push({ level: 'warn', text: 'Registration (MCS-150) is out of date.' });
+
+  const since = operatingSince(c.registry);
+  if (isNewCarrier(since, today)) {
+    out.push({
+      level: 'warn',
+      text: since!.source === 'authority'
+        ? `Operating authority was granted on ${formatDay(since!.day)} — less than ${MIN_OPERATING_MONTHS} months ago.`
+        : `The DOT number was registered on ${formatDay(since!.day)} — less than ${MIN_OPERATING_MONTHS} months ago.`,
+    });
+  }
 
   const reg = c.registry;
   for (const p of reg?.pendingCancellations ?? []) {

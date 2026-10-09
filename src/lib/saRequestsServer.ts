@@ -2,7 +2,11 @@ import { adminDb, FieldValue } from './firebase-admin';
 import { openedAlert, postOrderAlert } from './chatAlerts';
 import { CONVERSATIONS_COLLECTION, recordConversationId } from '@/types/conversation';
 import { orderDisplayNumber } from '@/types/order';
-import { SA_REQUESTS_COLLECTION, type SaRequest, type SaRequestStatus } from '@/types/saRequest';
+import { LOAD_PHOTOS_COLLECTION } from '@/types/loadPhoto';
+import { operatingSince, type FmcsaRegistry } from '@/types/fmcsa';
+import {
+  SA_REQUESTS_COLLECTION, cleanCcList, type SaGateFacts, type SaRequest, type SaRequestStatus,
+} from '@/types/saRequest';
 
 /**
  * Server side of SA requests. See src/types/saRequest.ts.
@@ -40,11 +44,48 @@ export function toSaRequest(d: FirebaseFirestore.DocumentData): SaRequest {
     returnedByName:  d.returnedByName ?? null,
     returnReason:    d.returnReason ?? null,
     reason:          d.reason === 'changed' ? 'changed' : 'requested',
+    ccEmails:        cleanCcList(d.ccEmails),
+    sentCc:          cleanCcList(d.sentCc),
   };
 }
 
 export function saRequestRef(orderId: string) {
   return adminDb.collection(SA_REQUESTS_COLLECTION).doc(orderId);
+}
+
+/**
+ * The files behind three of the review items — see checkBlockedBy(). Read
+ * fresh on every look rather than stored on the request, so deleting a
+ * license or a picture after the tick reopens the item.
+ *
+ * The license is the load's own copy or, failing that, the driver record's:
+ * either is "on file", and the record's is the one that carries an expiry.
+ * The truck pictures are a count of this load's photos marked `truck`; two
+ * equality filters, which Firestore serves without a composite index.
+ * `carrier` is the carrier document when the caller has already read it.
+ */
+export async function saGateFactsFor(
+  orderId: string,
+  order: Record<string, unknown>,
+  carrier?: FirebaseFirestore.DocumentData | null,
+): Promise<SaGateFacts> {
+  const driverId = typeof order.driverId === 'string' ? order.driverId : '';
+  const carrierId = typeof order.carrierId === 'string' ? order.carrierId : '';
+  const [driverSnap, photos, carrierData] = await Promise.all([
+    driverId ? adminDb.collection('drivers').doc(driverId).get() : Promise.resolve(null),
+    adminDb.collection(LOAD_PHOTOS_COLLECTION)
+      .where('orderId', '==', orderId).where('stage', '==', 'truck').count().get(),
+    carrier !== undefined ? Promise.resolve(carrier)
+      : carrierId ? adminDb.collection('carriers').doc(carrierId).get().then((x) => x.data() ?? null)
+      : Promise.resolve(null),
+  ]);
+  const driver = driverSnap?.exists ? driverSnap.data()! : null;
+  return {
+    licenseOnFile: Boolean(order.driverLicenseStoragePath || driver?.licenseStoragePath),
+    licenseExpiration: driver?.licenseExpiration?.toMillis?.() ?? null,
+    truckPhotos: photos.data().count,
+    operatingSince: operatingSince(carrierData?.fmcsa?.registry as FmcsaRegistry | undefined),
+  };
 }
 
 /**

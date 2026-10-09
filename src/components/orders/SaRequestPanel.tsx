@@ -3,19 +3,20 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  AlertTriangle, CheckCircle2, Clock, Loader2, Mail, Send, ShieldCheck, Undo2, X,
+  AlertTriangle, CheckCircle2, Clock, Loader2, Mail, Plus, Send, ShieldCheck, Undo2, X,
 } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { fetchOrderReadiness } from '@/lib/orderPaperwork';
 import {
-  getSaRequest, markSaDone, requestSa, returnSaRequest, sendShipperAgreement, tickSaCheck, type SaReview,
+  getSaRequest, markSaDone, requestSa, returnSaRequest, sendShipperAgreement, setSaCc, tickSaCheck, type SaReview,
 } from '@/lib/saRequests';
 import { trackActivity } from '@/lib/attendance';
 import { usd } from '@/types/paymentMethod';
 import { readinessOf, type ReadinessItem } from '@/types/orderReadiness';
 import {
-  SA_REVIEW_CHECKS, SA_STATUS_LABEL, outstandingChecks, type SaRequest,
+  MAX_SA_CC, SA_REVIEW_CHECKS, SA_STATUS_LABEL, checkBlockedBy, isCcEmail, outstandingChecks, type SaRequest,
 } from '@/types/saRequest';
+import { isNewCarrier, MIN_OPERATING_MONTHS } from '@/types/fmcsa';
 import { ReadinessLine } from './OrderReadinessCard';
 
 /**
@@ -150,7 +151,8 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
   if (!data?.request) return error ? <p className="text-xs text-red-600 mb-4">{error}</p> : null;
   const { request: r, isReviewer, review } = data;
   const hasCarrier = Boolean(review.carrier);
-  const left = outstandingChecks(r.checks, hasCarrier);
+  const left = outstandingChecks(r.checks, hasCarrier, review.gate);
+  const applicable = SA_REVIEW_CHECKS.filter((c) => hasCarrier || !c.carrier).length;
   const working = isReviewer && (r.status === 'open' || r.status === 'sent');
 
   async function run(key: string, fn: () => Promise<unknown>) {
@@ -190,7 +192,8 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
       {/* Outcome lines everybody sees */}
       {r.sentAt && (
         <p className="flex items-center gap-1.5 text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-          <Mail className="w-3.5 h-3.5" /> SA emailed to <strong>{r.sentTo}</strong> by {r.sentByName} · {formatDateTime(new Date(r.sentAt))}
+          <Mail className="w-3.5 h-3.5" /> SA emailed to <strong>{r.sentTo}</strong>
+          {r.sentCc.length > 0 && <> (copied to {r.sentCc.join(', ')})</>} by {r.sentByName} · {formatDateTime(new Date(r.sentAt))}
         </p>
       )}
       {r.status === 'done' && r.doneAt && (
@@ -228,23 +231,35 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
           {/* What a person confirms */}
           <div className="space-y-3">
             <p className="text-xs font-semibold text-gray-800 uppercase tracking-wide">
-              Your double check <span className="font-normal text-gray-500 normal-case">— {SA_REVIEW_CHECKS.filter((c) => hasCarrier || !c.carrier).length - left.length} of {SA_REVIEW_CHECKS.filter((c) => hasCarrier || !c.carrier).length}</span>
+              Your double check <span className="font-normal text-gray-500 normal-case">— {applicable - left.length} of {applicable}</span>
             </p>
             <ul className="space-y-2">
               {SA_REVIEW_CHECKS.map((c) => {
                 const mark = r.checks[c.key];
                 const na = c.carrier && !hasCarrier;
+                // The file says no: a tick can be taken off but not put on.
+                const blocked = na ? null : checkBlockedBy(c.key, review.gate);
                 return (
                   <li key={c.key} className={na ? 'opacity-50' : ''}>
                     <label className={`flex items-start gap-2 text-xs ${na ? '' : 'cursor-pointer'}`}>
                       <input type="checkbox" className="mt-0.5 accent-brand-600" checked={Boolean(mark)}
-                        disabled={na || busy !== ''}
+                        disabled={na || busy !== '' || (Boolean(blocked) && !mark)}
                         onChange={(e) => void run(`check-${c.key}`, () => tickSaCheck(orderId, c.key, e.target.checked))} />
                       <span>
                         <span className="text-gray-900 font-medium">{c.label}</span>
                         <span className="block text-[11px] text-gray-500">
                           {na ? 'No carrier on the load yet — not needed to send the SA.' : c.detail}
                         </span>
+                        {c.key === 'accessorials' && review.accessorialHints.map((h) => (
+                          <span key={h} className="mt-0.5 flex items-start gap-1 text-[11px] text-amber-800">
+                            <AlertTriangle className="w-3 h-3 shrink-0 mt-px" />{h}
+                          </span>
+                        ))}
+                        {blocked && (
+                          <span className="mt-0.5 flex items-start gap-1 text-[11px] text-red-700">
+                            <AlertTriangle className="w-3 h-3 shrink-0 mt-px" />{blocked}{mark ? ' The tick no longer counts.' : ''}
+                          </span>
+                        )}
                         {mark && <span className="block text-[11px] text-green-700">✓ {mark.byName} · {formatDateTime(new Date(mark.at))}</span>}
                       </span>
                     </label>
@@ -253,6 +268,12 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
               })}
             </ul>
 
+            {(r.status === 'open' || r.status === 'sent') && (
+              <CcEditor cc={r.ccEmails} contacts={review.clientContacts} signer={review.sendTo?.email ?? ''}
+                disabled={busy !== ''}
+                onChange={(next) => run('cc', () => setSaCc(orderId, next))} />
+            )}
+
             {error && <p className="text-xs text-red-600">{error}</p>}
 
             <div className="flex flex-wrap gap-2 pt-1">
@@ -260,9 +281,10 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
                 <button type="button" disabled={busy !== '' || left.length > 0 || !review.sendTo}
                   title={left.length ? 'Finish the double check first' : !review.sendTo ? 'The client has no email address' : ''}
                   onClick={() => void run('send', async () => {
-                    if (!confirm(r.reason === 'changed'
+                    const copied = r.ccEmails.length ? `\n\nCopied to: ${r.ccEmails.join(', ')}` : '';
+                    if (!confirm((r.reason === 'changed'
                       ? `Email the updated Shipper Agreement to ${review.sendTo?.email}? Their existing link and QR code will show the update.`
-                      : `Email the Shipper Agreement to ${review.sendTo?.email}?`)) return;
+                      : `Email the Shipper Agreement to ${review.sendTo?.email}?`) + copied)) return;
                     await sendShipperAgreement(orderId);
                     trackActivity('agreementsSent');
                     onSent?.();
@@ -318,6 +340,87 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
   );
 }
 
+/**
+ * Who else the SA email is copied to. Saved as it changes, like the ticks, so
+ * a second reviewer sees the same list. The client's own addresses are
+ * offered as one click; anything else is typed. The signer is left out — they
+ * are already who it is sent to.
+ */
+function CcEditor({ cc, contacts, signer, disabled, onChange }: {
+  cc: string[];
+  contacts: { name: string; email: string }[];
+  signer: string;
+  disabled: boolean;
+  onChange: (next: string[]) => void;
+}) {
+  const [typed, setTyped] = useState('');
+  const [hint, setHint] = useState('');
+  const full = cc.length >= MAX_SA_CC;
+  const offered = contacts.filter((c) => c.email !== signer.toLowerCase() && !cc.includes(c.email));
+
+  function add(raw: string) {
+    const e = raw.trim().toLowerCase();
+    if (!e) return;
+    if (!isCcEmail(e)) { setHint('That is not an email address.'); return; }
+    if (e === signer.toLowerCase()) { setHint('The SA is already sent to that address.'); return; }
+    if (cc.includes(e)) { setTyped(''); return; }
+    setHint('');
+    setTyped('');
+    onChange([...cc, e]);
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 p-3 space-y-2">
+      <div>
+        <p className="text-xs font-semibold text-gray-800">Copy the SA to (CC)</p>
+        <p className="text-[11px] text-gray-500">Everyone here receives the email, the quote and the client’s rate. Only the client contact signs.</p>
+      </div>
+      {cc.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5">
+          {cc.map((e) => (
+            <li key={e} className="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs text-brand-800">
+              {e}
+              <button type="button" disabled={disabled} aria-label={`Remove ${e}`}
+                onClick={() => onChange(cc.filter((x) => x !== e))}
+                className="rounded-full p-0.5 hover:bg-brand-100 disabled:opacity-50">
+                <X className="w-3 h-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!full && (
+        <>
+          <div className="flex gap-2">
+            <input type="email" value={typed} placeholder="name@company.com" disabled={disabled}
+              onChange={(e) => { setTyped(e.target.value); setHint(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(typed); } }}
+              className="min-w-0 flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            <button type="button" disabled={disabled || !typed.trim()} onClick={() => add(typed)}
+              className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              <Plus className="w-3.5 h-3.5" /> Add
+            </button>
+          </div>
+          {offered.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-gray-500">From the client:</span>
+              {offered.map((c) => (
+                <button key={c.email} type="button" disabled={disabled} onClick={() => add(c.email)}
+                  title={c.email}
+                  className="inline-flex items-center gap-1 rounded-full border border-gray-300 px-2 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                  <Plus className="w-3 h-3" /> {c.name ? `${c.name} · ${c.email}` : c.email}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {full && <p className="text-[11px] text-gray-500">That is the most one SA can be copied to ({MAX_SA_CC}).</p>}
+      {hint && <p className="text-[11px] text-red-600">{hint}</p>}
+    </div>
+  );
+}
+
 function StatusPill({ request }: { request: SaRequest }) {
   const cls = {
     open: 'bg-brand-50 text-brand-700 border-brand-200',
@@ -337,6 +440,11 @@ function Facts({ review, formatDate }: { review: SaReview; formatDate: (v: Date)
   const fmcsaStale = c?.fmcsaCheckedAt ? Date.now() - c.fmcsaCheckedAt > 24 * 60 * 60 * 1000 : true;
   const bad = c?.fmcsaConcerns?.filter((x) => x.level === 'bad') ?? [];
   const warn = c?.fmcsaConcerns?.filter((x) => x.level === 'warn') ?? [];
+  const g = review.gate;
+  // Noon UTC, so the day the company format prints is the day FMCSA wrote.
+  const since = g.operatingSince;
+  const newCarrier = isNewCarrier(since);
+  const licenseExpired = g.licenseExpiration !== null && g.licenseExpiration < Date.now();
   const phoneDiffers = c && c.fmcsaPhone && c.phone
     && c.fmcsaPhone.replace(/\D/g, '').slice(-10) !== c.phone.replace(/\D/g, '').slice(-10);
 
@@ -362,6 +470,25 @@ function Facts({ review, formatDate }: { review: SaReview; formatDate: (v: Date)
           <Row label="FMCSA check">
             {c.fmcsaCheckedAt ? formatDate(new Date(c.fmcsaCheckedAt)) : 'Never run'}
             {fmcsaStale && <span className="text-amber-700"> — run it again</span>}
+          </Row>
+          <Row label="Operating since">
+            {since ? (
+              <span className={newCarrier ? 'text-red-600' : ''}>
+                {formatDate(new Date(`${since.day}T12:00:00Z`))}
+                <span className="text-gray-500"> · {since.source === 'authority' ? 'authority granted' : 'DOT registered'}</span>
+                {newCarrier && ` — under ${MIN_OPERATING_MONTHS} months`}
+              </span>
+            ) : (
+              <span className="text-amber-700">Unknown — run the FMCSA check again, or look on SAFER</span>
+            )}
+          </Row>
+          <Row label="Driver’s license">
+            {!g.licenseOnFile ? <span className="text-red-600">Not on file</span>
+              : licenseExpired ? <span className="text-red-600">Expired {formatDate(new Date(g.licenseExpiration!))}</span>
+              : <>On file{g.licenseExpiration !== null && ` · expires ${formatDate(new Date(g.licenseExpiration))}`}</>}
+          </Row>
+          <Row label="Truck pictures">
+            {g.truckPhotos > 0 ? `${g.truckPhotos} on file` : <span className="text-red-600">None — upload in Pictures as “Truck”</span>}
           </Row>
           {phoneDiffers && (
             <p className="flex items-start gap-1.5 text-[11px] text-amber-800">

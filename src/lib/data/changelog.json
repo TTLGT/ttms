@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "a6a365653055717cd91f2f893e81d54bc29d68f5",
+      "date": "2026-10-08T23:38:52-06:00",
+      "author": "erwindank",
+      "subject": "Send the SA with the quote PDF and a QR code, keep one signing link per load that updates when the order changes, and let dispatch edit the agreement terms",
+      "body": "- The client's SA email attaches the quote PDF and shows a QR code; the QR on the PDF is clickable.\n- The signing page shows every stop with its address and dates, the freight, the client's payment terms and the terms and conditions, and records name, title, e-sign consent and acceptance of the terms.\n- Agreement Terms panel in Settings > Operations under the new agreementTerms.manage permission (admin and dispatch). Each link keeps the terms it was sent with.\n- One link per load: sending again with nothing changed re-emails the same link. A saved change holds the link, reopens the SA request for dispatch and admins, and clears a client signature that no longer matches. Sending after review revises the same link and QR in place, keeping every earlier version and signature.\n- The order shows the signing link to copy, and a staff-only preview that cannot be signed."
+    },
+    {
       "hash": "ebf9a3636fdb4dfa7afea9477b424b145d25a92a",
       "date": "2026-10-08T22:04:07-06:00",
       "author": "erwindank",

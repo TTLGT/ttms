@@ -27,7 +27,7 @@ export const LOAD_PHOTOS_COLLECTION = 'loadPhotos';
  * one the uploader knows and a clock does not: pickup photos are routinely
  * sent in hours after the truck has left.
  */
-export const PHOTO_STAGES = ['pickup', 'in_transit', 'delivery', 'damage', 'other'] as const;
+export const PHOTO_STAGES = ['pickup', 'in_transit', 'delivery', 'damage', 'truck', 'other'] as const;
 export type PhotoStage = (typeof PHOTO_STAGES)[number];
 
 export const PHOTO_STAGE_LABEL: Record<PhotoStage, string> = {
@@ -35,6 +35,13 @@ export const PHOTO_STAGE_LABEL: Record<PhotoStage, string> = {
   in_transit: 'In transit',
   delivery:   'Delivery',
   damage:     'Damage',
+  /**
+   * The driver's truck and trailer, before the load is tendered — not the
+   * freight. The SA review asks for at least one (see src/types/saRequest.ts):
+   * a truck that turns up looking nothing like its pictures is how a
+   * double-brokered load shows itself at the dock.
+   */
+  truck:      'Truck',
   other:      'Other',
 };
 

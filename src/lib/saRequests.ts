@@ -3,7 +3,7 @@
 import { auth } from './firebase';
 import type { ReadinessItem } from '@/types/orderReadiness';
 import type { FmcsaConcern } from '@/types/fmcsa';
-import type { SaRequest } from '@/types/saRequest';
+import type { SaGateFacts, SaRequest } from '@/types/saRequest';
 
 /** SA requests from the browser. See src/types/saRequest.ts. */
 
@@ -32,6 +32,10 @@ export interface SaReview {
   carrierPay: number;
   brokerFee: number;
   hasClientPayment: boolean;
+  gate: SaGateFacts;
+  accessorialHints: string[];
+  /** The client's own addresses, for the CC picker. Empty for a non-reviewer. */
+  clientContacts: { name: string; email: string }[];
 }
 
 export async function getSaRequest(orderId: string): Promise<{ request: SaRequest | null; isReviewer: boolean; review: SaReview }> {
@@ -52,6 +56,7 @@ async function patch(orderId: string, body: Record<string, unknown>): Promise<Sa
   return (await unwrap<{ request: SaRequest }>(res)).request;
 }
 
+export const setSaCc = (orderId: string, cc: string[]) => patch(orderId, { cc });
 export const tickSaCheck = (orderId: string, check: string, value: boolean) => patch(orderId, { check, value });
 export const returnSaRequest = (orderId: string, reason: string) => patch(orderId, { action: 'return', reason });
 export const markSaDone = (orderId: string) => patch(orderId, { action: 'done' });

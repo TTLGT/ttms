@@ -51,6 +51,8 @@ const DATASET = {
   history:     '3uet-3z4i', // Motus InsHist – All With History
   suspensions: 'wb4f-neki', // Motus RevokeSuspend – All With History
   legacy:      'qh9u-swkp', // ActPendInsur – All With History (pre-Motus, frozen 2026-05-14)
+  authority:   'yu5v-wbh6', // Motus AuthHist – All With History
+  legacyAuth:  '9mw4-x3tu', // AuthHist – All With History (pre-Motus, frozen 2026-05-14)
 } as const;
 
 const TIMEOUT_MS = 10_000;
@@ -336,6 +338,38 @@ function mailing(r: Row): string {
 }
 
 /**
+ * The day FMCSA first granted this DOT a carrier authority, '' when no grant
+ * is on either file. Asked for the SA review's "operating 6 months" check.
+ *
+ * **Both files again, for the opposite reason to insurance.** Motus did not
+ * carry original grant dates across: on 2026-10-08 J.B. Hunt's carrier
+ * authority (granted in the 1970s) read there only as an "Administrative
+ * Correction" dated August 2026, which taken alone would make the oldest
+ * carrier in the country look two months old. So the old file is where the
+ * history is, Motus is where any grant since May is, and the earliest
+ * carrier grant across the two is the answer. Only grants count (Motus writes
+ * "GRANTED" for rows it carried over and "Granted" for its own), and
+ * only carrier authorities: a broker or forwarder authority on the same DOT
+ * says nothing about how long it has run trucks.
+ *
+ * Fails alone, to '', like the census: an unknown date is reported as unknown
+ * and never as a new carrier.
+ */
+async function authorityGranted(digits: string): Promise<string> {
+  const [motus, legacy] = await Promise.all([
+    rows(DATASET.authority, `usdot_number='${digits}' AND upper(reason)='GRANTED'`, 'op_auth_type,status_change_date')
+      .catch(() => [] as Row[]),
+    rows(DATASET.legacyAuth, `dot_number='${digits.padStart(8, '0')}' AND original_action_desc='GRANTED'`, 'mod_col_1,orig_served_date')
+      .catch(() => [] as Row[]),
+  ]);
+  const days = [
+    ...motus.filter((r) => /^motor carrier/i.test(str(r.op_auth_type))).map((r) => isoDay(r.status_change_date)),
+    ...legacy.filter((r) => /carrier/i.test(str(r.mod_col_1))).map((r) => usDay(r.orig_served_date)),
+  ].filter(Boolean).sort();
+  return days[0] ?? '';
+}
+
+/**
  * Everything the open data says about one DOT number, or null when it could
  * not be read. Null rather than a throw: this is the supporting half of a
  * check, and the live answer is worth having without it.
@@ -352,15 +386,17 @@ export async function lookupRegistry(dot: string, onFile: OnFile): Promise<Fmcsa
   // because the panel reads an empty policy list as "nothing on file" and a
   // timed-out query must not say that.
   const censusRows = rows(DATASET.census, `dot_number='${digits}'`, undefined, CENSUS_TIMEOUT_MS).catch(() => [] as Row[]);
+  const granted = authorityGranted(digits);
 
   try {
-    const [census, insurance, history, suspensions, legacy] = await Promise.all([
+    const [census, insurance, history, suspensions, legacy, grantedDay] = await Promise.all([
       censusRows,
       rows(DATASET.insurance, `usdot_number='${digits}'`),
       rows(DATASET.history, `usdot_number='${digits}'`),
       rows(DATASET.suspensions, `usdot_number='${digits}' AND order1_effective_date >= '${since}'`),
       // The old file writes a DOT as eight digits, zero-padded: 02783753.
       rows(DATASET.legacy, `dot_number='${digits.padStart(8, '0')}'`),
+      granted,
     ]);
 
     const c: Row = census[0] ?? {};
@@ -387,6 +423,8 @@ export async function lookupRegistry(dot: string, onFile: OnFile): Promise<Fmcsa
       country,
       mailingAddress: mailing(c),
       mcs150Date: isoDay(c.mcs150_date),
+      authorityGranted: grantedDay,
+      dotAdded: isoDay(c.add_date),
       cargoTypes: Object.entries(CARGO_LABELS)
         .filter(([col]) => str(c[col]).toUpperCase() === 'X')
         .map(([, label]) => label)

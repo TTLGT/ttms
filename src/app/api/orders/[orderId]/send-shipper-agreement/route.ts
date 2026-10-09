@@ -5,8 +5,8 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
 import { agreementSentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { actorForUid, recordEvent } from '@/lib/recordHistory';
-import { saRequestRef } from '@/lib/saRequestsServer';
-import { outstandingChecks } from '@/types/saRequest';
+import { saGateFactsFor, saRequestRef } from '@/lib/saRequestsServer';
+import { cleanCcList, outstandingChecks } from '@/types/saRequest';
 import { signUrl } from '@/lib/appUrl';
 import { currentClientTerms } from '@/lib/agreementTermsServer';
 import { clientAgreementRef, planAgreementHold, type ClientAgreementPointer } from '@/lib/clientAgreements';
@@ -112,7 +112,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const saRequest = await saRequestRef(orderId).get();
   const saStatus = saRequest.exists ? saRequest.data()!.status : null;
   if (saStatus === 'open') {
-    const left = outstandingChecks(saRequest.data()!.checks ?? {}, Boolean(order.carrierId || order.carrierName));
+    // With the files read fresh: a license ticked and then deleted is not done.
+    const left = outstandingChecks(
+      saRequest.data()!.checks ?? {},
+      Boolean(order.carrierId || order.carrierName),
+      await saGateFactsFor(orderId, order),
+    );
     if (left.length > 0) {
       return NextResponse.json(
         { error: `Finish the review first: ${left.map((c) => c.label.toLowerCase()).join(', ')}.` },
@@ -120,6 +125,17 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       );
     }
   }
+
+  /*
+   * Who else the email is copied to — set by dispatch on the review. Read off
+   * the request whatever its status, so a resend from the order page copies
+   * the same people the first send did. Never the signer's own address
+   * twice. Copied, not sent to: the contact above is the one asked to sign.
+   */
+  const cc = saRequest.exists
+    ? cleanCcList(saRequest.data()!.ccEmails).filter((e) => e !== contact.email.trim().toLowerCase())
+    : [];
+  const ccNote = cc.length ? `, copied to ${cc.join(', ')}` : '';
 
   const now       = Timestamp.now();
   const expiresAt = Timestamp.fromDate(new Date(Date.now() + LINK_DAYS * 24 * 60 * 60 * 1000));
@@ -294,12 +310,14 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     signedVersion: kind === 'resend' ? (pointer!.signedVersion ?? null) : null,
     sentAt: now,
     sentTo: contact.email,
+    cc,
   });
   await batch.commit();
 
   const sent = await resend.emails.send({
     from:    `TTL Dispatch <${process.env.RESEND_FROM_EMAIL ?? 'noreply@totaltransportlogistics.us'}>`,
     to:      contact.email,
+    ...(cc.length ? { cc } : {}),
     subject: kind === 'revision' ? `Updated Load Confirmation — ${orderNumber}` : `Load Confirmation — ${orderNumber}`,
     html:    buildEmailHtml({
       kind,
@@ -337,9 +355,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   }
 
   const what =
-    kind === 'revision' ? `Emailed the updated load confirmation (version ${version}, changed: ${changed}), with the quote PDF, to the client at ${contact.email}`
-    : kind === 'resend' ? `Emailed the load confirmation again, same link, to the client at ${contact.email}`
-    : `Emailed the load confirmation, with the quote PDF, to the client at ${contact.email}`;
+    kind === 'revision' ? `Emailed the updated load confirmation (version ${version}, changed: ${changed}), with the quote PDF, to the client at ${contact.email}${ccNote}`
+    : kind === 'resend' ? `Emailed the load confirmation again, same link, to the client at ${contact.email}${ccNote}`
+    : `Emailed the load confirmation, with the quote PDF, to the client at ${contact.email}${ccNote}`;
 
   // After the send, never before: an entry saying it went out must mean it
   // did. Best-effort for the same reason as the alert — the email has left,
@@ -352,6 +370,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       sentAt: now,
       sentByName: actor?.name ?? caller.email ?? 'Dispatch',
       sentTo: contact.email,
+      sentCc: cc,
     }).catch(() => {});
   }
 
@@ -364,9 +383,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     kind === 'revision' ? `The updated load confirmation (version ${version}) was emailed to ${contact.email}. Same link and QR code; it now shows the update.`
     : kind === 'resend' ? `The load confirmation was emailed again to ${contact.email}, same link.`
     : agreementSentAlert('client', contact.email);
-  await postOrderAlert(orderId, `${line}${actor ? ` Sent by ${actor.name}.` : ''} E-signature link: ${link}`).catch(() => {});
+  await postOrderAlert(orderId, `${line}${cc.length ? ` Copied to ${cc.join(', ')}.` : ''}${actor ? ` Sent by ${actor.name}.` : ''} E-signature link: ${link}`).catch(() => {});
 
-  return NextResponse.json({ success: true, sentTo: contact.email, kind, version });
+  return NextResponse.json({ success: true, sentTo: contact.email, cc, kind, version });
 }
 
 /**

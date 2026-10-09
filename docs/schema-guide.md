@@ -596,7 +596,7 @@ index scope the service account cannot create. Types: `src/types/loadPhoto.ts`.
 |---|---|---|
 | `orderId` | string | The load. The only link — no ownership is copied here. |
 | `caption` | string | Optional, up to 300 characters. |
-| `stage` | `pickup` \| `in_transit` \| `delivery` \| `damage` \| `other` | Chosen by the uploader; defaults from the load's status. |
+| `stage` | `pickup` \| `in_transit` \| `delivery` \| `damage` \| `truck` \| `other` | Chosen by the uploader; defaults from the load's status. `truck` is the driver's truck and trailer, which the SA review asks for. |
 | `commodity` | string | Which of the load's commodity lines it shows, or the load's summary. Copied, not linked. |
 | `commodityKey` | string | `commodityKey(commodity)` — lower-cased, spaces collapsed. |
 | `width`, `height` | number | Pixels of the stored picture. |
@@ -671,6 +671,8 @@ saRequests/{orderId}
   requestedAt     : Timestamp
   checks          : { [key]: { byUid, byName, at } }   // dispatch's double check, SA_REVIEW_CHECKS
   sentAt, sentByName, sentTo        // set by send-shipper-agreement
+  sentCc          : string[]         // who that send was copied to
+  ccEmails        : string[]         // addresses the SA is copied to, max 5; set by dispatch
   doneAt, doneByUid, doneByName     // who closed it — shown to every reviewer
   returnedAt, returnedByName, returnReason
 ```
@@ -684,7 +686,16 @@ saRequests/{orderId}
 - **Reviewing** (`PATCH`, `orders.sendAgreement`): ticks, "send back" (with a
   reason; the order returns to `quote`), and "mark done", which needs the SA
   sent and every applicable tick in place. Carrier ticks apply only once a
-  carrier is on the load.
+  carrier is on the load. `{ cc: [...] }` replaces the CC list.
+- **Three ticks are gated on files** (`checkBlockedBy()`, read fresh by
+  `saGateFactsFor()`): the driver's license (on the order or the driver
+  record, not expired), at least one `truck` photo on the load, and a carrier
+  operating at least six months (`fmcsa.registry.authorityGranted`, falling
+  back to `dotAdded`; unknown is allowed). A tick the files contradict is
+  refused, and one whose file later disappears stops counting.
+- **CC** survives a new round, from either Request SA or a change reopening
+  it, except when the client changed. The send route copies the email to it
+  and names it in the change log, the room line and `clientAgreements.cc`.
 - **Sending** is still `POST /api/orders/{id}/send-shipper-agreement`, which
   now refuses while an open request has unticked items, moves it to `sent`,
   and posts the e-signature link in the room.

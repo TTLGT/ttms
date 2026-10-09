@@ -9,12 +9,15 @@ import { getVisibleOrder } from '@/lib/orderAccess';
 import { actorOf, diffFields, writeChange } from '@/lib/recordHistory';
 import { clientContactOf, readinessFactsFor } from '@/lib/orderReadinessServer';
 import {
-  bringIntoOrderRoom, reviewersWhoSeeEverything, saRequestRef, toSaRequest,
+  bringIntoOrderRoom, reviewersWhoSeeEverything, saGateFactsFor, saRequestRef, toSaRequest,
 } from '@/lib/saRequestsServer';
 import { fmcsaConcerns } from '@/types/fmcsa';
 import { orderDisplayNumber, type Order } from '@/types/order';
 import { orderReadiness, readinessOf } from '@/types/orderReadiness';
-import { isReviewCheckKey, outstandingChecks } from '@/types/saRequest';
+import {
+  accessorialHints, checkBlockedBy, cleanCcList, isCcEmail, isReviewCheckKey, MAX_SA_CC, outstandingChecks,
+} from '@/types/saRequest';
+import type { CommodityItem } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -33,6 +36,22 @@ function fail(e: unknown) {
 const isReviewer = (caller: Caller) => can(caller.profile, 'orders.sendAgreement');
 const orderLink = (orderId: string) => `${APP_URL}/dashboard/orders/${orderId}`;
 const hasCarrier = (order: Record<string, unknown>) => Boolean(order.carrierId || order.carrierName);
+
+/** Every email on the client's record — its contacts and its own — for the CC picker. */
+async function clientContactEmails(clientId: unknown): Promise<{ name: string; email: string }[]> {
+  if (typeof clientId !== 'string' || !clientId) return [];
+  const snap = await adminDb.collection('parties').doc(clientId).get();
+  const d = snap.data();
+  if (!d) return [];
+  const out: { name: string; email: string }[] = [];
+  const add = (name: unknown, email: unknown) => {
+    const e = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    if (e && isCcEmail(e) && !out.some((o) => o.email === e)) out.push({ name: typeof name === 'string' ? name : '', email: e });
+  };
+  for (const c of (d.contacts ?? []) as { name?: unknown; email?: unknown }[]) add(c?.name, c?.email);
+  add(d.contactName || d.companyName, d.email);
+  return out;
+}
 
 /**
  * The request, and everything a reviewer checks it against: the paperwork
@@ -56,6 +75,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     ]);
 
     const c = carrierSnap && carrierSnap.exists ? carrierSnap.data()! : null;
+    const gate = await saGateFactsFor(orderId, order, c);
     const carrier = c ? {
       name: String(c.companyName ?? ''),
       dot: String(c.dot ?? ''),
@@ -81,6 +101,12 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
         carrierPay: Number(order.carrierPay) || 0,
         brokerFee: Number(order.brokerFee) || 0,
         hasClientPayment: Boolean(order.clientPayment),
+        gate,
+        accessorialHints: accessorialHints(order.commodities as CommodityItem[] | undefined),
+        // The client's other contacts, offered as one-click CCs. Reviewers
+        // only: a broker reading where their request stands has no use for
+        // the client's address book.
+        clientContacts: isReviewer(caller) ? await clientContactEmails(order.clientId) : [],
       },
     });
   } catch (e) {
@@ -133,6 +159,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       }
       // A fresh round. set() without merge clears the last round's ticks and
       // its "sent back" reason, which belong to the order as it was then.
+      // The CC list is kept: who else at the client reads the SA did not
+      // change because the broker fixed a date.
       tx.set(reqRef, {
         orderId,
         orderNumber: label,
@@ -146,6 +174,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         sentAt: null, sentByName: null, sentTo: null,
         doneAt: null, doneByName: null,
         returnedAt: null, returnedByName: null, returnReason: null,
+        ccEmails: cleanCcList(current.data()?.ccEmails),
+        sentCc: [],
       });
       const patch: Record<string, unknown> = {};
       if (orderSnap.data()?.status === 'quote') {
@@ -178,7 +208,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 /**
  * Dispatch working the request:
  *
- * - `{ check, value }` — tick or untick one review item, as yourself.
+ * - `{ cc: string[] }` — the addresses the SA email is copied to, whole list.
+ * - `{ check, value }` — tick or untick one review item, as yourself. A tick
+ *   the files contradict (see checkBlockedBy) is refused.
  * - `{ action: 'return', reason }` — send it back to the broker. The order
  *   goes back to `quote`, so the button to ask again comes back with it.
  * - `{ action: 'done' }` — close it. Only once the SA has been sent and the
@@ -197,8 +229,33 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     const orderRef = adminDb.collection('orders').doc(orderId);
     const now = Timestamp.now();
 
-    if (isReviewCheckKey(body.check)) {
+    if (Array.isArray(body.cc)) {
+      // Refused rather than quietly cleaned, unlike a read: somebody typed
+      // these, and an address dropped without a word is a copy nobody gets.
+      const typed = body.cc.map((v) => (typeof v === 'string' ? v.trim().toLowerCase() : ''));
+      const bad = typed.filter((e) => !isCcEmail(e));
+      if (bad.length) {
+        return NextResponse.json({ error: `Not an email address: ${bad.map((b) => b || '(blank)').join(', ')}` }, { status: 400 });
+      }
+      if (new Set(typed).size > MAX_SA_CC) {
+        return NextResponse.json({ error: `An SA can be copied to at most ${MAX_SA_CC} addresses.` }, { status: 400 });
+      }
+      const cc = cleanCcList(typed);
+      await adminDb.runTransaction(async (tx) => {
+        const snap = await tx.get(reqRef);
+        const status = snap.data()?.status;
+        if (!snap.exists || (status !== 'open' && status !== 'sent')) {
+          throw new AdminAuthError('This request is not open.', 409);
+        }
+        tx.update(reqRef, { ccEmails: cc });
+      });
+    } else if (isReviewCheckKey(body.check)) {
       const key = body.check;
+      // A yes the files contradict is refused here, not only greyed out.
+      if (body.value === true) {
+        const blocked = checkBlockedBy(key, await saGateFactsFor(orderId, order));
+        if (blocked) return NextResponse.json({ error: blocked }, { status: 409 });
+      }
       await adminDb.runTransaction(async (tx) => {
         const snap = await tx.get(reqRef);
         const status = snap.data()?.status;
@@ -234,6 +291,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       });
       await postOrderAlert(orderId, `${caller.displayName} sent the SA request back to the broker: ${reason}`).catch(() => {});
     } else if (body.action === 'done') {
+      const gate = await saGateFactsFor(orderId, order);
       await adminDb.runTransaction(async (tx) => {
         const snap = await tx.get(reqRef);
         const data = snap.data();
@@ -242,7 +300,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
             ? `Already marked done by ${data.doneByName ?? 'somebody'}.`
             : 'Send the SA before marking the request done.', 409);
         }
-        const left = outstandingChecks(data.checks ?? {}, hasCarrier(order));
+        const left = outstandingChecks(data.checks ?? {}, hasCarrier(order), gate);
         if (left.length > 0) {
           throw new AdminAuthError(`Still to check: ${left.map((c) => c.label.toLowerCase()).join(', ')}.`, 409);
         }
