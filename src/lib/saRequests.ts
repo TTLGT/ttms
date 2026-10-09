@@ -1,9 +1,7 @@
 'use client';
 
 import { auth } from './firebase';
-import type { ReadinessItem } from '@/types/orderReadiness';
-import type { FmcsaConcern } from '@/types/fmcsa';
-import type { SaGateFacts, SaRequest } from '@/types/saRequest';
+import type { SaRequest, SaReview, SaRound } from '@/types/saRequest';
 
 /** SA requests from the browser. See src/types/saRequest.ts. */
 
@@ -19,24 +17,7 @@ async function unwrap<T>(res: Response): Promise<T> {
   return data as T;
 }
 
-export interface SaReview {
-  readiness: ReadinessItem[];
-  sendTo: { name: string; email: string } | null;
-  carrier: {
-    name: string; dot: string; mc: string; phone: string; email: string;
-    insuranceExpiration: number | null; insuranceOnFile: boolean;
-    fmcsaCheckedAt: number | null; fmcsaPhone: string; fmcsaConcerns: FmcsaConcern[] | null;
-  } | null;
-  pickupDate: number | null;
-  agreedRate: number;
-  carrierPay: number;
-  brokerFee: number;
-  hasClientPayment: boolean;
-  gate: SaGateFacts;
-  accessorialHints: string[];
-  /** The client's own addresses, for the CC picker. Empty for a non-reviewer. */
-  clientContacts: { name: string; email: string }[];
-}
+export type { SaReview } from '@/types/saRequest';
 
 export async function getSaRequest(orderId: string): Promise<{ request: SaRequest | null; isReviewer: boolean; review: SaReview }> {
   return unwrap(await fetch(`/api/orders/${orderId}/sa-request`, { headers: await authHeaders() }));
@@ -68,4 +49,10 @@ export async function sendShipperAgreement(orderId: string): Promise<string> {
 
 export async function listSaRequests(): Promise<{ requests: SaRequest[]; isReviewer: boolean }> {
   return unwrap(await fetch('/api/sa-requests', { headers: await authHeaders() }));
+}
+
+/** Every review round this load has had, newest first. See SaRound. */
+export async function listSaRounds(orderId: string): Promise<SaRound[]> {
+  const res = await fetch(`/api/orders/${orderId}/sa-rounds`, { headers: await authHeaders() });
+  return (await unwrap<{ rounds: SaRound[] }>(res)).rounds;
 }

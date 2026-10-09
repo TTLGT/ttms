@@ -3,7 +3,7 @@ import { adminDb } from './firebase-admin';
 import { APP_URL } from './appUrl';
 import { postOrderAlert } from './chatAlerts';
 import { diffFields, writeChange, type ChangeActor } from './recordHistory';
-import { bringIntoOrderRoom, reviewersWhoSeeEverything, saRequestRef } from './saRequestsServer';
+import { archiveRound, bringIntoOrderRoom, newRoundId, reviewersWhoSeeEverything, saRequestRef } from './saRequestsServer';
 import {
   changedSections, confirmationContent, contentHash, sectionHashes, sectionList,
   type AgreementSection,
@@ -107,7 +107,9 @@ export async function planAgreementHold(
   force = false,
 ): Promise<AgreementHold | null> {
   const pointerRef = clientAgreementRef(orderId);
-  const snap = await pointerRef.get();
+  // The round in progress is read too: it is about to be replaced, and goes
+  // into the load's record first.
+  const [snap, previousRound] = await Promise.all([pointerRef.get(), saRequestRef(orderId).get()]);
   if (!snap.exists) return null;
   const p = snap.data() as ClientAgreementPointer;
   if (!p.token) return null;
@@ -165,9 +167,12 @@ export async function planAgreementHold(
         }, actor, now);
       }
 
+      // The round being replaced is kept, with its ticks, as it stood.
+      if (previousRound.exists) archiveRound(batch, orderId, previousRound.data()!, { supersededAt: now });
       // A fresh round, as the broker's Request SA makes: set() without merge
       // clears ticks made against the order as it was before this change.
       batch.set(saRequestRef(orderId), {
+        roundId: newRoundId(orderId),
         orderId,
         orderNumber: label,
         clientName: String(after.clientName ?? ''),
@@ -186,6 +191,9 @@ export async function planAgreementHold(
         // whose rate those people must never be sent.
         ccEmails: clientChanged ? [] : cleanCcList(p.cc),
         sentCc: [],
+        saVersion: null,
+        dispatched: null,
+        sends: [],
       });
     },
     async afterCommit() {

@@ -1,11 +1,15 @@
+import type { Timestamp } from 'firebase-admin/firestore';
 import { adminDb, FieldValue } from './firebase-admin';
 import { openedAlert, postOrderAlert } from './chatAlerts';
+import { clientContactOf, readinessFactsFor } from './orderReadinessServer';
 import { CONVERSATIONS_COLLECTION, recordConversationId } from '@/types/conversation';
-import { orderDisplayNumber } from '@/types/order';
+import { orderDisplayNumber, type CommodityItem, type Order } from '@/types/order';
+import { orderReadiness } from '@/types/orderReadiness';
 import { LOAD_PHOTOS_COLLECTION } from '@/types/loadPhoto';
-import { operatingSince, type FmcsaRegistry } from '@/types/fmcsa';
+import { fmcsaConcerns, operatingSince, type FmcsaRegistry } from '@/types/fmcsa';
 import {
-  SA_REQUESTS_COLLECTION, cleanCcList, type SaGateFacts, type SaRequest, type SaRequestStatus,
+  SA_REQUESTS_COLLECTION, SA_ROUNDS_SUBCOLLECTION, accessorialHints, cleanCcList, isCcEmail,
+  type SaGateFacts, type SaRequest, type SaRequestStatus, type SaReview, type SaRound, type SaSend,
 } from '@/types/saRequest';
 
 /**
@@ -51,6 +55,198 @@ export function toSaRequest(d: FirebaseFirestore.DocumentData): SaRequest {
 
 export function saRequestRef(orderId: string) {
   return adminDb.collection(SA_REQUESTS_COLLECTION).doc(orderId);
+}
+
+// ── Rounds: the review's permanent record ────────────────────────────────────
+
+/** Accepts a Timestamp or epoch ms — a frozen review stores plain numbers. */
+function ms(v: unknown): number | null {
+  if (typeof v === 'number') return v;
+  return millis(v);
+}
+
+export function roundRef(orderId: string, roundId: string) {
+  return saRequestRef(orderId).collection(SA_ROUNDS_SUBCOLLECTION).doc(roundId);
+}
+
+/** A fresh id for a round that is about to open. */
+export function newRoundId(orderId: string): string {
+  return saRequestRef(orderId).collection(SA_ROUNDS_SUBCOLLECTION).doc().id;
+}
+
+/**
+ * The round a request document belongs to. A request from before rounds
+ * were kept has no id; it is named by when it was asked for, which is stable
+ * across every copy of it.
+ */
+export function roundIdOf(d: FirebaseFirestore.DocumentData): string {
+  return typeof d.roundId === 'string' && d.roundId ? d.roundId : `legacy-${millis(d.requestedAt) ?? 0}`;
+}
+
+/** Anything with a set() — a WriteBatch or a Transaction. */
+interface Writer {
+  set(ref: FirebaseFirestore.DocumentReference, data: FirebaseFirestore.DocumentData): unknown;
+}
+
+/**
+ * Copies the request, as it is after this write, into its round.
+ *
+ * A whole copy, `set()` without merge, on purpose: a merge would keep a tick
+ * that has since been taken off, and the record would say somebody checked
+ * something they had unticked. Everything the round needs is on the request
+ * (see SA_ROUNDS_SUBCOLLECTION), so nothing is lost by overwriting.
+ *
+ * Called in the same batch or transaction as the change it records, so the
+ * record cannot miss a step.
+ */
+export function archiveRound(
+  writer: Writer,
+  orderId: string,
+  requestAfter: FirebaseFirestore.DocumentData,
+  extra: Record<string, unknown> = {},
+): void {
+  const id = roundIdOf(requestAfter);
+  writer.set(roundRef(orderId, id), {
+    ...requestAfter,
+    roundId: id,
+    kind: requestAfter.kind === 'direct' ? 'direct' : 'review',
+    ...extra,
+    archivedAt: FieldValue.serverTimestamp(),
+  });
+}
+
+/** A frozen copy of a review, safe to store: plain values, no undefined, no address book. */
+export function freezeReview(review: SaReview): SaReview {
+  return JSON.parse(JSON.stringify({ ...review, clientContacts: [] })) as SaReview;
+}
+
+/** One send, as stored in a round's `sends`. */
+export function sendEntry(s: Omit<SaSend, 'at'>, at: Timestamp): Record<string, unknown> {
+  return { ...s, at };
+}
+
+export function toSaRound(id: string, d: FirebaseFirestore.DocumentData): SaRound {
+  const base = toSaRequest(d);
+  const direct = d.kind === 'direct';
+  const sends: SaSend[] = Array.isArray(d.sends)
+    ? (d.sends as Record<string, unknown>[]).map((x) => ({
+        at:      ms(x.at) ?? 0,
+        byName:  String(x.byName ?? ''),
+        sentTo:  String(x.sentTo ?? ''),
+        cc:      cleanCcList(x.cc),
+        version: Number(x.version) || 1,
+        kind:    x.kind === 'resend' || x.kind === 'revision' ? x.kind : 'new',
+      }))
+    : [];
+  return {
+    id,
+    kind:            direct ? 'direct' : 'review',
+    status:          direct ? 'direct' : base.status,
+    reason:          direct ? null : base.reason,
+    note:            base.note,
+    requestedByName: base.requestedByName,
+    requestedAt:     base.requestedAt,
+    checks:          base.checks,
+    sentAt:          base.sentAt,
+    sentByName:      base.sentByName,
+    sentTo:          base.sentTo,
+    sentCc:          base.sentCc,
+    saVersion:       typeof d.saVersion === 'number' ? d.saVersion : null,
+    dispatched:      d.dispatched && typeof d.dispatched === 'object' ? (d.dispatched as SaReview) : null,
+    sends:           sends.sort((a, b) => a.at - b.at),
+    doneAt:          base.doneAt,
+    doneByName:      base.doneByName,
+    returnedAt:      base.returnedAt,
+    returnedByName:  base.returnedByName,
+    returnReason:    base.returnReason,
+    supersededAt:    millis(d.supersededAt),
+  };
+}
+
+/**
+ * Every round on the load, newest first. The request in progress is included
+ * as it stands — nothing but ticks may have happened to it, so it may not
+ * have been copied yet — and the list is never a step behind the panel.
+ */
+export async function listRounds(orderId: string): Promise<SaRound[]> {
+  const [snap, current] = await Promise.all([
+    saRequestRef(orderId).collection(SA_ROUNDS_SUBCOLLECTION).get(),
+    saRequestRef(orderId).get(),
+  ]);
+  const byId = new Map<string, SaRound>();
+  for (const d of snap.docs) byId.set(d.id, toSaRound(d.id, d.data()));
+  if (current.exists) {
+    const id = roundIdOf(current.data()!);
+    byId.set(id, toSaRound(id, current.data()!));
+  }
+  return [...byId.values()].sort((a, b) => (b.sentAt ?? b.requestedAt) - (a.sentAt ?? a.requestedAt));
+}
+
+// ── The review ───────────────────────────────────────────────────────────────
+
+/** Every email on the client's record — its contacts and its own — for the CC picker. */
+async function clientContactEmails(clientId: unknown): Promise<{ name: string; email: string }[]> {
+  if (typeof clientId !== 'string' || !clientId) return [];
+  const snap = await adminDb.collection('parties').doc(clientId).get();
+  const d = snap.data();
+  if (!d) return [];
+  const out: { name: string; email: string }[] = [];
+  const add = (name: unknown, email: unknown) => {
+    const e = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    if (e && isCcEmail(e) && !out.some((o) => o.email === e)) out.push({ name: typeof name === 'string' ? name : '', email: e });
+  };
+  for (const c of (d.contacts ?? []) as { name?: unknown; email?: unknown }[]) add(c?.name, c?.email);
+  add(d.contactName || d.companyName, d.email);
+  return out;
+}
+
+/**
+ * Everything a reviewer checks the request against: the paperwork checklist,
+ * who the SA will be emailed to, and the carrier's facts from its own record
+ * and its last FMCSA check. One definition for the review screen and for the
+ * copy frozen onto a round when the SA is sent.
+ */
+export async function buildSaReview(
+  orderId: string,
+  order: Record<string, unknown>,
+  withContacts: boolean,
+): Promise<SaReview> {
+  const [facts, contact, carrierSnap] = await Promise.all([
+    readinessFactsFor(order),
+    clientContactOf(order.clientId),
+    typeof order.carrierId === 'string' && order.carrierId
+      ? adminDb.collection('carriers').doc(order.carrierId).get()
+      : Promise.resolve(null),
+  ]);
+  const c = carrierSnap && carrierSnap.exists ? carrierSnap.data()! : null;
+  const gate = await saGateFactsFor(orderId, order, c);
+  return {
+    readiness: orderReadiness(order as Partial<Order>, facts),
+    sendTo: contact?.email ? { name: contact.name, email: contact.email } : null,
+    carrier: c ? {
+      name: String(c.companyName ?? ''),
+      dot: String(c.dot ?? ''),
+      mc: String(c.mc ?? ''),
+      phone: String(c.phone ?? ''),
+      email: String(c.email ?? ''),
+      insuranceExpiration: c.insuranceExpiration?.toMillis?.() ?? null,
+      insuranceOnFile: Boolean(c.insuranceStoragePath),
+      fmcsaCheckedAt: c.fmcsa?.checkedAt?.toMillis?.() ?? null,
+      fmcsaPhone: String(c.fmcsa?.registry?.phone ?? ''),
+      fmcsaConcerns: c.fmcsa ? fmcsaConcerns(c.fmcsa, c.mc) : null,
+    } : null,
+    pickupDate: (order.pickupDate as Timestamp | null)?.toMillis?.() ?? null,
+    agreedRate: Number(order.agreedRate) || 0,
+    carrierPay: Number(order.carrierPay) || 0,
+    brokerFee: Number(order.brokerFee) || 0,
+    hasClientPayment: Boolean(order.clientPayment),
+    gate,
+    accessorialHints: accessorialHints(order.commodities as CommodityItem[] | undefined),
+    // The client's other contacts, offered as one-click CCs. Reviewers only:
+    // a broker reading where their request stands has no use for the
+    // client's address book.
+    clientContacts: withContacts ? await clientContactEmails(order.clientId) : [],
+  };
 }
 
 /**

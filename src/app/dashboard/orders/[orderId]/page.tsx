@@ -62,6 +62,7 @@ import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload
 import OrderFiles from '@/components/orders/OrderFiles';
 import OrderReadinessCard from '@/components/orders/OrderReadinessCard';
 import { RequestSaButton, SaRequestPanel } from '@/components/orders/SaRequestPanel';
+import SaVerificationRecord from '@/components/orders/SaVerificationRecord';
 import ClientSignLink from '@/components/orders/ClientSignLink';
 import { useAuth } from '@/context/AuthContext';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
@@ -1327,7 +1328,11 @@ export default function OrderDetailPage() {
               carrier would be waiting on the thing it gates. */}
           {clientConfirmationStarted && (
             <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Client Confirmation</h3>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Client Confirmation</h3>
+                {/* Who verified what before each SA went out — kept for good. */}
+                <SaVerificationRecord orderId={orderId} />
+              </div>
               {order.shipperSignedAt || order.shipperSignerName ? (
                 <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                   <span>✓</span>

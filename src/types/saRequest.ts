@@ -28,6 +28,8 @@
 
 import { MIN_OPERATING_MONTHS, isNewCarrier, officeDay, type OperatingSince } from './fmcsa';
 import { hasVehicleDetails, type CommodityItem } from './order';
+import type { FmcsaConcern } from './fmcsa';
+import type { ReadinessItem } from './orderReadiness';
 
 export const SA_REQUESTS_COLLECTION = 'saRequests';
 
@@ -92,6 +94,17 @@ export interface SaRequest {
   /** Who the last send was copied to. */
   sentCc: string[];
 }
+
+/**
+ * Stored on the request beside the fields above, so that copying the request
+ * into its round (see SaRound) is a whole copy:
+ *
+ * - `roundId`    — the round's id. Absent on requests from before rounds were kept.
+ * - `saVersion`  — the SA version this round sent.
+ * - `dispatched` — the review facts at the first send.
+ * - `sends`      — every email this round made.
+ */
+export const SA_ROUNDS_SUBCOLLECTION = 'rounds';
 
 /** Most addresses one SA is copied to. Enough for a team; not a mailing list. */
 export const MAX_SA_CC = 5;
@@ -264,4 +277,82 @@ export function describeDevice(userAgent: string): string {
     : 'a browser';
   const mobile = /Mobile|iPhone|Android/.test(ua) ? ' (mobile)' : '';
   return `${browser} on ${os}${mobile}`;
+}
+
+/**
+ * Everything a reviewer checks the request against, as the review screen
+ * draws it. Built by `buildSaReview()`; also frozen onto a round at the
+ * moment the SA is sent, as `dispatched`, so the record shows the facts as
+ * they stood then rather than as they stand when somebody looks.
+ */
+export interface SaReview {
+  readiness: ReadinessItem[];
+  sendTo: { name: string; email: string } | null;
+  carrier: {
+    name: string; dot: string; mc: string; phone: string; email: string;
+    insuranceExpiration: number | null; insuranceOnFile: boolean;
+    fmcsaCheckedAt: number | null; fmcsaPhone: string; fmcsaConcerns: FmcsaConcern[] | null;
+  } | null;
+  pickupDate: number | null;
+  agreedRate: number;
+  carrierPay: number;
+  brokerFee: number;
+  hasClientPayment: boolean;
+  gate: SaGateFacts;
+  accessorialHints: string[];
+  /** The client's own addresses, for the CC picker. Empty for a non-reviewer, and never frozen. */
+  clientContacts: { name: string; email: string }[];
+}
+
+/** One email of the SA: the first, a resend, or a revision. */
+export interface SaSend {
+  at: number;
+  byName: string;
+  sentTo: string;
+  cc: string[];
+  /** The version of the client's link that went out. */
+  version: number;
+  kind: 'new' | 'resend' | 'revision';
+}
+
+/**
+ * One round of the review, kept for good at `saRequests/{orderId}/rounds/{id}`.
+ *
+ * The request document is the round in progress and is replaced whenever a
+ * new one opens — a broker asking again, or an order change after the SA
+ * went out. Before that happens, and at every step that matters (sent, done,
+ * sent back), the whole request is copied here, ticks and all. So a load
+ * keeps every review it ever had, each with who ticked what and when, beside
+ * the version of the SA it sent.
+ *
+ * A send with no request open — an older load, or dispatch sending straight
+ * from Client Confirmation — is recorded as a round too (`direct`), with no
+ * ticks, so the record of what went out and what TTMS knew then is complete.
+ */
+export interface SaRound {
+  id: string;
+  kind: 'review' | 'direct';
+  /** Where the round ended up. `open`/`sent` on a superseded round is where it was when replaced. */
+  status: SaRequestStatus | 'direct';
+  reason: 'requested' | 'changed' | null;
+  note: string;
+  requestedByName: string;
+  requestedAt: number;
+  checks: Record<string, SaCheckMark>;
+  sentAt: number | null;
+  sentByName: string | null;
+  sentTo: string | null;
+  sentCc: string[];
+  /** The SA version this round sent. Null when it never sent one. */
+  saVersion: number | null;
+  /** The facts at the first send. Null on a round that never sent, and on rounds from before this was kept. */
+  dispatched: SaReview | null;
+  sends: SaSend[];
+  doneAt: number | null;
+  doneByName: string | null;
+  returnedAt: number | null;
+  returnedByName: string | null;
+  returnReason: string | null;
+  /** When a newer round replaced it. */
+  supersededAt: number | null;
 }

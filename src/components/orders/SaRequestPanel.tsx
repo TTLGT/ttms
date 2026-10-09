@@ -16,7 +16,7 @@ import { readinessOf, type ReadinessItem } from '@/types/orderReadiness';
 import {
   MAX_SA_CC, SA_REVIEW_CHECKS, SA_STATUS_LABEL, checkBlockedBy, isCcEmail, outstandingChecks, type SaRequest,
 } from '@/types/saRequest';
-import { isNewCarrier, MIN_OPERATING_MONTHS } from '@/types/fmcsa';
+import { isNewCarrier, MIN_OPERATING_MONTHS, officeDay } from '@/types/fmcsa';
 import { ReadinessLine } from './OrderReadinessCard';
 
 /**
@@ -431,20 +431,28 @@ function StatusPill({ request }: { request: SaRequest }) {
   return <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${cls}`}>{SA_STATUS_LABEL[request.status]}</span>;
 }
 
-function Facts({ review, formatDate }: { review: SaReview; formatDate: (v: Date) => string }) {
+/**
+ * What TTMS can check, drawn as the reviewer sees it. `asOf` is for the
+ * verification record: a review frozen when the SA was sent is judged
+ * against that moment — "FMCSA run that morning" stays fresh, a license that
+ * has expired since was still in date — so it reads as it did to the person
+ * who sent it.
+ */
+export function Facts({ review, formatDate, asOf }: { review: SaReview; formatDate: (v: Date) => string; asOf?: number }) {
+  const now = asOf ?? Date.now();
   const c = review.carrier;
   const margin = review.agreedRate > 0 ? (review.brokerFee / review.agreedRate) * 100 : null;
   const insuranceOk = c?.insuranceExpiration
-    ? c.insuranceExpiration >= (review.pickupDate ?? Date.now())
+    ? c.insuranceExpiration >= (review.pickupDate ?? now)
     : null;
-  const fmcsaStale = c?.fmcsaCheckedAt ? Date.now() - c.fmcsaCheckedAt > 24 * 60 * 60 * 1000 : true;
+  const fmcsaStale = c?.fmcsaCheckedAt ? now - c.fmcsaCheckedAt > 24 * 60 * 60 * 1000 : true;
   const bad = c?.fmcsaConcerns?.filter((x) => x.level === 'bad') ?? [];
   const warn = c?.fmcsaConcerns?.filter((x) => x.level === 'warn') ?? [];
   const g = review.gate;
   // Noon UTC, so the day the company format prints is the day FMCSA wrote.
   const since = g.operatingSince;
-  const newCarrier = isNewCarrier(since);
-  const licenseExpired = g.licenseExpiration !== null && g.licenseExpiration < Date.now();
+  const newCarrier = isNewCarrier(since, officeDay(now));
+  const licenseExpired = g.licenseExpiration !== null && g.licenseExpiration < now;
   const phoneDiffers = c && c.fmcsaPhone && c.phone
     && c.fmcsaPhone.replace(/\D/g, '').slice(-10) !== c.phone.replace(/\D/g, '').slice(-10);
 

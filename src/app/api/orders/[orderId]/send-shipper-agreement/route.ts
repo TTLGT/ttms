@@ -5,7 +5,9 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
 import { agreementSentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { actorForUid, recordEvent } from '@/lib/recordHistory';
-import { saGateFactsFor, saRequestRef } from '@/lib/saRequestsServer';
+import {
+  archiveRound, buildSaReview, freezeReview, roundRef, saGateFactsFor, saRequestRef, sendEntry,
+} from '@/lib/saRequestsServer';
 import { cleanCcList, outstandingChecks } from '@/types/saRequest';
 import { signUrl } from '@/lib/appUrl';
 import { currentClientTerms } from '@/lib/agreementTermsServer';
@@ -364,14 +366,59 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   // and failing the request now would invite somebody to send it twice.
   await recordEvent(adminDb.collection('orders').doc(orderId), what, await actorForUid(caller.uid, caller.email)).catch(() => {});
 
-  if (saStatus === 'open') {
-    await saRequestRef(orderId).update({
-      status: 'sent',
-      sentAt: now,
-      sentByName: actor?.name ?? caller.email ?? 'Dispatch',
-      sentTo: contact.email,
-      sentCc: cc,
-    }).catch(() => {});
+  await recordSend().catch(() => {});
+
+  /**
+   * The send goes into the load's review record (see SaRound in
+   * src/types/saRequest.ts): which version, to whom, by whom — and, on the
+   * round's first send, a frozen copy of everything the reviewer was looking
+   * at, so the record shows the load as it was when it was dispatched rather
+   * than as it is when somebody opens it later.
+   *
+   * A send with no review open (an older load, or straight from Client
+   * Confirmation) is recorded as a round of its own, with no ticks, so every
+   * SA that ever went out has its entry. Best-effort for the same reason as
+   * the change-log line above: the email has left.
+   */
+  async function recordSend() {
+    const sentByName = actor?.name ?? caller.email ?? 'Dispatch';
+    const send = sendEntry({ byName: sentByName, sentTo: contact!.email, cc, version, kind }, now);
+    const frozen = await buildSaReview(orderId, order, false).then(freezeReview).catch(() => null);
+    const reqRef = saRequestRef(orderId);
+    await adminDb.runTransaction(async (tx) => {
+      const snap = await tx.get(reqRef);
+      const d = snap.exists ? snap.data()! : null;
+      if (d && (d.status === 'open' || d.status === 'sent' || d.status === 'done')) {
+        const first = d.status === 'open';
+        const patch: Record<string, unknown> = {
+          ...(first ? {
+            status: 'sent', sentAt: now, sentByName, sentTo: contact!.email, sentCc: cc,
+            saVersion: version, dispatched: frozen,
+          } : {}),
+          sends: [...(Array.isArray(d.sends) ? d.sends : []), send],
+        };
+        tx.update(reqRef, patch);
+        archiveRound(tx, orderId, { ...d, ...patch });
+        return;
+      }
+      tx.set(roundRef(orderId, `direct-${now.toMillis()}`), {
+        kind: 'direct',
+        roundId: `direct-${now.toMillis()}`,
+        orderId,
+        orderNumber,
+        clientName: String(order.clientName ?? ''),
+        status: 'sent',
+        note: '',
+        requestedByName: sentByName,
+        requestedAt: now,
+        checks: {},
+        sentAt: now, sentByName, sentTo: contact!.email, sentCc: cc,
+        saVersion: version,
+        dispatched: frozen,
+        sends: [send],
+        archivedAt: now,
+      });
+    });
   }
 
   // The signing link goes in the room as well as in the email, so whoever is

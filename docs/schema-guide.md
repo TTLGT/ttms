@@ -676,8 +676,25 @@ saRequests/{orderId}
   ccEmails        : string[]         // addresses the SA is copied to, max 5; set by dispatch
   doneAt, doneByUid, doneByName     // who closed it — shown to every reviewer
   returnedAt, returnedByName, returnReason
+  roundId         : string           // this round's id in rounds/ (absent before 2026-10-09)
+  saVersion       : number | null    // the SA version this round sent
+  dispatched      : SaReview | null  // the review facts, frozen at the first send
+  sends           : [{ at, byName, sentTo, cc, version, kind }]   // every email this round made
+
+saRequests/{orderId}/rounds/{roundId}     // the verification record, kept for good
+  …a whole copy of the request above, plus
+  kind            : "review" | "direct"   // direct = sent with no request open
+  supersededAt    : Timestamp | null      // a newer round replaced it
+  archivedAt      : Timestamp
 ```
 
+- **The record** (`rounds/`) is why a new round can overwrite the request: the
+  request is copied into its round, in the same write, when it is sent, done,
+  sent back and replaced — a whole copy, never a merge, so an untick is not
+  remembered as a tick. A send with no request open writes a `direct-{ms}`
+  round with no ticks. `GET /api/orders/{id}/sa-rounds` lists them for anyone
+  who can see the load; it is the "Verification record" button on the order.
+  A request from before rounds existed is filed as `legacy-{requestedAt ms}`.
 - **Asking** (`POST /api/orders/{id}/sa-request`, anyone who can see the load
   and holds `orders.create`) is refused while anything the SA prints is
   missing (`orderReadiness()`), moves the order `quote → booked` in the same

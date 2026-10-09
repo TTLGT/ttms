@@ -7,17 +7,16 @@ import { postOrderAlert } from '@/lib/chatAlerts';
 import { requireCaller, type Caller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { actorOf, diffFields, writeChange } from '@/lib/recordHistory';
-import { clientContactOf, readinessFactsFor } from '@/lib/orderReadinessServer';
+import { readinessFactsFor } from '@/lib/orderReadinessServer';
 import {
-  bringIntoOrderRoom, reviewersWhoSeeEverything, saGateFactsFor, saRequestRef, toSaRequest,
+  archiveRound, bringIntoOrderRoom, buildSaReview, newRoundId, reviewersWhoSeeEverything, saGateFactsFor,
+  saRequestRef, toSaRequest,
 } from '@/lib/saRequestsServer';
-import { fmcsaConcerns } from '@/types/fmcsa';
 import { orderDisplayNumber, type Order } from '@/types/order';
 import { orderReadiness, readinessOf } from '@/types/orderReadiness';
 import {
-  accessorialHints, checkBlockedBy, cleanCcList, isCcEmail, isReviewCheckKey, MAX_SA_CC, outstandingChecks,
+  checkBlockedBy, cleanCcList, isCcEmail, isReviewCheckKey, MAX_SA_CC, outstandingChecks,
 } from '@/types/saRequest';
-import type { CommodityItem } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -37,22 +36,6 @@ const isReviewer = (caller: Caller) => can(caller.profile, 'orders.sendAgreement
 const orderLink = (orderId: string) => `${APP_URL}/dashboard/orders/${orderId}`;
 const hasCarrier = (order: Record<string, unknown>) => Boolean(order.carrierId || order.carrierName);
 
-/** Every email on the client's record — its contacts and its own — for the CC picker. */
-async function clientContactEmails(clientId: unknown): Promise<{ name: string; email: string }[]> {
-  if (typeof clientId !== 'string' || !clientId) return [];
-  const snap = await adminDb.collection('parties').doc(clientId).get();
-  const d = snap.data();
-  if (!d) return [];
-  const out: { name: string; email: string }[] = [];
-  const add = (name: unknown, email: unknown) => {
-    const e = typeof email === 'string' ? email.trim().toLowerCase() : '';
-    if (e && isCcEmail(e) && !out.some((o) => o.email === e)) out.push({ name: typeof name === 'string' ? name : '', email: e });
-  };
-  for (const c of (d.contacts ?? []) as { name?: unknown; email?: unknown }[]) add(c?.name, c?.email);
-  add(d.contactName || d.companyName, d.email);
-  return out;
-}
-
 /**
  * The request, and everything a reviewer checks it against: the paperwork
  * checklist, who the SA will be emailed to, and the carrier's facts from its
@@ -65,49 +48,14 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     const caller = await requireCaller(req);
     const order = await getVisibleOrder(caller, orderId);
 
-    const [snap, facts, contact, carrierSnap] = await Promise.all([
+    const [snap, review] = await Promise.all([
       saRequestRef(orderId).get(),
-      readinessFactsFor(order),
-      clientContactOf(order.clientId),
-      typeof order.carrierId === 'string' && order.carrierId
-        ? adminDb.collection('carriers').doc(order.carrierId).get()
-        : Promise.resolve(null),
+      buildSaReview(orderId, order, isReviewer(caller)),
     ]);
-
-    const c = carrierSnap && carrierSnap.exists ? carrierSnap.data()! : null;
-    const gate = await saGateFactsFor(orderId, order, c);
-    const carrier = c ? {
-      name: String(c.companyName ?? ''),
-      dot: String(c.dot ?? ''),
-      mc: String(c.mc ?? ''),
-      phone: String(c.phone ?? ''),
-      email: String(c.email ?? ''),
-      insuranceExpiration: c.insuranceExpiration?.toMillis?.() ?? null,
-      insuranceOnFile: Boolean(c.insuranceStoragePath),
-      fmcsaCheckedAt: c.fmcsa?.checkedAt?.toMillis?.() ?? null,
-      fmcsaPhone: String(c.fmcsa?.registry?.phone ?? ''),
-      fmcsaConcerns: c.fmcsa ? fmcsaConcerns(c.fmcsa, c.mc) : null,
-    } : null;
-
     return NextResponse.json({
       request: snap.exists ? toSaRequest(snap.data()!) : null,
       isReviewer: isReviewer(caller),
-      review: {
-        readiness: orderReadiness(order as Partial<Order>, facts),
-        sendTo: contact?.email ? { name: contact.name, email: contact.email } : null,
-        carrier,
-        pickupDate: (order.pickupDate as Timestamp | null)?.toMillis?.() ?? null,
-        agreedRate: Number(order.agreedRate) || 0,
-        carrierPay: Number(order.carrierPay) || 0,
-        brokerFee: Number(order.brokerFee) || 0,
-        hasClientPayment: Boolean(order.clientPayment),
-        gate,
-        accessorialHints: accessorialHints(order.commodities as CommodityItem[] | undefined),
-        // The client's other contacts, offered as one-click CCs. Reviewers
-        // only: a broker reading where their request stands has no use for
-        // the client's address book.
-        clientContacts: isReviewer(caller) ? await clientContactEmails(order.clientId) : [],
-      },
+      review,
     });
   } catch (e) {
     return fail(e);
@@ -157,11 +105,15 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       if (status === 'open' || status === 'sent') {
         throw new AdminAuthError('Dispatch already has an SA request for this load.', 409);
       }
+      // The round being replaced goes into the record first, ticks and all.
+      // It was copied at each step already; this stamps when it ended.
+      if (current.exists) archiveRound(tx, orderId, current.data()!, { supersededAt: now });
       // A fresh round. set() without merge clears the last round's ticks and
       // its "sent back" reason, which belong to the order as it was then.
       // The CC list is kept: who else at the client reads the SA did not
       // change because the broker fixed a date.
       tx.set(reqRef, {
+        roundId: newRoundId(orderId),
         orderId,
         orderNumber: label,
         clientName: String(order.clientName ?? ''),
@@ -176,6 +128,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         returnedAt: null, returnedByName: null, returnReason: null,
         ccEmails: cleanCcList(current.data()?.ccEmails),
         sentCc: [],
+        saVersion: null,
+        dispatched: null,
+        sends: [],
       });
       const patch: Record<string, unknown> = {};
       if (orderSnap.data()?.status === 'quote') {
@@ -276,7 +231,9 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
         if (snap.data()?.status !== 'open') {
           throw new AdminAuthError('Only a request still waiting for review can be sent back.', 409);
         }
-        tx.update(reqRef, { status: 'returned', returnedAt: now, returnedByName: caller.displayName, returnReason: reason });
+        const returned = { status: 'returned', returnedAt: now, returnedByName: caller.displayName, returnReason: reason };
+        tx.update(reqRef, returned);
+        archiveRound(tx, orderId, { ...snap.data()!, ...returned });
         const patch: Record<string, unknown> = {};
         if (orderSnap.data()?.status === 'booked') {
           patch.status = 'quote';
@@ -304,7 +261,10 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
         if (left.length > 0) {
           throw new AdminAuthError(`Still to check: ${left.map((c) => c.label.toLowerCase()).join(', ')}.`, 409);
         }
-        tx.update(reqRef, { status: 'done', doneAt: now, doneByUid: caller.uid, doneByName: caller.displayName });
+        const done = { status: 'done', doneAt: now, doneByUid: caller.uid, doneByName: caller.displayName };
+        tx.update(reqRef, done);
+        // The record of who approved it, with every tick as it stood at that moment.
+        archiveRound(tx, orderId, { ...data, ...done });
         writeChange(tx, orderRef, { action: 'event', summary: 'Marked the SA request done' }, actorOf(caller), now);
       });
       await postOrderAlert(orderId, `${caller.displayName} reviewed this load and marked the SA request done.`).catch(() => {});

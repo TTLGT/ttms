@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "341f440281a690cd999c6c27a5662f4d0a1f94ad",
+      "date": "2026-10-09T13:29:56-06:00",
+      "author": "erwindank",
+      "subject": "Retire Carrier Assigned as a step: after Booked comes Client Signed, by the client's signature or by hand",
+      "body": ""
+    },
+    {
       "hash": "5af09cf1ba4689ce5fca13028b73358d1dd29242",
       "date": "2026-10-09T09:56:40-06:00",
       "author": "erwindank",
