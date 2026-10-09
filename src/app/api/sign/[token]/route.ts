@@ -6,9 +6,14 @@ import { postOrderAlert, signedAlert } from '@/lib/chatAlerts';
 import { STATUS_RANK } from '@/types/order';
 import { describeDevice } from '@/types/saRequest';
 import { markSigned } from '@/lib/clientAgreements';
+import { emailSignedAgreement } from '@/lib/signedAgreementEmail';
 import type { OrderStatus } from '@/types/order';
 
 type RouteContext = { params: Promise<{ token: string }> };
+
+// A client signature also renders their signed PDF and emails it. The
+// headroom is that, on a cold start.
+export const maxDuration = 30;
 
 /**
  * Carries the HTTP status out of the transaction callback.
@@ -259,6 +264,16 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
    */
   if (signed) {
     await postOrderAlert(signed.orderId, `${signedAlert(signed.by, signer)} Signed electronically on ${device}.`).catch(() => {});
+  }
+
+  /*
+   * The client's copy of what they signed, by email, now. After the
+   * transaction and swallowed, like the alert: the signature is the legal
+   * record, and an email that failed must never undo it or tell the client
+   * signing failed. They can download the same PDF from the link.
+   */
+  if (signed?.by === 'client') {
+    await emailSignedAgreement(token).catch((e) => console.error('Signed SA email failed:', e));
   }
 
   return NextResponse.json({ success: true });

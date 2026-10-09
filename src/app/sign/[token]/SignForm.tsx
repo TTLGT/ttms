@@ -220,7 +220,7 @@ export default function SignForm({
           <div className="mt-5">
             <SignedCopyLink token={token} />
             <p className="text-xs text-gray-500 mt-2">
-              You can come back to this link any time to download it again.
+              We have also emailed you a copy. You can come back to this link any time to download it again.
             </p>
           </div>
         )}

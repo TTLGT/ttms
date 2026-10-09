@@ -95,6 +95,7 @@ export default async function SignPage({ params }: Props) {
           {isClient && (
             <div className="mt-5">
               <SignedCopyLink token={token} />
+              <p className="text-xs text-gray-500 mt-2">A copy was also emailed to {data.clientEmail || 'you'} when it was signed.</p>
             </div>
           )}
           <p className="text-xs text-gray-400 mt-3">Order {data.orderNumber}</p>

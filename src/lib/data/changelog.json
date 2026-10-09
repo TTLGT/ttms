@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "a516e4e9eb5ec1dd7c1c3c836cbdf20809e8a00f",
+      "date": "2026-10-09T13:44:20-06:00",
+      "author": "erwindank",
+      "subject": "Let the client download their signed SA from the completion screen and every time they open the link again",
+      "body": ""
+    },
+    {
       "hash": "97906786bd3dc3c35d4e27fcb9fd2f9f56eb39fe",
       "date": "2026-10-09T13:41:54-06:00",
       "author": "erwindank",
