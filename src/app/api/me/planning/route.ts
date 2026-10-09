@@ -306,7 +306,7 @@ export async function PUT(req: NextRequest) {
       if (!taskSnap.exists) return { error: 'That one is no longer on your list.', code: 404 } as const;
       const task = toTask(taskSnap);
       if (!canBePlanningSlot(task, today)) {
-        return { error: 'Pick something still to come, with a day and a time.', code: 409 } as const;
+        return { error: 'Pick something from today on, with a day set.', code: 409 } as const;
       }
       const state = cleanPlanningState(ownerSnap.data()?.planning);
       // One item stands for one kind: a morning review is not also the weekly plan.

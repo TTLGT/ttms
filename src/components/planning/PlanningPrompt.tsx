@@ -213,9 +213,31 @@ export default function PlanningPrompt() {
     setLinked(null);
   }, []);
 
+  // The list is read the first time the picker opens, from the card's link or
+  // straight from the Calendar page's "Use one you have".
+  useEffect(() => {
+    if (!picking || candidates) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { tasks } = await listMyTasks();
+        const today = calendarToday();
+        if (cancelled) return;
+        setCandidates(tasks
+          .filter((t) => canBePlanningSlot(t, today))
+          .sort((a, b) => `${a.date} ${a.time ?? ''}`.localeCompare(`${b.date} ${b.time ?? ''}`)));
+      } catch (e) {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : 'Could not load your list.');
+        setCandidates([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [picking, candidates]);
+
   useEffect(() => {
     let cancelled = false;
-    const ask = async (only: PlanningKind | null) => {
+    const ask = async (only: PlanningKind | null, pick = false) => {
       try {
         const kinds = await getMyPlanning();
         // Asked for one from the Calendar page: that one, unless it is already
@@ -228,15 +250,22 @@ export default function PlanningPrompt() {
         setQueue(due);
         setStep(0);
         startKind(due[0]);
+        // A fresh list each time the card opens: on the Calendar page the
+        // task somebody wants to pick may have been added a minute ago.
+        setCandidates(null);
+        if (pick) setPicking(true);
         setOpen(true);
       } catch {
         // A prompt that cannot load is a prompt nobody misses. Say nothing.
       }
     };
     const timer = closedToday() ? null : setTimeout(() => ask(null), SHOW_AFTER_MS);
+    // `detail` is a kind, or `{ kind, pick: true }` to open straight on "Use one you have".
     const onAsk = (e: Event) => {
-      const asked = (e as CustomEvent).detail;
-      ask(isPlanningKind(asked) ? asked : null);
+      const detail = (e as CustomEvent).detail;
+      const asked = detail && typeof detail === 'object' ? detail.kind : detail;
+      const pick = !!(detail && typeof detail === 'object' && detail.pick);
+      ask(isPlanningKind(asked) ? asked : null, pick);
     };
     window.addEventListener(PLANNING_ASK_EVENT, onAsk);
     return () => {
@@ -333,20 +362,9 @@ export default function PlanningPrompt() {
     }
   }
 
-  async function openPicker() {
+  function openPicker() {
     setPicking(true);
     setError('');
-    if (candidates) return;
-    try {
-      const { tasks } = await listMyTasks();
-      const today = calendarToday();
-      setCandidates(tasks
-        .filter((t) => canBePlanningSlot(t, today))
-        .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load your list.');
-      setCandidates([]);
-    }
   }
 
   async function link(task: PersonalTask) {
@@ -431,8 +449,11 @@ export default function PlanningPrompt() {
               {linked ? `“${linked.title}” is your ${copy.label.toLowerCase()}` : `${slotTitle} is on your calendar`}
             </h2>
             <p className="mt-1 text-sm text-gray-600">
-              {added.scheduled?.date && <>{dayName(added.scheduled.date)}, </>}
-              {formatTime(added.scheduled?.time ?? time)}
+              {added.scheduled?.date && <>{dayName(added.scheduled.date)}</>}
+              {/* A linked task may have no time; the wheel's time is not its time. */}
+              {(added.scheduled ? added.scheduled.time : time)
+                ? <>, {formatTime(added.scheduled ? added.scheduled.time : time)}</>
+                : <>, no set time</>}
               {added.scheduled?.endTime && <> – {formatTime(added.scheduled.endTime)}</>}
               {added.scheduled && added.scheduled.repeat !== 'none' && <>. {repeatText(added.scheduled)}</>}.
             </p>
@@ -709,7 +730,7 @@ function PickExisting({
           <p className="py-6 text-center text-xs text-gray-400">
             {candidates?.length
               ? 'Nothing matches that.'
-              : 'Nothing to pick. Only tasks and events still to come, with a day and a time, can be used.'}
+              : 'Nothing to pick. Only tasks and events dated today or later can be used — give a task a day first.'}
           </p>
         ) : (
           <ul className="space-y-1">
@@ -723,7 +744,9 @@ function PickExisting({
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium text-gray-800">{t.title}</span>
                     <span className="block text-xs text-gray-500">
-                      {t.repeat === 'none' ? dayName(t.date ?? '') : repeatText(t)}, {timeRange(t)}
+                      {t.repeat === 'none' ? dayName(t.date ?? '') : repeatText(t)}
+                      {t.time ? `, ${timeRange(t)}` : ', no set time'}
+                      {t.kind === 'task' && t.status === 'done' && ' · Done'}
                     </span>
                   </span>
                 </button>

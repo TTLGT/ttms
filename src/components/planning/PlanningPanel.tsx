@@ -74,11 +74,11 @@ export default function PlanningPanel({ tasks }: { tasks?: PersonalTask[] | null
     });
   }, [fetched, tasks]);
 
-  async function askNow(k: PlanningStatus) {
+  async function askNow(k: PlanningStatus, pick = false) {
     setBusy(true);
     try {
       await setMyPlanningPrompt(k.kind, 'on');
-      window.dispatchEvent(new CustomEvent(PLANNING_ASK_EVENT, { detail: k.kind }));
+      window.dispatchEvent(new CustomEvent(PLANNING_ASK_EVENT, { detail: pick ? { kind: k.kind, pick } : k.kind }));
       await load();
     } finally {
       setBusy(false);
@@ -128,6 +128,11 @@ export default function PlanningPanel({ tasks }: { tasks?: PersonalTask[] | null
                 <button type="button" disabled={busy} onClick={() => askNow(k)}
                   className="text-xs font-medium text-brand-600 hover:underline disabled:opacity-50">
                   Set a time
+                </button>
+                {/* Already has a task or event for it: link that, rather than make another. */}
+                <button type="button" disabled={busy} onClick={() => askNow(k, true)}
+                  className="text-[11px] font-medium text-brand-600 hover:underline disabled:opacity-50">
+                  Use one you have
                 </button>
                 {!k.off && (
                   <button type="button" disabled={busy} onClick={() => stopAsking(k)}

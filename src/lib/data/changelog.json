@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "4697018a239fe640b81c52786caa396964e06bad",
+      "date": "2026-10-09T07:47:53-06:00",
+      "author": "erwindank",
+      "subject": "Remind people to clock in at the start of their shift, and not on weekends, holidays or days off",
+      "body": ""
+    },
+    {
       "hash": "88b499baa0c67592ca7e1fd1b1dd7724763f0730",
       "date": "2026-10-08T23:56:50-06:00",
       "author": "erwindank",

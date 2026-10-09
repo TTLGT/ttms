@@ -264,18 +264,23 @@ export interface PlanningStatus {
  * slot at all — the same test the planning GET applies to the pointer
  * (`statusFor()`), written for an item nobody has pointed at yet:
  *
- * - it has a day and a time, because the card shows when it is;
- * - it is not finished, archived or from history;
- * - a one-off is today or later; a repeat has not run past its end, and is
- *   not a missed copy already carried on (the copy is the one to pick).
+ * - it has a day. A time is not required: plenty of people put "Plan the
+ *   week" on a Friday without one, and `statusFor()` never asked for it;
+ * - it is not archived or from history;
+ * - a one-off is today or later, **done or not** — a morning review ticked
+ *   off at 7:30 still covers today, which is exactly what `statusFor()`
+ *   counts it as. Refusing it here left the card asking for a slot the
+ *   person had already been through;
+ * - a repeat has not run past its end, is not finished (its next copy is the
+ *   one to pick) and is not a missed copy already carried on.
  */
 export function canBePlanningSlot(
-  t: Pick<PersonalTask, 'kind' | 'status' | 'date' | 'time' | 'repeat' | 'repeatUntil' | 'nextId' | 'archived' | 'fromHistory'>,
+  t: Pick<PersonalTask, 'kind' | 'status' | 'date' | 'repeat' | 'repeatUntil' | 'nextId' | 'archived' | 'fromHistory'>,
   today: string,
 ): boolean {
-  if (!t.date || !t.time || t.archived || t.fromHistory) return false;
-  if (t.kind === 'task' && t.status === 'done') return false;
+  if (!t.date || t.archived || t.fromHistory) return false;
   if (t.repeat === 'none') return t.date >= today;
+  if (t.kind === 'task' && t.status === 'done') return false;
   if (t.repeatUntil && t.repeatUntil < today) return false;
   return !(t.nextId && t.date < today);
 }
