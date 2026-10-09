@@ -1,8 +1,9 @@
 'use client';
 
-import { PartyPopper, Truck } from 'lucide-react';
+import { useState } from 'react';
+import { Check, Copy, PartyPopper, Truck } from 'lucide-react';
 import { clock } from '@/lib/chatFormat';
-import type { ChatMessage } from '@/types/conversation';
+import { linksIn, type ChatMessage } from '@/types/conversation';
 
 /**
  * A line from the server itself, in one of two shapes — see SystemMessageKind.
@@ -30,6 +31,7 @@ import type { ChatMessage } from '@/types/conversation';
  */
 export default function SystemMessage({ message }: { message: ChatMessage }) {
   if (message.systemKind === 'announcement') return <Announcement message={message} />;
+  if (linksIn(message.text).length > 0) return <AlertWithLinks message={message} />;
 
   return (
     <div className="flex justify-center py-1.5">
@@ -62,5 +64,76 @@ function Announcement({ message }: { message: ChatMessage }) {
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * An alert that carries a link — the Request SA line, the signing link posted
+ * when the agreement goes out. The pill shape truncates, which cut the address
+ * off exactly where it mattered: a link nobody can see the end of cannot be
+ * checked, and one that cannot be selected cannot be pasted to a client. So
+ * this shape wraps every line, makes each address a real link, and gives it a
+ * Copy button. Still centred and inert, like the pill — not a colleague.
+ */
+function AlertWithLinks({ message }: { message: ChatMessage }) {
+  const text = message.text ?? '';
+  const links = linksIn(text);
+  // Same pattern as linksIn(), with a capture group so split() keeps the
+  // addresses in place among the words around them.
+  const parts = text.split(/((?:https?:\/\/|www\.)[^\s<>"']+)/gi);
+
+  return (
+    <div className="flex justify-center px-2 py-1.5">
+      <div className="flex max-w-[85%] items-start gap-1.5 rounded-2xl bg-white px-3 py-1.5 text-[11px] text-gray-600 shadow-sm">
+        <Truck size={11} className="mt-0.5 flex-shrink-0 text-brand-500" />
+        <div className="min-w-0">
+          <p className="select-text whitespace-pre-line break-words">
+            {parts.map((part, i) => {
+              if (i % 2 === 0) return part;
+              // Trailing punctuation belongs to the sentence, not the address.
+              const trimmed = part.replace(/[.,;:!?)\]}'"]+$/, '');
+              const tail = part.slice(trimmed.length);
+              const href = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+              return (
+                <span key={i}>
+                  <a href={href} target="_blank" rel="noopener noreferrer"
+                     className="break-all text-brand-600 underline hover:text-brand-700">
+                    {trimmed}
+                  </a>
+                  {tail}
+                </span>
+              );
+            })}
+            <span className="ml-1.5 text-gray-400">{clock(message)}</span>
+          </p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {links.map((url) => <CopyLink key={url} url={url} />)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CopyLink({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard refused (an insecure origin, a denied permission). The link
+      // is still on screen and selectable, so there is nothing else to do.
+    }
+  }
+
+  return (
+    <button type="button" onClick={copy} title={url}
+      className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50">
+      {copied ? <Check size={11} className="text-green-600" /> : <Copy size={11} />}
+      {copied ? 'Copied' : 'Copy link'}
+    </button>
   );
 }

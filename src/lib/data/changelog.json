@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "83529930ac0bc34a213115f4877c9bedac4d0edf",
+      "date": "2026-10-08T21:32:41-06:00",
+      "author": "erwindank",
+      "subject": "Draw the chat alerts menu over the page so the sidebar cannot cut it off",
+      "body": ""
+    },
+    {
       "hash": "530b6ada9d01a6e9cfce1101ed6a4c0ef15e4b8d",
       "date": "2026-10-08T21:19:43-06:00",
       "author": "erwindank",
