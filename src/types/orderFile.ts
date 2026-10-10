@@ -32,7 +32,7 @@ export const ORDER_FILES_COLLECTION = 'orderFiles';
 
 /** What the file is. Free text says the rest; this is for scanning a list. */
 export const ORDER_FILE_KINDS = [
-  'signed_sa', 'rate_confirmation', 'receipt', 'customs', 'permit', 'insurance', 'correspondence', 'other',
+  'signed_sa', 'signed_ca', 'rate_confirmation', 'receipt', 'customs', 'permit', 'insurance', 'correspondence', 'other',
 ] as const;
 export type OrderFileKind = (typeof ORDER_FILE_KINDS)[number];
 
@@ -44,6 +44,8 @@ export const ORDER_FILE_KIND_LABEL: Record<OrderFileKind, string> = {
    * src/lib/signedSaProof.ts.
    */
   signed_sa:         'Signed SA',
+  /** The carrier's Carrier Agreement (rate confirmation) signed some other way. Same role as `signed_sa`, for the carrier. */
+  signed_ca:         'Signed Carrier Agreement',
   rate_confirmation: 'Rate confirmation',
   receipt:           'Receipt (lumper, fuel, scale…)',
   customs:           'Customs',
@@ -59,7 +61,10 @@ export const ORDER_FILE_KIND_LABEL: Record<OrderFileKind, string> = {
  * SA slot in Client Confirmation and on the Documents tab — so it is kept out
  * of the general list rather than being one more kind among receipts.
  */
-export const OTHER_FILE_KINDS = ORDER_FILE_KINDS.filter((k) => k !== 'signed_sa');
+export const OTHER_FILE_KINDS = ORDER_FILE_KINDS.filter((k) => k !== 'signed_sa' && k !== 'signed_ca');
+
+/** The file kind that holds each party's hand-signed agreement. */
+export const SIGNED_AGREEMENT_KIND = { client: 'signed_sa', carrier: 'signed_ca' } as const;
 
 /** A signed SA can be a scan or a phone photo: PDFs and pictures only. */
 export const SIGNED_SA_ACCEPT = 'application/pdf,image/*';

@@ -636,7 +636,7 @@ an order's Documents tab. See `src/types/orderFile.ts`.
 orderFiles/{fileId}                 // fileId is random, made by the browser
   orderId        : string
   name           : string           // as it was on the uploader's computer
-  kind           : "signed_sa" | "rate_confirmation" | "receipt" | "customs"
+  kind           : "signed_sa" | "signed_ca" | "rate_confirmation" | "receipt" | "customs"
                  | "permit" | "insurance" | "correspondence" | "other"
   note           : string
   contentType    : string           // read off the stored object, not the request
@@ -667,6 +667,15 @@ the client that their acceptance is registered with those files attached, to
 the SA's contact and CC list, and records it on the order as
 `paperSaConfirmedAt` / `paperSaConfirmedTo` / `paperSaConfirmedByName`
 (server-kept fields) and in the change log.
+
+**The Signed Carrier Agreement slot** is the same for the carrier:
+`kind: "signed_ca"`, shown in the Carrier section and as **Signed Carrier
+Agreement** on the Documents tab. The confirmation route takes
+`{ party: "carrier" }`, emails the carrier's address and the carrier review's
+CC list (never the client — it quotes carrier pay), and records
+`paperCaConfirmedAt` / `paperCaConfirmedTo` / `paperCaConfirmedByName`.
+Moving a load to **Carrier Signed** by hand needs at least one `signed_ca`
+file (`signedSaProof(orderId, 'carrier')`), enforced in `updateOrderAsCaller()`.
 
 **A signed SA by hand.** Moving a load to Client Signed without an
 e-signature needs at least one `orderFiles` of kind `signed_sa` or

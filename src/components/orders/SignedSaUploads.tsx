@@ -7,7 +7,7 @@ import { deleteOrderFile, listOrderFiles, uploadOrderFile } from '@/lib/orderFil
 import { sendSignedSaConfirmation } from '@/lib/orderPaperwork';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import type { DateLike } from '@/lib/dateFormat';
-import { SIGNED_SA_ACCEPT, formatFileSize, type OrderFile } from '@/types/orderFile';
+import { SIGNED_AGREEMENT_KIND, SIGNED_SA_ACCEPT, formatFileSize, type OrderFile } from '@/types/orderFile';
 
 /**
  * The Signed SA slot: the client's agreement signed some other way than the
@@ -26,11 +26,16 @@ import { SIGNED_SA_ACCEPT, formatFileSize, type OrderFile } from '@/types/orderF
  *   files attached (admin and dispatch). Who sent it last, and when, is shown.
  * - **Mark Client Signed** — the page's own advance, offered here because this
  *   is where the copy that allows it was just uploaded.
+ *
+ * `party="carrier"` is the same slot for the carrier's Carrier Agreement
+ * (`signed_ca` files), in the Carrier section and on the Documents tab, with
+ * Mark Carrier Signed and the confirmation emailed to the carrier.
  */
 export default function SignedSaUploads({
-  orderId, eSigned, confirmation, canMarkSigned, onMarkSigned, onChange,
+  orderId, eSigned, confirmation, canMarkSigned, onMarkSigned, onChange, party = 'client',
 }: {
   orderId: string;
+  party?: 'client' | 'carrier';
   /** The client signed on the link. */
   eSigned: boolean;
   confirmation: { at: DateLike; to: string; byName: string } | null;
@@ -48,12 +53,16 @@ export default function SignedSaUploads({
   const [busy, setBusy] = useState('');
   const [sent, setSent] = useState<{ at: Date; to: string; byName: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const carrier = party === 'carrier';
+  const kind = SIGNED_AGREEMENT_KIND[party];
+  const label = carrier ? 'Signed Carrier Agreement' : 'Signed SA';
+  const who = carrier ? 'carrier' : 'client';
 
   useEffect(() => {
     listOrderFiles(orderId)
-      .then((all) => setFiles(all.filter((f) => f.kind === 'signed_sa')))
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the signed SA'));
-  }, [orderId]);
+      .then((all) => setFiles(all.filter((f) => f.kind === kind)))
+      .catch((e) => setError(e instanceof Error ? e.message : `Could not load the ${label}`));
+  }, [orderId, kind, label]);
 
   async function upload(list: FileList) {
     setError('');
@@ -64,7 +73,7 @@ export default function SignedSaUploads({
       }
       try {
         setProgress(0);
-        const saved = await uploadOrderFile(orderId, file, { kind: 'signed_sa', note: '' }, setProgress);
+        const saved = await uploadOrderFile(orderId, file, { kind, note: '' }, setProgress);
         setFiles((f) => [...(f ?? []), saved]);
         onChange?.();
       } catch (e) {
@@ -90,11 +99,11 @@ export default function SignedSaUploads({
   }
 
   async function email() {
-    if (!confirm('Email the client that we have registered their acceptance of the load confirmation, with the signed SA attached?')) return;
+    if (!confirm(`Email the ${who} that we have registered their acceptance of the ${carrier ? 'rate confirmation' : 'load confirmation'}, with the ${label.toLowerCase()} attached?`)) return;
     setBusy('email');
     setError('');
     try {
-      const r = await sendSignedSaConfirmation(orderId);
+      const r = await sendSignedSaConfirmation(orderId, party);
       setSent({ at: new Date(r.at), to: r.sentTo, byName: user?.displayName || 'you' });
       onChange?.();
     } catch (e) {
@@ -122,7 +131,7 @@ export default function SignedSaUploads({
               <div className="min-w-0 flex-1">
                 <a href={f.url} target="_blank" rel="noreferrer" className="block truncate text-sm font-medium text-brand-700 hover:underline">{f.name}</a>
                 <p className="text-[11px] text-gray-500 truncate">
-                  Signed SA · {formatFileSize(f.size)} · uploaded by {f.uploadedByName} · {formatDateTime(new Date(f.createdAt))}
+                  {label} · {formatFileSize(f.size)} · uploaded by {f.uploadedByName} · {formatDateTime(new Date(f.createdAt))}
                 </p>
               </div>
               {mayRemove(f) && (
@@ -141,13 +150,13 @@ export default function SignedSaUploads({
           <button type="button" onClick={() => inputRef.current?.click()} disabled={progress !== null}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-400 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 disabled:opacity-50">
             {progress !== null ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-            {progress !== null ? `Uploading… ${progress}%` : hasFiles ? 'Upload another page' : 'Upload signed SA (PDF or picture)'}
+            {progress !== null ? `Uploading… ${progress}%` : hasFiles ? 'Upload another page' : `Upload ${label.toLowerCase()} (PDF or picture)`}
           </button>
           <input ref={inputRef} type="file" accept={SIGNED_SA_ACCEPT} multiple className="hidden"
             onChange={(e) => { if (e.target.files?.length) void upload(e.target.files); e.target.value = ''; }} />
           {!hasFiles && files !== null && (
             <p className="text-[11px] text-gray-500">
-              For a client who cannot sign on the link: upload what they signed — a scan, a PDF, or a photo of the page.
+              For a {who} who cannot sign on the link: upload what they signed — a scan, a PDF, or a photo of the page.
             </p>
           )}
         </>
@@ -158,14 +167,14 @@ export default function SignedSaUploads({
           {canMarkSigned && onMarkSigned && (
             <button type="button" onClick={onMarkSigned}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Mark Client Signed
+              <CheckCircle2 className="w-3.5 h-3.5" /> {carrier ? 'Mark Carrier Signed' : 'Mark Client Signed'}
             </button>
           )}
           {can('orders.sendAgreement') && (
             <button type="button" onClick={() => void email()} disabled={busy !== ''}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 disabled:opacity-50">
               {busy === 'email' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
-              {last ? 'Email the confirmation again' : 'Email the client their confirmation'}
+              {last ? 'Email the confirmation again' : `Email the ${who} their confirmation`}
             </button>
           )}
         </div>
@@ -177,7 +186,7 @@ export default function SignedSaUploads({
         </p>
       )}
       {hasFiles && !eSigned && !last && !can('orders.sendAgreement') && (
-        <p className="text-[11px] text-gray-500">Admin or dispatch can email the client a confirmation with this attached.</p>
+        <p className="text-[11px] text-gray-500">Admin or dispatch can email the {who} a confirmation with this attached.</p>
       )}
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>

@@ -87,8 +87,8 @@ export async function downloadAgreementPdf(orderId: string, ref?: string, party:
 }
 
 /** How many signed-SA copies the load holds. See src/lib/signedSaProof.ts. */
-export async function fetchSignedSaProof(orderId: string): Promise<{ files: number; photos: number }> {
-  const res = await fetch(`/api/orders/${orderId}/signed-sa-proof`, { headers: await authHeaders() });
+export async function fetchSignedSaProof(orderId: string, party: 'client' | 'carrier' = 'client'): Promise<{ files: number; photos: number }> {
+  const res = await fetch(`/api/orders/${orderId}/signed-sa-proof?party=${party}`, { headers: await authHeaders() });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not check for a signed SA');
   return data as { files: number; photos: number };
@@ -98,8 +98,14 @@ export async function fetchSignedSaProof(orderId: string): Promise<{ files: numb
  * Emails the client that their acceptance is registered, with the uploaded
  * signed SA attached. See /api/orders/{id}/signed-sa-confirmation.
  */
-export async function sendSignedSaConfirmation(orderId: string): Promise<{ sentTo: string; cc: string[]; at: number }> {
-  const res = await fetch(`/api/orders/${orderId}/signed-sa-confirmation`, { method: 'POST', headers: await authHeaders() });
+export async function sendSignedSaConfirmation(
+  orderId: string, party: 'client' | 'carrier' = 'client',
+): Promise<{ sentTo: string; cc: string[]; at: number }> {
+  const res = await fetch(`/api/orders/${orderId}/signed-sa-confirmation`, {
+    method: 'POST',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ party }),
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not send the confirmation');
   return data as { sentTo: string; cc: string[]; at: number };

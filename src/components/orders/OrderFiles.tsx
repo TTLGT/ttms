@@ -101,7 +101,7 @@ export default function OrderFiles({ orderId, readOnly = false, onChange }: {
   }
 
   // A signed SA has its own slot (SignedSaUploads), not a line among receipts.
-  const others = files?.filter((f) => f.kind !== 'signed_sa') ?? null;
+  const others = files?.filter((f) => f.kind !== 'signed_sa' && f.kind !== 'signed_ca') ?? null;
   const mayRemove = (f: OrderFile) => !readOnly && (f.uploadedByUid === user?.uid || can('orders.viewAll'));
 
   return (

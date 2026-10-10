@@ -1189,6 +1189,12 @@ the carrier's review now** — the SA review is about the client. Asking for the
 carrier's moves no status, and its send still waits on
 `clientSignatureSatisfied()`.
 
+The hand-signed side matches the client's too: a `signed_ca` file slot in the
+Carrier section and on Documents, a confirmation email to the carrier
+(`signed-sa-confirmation` with `party: 'carrier'`), and **Carrier Signed by
+hand only once a `signed_ca` file is on the load** — enforced in
+`updateOrderAsCaller()`, the same as Client Signed.
+
 ### Learn English — underlines that never touch the page
 
 A per-browser switch at the foot of the sidebar (`LearnContext`) that underlines

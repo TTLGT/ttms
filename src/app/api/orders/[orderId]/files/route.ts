@@ -86,9 +86,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
     // A signed SA is a scan or a photo — it is emailed to the client as their
     // copy, so a spreadsheet or a zip filed under that name is refused.
-    if (kind === 'signed_sa' && !isSignedSaUpload(String(meta.contentType ?? ''))) {
+    if ((kind === 'signed_sa' || kind === 'signed_ca') && !isSignedSaUpload(String(meta.contentType ?? ''))) {
       await file.delete({ ignoreNotFound: true }).catch(() => {});
-      return NextResponse.json({ error: 'A signed SA must be a PDF or a picture.' }, { status: 400 });
+      return NextResponse.json({ error: 'A signed agreement must be a PDF or a picture.' }, { status: 400 });
     }
 
     const ref = adminDb.collection(ORDER_FILES_COLLECTION).doc(fileId);

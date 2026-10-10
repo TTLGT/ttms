@@ -278,6 +278,19 @@ export default function OrderDetailPage() {
     return () => { live = false; };
   }, [handSignable, orderId, tab, photoCount, filesVersion]);
 
+  // The same for "→ Carrier Signed": only with the carrier's signed Carrier
+  // Agreement uploaded, while the load waits at Client Signed.
+  const [carrierSignedCopies, setCarrierSignedCopies] = useState<number | null>(null);
+  const handCarrierSignable = Boolean(order && !order.carrierSignedAt && order.status === 'shipper_signed');
+  useEffect(() => {
+    if (!handCarrierSignable) return;
+    let live = true;
+    fetchSignedSaProof(orderId, 'carrier')
+      .then((p) => { if (live) setCarrierSignedCopies(p.files); })
+      .catch(() => { if (live) setCarrierSignedCopies(null); });
+    return () => { live = false; };
+  }, [handCarrierSignable, orderId, tab, filesVersion]);
+
   /*
     Where "back" goes. Orders is right for somebody who came from the orders
     list, and wrong for somebody who followed a driver's licence off the
@@ -854,6 +867,11 @@ export default function OrderDetailPage() {
       + 'with the signed SA you uploaded as the proof. To send the carrier agreement you will still '
       + 'need the client’s e-signature or a waiver.',
     )) return;
+    if (next === 'carrier_signed' && !order.carrierSignedAt && !confirm(
+      'Mark this load as Carrier Signed?\n\n'
+      + 'The carrier has not signed electronically. This goes on the change log under your name, '
+      + 'with the signed Carrier Agreement you uploaded as the proof.',
+    )) return;
     setAdvancing(true);
     try {
       await updateOrderStatus(orderId, next);
@@ -1074,13 +1092,18 @@ export default function OrderDetailPage() {
             }} />
           )}
           {nextStatus && order.status !== 'cancelled' && order.status !== 'quote' && (() => {
-            // By hand, Client Signed needs the signed SA uploaded first.
-            const needsCopy = nextStatus === 'shipper_signed' && handSignable && !signedSaCopies;
+            // By hand, Client Signed needs the signed SA uploaded first, and
+            // Carrier Signed the signed Carrier Agreement.
+            const needsSa = nextStatus === 'shipper_signed' && handSignable && !signedSaCopies;
+            const needsCa = nextStatus === 'carrier_signed' && handCarrierSignable && !carrierSignedCopies;
+            const needsCopy = needsSa || needsCa;
             return (
               <button onClick={handleAdvance} disabled={advancing || needsCopy}
-                title={needsCopy
+                title={needsSa
                   ? 'Upload the client’s signed SA first, in Client Confirmation or under Documents → Signed SA. It moves on its own when the client e-signs.'
-                  : undefined}
+                  : needsCa
+                    ? 'Upload the carrier’s signed Carrier Agreement first, in the Carrier section or under Documents → Signed Carrier Agreement. It moves on its own when the carrier e-signs.'
+                    : undefined}
                 className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                 {advancing ? 'Updating…' : `→ ${STATUS_LABEL[nextStatus]}`}
               </button>
@@ -1492,6 +1515,24 @@ export default function OrderDetailPage() {
             {!assigningCarrier && order.carrierId && (
               <div className="mb-3">
                 <SaAgreementVersions orderId={orderId} party="carrier" signed={Boolean(order.carrierSignedAt)} refreshKey={caRefresh} />
+              </div>
+            )}
+            {/* A carrier who cannot sign on the link: upload what they signed,
+                mark the load Carrier Signed on it, and email them that it is
+                registered. Gone once they e-sign. */}
+            {!assigningCarrier && order.carrierId && (
+              <div className="mb-4">
+                <SignedSaUploads
+                  party="carrier"
+                  orderId={orderId}
+                  eSigned={Boolean(order.carrierSignedAt)}
+                  confirmation={order.paperCaConfirmedAt && order.paperCaConfirmedTo
+                    ? { at: order.paperCaConfirmedAt, to: order.paperCaConfirmedTo, byName: order.paperCaConfirmedByName ?? '' }
+                    : null}
+                  canMarkSigned={handCarrierSignable}
+                  onMarkSigned={() => void handleAdvance()}
+                  onChange={() => setFilesVersion((n) => n + 1)}
+                />
               </div>
             )}
 
@@ -1925,6 +1966,34 @@ export default function OrderDetailPage() {
             onChange={() => setFilesVersion((n) => n + 1)}
           />
         </section>
+        {/* The carrier's signed agreement, the same way as the client's above. */}
+        {order.carrierId && (
+          <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Signed Carrier Agreement</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                {order.carrierSignedAt
+                  ? <>Signed electronically by <strong>{order.carrierSignerName || 'the carrier'}</strong>
+                      {' '}on {formatDate(order.carrierSignedAt as { toDate: () => Date })}.</>
+                  : 'The carrier’s signed rate confirmation. When they sign on the link it appears here by itself; if they sign on paper or by email, upload it here.'}
+              </p>
+            </div>
+            {order.carrierSignedAt && (
+              <SaAgreementVersions orderId={orderId} party="carrier" signed refreshKey={caRefresh} />
+            )}
+            <SignedSaUploads
+              party="carrier"
+              orderId={orderId}
+              eSigned={Boolean(order.carrierSignedAt)}
+              confirmation={order.paperCaConfirmedAt && order.paperCaConfirmedTo
+                ? { at: order.paperCaConfirmedAt, to: order.paperCaConfirmedTo, byName: order.paperCaConfirmedByName ?? '' }
+                : null}
+              canMarkSigned={handCarrierSignable}
+              onMarkSigned={() => void handleAdvance()}
+              onChange={() => setFilesVersion((n) => n + 1)}
+            />
+          </section>
+        )}
         <OrderFiles orderId={orderId} onChange={() => setFilesVersion((n) => n + 1)} />
         </div>
       )}

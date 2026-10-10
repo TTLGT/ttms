@@ -922,6 +922,10 @@ export interface Order {
   paperSaConfirmedAt?: Timestamp | null;
   paperSaConfirmedTo?: string | null;
   paperSaConfirmedByName?: string | null;
+  /** The same, for the carrier's hand-signed Carrier Agreement (`signed_ca`). */
+  paperCaConfirmedAt?: Timestamp | null;
+  paperCaConfirmedTo?: string | null;
+  paperCaConfirmedByName?: string | null;
   /**
    * Mirror of `signatureWaivedAt != null`, and the only reason it exists is
    * that Firestore cannot ask "is this field null or absent" in one query.

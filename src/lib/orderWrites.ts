@@ -32,7 +32,7 @@ import { allocateOrderNumber } from './orderNumber';
 import { actorOf, diffFields, sameValue, writeChange } from './recordHistory';
 import type { Caller } from './partyAccess';
 import { planAgreementHold } from './clientAgreements';
-import { NO_SIGNED_SA_PROOF, signedSaProof } from './signedSaProof';
+import { NO_SIGNED_CA_PROOF, NO_SIGNED_SA_PROOF, signedSaProof } from './signedSaProof';
 import { LEGACY_STATUSES, cleanStops, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
 
 const COL = 'orders';
@@ -64,8 +64,9 @@ const SIGNATURE_FIELDS = [
  */
 const SERVER_KEPT_FIELDS = [
   'partyApprovals', 'coverPhotoId', 'photoCount', 'fileCount', 'createdBy', 'orderNumber',
-  // The client-acceptance email for a signed SA uploaded by hand — /signed-sa-confirmation.
+  // The acceptance emails for a signed agreement uploaded by hand — /signed-sa-confirmation.
   'paperSaConfirmedAt', 'paperSaConfirmedTo', 'paperSaConfirmedByName',
+  'paperCaConfirmedAt', 'paperCaConfirmedTo', 'paperCaConfirmedByName',
 ] as const;
 
 /** Bookkeeping the server sets itself; dropped from a patch rather than refused. */
@@ -162,6 +163,13 @@ export async function updateOrderAsCaller(
     handSignedNote = `Marked Client Signed by hand, on the signed SA uploaded to the load (${
       [proof.files && `${proof.files} file${proof.files === 1 ? '' : 's'}`, proof.photos && `${proof.photos} picture${proof.photos === 1 ? '' : 's'}`]
         .filter(Boolean).join(' and ')}). There is no e-signature.`;
+  }
+  // The carrier's the same way: Carrier Signed by hand needs their signed
+  // Carrier Agreement on the load.
+  if (touched(before, patch, ['status']).length && patch.status === 'carrier_signed' && !before.carrierSignedAt) {
+    const proof = await signedSaProof(orderId, 'carrier');
+    if (proof.files === 0) throw new AdminAuthError(NO_SIGNED_CA_PROOF, 409);
+    handSignedNote = `Marked Carrier Signed by hand, on the signed Carrier Agreement uploaded to the load (${proof.files} file${proof.files === 1 ? '' : 's'}). There is no e-signature.`;
   }
 
   const now = Timestamp.now();
