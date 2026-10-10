@@ -8,13 +8,14 @@ import {
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { fetchOrderReadiness } from '@/lib/orderPaperwork';
 import {
-  getSaRequest, markSaDone, requestSa, returnSaRequest, sendShipperAgreement, setSaCc, tickSaCheck, type SaReview,
+  getSaRequest, markSaDone, requestSa, returnSaRequest, sendAgreementFor, setSaCc, tickSaCheck, type SaReview,
 } from '@/lib/saRequests';
 import { trackActivity } from '@/lib/attendance';
 import { usd } from '@/types/paymentMethod';
 import { readinessOf, type ReadinessItem } from '@/types/orderReadiness';
 import {
-  MAX_SA_CC, SA_REVIEW_CHECKS, SA_STATUS_LABEL, checkBlockedBy, isCcEmail, outstandingChecks, type SaRequest,
+  AGREEMENT_NAME, AGREEMENT_SHORT, MAX_SA_CC, SA_STATUS_LABEL, checkBlockedBy, isCcEmail, outstandingChecks,
+  reviewChecks, type AgreementParty, type SaRequest,
 } from '@/types/saRequest';
 import { isNewCarrier, MIN_OPERATING_MONTHS, officeDay } from '@/types/fmcsa';
 import { ReadinessLine } from './OrderReadinessCard';
@@ -27,7 +28,17 @@ import { ReadinessLine } from './OrderReadinessCard';
  * and send the client the Shipper Agreement, so that is what it says. See
  * src/types/saRequest.ts.
  */
-export function RequestSaButton({ orderId, onRequested }: { orderId: string; onRequested: () => void }) {
+export function RequestSaButton({ orderId, onRequested, party = 'client', carrierName = '', clientSigned = true }: {
+  orderId: string;
+  onRequested: () => void;
+  /** `carrier` is Request Carrier Agreement — see src/types/saRequest.ts. */
+  party?: AgreementParty;
+  carrierName?: string;
+  /** For the carrier's: whether the client has signed or a waiver is on file. */
+  clientSigned?: boolean;
+}) {
+  const carrier = party === 'carrier';
+  const name = AGREEMENT_NAME[party];
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState('');
   const [items, setItems] = useState<ReadinessItem[] | null>(null);
@@ -35,18 +46,20 @@ export function RequestSaButton({ orderId, onRequested }: { orderId: string; onR
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || carrier) return;
     setItems(null);
     fetchOrderReadiness(orderId).then(setItems).catch(() => setItems([]));
-  }, [open, orderId]);
+  }, [open, orderId, carrier]);
 
-  const sa = items ? readinessOf(items, 'sa') : null;
+  // The SA cannot go out with a field missing; the carrier's checks are the
+  // review's, so nothing is waited on before asking.
+  const sa = carrier ? { missing: [] as ReadinessItem[] } : items ? readinessOf(items, 'sa') : null;
 
   async function submit() {
     setBusy(true);
     setError('');
     try {
-      await requestSa(orderId, note);
+      await requestSa(orderId, note, party);
       setOpen(false);
       setNote('');
       onRequested();
@@ -59,21 +72,30 @@ export function RequestSaButton({ orderId, onRequested }: { orderId: string; onR
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)}
-        title="The client accepted the quote: ask dispatch to check the load and send the Shipper Agreement"
-        className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">
-        <Send className="w-4 h-4" /> Request SA
-      </button>
+      {carrier ? (
+        <button type="button" onClick={() => setOpen(true)}
+          title="Ask dispatch to check the carrier and send them the Carrier Agreement"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition">
+          <Send className="w-3.5 h-3.5" /> Request Carrier Agreement
+        </button>
+      ) : (
+        <button type="button" onClick={() => setOpen(true)}
+          title="The client accepted the quote: ask dispatch to check the load and send the Shipper Agreement"
+          className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">
+          <Send className="w-4 h-4" /> Request SA
+        </button>
+      )}
       {open && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
           <div className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-xl space-y-4 max-h-full overflow-y-auto">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Request the Shipper Agreement</h2>
+                <h2 className="text-lg font-bold text-gray-900">Request the {name}</h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  For when the client has accepted the quote. Admin and dispatch are told in this load&apos;s discussion,
-                  check the order and the carrier, and email the client the agreement to sign. The order moves to Booked.
+                  {carrier
+                    ? <>Admin and dispatch are told in this load&apos;s discussion, check {carrierName || 'the carrier'} — authority, insurance, driver, truck — and email them the agreement to sign.</>
+                    : <>For when the client has accepted the quote. Admin and dispatch are told in this load&apos;s discussion, check the order, and email the client the agreement to sign. The order moves to Booked.</>}
                 </p>
               </div>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="rounded p-1 text-gray-400 hover:bg-gray-100">
@@ -81,7 +103,14 @@ export function RequestSaButton({ orderId, onRequested }: { orderId: string; onR
               </button>
             </div>
 
-            {!sa ? (
+            {carrier && !clientSigned && (
+              <p className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                The client has not signed the SA yet. Dispatch can review the carrier now, but the agreement cannot be
+                sent until the client signs or a waiver is recorded.
+              </p>
+            )}
+            {carrier ? null : !sa ? (
               <p className="flex items-center gap-2 text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" />Checking the order…</p>
             ) : sa.missing.length > 0 ? (
               <div className="rounded-lg border border-red-200 bg-red-50 p-3">
@@ -108,7 +137,7 @@ export function RequestSaButton({ orderId, onRequested }: { orderId: string; onR
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
               <button type="button" onClick={() => void submit()} disabled={busy || !sa || sa.missing.length > 0}
                 className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
-                {busy ? 'Sending…' : 'Request SA'}
+                {busy ? 'Sending…' : carrier ? 'Request Carrier Agreement' : 'Request SA'}
               </button>
             </div>
           </div>
@@ -128,11 +157,15 @@ export function RequestSaButton({ orderId, onRequested }: { orderId: string; onR
  * and names who made it, so the second person sees what the first already
  * did; the panel reloads after every action rather than trusting its own copy.
  */
-export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: {
+export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, onLoaded, party = 'client' }: {
   orderId: string;
   refreshKey?: unknown;
-  /** The order's status moved because of something done here. */
-  onStatusChange: (status: 'quote' | 'booked') => void;
+  /** The request as it was just read — null when there is none — so the page can offer the button to ask. */
+  onLoaded?: (request: SaRequest | null) => void;
+  /** Whose agreement this review is for. */
+  party?: AgreementParty;
+  /** The order's status moved because of something done here. Only the SA's review moves it. */
+  onStatusChange?: (status: 'quote' | 'booked') => void;
   /** The SA was emailed from here — the signing-link box on the page refreshes. */
   onSent?: () => void;
 }) {
@@ -144,15 +177,21 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
   const [reason, setReason] = useState('');
 
   function load() {
-    getSaRequest(orderId).then(setData).catch((e) => setError(e instanceof Error ? e.message : 'Could not load the request'));
+    getSaRequest(orderId, party).then((d) => { setData(d); onLoaded?.(d.request); }).catch((e) => setError(e instanceof Error ? e.message : 'Could not load the request'));
   }
-  useEffect(load, [orderId, refreshKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [orderId, refreshKey, party]);
 
   if (!data?.request) return error ? <p className="text-xs text-red-600 mb-4">{error}</p> : null;
   const { request: r, isReviewer, review } = data;
-  const hasCarrier = Boolean(review.carrier);
-  const left = outstandingChecks(r.checks, hasCarrier, review.gate);
-  const applicable = SA_REVIEW_CHECKS.filter((c) => hasCarrier || !c.carrier).length;
+  const carrier = party === 'carrier';
+  const name = AGREEMENT_NAME[party];
+  const short = AGREEMENT_SHORT[party];
+  const checks = reviewChecks(party);
+  const left = outstandingChecks(party, r.checks, review.gate);
+  const applicable = checks.length;
+  // The carrier's agreement waits for the client's signature (or a waiver).
+  const sendBlocked = carrier && !review.clientSigned;
   const working = isReviewer && (r.status === 'open' || r.status === 'sent');
 
   async function run(key: string, fn: () => Promise<unknown>) {
@@ -176,7 +215,7 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-brand-600" /> {r.reason === 'changed' ? 'Shipper Agreement update' : 'Shipper Agreement request'}
+            <ShieldCheck className="w-4 h-4 text-brand-600" /> {r.reason === 'changed' ? `${name} update` : `${name} request`}
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
             {r.reason === 'changed' ? 'Opened by TTMS after a change by' : 'Asked by'} {r.requestedByName} · {formatDateTime(new Date(r.requestedAt))}
@@ -192,7 +231,7 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
       {/* Outcome lines everybody sees */}
       {r.sentAt && (
         <p className="flex items-center gap-1.5 text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-          <Mail className="w-3.5 h-3.5" /> SA emailed to <strong>{r.sentTo}</strong>
+          <Mail className="w-3.5 h-3.5" /> {short} emailed to <strong>{r.sentTo}</strong>
           {r.sentCc.length > 0 && <> (copied to {r.sentCc.join(', ')})</>} by {r.sentByName} · {formatDateTime(new Date(r.sentAt))}
         </p>
       )}
@@ -205,7 +244,7 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
         <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           <p className="font-semibold">Sent back by {r.returnedByName}{r.returnedAt ? ` · ${formatDateTime(new Date(r.returnedAt))}` : ''}</p>
           {r.returnReason && <p className="mt-0.5">{r.returnReason}</p>}
-          <p className="mt-1 text-amber-800">Fix it, then use Request SA again.</p>
+          <p className="mt-1 text-amber-800">Fix it, then use {carrier ? 'Request Carrier Agreement' : 'Request SA'} again.</p>
         </div>
       )}
       {!isReviewer && r.status === 'open' && (
@@ -217,13 +256,15 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
           {/* Facts TTMS can check */}
           <div className="space-y-3">
             <p className="text-xs font-semibold text-gray-800 uppercase tracking-wide">What TTMS checked</p>
-            <Facts review={review} formatDate={formatDate} />
+            <Facts review={review} formatDate={formatDate} party={party} />
+            {!carrier && (
+              <div>
+                <p className="text-[11px] font-semibold text-gray-600 mb-1">Shipper Agreement fields</p>
+                <ul className="space-y-1">{readinessOf(review.readiness, 'sa').items.map((i) => <ReadinessLine key={i.key} item={i} />)}</ul>
+              </div>
+            )}
             <div>
-              <p className="text-[11px] font-semibold text-gray-600 mb-1">Shipper Agreement fields</p>
-              <ul className="space-y-1">{readinessOf(review.readiness, 'sa').items.map((i) => <ReadinessLine key={i.key} item={i} />)}</ul>
-            </div>
-            <div>
-              <p className="text-[11px] font-semibold text-gray-600 mb-1">BOL fields (can follow later)</p>
+              <p className="text-[11px] font-semibold text-gray-600 mb-1">{carrier ? 'What the driver’s paperwork needs (BOL)' : 'BOL fields (can follow later)'}</p>
               <ul className="space-y-1">{readinessOf(review.readiness, 'bol').items.map((i) => <ReadinessLine key={i.key} item={i} />)}</ul>
             </div>
           </div>
@@ -234,22 +275,19 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
               Your double check <span className="font-normal text-gray-500 normal-case">— {applicable - left.length} of {applicable}</span>
             </p>
             <ul className="space-y-2">
-              {SA_REVIEW_CHECKS.map((c) => {
+              {checks.map((c) => {
                 const mark = r.checks[c.key];
-                const na = c.carrier && !hasCarrier;
                 // The file says no: a tick can be taken off but not put on.
-                const blocked = na ? null : checkBlockedBy(c.key, review.gate);
+                const blocked = checkBlockedBy(c.key, review.gate);
                 return (
-                  <li key={c.key} className={na ? 'opacity-50' : ''}>
-                    <label className={`flex items-start gap-2 text-xs ${na ? '' : 'cursor-pointer'}`}>
+                  <li key={c.key}>
+                    <label className="flex items-start gap-2 text-xs cursor-pointer">
                       <input type="checkbox" className="mt-0.5 accent-brand-600" checked={Boolean(mark)}
-                        disabled={na || busy !== '' || (Boolean(blocked) && !mark)}
-                        onChange={(e) => void run(`check-${c.key}`, () => tickSaCheck(orderId, c.key, e.target.checked))} />
+                        disabled={busy !== '' || (Boolean(blocked) && !mark)}
+                        onChange={(e) => void run(`check-${c.key}`, () => tickSaCheck(orderId, c.key, e.target.checked, party))} />
                       <span>
                         <span className="text-gray-900 font-medium">{c.label}</span>
-                        <span className="block text-[11px] text-gray-500">
-                          {na ? 'No carrier on the load yet — not needed to send the SA.' : c.detail}
-                        </span>
+                        <span className="block text-[11px] text-gray-500">{c.detail}</span>
                         {c.key === 'accessorials' && review.accessorialHints.map((h) => (
                           <span key={h} className="mt-0.5 flex items-start gap-1 text-[11px] text-amber-800">
                             <AlertTriangle className="w-3 h-3 shrink-0 mt-px" />{h}
@@ -270,33 +308,36 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
 
             {(r.status === 'open' || r.status === 'sent') && (
               <CcEditor cc={r.ccEmails} contacts={review.clientContacts} signer={review.sendTo?.email ?? ''}
-                disabled={busy !== ''}
-                onChange={(next) => run('cc', () => setSaCc(orderId, next))} />
+                disabled={busy !== ''} party={party}
+                onChange={(next) => run('cc', () => setSaCc(orderId, next, party))} />
             )}
 
             {error && <p className="text-xs text-red-600">{error}</p>}
 
             <div className="flex flex-wrap gap-2 pt-1">
               {r.status === 'open' && (
-                <button type="button" disabled={busy !== '' || left.length > 0 || !review.sendTo}
-                  title={left.length ? 'Finish the double check first' : !review.sendTo ? 'The client has no email address' : ''}
+                <button type="button" disabled={busy !== '' || left.length > 0 || !review.sendTo || sendBlocked}
+                  title={left.length ? 'Finish the double check first'
+                    : !review.sendTo ? `The ${carrier ? 'carrier' : 'client'} has no email address`
+                    : sendBlocked ? 'The client has not signed the SA yet, and no waiver is recorded'
+                    : ''}
                   onClick={() => void run('send', async () => {
                     const copied = r.ccEmails.length ? `\n\nCopied to: ${r.ccEmails.join(', ')}` : '';
                     if (!confirm((r.reason === 'changed'
-                      ? `Email the updated Shipper Agreement to ${review.sendTo?.email}? Their existing link and QR code will show the update.`
-                      : `Email the Shipper Agreement to ${review.sendTo?.email}?`) + copied)) return;
-                    await sendShipperAgreement(orderId);
+                      ? `Email the updated ${name} to ${review.sendTo?.email}? Their existing link and QR code will show the update.`
+                      : `Email the ${name} to ${review.sendTo?.email}?`) + copied)) return;
+                    await sendAgreementFor(orderId, party);
                     trackActivity('agreementsSent');
                     onSent?.();
                   })}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
                   {busy === 'send' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  Send SA{review.sendTo ? ` to ${review.sendTo.email}` : ''}
+                  Send {short}{review.sendTo ? ` to ${review.sendTo.email}` : ''}
                 </button>
               )}
               {r.status === 'sent' && (
                 <button type="button" disabled={busy !== '' || left.length > 0}
-                  onClick={() => void run('done', () => markSaDone(orderId))}
+                  onClick={() => void run('done', () => markSaDone(orderId, party))}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50">
                   {busy === 'done' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                   Mark done
@@ -310,7 +351,10 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
               )}
             </div>
             {left.length > 0 && r.status === 'open' && (
-              <p className="text-[11px] text-gray-500">Sending unlocks when every applicable item is ticked.</p>
+              <p className="text-[11px] text-gray-500">Sending unlocks when every item is ticked.</p>
+            )}
+            {sendBlocked && r.status === 'open' && (
+              <p className="text-[11px] text-amber-700">The client has not signed the SA yet. The Carrier Agreement goes out once they sign or a waiver is recorded.</p>
             )}
 
             {returning && (
@@ -321,10 +365,10 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
                 <div className="flex gap-2">
                   <button type="button" disabled={!reason.trim() || busy !== ''}
                     onClick={() => void run('return', async () => {
-                      await returnSaRequest(orderId, reason.trim());
+                      await returnSaRequest(orderId, reason.trim(), party);
                       setReturning(false);
                       setReason('');
-                      onStatusChange('quote');
+                      if (!carrier) onStatusChange?.('quote');
                     })}
                     className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50">
                     Send back to broker
@@ -346,7 +390,8 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent }: 
  * offered as one click; anything else is typed. The signer is left out — they
  * are already who it is sent to.
  */
-function CcEditor({ cc, contacts, signer, disabled, onChange }: {
+function CcEditor({ cc, contacts, signer, disabled, onChange, party }: {
+  party: AgreementParty;
   cc: string[];
   contacts: { name: string; email: string }[];
   signer: string;
@@ -362,7 +407,7 @@ function CcEditor({ cc, contacts, signer, disabled, onChange }: {
     const e = raw.trim().toLowerCase();
     if (!e) return;
     if (!isCcEmail(e)) { setHint('That is not an email address.'); return; }
-    if (e === signer.toLowerCase()) { setHint('The SA is already sent to that address.'); return; }
+    if (e === signer.toLowerCase()) { setHint('The agreement is already sent to that address.'); return; }
     if (cc.includes(e)) { setTyped(''); return; }
     setHint('');
     setTyped('');
@@ -372,8 +417,12 @@ function CcEditor({ cc, contacts, signer, disabled, onChange }: {
   return (
     <div className="rounded-lg border border-gray-200 p-3 space-y-2">
       <div>
-        <p className="text-xs font-semibold text-gray-800">Copy the SA to (CC)</p>
-        <p className="text-[11px] text-gray-500">Everyone here receives the email, the quote and the client’s rate. Only the client contact signs.</p>
+        <p className="text-xs font-semibold text-gray-800">Copy the {AGREEMENT_SHORT[party]} to (CC)</p>
+        <p className="text-[11px] text-gray-500">
+          {party === 'carrier'
+            ? 'Everyone here receives the email and the carrier pay — the carrier’s own people only, never the client. Only the carrier signs.'
+            : 'Everyone here receives the email, the quote and the client’s rate. Only the client contact signs.'}
+        </p>
       </div>
       {cc.length > 0 && (
         <ul className="flex flex-wrap gap-1.5">
@@ -415,7 +464,7 @@ function CcEditor({ cc, contacts, signer, disabled, onChange }: {
           )}
         </>
       )}
-      {full && <p className="text-[11px] text-gray-500">That is the most one SA can be copied to ({MAX_SA_CC}).</p>}
+      {full && <p className="text-[11px] text-gray-500">That is the most one agreement can be copied to ({MAX_SA_CC}).</p>}
       {hint && <p className="text-[11px] text-red-600">{hint}</p>}
     </div>
   );
@@ -438,7 +487,13 @@ function StatusPill({ request }: { request: SaRequest }) {
  * has expired since was still in date — so it reads as it did to the person
  * who sent it.
  */
-export function Facts({ review, formatDate, asOf }: { review: SaReview; formatDate: (v: Date) => string; asOf?: number }) {
+export function Facts({ review, formatDate, asOf, party = 'client' }: {
+  review: SaReview;
+  formatDate: (v: Date) => string;
+  asOf?: number;
+  /** The SA's review shows the client's side; the carrier's shows the carrier's. */
+  party?: AgreementParty;
+}) {
   const now = asOf ?? Date.now();
   const c = review.carrier;
   const margin = review.agreedRate > 0 ? (review.brokerFee / review.agreedRate) * 100 : null;
@@ -462,11 +517,22 @@ export function Facts({ review, formatDate, asOf }: { review: SaReview; formatDa
 
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1.5">
-      <Row label="SA goes to">{review.sendTo ? `${review.sendTo.name ? `${review.sendTo.name} · ` : ''}${review.sendTo.email}` : <span className="text-red-600">No email on the client</span>}</Row>
+      <Row label={party === 'carrier' ? 'Agreement goes to' : 'SA goes to'}>
+        {review.sendTo
+          ? `${review.sendTo.name ? `${review.sendTo.name} · ` : ''}${review.sendTo.email}`
+          : <span className="text-red-600">{party === 'carrier' ? 'No email on the carrier' : 'No email on the client'}</span>}
+      </Row>
       <Row label="Agreed rate">{usd(review.agreedRate)}</Row>
       <Row label="Carrier pay / our fee">{usd(review.carrierPay)} / {usd(review.brokerFee)}{margin !== null && ` (${margin.toFixed(1)}%)`}</Row>
-      <Row label="Client payment terms">{review.hasClientPayment ? 'Set' : <span className="text-amber-700">Not set</span>}</Row>
-      {!c ? (
+      {party === 'client' && (
+        <Row label="Client payment terms">{review.hasClientPayment ? 'Set' : <span className="text-amber-700">Not set</span>}</Row>
+      )}
+      {party === 'carrier' && (
+        <Row label="Client signature">
+          {review.clientSigned ? 'Signed, or waived' : <span className="text-amber-700">Not yet — the agreement cannot go out</span>}
+        </Row>
+      )}
+      {party === 'client' ? null : !c ? (
         <Row label="Carrier">Not assigned yet</Row>
       ) : (
         <>

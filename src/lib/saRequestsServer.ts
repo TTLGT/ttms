@@ -7,9 +7,11 @@ import { orderDisplayNumber, type CommodityItem, type Order } from '@/types/orde
 import { orderReadiness } from '@/types/orderReadiness';
 import { LOAD_PHOTOS_COLLECTION } from '@/types/loadPhoto';
 import { fmcsaConcerns, operatingSince, type FmcsaRegistry } from '@/types/fmcsa';
+import { clientSignatureSatisfied } from '@/types/order';
 import {
-  SA_REQUESTS_COLLECTION, SA_ROUNDS_SUBCOLLECTION, accessorialHints, cleanCcList, isCcEmail,
-  type SaGateFacts, type SaRequest, type SaRequestStatus, type SaReview, type SaRound, type SaSend,
+  REQUEST_COLLECTION, SA_ROUNDS_SUBCOLLECTION, accessorialHints, cleanCcList, isCcEmail,
+  type AgreementParty, type SaGateFacts, type SaRequest, type SaRequestStatus, type SaReview, type SaRound,
+  type SaSend,
 } from '@/types/saRequest';
 
 /**
@@ -23,16 +25,18 @@ function millis(v: unknown): number | null {
   return typeof t?.toMillis === 'function' ? t.toMillis() : null;
 }
 
-export function toSaRequest(d: FirebaseFirestore.DocumentData): SaRequest {
+export function toSaRequest(d: FirebaseFirestore.DocumentData, party: AgreementParty = 'client'): SaRequest {
   const checks: SaRequest['checks'] = {};
   for (const [key, raw] of Object.entries((d.checks ?? {}) as Record<string, Record<string, unknown>>)) {
     if (!raw) continue;
     checks[key] = { byUid: String(raw.byUid ?? ''), byName: String(raw.byName ?? ''), at: millis(raw.at) ?? 0 };
   }
   return {
+    party:           d.party === 'carrier' ? 'carrier' : d.party === 'client' ? 'client' : party,
     orderId:         String(d.orderId ?? ''),
     orderNumber:     String(d.orderNumber ?? ''),
     clientName:      String(d.clientName ?? ''),
+    carrierName:     String(d.carrierName ?? ''),
     status:          STATUSES.includes(d.status) ? d.status : 'open',
     note:            String(d.note ?? ''),
     requestedByUid:  String(d.requestedByUid ?? ''),
@@ -53,8 +57,14 @@ export function toSaRequest(d: FirebaseFirestore.DocumentData): SaRequest {
   };
 }
 
+/** The round in progress for one party's agreement on a load. */
+export function requestRef(party: AgreementParty, orderId: string) {
+  return adminDb.collection(REQUEST_COLLECTION[party]).doc(orderId);
+}
+
+/** The Shipper Agreement's — kept by name, it is what most callers mean. */
 export function saRequestRef(orderId: string) {
-  return adminDb.collection(SA_REQUESTS_COLLECTION).doc(orderId);
+  return requestRef('client', orderId);
 }
 
 // ── Rounds: the review's permanent record ────────────────────────────────────
@@ -65,13 +75,13 @@ function ms(v: unknown): number | null {
   return millis(v);
 }
 
-export function roundRef(orderId: string, roundId: string) {
-  return saRequestRef(orderId).collection(SA_ROUNDS_SUBCOLLECTION).doc(roundId);
+export function roundRef(party: AgreementParty, orderId: string, roundId: string) {
+  return requestRef(party, orderId).collection(SA_ROUNDS_SUBCOLLECTION).doc(roundId);
 }
 
 /** A fresh id for a round that is about to open. */
-export function newRoundId(orderId: string): string {
-  return saRequestRef(orderId).collection(SA_ROUNDS_SUBCOLLECTION).doc().id;
+export function newRoundId(party: AgreementParty, orderId: string): string {
+  return requestRef(party, orderId).collection(SA_ROUNDS_SUBCOLLECTION).doc().id;
 }
 
 /**
@@ -101,13 +111,15 @@ interface Writer {
  */
 export function archiveRound(
   writer: Writer,
+  party: AgreementParty,
   orderId: string,
   requestAfter: FirebaseFirestore.DocumentData,
   extra: Record<string, unknown> = {},
 ): void {
   const id = roundIdOf(requestAfter);
-  writer.set(roundRef(orderId, id), {
+  writer.set(roundRef(party, orderId, id), {
     ...requestAfter,
+    party,
     roundId: id,
     kind: requestAfter.kind === 'direct' ? 'direct' : 'review',
     ...extra,
@@ -125,8 +137,8 @@ export function sendEntry(s: Omit<SaSend, 'at'>, at: Timestamp): Record<string, 
   return { ...s, at };
 }
 
-export function toSaRound(id: string, d: FirebaseFirestore.DocumentData): SaRound {
-  const base = toSaRequest(d);
+export function toSaRound(id: string, d: FirebaseFirestore.DocumentData, party: AgreementParty = 'client'): SaRound {
+  const base = toSaRequest(d, party);
   const direct = d.kind === 'direct';
   const sends: SaSend[] = Array.isArray(d.sends)
     ? (d.sends as Record<string, unknown>[]).map((x) => ({
@@ -139,6 +151,7 @@ export function toSaRound(id: string, d: FirebaseFirestore.DocumentData): SaRoun
       }))
     : [];
   return {
+    party:           base.party,
     id,
     kind:            direct ? 'direct' : 'review',
     status:          direct ? 'direct' : base.status,
@@ -168,16 +181,16 @@ export function toSaRound(id: string, d: FirebaseFirestore.DocumentData): SaRoun
  * as it stands — nothing but ticks may have happened to it, so it may not
  * have been copied yet — and the list is never a step behind the panel.
  */
-export async function listRounds(orderId: string): Promise<SaRound[]> {
+export async function listRounds(party: AgreementParty, orderId: string): Promise<SaRound[]> {
   const [snap, current] = await Promise.all([
-    saRequestRef(orderId).collection(SA_ROUNDS_SUBCOLLECTION).get(),
-    saRequestRef(orderId).get(),
+    requestRef(party, orderId).collection(SA_ROUNDS_SUBCOLLECTION).get(),
+    requestRef(party, orderId).get(),
   ]);
   const byId = new Map<string, SaRound>();
-  for (const d of snap.docs) byId.set(d.id, toSaRound(d.id, d.data()));
+  for (const d of snap.docs) byId.set(d.id, toSaRound(d.id, d.data(), party));
   if (current.exists) {
     const id = roundIdOf(current.data()!);
-    byId.set(id, toSaRound(id, current.data()!));
+    byId.set(id, toSaRound(id, current.data()!, party));
   }
   return [...byId.values()].sort((a, b) => (b.sentAt ?? b.requestedAt) - (a.sentAt ?? a.requestedAt));
 }
@@ -210,6 +223,7 @@ export async function buildSaReview(
   orderId: string,
   order: Record<string, unknown>,
   withContacts: boolean,
+  party: AgreementParty = 'client',
 ): Promise<SaReview> {
   const [facts, contact, carrierSnap] = await Promise.all([
     readinessFactsFor(order),
@@ -220,9 +234,15 @@ export async function buildSaReview(
   ]);
   const c = carrierSnap && carrierSnap.exists ? carrierSnap.data()! : null;
   const gate = await saGateFactsFor(orderId, order, c);
+  // Who the agreement is emailed to: the client's contact for the SA, the
+  // carrier's own address for the Carrier Agreement — what each send route uses.
+  const carrierEmail = typeof c?.email === 'string' ? c.email.trim() : '';
+  const sendTo = party === 'carrier'
+    ? (carrierEmail ? { name: String(c?.companyName ?? ''), email: carrierEmail } : null)
+    : (contact?.email ? { name: contact.name, email: contact.email } : null);
   return {
     readiness: orderReadiness(order as Partial<Order>, facts),
-    sendTo: contact?.email ? { name: contact.name, email: contact.email } : null,
+    sendTo,
     carrier: c ? {
       name: String(c.companyName ?? ''),
       dot: String(c.dot ?? ''),
@@ -240,12 +260,15 @@ export async function buildSaReview(
     carrierPay: Number(order.carrierPay) || 0,
     brokerFee: Number(order.brokerFee) || 0,
     hasClientPayment: Boolean(order.clientPayment),
+    clientSigned: clientSignatureSatisfied(order as Parameters<typeof clientSignatureSatisfied>[0]),
     gate,
     accessorialHints: accessorialHints(order.commodities as CommodityItem[] | undefined),
     // The client's other contacts, offered as one-click CCs. Reviewers only:
     // a broker reading where their request stands has no use for the
     // client's address book.
-    clientContacts: withContacts ? await clientContactEmails(order.clientId) : [],
+    // The carrier's agreement offers no client addresses to copy: the
+    // carrier's pay must not reach the client.
+    clientContacts: withContacts && party === 'client' ? await clientContactEmails(order.clientId) : [],
   };
 }
 

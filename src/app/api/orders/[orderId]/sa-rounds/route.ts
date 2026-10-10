@@ -3,6 +3,7 @@ import { AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { listRounds } from '@/lib/saRequestsServer';
+import { isAgreementParty } from '@/types/saRequest';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -21,7 +22,10 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   try {
     const caller = await requireCaller(req);
     await getVisibleOrder(caller, orderId);
-    return NextResponse.json({ rounds: await listRounds(orderId) }, { headers: { 'Cache-Control': 'private, no-store' } });
+    // `?party=carrier` for the Carrier Agreement's record; the SA's otherwise.
+    const asked = req.nextUrl.searchParams.get('party');
+    const party = isAgreementParty(asked) ? asked : 'client';
+    return NextResponse.json({ rounds: await listRounds(party, orderId) }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (e) {
     if (e instanceof AdminAuthError) return NextResponse.json({ error: e.message }, { status: e.status });
     throw e;

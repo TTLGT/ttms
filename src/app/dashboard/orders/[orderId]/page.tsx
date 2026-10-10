@@ -253,6 +253,11 @@ export default function OrderDetailPage() {
   // removed on this visit without refetching the load.
   const [photoCount, setPhotoCount] = useState<number | null>(null);
 
+  // The Carrier Agreement review: reloaded on demand, and its status known
+  // here so "Request Carrier Agreement" is offered only when none is open.
+  const [caRefresh, setCaRefresh] = useState(0);
+  const [caStatus, setCaStatus] = useState<string | null>(null);
+
   /*
    * Whether "→ Client Signed" may be pressed by hand: only with the client's
    * signed SA uploaded to the load (src/lib/signedSaProof.ts). Asked only
@@ -1127,6 +1132,15 @@ export default function OrderDetailPage() {
         onSent={() => setLinkRefresh((n) => n + 1)}
       />
 
+      {/* The carrier's review, the same shape as the SA's, once a broker asks. */}
+      <SaRequestPanel
+        party="carrier"
+        orderId={orderId}
+        refreshKey={`${caRefresh}-${order.carrierId ?? ''}`}
+        onLoaded={(r) => setCaStatus(r?.status ?? null)}
+        onSent={() => setCaRefresh((n) => n + 1)}
+      />
+
       {(order.status === 'quote' || order.status === 'booked') && (
         <OrderReadinessCard
           orderId={orderId}
@@ -1457,6 +1471,23 @@ export default function OrderDetailPage() {
                 </button>
               )}
             </div>
+
+            {/* The carrier's review: asking for it, and its record. */}
+            {!assigningCarrier && order.carrierId && (
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                {!order.carrierSignedAt && can('orders.create') && caStatus !== 'open' && caStatus !== 'sent'
+                  && order.status !== 'quote' && order.status !== 'cancelled' && order.status !== 'completed' && (
+                  <RequestSaButton
+                    party="carrier"
+                    orderId={orderId}
+                    carrierName={order.carrierName}
+                    clientSigned={clientSignatureSatisfied(order)}
+                    onRequested={() => setCaRefresh((n) => n + 1)}
+                  />
+                )}
+                <SaVerificationRecord orderId={orderId} party="carrier" />
+              </div>
+            )}
 
             {/* Send for Signature / e-sign status */}
             {!assigningCarrier && order.carrierId && (

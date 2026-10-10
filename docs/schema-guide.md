@@ -740,6 +740,28 @@ saRequests/{orderId}/rounds/{roundId}     // the verification record, kept for g
   queries only (`status in`, `doneAt >=`, `requestedByUid ==`) — no composite
   index. Closed to the client SDK.
 
+## Collection: `caRequests` — "Request Carrier Agreement"
+
+The carrier's counterpart of `saRequests`, in the same shape (`party:
+"carrier"`, plus `carrierName`), with its rounds at
+`caRequests/{orderId}/rounds/{roundId}`. A broker asks from the Carrier
+section once a carrier is on the load (`POST /api/orders/{id}/ca-request`);
+admin and dispatch work `CA_REVIEW_CHECKS` — the carrier's contact and pay,
+FMCSA authority, insurance, identity, age, equipment, stop details, driver,
+license, truck pictures, payment setup — and send from the review.
+
+- Both request routes are one module, `src/lib/agreementRequestRoutes.ts`,
+  configured by party. Differences: asking for the carrier's needs a carrier
+  and moves no status; sending it back moves nothing back.
+- `POST /api/orders/{id}/send-agreement` refuses while an open carrier request
+  has unticked items, copies `ccEmails`, numbers each carrier link
+  (`version` on the token — the nth carrier link for the load), and records
+  each send into the round (or a `direct-{ms}` round), as the SA's send does.
+- The carrier items moved off the SA review on 2026-10-09. SA rounds from
+  before keep their carrier ticks and still show them in the record.
+- `GET /api/sa-rounds?party=carrier` is the carrier verification record;
+  `GET /api/sa-requests` lists both kinds for Approvals.
+
 ### The signed SA as a PDF, and every version of it
 
 Nothing new is stored. Each client link (`signing_tokens/{token}`) and each

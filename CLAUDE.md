@@ -1175,6 +1175,19 @@ Every reviewer sees every tick and who closed it; Approvals lists them.
 - The e-signature now also records the signer's device. Same rule as the
   rest of that route: a legal audit trail — do not drop the fields.
 
+### Request Carrier Agreement — the same review, for the carrier
+
+The Carrier Agreement (rate confirmation) has the SA's whole review: a broker
+asks from the Carrier section, admin and dispatch work a carrier checklist
+(`CA_REVIEW_CHECKS` in `src/types/saRequest.ts`), send it from the review,
+mark it done, and every round is kept in its own verification record.
+`caRequests/{orderId}` beside `saRequests/{orderId}`; every helper takes the
+`party` (`client` | `carrier`) it is for, and both request routes are one
+module, `src/lib/agreementRequestRoutes.ts`. **The carrier checks live only on
+the carrier's review now** — the SA review is about the client. Asking for the
+carrier's moves no status, and its send still waits on
+`clientSignatureSatisfied()`.
+
 ### Learn English — underlines that never touch the page
 
 A per-browser switch at the foot of the sidebar (`LearnContext`) that underlines

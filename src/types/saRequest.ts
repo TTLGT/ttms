@@ -24,6 +24,17 @@
  *
  * Closed to the client SDK; read and written through /api/sa-requests and
  * /api/orders/{id}/sa-request.
+ *
+ * ## The carrier's review
+ *
+ * The Carrier Agreement (rate confirmation) has the same review, in
+ * `caRequests/{orderId}`: a broker presses Request Carrier Agreement once a
+ * carrier is on the load, dispatch works a carrier-focused checklist
+ * (CA_REVIEW_CHECKS) and sends it from the review, and the round is kept in
+ * the verification record the same way. Every function here takes the
+ * `party` it is for. Unlike the SA, asking for it does not move the order's
+ * status, and it cannot be sent until the client has signed or a waiver is on
+ * file.
  */
 
 import { MIN_OPERATING_MONTHS, isNewCarrier, officeDay, type OperatingSince } from './fmcsa';
@@ -32,6 +43,35 @@ import type { FmcsaConcern } from './fmcsa';
 import type { ReadinessItem } from './orderReadiness';
 
 export const SA_REQUESTS_COLLECTION = 'saRequests';
+
+/**
+ * Whose agreement a review is for. The same request, review, send and record
+ * run for both — `client` is the Shipper Agreement (load confirmation),
+ * `carrier` the Carrier Agreement (rate confirmation) — each in its own
+ * collection with its own checklist. A load has at most one of each open.
+ */
+export type AgreementParty = 'client' | 'carrier';
+
+export const REQUEST_COLLECTION: Record<AgreementParty, string> = {
+  client:  SA_REQUESTS_COLLECTION,
+  carrier: 'caRequests',
+};
+
+/** What the agreement is called on screen, in emails and in the record. */
+export const AGREEMENT_NAME: Record<AgreementParty, string> = {
+  client:  'Shipper Agreement',
+  carrier: 'Carrier Agreement',
+};
+
+/** Short form, for buttons. */
+export const AGREEMENT_SHORT: Record<AgreementParty, string> = {
+  client:  'SA',
+  carrier: 'Carrier Agreement',
+};
+
+export function isAgreementParty(value: unknown): value is AgreementParty {
+  return value === 'client' || value === 'carrier';
+}
 
 /**
  * - `open`     — waiting for dispatch to review and send.
@@ -43,7 +83,7 @@ export type SaRequestStatus = 'open' | 'sent' | 'done' | 'returned';
 
 export const SA_STATUS_LABEL: Record<SaRequestStatus, string> = {
   open:     'Waiting for review',
-  sent:     'SA sent — mark done',
+  sent:     'Sent — mark done',
   done:     'Done',
   returned: 'Sent back to broker',
 };
@@ -56,9 +96,13 @@ export interface SaCheckMark {
 }
 
 export interface SaRequest {
+  /** Whose agreement. Absent on requests stored before carrier reviews existed, which are all `client`. */
+  party: AgreementParty;
   orderId: string;
   orderNumber: string;
   clientName: string;
+  /** The carrier, on a Carrier Agreement request. */
+  carrierName: string;
   status: SaRequestStatus;
   note: string;
   requestedByUid: string;
@@ -134,13 +178,16 @@ export function cleanCcList(value: unknown): string[] {
  * What dispatch confirms by hand before sending. The parts a computer can
  * check — a field being filled in, a certificate's date, FMCSA's answer — are
  * shown beside these as facts; these are the parts that need a person on the
- * phone or reading a screen. Two of them are the ones a double-brokered load
- * gets past: an authority that is active and a phone number that matches
- * FMCSA's.
+ * phone or reading a screen.
  *
- * `carrier` items only apply once a carrier is on the load. Before that they
- * are shown greyed out and are not required, because the SA can go out first
- * — it is the client's commitment, and the carrier's comes after it.
+ * Two lists, one per agreement. The Shipper Agreement review is about the
+ * client: who signs, what they pay, where and what the freight is. The
+ * Carrier Agreement review is about the carrier: that they are who they say
+ * (an active authority, a phone that matches FMCSA's — the two a
+ * double-brokered load gets past), insured, established, and that the truck
+ * and driver turning up are the ones on file. The carrier items lived on the
+ * SA review until 2026-10-09; ticks made there are still shown on those
+ * rounds in the verification record.
  *
  * Keys are stored in `checks`. Renaming one drops everybody's tick on it.
  */
@@ -148,7 +195,6 @@ export interface SaReviewCheck {
   key: string;
   label: string;
   detail: string;
-  carrier?: boolean;
 }
 
 export const SA_REVIEW_CHECKS: SaReviewCheck[] = [
@@ -164,21 +210,38 @@ export const SA_REVIEW_CHECKS: SaReviewCheck[] = [
     detail: 'Ramps, a winch, a liftgate, tarps, straps or chains, a pilot car — whatever this freight needs to load and unload is on the truck and priced in.' },
   { key: 'terms', label: 'Payment terms agreed',
     detail: 'How and when the client pays is set on the order and is what they agreed to.' },
-  { key: 'carrierAuthority', label: 'Carrier authority active on FMCSA', carrier: true,
-    detail: 'Run the FMCSA check on the carrier if the last one is more than a day old.' },
-  { key: 'carrierInsurance', label: 'Carrier insurance on file and in date', carrier: true,
-    detail: 'The certificate covers the pickup date and the cargo value.' },
-  { key: 'carrierIdentity', label: 'Carrier contact matches FMCSA', carrier: true,
-    detail: 'Call the number FMCSA lists, not the one in the email. This is how a double broker is caught.' },
-  { key: 'carrierAge', label: `Carrier operating for ${MIN_OPERATING_MONTHS} months or more`, carrier: true,
-    detail: 'From the date FMCSA granted its authority, shown on the left. If TTMS has no date, look the carrier up on SAFER.' },
-  { key: 'driver', label: 'Driver name and phone confirmed', carrier: true,
-    detail: 'With the carrier’s dispatcher, before the driver is named on any paperwork.' },
-  { key: 'driverLicense', label: 'Driver’s license on file', carrier: true,
-    detail: 'A copy uploaded on this load or on the driver’s record, in date, with the same name as the driver.' },
-  { key: 'truckPhotos', label: 'Pictures of the driver’s truck on file', carrier: true,
-    detail: 'In Pictures on this load, as “Truck”: truck and trailer, with the plate and the DOT number on the door readable.' },
 ];
+
+export const CA_REVIEW_CHECKS: SaReviewCheck[] = [
+  { key: 'carrierContact', label: 'Carrier email is the dispatcher who signs',
+    detail: 'The agreement goes to the address shown. It carries our carrier pay, so it must reach the carrier, not a load board or a stranger.' },
+  { key: 'carrierPay', label: 'Carrier pay is what the carrier agreed',
+    detail: 'Check it against the call or the email where they accepted the load, including any detention or layover terms.' },
+  { key: 'carrierAuthority', label: 'Carrier authority active on FMCSA',
+    detail: 'Run the FMCSA check on the carrier if the last one is more than a day old.' },
+  { key: 'carrierInsurance', label: 'Carrier insurance on file and in date',
+    detail: 'The certificate covers the pickup date and the cargo value.' },
+  { key: 'carrierIdentity', label: 'Carrier contact matches FMCSA',
+    detail: 'Call the number FMCSA lists, not the one in the email. This is how a double broker is caught.' },
+  { key: 'carrierAge', label: `Carrier operating for ${MIN_OPERATING_MONTHS} months or more`,
+    detail: 'From the date FMCSA granted its authority, shown on the left. If TTMS has no date, look the carrier up on SAFER.' },
+  { key: 'equipment', label: 'Equipment fits the freight',
+    detail: 'Trailer type, deck length and legal weight suit what is being moved, with the ramps, winch, tarps or straps it needs.' },
+  { key: 'carrierLane', label: 'Pickup and delivery details given to the carrier',
+    detail: 'Every address, appointment window, pickup number and contact the driver will need, on every stop.' },
+  { key: 'driver', label: 'Driver name and phone confirmed',
+    detail: 'With the carrier’s dispatcher, before the driver is named on any paperwork.' },
+  { key: 'driverLicense', label: 'Driver’s license on file',
+    detail: 'A copy uploaded on this load or on the driver’s record, in date, with the same name as the driver.' },
+  { key: 'truckPhotos', label: 'Pictures of the driver’s truck on file',
+    detail: 'In Pictures on this load, as “Truck”: truck and trailer, with the plate and the DOT number on the door readable.' },
+  { key: 'carrierPayment', label: 'Carrier set up to be paid',
+    detail: 'W-9 and how they are paid — factoring company or bank details — on file before they haul, not after.' },
+];
+
+export function reviewChecks(party: AgreementParty): SaReviewCheck[] {
+  return party === 'carrier' ? CA_REVIEW_CHECKS : SA_REVIEW_CHECKS;
+}
 
 /**
  * What TTMS can tell about the three items a file answers — the license, the
@@ -236,22 +299,21 @@ export function checkBlockedBy(key: string, f: SaGateFacts | null | undefined, t
   return null;
 }
 
-export function isReviewCheckKey(value: unknown): value is string {
-  return typeof value === 'string' && SA_REVIEW_CHECKS.some((c) => c.key === value);
+export function isReviewCheckKey(party: AgreementParty, value: unknown): value is string {
+  return typeof value === 'string' && reviewChecks(party).some((c) => c.key === value);
 }
 
 /**
- * The items still needed, given whether a carrier is on the load yet. With
- * `facts`, an item ticked earlier whose file has since gone — a license
- * deleted, a picture removed — counts as outstanding again.
+ * The items still needed on this party's review. With `facts`, an item
+ * ticked earlier whose file has since gone — a license deleted, a picture
+ * removed — counts as outstanding again.
  */
 export function outstandingChecks(
+  party: AgreementParty,
   checks: Record<string, unknown>,
-  hasCarrier: boolean,
   facts?: SaGateFacts | null,
 ): SaReviewCheck[] {
-  return SA_REVIEW_CHECKS.filter((c) =>
-    (hasCarrier || !c.carrier) && (!checks[c.key] || checkBlockedBy(c.key, facts) !== null));
+  return reviewChecks(party).filter((c) => !checks[c.key] || checkBlockedBy(c.key, facts) !== null);
 }
 
 /** "Chrome on Windows", "Safari on iPhone" — the device line on a signature. */
@@ -298,6 +360,11 @@ export interface SaReview {
   carrierPay: number;
   brokerFee: number;
   hasClientPayment: boolean;
+  /**
+   * The client signed the SA, or a waiver was recorded — the carrier
+   * agreement cannot go out before (clientSignatureSatisfied()).
+   */
+  clientSigned: boolean;
   gate: SaGateFacts;
   accessorialHints: string[];
   /** The client's own addresses, for the CC picker. Empty for a non-reviewer, and never frozen. */
@@ -330,6 +397,7 @@ export interface SaSend {
  * ticks, so the record of what went out and what TTMS knew then is complete.
  */
 export interface SaRound {
+  party: AgreementParty;
   id: string;
   kind: 'review' | 'direct';
   /** Where the round ended up. `open`/`sent` on a superseded round is where it was when replaced. */

@@ -115,11 +115,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const saStatus = saRequest.exists ? saRequest.data()!.status : null;
   if (saStatus === 'open') {
     // With the files read fresh: a license ticked and then deleted is not done.
-    const left = outstandingChecks(
-      saRequest.data()!.checks ?? {},
-      Boolean(order.carrierId || order.carrierName),
-      await saGateFactsFor(orderId, order),
-    );
+    const left = outstandingChecks('client', saRequest.data()!.checks ?? {}, await saGateFactsFor(orderId, order));
     if (left.length > 0) {
       return NextResponse.json(
         { error: `Finish the review first: ${left.map((c) => c.label.toLowerCase()).join(', ')}.` },
@@ -398,10 +394,11 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
           sends: [...(Array.isArray(d.sends) ? d.sends : []), send],
         };
         tx.update(reqRef, patch);
-        archiveRound(tx, orderId, { ...d, ...patch });
+        archiveRound(tx, 'client', orderId, { ...d, ...patch });
         return;
       }
-      tx.set(roundRef(orderId, `direct-${now.toMillis()}`), {
+      tx.set(roundRef('client', orderId, `direct-${now.toMillis()}`), {
+        party: 'client',
         kind: 'direct',
         roundId: `direct-${now.toMillis()}`,
         orderId,

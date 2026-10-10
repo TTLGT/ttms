@@ -1,7 +1,7 @@
 'use client';
 
 import { auth } from './firebase';
-import type { SaRequest, SaReview, SaRound } from '@/types/saRequest';
+import type { AgreementParty, SaRequest, SaReview, SaRound } from '@/types/saRequest';
 
 /** SA requests from the browser. See src/types/saRequest.ts. */
 
@@ -19,40 +19,58 @@ async function unwrap<T>(res: Response): Promise<T> {
 
 export type { SaReview } from '@/types/saRequest';
 
-export async function getSaRequest(orderId: string): Promise<{ request: SaRequest | null; isReviewer: boolean; review: SaReview }> {
-  return unwrap(await fetch(`/api/orders/${orderId}/sa-request`, { headers: await authHeaders() }));
+/** Each party's request route — see src/lib/agreementRequestRoutes.ts. */
+const route = (orderId: string, party: AgreementParty) =>
+  `/api/orders/${orderId}/${party === 'carrier' ? 'ca-request' : 'sa-request'}`;
+
+export async function getSaRequest(
+  orderId: string, party: AgreementParty = 'client',
+): Promise<{ request: SaRequest | null; isReviewer: boolean; review: SaReview }> {
+  return unwrap(await fetch(route(orderId, party), { headers: await authHeaders() }));
 }
 
-export async function requestSa(orderId: string, note: string): Promise<SaRequest> {
-  const res = await fetch(`/api/orders/${orderId}/sa-request`, {
+export async function requestSa(orderId: string, note: string, party: AgreementParty = 'client'): Promise<SaRequest> {
+  const res = await fetch(route(orderId, party), {
     method: 'POST', headers: await authHeaders(), body: JSON.stringify({ note }),
   });
   return (await unwrap<{ request: SaRequest }>(res)).request;
 }
 
-async function patch(orderId: string, body: Record<string, unknown>): Promise<SaRequest> {
-  const res = await fetch(`/api/orders/${orderId}/sa-request`, {
+async function patch(orderId: string, party: AgreementParty, body: Record<string, unknown>): Promise<SaRequest> {
+  const res = await fetch(route(orderId, party), {
     method: 'PATCH', headers: await authHeaders(), body: JSON.stringify(body),
   });
   return (await unwrap<{ request: SaRequest }>(res)).request;
 }
 
-export const setSaCc = (orderId: string, cc: string[]) => patch(orderId, { cc });
-export const tickSaCheck = (orderId: string, check: string, value: boolean) => patch(orderId, { check, value });
-export const returnSaRequest = (orderId: string, reason: string) => patch(orderId, { action: 'return', reason });
-export const markSaDone = (orderId: string) => patch(orderId, { action: 'done' });
+export const setSaCc = (orderId: string, cc: string[], party: AgreementParty = 'client') => patch(orderId, party, { cc });
+export const tickSaCheck = (orderId: string, check: string, value: boolean, party: AgreementParty = 'client') =>
+  patch(orderId, party, { check, value });
+export const returnSaRequest = (orderId: string, reason: string, party: AgreementParty = 'client') =>
+  patch(orderId, party, { action: 'return', reason });
+export const markSaDone = (orderId: string, party: AgreementParty = 'client') => patch(orderId, party, { action: 'done' });
 
 export async function sendShipperAgreement(orderId: string): Promise<string> {
   const res = await fetch(`/api/orders/${orderId}/send-shipper-agreement`, { method: 'POST', headers: await authHeaders() });
   return (await unwrap<{ sentTo: string }>(res)).sentTo;
 }
 
+/** The carrier's agreement (rate confirmation). */
+export async function sendCarrierAgreement(orderId: string): Promise<string> {
+  const res = await fetch(`/api/orders/${orderId}/send-agreement`, { method: 'POST', headers: await authHeaders() });
+  return (await unwrap<{ sentTo: string }>(res)).sentTo;
+}
+
+/** Sends whichever party's agreement this is. */
+export const sendAgreementFor = (orderId: string, party: AgreementParty) =>
+  party === 'carrier' ? sendCarrierAgreement(orderId) : sendShipperAgreement(orderId);
+
 export async function listSaRequests(): Promise<{ requests: SaRequest[]; isReviewer: boolean }> {
   return unwrap(await fetch('/api/sa-requests', { headers: await authHeaders() }));
 }
 
-/** Every review round this load has had, newest first. See SaRound. */
-export async function listSaRounds(orderId: string): Promise<SaRound[]> {
-  const res = await fetch(`/api/orders/${orderId}/sa-rounds`, { headers: await authHeaders() });
+/** Every review round this load has had for one agreement, newest first. See SaRound. */
+export async function listSaRounds(orderId: string, party: AgreementParty = 'client'): Promise<SaRound[]> {
+  const res = await fetch(`/api/orders/${orderId}/sa-rounds?party=${party}`, { headers: await authHeaders() });
   return (await unwrap<{ rounds: SaRound[] }>(res)).rounds;
 }

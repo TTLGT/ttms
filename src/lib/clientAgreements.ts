@@ -168,11 +168,12 @@ export async function planAgreementHold(
       }
 
       // The round being replaced is kept, with its ticks, as it stood.
-      if (previousRound.exists) archiveRound(batch, orderId, previousRound.data()!, { supersededAt: now });
+      if (previousRound.exists) archiveRound(batch, 'client', orderId, previousRound.data()!, { supersededAt: now });
       // A fresh round, as the broker's Request SA makes: set() without merge
       // clears ticks made against the order as it was before this change.
       batch.set(saRequestRef(orderId), {
-        roundId: newRoundId(orderId),
+        party: 'client',
+        roundId: newRoundId('client', orderId),
         orderId,
         orderNumber: label,
         clientName: String(after.clientName ?? ''),

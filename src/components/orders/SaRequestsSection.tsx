@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { ShieldCheck } from 'lucide-react';
 import { listSaRequests } from '@/lib/saRequests';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { SA_STATUS_LABEL, type SaRequest } from '@/types/saRequest';
+import { AGREEMENT_NAME, SA_STATUS_LABEL, type SaRequest } from '@/types/saRequest';
 
 /**
- * The SA requests block on the Approvals screen.
+ * The agreement requests block on the Approvals screen — Shipper Agreements
+ * and Carrier Agreements together, each row saying which.
  *
  * Admin and dispatch see every request still to do and the ones closed in the
  * last two weeks, each with who closed it — that is how one of them knows the
@@ -34,11 +35,11 @@ export default function SaRequestsSection() {
     <section className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
       <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide flex items-center gap-2">
         <ShieldCheck className="w-4 h-4 text-brand-600" />
-        {data.isReviewer ? `Shipper Agreements to send (${todo.length})` : 'Your Shipper Agreement requests'}
+        {data.isReviewer ? `Agreements to send (${todo.length})` : 'Your agreement requests'}
       </h2>
       <p className="text-xs text-gray-500 mt-0.5 mb-3">
         {data.isReviewer
-          ? 'Quotes the client accepted. Open one to review the order and the carrier, send the SA, and mark it done.'
+          ? 'Shipper Agreements for quotes the client accepted, and Carrier Agreements for loads with a carrier. Open one to review it, send it, and mark it done.'
           : 'Where each request you made stands.'}
       </p>
 
@@ -47,10 +48,15 @@ export default function SaRequestsSection() {
       ) : (
         <ul className="divide-y divide-gray-100">
           {[...todo, ...rest].map((r) => (
-            <li key={r.orderId}>
+            <li key={`${r.party}-${r.orderId}`}>
               <Link href={`/dashboard/orders/${r.orderId}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 hover:bg-gray-50 -mx-2 px-2 rounded">
                 <span className="font-mono text-sm font-semibold text-gray-900">{r.orderNumber}</span>
-                <span className="text-sm text-gray-700 min-w-0 flex-1 truncate">{r.clientName}</span>
+                <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${r.party === 'carrier' ? 'bg-orange-50 text-orange-700' : 'bg-purple-50 text-purple-700'}`}>
+                  {AGREEMENT_NAME[r.party]}
+                </span>
+                <span className="text-sm text-gray-700 min-w-0 flex-1 truncate">
+                  {r.party === 'carrier' ? (r.carrierName || r.clientName) : r.clientName}
+                </span>
                 <span className="text-xs text-gray-500">
                   {r.status === 'done' && r.doneAt
                     ? `Done by ${r.doneByName} · ${formatDateTime(new Date(r.doneAt))}`
@@ -59,7 +65,7 @@ export default function SaRequestsSection() {
                       : r.status === 'sent' && r.sentAt
                         ? `Sent by ${r.sentByName} · ${formatDateTime(new Date(r.sentAt))}`
                         : r.reason === 'changed'
-                          ? `Order changed by ${r.requestedByName} after the SA was sent · ${formatDateTime(new Date(r.requestedAt))}`
+                          ? `Order changed by ${r.requestedByName} after it was sent · ${formatDateTime(new Date(r.requestedAt))}`
                           : `Asked by ${r.requestedByName} · ${formatDateTime(new Date(r.requestedAt))}`}
                 </span>
                 <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
