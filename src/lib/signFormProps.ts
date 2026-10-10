@@ -1,5 +1,5 @@
 import { formatLongDateRange } from '@/lib/dateFormat';
-import { DEFAULT_CLIENT_TERMS } from '@/types/agreementTerms';
+import { CARRIER_TERMS, DEFAULT_CLIENT_TERMS } from '@/types/agreementTerms';
 import type { ConfirmationFreight, ConfirmationPayment, ConfirmationStop } from '@/types/loadConfirmation';
 
 /**
@@ -79,14 +79,14 @@ export function signFormData(data: Record<string, any>): SignFormData {
     notes: data.notes || '',
     // A client link sent before the terms were a setting has no copy of
     // them, and was sent under the standard wording — which is what it shows.
-    terms: isClient ? (typeof data.termsText === 'string' && data.termsText ? data.termsText : DEFAULT_CLIENT_TERMS) : undefined,
+    terms: isClient ? (typeof data.termsText === 'string' && data.termsText ? data.termsText : DEFAULT_CLIENT_TERMS) : CARRIER_TERMS,
     stops: isClient && Array.isArray(data.stops) ? data.stops : undefined,
     freight: isClient && Array.isArray(data.freight) ? data.freight : undefined,
     equipment: isClient ? data.equipment || '' : undefined,
     payment: isClient ? data.payment ?? null : undefined,
     validUntil: longDate(data.expiresAt),
-    sentByName: isClient ? data.sentByName || '' : undefined,
-    sentByEmail: isClient ? data.sentByEmail || '' : undefined,
+    sentByName: data.sentByName || '',
+    sentByEmail: data.sentByEmail || '',
     version: typeof data.version === 'number' ? data.version : undefined,
     revisedNote: typeof data.version === 'number' && data.version > 1
       ? `This is an updated agreement${data.changedSections ? ` (changed: ${data.changedSections})` : ''}. It replaces the version we sent you${data.previousSentAt ? ` on ${longDate(data.previousSentAt)}` : ' before'}. Please review it again before signing.`

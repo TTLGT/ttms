@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { ConfirmationFreight, ConfirmationPayment, ConfirmationStop } from '@/types/loadConfirmation';
+import { CARRIER_TERMS } from '@/types/agreementTerms';
 
 interface Props {
   /** The link's token. Absent in `preview`, which has nothing to sign with. */
@@ -24,7 +25,7 @@ interface Props {
   /**
    * The terms this link was sent with. For a client agreement it is the copy
    * on the token (or the old standard wording, for a link sent before the
-   * terms were a setting); for a carrier it is `CARRIER_TERMS` below.
+   * terms were a setting); for a carrier it is `CARRIER_TERMS` (src/types/agreementTerms.ts).
    */
   terms?: string;
   /**
@@ -70,26 +71,6 @@ export function SignedCopyLink({ token, label = 'Download your signed agreement 
     </a>
   );
 }
-
-const CARRIER_TERMS = `CARRIER AGREEMENT & RATE CONFIRMATION
-
-This Rate Confirmation ("Agreement") is entered into between Total Transport Logistics ("Broker") and the carrier identified above ("Carrier").
-
-1. LOAD ACCEPTANCE. By signing below, Carrier accepts the load described in this Rate Confirmation and agrees to transport the shipment in accordance with all terms herein.
-
-2. RATE. Carrier agrees to accept the Carrier Pay stated above as full and complete compensation for services rendered. Payment will be made within 30 days of receipt of a signed Proof of Delivery (POD) and invoice.
-
-3. CARRIER OBLIGATIONS. Carrier shall: (a) pick up and deliver the shipment on the dates specified; (b) ensure the driver is properly licensed and the vehicle is in safe, roadworthy condition; (c) comply with all federal, state, and local regulations including FMCSA requirements; (d) not broker, re-broker, or assign this load to any third party without prior written consent from Broker.
-
-4. INSURANCE. Carrier represents and warrants that it maintains continuous cargo insurance of at least $100,000 and liability insurance of at least $1,000,000. Carrier must provide certificate of insurance upon request.
-
-5. LOSS & DAMAGE. Carrier is liable for cargo loss or damage under the Carmack Amendment (49 U.S.C. § 14706). Carrier shall not limit its liability below the full actual value of the shipment.
-
-6. DOUBLE BROKERING. Any attempt to re-broker this shipment without authorization is grounds for immediate termination of this agreement and Carrier shall forfeit all compensation.
-
-7. DIGITAL SIGNATURE. The parties agree that an electronic signature is legally binding to the same extent as a wet ink signature pursuant to the Electronic Signatures in Global and National Commerce Act (E-SIGN) and applicable state law. Carrier's name, IP address, date, and time are recorded upon submission.
-
-8. GOVERNING LAW. This Agreement is governed by the laws of the United States and the state of Texas.`;
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
@@ -216,7 +197,7 @@ export default function SignForm({
         <p className="text-sm text-gray-600">
           {isClient ? 'Load confirmation' : 'Rate confirmation'} <strong>{orderNumber}</strong> is now complete.
         </p>
-        {isClient && token && (
+        {token && (
           <div className="mt-5">
             <SignedCopyLink token={token} />
             <p className="text-xs text-gray-500 mt-2">

@@ -1,12 +1,18 @@
 import { adminDb } from './firebase-admin';
+import type { AgreementParty } from '@/types/saRequest';
 import { signFormData } from './signFormProps';
 import {
   generateSignedAgreementBuffer, signatureTime, type SignedAgreementData,
 } from './signed-agreement-pdf';
 
 /**
- * Every version of the client's Shipper Agreement a load has had, and each
- * one as a PDF.
+ * Every version of an agreement a load has had, and each one as a PDF — the
+ * client's Shipper Agreement or the carrier's Carrier Agreement.
+ *
+ * The carrier's works differently underneath: each send is a new link
+ * rather than a revision of one, so its versions are its links, oldest
+ * first, the newest being current. (Links from before versions were numbered
+ * are counted in order.)
  *
  * Nothing new is stored for this. The versions were already kept: the live
  * link is `signing_tokens/{token}`, and each time it is revised the version it
@@ -39,14 +45,17 @@ function millis(v: unknown): number | null {
 
 type Data = FirebaseFirestore.DocumentData;
 
-function infoOf(token: string, d: Data, current: boolean, revoked: boolean): AgreementVersionInfo {
-  const version = typeof d.version === 'number' ? d.version : 1;
+/** The token type each party's links carry. `shipper_agreement` is the client's; the name is historical. */
+const TOKEN_TYPE: Record<AgreementParty, string> = { client: 'shipper_agreement', carrier: 'carrier_agreement' };
+
+function infoOf(token: string, d: Data, current: boolean, revoked: boolean, fallbackVersion = 1): AgreementVersionInfo {
+  const version = typeof d.version === 'number' ? d.version : fallbackVersion;
   const signedAt = millis(d.usedAt);
   return {
     ref: `${token}~${version}`,
     version,
     sentAt: millis(d.lastSentAt) ?? millis(d.createdAt),
-    sentTo: String(d.clientEmail ?? ''),
+    sentTo: String(d.clientEmail ?? d.carrierEmail ?? ''),
     signed: signedAt !== null
       ? { name: String(d.signerName ?? ''), title: String(d.signerTitle ?? ''), at: signedAt, device: String(d.signerDevice ?? '') }
       : null,
@@ -56,16 +65,24 @@ function infoOf(token: string, d: Data, current: boolean, revoked: boolean): Agr
   };
 }
 
-/** The client links for a load. One equality filter, the type in memory — no composite index. */
-async function clientTokens(orderId: string) {
+/** One party's links for a load. One equality filter, the type in memory — no composite index. */
+async function partyTokens(orderId: string, party: AgreementParty) {
   const snap = await adminDb.collection('signing_tokens').where('orderId', '==', orderId).get();
-  // `shipper_agreement` is the client's load confirmation; the name is historical.
-  return snap.docs.filter((d) => d.data().type === 'shipper_agreement');
+  return snap.docs.filter((d) => d.data().type === TOKEN_TYPE[party]);
 }
 
-/** Every version on the load, newest first. */
-export async function listAgreementVersions(orderId: string): Promise<AgreementVersionInfo[]> {
-  const tokens = await clientTokens(orderId);
+/** Every version on the load for one party, newest first. */
+export async function listAgreementVersions(orderId: string, party: AgreementParty = 'client'): Promise<AgreementVersionInfo[]> {
+  const tokens = await partyTokens(orderId, party);
+  if (party === 'carrier') {
+    // Oldest first: each link replaced the one before it.
+    const sorted = tokens.sort((a, b) => (millis(a.data().createdAt) ?? 0) - (millis(b.data().createdAt) ?? 0));
+    return sorted.map((t, i) => {
+      const next = sorted[i + 1];
+      const info = infoOf(t.id, t.data(), !next, Boolean(t.data().revokedAt), i + 1);
+      return { ...info, supersededAt: next ? millis(next.data().createdAt) : null };
+    }).reverse();
+  }
   const out: AgreementVersionInfo[] = [];
   await Promise.all(tokens.map(async (t) => {
     const d = t.data();
@@ -87,7 +104,10 @@ export async function readAgreementVersion(orderId: string, ref: string): Promis
   if (!token || !/^[a-f0-9]{16,128}$/i.test(token) || !Number.isInteger(n) || n < 1) return null;
   const snap = await adminDb.collection('signing_tokens').doc(token).get();
   const d = snap.data();
-  if (!d || d.orderId !== orderId || d.type !== 'shipper_agreement') return null;
+  if (!d || d.orderId !== orderId) return null;
+  // A carrier link is one version; its ref names the link, and the number is only a label.
+  if (d.type === 'carrier_agreement') return { data: d, current: true };
+  if (d.type !== 'shipper_agreement') return null;
   if ((typeof d.version === 'number' ? d.version : 1) === n) return { data: d, current: true };
   const v = await snap.ref.collection('versions').doc(String(n)).get();
   return v.exists ? { data: v.data()!, current: false } : null;
@@ -108,7 +128,7 @@ export async function agreementPdf(data: Data, current: boolean): Promise<Buffer
       esignConsent: data.esignConsent === true,
       termsAccepted: data.termsAccepted === true,
     } : null,
-    sentTo: String(data.clientEmail ?? ''),
+    sentTo: String(data.clientEmail ?? data.carrierEmail ?? ''),
     supersededNote: supersededAt
       ? `Replaced by a later version on ${supersededAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
       : '',
@@ -117,9 +137,10 @@ export async function agreementPdf(data: Data, current: boolean): Promise<Buffer
   return generateSignedAgreementBuffer(pdf);
 }
 
-/** "Signed SA TTL26000123 v2.pdf" — safe as a file name. */
+/** "Signed SA TTL26000123 v2.pdf", "Signed Carrier Agreement TTL26000123 v1.pdf" — safe as a file name. */
 export function agreementFileName(data: Data): string {
   const number = String(data.orderNumber ?? 'order').replace(/[\\/:*?"<>|]/g, '-');
   const version = typeof data.version === 'number' ? ` v${data.version}` : '';
-  return `${data.usedAt ? 'Signed SA' : 'SA'} ${number}${version}.pdf`;
+  const doc = data.type === 'carrier_agreement' ? 'Carrier Agreement' : 'SA';
+  return `${data.usedAt ? `Signed ${doc}` : doc} ${number}${version}.pdf`;
 }

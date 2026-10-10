@@ -12,8 +12,10 @@ import { downloadAgreementPdf, listAgreementVersions, type AgreementVersion } fr
  *
  * The list is read only when opened.
  */
-export default function SaAgreementVersions({ orderId, signed, refreshKey }: {
+export default function SaAgreementVersions({ orderId, signed, refreshKey, party = 'client' }: {
   orderId: string;
+  /** The carrier's agreement, on the Carrier section. */
+  party?: 'client' | 'carrier';
   /** The order carries the client's signature — offer the signed PDF straight away. */
   signed: boolean;
   refreshKey?: unknown;
@@ -31,7 +33,7 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey }: {
     if (next && (versions === null || loadedFor !== refreshKey)) {
       setVersions(null);
       setLoadedFor(refreshKey);
-      listAgreementVersions(orderId).then(setVersions).catch((e) => setError(e instanceof Error ? e.message : 'Could not load the SA versions'));
+      listAgreementVersions(orderId, party).then(setVersions).catch((e) => setError(e instanceof Error ? e.message : 'Could not load the SA versions'));
     }
   }
 
@@ -39,7 +41,7 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey }: {
     setBusy(key);
     setError('');
     try {
-      await downloadAgreementPdf(orderId, ref);
+      await downloadAgreementPdf(orderId, ref, party);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not build the SA');
     } finally {
@@ -53,7 +55,7 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey }: {
         <button type="button" onClick={() => void download('signed')} disabled={busy !== ''}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 transition">
           {busy === 'signed' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-          Download signed SA
+          {party === 'carrier' ? 'Download signed Carrier Agreement' : 'Download signed SA'}
         </button>
       )}
 
@@ -61,13 +63,13 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey }: {
         <button type="button" onClick={toggle}
           className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-gray-900">
           {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-          SA versions
+          {party === 'carrier' ? 'Carrier Agreement versions' : 'SA versions'}
         </button>
         {open && (
           versions === null && !error ? (
             <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" />Loading…</p>
           ) : versions && versions.length === 0 ? (
-            <p className="mt-1 text-xs text-gray-500">No SA has been sent on this load yet.</p>
+            <p className="mt-1 text-xs text-gray-500">No {party === 'carrier' ? 'Carrier Agreement' : 'SA'} has been sent on this load yet.</p>
           ) : versions ? (
             <ul className="mt-1 divide-y divide-gray-100 rounded-lg border border-gray-200">
               {versions.map((v) => (
@@ -75,7 +77,7 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey }: {
                   <div className="text-xs">
                     <p className="font-semibold text-gray-900">
                       Version {v.version}
-                      {v.current && !v.revoked && <span className="ml-1.5 font-normal text-brand-700">· on the client&apos;s link now</span>}
+                      {v.current && !v.revoked && <span className="ml-1.5 font-normal text-brand-700">· the latest sent</span>}
                     </p>
                     <p className="text-gray-500">
                       {v.sentAt ? <>Sent {formatDateTime(new Date(v.sentAt))}</> : 'Sent'}{v.sentTo && <> to {v.sentTo}</>}

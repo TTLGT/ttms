@@ -267,12 +267,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   }
 
   /*
-   * The client's copy of what they signed, by email, now. After the
+   * The signer's copy of what they signed, by email, now — client or carrier. After the
    * transaction and swallowed, like the alert: the signature is the legal
    * record, and an email that failed must never undo it or tell the client
    * signing failed. They can download the same PDF from the link.
    */
-  if (signed?.by === 'client') {
+  if (signed) {
     await emailSignedAgreement(token).catch((e) => console.error('Signed SA email failed:', e));
   }
 

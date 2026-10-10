@@ -5,6 +5,7 @@ import { getVisibleOrder } from '@/lib/orderAccess';
 import {
   agreementFileName, agreementPdf, listAgreementVersions, readAgreementVersion,
 } from '@/lib/signedAgreements';
+import { isAgreementParty } from '@/types/saRequest';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -24,8 +25,14 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
 
     let ref = req.nextUrl.searchParams.get('ref') ?? '';
     if (!ref) {
-      const signed = (await listAgreementVersions(orderId)).find((v) => v.signed);
-      if (!signed) return NextResponse.json({ error: 'The client has not signed an SA on this load yet.' }, { status: 404 });
+      const asked = req.nextUrl.searchParams.get('party');
+      const party = isAgreementParty(asked) ? asked : 'client';
+      const signed = (await listAgreementVersions(orderId, party)).find((v) => v.signed);
+      if (!signed) {
+        return NextResponse.json({
+          error: party === 'carrier' ? 'The carrier has not signed an agreement on this load yet.' : 'The client has not signed an SA on this load yet.',
+        }, { status: 404 });
+      }
       ref = signed.ref;
     }
     const found = await readAgreementVersion(orderId, ref);

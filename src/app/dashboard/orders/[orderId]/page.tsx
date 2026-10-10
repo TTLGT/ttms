@@ -1488,6 +1488,12 @@ export default function OrderDetailPage() {
                 <SaVerificationRecord orderId={orderId} party="carrier" />
               </div>
             )}
+            {/* The signed Carrier Agreement as a PDF, and every one sent. */}
+            {!assigningCarrier && order.carrierId && (
+              <div className="mb-3">
+                <SaAgreementVersions orderId={orderId} party="carrier" signed={Boolean(order.carrierSignedAt)} refreshKey={caRefresh} />
+              </div>
+            )}
 
             {/* Send for Signature / e-sign status */}
             {!assigningCarrier && order.carrierId && (

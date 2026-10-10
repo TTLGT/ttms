@@ -13,8 +13,8 @@ export const maxDuration = 30;
  * unguessable token in the link is the whole credential — the same one that
  * let them read and sign it.
  *
- * It answers only for a client link that has been **signed** and not
- * cancelled, and only with the copy stored on the link — the version they
+ * It answers only for a client or carrier link that has been **signed** and
+ * not cancelled, and only with the copy stored on the link — the version they
  * signed, with their own signature record. An unsigned link gives nothing
  * here: the page itself already shows what it says. A cancelled one (the
  * load moved to another client) gives nothing either; that link must stop
@@ -31,8 +31,9 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
   }
   const snap = await adminDb.collection('signing_tokens').doc(token).get();
   const d = snap.data();
-  // `shipper_agreement` is the client's load confirmation; the name is historical.
-  if (!d || d.type !== 'shipper_agreement' || d.revokedAt || !d.usedAt) {
+  // `shipper_agreement` is the client's load confirmation; the name is
+  // historical. A carrier's signed rate confirmation is theirs the same way.
+  if (!d || (d.type !== 'shipper_agreement' && d.type !== 'carrier_agreement') || d.revokedAt || !d.usedAt) {
     return NextResponse.json({ error: 'There is no signed agreement on this link.' }, { status: 404 });
   }
   const buffer = await agreementPdf(d, true);

@@ -87,17 +87,17 @@ export default async function SignPage({ params }: Props) {
       <Shell title={pageTitle}>
         <div className="bg-white rounded-xl border border-green-200 p-6 sm:p-10 text-center">
           <p className="text-4xl mb-4">✅</p>
-          <h2 className="text-lg font-semibold text-gray-800 mb-2">{isClient ? 'Signed' : 'Already Signed'}</h2>
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">Signed</h2>
           <p className="text-sm text-gray-600">
             This confirmation was signed by <strong>{data.signerName}</strong> on {signedDate}.
           </p>
-          {/* Every time the client comes back to the link, their signed copy is here. */}
-          {isClient && (
-            <div className="mt-5">
-              <SignedCopyLink token={token} />
-              <p className="text-xs text-gray-500 mt-2">A copy was also emailed to {data.clientEmail || 'you'} when it was signed.</p>
-            </div>
-          )}
+          {/* Every time the signer comes back to the link, their signed copy is here. */}
+          <div className="mt-5">
+            <SignedCopyLink token={token} />
+            <p className="text-xs text-gray-500 mt-2">
+              A copy was also emailed to {(isClient ? data.clientEmail : data.carrierEmail) || 'you'} when it was signed.
+            </p>
+          </div>
           <p className="text-xs text-gray-400 mt-3">Order {data.orderNumber}</p>
         </div>
       </Shell>

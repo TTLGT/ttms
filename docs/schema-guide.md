@@ -775,6 +775,14 @@ show what the order says today instead of what was signed.
   links if the client changed), for anyone who can see the load.
 - `GET /api/orders/{id}/agreements/pdf?ref={token}~{n}` renders one; with no
   `ref`, the newest signed one. A ref from another load opens nothing.
+- `?party=carrier` on both does the same for the Carrier Agreement. Each
+  carrier send is its own link, so its versions are its links in order (the
+  token's `version`, or its place in the list for links sent before
+  2026-10-09). The carrier's terms are `CARRIER_TERMS` in
+  `src/types/agreementTerms.ts`, read by the signing page and the PDF alike.
+- On signing, the signer — client or carrier — is emailed the PDF
+  (`src/lib/signedAgreementEmail.ts`); a carrier's copy goes to the carrier's
+  address and the link's own `cc`, never to the client.
 
 ### Signer device on an e-signature
 

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "34c66ea7c9f125317c779bb4ed7bacd0fef32a77",
+      "date": "2026-10-09T18:26:40-06:00",
+      "author": "erwindank",
+      "subject": "Add a Carrier Agreement review like the SA's, with a carrier checklist, its own verification record, and the carrier checks moved off the SA review",
+      "body": ""
+    },
+    {
       "hash": "453f0f92ca97dbb999e1dba1ef197bde7cb03abb",
       "date": "2026-10-09T15:53:54-06:00",
       "author": "erwindank",

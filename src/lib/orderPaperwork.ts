@@ -56,8 +56,8 @@ export interface AgreementVersion {
   revoked: boolean;
 }
 
-export async function listAgreementVersions(orderId: string): Promise<AgreementVersion[]> {
-  const res = await fetch(`/api/orders/${orderId}/agreements`, { headers: await authHeaders() });
+export async function listAgreementVersions(orderId: string, party: 'client' | 'carrier' = 'client'): Promise<AgreementVersion[]> {
+  const res = await fetch(`/api/orders/${orderId}/agreements?party=${party}`, { headers: await authHeaders() });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not load the SA versions');
   return (data as { versions: AgreementVersion[] }).versions;
@@ -67,8 +67,8 @@ export async function listAgreementVersions(orderId: string): Promise<AgreementV
  * Saves one version of the SA as a PDF — `ref` from the list, or none for
  * the newest signed one. Fetched with the ID token, like the quote.
  */
-export async function downloadAgreementPdf(orderId: string, ref?: string): Promise<void> {
-  const q = ref ? `?ref=${encodeURIComponent(ref)}` : '';
+export async function downloadAgreementPdf(orderId: string, ref?: string, party: 'client' | 'carrier' = 'client'): Promise<void> {
+  const q = ref ? `?ref=${encodeURIComponent(ref)}` : `?party=${party}`;
   const res = await fetch(`/api/orders/${orderId}/agreements/pdf${q}`, { headers: await authHeaders() });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));

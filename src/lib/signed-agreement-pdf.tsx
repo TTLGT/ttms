@@ -4,8 +4,9 @@ import { Document, Page, Text, View, StyleSheet, Image as PdfImage, renderToBuff
 import type { SignFormData } from './signFormProps';
 
 /**
- * The client's Shipper Agreement (load confirmation) as a PDF — signed, or a
- * plain copy of a version that never was.
+ * A signing link's agreement as a PDF — signed, or a plain copy of a version
+ * that never was: the client's Shipper Agreement (load confirmation) or the
+ * carrier's Carrier Agreement (rate confirmation), told apart by `form.type`.
  *
  * Drawn from the same `SignFormData` the signing page shows (signFormData()
  * over the link's stored copy), so the PDF says exactly what the client read
@@ -121,16 +122,21 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
   const pickups = (f.stops ?? []).filter((x) => x.kind === 'pickup');
   const deliveries = (f.stops ?? []).filter((x) => x.kind === 'delivery');
   const sig = d.signature;
+  // The carrier's copy names the carrier and the driver and quotes carrier
+  // pay; it never shows the client's rate, which is our margin's other half.
+  const carrier = f.type === 'carrier_agreement';
+  const docTitle = carrier ? 'CARRIER RATE CONFIRMATION' : 'CLIENT LOAD CONFIRMATION';
+  const docName = carrier ? 'Carrier Agreement' : 'Shipper Agreement';
 
   return (
-    <Document title={`Shipper Agreement ${f.orderNumber}${f.version ? ` v${f.version}` : ''}`} author="Total Transport Logistics">
+    <Document title={`${docName} ${f.orderNumber}${f.version ? ` v${f.version}` : ''}`} author="Total Transport Logistics">
       <Page size="LETTER" style={s.page}>
         <View style={s.header}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <PdfImage src={LOGO_PATH} style={{ width: 46, height: 46, marginRight: 10 }} />
             <View>
               <Text style={s.hLabel}>TOTAL TRANSPORT LOGISTICS</Text>
-              <Text style={s.hTitle}>CLIENT LOAD CONFIRMATION</Text>
+              <Text style={s.hTitle}>{docTitle}</Text>
             </View>
           </View>
           <View style={s.hRight}>
@@ -143,7 +149,7 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
         {!sig && (
           <View style={[s.banner, { borderColor: '#fcd34d', backgroundColor: '#fffbeb' }]}>
             <Text style={{ fontSize: 8, color: '#92400e' }}>
-              COPY — this version was sent to the client and was not signed.{d.supersededNote ? ` ${d.supersededNote}.` : ''}
+              COPY — this version was sent to the {carrier ? 'carrier' : 'client'} and was not signed.{d.supersededNote ? ` ${d.supersededNote}.` : ''}
             </Text>
           </View>
         )}
@@ -155,16 +161,17 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
 
         <View style={s.row2}>
           <View style={s.card}>
-            <Text style={s.secTitle}>CLIENT</Text>
+            <Text style={s.secTitle}>{carrier ? 'CARRIER' : 'CLIENT'}</Text>
             <Field label="Company" value={f.partyName} />
+            {carrier && f.driverName ? <Field label="Driver" value={f.driverName} /> : null}
             <Field label="Sent to" value={d.sentTo} />
           </View>
           <View style={s.cardLast}>
-            <Text style={s.secTitle}>AGREED RATE</Text>
+            <Text style={s.secTitle}>{carrier ? 'CARRIER PAY' : 'AGREED RATE'}</Text>
             <Text style={s.moneyBig}>{f.rate}</Text>
             <View style={{ marginTop: 6 }}>
-              <Field label="Payment method" value={f.payment?.method || 'As invoiced'} />
-              {f.payment?.fee ? <Field label="Payment fee" value={f.payment.fee} /> : null}
+              {!carrier && <Field label="Payment method" value={f.payment?.method || 'As invoiced'} />}
+              {!carrier && f.payment?.fee ? <Field label="Payment fee" value={f.payment.fee} /> : null}
               {f.sentByName ? <Field label="Your contact" value={f.sentByEmail ? `${f.sentByName} · ${f.sentByEmail}` : f.sentByName} /> : null}
             </View>
           </View>
@@ -244,7 +251,9 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
             <Text style={s.sigLine}>IP address {sig.ip || 'not recorded'} · {sig.device || 'device not recorded'}</Text>
             <Text style={s.sigLine}>
               {sig.esignConsent ? 'Agreed to sign electronically. ' : ''}
-              {sig.termsAccepted ? 'Accepted the terms and confirmed the rate, the pickup and delivery details and the payment terms.' : ''}
+              {sig.termsAccepted
+                ? (carrier ? 'Accepted the terms of this rate confirmation.' : 'Accepted the terms and confirmed the rate, the pickup and delivery details and the payment terms.')
+                : ''}
             </Text>
             <Text style={[s.sigLine, { marginTop: 4, color: '#6b7280' }]}>
               Signed electronically under the E-SIGN Act. The signer&apos;s name, title, IP address, device, and the date and time of signing were recorded at submission.
