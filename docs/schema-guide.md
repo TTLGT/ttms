@@ -827,6 +827,35 @@ show what the order says today instead of what was signed.
   (`src/lib/signedAgreementEmail.ts`); a carrier's copy goes to the carrier's
   address and the link's own `cc`, never to the client.
 
+### What the client's PDF adds from BATS (2026-10-13)
+
+The Shipper Agreement PDF and the quote are laid out after the BATS Shipper
+Agreement, in TTL's navy and red (`src/lib/pdfBrand.ts`, which also holds the
+letterhead address). To print what BATS printed, a client send copies these
+onto the link beside the rest of the snapshot. None of them is part of the
+content fingerprint, so a change to any of them never holds a link for
+review; links sent before they existed simply leave them off the PDF.
+
+| Field | Meaning |
+|---|---|
+| `clientContactName` | The contact the agreement was sent to ("Attn:"). |
+| `clientAddress` | The client party's `address`, as it stood at the send. |
+| `clientPhone` / `clientPhoneRegion` | The client party's main phone and its country. |
+| `orderCreatedAt` | The order's `createdAt` — BATS's "Order Date". |
+| `firstAvailablePickup` | The order's `firstAvailablePickup`. |
+| `photoId` | The load picture drawn on the PDF, or null. Chosen by `clientPhotoId()` in `src/lib/loadPhotosServer.ts`: the profile picture if it is a freight picture, otherwise the first pickup picture. `truck`, `damage` and `signed_sa` pictures are never shown to a client. Read from `loadPhotoPath()`, so it can only name a file in that order's own folder. |
+
+`freight[]` lines also gain `vehicle` and `vin` when the line is a vehicle.
+Those **are** in the fingerprint — the client is confirming which vehicle —
+and are added only to lines that have them, so ordinary freight fingerprints
+exactly as before. A vehicle load with a live link reads as a freight change
+once, on its next save. The signing page shows them too.
+
+A signed PDF also prints a QR code to its signing link and a SHA-256
+"digital fingerprint" (`signatureFingerprint()` in
+`src/lib/signedAgreements.ts`), worked out from the stored copy on every
+render — nothing is stored for either.
+
 ### Signer device on an e-signature
 
 `POST /api/sign/[token]` now records, beside name, IP and time, the signer's

@@ -1,4 +1,8 @@
+import { createHash } from 'crypto';
 import { adminDb } from './firebase-admin';
+import { signUrl } from './appUrl';
+import { photoDataUrl } from './loadPhotosServer';
+import { qrPng } from './qrCode';
 import type { AgreementParty } from '@/types/saRequest';
 import { signFormData } from './signFormProps';
 import {
@@ -161,11 +165,41 @@ export async function voidNoteFor(token: Data, version: Data, current: boolean):
 }
 
 /**
+ * The fingerprint printed on a signed copy, as BATS printed its "digital
+ * fingerprint checksum": a SHA-256 over what was agreed and how it was signed
+ * — the content fingerprint the link was sent with, the terms, and the whole
+ * signature record. Worked out from the stored copy, so the same version
+ * always prints the same value, and any later change to the record would
+ * print a different one.
+ *
+ * It is a checksum, not a cryptographic signature: it lets somebody holding
+ * the PDF check it against our record, and proves nothing on its own.
+ */
+function signatureFingerprint(data: Data): string {
+  return createHash('sha256').update(JSON.stringify([
+    data.type ?? '', data.orderNumber ?? '', data.version ?? 1, data.contentHash ?? '',
+    data.termsText ?? '', data.agreedRate ?? null, data.carrierPay ?? null,
+    data.signerName ?? '', data.signerTitle ?? '', data.signerIp ?? '', data.signerUserAgent ?? '',
+    data.usedAt?.toMillis?.() ?? null,
+  ])).digest('base64');
+}
+
+/**
  * The PDF of one stored copy — the current link's, or an older version's.
  * `voidNote` comes from voidNoteFor(); empty means a version still in force.
+ * `token` is the link's id, for the QR code on a signed copy; the stored copy
+ * does not carry its own id.
  */
-export async function agreementPdf(data: Data, voidNote: string): Promise<Buffer> {
+export async function agreementPdf(data: Data, voidNote: string, token?: string): Promise<Buffer> {
   const signedAt = data.usedAt?.toDate?.() as Date | undefined;
+  const link = token ? signUrl(token) : '';
+  // Both best-effort: a copy without its picture or its code is still the agreement.
+  const [photo, qr] = await Promise.all([
+    typeof data.photoId === 'string' && data.photoId && typeof data.orderId === 'string' && data.type === 'shipper_agreement'
+      ? photoDataUrl(data.orderId, data.photoId)
+      : Promise.resolve(null),
+    signedAt && link ? qrPng(link).then((b) => `data:image/png;base64,${b.toString('base64')}`).catch(() => null) : Promise.resolve(null),
+  ]);
   const pdf: SignedAgreementData = {
     form: signFormData(data),
     signature: signedAt ? {
@@ -176,10 +210,14 @@ export async function agreementPdf(data: Data, voidNote: string): Promise<Buffer
       device: String(data.signerDevice ?? ''),
       esignConsent: data.esignConsent === true,
       termsAccepted: data.termsAccepted === true,
+      fingerprint: signatureFingerprint(data),
     } : null,
     sentTo: String(data.clientEmail ?? data.carrierEmail ?? ''),
     voidNote,
     generatedAt: signatureTime(new Date()),
+    photo,
+    qr,
+    link,
   };
   return generateSignedAgreementBuffer(pdf);
 }

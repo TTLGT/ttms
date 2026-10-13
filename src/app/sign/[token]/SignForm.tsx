@@ -256,7 +256,11 @@ export default function SignForm({
                   <tbody>
                     {freight.map((f, i) => (
                       <tr key={i} className="border-b border-gray-100 last:border-0 text-gray-900">
-                        <td className="py-2 pr-3">{f.description || '—'}</td>
+                        <td className="py-2 pr-3">
+                          {f.description || f.vehicle || '—'}
+                          {f.vehicle && f.description ? <span className="block text-xs text-gray-500">{f.vehicle}</span> : null}
+                          {f.vin ? <span className="block text-xs text-gray-500">VIN {f.vin}</span> : null}
+                        </td>
                         <td className="py-2 pr-3">{f.quantity || '—'}</td>
                         <td className="py-2 pr-3">{f.dimensions || '—'}</td>
                         <td className="py-2 text-right whitespace-nowrap">{f.weight || '—'}</td>

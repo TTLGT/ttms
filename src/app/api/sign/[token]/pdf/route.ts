@@ -47,7 +47,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   // replaced it (a carrier's, once the load went out to somebody else), so
   // the signer's own download says it no longer stands.
   const voidNote = await voidNoteFor(d, d, true);
-  const buffer = await agreementPdf(d, voidNote);
+  const buffer = await agreementPdf(d, voidNote, token);
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/pdf',

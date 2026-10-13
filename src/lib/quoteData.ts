@@ -1,4 +1,5 @@
 import { formatLongDateRange } from '@/lib/dateFormat';
+import { clientPhotoId, photoDataUrl } from '@/lib/loadPhotosServer';
 import { clientContactOf, readinessFactsFor } from '@/lib/orderReadinessServer';
 import type { QuoteData } from '@/lib/quote-pdf';
 import { confirmationFreight } from '@/lib/loadConfirmationServer';
@@ -19,8 +20,16 @@ import { orderReadiness, readinessOf } from '@/types/orderReadiness';
 export async function buildQuoteData(
   order: Partial<Order> & Record<string, unknown>,
   preparedBy: { name: string; email: string },
+  orderId: string,
 ): Promise<QuoteData> {
-  const [contact, facts] = await Promise.all([clientContactOf(order.clientId), readinessFactsFor(order)]);
+  const [contact, facts, photo] = await Promise.all([
+    clientContactOf(order.clientId),
+    readinessFactsFor(order),
+    // Best-effort: a quote is never refused for want of a picture.
+    clientPhotoId(orderId, order.coverPhotoId)
+      .then((id) => (id ? photoDataUrl(orderId, id) : null))
+      .catch(() => null),
+  ]);
   const sa = readinessOf(orderReadiness(order, facts), 'sa');
 
   const stop = (st: OrderStop) => ({
@@ -46,6 +55,7 @@ export async function buildQuoteData(
     notes: String(order.notes ?? ''),
     preparedBy: preparedBy.name,
     preparedByEmail: preparedBy.email,
+    photo,
     // Only what the client can supply. An email address on our client record
     // is ours to fix, not theirs, so it is left off the client's copy.
     stillNeeded: sa.missing.filter((i) => i.key !== 'clientEmail' && i.key !== 'client' && i.key !== 'agreedRate').map((i) => i.label),

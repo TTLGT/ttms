@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     const order = (await getVisibleOrder(caller, orderId)) as Partial<Order> & Record<string, unknown>;
 
     const buffer = await generateQuoteBuffer(
-      await buildQuoteData(order, { name: caller.displayName, email: caller.email ?? '' }),
+      await buildQuoteData(order, { name: caller.displayName, email: caller.email ?? '' }, orderId),
     );
 
     const name = `Quote ${orderDisplayNumber(order as { orderNumber?: string; batsId?: string })}.pdf`;

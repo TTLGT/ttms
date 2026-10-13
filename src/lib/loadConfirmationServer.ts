@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { formatLongDateRange } from '@/lib/dateFormat';
 import {
-  dimensionsSummary, formatDimensions, itemWeightLb, orderCommodityItems, orderDeliveries, orderPickups, stopPlaces,
+  dimensionsSummary, formatDimensions, hasVehicleDetails, itemWeightLb, vehicleSummary, orderCommodityItems, orderDeliveries, orderPickups, stopPlaces,
   type Order, type OrderStop,
 } from '@/types/order';
 import {
@@ -63,14 +63,32 @@ export function confirmationStops(order: AnyOrder): ConfirmationStop[] {
   ].filter((st) => st.name || st.street || st.place);
 }
 
-/** The freight table, as the quote PDF and the signing page print it. */
+/**
+ * The freight table, as the quote PDF and the signing page print it.
+ *
+ * A vehicle line carries its year, make, model and VIN as well — BATS printed
+ * them on the Shipper Agreement, and a client signing for a car is confirming
+ * which car. The keys are added only to a line that has them: this feeds the
+ * `freight` fingerprint, and a '' on every ordinary line would make every live
+ * link read as changed on its next save. A vehicle load sent before this
+ * existed will read as a freight change once, which is true — the client was
+ * never shown the VIN.
+ */
 export function confirmationFreight(order: AnyOrder): ConfirmationFreight[] {
-  return orderCommodityItems(order).map((it) => ({
-    description: it.description,
-    quantity: it.quantity ? String(it.quantity) : '',
-    dimensions: formatDimensions(it),
-    weight: itemWeightLb(it) ? `${Math.round(itemWeightLb(it)).toLocaleString('en-US')} lbs` : '',
-  }));
+  return orderCommodityItems(order).map((it) => {
+    const line: ConfirmationFreight = {
+      description: it.description,
+      quantity: it.quantity ? String(it.quantity) : '',
+      dimensions: formatDimensions(it),
+      weight: itemWeightLb(it) ? `${Math.round(itemWeightLb(it)).toLocaleString('en-US')} lbs` : '',
+    };
+    if (hasVehicleDetails(it)) {
+      const vehicle = vehicleSummary(it);
+      if (vehicle) line.vehicle = vehicle;
+      if (it.vin?.trim()) line.vin = it.vin.trim().toUpperCase();
+    }
+    return line;
+  });
 }
 
 export interface ConfirmationContent {
@@ -162,5 +180,13 @@ export function tokenSnapshotFields(order: AnyOrder, c: ConfirmationContent): Re
     freight:         c.freight,
     equipment:       c.equipment,
     payment:         c.payment,
+    /*
+     * Printed on the PDF's header, as BATS printed them, and deliberately not
+     * part of the fingerprint: neither is a term the client agrees to, so
+     * neither should hold a link for review. They are the order's as of the
+     * send, like everything else on the link.
+     */
+    orderCreatedAt:       order.createdAt || null,
+    firstAvailablePickup: order.firstAvailablePickup || null,
   };
 }

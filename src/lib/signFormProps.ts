@@ -1,4 +1,5 @@
 import { formatLongDateRange } from '@/lib/dateFormat';
+import { phoneRegionOf, PHONE_COUNTRY_CODE } from '@/lib/phone';
 import { CARRIER_TERMS, DEFAULT_CLIENT_TERMS } from '@/types/agreementTerms';
 import type { ConfirmationFreight, ConfirmationPayment, ConfirmationStop } from '@/types/loadConfirmation';
 
@@ -37,6 +38,33 @@ export interface SignFormData {
   sentByEmail?: string;
   version?: number;
   revisedNote?: string;
+  /*
+   * The client's own details and two dates, for the PDF's header — what BATS
+   * printed there. Client copies only, and '' on links sent before they were
+   * copied onto the link: the PDF leaves out what it does not have rather
+   * than reading today's order.
+   */
+  clientContactName?: string;
+  /** Street, then "City, ST ZIP". */
+  clientAddressLines?: string[];
+  clientPhone?: string;
+  orderDate?: string;
+  firstAvailablePickup?: string;
+}
+
+/** A stored phone as it prints on paper: the country code in front of anything not American. */
+function paperPhone(raw: unknown, region: unknown): string {
+  const phone = typeof raw === 'string' ? raw.trim() : '';
+  if (!phone) return '';
+  const r = phoneRegionOf(region);
+  return r === 'US' ? phone : `+${PHONE_COUNTRY_CODE[r]} ${phone}`;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function addressLines(a: any): string[] {
+  if (!a || typeof a !== 'object') return [];
+  const place = [[a.city, a.state].filter(Boolean).join(', '), a.zip].filter(Boolean).join(' ');
+  return [String(a.street ?? '').trim(), place.trim()].filter(Boolean);
 }
 
 export function longDate(ts: { toDate?: () => Date } | null | undefined): string {
@@ -91,5 +119,10 @@ export function signFormData(data: Record<string, any>): SignFormData {
     revisedNote: typeof data.version === 'number' && data.version > 1
       ? `This is an updated agreement${data.changedSections ? ` (changed: ${data.changedSections})` : ''}. It replaces the version we sent you${data.previousSentAt ? ` on ${longDate(data.previousSentAt)}` : ' before'}. Please review it again before signing.`
       : undefined,
+    clientContactName: isClient ? String(data.clientContactName ?? '') : undefined,
+    clientAddressLines: isClient ? addressLines(data.clientAddress) : undefined,
+    clientPhone: isClient ? paperPhone(data.clientPhone, data.clientPhoneRegion) : undefined,
+    orderDate: isClient ? formatLongDateRange(data.orderCreatedAt, null, '') : undefined,
+    firstAvailablePickup: isClient ? formatLongDateRange(data.firstAvailablePickup, null, '') : undefined,
   };
 }

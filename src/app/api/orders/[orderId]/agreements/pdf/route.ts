@@ -39,7 +39,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     if (!found) return NextResponse.json({ error: 'That version of the SA was not found on this load.' }, { status: 404 });
 
     const voidNote = await voidNoteFor(found.token, found.data, found.current);
-    const buffer = await agreementPdf(found.data, voidNote);
+    const buffer = await agreementPdf(found.data, voidNote, ref.split('~')[0]);
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         'Content-Type': 'application/pdf',

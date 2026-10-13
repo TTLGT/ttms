@@ -28,6 +28,15 @@ export interface ConfirmationFreight {
   quantity: string;
   dimensions: string;
   weight: string;
+  /**
+   * "2006 Kenworth W900 · Gray · Semi truck · Operable" — the line's
+   * vehicleSummary(), present only when the line is a vehicle. Absent rather
+   * than '' so a line that is not one fingerprints exactly as it did before
+   * these existed; see confirmationFreight().
+   */
+  vehicle?: string;
+  /** Present only when one was entered. */
+  vin?: string;
 }
 
 export interface ConfirmationPayment {

@@ -15,6 +15,7 @@ import { clientAgreementRef, planAgreementHold, type ClientAgreementPointer } fr
 import {
   changedSections, confirmationContent, contentHash, sectionHashes, sectionList, tokenSnapshotFields,
 } from '@/lib/loadConfirmationServer';
+import { clientPhotoId } from '@/lib/loadPhotosServer';
 import { qrPng } from '@/lib/qrCode';
 import { generateQuoteBuffer } from '@/lib/quote-pdf';
 import { buildQuoteData } from '@/lib/quoteData';
@@ -219,17 +220,31 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     ...(await buildQuoteData(order as Partial<Order> & Record<string, unknown>, {
       name:  actor?.name ?? caller.email ?? 'Total Transport Logistics',
       email: caller.email ?? '',
-    })),
+    }, orderId)),
     signQr: `data:image/png;base64,${qr.toString('base64')}`,
     signLink: link,
   });
 
   const snapshotFields = tokenSnapshotFields(order as Partial<Order> & Record<string, unknown>, content);
+  /*
+   * The picture the PDF of this version shows — chosen now and kept by id, so
+   * the signed copy keeps the picture it went out with even if the load's
+   * profile picture changes later. Best-effort: a send never fails for want
+   * of a picture. Not part of the fingerprint, for the same reason as the
+   * order date (see tokenSnapshotFields()).
+   */
+  const photoId = await clientPhotoId(orderId, order.coverPhotoId).catch(() => null);
   const snapshot = {
     ...snapshotFields,
     orderNumber,
     clientName:   client.companyName || client.contactName,
     clientEmail:  contact.email,
+    // The client's letterhead details on the PDF, as BATS printed them.
+    clientContactName: contact.name || '',
+    clientAddress:     client.address ?? null,
+    clientPhone:       String(client.phone ?? ''),
+    clientPhoneRegion: client.phoneRegion ?? null,
+    photoId,
     sentByName:   actor?.name ?? '',
     sentByEmail:  caller.email ?? '',
     contentHash:  hash,

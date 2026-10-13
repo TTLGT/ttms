@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "f54b6cc5ad6f9bb6d80e0138bc09ac19227d55d2",
+      "date": "2026-10-13T12:58:26-06:00",
+      "author": "erwindank",
+      "subject": "Keep Rate Confirmation in the emails the carrier receives",
+      "body": ""
+    },
+    {
       "hash": "c91326cd13c77cd12d4d6b52095d599d7c852f53",
       "date": "2026-10-13T12:51:30-06:00",
       "author": "erwindank",

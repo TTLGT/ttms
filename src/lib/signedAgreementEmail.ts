@@ -43,7 +43,7 @@ export async function emailSignedAgreement(token: string): Promise<void> {
 
   // Just signed, so normally in force; asked anyway, so the email never
   // attaches an unmarked copy of something already replaced.
-  const pdf = await agreementPdf(d, await voidNoteFor(d, d, true));
+  const pdf = await agreementPdf(d, await voidNoteFor(d, d, true), token);
   const orderNumber = String(d.orderNumber ?? '');
   const signedAt = signatureTime(d.usedAt.toDate());
   const replyTo = typeof d.sentByEmail === 'string' && d.sentByEmail.includes('@') ? d.sentByEmail : undefined;

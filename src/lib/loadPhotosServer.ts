@@ -121,3 +121,50 @@ export async function deletePhotoFiles(orderId: string, photoId: string): Promis
     bucket.file(loadPhotoPath(orderId, photoId, size)).delete({ ignoreNotFound: true }),
   ));
 }
+
+/**
+ * Pictures that may go on a document the client receives — the quote and the
+ * client's load confirmation. Only pictures of the freight itself:
+ *
+ * - `truck` is the carrier's truck, and who carries the load is not the
+ *   client's business (the agreement says as much);
+ * - `damage` on a document asking somebody to sign is the wrong picture to
+ *   lead with, whatever it shows;
+ * - `signed_sa` is a photo of the client's own paperwork, not of the load.
+ */
+const CLIENT_PHOTO_STAGES = new Set(['pickup', 'in_transit', 'delivery', 'other']);
+
+/**
+ * The picture a client document shows for this load, or null.
+ *
+ * The profile picture when it is one the client may see — that is the one
+ * somebody chose to represent the load — otherwise the first eligible picture,
+ * pickup ones before the rest. One single-field query, as listOrderPhotos().
+ */
+export async function clientPhotoId(orderId: string, coverPhotoId: unknown): Promise<string | null> {
+  const snap = await adminDb.collection(LOAD_PHOTOS_COLLECTION).where('orderId', '==', orderId).get();
+  const eligible = snap.docs
+    .filter((d) => CLIENT_PHOTO_STAGES.has(String(d.data().stage ?? 'other')))
+    .map((d) => ({ id: d.id, stage: String(d.data().stage ?? 'other'), at: millis(d.data().createdAt) }));
+  if (typeof coverPhotoId === 'string' && eligible.some((p) => p.id === coverPhotoId)) return coverPhotoId;
+  eligible.sort((a, b) => Number(b.stage === 'pickup') - Number(a.stage === 'pickup') || a.at - b.at);
+  return eligible[0]?.id ?? null;
+}
+
+/**
+ * A picture's thumbnail as a JPEG data URL, for drawing into a PDF — or null
+ * if the file is gone. The thumbnail (480 px) rather than the full picture:
+ * it is drawn about three inches wide, where 480 px is still sharp, and these
+ * PDFs are emailed — the full one would add megabytes to every attachment.
+ *
+ * The path comes from loadPhotoPath(), never from a stored field, so an id
+ * can only ever name a file in that order's own folder.
+ */
+export async function photoDataUrl(orderId: string, photoId: string): Promise<string | null> {
+  try {
+    const [buf] = await adminStorage.bucket().file(loadPhotoPath(orderId, photoId, 'thumb')).download();
+    return `data:image/jpeg;base64,${buf.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
