@@ -405,9 +405,18 @@ already-used, or expired) and records the signer's name, IP, user agent and
 timestamp. **That is a legal audit trail — do not weaken those checks or drop
 those fields.**
 
+**The token is not the whole credential any more** (2026-10-13). Before the
+agreement shows, the signer types an email or phone we hold for them, the way
+BATS asked. `POST /api/sign/[token]/verify` checks it against
+`src/lib/signAccess.ts` and sets a cookie scoped to that one link. The page,
+the signing route and the PDF route below all require that cookie. Ten wrong
+answers lock the link until the agreement is sent again. It is a speed bump
+against a forwarded or leaked link, not a password, and it must never hint at
+what is on file.
+
 The second, beside it, is `GET /api/sign/[token]/pdf` — the signer's own copy
 of what they signed (client or carrier), offered on the completion screen and
-on every later visit to the link. Same credential (the token), and narrower: it
+on every later visit to the link. Same credential (the token plus the access cookie), and narrower: it
 answers only for a **signed, uncancelled** link, and only with the copy stored
 on the link.
 Do not let it answer for an unsigned or revoked link, and do not let it read

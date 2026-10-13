@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "466fb9ce3eff3df54a68aa418d2df0eef06ddd82",
+      "date": "2026-10-13T10:13:43-06:00",
+      "author": "erwindank",
+      "subject": "Post the Carrier Agreement signing link in the load's chat, and show both signing links on the order to copy",
+      "body": "The carrier's send now ends its chat line with the e-signature link, as the\nclient's already did. Client Confirmation keeps its link box after the client\nsigns, since that link is where they download their signed copy, and the\nCarrier section gets the same box for the carrier's current link."
+    },
+    {
       "hash": "7e664c61a884cfc357f54789e51da89162242b6c",
       "date": "2026-10-13T09:47:11-06:00",
       "author": "erwindank",

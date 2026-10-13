@@ -836,6 +836,36 @@ user agent (capped at 500 characters) and a readable summary from
 order. Absent on signatures made before 2026-10-08. Server-written only
 (`SIGNATURE_FIELDS` in `orderWrites.ts`).
 
+### Confirming who a signing link is for (2026-10-13)
+
+A signing link no longer opens on the token alone. Before the agreement is
+shown, the signer types an email or phone we hold for them — the way BATS did
+it. `src/lib/signAccess.ts` is the one definition of a right answer:
+
+- **Client (SA)**: the address the link was sent to, anybody on its `cc`, and
+  every email and phone on the client's party, contacts included.
+- **Carrier (CA)**: the address it was sent to, its `cc`, and the carrier's
+  main, dispatcher and billing emails and phones.
+
+The record is read at the moment of checking, not copied onto the link, so
+links already in inboxes work and a corrected number is the one that counts.
+Phones match the way the party phone search does (`phoneKeysFor()` /
+`phoneSearchKeys()`), so formatting and country codes do not matter.
+
+Two fields on `signing_tokens/{token}`, both server-written:
+
+| Field | Meaning |
+|---|---|
+| `accessKey` | Random value made on the first right answer. A right answer sets it as the `ttms_sign_access` cookie on `/sign/{token}` and `/api/sign/{token}` only, for 30 days. Absent until somebody answers. |
+| `verifyFailures` | Wrong answers so far. At 10 the link stops asking. Sending the client's agreement again sets it back to 0; a carrier send is a new link anyway. |
+
+`POST /api/sign/[token]/verify` checks the answer. The page, the signing
+route and the signed-PDF download all require the cookie. The PDF route
+answers a missing cookie the same way as an unsigned link. Not gated: a link
+that is missing, withdrawn, replaced, or expired before it was signed, because
+those pages show nothing about the load beyond an order number. Staff previews
+on the order are unaffected.
+
 ## Collection: `agreements`
 
 Tracks the e-sign lifecycle for both Carrier and Shipper agreements.

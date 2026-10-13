@@ -60,8 +60,9 @@ interface Props {
 
 /**
  * The client's signed copy, as a PDF, from GET /api/sign/[token]/pdf. A plain
- * link: the client has no account, and the token in the URL is the whole
- * credential, as it is for signing.
+ * link: the client has no account. The token in the URL and the cookie set
+ * when they confirmed their email or phone are the credential, as they are
+ * for signing — so the link only works in a browser that has answered.
  */
 export function SignedCopyLink({ token, label = 'Download your signed agreement (PDF)' }: { token: string; label?: string }) {
   return (

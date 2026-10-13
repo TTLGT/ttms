@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { agreementFileName, agreementPdf, voidNoteFor } from '@/lib/signedAgreements';
+import { SIGN_ACCESS_COOKIE, hasSignAccess } from '@/lib/signAccess';
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -10,8 +11,9 @@ export const maxDuration = 30;
 /**
  * The client's own copy of the agreement they signed. PUBLIC, like
  * POST /api/sign/[token] beside it: the client has no account, and the
- * unguessable token in the link is the whole credential — the same one that
- * let them read and sign it.
+ * unguessable token in the link, plus the cookie a browser earns by typing an
+ * email or phone we hold for them (src/lib/signAccess.ts) — the same two
+ * things that let them read and sign it.
  *
  * It answers only for a client or carrier link that has been **signed** and
  * not cancelled, and only with the copy stored on the link — the version they
@@ -24,7 +26,7 @@ export const maxDuration = 30;
  * Not refused once expired: expiry stops signing, and a signed document
  * should stay retrievable from the link it was signed on.
  */
-export async function GET(_req: NextRequest, { params }: RouteContext) {
+export async function GET(req: NextRequest, { params }: RouteContext) {
   const { token } = await params;
   if (!/^[a-f0-9]{16,128}$/i.test(token)) {
     return NextResponse.json({ error: 'Invalid link' }, { status: 404 });
@@ -34,6 +36,11 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
   // `shipper_agreement` is the client's load confirmation; the name is
   // historical. A carrier's signed rate confirmation is theirs the same way.
   if (!d || (d.type !== 'shipper_agreement' && d.type !== 'carrier_agreement') || d.revokedAt || !d.usedAt) {
+    return NextResponse.json({ error: 'There is no signed agreement on this link.' }, { status: 404 });
+  }
+  // Same answer as an unsigned link: a browser that has not confirmed who it
+  // is learns nothing about whether this one was signed.
+  if (!hasSignAccess(d, req.cookies.get(SIGN_ACCESS_COOKIE)?.value)) {
     return NextResponse.json({ error: 'There is no signed agreement on this link.' }, { status: 404 });
   }
   // Still the copy they signed — but stamped VOID if a later agreement has

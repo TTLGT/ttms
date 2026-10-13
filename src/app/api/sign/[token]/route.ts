@@ -7,6 +7,7 @@ import { STATUS_RANK } from '@/types/order';
 import { describeDevice } from '@/types/saRequest';
 import { markSigned } from '@/lib/clientAgreements';
 import { emailSignedAgreement } from '@/lib/signedAgreementEmail';
+import { SIGN_ACCESS_COOKIE, hasSignAccess } from '@/lib/signAccess';
 import type { OrderStatus } from '@/types/order';
 
 type RouteContext = { params: Promise<{ token: string }> };
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const signer = signerName.trim().slice(0, 120);
 
   const tokenRef = adminDb.collection('signing_tokens').doc(token);
+  const accessCookie = req.cookies.get(SIGN_ACCESS_COOKIE)?.value;
 
   /**
    * What was signed, carried out of the transaction so the room can be told
@@ -111,6 +113,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       }
 
       const data = snap.data()!;
+
+      // The page asks for an email or phone on file before it shows the
+      // agreement; this is the check that counts, since the form can be
+      // skipped and this route called directly. See src/lib/signAccess.ts.
+      if (!hasSignAccess(data, accessCookie)) {
+        throw new SignError('Please reload the page and confirm your email address or phone number before signing.', 403);
+      }
 
       // Checked before "already signed": a signed link that has since been
       // put on hold or cancelled must say that, not invite a second look.

@@ -1,6 +1,9 @@
 import { adminDb } from '@/lib/firebase-admin';
 import { longDate as fmt, signFormData } from '@/lib/signFormProps';
+import { cookies } from 'next/headers';
+import { SIGN_ACCESS_COOKIE, hasSignAccess, isVerifyLocked } from '@/lib/signAccess';
 import SignForm, { SignedCopyLink } from './SignForm';
+import VerifyForm from './VerifyForm';
 
 type Props = { params: Promise<{ token: string }> };
 
@@ -69,6 +72,24 @@ export default async function SignPage({ params }: Props) {
           <p className="text-sm text-gray-500">This link has been replaced. Please open the most recent email we sent you and sign from there.</p>
           <p className="text-xs text-gray-400 mt-3">Order {data.orderNumber}</p>
         </div>
+      </Shell>
+    );
+  }
+
+  /*
+   * From here on the page shows the signer's own details — the load, the
+   * rate, who signed — so it is shown only to a browser that has answered
+   * with an email or phone we hold for them. See src/lib/signAccess.ts.
+   *
+   * An expired, unsigned link skips the question: its page says only when
+   * it expired, and asking somebody to prove who they are just to be told
+   * the link is dead is a step for nothing.
+   */
+  const expiredUnsigned = !data.usedAt && !data.heldAt && data.expiresAt.toDate() < new Date();
+  if (!expiredUnsigned && !hasSignAccess(data, (await cookies()).get(SIGN_ACCESS_COOKIE)?.value)) {
+    return (
+      <Shell title={pageTitle}>
+        <VerifyForm token={token} isClient={isClient} locked={isVerifyLocked(data)} />
       </Shell>
     );
   }

@@ -330,7 +330,7 @@ function buildEmailHtml(p: {
           Review &amp; Sign →
         </a>
       </div>
-      <p style="color:#9ca3af;font-size:12px;text-align:center;margin-bottom:0">This link expires in 7 days. If you have any questions, reply to this email or contact your dispatcher.</p>
+      <p style="color:#9ca3af;font-size:12px;text-align:center;margin-bottom:0">When you open it, you will be asked for your email address or phone number &mdash; the address this email came to works. This link expires in 7 days. If you have any questions, reply to this email or contact your dispatcher.</p>
     </div>
     <div style="border-top:1px solid #e5e7eb;padding:16px 32px;background:#f9fafb">
       <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center">Total Transport Logistics · totaltransportlogistics.us</p>
