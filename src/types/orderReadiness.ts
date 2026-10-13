@@ -51,7 +51,7 @@ export function orderReadiness(order: Partial<Order>, facts: ReadinessFacts = {}
 
   const sa: Omit<ReadinessItem, 'doc'>[] = [
     { key: 'client', label: 'Client', ok: filled(order.clientId), hint: 'Pick the client on the order.' },
-    { key: 'clientEmail', label: 'Client email to send the SA to', ok: facts.clientHasEmail ?? null,
+    { key: 'clientEmail', label: 'Client email to send the Shipper Agreement (SA) to', ok: facts.clientHasEmail ?? null,
       hint: 'Add an email to the client record or one of its contacts.' },
     { key: 'pickupPlace', label: 'Pickup city, state and ZIP', ok: place(order.origin) },
     { key: 'deliveryPlace', label: 'Delivery city, state and ZIP', ok: place(order.destination) },
@@ -70,7 +70,7 @@ export function orderReadiness(order: Partial<Order>, facts: ReadinessFacts = {}
     { key: 'deliveryStreet', label: 'Delivery street address', ok: street(order.destination) },
     { key: 'pieces', label: 'Number of pieces', ok: (Number(order.pieces) || 0) > 0 },
     { key: 'carrier', label: 'Carrier', ok: filled(order.carrierId) || filled(order.carrierName),
-      hint: 'Usually assigned once the SA is out.' },
+      hint: 'Usually assigned once the Shipper Agreement (SA) is out.' },
     { key: 'carrierNumbers', label: 'Carrier DOT or MC', ok: order.carrierId ? (facts.carrierHasDotOrMc ?? null) : false },
     { key: 'driverName', label: 'Driver name', ok: filled(order.driverName) },
     { key: 'driverPhone', label: 'Driver phone', ok: filled(order.driverPhone) },

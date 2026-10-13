@@ -92,7 +92,7 @@ export default function AgreementPreviewPage() {
           )}
           {tab === 'pending' && !data.current && (
             <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-              Not sent yet. This is what the client will get when the SA is sent.
+              Not sent yet. This is what the client will get when the Shipper Agreement (SA) is sent.
             </p>
           )}
 

@@ -234,7 +234,7 @@ export async function updateOrderAsCaller(
   if (carrierLinks.length) {
     writeChange(batch, ref, {
       action: 'event',
-      summary: `The carrier changed, so the Carrier Agreement link${carrierLinks.length === 1 ? '' : 's'} sent to the previous carrier no longer work${carrierLinks.length === 1 ? 's' : ''}. Send it again for the new carrier.`,
+      summary: `The carrier changed, so the Carrier Agreement (CA/RateCon) link${carrierLinks.length === 1 ? '' : 's'} sent to the previous carrier no longer work${carrierLinks.length === 1 ? 's' : ''}. Send it again for the new carrier.`,
     }, actorOf(caller), now);
   }
   if (fields.length) {
@@ -315,7 +315,7 @@ async function planPartySwap(
     clear(['paperSaConfirmedAt', 'paperSaConfirmedTo', 'paperSaConfirmedByName']);
     if (!statusAsked && before.status === 'shipper_signed') {
       write.status = 'booked';
-      said.push('The client changed, so the load is back at Booked until the new client signs the SA.');
+      said.push('The client changed, so the load is back at Booked until the new client signs the Shipper Agreement (SA).');
     } else if (before.shipperSignedAt || before.status === 'shipper_signed') {
       said.push('The client changed, so the previous client’s signature no longer counts.');
     }
@@ -332,9 +332,9 @@ async function planPartySwap(
       const clientSigned = !clientSwap && (Boolean(before.shipperSignedAt)
         || await signedSaProof(orderId, 'client', before).then((p) => p.files + p.photos > 0));
       write.status = clientSigned ? 'shipper_signed' : 'booked';
-      said.push(`The carrier changed, so the load is back at ${clientSigned ? 'Client Signed' : 'Booked'} until the new carrier signs the Carrier Agreement.`);
+      said.push(`The carrier changed, so the load is back at ${clientSigned ? 'Client Signed' : 'Booked'} until the new carrier signs the Carrier Agreement (CA/RateCon).`);
     } else if (before.carrierSignedAt || before.status === 'carrier_signed') {
-      said.push('The carrier changed, so the previous carrier’s signature no longer counts. The new carrier needs to sign the Carrier Agreement.');
+      said.push('The carrier changed, so the previous carrier’s signature no longer counts. The new carrier needs to sign the Carrier Agreement (CA/RateCon).');
     }
   }
 

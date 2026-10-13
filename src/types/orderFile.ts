@@ -43,9 +43,9 @@ export const ORDER_FILE_KIND_LABEL: Record<OrderFileKind, string> = {
    * load to Client Signed by hand; see `signedSaProof()` in
    * src/lib/signedSaProof.ts.
    */
-  signed_sa:         'Signed SA',
+  signed_sa:         'Signed Shipper Agreement (SA)',
   /** The carrier's Carrier Agreement (rate confirmation) signed some other way. Same role as `signed_sa`, for the carrier. */
-  signed_ca:         'Signed Carrier Agreement',
+  signed_ca:         'Signed Carrier Agreement (CA/RateCon)',
   rate_confirmation: 'Rate confirmation',
   receipt:           'Receipt (lumper, fuel, scale…)',
   customs:           'Customs',

@@ -70,7 +70,7 @@ export async function emailSignedAgreement(token: string): Promise<void> {
   if (d.orderId) {
     await recordEvent(
       adminDb.collection('orders').doc(String(d.orderId)),
-      `Emailed the ${carrier ? 'carrier a copy of the signed Carrier Agreement' : 'client a copy of the signed SA'}${typeof d.version === 'number' ? ` (version ${d.version})` : ''} at ${to}${cc.length ? `, copied to ${cc.join(', ')}` : ''}`,
+      `Emailed the ${carrier ? 'carrier a copy of the signed Carrier Agreement (CA/RateCon)' : 'client a copy of the signed Shipper Agreement (SA)'}${typeof d.version === 'number' ? ` (version ${d.version})` : ''} at ${to}${cc.length ? `, copied to ${cc.join(', ')}` : ''}`,
       // No person sent this; TTMS did, on the client's signature.
       { uid: '', name: 'TTMS', email: '', via: 'app' },
     ).catch(() => {});

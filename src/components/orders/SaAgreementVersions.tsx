@@ -7,6 +7,7 @@ import {
   downloadAgreementPdf, listAgreementVersions, previewAgreementPdf, type AgreementVersion,
 } from '@/lib/orderPaperwork';
 import AgreementPdfPreview from './AgreementPdfPreview';
+import { AGREEMENT_BUTTON } from '@/types/saRequest';
 
 /**
  * The client's Shipper Agreement as files, in Client Confirmation: the signed
@@ -31,7 +32,7 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
   const [error, setError] = useState('');
   const [loadedFor, setLoadedFor] = useState<unknown>(null);
   const [preview, setPreview] = useState<{ url: string; name: string; title: string } | null>(null);
-  const doc = party === 'carrier' ? 'Carrier Agreement' : 'SA';
+  const doc = party === 'carrier' ? 'Carrier Agreement (CA/RateCon)' : 'Shipper Agreement (SA)';
 
   const closePreview = useCallback(() => {
     setPreview((p) => { if (p) URL.revokeObjectURL(p.url); return null; });
@@ -43,7 +44,7 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
     if (next && (versions === null || loadedFor !== refreshKey)) {
       setVersions(null);
       setLoadedFor(refreshKey);
-      listAgreementVersions(orderId, party).then(setVersions).catch((e) => setError(e instanceof Error ? e.message : 'Could not load the SA versions'));
+      listAgreementVersions(orderId, party).then(setVersions).catch((e) => setError(e instanceof Error ? e.message : 'Could not load the versions'));
     }
   }
 
@@ -53,7 +54,7 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
     try {
       await downloadAgreementPdf(orderId, ref, party);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not build the SA');
+      setError(e instanceof Error ? e.message : 'Could not build the PDF');
     } finally {
       setBusy('');
     }
@@ -66,7 +67,7 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
       const { url, name } = await previewAgreementPdf(orderId, ref, party);
       setPreview({ url, name, title });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not build the SA');
+      setError(e instanceof Error ? e.message : 'Could not build the PDF');
     } finally {
       setBusy('');
     }
@@ -98,7 +99,7 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
           <button type="button" onClick={() => void download('signed')} disabled={busy !== ''}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 transition">
             {busy === 'signed' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-            Download signed {doc}
+            Download signed {AGREEMENT_BUTTON[party]}
           </button>
           {previewButton('signed', `Signed ${doc}`)}
         </div>
@@ -108,13 +109,13 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
         <button type="button" onClick={toggle}
           className="flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-gray-900">
           {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-          {party === 'carrier' ? 'Carrier Agreement versions' : 'SA versions'}
+          {AGREEMENT_BUTTON[party]} versions
         </button>
         {open && (
           versions === null && !error ? (
             <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" />Loading…</p>
           ) : versions && versions.length === 0 ? (
-            <p className="mt-1 text-xs text-gray-500">No {party === 'carrier' ? 'Carrier Agreement' : 'SA'} has been sent on this load yet.</p>
+            <p className="mt-1 text-xs text-gray-500">No {doc} has been sent on this load yet.</p>
           ) : versions ? (
             <ul className="mt-1 divide-y divide-gray-100 rounded-lg border border-gray-200">
               {versions.map((v) => (

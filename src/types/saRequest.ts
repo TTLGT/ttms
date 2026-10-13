@@ -63,10 +63,26 @@ export const AGREEMENT_NAME: Record<AgreementParty, string> = {
   carrier: 'Carrier Agreement',
 };
 
-/** Short form, for buttons. */
-export const AGREEMENT_SHORT: Record<AgreementParty, string> = {
+/**
+ * What the agreement is called on the order screens: written out, with the
+ * abbreviation people say beside it (2026-10-13 — staff asked for "SA" never
+ * to stand alone there). AGREEMENT_NAME above stays the plain name, because
+ * it goes into emails, chat lines and the record, and "RateCon" is our word,
+ * not the client's.
+ */
+export const AGREEMENT_LABEL: Record<AgreementParty, string> = {
+  client:  'Shipper Agreement (SA)',
+  carrier: 'Carrier Agreement (CA/RateCon)',
+};
+
+/**
+ * The abbreviation alone, for buttons — where the written-out name made
+ * "Request Carrier Agreement (CA/RateCon)" too long to sit on one line. The
+ * heading or text beside every such button spells the name out.
+ */
+export const AGREEMENT_BUTTON: Record<AgreementParty, string> = {
   client:  'SA',
-  carrier: 'Carrier Agreement',
+  carrier: 'CA/RateCon',
 };
 
 export function isAgreementParty(value: unknown): value is AgreementParty {
@@ -199,7 +215,7 @@ export interface SaReviewCheck {
 
 export const SA_REVIEW_CHECKS: SaReviewCheck[] = [
   { key: 'client', label: 'Client and contact are right',
-    detail: 'The SA goes to the email address shown. A wrong one sends our client’s rate to a stranger.' },
+    detail: 'The Shipper Agreement (SA) goes to the email address shown. A wrong one sends our client’s rate to a stranger.' },
   { key: 'rate', label: 'Agreed rate is what the client accepted',
     detail: 'Check it against the quote or the email where they said yes.' },
   { key: 'lane', label: 'Addresses, dates and hours confirmed',

@@ -128,7 +128,7 @@ export async function planAgreementHold(
   const what = sectionList(changed) || 'details';
 
   const note = [
-    `The order changed after the SA was sent: ${what}.`,
+    `The order changed after the Shipper Agreement (SA) was sent: ${what}.`,
     clientChanged
       ? 'The client changed, so the old link has been cancelled and sending makes a new one for the new client.'
       : 'The client’s link is on hold until this is reviewed and sent again; the same link will show the update.',

@@ -59,7 +59,7 @@ export interface AgreementVersion {
 export async function listAgreementVersions(orderId: string, party: 'client' | 'carrier' = 'client'): Promise<AgreementVersion[]> {
   const res = await fetch(`/api/orders/${orderId}/agreements?party=${party}`, { headers: await authHeaders() });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not load the SA versions');
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not load the versions');
   return (data as { versions: AgreementVersion[] }).versions;
 }
 
@@ -73,7 +73,7 @@ async function fetchAgreementPdf(orderId: string, ref: string | undefined, party
   const res = await fetch(`/api/orders/${orderId}/agreements/pdf${q}`, { headers: await authHeaders() });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error((data as { error?: string }).error ?? 'Could not build the SA');
+    throw new Error((data as { error?: string }).error ?? 'Could not build the PDF');
   }
   const blob = await res.blob();
   const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'Shipper Agreement.pdf';
@@ -106,7 +106,7 @@ export async function previewAgreementPdf(orderId: string, ref?: string, party: 
 export async function fetchSignedSaProof(orderId: string, party: 'client' | 'carrier' = 'client'): Promise<{ files: number; photos: number }> {
   const res = await fetch(`/api/orders/${orderId}/signed-sa-proof?party=${party}`, { headers: await authHeaders() });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not check for a signed SA');
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not check for a signed Shipper Agreement (SA)');
   return data as { files: number; photos: number };
 }
 

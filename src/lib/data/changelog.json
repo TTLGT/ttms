@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "98332856c8806735a142c1accc41355f26b06ab6",
+      "date": "2026-10-13T09:32:41-06:00",
+      "author": "erwindank",
+      "subject": "Stamp replaced agreements VOID, and undo a signature when the client or carrier changes",
+      "body": "A replaced or cancelled SA or Carrier Agreement version is drawn with a\ndiagonal VOID across every page, a red notice saying why, VOID in the\nheader and in the file name. voidNoteFor() is the one definition: a\nclient version replaced by a revision, a link cancelled because the\nclient or carrier changed, or a carrier link with a later one on the\nload. Every render asks it: the staff preview and download, the\nsigner's own download from their link, and the signed-copy email. The\nversions list labels those rows VOID.\n\nChanging the client or carrier now takes the previous party's signature\noff the order (the signed link and the change log keep the full record)\nand steps the status back only from that party's own signed step:\nClient Signed to Booked, Carrier Signed to Client Signed, or to Booked\nwhen the client side was only a waiver. Loads in transit or later keep\ntheir status. clientChangedAt / carrierChangedAt are stamped so signed\npaper uploaded for the previous party no longer counts as proof for\nsigning by hand, and is not attached to the new party's confirmation\nemail. The order page re-reads the order after a carrier change."
+    },
+    {
       "hash": "21b896c22fb655e6e3eaf30530abe3ab6cda2442",
       "date": "2026-10-13T09:12:14-06:00",
       "author": "erwindank",

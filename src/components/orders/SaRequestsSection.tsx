@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ShieldCheck } from 'lucide-react';
 import { listSaRequests } from '@/lib/saRequests';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { AGREEMENT_NAME, SA_STATUS_LABEL, type SaRequest } from '@/types/saRequest';
+import { AGREEMENT_LABEL, SA_STATUS_LABEL, type SaRequest } from '@/types/saRequest';
 
 /**
  * The agreement requests block on the Approvals screen — Shipper Agreements
@@ -22,7 +22,7 @@ export default function SaRequestsSection() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    listSaRequests().then(setData).catch((e) => setError(e instanceof Error ? e.message : 'Could not load SA requests'));
+    listSaRequests().then(setData).catch((e) => setError(e instanceof Error ? e.message : 'Could not load the agreement requests'));
   }, []);
 
   if (error) return <p className="text-sm text-red-600 mb-6">{error}</p>;
@@ -39,7 +39,7 @@ export default function SaRequestsSection() {
       </h2>
       <p className="text-xs text-gray-500 mt-0.5 mb-3">
         {data.isReviewer
-          ? 'Shipper Agreements for quotes the client accepted, and Carrier Agreements for loads with a carrier. Open one to review it, send it, and mark it done.'
+          ? 'Shipper Agreement (SA)s for quotes the client accepted, and Carrier Agreement (CA/RateCon)s for loads with a carrier. Open one to review it, send it, and mark it done.'
           : 'Where each request you made stands.'}
       </p>
 
@@ -52,7 +52,7 @@ export default function SaRequestsSection() {
               <Link href={`/dashboard/orders/${r.orderId}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 hover:bg-gray-50 -mx-2 px-2 rounded">
                 <span className="font-mono text-sm font-semibold text-gray-900">{r.orderNumber}</span>
                 <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${r.party === 'carrier' ? 'bg-orange-50 text-orange-700' : 'bg-purple-50 text-purple-700'}`}>
-                  {AGREEMENT_NAME[r.party]}
+                  {AGREEMENT_LABEL[r.party]}
                 </span>
                 <span className="text-sm text-gray-700 min-w-0 flex-1 truncate">
                   {r.party === 'carrier' ? (r.carrierName || r.clientName) : r.clientName}

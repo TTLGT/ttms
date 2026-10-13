@@ -62,9 +62,9 @@ export function partyChangedAt(order: Record<string, unknown> | undefined, party
 }
 
 export const NO_SIGNED_CA_PROOF =
-  'Upload the carrier’s signed Carrier Agreement first, in the Carrier section or under Documents → Signed Carrier Agreement. '
+  'Upload the carrier’s signed Carrier Agreement (CA/RateCon) first, in the Carrier section or under Documents → Signed Carrier Agreement (CA/RateCon). '
   + 'Without it the load cannot be marked Carrier Signed by hand.';
 
 export const NO_SIGNED_SA_PROOF =
-  'Upload the client’s signed SA first, in Client Confirmation or under Documents → Signed SA. '
+  'Upload the client’s signed Shipper Agreement (SA) first, in Client Confirmation or under Documents → Signed Shipper Agreement (SA). '
   + 'Without it the load cannot be marked Client Signed by hand.';

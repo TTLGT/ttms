@@ -47,7 +47,7 @@ export const PHOTO_STAGE_LABEL: Record<PhotoStage, string> = {
    * `signed_sa` file, it is what lets staff move the load to Client Signed by
    * hand — see src/lib/signedSaProof.ts.
    */
-  signed_sa:  'Signed SA',
+  signed_sa:  'Signed Shipper Agreement (SA)',
   other:      'Other',
 };
 

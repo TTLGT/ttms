@@ -8,6 +8,7 @@ import { sendSignedSaConfirmation } from '@/lib/orderPaperwork';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import type { DateLike } from '@/lib/dateFormat';
 import { SIGNED_AGREEMENT_KIND, SIGNED_SA_ACCEPT, formatFileSize, type OrderFile } from '@/types/orderFile';
+import { AGREEMENT_BUTTON } from '@/types/saRequest';
 
 /**
  * The Signed SA slot: the client's agreement signed some other way than the
@@ -55,7 +56,7 @@ export default function SignedSaUploads({
   const inputRef = useRef<HTMLInputElement>(null);
   const carrier = party === 'carrier';
   const kind = SIGNED_AGREEMENT_KIND[party];
-  const label = carrier ? 'Signed Carrier Agreement' : 'Signed SA';
+  const label = carrier ? 'Signed Carrier Agreement (CA/RateCon)' : 'Signed Shipper Agreement (SA)';
   const who = carrier ? 'carrier' : 'client';
 
   useEffect(() => {
@@ -99,7 +100,7 @@ export default function SignedSaUploads({
   }
 
   async function email() {
-    if (!confirm(`Email the ${who} that we have registered their acceptance of the ${carrier ? 'rate confirmation' : 'load confirmation'}, with the ${label.toLowerCase()} attached?`)) return;
+    if (!confirm(`Email the ${who} that we have registered their acceptance of the ${carrier ? 'rate confirmation' : 'load confirmation'}, with the ${label} attached?`)) return;
     setBusy('email');
     setError('');
     try {
@@ -150,7 +151,7 @@ export default function SignedSaUploads({
           <button type="button" onClick={() => inputRef.current?.click()} disabled={progress !== null}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-dashed border-gray-400 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 disabled:opacity-50">
             {progress !== null ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-            {progress !== null ? `Uploading… ${progress}%` : hasFiles ? 'Upload another page' : `Upload ${label.toLowerCase()} (PDF or picture)`}
+            {progress !== null ? `Uploading… ${progress}%` : hasFiles ? 'Upload another page' : `Upload signed ${AGREEMENT_BUTTON[carrier ? 'carrier' : 'client']} (PDF or picture)`}
           </button>
           <input ref={inputRef} type="file" accept={SIGNED_SA_ACCEPT} multiple className="hidden"
             onChange={(e) => { if (e.target.files?.length) void upload(e.target.files); e.target.value = ''; }} />

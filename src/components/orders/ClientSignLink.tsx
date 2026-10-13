@@ -123,7 +123,7 @@ export default function ClientSignLink({ orderId, refreshKey, onSent }: {
         )}
         {link.state === 'expired' && (
           <>
-            Expired{link.expiresAt && <> on {formatDate(link.expiresAt)}</>}. Sending the SA again renews this same
+            Expired{link.expiresAt && <> on {formatDate(link.expiresAt)}</>}. Sending the Shipper Agreement (SA) again renews this same
             link for another seven days.
           </>
         )}

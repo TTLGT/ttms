@@ -921,13 +921,13 @@ export default function OrderDetailPage() {
     if (next === 'shipper_signed' && !order.shipperSignedAt && !confirm(
       'Mark this load as Client Signed?\n\n'
       + 'The client has not signed electronically. This goes on the change log under your name, '
-      + 'with the signed SA you uploaded as the proof. To send the carrier agreement you will still '
+      + 'with the signed Shipper Agreement (SA) you uploaded as the proof. To send the carrier agreement you will still '
       + 'need the client’s e-signature or a waiver.',
     )) return;
     if (next === 'carrier_signed' && !order.carrierSignedAt && !confirm(
       'Mark this load as Carrier Signed?\n\n'
       + 'The carrier has not signed electronically. This goes on the change log under your name, '
-      + 'with the signed Carrier Agreement you uploaded as the proof.',
+      + 'with the signed Carrier Agreement (CA/RateCon) you uploaded as the proof.',
     )) return;
     setAdvancing(true);
     try {
@@ -1157,9 +1157,9 @@ export default function OrderDetailPage() {
             return (
               <button onClick={handleAdvance} disabled={advancing || needsCopy}
                 title={needsSa
-                  ? 'Upload the client’s signed SA first, in Client Confirmation or under Documents → Signed SA. It moves on its own when the client e-signs.'
+                  ? 'Upload the client’s signed Shipper Agreement (SA) first, in Client Confirmation or under Documents → Signed Shipper Agreement (SA). It moves on its own when the client e-signs.'
                   : needsCa
-                    ? 'Upload the carrier’s signed Carrier Agreement first, in the Carrier section or under Documents → Signed Carrier Agreement. It moves on its own when the carrier e-signs.'
+                    ? 'Upload the carrier’s signed Carrier Agreement (CA/RateCon) first, in the Carrier section or under Documents → Signed Carrier Agreement (CA/RateCon). It moves on its own when the carrier e-signs.'
                     : undefined}
                 className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                 {advancing ? 'Updating…' : `→ ${STATUS_LABEL[nextStatus]}`}
@@ -2021,7 +2021,7 @@ export default function OrderDetailPage() {
             same slot as in Client Confirmation — not one of the other files. */}
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
           <div>
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Signed SA</h2>
+            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Signed Shipper Agreement (SA)</h2>
             <p className="text-xs text-gray-500 mt-1">
               {order.shipperSignedAt
                 ? <>Signed electronically by <strong>{order.shipperSignerName || 'the client'}</strong>
@@ -2047,7 +2047,7 @@ export default function OrderDetailPage() {
         {order.carrierId && (
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Signed Carrier Agreement</h2>
+              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Signed Carrier Agreement <span className="normal-case">(CA/RateCon)</span></h2>
               <p className="text-xs text-gray-500 mt-1">
                 {order.carrierSignedAt
                   ? <>Signed electronically by <strong>{order.carrierSignerName || 'the carrier'}</strong>

@@ -95,7 +95,7 @@ export function requestPOST(party: AgreementParty) {
 
       if (party === 'client') {
         if (order.status !== 'quote' && order.status !== 'booked') {
-          return NextResponse.json({ error: 'An SA can only be requested for a quote.' }, { status: 409 });
+          return NextResponse.json({ error: 'A Shipper Agreement (SA) can only be requested for a quote.' }, { status: 409 });
         }
         const sa = readinessOf(orderReadiness(order as Partial<Order>, await readinessFactsFor(order)), 'sa');
         if (sa.missing.length > 0) {
@@ -113,7 +113,7 @@ export function requestPOST(party: AgreementParty) {
           return NextResponse.json({ error: 'The carrier has already signed the agreement.' }, { status: 409 });
         }
         if (['quote', 'cancelled', 'completed'].includes(String(order.status))) {
-          return NextResponse.json({ error: 'A Carrier Agreement is requested for a booked load.' }, { status: 409 });
+          return NextResponse.json({ error: 'A Carrier Agreement (CA/RateCon) is requested for a booked load.' }, { status: 409 });
         }
       }
 

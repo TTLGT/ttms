@@ -7,7 +7,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { listSaRounds } from '@/lib/saRequests';
 import { readinessOf } from '@/types/orderReadiness';
 import {
-  AGREEMENT_NAME, AGREEMENT_SHORT, CA_REVIEW_CHECKS, SA_STATUS_LABEL, reviewChecks, type AgreementParty, type SaRound,
+  AGREEMENT_LABEL, CA_REVIEW_CHECKS, SA_STATUS_LABEL, reviewChecks, type AgreementParty, type SaRound,
 } from '@/types/saRequest';
 import { Facts } from './SaRequestPanel';
 import { ReadinessLine } from './OrderReadinessCard';
@@ -49,7 +49,7 @@ export default function SaVerificationRecord({ orderId, party = 'client' }: { or
                   {party === 'carrier' ? 'Carrier verification record' : 'Verification record'}
                 </h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  Every review of this load&apos;s {AGREEMENT_NAME[party]}, newest first: who checked each item and when,
+                  Every review of this load&apos;s {AGREEMENT_LABEL[party]}, newest first: who checked each item and when,
                   which version was sent to whom, who approved it, and what TTMS showed when it went out.
                 </p>
               </div>
@@ -63,7 +63,7 @@ export default function SaVerificationRecord({ orderId, party = 'client' }: { or
             ) : rounds === null ? (
               <p className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="w-4 h-4 animate-spin" />Loading…</p>
             ) : rounds.length === 0 ? (
-              <p className="text-sm text-gray-500">No review or {AGREEMENT_SHORT[party]} has been recorded on this load yet.</p>
+              <p className="text-sm text-gray-500">No review or {AGREEMENT_LABEL[party]} has been recorded on this load yet.</p>
             ) : (
               <ol className="space-y-4">
                 {rounds.map((r, i) => <Round key={r.id} round={r} latest={i === 0} />)}
@@ -88,7 +88,7 @@ function Round({ round: r, latest }: { round: SaRound; latest: boolean }) {
   const state = r.kind === 'direct' ? 'Sent'
     : r.supersededAt && (r.status === 'open' || r.status === 'sent') ? 'Replaced before it was finished'
     : SA_STATUS_LABEL[r.status as keyof typeof SA_STATUS_LABEL];
-  const short = AGREEMENT_SHORT[r.party];
+  const short = AGREEMENT_LABEL[r.party];
   /*
    * The items this round was checked against. An SA round from before the
    * carrier checks moved to the carrier's own review (2026-10-09) may carry
