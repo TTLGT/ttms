@@ -100,7 +100,7 @@ export default function SignedSaUploads({
   }
 
   async function email() {
-    if (!confirm(`Email the ${who} that we have registered their acceptance of the ${carrier ? 'dispatch sheet' : 'load confirmation'}, with the ${label} attached?`)) return;
+    if (!confirm(`Email the ${who} that we have registered their acceptance of the ${carrier ? 'rate confirmation' : 'load confirmation'}, with the ${label} attached?`)) return;
     setBusy('email');
     setError('');
     try {

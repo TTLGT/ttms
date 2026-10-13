@@ -1187,8 +1187,8 @@ Every reviewer sees every tick and who closed it; Approvals lists them.
 
 ### Request Carrier Agreement — the same review, for the carrier
 
-**On screen, in emails, on the PDF and on the signing page it is called the
-Dispatch Sheet** (renamed 2026-10-13 from "Carrier Agreement (CA/RateCon)" /
+**On screen, on the PDF and on the signing page it is called the Dispatch
+Sheet**; the emails to the carrier still say "Rate Confirmation" (renamed 2026-10-13 from "Carrier Agreement (CA/RateCon)" /
 "Rate Confirmation"); its buttons and the versions list still say "Rate Con"
 (`AGREEMENT_BUTTON`), and its chat notices "Rate confirmation"
 (`agreementSentAlert()`). The code and the stored values keep the old names —

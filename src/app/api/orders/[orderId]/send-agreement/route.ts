@@ -191,7 +191,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     from:    `TTL Dispatch <${process.env.RESEND_FROM_EMAIL ?? 'noreply@totaltransportlogistics.us'}>`,
     to:      carrier.email,
     ...(cc.length ? { cc } : {}),
-    subject: `Dispatch Sheet — ${orderDisplayNumber(order)}`,
+    subject: `Rate Confirmation — ${orderDisplayNumber(order)}`,
     html:    buildEmailHtml({
       carrierName:      carrier.companyName,
       orderNumber:      orderDisplayNumber(order),
@@ -309,11 +309,11 @@ function buildEmailHtml(p: {
   <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
     <div style="background:#1e3a5f;color:#fff;padding:24px 32px">
       <p style="margin:0;font-size:11px;font-weight:bold;letter-spacing:2px;color:#93c5fd;text-transform:uppercase">Total Transport Logistics</p>
-      <h1 style="margin:4px 0 0;font-size:22px;font-weight:bold">Dispatch Sheet</h1>
+      <h1 style="margin:4px 0 0;font-size:22px;font-weight:bold">Rate Confirmation</h1>
     </div>
     <div style="padding:32px">
       <p style="color:#374151;font-size:15px;margin-top:0">Hello <strong>${p.carrierName}</strong>,</p>
-      <p style="color:#374151;font-size:15px">Please review and sign the dispatch sheet for load <strong>${p.orderNumber}</strong>.</p>
+      <p style="color:#374151;font-size:15px">Please review and sign the rate confirmation for load <strong>${p.orderNumber}</strong>.</p>
       <table style="width:100%;border-collapse:collapse;margin:24px 0;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden">
         ${row('From',      p.originStr,      '#f9fafb')}
         ${row('To',        p.destinationStr, '#ffffff')}

@@ -53,10 +53,10 @@ export async function emailSignedAgreement(token: string): Promise<void> {
     to,
     ...(cc.length ? { cc } : {}),
     ...(replyTo ? { replyTo } : {}),
-    subject: carrier ? `Signed Dispatch Sheet — ${orderNumber}` : `Signed Load Confirmation — ${orderNumber}`,
+    subject: carrier ? `Signed Rate Confirmation — ${orderNumber}` : `Signed Load Confirmation — ${orderNumber}`,
     html: buildHtml({
-      docName: carrier ? 'dispatch sheet' : 'load confirmation',
-      heading: carrier ? 'Signed Dispatch Sheet' : 'Signed Load Confirmation',
+      docName: carrier ? 'rate confirmation' : 'load confirmation',
+      heading: carrier ? 'Signed Rate Confirmation' : 'Signed Load Confirmation',
       signerName: String(d.signerName ?? ''),
       orderNumber,
       signedAt,

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "c91326cd13c77cd12d4d6b52095d599d7c852f53",
+      "date": "2026-10-13T12:51:30-06:00",
+      "author": "erwindank",
+      "subject": "Call the carrier's agreement the Dispatch Sheet, keeping Rate Con on its buttons, versions and chat notices",
+      "body": ""
+    },
+    {
       "hash": "27d10f208239797df25a402b8dfd43f6e6d8b39a",
       "date": "2026-10-13T11:42:33-06:00",
       "author": "erwindank",
