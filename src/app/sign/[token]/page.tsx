@@ -1,7 +1,7 @@
 import { adminDb } from '@/lib/firebase-admin';
 import { longDate as fmt, signFormData } from '@/lib/signFormProps';
 import { cookies } from 'next/headers';
-import { SIGN_ACCESS_COOKIE, hasSignAccess, isVerifyLocked } from '@/lib/signAccess';
+import { SIGN_PAGE_COOKIE, hasSignAccess, isVerifyLocked } from '@/lib/signAccess';
 import SignForm, { SignedCopyLink } from './SignForm';
 import VerifyForm from './VerifyForm';
 
@@ -86,7 +86,7 @@ export default async function SignPage({ params }: Props) {
    * the link is dead is a step for nothing.
    */
   const expiredUnsigned = !data.usedAt && !data.heldAt && data.expiresAt.toDate() < new Date();
-  if (!expiredUnsigned && !hasSignAccess(data, (await cookies()).get(SIGN_ACCESS_COOKIE)?.value)) {
+  if (!expiredUnsigned && !hasSignAccess(data, (await cookies()).get(SIGN_PAGE_COOKIE)?.value)) {
     return (
       <Shell title={pageTitle}>
         <VerifyForm token={token} isClient={isClient} locked={isVerifyLocked(data)} />

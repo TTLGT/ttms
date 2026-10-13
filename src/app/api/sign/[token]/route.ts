@@ -7,7 +7,7 @@ import { STATUS_RANK } from '@/types/order';
 import { describeDevice } from '@/types/saRequest';
 import { markSigned } from '@/lib/clientAgreements';
 import { emailSignedAgreement } from '@/lib/signedAgreementEmail';
-import { SIGN_ACCESS_COOKIE, hasSignAccess } from '@/lib/signAccess';
+import { SIGN_API_COOKIE, hasSignAccess } from '@/lib/signAccess';
 import type { OrderStatus } from '@/types/order';
 
 type RouteContext = { params: Promise<{ token: string }> };
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const signer = signerName.trim().slice(0, 120);
 
   const tokenRef = adminDb.collection('signing_tokens').doc(token);
-  const accessCookie = req.cookies.get(SIGN_ACCESS_COOKIE)?.value;
+  const accessCookie = req.cookies.get(SIGN_API_COOKIE)?.value;
 
   /**
    * What was signed, carried out of the transaction so the room can be told

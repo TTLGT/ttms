@@ -33,7 +33,15 @@ import { phoneKeysFor, phoneSearchKeys } from '@/types/party';
  * script.
  */
 
-export const SIGN_ACCESS_COOKIE = 'ttms_sign_access';
+/**
+ * Two cookies, one per path, and they must have **different names**. A
+ * response holds one cookie per name: setting the same name twice for two
+ * paths keeps only the last, which is how this first shipped — the API path
+ * got its cookie, the page never did, and every right answer was sent back to
+ * the question as if it had been wrong.
+ */
+export const SIGN_PAGE_COOKIE = 'ttms_sign_page';
+export const SIGN_API_COOKIE  = 'ttms_sign_access';
 
 /** How long a browser that answered stays let in. Longer than the link's own life. */
 export const SIGN_ACCESS_MAX_AGE = 60 * 60 * 24 * 30;
@@ -47,9 +55,12 @@ export const SIGN_ACCESS_MAX_AGE = 60 * 60 * 24 * 30;
  */
 export const MAX_VERIFY_FAILURES = 10;
 
-/** Every path the cookie is set on — the page and its API, nothing else. */
-export function signAccessPaths(token: string): string[] {
-  return [`/sign/${token}`, `/api/sign/${token}`];
+/** The cookies a right answer sets — this link's page and its API, nothing else. */
+export function signAccessCookies(token: string): { name: string; path: string }[] {
+  return [
+    { name: SIGN_PAGE_COOKIE, path: `/sign/${token}` },
+    { name: SIGN_API_COOKIE,  path: `/api/sign/${token}` },
+  ];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

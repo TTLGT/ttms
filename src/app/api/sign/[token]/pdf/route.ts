@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { agreementFileName, agreementPdf, voidNoteFor } from '@/lib/signedAgreements';
-import { SIGN_ACCESS_COOKIE, hasSignAccess } from '@/lib/signAccess';
+import { SIGN_API_COOKIE, hasSignAccess } from '@/lib/signAccess';
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   }
   // Same answer as an unsigned link: a browser that has not confirmed who it
   // is learns nothing about whether this one was signed.
-  if (!hasSignAccess(d, req.cookies.get(SIGN_ACCESS_COOKIE)?.value)) {
+  if (!hasSignAccess(d, req.cookies.get(SIGN_API_COOKIE)?.value)) {
     return NextResponse.json({ error: 'There is no signed agreement on this link.' }, { status: 404 });
   }
   // Still the copy they signed — but stamped VOID if a later agreement has

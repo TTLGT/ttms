@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, FieldValue } from '@/lib/firebase-admin';
 import {
-  MAX_VERIFY_FAILURES, SIGN_ACCESS_COOKIE, SIGN_ACCESS_MAX_AGE,
-  isVerifyLocked, matchesOnFile, newAccessKey, signAccessPaths,
+  MAX_VERIFY_FAILURES, SIGN_ACCESS_MAX_AGE,
+  isVerifyLocked, matchesOnFile, newAccessKey, signAccessCookies,
 } from '@/lib/signAccess';
 
 type RouteContext = { params: Promise<{ token: string }> };
@@ -66,8 +66,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   });
 
   const res = NextResponse.json({ success: true });
-  for (const path of signAccessPaths(token)) {
-    res.cookies.set(SIGN_ACCESS_COOKIE, key, {
+  for (const { name, path } of signAccessCookies(token)) {
+    res.cookies.set(name, key, {
       path,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

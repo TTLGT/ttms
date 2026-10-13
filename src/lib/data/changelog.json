@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "34a3f0e99524458e8abc7194f63b7462b9f9f512",
+      "date": "2026-10-13T11:32:29-06:00",
+      "author": "erwindank",
+      "subject": "Ask for the email or phone on file before a signing link shows the agreement",
+      "body": "A signing link opened on its token alone, so a forwarded email or a leaked\nlink showed the client's rate and load details to whoever held it. Now the\npage first asks for an email or phone we hold for the signer, the way BATS\ndid: for an SA, the address it went to, anybody copied, and any email or\nphone on the client's record; for a CA, the same from the carrier's main,\ndispatcher and billing contacts.\n\nA right answer is remembered in that browser for 30 days by a cookie scoped\nto that one link. The page, the signing route and the signed-PDF download\nall require it. Ten wrong answers lock the link until the agreement is sent\nagain. Both agreement emails now mention the step."
+    },
+    {
       "hash": "466fb9ce3eff3df54a68aa418d2df0eef06ddd82",
       "date": "2026-10-13T10:13:43-06:00",
       "author": "erwindank",

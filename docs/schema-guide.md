@@ -856,7 +856,7 @@ Two fields on `signing_tokens/{token}`, both server-written:
 
 | Field | Meaning |
 |---|---|
-| `accessKey` | Random value made on the first right answer. A right answer sets it as the `ttms_sign_access` cookie on `/sign/{token}` and `/api/sign/{token}` only, for 30 days. Absent until somebody answers. |
+| `accessKey` | Random value made on the first right answer. A right answer sets it as two cookies, for 30 days: `ttms_sign_page` on `/sign/{token}` and `ttms_sign_access` on `/api/sign/{token}`. The names must differ — a response keeps one cookie per name. Absent until somebody answers. |
 | `verifyFailures` | Wrong answers so far. At 10 the link stops asking. Sending the client's agreement again sets it back to 0; a carrier send is a new link anyway. |
 
 `POST /api/sign/[token]/verify` checks the answer. The page, the signing
