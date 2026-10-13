@@ -32,7 +32,7 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
   const [error, setError] = useState('');
   const [loadedFor, setLoadedFor] = useState<unknown>(null);
   const [preview, setPreview] = useState<{ url: string; name: string; title: string } | null>(null);
-  const doc = party === 'carrier' ? 'Carrier Agreement (CA/RateCon)' : 'Shipper Agreement (SA)';
+  const doc = party === 'carrier' ? 'Dispatch Sheet (Rate Con)' : 'Shipper Agreement (SA)';
 
   const closePreview = useCallback(() => {
     setPreview((p) => { if (p) URL.revokeObjectURL(p.url); return null; });

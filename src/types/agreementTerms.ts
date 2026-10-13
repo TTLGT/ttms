@@ -89,11 +89,11 @@ export function readClientTerms(raw: unknown): string {
  * change here changes what every carrier link already sent says. Treat any
  * edit as a change to a live contract.
  */
-export const CARRIER_TERMS = `CARRIER AGREEMENT & RATE CONFIRMATION
+export const CARRIER_TERMS = `DISPATCH SHEET
 
-This Rate Confirmation ("Agreement") is entered into between Total Transport Logistics ("Broker") and the carrier identified above ("Carrier").
+This Dispatch Sheet ("Agreement") is entered into between Total Transport Logistics ("Broker") and the carrier identified above ("Carrier").
 
-1. LOAD ACCEPTANCE. By signing below, Carrier accepts the load described in this Rate Confirmation and agrees to transport the shipment in accordance with all terms herein.
+1. LOAD ACCEPTANCE. By signing below, Carrier accepts the load described in this Dispatch Sheet and agrees to transport the shipment in accordance with all terms herein.
 
 2. RATE. Carrier agrees to accept the Carrier Pay stated above as full and complete compensation for services rendered. Payment will be made within 30 days of receipt of a signed Proof of Delivery (POD) and invoice.
 

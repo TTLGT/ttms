@@ -150,14 +150,14 @@ export async function voidNoteFor(token: Data, version: Data, current: boolean):
   }
 
   const replacedAt = at(token.replacedAt);
-  if (replacedAt) return `Replaced by a later Carrier Agreement on ${spelled(replacedAt)}`;
+  if (replacedAt) return `Replaced by a later Dispatch Sheet on ${spelled(replacedAt)}`;
   if (!token.orderId) return '';
   const created = at(token.createdAt)?.getTime() ?? 0;
   const later = (await partyTokens(String(token.orderId), 'carrier'))
     .map((t) => at(t.data().createdAt)?.getTime() ?? 0)
     .filter((t) => t > created)
     .sort((a, b) => a - b)[0];
-  return later ? `Replaced by a later Carrier Agreement on ${spelled(new Date(later))}` : '';
+  return later ? `Replaced by a later Dispatch Sheet on ${spelled(new Date(later))}` : '';
 }
 
 /**
@@ -192,6 +192,6 @@ export async function agreementPdf(data: Data, voidNote: string): Promise<Buffer
 export function agreementFileName(data: Data, voided = false): string {
   const number = String(data.orderNumber ?? 'order').replace(/[\\/:*?"<>|]/g, '-');
   const version = typeof data.version === 'number' ? ` v${data.version}` : '';
-  const doc = data.type === 'carrier_agreement' ? 'Carrier Agreement' : 'SA';
+  const doc = data.type === 'carrier_agreement' ? 'Dispatch Sheet' : 'SA';
   return `${data.usedAt ? `Signed ${doc}` : doc} ${number}${version}${voided ? ' VOID' : ''}.pdf`;
 }

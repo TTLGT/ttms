@@ -60,29 +60,37 @@ export const REQUEST_COLLECTION: Record<AgreementParty, string> = {
 /** What the agreement is called on screen, in emails and in the record. */
 export const AGREEMENT_NAME: Record<AgreementParty, string> = {
   client:  'Shipper Agreement',
-  carrier: 'Carrier Agreement',
+  carrier: 'Dispatch Sheet',
 };
 
 /**
  * What the agreement is called on the order screens: written out, with the
  * abbreviation people say beside it (2026-10-13 — staff asked for "SA" never
  * to stand alone there). AGREEMENT_NAME above stays the plain name, because
- * it goes into emails, chat lines and the record, and "RateCon" is our word,
- * not the client's.
+ * it goes into emails, chat lines and the record.
+ *
+ * The carrier's was the "Carrier Agreement (CA/RateCon)" until 2026-10-13,
+ * when it was renamed the Dispatch Sheet everywhere a person reads it. Only
+ * the words changed: the stored `carrier_agreement` token type, the
+ * `signed_ca` file role and `caRequests` are live data and keep their names.
  */
 export const AGREEMENT_LABEL: Record<AgreementParty, string> = {
   client:  'Shipper Agreement (SA)',
-  carrier: 'Carrier Agreement (CA/RateCon)',
+  carrier: 'Dispatch Sheet',
 };
 
 /**
- * The abbreviation alone, for buttons — where the written-out name made
- * "Request Carrier Agreement (CA/RateCon)" too long to sit on one line. The
- * heading or text beside every such button spells the name out.
+ * The short name, for buttons and the versions list — where a written-out
+ * name like "Request Shipper Agreement (SA)" was too long to sit on one line.
+ * The heading or text beside every such button spells the name out.
+ *
+ * The carrier's stays "Rate Con" after the Dispatch Sheet rename: staff asked
+ * to keep the word they say on the buttons they press (2026-10-13). It is our
+ * word, so it never goes into anything the carrier receives.
  */
 export const AGREEMENT_BUTTON: Record<AgreementParty, string> = {
   client:  'SA',
-  carrier: 'CA/RateCon',
+  carrier: 'Rate Con',
 };
 
 export function isAgreementParty(value: unknown): value is AgreementParty {

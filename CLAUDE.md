@@ -1187,6 +1187,14 @@ Every reviewer sees every tick and who closed it; Approvals lists them.
 
 ### Request Carrier Agreement — the same review, for the carrier
 
+**On screen, in emails, on the PDF and on the signing page it is called the
+Dispatch Sheet** (renamed 2026-10-13 from "Carrier Agreement (CA/RateCon)" /
+"Rate Confirmation"); its buttons and the versions list still say "Rate Con"
+(`AGREEMENT_BUTTON`), and its chat notices "Rate confirmation"
+(`agreementSentAlert()`). The code and the stored values keep the old names —
+`carrier_agreement`, `signed_ca`, `caRequests`, `ca-request` — because live
+tokens, files and requests carry them; renaming those is a migration.
+
 The Carrier Agreement (rate confirmation) has the SA's whole review: a broker
 asks from the Carrier section, admin and dispatch work a carrier checklist
 (`CA_REVIEW_CHECKS` in `src/types/saRequest.ts`), send it from the review,

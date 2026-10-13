@@ -430,7 +430,7 @@ function NewOrderForm() {
               <p className="text-xs text-gray-500 mt-1">
                 Optional. Set it now if the truck is already lined up, or leave it and assign one
                 from the load afterwards. Choosing a carrier lets you name the driver too; the
-                licence upload and the rate confirmation are handled on the load itself.
+                licence upload and the dispatch sheet are handled on the load itself.
               </p>
             </div>
             <div className="sm:max-w-md">

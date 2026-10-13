@@ -789,7 +789,7 @@ export default function OrderDetailPage() {
   }
 
   function resendAgreement() {
-    if (!confirm(`Email the carrier agreement to the carrier again${agreementSentTo ? ` (${agreementSentTo})` : ''}?
+    if (!confirm(`Email the dispatch sheet to the carrier again${agreementSentTo ? ` (${agreementSentTo})` : ''}?
 
 `
       + 'They get a new link with the load as it is now. The link sent before stops working.')) return;
@@ -921,13 +921,13 @@ export default function OrderDetailPage() {
     if (next === 'shipper_signed' && !order.shipperSignedAt && !confirm(
       'Mark this load as Client Signed?\n\n'
       + 'The client has not signed electronically. This goes on the change log under your name, '
-      + 'with the signed Shipper Agreement (SA) you uploaded as the proof. To send the carrier agreement you will still '
+      + 'with the signed Shipper Agreement (SA) you uploaded as the proof. To send the dispatch sheet you will still '
       + 'need the client’s e-signature or a waiver.',
     )) return;
     if (next === 'carrier_signed' && !order.carrierSignedAt && !confirm(
       'Mark this load as Carrier Signed?\n\n'
       + 'The carrier has not signed electronically. This goes on the change log under your name, '
-      + 'with the signed Carrier Agreement (CA/RateCon) you uploaded as the proof.',
+      + 'with the signed Dispatch Sheet you uploaded as the proof.',
     )) return;
     setAdvancing(true);
     try {
@@ -1159,7 +1159,7 @@ export default function OrderDetailPage() {
                 title={needsSa
                   ? 'Upload the client’s signed Shipper Agreement (SA) first, in Client Confirmation or under Documents → Signed Shipper Agreement (SA). It moves on its own when the client e-signs.'
                   : needsCa
-                    ? 'Upload the carrier’s signed Carrier Agreement (CA/RateCon) first, in the Carrier section or under Documents → Signed Carrier Agreement (CA/RateCon). It moves on its own when the carrier e-signs.'
+                    ? 'Upload the carrier’s signed Dispatch Sheet first, in the Carrier section or under Documents → Signed Dispatch Sheet. It moves on its own when the carrier e-signs.'
                     : undefined}
                 className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                 {advancing ? 'Updating…' : `→ ${STATUS_LABEL[nextStatus]}`}
@@ -1656,7 +1656,7 @@ export default function OrderDetailPage() {
                      the enforcement. */
                   <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
                     <p className="text-sm text-amber-800">
-                      The client has not signed the load confirmation yet. The carrier agreement
+                      The client has not signed the load confirmation yet. The dispatch sheet
                       cannot be sent until they do.
                     </p>
                     {can('orders.waiveSignature') && !showWaive && (
@@ -2054,12 +2054,12 @@ export default function OrderDetailPage() {
         {order.carrierId && (
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Signed Carrier Agreement <span className="normal-case">(CA/RateCon)</span></h2>
+              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Signed Dispatch Sheet</h2>
               <p className="text-xs text-gray-500 mt-1">
                 {order.carrierSignedAt
                   ? <>Signed electronically by <strong>{order.carrierSignerName || 'the carrier'}</strong>
                       {' '}on {formatDate(order.carrierSignedAt as { toDate: () => Date })}.</>
-                  : 'The carrier’s signed rate confirmation. When they sign on the link it appears here by itself; if they sign on paper or by email, upload it here.'}
+                  : 'The carrier’s signed dispatch sheet. When they sign on the link it appears here by itself; if they sign on paper or by email, upload it here.'}
               </p>
             </div>
             {order.carrierSignedAt && (

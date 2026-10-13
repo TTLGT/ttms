@@ -74,7 +74,7 @@ export function RequestSaButton({ orderId, onRequested, party = 'client', carrie
     <>
       {carrier ? (
         <button type="button" onClick={() => setOpen(true)}
-          title="Ask dispatch to check the carrier and send them the Carrier Agreement (CA/RateCon)"
+          title="Ask dispatch to check the carrier and send them the Dispatch Sheet"
           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition">
           <Send className="w-3.5 h-3.5" /> Request {AGREEMENT_BUTTON.carrier}
         </button>
@@ -375,7 +375,7 @@ Copied to: ${r.ccEmails.join(', ')}` : '';
               <p className="text-[11px] text-gray-500">Sending unlocks when every item is ticked.</p>
             )}
             {sendBlocked && r.status === 'open' && (
-              <p className="text-[11px] text-amber-700">The client has not signed the Shipper Agreement (SA) yet. The Carrier Agreement (CA/RateCon) goes out once they sign or a waiver is recorded.</p>
+              <p className="text-[11px] text-amber-700">The client has not signed the Shipper Agreement (SA) yet. The Dispatch Sheet goes out once they sign or a waiver is recorded.</p>
             )}
 
             {returning && (
@@ -538,7 +538,7 @@ export function Facts({ review, formatDate, asOf, party = 'client' }: {
 
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1.5">
-      <Row label={party === 'carrier' ? 'Carrier Agreement (CA/RateCon) goes to' : 'Shipper Agreement (SA) goes to'}>
+      <Row label={party === 'carrier' ? 'Dispatch Sheet goes to' : 'Shipper Agreement (SA) goes to'}>
         {review.sendTo
           ? `${review.sendTo.name ? `${review.sendTo.name} · ` : ''}${review.sendTo.email}`
           : <span className="text-red-600">{party === 'carrier' ? 'No email on the carrier' : 'No email on the client'}</span>}

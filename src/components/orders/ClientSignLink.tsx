@@ -134,7 +134,7 @@ export default function ClientSignLink({ orderId, party = 'client', refreshKey, 
           <>
             Expired{link.expiresAt && <> on {formatDate(link.expiresAt)}</>}.{' '}
             {carrier
-              ? <>Resending the Carrier Agreement (CA/RateCon) makes a new link, and this one stops working.</>
+              ? <>Resending the Dispatch Sheet makes a new link, and this one stops working.</>
               : <>Sending the Shipper Agreement (SA) again renews this same link for another seven days.</>}
           </>
         )}

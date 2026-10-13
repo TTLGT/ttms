@@ -56,7 +56,7 @@ export default function SignedSaUploads({
   const inputRef = useRef<HTMLInputElement>(null);
   const carrier = party === 'carrier';
   const kind = SIGNED_AGREEMENT_KIND[party];
-  const label = carrier ? 'Signed Carrier Agreement (CA/RateCon)' : 'Signed Shipper Agreement (SA)';
+  const label = carrier ? 'Signed Dispatch Sheet' : 'Signed Shipper Agreement (SA)';
   const who = carrier ? 'carrier' : 'client';
 
   useEffect(() => {
@@ -100,7 +100,7 @@ export default function SignedSaUploads({
   }
 
   async function email() {
-    if (!confirm(`Email the ${who} that we have registered their acceptance of the ${carrier ? 'rate confirmation' : 'load confirmation'}, with the ${label} attached?`)) return;
+    if (!confirm(`Email the ${who} that we have registered their acceptance of the ${carrier ? 'dispatch sheet' : 'load confirmation'}, with the ${label} attached?`)) return;
     setBusy('email');
     setError('');
     try {

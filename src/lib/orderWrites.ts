@@ -171,7 +171,7 @@ export async function updateOrderAsCaller(
   if (touched(before, patch, ['status']).length && patch.status === 'carrier_signed' && !before.carrierSignedAt) {
     const proof = await signedSaProof(orderId, 'carrier', before);
     if (proof.files === 0) throw new AdminAuthError(NO_SIGNED_CA_PROOF, 409);
-    handSignedNote = `Marked Carrier Signed by hand, on the signed Carrier Agreement uploaded to the load (${proof.files} file${proof.files === 1 ? '' : 's'}). There is no e-signature.`;
+    handSignedNote = `Marked Carrier Signed by hand, on the signed Dispatch Sheet uploaded to the load (${proof.files} file${proof.files === 1 ? '' : 's'}). There is no e-signature.`;
   }
 
   const now = Timestamp.now();
@@ -234,7 +234,7 @@ export async function updateOrderAsCaller(
   if (carrierLinks.length) {
     writeChange(batch, ref, {
       action: 'event',
-      summary: `The carrier changed, so the Carrier Agreement (CA/RateCon) link${carrierLinks.length === 1 ? '' : 's'} sent to the previous carrier no longer work${carrierLinks.length === 1 ? 's' : ''}. Send it again for the new carrier.`,
+      summary: `The carrier changed, so the Dispatch Sheet link${carrierLinks.length === 1 ? '' : 's'} sent to the previous carrier no longer work${carrierLinks.length === 1 ? 's' : ''}. Send it again for the new carrier.`,
     }, actorOf(caller), now);
   }
   if (fields.length) {
@@ -332,9 +332,9 @@ async function planPartySwap(
       const clientSigned = !clientSwap && (Boolean(before.shipperSignedAt)
         || await signedSaProof(orderId, 'client', before).then((p) => p.files + p.photos > 0));
       write.status = clientSigned ? 'shipper_signed' : 'booked';
-      said.push(`The carrier changed, so the load is back at ${clientSigned ? 'Client Signed' : 'Booked'} until the new carrier signs the Carrier Agreement (CA/RateCon).`);
+      said.push(`The carrier changed, so the load is back at ${clientSigned ? 'Client Signed' : 'Booked'} until the new carrier signs the Dispatch Sheet.`);
     } else if (before.carrierSignedAt || before.status === 'carrier_signed') {
-      said.push('The carrier changed, so the previous carrier’s signature no longer counts. The new carrier needs to sign the Carrier Agreement (CA/RateCon).');
+      said.push('The carrier changed, so the previous carrier’s signature no longer counts. The new carrier needs to sign the Dispatch Sheet.');
     }
   }
 

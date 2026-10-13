@@ -118,7 +118,7 @@ export default function DateFormatPanel() {
           are answered here rather than left to be discovered. */}
       <div className="mt-4 space-y-2 text-xs text-gray-500 leading-relaxed">
         <p>
-          Bills of lading, invoices, carrier agreements and the page carriers sign always spell the
+          Bills of lading, invoices, dispatch sheets and the page carriers sign always spell the
           month out — “March 4, 2020” — whatever is chosen here. Those leave the company and stand
           as the record of a shipment, where a slashed date can be read as two different days.
         </p>

@@ -206,7 +206,7 @@ export default function CarrierCombobox({
         <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm">
           <p className="text-blue-900"><strong>{unbound}</strong> is not on file yet.</p>
           <p className="text-blue-800 text-xs mt-1">
-            Add it with its contact details, so the carrier agreement has somewhere to go.
+            Add it with its contact details, so the dispatch sheet has somewhere to go.
           </p>
           <button type="button" onClick={() => setAdding(unbound)}
             className="mt-2 px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition">

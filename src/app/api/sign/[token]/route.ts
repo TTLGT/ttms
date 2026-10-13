@@ -242,7 +242,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
           action:  'event',
           summary: isClient
             ? `${signer}${signerTitle ? ` (${signerTitle})` : ''} signed the load confirmation for the client`
-            : `${signer}${signerTitle ? ` (${signerTitle})` : ''} signed the rate confirmation for the carrier`,
+            : `${signer}${signerTitle ? ` (${signerTitle})` : ''} signed the dispatch sheet for the carrier`,
           fields:  diffFields(orderSnap.data()!, orderUpdate),
         }, {
           uid:   '',

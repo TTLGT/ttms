@@ -145,7 +145,7 @@ export default function SignForm({
   const partyLabel = isClient ? 'Client' : 'Carrier';
   const rateLabel  = isClient ? 'Agreed Rate' : 'Carrier Pay';
   const termsText  = terms || CARRIER_TERMS;
-  const docName    = isClient ? 'Client Load Confirmation' : 'Carrier Agreement & Rate Confirmation';
+  const docName    = isClient ? 'Client Load Confirmation' : 'Dispatch Sheet';
 
   // The full review exists only on client links sent since it was added.
   const detailed = isClient && Array.isArray(stops) && stops.length > 0;
@@ -196,7 +196,7 @@ export default function SignForm({
           Thank you, <strong>{signerName}</strong>. Your signature has been recorded.
         </p>
         <p className="text-sm text-gray-600">
-          {isClient ? 'Load confirmation' : 'Rate confirmation'} <strong>{orderNumber}</strong> is now complete.
+          {isClient ? 'Load confirmation' : 'Dispatch sheet'} <strong>{orderNumber}</strong> is now complete.
         </p>
         {token && (
           <div className="mt-5">

@@ -39,7 +39,7 @@ export default function SaRequestsSection() {
       </h2>
       <p className="text-xs text-gray-500 mt-0.5 mb-3">
         {data.isReviewer
-          ? 'Shipper Agreement (SA)s for quotes the client accepted, and Carrier Agreement (CA/RateCon)s for loads with a carrier. Open one to review it, send it, and mark it done.'
+          ? 'Shipper Agreement (SA)s for quotes the client accepted, and Dispatch Sheets for loads with a carrier. Open one to review it, send it, and mark it done.'
           : 'Where each request you made stands.'}
       </p>
 

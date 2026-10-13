@@ -45,7 +45,7 @@ export default function VerifyForm({ token, isClient, locked }: { token: string;
     <form onSubmit={submit} className="bg-white rounded-xl border border-gray-200 p-6 sm:p-10">
       <h2 className="text-lg font-semibold text-gray-800 mb-2">Confirm it is you</h2>
       <p className="text-sm text-gray-600 mb-5">
-        To open this {isClient ? 'load confirmation' : 'rate confirmation'}, type the email address or phone number
+        To open this {isClient ? 'load confirmation' : 'dispatch sheet'}, type the email address or phone number
         we have on file for you. The email address this link was sent to works.
       </p>
       <label htmlFor="verify-value" className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">

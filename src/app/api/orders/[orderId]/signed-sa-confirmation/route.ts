@@ -118,14 +118,14 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     }));
 
     const orderNumber = orderDisplayNumber(order as { orderNumber?: string; batsId?: string });
-    const docName = carrier ? 'rate confirmation' : 'load confirmation';
+    const docName = carrier ? 'dispatch sheet' : 'load confirmation';
     const now = Timestamp.now();
     const sent = await new Resend(process.env.RESEND_API_KEY).emails.send({
       from:    `TTL Dispatch <${process.env.RESEND_FROM_EMAIL ?? 'noreply@totaltransportlogistics.us'}>`,
       to,
       ...(cc.length ? { cc } : {}),
       ...(caller.email ? { replyTo: caller.email } : {}),
-      subject: `Acceptance Registered — ${carrier ? 'Rate Confirmation' : 'Load Confirmation'} ${orderNumber}`,
+      subject: `Acceptance Registered — ${carrier ? 'Dispatch Sheet' : 'Load Confirmation'} ${orderNumber}`,
       html:    buildHtml({
         greetName,
         companyName,

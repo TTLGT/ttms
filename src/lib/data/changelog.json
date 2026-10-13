@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "27d10f208239797df25a402b8dfd43f6e6d8b39a",
+      "date": "2026-10-13T11:42:33-06:00",
+      "author": "erwindank",
+      "subject": "Fix signing links asking again after a right answer",
+      "body": "A right answer set the access cookie twice under one name, once for the page\nand once for the API. A response keeps one cookie per name, so only the API\none was sent: the page never saw its cookie and showed the question again,\nand people trying other numbers used up their tries. The page now has its\nown cookie name."
+    },
+    {
       "hash": "34a3f0e99524458e8abc7194f63b7462b9f9f512",
       "date": "2026-10-13T11:32:29-06:00",
       "author": "erwindank",

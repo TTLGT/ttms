@@ -352,7 +352,7 @@ export default function TaskEditor({
               maxLength={200}
               onChange={(e) => { setTitle(e.target.value); setProblem(''); }}
               className={input}
-              placeholder={kind === 'event' ? 'Call with a client' : 'Send rate confirmation'}
+              placeholder={kind === 'event' ? 'Call with a client' : 'Send dispatch sheet'}
             />
           </div>
 

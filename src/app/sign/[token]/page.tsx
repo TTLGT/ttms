@@ -29,7 +29,7 @@ export default async function SignPage({ params }: Props) {
   // `shipper_agreement` is the client's load confirmation — the token type is
   // historical and names the field it writes, not who signs it.
   const isClient  = snap.exists && snap.data()!.type === 'shipper_agreement';
-  const pageTitle = isClient ? 'Client Load Confirmation' : 'Carrier Rate Confirmation';
+  const pageTitle = isClient ? 'Client Load Confirmation' : 'Dispatch Sheet';
 
   if (!snap.exists) {
     return (

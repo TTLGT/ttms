@@ -113,7 +113,7 @@ export function requestPOST(party: AgreementParty) {
           return NextResponse.json({ error: 'The carrier has already signed the agreement.' }, { status: 409 });
         }
         if (['quote', 'cancelled', 'completed'].includes(String(order.status))) {
-          return NextResponse.json({ error: 'A Carrier Agreement (CA/RateCon) is requested for a booked load.' }, { status: 409 });
+          return NextResponse.json({ error: 'A Dispatch Sheet is requested for a booked load.' }, { status: 409 });
         }
       }
 

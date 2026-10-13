@@ -45,8 +45,8 @@ export const ORDER_FILE_KIND_LABEL: Record<OrderFileKind, string> = {
    */
   signed_sa:         'Signed Shipper Agreement (SA)',
   /** The carrier's Carrier Agreement (rate confirmation) signed some other way. Same role as `signed_sa`, for the carrier. */
-  signed_ca:         'Signed Carrier Agreement (CA/RateCon)',
-  rate_confirmation: 'Rate confirmation',
+  signed_ca:         'Signed Dispatch Sheet',
+  rate_confirmation: 'Dispatch sheet',
   receipt:           'Receipt (lumper, fuel, scale…)',
   customs:           'Customs',
   permit:            'Permit',

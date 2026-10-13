@@ -137,8 +137,8 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
   // The carrier's copy names the carrier and the driver and quotes carrier
   // pay; it never shows the client's rate, which is our margin's other half.
   const carrier = f.type === 'carrier_agreement';
-  const docTitle = carrier ? 'CARRIER RATE CONFIRMATION' : 'CLIENT LOAD CONFIRMATION';
-  const docName = carrier ? 'Carrier Agreement' : 'Shipper Agreement';
+  const docTitle = carrier ? 'DISPATCH SHEET' : 'CLIENT LOAD CONFIRMATION';
+  const docName = carrier ? 'Dispatch Sheet' : 'Shipper Agreement';
 
   return (
     <Document title={`${docName} ${f.orderNumber}${f.version ? ` v${f.version}` : ''}`} author="Total Transport Logistics">
@@ -268,7 +268,7 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
             <Text style={s.sigLine}>
               {sig.esignConsent ? 'Agreed to sign electronically. ' : ''}
               {sig.termsAccepted
-                ? (carrier ? 'Accepted the terms of this rate confirmation.' : 'Accepted the terms and confirmed the rate, the pickup and delivery details and the payment terms.')
+                ? (carrier ? 'Accepted the terms of this dispatch sheet.' : 'Accepted the terms and confirmed the rate, the pickup and delivery details and the payment terms.')
                 : ''}
             </Text>
             <Text style={[s.sigLine, { marginTop: 4, color: '#6b7280' }]}>

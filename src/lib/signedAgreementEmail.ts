@@ -53,10 +53,10 @@ export async function emailSignedAgreement(token: string): Promise<void> {
     to,
     ...(cc.length ? { cc } : {}),
     ...(replyTo ? { replyTo } : {}),
-    subject: carrier ? `Signed Rate Confirmation — ${orderNumber}` : `Signed Load Confirmation — ${orderNumber}`,
+    subject: carrier ? `Signed Dispatch Sheet — ${orderNumber}` : `Signed Load Confirmation — ${orderNumber}`,
     html: buildHtml({
-      docName: carrier ? 'rate confirmation' : 'load confirmation',
-      heading: carrier ? 'Signed Rate Confirmation' : 'Signed Load Confirmation',
+      docName: carrier ? 'dispatch sheet' : 'load confirmation',
+      heading: carrier ? 'Signed Dispatch Sheet' : 'Signed Load Confirmation',
       signerName: String(d.signerName ?? ''),
       orderNumber,
       signedAt,
@@ -70,7 +70,7 @@ export async function emailSignedAgreement(token: string): Promise<void> {
   if (d.orderId) {
     await recordEvent(
       adminDb.collection('orders').doc(String(d.orderId)),
-      `Emailed the ${carrier ? 'carrier a copy of the signed Carrier Agreement (CA/RateCon)' : 'client a copy of the signed Shipper Agreement (SA)'}${typeof d.version === 'number' ? ` (version ${d.version})` : ''} at ${to}${cc.length ? `, copied to ${cc.join(', ')}` : ''}`,
+      `Emailed the ${carrier ? 'carrier a copy of the signed Dispatch Sheet' : 'client a copy of the signed Shipper Agreement (SA)'}${typeof d.version === 'number' ? ` (version ${d.version})` : ''} at ${to}${cc.length ? `, copied to ${cc.join(', ')}` : ''}`,
       // No person sent this; TTMS did, on the client's signature.
       { uid: '', name: 'TTMS', email: '', via: 'app' },
     ).catch(() => {});

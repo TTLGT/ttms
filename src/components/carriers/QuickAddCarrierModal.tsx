@@ -177,7 +177,7 @@ export default function QuickAddCarrierModal({
               <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="dispatch@carrier.com" className={inputCls} />
-              <p className="text-xs text-gray-500 mt-1">The carrier agreement is emailed here.</p>
+              <p className="text-xs text-gray-500 mt-1">The dispatch sheet is emailed here.</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">DOT Number</label>
