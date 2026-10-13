@@ -18,12 +18,17 @@ type SignLink = {
 };
 
 /**
- * The client's signing link on the order, to copy and send another way when
- * the email is not enough, and where it stands. See
+ * A signing link on the order, to copy and send another way when the email
+ * is not enough, and where it stands — the client's Shipper Agreement, or with
+ * `party="carrier"` the carrier's Carrier Agreement. See
  * GET /api/orders/{id}/sign-link and src/lib/clientAgreements.ts.
  *
+ * Still shown once signed: the same link is where the signer downloads their
+ * signed copy, so it is the thing to send somebody who has lost the email.
+ *
  * Preview opens the staff preview page, which has no way to sign — never the
- * link itself, so nobody signs for the client by accident.
+ * link itself, so nobody signs for the client by accident. The client's only:
+ * the carrier's versions are previewed from the versions list beside it.
  *
  * `refreshKey` changes when the order page sends an SA, so the box picks up
  * the new state without a reload.
@@ -32,11 +37,14 @@ type SignLink = {
  * offers Resend rather than a first send. Only for a live or expired link: a
  * held one waits on dispatch's review, and sending it is the review's job.
  */
-export default function ClientSignLink({ orderId, refreshKey, onSent }: {
+export default function ClientSignLink({ orderId, party = 'client', refreshKey, onSent }: {
   orderId: string;
+  party?: 'client' | 'carrier';
   refreshKey?: unknown;
   onSent?: (sentTo: string) => void;
 }) {
+  const carrier = party === 'carrier';
+  const who = carrier ? 'carrier' : 'client';
   const { formatDate } = useDateFormatters();
   const [link, setLink] = useState<SignLink | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -48,20 +56,20 @@ export default function ClientSignLink({ orderId, refreshKey, onSent }: {
     (async () => {
       const user = auth.currentUser;
       if (!user) return;
-      const res = await fetch(`/api/orders/${orderId}/sign-link`, {
+      const res = await fetch(`/api/orders/${orderId}/sign-link${carrier ? '?party=carrier' : ''}`, {
         headers: { Authorization: `Bearer ${await user.getIdToken()}` },
       });
       const body = await res.json().catch(() => ({}));
       if (cancelled || !res.ok) return;
       const next = (body as { link: SignLink | null }).link;
       setLink(next);
-      if (next && (next.state === 'live' || next.state === 'expired')) onSent?.(next.sentTo || 'the client');
+      if (next && (next.state === 'live' || next.state === 'expired')) onSent?.(next.sentTo || `the ${who}`);
     })().catch(() => {}).finally(() => { if (!cancelled) setLoaded(true); });
     return () => { cancelled = true; };
     // onSent is left out on purpose: the page passes a new arrow each render,
     // and refetching on every render would read the link in a loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId, refreshKey]);
+  }, [orderId, party, refreshKey]);
 
   const preview = (
     <Link
@@ -77,6 +85,7 @@ export default function ClientSignLink({ orderId, refreshKey, onSent }: {
   // Nothing sent yet: the preview is still worth having — it is what dispatch
   // is about to send.
   if (!link) {
+    if (carrier) return null;
     return (
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-gray-500">
         <span>See what the client will get before it is sent.</span>
@@ -116,18 +125,20 @@ export default function ClientSignLink({ orderId, refreshKey, onSent }: {
         )}
         {link.state === 'live' && (
           <>
-            Send it to the client another way if they did not get the email.
+            Send it to the {who} another way if they did not get the email.
             {link.sentTo && <> Last emailed to <strong>{link.sentTo}</strong>.</>}
             {link.expiresAt && <> Works until {formatDate(link.expiresAt)}.</>}
           </>
         )}
         {link.state === 'expired' && (
           <>
-            Expired{link.expiresAt && <> on {formatDate(link.expiresAt)}</>}. Sending the Shipper Agreement (SA) again renews this same
-            link for another seven days.
+            Expired{link.expiresAt && <> on {formatDate(link.expiresAt)}</>}.{' '}
+            {carrier
+              ? <>Resending the Carrier Agreement (CA/RateCon) makes a new link, and this one stops working.</>
+              : <>Sending the Shipper Agreement (SA) again renews this same link for another seven days.</>}
           </>
         )}
-        {link.state === 'signed' && <>Signed by the client.</>}
+        {link.state === 'signed' && <>Signed by the {who}. The link now offers them their signed copy to download.</>}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <input
@@ -146,7 +157,7 @@ export default function ClientSignLink({ orderId, refreshKey, onSent }: {
             ? <><Check className="h-3.5 w-3.5 text-green-600" /> Copied</>
             : <><Copy className="h-3.5 w-3.5" /> Copy</>}
         </button>
-        {preview}
+        {!carrier && preview}
       </div>
       {copy === 'manual' && <p className="mt-1 text-xs text-amber-700">Copying is blocked here. The link is selected — press Ctrl+C.</p>}
     </div>

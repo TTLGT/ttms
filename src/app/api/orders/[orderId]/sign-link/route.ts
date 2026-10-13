@@ -4,6 +4,7 @@ import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { signUrl } from '@/lib/appUrl';
 import { clientAgreementRef, type ClientAgreementPointer } from '@/lib/clientAgreements';
+import { millisOf, partyChangedAt } from '@/lib/signedSaProof';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -26,17 +27,25 @@ type RouteContext = { params: Promise<{ orderId: string }> };
  *
  * A load whose SA went out before links were kept per order has no pointer;
  * its newest usable link is found the old way, by query.
+ *
+ * `?party=carrier` answers the same for the carrier's agreement — see
+ * carrierLink() below.
  */
 export async function GET(req: NextRequest, { params }: RouteContext) {
   const { orderId } = await params;
+  let order: Record<string, unknown>;
   try {
     const caller = await requireCaller(req);
-    await getVisibleOrder(caller, orderId);
+    order = await getVisibleOrder(caller, orderId) as Record<string, unknown>;
   } catch (e) {
     if (e instanceof AdminAuthError) return NextResponse.json({ error: e.message }, { status: e.status });
     throw e;
   }
   const noStore = { headers: { 'Cache-Control': 'private, no-store' } };
+
+  if (req.nextUrl.searchParams.get('party') === 'carrier') {
+    return NextResponse.json({ link: await carrierLink(orderId, order) }, noStore);
+  }
 
   const pointerSnap = await clientAgreementRef(orderId).get();
   if (pointerSnap.exists) {
@@ -83,4 +92,40 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
       expiresAt: newest.data.expiresAt.toDate().toISOString(),
     },
   }, noStore);
+}
+
+/**
+ * The carrier's link. Unlike the client's there is no pointer: each send of
+ * the Carrier Agreement is a new link and switches the older unsigned ones
+ * off (`replacedAt`, see send-agreement), so the current one is the newest
+ * that is neither replaced nor cancelled.
+ *
+ * Only links sent to the carrier on the load now, and since it last changed
+ * hands: a former carrier's link — even a signed one — is not this carrier's
+ * to be sent. A signed link is still offered, because it is where the carrier
+ * downloads their signed copy (GET /api/sign/[token]/pdf).
+ */
+async function carrierLink(orderId: string, order: Record<string, unknown>) {
+  const carrierId = typeof order.carrierId === 'string' ? order.carrierId : '';
+  if (!carrierId) return null;
+  const since = partyChangedAt(order, 'carrier');
+  // One equality filter and the rest in memory, as above.
+  const snap = await adminDb.collection('signing_tokens').where('orderId', '==', orderId).get();
+  const newest = snap.docs
+    .map((d) => ({ id: d.id, data: d.data() }))
+    .filter(({ data }) => data.type === 'carrier_agreement' && data.carrierId === carrierId
+      && !data.revokedAt && (data.usedAt || !data.replacedAt)
+      && millisOf(data.createdAt) > since)
+    .sort((a, b) => millisOf(b.data.createdAt) - millisOf(a.data.createdAt))[0];
+  if (!newest) return null;
+  const d = newest.data;
+  const expired = typeof d.expiresAt?.toMillis === 'function' && d.expiresAt.toMillis() <= Date.now();
+  return {
+    url: signUrl(newest.id),
+    state: d.usedAt ? 'signed' : expired ? 'expired' : 'live',
+    version: Number(d.version ?? 1),
+    sentTo: typeof d.carrierEmail === 'string' ? d.carrierEmail : '',
+    sentAt: (d.lastSentAt ?? d.createdAt)?.toDate?.()?.toISOString?.() ?? null,
+    expiresAt: d.expiresAt?.toDate?.()?.toISOString?.() ?? null,
+  };
 }

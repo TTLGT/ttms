@@ -1505,15 +1505,13 @@ export default function OrderDetailPage() {
                 </button>
               )}
 
-              {/* The live link, for sending another way. Its own fetch, and
-                  only while unsigned: a signed link cannot be used again. */}
-              {!(order.shipperSignedAt || order.shipperSignerName) && (
-                <ClientSignLink
-                  orderId={orderId}
-                  refreshKey={linkRefresh}
-                  onSent={(to) => setShipperAgreementSentTo((prev) => prev || to)}
-                />
-              )}
+              {/* The link, for sending another way. Its own fetch. Kept once
+                  signed: it is where the client downloads their signed copy. */}
+              <ClientSignLink
+                orderId={orderId}
+                refreshKey={linkRefresh}
+                onSent={(to) => setShipperAgreementSentTo((prev) => prev || to)}
+              />
 
               {/* A client who cannot sign on the link: staff upload what they
                   signed, mark the load Client Signed on it, and email the
@@ -1706,6 +1704,15 @@ export default function OrderDetailPage() {
                     )}
                   </div>
                 )}
+                {/* The carrier's link, to copy and send another way — the
+                    same box as Client Confirmation's. Shows nothing until a
+                    Carrier Agreement has gone to this carrier. */}
+                <ClientSignLink
+                  orderId={orderId}
+                  party="carrier"
+                  refreshKey={caRefresh}
+                  onSent={(to) => setAgreementSentTo((prev) => prev || to)}
+                />
               </div>
             )}
 

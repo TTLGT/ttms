@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "7e664c61a884cfc357f54789e51da89162242b6c",
+      "date": "2026-10-13T09:47:11-06:00",
+      "author": "erwindank",
+      "subject": "Write the agreements out in full on order screens, with the abbreviation on buttons",
+      "body": "Headings, labels, checklist items, messages and change-log lines on the\norder screens now say Shipper Agreement (SA) and Carrier Agreement\n(CA/RateCon) rather than a bare SA or Carrier Agreement\n(AGREEMENT_LABEL). The section headings read SIGNED SHIPPER AGREEMENT (SA)\nand SIGNED CARRIER AGREEMENT (CA/RateCon), keeping RateCon's case.\n\nButtons carry the abbreviation alone (AGREEMENT_BUTTON): Request SA,\nRequest CA/RateCon, Send SA to..., Download signed SA, SA versions,\nUpload signed SA, and the carrier's the same.\n\nEmails, chat lines in the load's room, the PDFs and downloaded file\nnames keep the plain names: they reach clients and carriers."
+    },
+    {
       "hash": "98332856c8806735a142c1accc41355f26b06ab6",
       "date": "2026-10-13T09:32:41-06:00",
       "author": "erwindank",

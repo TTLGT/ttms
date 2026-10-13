@@ -225,7 +225,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const line = kind === 'resend'
     ? `The carrier agreement was emailed again to ${carrier.email} (version ${version}), with a new link.${stale.length ? ' Earlier links no longer work.' : ''}`
     : agreementSentAlert('carrier', carrier.email);
-  await postOrderAlert(orderId, `${line}${cc.length ? ` Copied to ${cc.join(', ')}.` : ''}${actor ? ` Sent by ${actor.name}.` : ''}`).catch(() => {});
+  // The link goes in the room as well as the email, as the client's does
+  // (send-shipper-agreement): whoever is on the phone with the carrier can
+  // read it out or text it. Everybody in the room is staff who can already
+  // open the load, and a signature made from it records the device and
+  // address it came from, so a colleague's could not pass for the carrier's.
+  await postOrderAlert(orderId, `${line}${cc.length ? ` Copied to ${cc.join(', ')}.` : ''}${actor ? ` Sent by ${actor.name}.` : ''} E-signature link: ${link}`).catch(() => {});
 
   await recordCarrierSend().catch(() => {});
 
