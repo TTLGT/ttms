@@ -221,10 +221,10 @@ export default function PlanningPrompt() {
     (async () => {
       try {
         const { tasks } = await listMyTasks();
-        const today = calendarToday();
         if (cancelled) return;
+        // Narrowed per kind where the picker is drawn: what counts depends on
+        // the period, and the list is kept across kinds.
         setCandidates(tasks
-          .filter((t) => canBePlanningSlot(t, today))
           .sort((a, b) => `${a.date} ${a.time ?? ''}`.localeCompare(`${b.date} ${b.time ?? ''}`)));
       } catch (e) {
         if (cancelled) return;
@@ -489,7 +489,8 @@ export default function PlanningPrompt() {
         ) : picking ? (
           <PickExisting
             label={copy.label}
-            candidates={candidates?.filter((t) => !takenIds.includes(t.id)) ?? null}
+            period={isDailyKind(kind) ? 'today' : kind === 'weekly' ? 'this week' : 'this month'}
+            candidates={candidates?.filter((t) => !takenIds.includes(t.id) && canBePlanningSlot(t, calendarToday(), kind)) ?? null}
             filter={filter}
             onFilter={setFilter}
             busy={busy}
@@ -691,9 +692,11 @@ export default function PlanningPrompt() {
  * by title. Picking one is the whole of the recognising.
  */
 function PickExisting({
-  label, candidates, filter, onFilter, busy, error, dayName, onPick, onBack,
+  label, period, candidates, filter, onFilter, busy, error, dayName, onPick, onBack,
 }: {
   label: string;
+  /** "today", "this week" or "this month": how far back an item can be and still count. */
+  period: string;
   candidates: PersonalTask[] | null;
   filter: string;
   onFilter: (v: string) => void;
@@ -730,7 +733,7 @@ function PickExisting({
           <p className="py-6 text-center text-xs text-gray-400">
             {candidates?.length
               ? 'Nothing matches that.'
-              : 'Nothing to pick. Only tasks and events dated today or later can be used — give a task a day first.'}
+              : `Nothing to pick. Only tasks and events dated ${period} or later can be used — give a task a day first.`}
           </p>
         ) : (
           <ul className="space-y-1">

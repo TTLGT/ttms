@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "f93613dc234afd8ab0411b647c3d4b60e0760f93",
+      "date": "2026-10-09T18:36:30-06:00",
+      "author": "erwindank",
+      "subject": "Upload a carrier's hand-signed Carrier Agreement, email them that it is registered, and only allow Carrier Signed by hand once it is on the load",
+      "body": ""
+    },
+    {
       "hash": "36b8320da8c3782beb4095699140bdabb5ff5f0c",
       "date": "2026-10-09T18:31:54-06:00",
       "author": "erwindank",

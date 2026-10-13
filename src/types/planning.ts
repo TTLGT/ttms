@@ -22,9 +22,10 @@
  * different days, so the morning and end-of-day slots are "just this once"
  * unless the person ticks "every weekday". Weekly and monthly start ticked —
  * a week's plan is more often a fixed habit — but can be unticked for this
- * week or month only. A one-off counts as covering its own day only, so the
- * card asks again on the next day it would ask anyway: the next working day,
- * the next Friday afternoon, the next last Friday (`isPlanningAskDay()`).
+ * week or month only. A one-off counts as covering its own period only — the
+ * day, the week or the month (`planningPeriodStart()`) — so the card asks
+ * again on the next day it would ask anyway: the next working day, the next
+ * Friday afternoon, the next last Friday (`isPlanningAskDay()`).
  *
  * Stored on the owner document, `personalTasks/{uid}.planning`, beside the
  * board's columns and the reminder settings — so it is as private as the list
@@ -267,19 +268,22 @@ export interface PlanningStatus {
  * - it has a day. A time is not required: plenty of people put "Plan the
  *   week" on a Friday without one, and `statusFor()` never asked for it;
  * - it is not archived or from history;
- * - a one-off is today or later, **done or not** — a morning review ticked
- *   off at 7:30 still covers today, which is exactly what `statusFor()`
- *   counts it as. Refusing it here left the card asking for a slot the
- *   person had already been through;
+ * - a one-off falls in the period the kind is for or later
+ *   (`planningPeriodStart()`), **done or not, gone by or not** — a morning
+ *   review ticked off at 7:30 still covers today, and a week planned on
+ *   Monday still covers Friday, which is exactly what `statusFor()` counts
+ *   it as. Refusing those left the card asking for a slot the person had
+ *   already been through;
  * - a repeat has not run past its end, is not finished (its next copy is the
  *   one to pick) and is not a missed copy already carried on.
  */
 export function canBePlanningSlot(
   t: Pick<PersonalTask, 'kind' | 'status' | 'date' | 'repeat' | 'repeatUntil' | 'nextId' | 'archived' | 'fromHistory'>,
   today: string,
+  kind: PlanningKind,
 ): boolean {
   if (!t.date || t.archived || t.fromHistory) return false;
-  if (t.repeat === 'none') return t.date >= today;
+  if (t.repeat === 'none') return t.date >= planningPeriodStart(kind, today);
   if (t.kind === 'task' && t.status === 'done') return false;
   if (t.repeatUntil && t.repeatUntil < today) return false;
   return !(t.nextId && t.date < today);
@@ -399,6 +403,22 @@ function dayOfWeek(date: string): number {
 export function officeNowTime(now: number = Date.now()): string {
   const d = new Date(now + OFFICE_UTC_OFFSET_MINUTES * 60_000);
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+}
+
+/**
+ * The first day of the period a kind covers: today for the daily ones, the
+ * Monday of this week (Monday to Sunday, the same week `snoozeUntil()` ends
+ * on a Sunday) for weekly, the first of the month for monthly. A one-off slot
+ * dated on or after it still stands for the period, even once its day or time
+ * has gone by — the plan was made, so the card has nothing left to ask.
+ */
+export function planningPeriodStart(kind: PlanningKind, today: string): string {
+  if (isDailyKind(kind)) return today;
+  if (kind === 'weekly') {
+    const dow = dayOfWeek(today);
+    return shift(today, dow === 0 ? -6 : 1 - dow);
+  }
+  return `${today.slice(0, 7)}-01`;
 }
 
 /**

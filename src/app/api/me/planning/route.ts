@@ -26,6 +26,7 @@ import {
   isValidTime,
   officeNowTime,
   planningRepeat,
+  planningPeriodStart,
   planningRepeatsByDefault,
   snoozeUntil,
   type PlanningKind,
@@ -42,6 +43,10 @@ import {
  * a read or two per kind for the tasks it points at — never the list.
  */
 
+const PERIOD_WORDS: Record<PlanningKind, string> = {
+  morning: 'today', evening: 'today', weekly: 'this week', monthly: 'this month',
+};
+
 function fail(e: unknown) {
   if (e instanceof AdminAuthError) {
     return NextResponse.json({ error: e.message }, { status: e.status });
@@ -52,9 +57,11 @@ function fail(e: unknown) {
 /**
  * Follow each kind's pointer to the slot it stands for, if there still is one.
  *
- * - A **one-off** covers its own day and any later one it was put on, done
- *   or not: somebody who reviewed today's plan at 8:10 is not asked again at
- *   noon, and is asked again tomorrow.
+ * - A **one-off** covers its period — the day, the week or the month, from
+ *   `planningPeriodStart()` — when it is dated in it or later, done or not
+ *   and gone by or not: somebody who reviewed today's plan at 8:10 is not
+ *   asked again at noon, and is asked again tomorrow; a week planned on
+ *   Monday is not asked about again until next week.
  * - A **repeating** slot covers everything until it is deleted, or finished
  *   with nothing to carry it on. A hop or two along `nextId` covers a copy
  *   made by a save that did not move the pointer.
@@ -62,13 +69,13 @@ function fail(e: unknown) {
 async function statusFor(
   uid: string, state: PlanningState, today: string, nowTime: string, tidy = false,
 ): Promise<PlanningStatus[]> {
-  const live = async (taskId: string | null, hops = 0): Promise<PersonalTask | null> => {
+  const live = async (kind: PlanningKind, taskId: string | null, hops = 0): Promise<PersonalTask | null> => {
     if (!taskId) return null;
     const snap = await taskItems(uid).doc(taskId).get();
     if (!snap.exists) return null;
     let task = toTask(snap);
     if (tidy && isLapsedPlanning(task, today)) task = await carryOn(uid, task, today);
-    if (task.repeat === 'none') return task.date && task.date >= today ? task : null;
+    if (task.repeat === 'none') return task.date && task.date >= planningPeriodStart(kind, today) ? task : null;
     // A missed one already carried on still sits open; the slot is its copy.
     const passed = !!task.nextId && !!task.date && task.date < today;
     // A repeat past its end covers nothing more: a missed last copy has no
@@ -76,11 +83,11 @@ async function statusFor(
     // card asks again, which is the renewal (REPEAT_ADVICE).
     if (task.repeatUntil && task.repeatUntil < today) return null;
     if (task.status !== 'done' && !passed) return task;
-    return task.nextId && hops < 2 ? live(task.nextId, hops + 1) : null;
+    return task.nextId && hops < 2 ? live(kind, task.nextId, hops + 1) : null;
   };
   return Promise.all(PLANNING_KINDS.map(async (kind) => {
     const s = state[kind];
-    const task = await live(s.taskId);
+    const task = await live(kind, s.taskId);
     // Morning until 1pm; end-of-day all day; weekly and monthly only from
     // noon on their own Friday — see PLANNING_ASK_FROM.
     const inHours = kind === 'morning'
@@ -305,8 +312,8 @@ export async function PUT(req: NextRequest) {
       const [ownerSnap, taskSnap] = await Promise.all([tx.get(ownerRef), tx.get(taskRef)]);
       if (!taskSnap.exists) return { error: 'That one is no longer on your list.', code: 404 } as const;
       const task = toTask(taskSnap);
-      if (!canBePlanningSlot(task, today)) {
-        return { error: 'Pick something from today on, with a day set.', code: 409 } as const;
+      if (!canBePlanningSlot(task, today, kind)) {
+        return { error: `Pick something with a day set, from ${PERIOD_WORDS[kind]} on.`, code: 409 } as const;
       }
       const state = cleanPlanningState(ownerSnap.data()?.planning);
       // One item stands for one kind: a morning review is not also the weekly plan.
