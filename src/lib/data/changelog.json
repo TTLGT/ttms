@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "21b896c22fb655e6e3eaf30530abe3ab6cda2442",
+      "date": "2026-10-13T09:12:14-06:00",
+      "author": "erwindank",
+      "subject": "Resend an SA or Carrier Agreement, stop a replaced carrier's link working, and preview every agreement version",
+      "body": "Resend: once an SA or Carrier Agreement has gone out, the order shows who\nit went to with a Resend button (also after a reload), and a review in\n\"sent\" has one beside Mark done. Both ask first. The client's resend is\nthe same link with seven more days. The carrier's is a new link, and it\nnow switches off every earlier unsigned carrier link (replacedAt), so an\nold link quoting an outdated pay cannot be signed; the sign route and\npage refuse it and point to the newest email. The carrier send also\nrefuses once the carrier has signed, as the SA send already did.\n\nChanging the carrier on a load revokes the previous carrier's unsigned\nlinks in the same save, with a change-log line. Signed links are kept as\nthe record of what that carrier agreed.\n\nPreview: every agreement version, and the signed SA and Carrier\nAgreement, can be opened on screen as well as downloaded, from the same\nstored copy."
+    },
+    {
       "hash": "3dfda2500c41edb830d6d361cf1a9d5123eb2f7f",
       "date": "2026-10-13T07:34:47-06:00",
       "author": "erwindank",

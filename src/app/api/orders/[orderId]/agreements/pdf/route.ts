@@ -3,7 +3,7 @@ import { AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import {
-  agreementFileName, agreementPdf, listAgreementVersions, readAgreementVersion,
+  agreementFileName, agreementPdf, listAgreementVersions, readAgreementVersion, voidNoteFor,
 } from '@/lib/signedAgreements';
 import { isAgreementParty } from '@/types/saRequest';
 
@@ -38,11 +38,12 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     const found = await readAgreementVersion(orderId, ref);
     if (!found) return NextResponse.json({ error: 'That version of the SA was not found on this load.' }, { status: 404 });
 
-    const buffer = await agreementPdf(found.data, found.current);
+    const voidNote = await voidNoteFor(found.token, found.data, found.current);
+    const buffer = await agreementPdf(found.data, voidNote);
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${agreementFileName(found.data).replace(/"/g, '')}"`,
+        'Content-Disposition': `attachment; filename="${agreementFileName(found.data, Boolean(voidNote)).replace(/"/g, '')}"`,
         'Cache-Control': 'private, no-store',
       },
     });

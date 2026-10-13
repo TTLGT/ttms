@@ -123,6 +123,10 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
                     <p className="font-semibold text-gray-900">
                       Version {v.version}
                       {v.current && !v.revoked && <span className="ml-1.5 font-normal text-brand-700">· the latest sent</span>}
+                      {/* The same test the PDF's VOID stamp uses, as far as the list can see it. */}
+                      {(v.revoked || v.supersededAt) && (
+                        <span className="ml-1.5 rounded bg-red-50 px-1.5 py-px text-[10px] font-bold tracking-wide text-red-700">VOID</span>
+                      )}
                     </p>
                     <p className="text-gray-500">
                       {v.sentAt ? <>Sent {formatDateTime(new Date(v.sentAt))}</> : 'Sent'}{v.sentTo && <> to {v.sentTo}</>}

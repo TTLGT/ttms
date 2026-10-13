@@ -98,7 +98,7 @@ export async function listAgreementVersions(orderId: string, party: AgreementPar
  * One version's stored copy, by ref — refused unless it belongs to this
  * order, so a ref from another load opens nothing.
  */
-export async function readAgreementVersion(orderId: string, ref: string): Promise<{ data: Data; current: boolean } | null> {
+export async function readAgreementVersion(orderId: string, ref: string): Promise<{ data: Data; current: boolean; token: Data } | null> {
   const [token, raw] = ref.split('~');
   const n = Number(raw);
   if (!token || !/^[a-f0-9]{16,128}$/i.test(token) || !Number.isInteger(n) || n < 1) return null;
@@ -106,17 +106,66 @@ export async function readAgreementVersion(orderId: string, ref: string): Promis
   const d = snap.data();
   if (!d || d.orderId !== orderId) return null;
   // A carrier link is one version; its ref names the link, and the number is only a label.
-  if (d.type === 'carrier_agreement') return { data: d, current: true };
+  if (d.type === 'carrier_agreement') return { data: d, current: true, token: d };
   if (d.type !== 'shipper_agreement') return null;
-  if ((typeof d.version === 'number' ? d.version : 1) === n) return { data: d, current: true };
+  if ((typeof d.version === 'number' ? d.version : 1) === n) return { data: d, current: true, token: d };
   const v = await snap.ref.collection('versions').doc(String(n)).get();
-  return v.exists ? { data: v.data()!, current: false } : null;
+  return v.exists ? { data: v.data()!, current: false, token: d } : null;
 }
 
-/** The PDF of one stored copy — the current link's, or an older version's. */
-export async function agreementPdf(data: Data, current: boolean): Promise<Buffer> {
+function spelled(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+}
+
+/**
+ * Why a version no longer counts, or '' while it still does. A non-empty
+ * answer stamps the PDF VOID on every page (see signed-agreement-pdf.tsx), so
+ * a superseded copy cannot be mistaken for the live one by anybody holding
+ * it — staff, or a client or carrier it was sent or forwarded to.
+ *
+ * - A client version replaced by a revision (it lives in `versions/`).
+ * - A link cancelled because the load moved to another client or carrier.
+ * - A carrier link replaced by a later send — marked `replacedAt` since
+ *   2026-10-13, and for links sent before that, any carrier link on the load
+ *   created after it. That last test also voids a carrier's signed agreement
+ *   once the load has gone out to somebody else.
+ *
+ * A client link on hold is not void: it is waiting on a review, and the
+ * version on it is replaced only when the update is actually sent.
+ *
+ * `token` is the link itself and `version` the copy being drawn — the same
+ * document for a current version, an entry in `versions/` for an older one.
+ */
+export async function voidNoteFor(token: Data, version: Data, current: boolean): Promise<string> {
+  const carrier = token.type === 'carrier_agreement';
+  const at = (v: unknown) => (v as { toDate?: () => Date } | null)?.toDate?.();
+
+  const revokedAt = at(token.revokedAt);
+  if (revokedAt) return `Cancelled on ${spelled(revokedAt)}: the load moved to another ${carrier ? 'carrier' : 'client'}`;
+
+  if (!carrier) {
+    if (current) return '';
+    const supersededAt = at(version.supersededAt);
+    return `Replaced by a later version${supersededAt ? ` on ${spelled(supersededAt)}` : ''}`;
+  }
+
+  const replacedAt = at(token.replacedAt);
+  if (replacedAt) return `Replaced by a later Carrier Agreement on ${spelled(replacedAt)}`;
+  if (!token.orderId) return '';
+  const created = at(token.createdAt)?.getTime() ?? 0;
+  const later = (await partyTokens(String(token.orderId), 'carrier'))
+    .map((t) => at(t.data().createdAt)?.getTime() ?? 0)
+    .filter((t) => t > created)
+    .sort((a, b) => a - b)[0];
+  return later ? `Replaced by a later Carrier Agreement on ${spelled(new Date(later))}` : '';
+}
+
+/**
+ * The PDF of one stored copy — the current link's, or an older version's.
+ * `voidNote` comes from voidNoteFor(); empty means a version still in force.
+ */
+export async function agreementPdf(data: Data, voidNote: string): Promise<Buffer> {
   const signedAt = data.usedAt?.toDate?.() as Date | undefined;
-  const supersededAt = current ? null : data.supersededAt?.toDate?.() as Date | undefined;
   const pdf: SignedAgreementData = {
     form: signFormData(data),
     signature: signedAt ? {
@@ -129,18 +178,20 @@ export async function agreementPdf(data: Data, current: boolean): Promise<Buffer
       termsAccepted: data.termsAccepted === true,
     } : null,
     sentTo: String(data.clientEmail ?? data.carrierEmail ?? ''),
-    supersededNote: supersededAt
-      ? `Replaced by a later version on ${supersededAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
-      : '',
+    voidNote,
     generatedAt: signatureTime(new Date()),
   };
   return generateSignedAgreementBuffer(pdf);
 }
 
-/** "Signed SA TTL26000123 v2.pdf", "Signed Carrier Agreement TTL26000123 v1.pdf" — safe as a file name. */
-export function agreementFileName(data: Data): string {
+/**
+ * "Signed SA TTL26000123 v2.pdf", "Carrier Agreement TTL26000123 v1 VOID.pdf"
+ * — safe as a file name. VOID in the name too, so a superseded copy says so
+ * in a downloads folder or an attachment list before anybody opens it.
+ */
+export function agreementFileName(data: Data, voided = false): string {
   const number = String(data.orderNumber ?? 'order').replace(/[\\/:*?"<>|]/g, '-');
   const version = typeof data.version === 'number' ? ` v${data.version}` : '';
   const doc = data.type === 'carrier_agreement' ? 'Carrier Agreement' : 'SA';
-  return `${data.usedAt ? `Signed ${doc}` : doc} ${number}${version}.pdf`;
+  return `${data.usedAt ? `Signed ${doc}` : doc} ${number}${version}${voided ? ' VOID' : ''}.pdf`;
 }

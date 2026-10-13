@@ -33,8 +33,12 @@ export interface SignedAgreementData {
   signature: AgreementSignature | null;
   /** Who the link was emailed to. */
   sentTo: string;
-  /** "Replaced by version 3 on October 9, 2026", for a version superseded before or after signing. */
-  supersededNote: string;
+  /**
+   * Why this version no longer counts — "Replaced by a later version on
+   * October 9, 2026" — or '' while it is in force. Non-empty stamps VOID
+   * across every page. See voidNoteFor() in src/lib/signedAgreements.ts.
+   */
+  voidNote: string;
   generatedAt: string;
 }
 
@@ -84,6 +88,14 @@ const s = StyleSheet.create({
   sigLine:   { fontSize: 8, color: '#047857', marginBottom: 2 },
   footer:    { borderTopWidth: 1, borderTopColor: GRAY, borderTopStyle: 'solid', paddingTop: 8, marginTop: 4, flexDirection: 'row', justifyContent: 'space-between' },
   footerTxt: { fontSize: 7, color: '#9ca3af' },
+  // The VOID stamp: the whole page, so it sits over the middle of every page
+  // whatever its length. Red at low opacity, so the agreement underneath stays
+  // readable as a record of what was sent — it is void, not erased.
+  voidLayer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  voidMark:  { fontSize: 150, fontFamily: 'Helvetica-Bold', color: '#dc2626', opacity: 0.16, transform: 'rotate(-35deg)', letterSpacing: 12 },
+  voidBox:   { borderWidth: 1.5, borderColor: '#dc2626', borderStyle: 'solid', backgroundColor: '#fef2f2', borderRadius: 3, padding: 8, marginBottom: 10 },
+  voidHead:  { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#b91c1c', marginBottom: 2 },
+  voidTxt:   { fontSize: 8, color: '#991b1b' },
 });
 
 const LOGO_PATH = path.join(process.cwd(), 'public', 'logo-circle.png');
@@ -142,20 +154,24 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
           <View style={s.hRight}>
             <Text style={s.hNum}>{f.orderNumber}</Text>
             {f.version ? <Text style={s.hDate}>Version {f.version}</Text> : null}
-            <Text style={s.hDate}>{sig ? 'Signed' : 'Not signed'}</Text>
+            <Text style={s.hDate}>{d.voidNote ? 'VOID' : sig ? 'Signed' : 'Not signed'}</Text>
           </View>
         </View>
 
-        {!sig && (
-          <View style={[s.banner, { borderColor: '#fcd34d', backgroundColor: '#fffbeb' }]}>
-            <Text style={{ fontSize: 8, color: '#92400e' }}>
-              COPY — this version was sent to the {carrier ? 'carrier' : 'client'} and was not signed.{d.supersededNote ? ` ${d.supersededNote}.` : ''}
+        {d.voidNote ? (
+          <View style={s.voidBox}>
+            <Text style={s.voidHead}>VOID — THIS VERSION IS NO LONGER VALID</Text>
+            <Text style={s.voidTxt}>
+              {d.voidNote}. {sig
+                ? `It was signed by the ${carrier ? 'carrier' : 'client'} at the time and is kept as a record only.`
+                : `It was sent to the ${carrier ? 'carrier' : 'client'} and never signed.`} Only the latest {docName} for this load applies.
             </Text>
           </View>
-        )}
-        {sig && d.supersededNote ? (
-          <View style={[s.banner, { borderColor: GRAY, backgroundColor: LGRAY }]}>
-            <Text style={{ fontSize: 8, color: '#374151' }}>{d.supersededNote}. This is the version the client signed at the time.</Text>
+        ) : !sig ? (
+          <View style={[s.banner, { borderColor: '#fcd34d', backgroundColor: '#fffbeb' }]}>
+            <Text style={{ fontSize: 8, color: '#92400e' }}>
+              COPY — this version was sent to the {carrier ? 'carrier' : 'client'} and was not signed.
+            </Text>
           </View>
         ) : null}
 
@@ -258,6 +274,13 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
             <Text style={[s.sigLine, { marginTop: 4, color: '#6b7280' }]}>
               Signed electronically under the E-SIGN Act. The signer&apos;s name, title, IP address, device, and the date and time of signing were recorded at submission.
             </Text>
+          </View>
+        ) : null}
+
+        {/* Last, so it is drawn over the content; `fixed` repeats it on every page. */}
+        {d.voidNote ? (
+          <View style={s.voidLayer} fixed>
+            <Text style={s.voidMark}>VOID</Text>
           </View>
         ) : null}
 

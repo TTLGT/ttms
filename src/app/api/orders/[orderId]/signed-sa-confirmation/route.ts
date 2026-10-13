@@ -13,6 +13,7 @@ import { signatureTime } from '@/lib/signed-agreement-pdf';
 import { orderDisplayNumber } from '@/types/order';
 import { ORDER_FILES_COLLECTION, SIGNED_AGREEMENT_KIND, orderFilePath } from '@/types/orderFile';
 import { AGREEMENT_NAME, cleanCcList, isAgreementParty, type AgreementParty } from '@/types/saRequest';
+import { millisOf, partyChangedAt } from '@/lib/signedSaProof';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -68,9 +69,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: 'Email sending is not configured' }, { status: 503 });
     }
 
+    // Only copies uploaded since this party last changed: the previous
+    // carrier's signed paper must never be mailed to the new one as theirs.
+    const since = partyChangedAt(order as Record<string, unknown>, party);
     const snap = await adminDb.collection(ORDER_FILES_COLLECTION)
       .where('orderId', '==', orderId).where('kind', '==', SIGNED_AGREEMENT_KIND[party]).get();
-    if (snap.empty) {
+    const signedDocs = snap.docs.filter((d) => millisOf(d.data().createdAt) > since);
+    if (signedDocs.length === 0) {
       return NextResponse.json({ error: `Upload the signed ${name} first.` }, { status: 409 });
     }
 
@@ -97,7 +102,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const review = await requestRef(party, orderId).get();
     const cc = cleanCcList(review.data()?.ccEmails).filter((e) => e !== to.toLowerCase());
 
-    const docs = snap.docs.sort((a, b) =>
+    const docs = signedDocs.sort((a, b) =>
       (a.data().createdAt?.toMillis?.() ?? 0) - (b.data().createdAt?.toMillis?.() ?? 0));
     const total = docs.reduce((n, d) => n + (Number(d.data().size) || 0), 0);
     if (total > MAX_ATTACHMENT_BYTES) {

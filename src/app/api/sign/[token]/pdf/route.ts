@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
-import { agreementFileName, agreementPdf } from '@/lib/signedAgreements';
+import { agreementFileName, agreementPdf, voidNoteFor } from '@/lib/signedAgreements';
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -36,11 +36,15 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
   if (!d || (d.type !== 'shipper_agreement' && d.type !== 'carrier_agreement') || d.revokedAt || !d.usedAt) {
     return NextResponse.json({ error: 'There is no signed agreement on this link.' }, { status: 404 });
   }
-  const buffer = await agreementPdf(d, true);
+  // Still the copy they signed — but stamped VOID if a later agreement has
+  // replaced it (a carrier's, once the load went out to somebody else), so
+  // the signer's own download says it no longer stands.
+  const voidNote = await voidNoteFor(d, d, true);
+  const buffer = await agreementPdf(d, voidNote);
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${agreementFileName(d).replace(/"/g, '')}"`,
+      'Content-Disposition': `attachment; filename="${agreementFileName(d, Boolean(voidNote)).replace(/"/g, '')}"`,
       'Cache-Control': 'private, no-store',
       'X-Robots-Tag': 'noindex',
     },

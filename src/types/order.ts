@@ -927,6 +927,14 @@ export interface Order {
   paperCaConfirmedTo?: string | null;
   paperCaConfirmedByName?: string | null;
   /**
+   * When the client / carrier was last swapped for another one — server-kept,
+   * stamped by planPartySwap() in src/lib/orderWrites.ts. Signed paper
+   * uploaded before it belongs to the previous party and no longer counts as
+   * proof for signing by hand. Absent on a load that never changed.
+   */
+  clientChangedAt?: Timestamp | null;
+  carrierChangedAt?: Timestamp | null;
+  /**
    * Mirror of `signatureWaivedAt != null`, and the only reason it exists is
    * that Firestore cannot ask "is this field null or absent" in one query.
    * The dashboard's unsigned-agreements count is an aggregation, so it needs a

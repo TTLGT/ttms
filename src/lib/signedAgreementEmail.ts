@@ -3,7 +3,7 @@ import { adminDb } from './firebase-admin';
 import { recordEvent } from './recordHistory';
 import { clientAgreementRef } from './clientAgreements';
 import { signUrl } from './appUrl';
-import { agreementFileName, agreementPdf } from './signedAgreements';
+import { agreementFileName, agreementPdf, voidNoteFor } from './signedAgreements';
 import { signatureTime } from './signed-agreement-pdf';
 import { cleanCcList } from '@/types/saRequest';
 
@@ -41,7 +41,9 @@ export async function emailSignedAgreement(token: string): Promise<void> {
   const pointer = !carrier && d.orderId ? (await clientAgreementRef(String(d.orderId)).get()).data() : undefined;
   const cc = cleanCcList(carrier ? d.cc : pointer?.cc).filter((e) => e !== to.toLowerCase());
 
-  const pdf = await agreementPdf(d, true);
+  // Just signed, so normally in force; asked anyway, so the email never
+  // attaches an unmarked copy of something already replaced.
+  const pdf = await agreementPdf(d, await voidNoteFor(d, d, true));
   const orderNumber = String(d.orderNumber ?? '');
   const signedAt = signatureTime(d.usedAt.toDate());
   const replyTo = typeof d.sentByEmail === 'string' && d.sentByEmail.includes('@') ? d.sentByEmail : undefined;

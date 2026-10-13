@@ -728,11 +728,17 @@ export default function OrderDetailPage() {
       await updateOrder(orderId, patch);
       // A new carrier: the save switched off the old carrier's link, so the
       // section goes back to a first send, and the versions list refetches.
-      if (patch.carrierId !== (order.carrierId ?? null)) {
+      const carrierChanged = patch.carrierId !== (order.carrierId ?? null);
+      setOrder({ ...order, ...patch });
+      if (carrierChanged) {
         setAgreementSentTo('');
         setCaRefresh((n) => n + 1);
+        // The save may also have cleared the old carrier's signature and
+        // stepped the status back (planPartySwap in orderWrites.ts), which
+        // the patch above knows nothing about — read the order as saved.
+        const fresh = await getOrder(orderId).catch(() => null);
+        if (fresh?.status === 'ok') setOrder(fresh.order);
       }
-      setOrder({ ...order, ...patch });
       setAssigningCarrier(false);
       // The carrier is the single most asked-about fact on a load, so it is
       // the one worth the room hearing without anybody having to say it.

@@ -677,6 +677,17 @@ CC list (never the client — it quotes carrier pay), and records
 Moving a load to **Carrier Signed** by hand needs at least one `signed_ca`
 file (`signedSaProof(orderId, 'carrier')`), enforced in `updateOrderAsCaller()`.
 
+**Changing the client or carrier undoes their signature** (2026-10-13,
+`planPartySwap()` in `src/lib/orderWrites.ts`, in the same save). The
+previous party's e-signature fields and `paper*Confirmed*` come off the
+order, and `clientChangedAt` / `carrierChangedAt` is stamped, after which
+`signedSaProof()` and the confirmation email count only signed paper
+uploaded since then. The status steps back only from that party's own
+signed step: Client Signed → Booked; Carrier Signed → Client Signed, or
+Booked when the client side was only a waiver. A load in transit or later
+keeps its status. Assigning a first carrier changes nothing. A waiver is not
+touched: it is a recorded decision about the load and is never cleared.
+
 **A signed SA by hand.** Moving a load to Client Signed without an
 e-signature needs at least one `orderFiles` of kind `signed_sa` or
 `loadPhotos` of stage `signed_sa` on it (`signedSaProof()` in
@@ -798,6 +809,15 @@ show what the order says today instead of what was signed.
   `ref`, the newest signed one. A ref from another load opens nothing.
   The versions list offers each one as **Preview** (drawn in the page by the
   browser's PDF viewer, from the same response) or **PDF** (saved).
+- **A version that no longer counts is stamped VOID** — across every page,
+  with a red notice saying why, and `VOID` in the file name. `voidNoteFor()`
+  in `src/lib/signedAgreements.ts` is the one definition: a client version
+  replaced by a revision, a link cancelled because the client or carrier
+  changed, or a carrier link with a later carrier link on the load. Every
+  render asks it — the staff download and preview, the signer's own
+  download (`GET /api/sign/[token]/pdf`) and the signed-copy email. A copy
+  already emailed before it was replaced cannot be changed; anything drawn
+  since says VOID.
 - `?party=carrier` on both does the same for the Carrier Agreement. Each
   carrier send is its own link, so its versions are its links in order (the
   token's `version`, or its place in the list for links sent before

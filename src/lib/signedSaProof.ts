@@ -17,21 +17,48 @@ import { LOAD_PHOTOS_COLLECTION } from '@/types/loadPhoto';
  * would say the client signed with nothing on the load to show they did. An
  * e-signature needs none of this: it is its own record.
  *
- * Two counts, each two equality filters, which Firestore serves from
- * single-field indexes — nothing to deploy. The same shape as the truck
- * pictures count in saGateFactsFor().
+ * Only copies uploaded since the client or carrier last changed count
+ * (`clientChangedAt` / `carrierChangedAt`, see planPartySwap() in
+ * orderWrites.ts): the old carrier's signed paper is not the new carrier's
+ * signature. Pass the order so that cut-off can be read; without it every
+ * copy on the load counts, as before.
+ *
+ * Two queries, each two equality filters, which Firestore serves from
+ * single-field indexes — nothing to deploy. The cut-off is applied in
+ * memory, since a load holds a handful of these at most.
  */
-export async function signedSaProof(orderId: string, party: AgreementParty = 'client'): Promise<{ files: number; photos: number }> {
+export async function signedSaProof(
+  orderId: string,
+  party: AgreementParty = 'client',
+  order?: Record<string, unknown>,
+): Promise<{ files: number; photos: number }> {
+  const since = partyChangedAt(order, party);
   const [files, photos] = await Promise.all([
     adminDb.collection(ORDER_FILES_COLLECTION)
-      .where('orderId', '==', orderId).where('kind', '==', SIGNED_AGREEMENT_KIND[party]).count().get(),
+      .where('orderId', '==', orderId).where('kind', '==', SIGNED_AGREEMENT_KIND[party]).get(),
     // The Pictures "Signed SA" stage is the client's only.
     party === 'client'
       ? adminDb.collection(LOAD_PHOTOS_COLLECTION)
-        .where('orderId', '==', orderId).where('stage', '==', 'signed_sa').count().get()
+        .where('orderId', '==', orderId).where('stage', '==', 'signed_sa').get()
       : null,
   ]);
-  return { files: files.data().count, photos: photos?.data().count ?? 0 };
+  const fresh = (d: FirebaseFirestore.QueryDocumentSnapshot) => millisOf(d.data().createdAt) > since;
+  return { files: files.docs.filter(fresh).length, photos: photos?.docs.filter(fresh).length ?? 0 };
+}
+
+/** A stored time as milliseconds — a Firestore Timestamp or a plain number. 0 when absent. */
+export function millisOf(v: unknown): number {
+  if (typeof v === 'number') return v;
+  const t = v as { toMillis?: () => number } | null | undefined;
+  return typeof t?.toMillis === 'function' ? t.toMillis() : 0;
+}
+
+/**
+ * When this party last changed on the load, in milliseconds; 0 when it never
+ * has. A signed copy uploaded before then belongs to whoever was on it.
+ */
+export function partyChangedAt(order: Record<string, unknown> | undefined, party: AgreementParty): number {
+  return millisOf(order?.[party === 'carrier' ? 'carrierChangedAt' : 'clientChangedAt']);
 }
 
 export const NO_SIGNED_CA_PROOF =
