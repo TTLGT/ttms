@@ -766,6 +766,18 @@ license, truck pictures, payment setup — and send from the review.
   has unticked items, copies `ccEmails`, numbers each carrier link
   (`version` on the token — the nth carrier link for the load), and records
   each send into the round (or a `direct-{ms}` round), as the SA's send does.
+- **Resending** (2026-10-13) is the same route, offered as Resend on the
+  order and on a review in `sent`. A carrier resend is a new link, so it sets
+  `replacedAt` on every earlier carrier link that is unsigned and not
+  revoked: the sign route and page refuse a replaced link, so only the newest
+  — with the load as it is now — can be signed. A signed link is never
+  marked. The route refuses once `carrierSignedAt` is set. A client resend
+  is unchanged: the same link, seven more days (`kind: 'resend'`).
+- **Changing the carrier** (`updateOrderAsCaller()`, same batch as the
+  change) sets `revokedAt` and `revokedReason: 'carrier_changed'` on every
+  unsigned carrier link for the load, and writes a change-log line saying so.
+  A signed link is kept as it is: it is the record of what that carrier agreed.
+  Staff still read every version — Preview or PDF — in the versions list.
 - The carrier items moved off the SA review on 2026-10-09. SA rounds from
   before keep their carrier ticks and still show them in the record.
 - `GET /api/sa-rounds?party=carrier` is the carrier verification record;
@@ -784,6 +796,8 @@ show what the order says today instead of what was signed.
   links if the client changed), for anyone who can see the load.
 - `GET /api/orders/{id}/agreements/pdf?ref={token}~{n}` renders one; with no
   `ref`, the newest signed one. A ref from another load opens nothing.
+  The versions list offers each one as **Preview** (drawn in the page by the
+  browser's PDF viewer, from the same response) or **PDF** (saved).
 - `?party=carrier` on both does the same for the Carrier Agreement. Each
   carrier send is its own link, so its versions are its links in order (the
   token's `version`, or its place in the list for links sent before

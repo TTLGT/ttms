@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "3dfda2500c41edb830d6d361cf1a9d5123eb2f7f",
+      "date": "2026-10-13T07:34:47-06:00",
+      "author": "erwindank",
+      "subject": "Let the planning card use a task or event from earlier in the same day, week or month",
+      "body": "\"Use one you have\" only offered items dated today or later, so a plan\nmade on Monday could not stand as this week's planning by Wednesday. It\nnow offers anything from the start of the period the kind is for: today\nfor the morning and end-of-day ones, this Monday for weekly, the first\nof the month for monthly (planningPeriodStart()). The planning GET uses\nthe same rule, so a linked item keeps counting for its period instead\nof the card asking again on the next page load."
+    },
+    {
       "hash": "f93613dc234afd8ab0411b647c3d4b60e0760f93",
       "date": "2026-10-09T18:36:30-06:00",
       "author": "erwindank",

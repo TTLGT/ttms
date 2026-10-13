@@ -58,6 +58,21 @@ export default async function SignPage({ params }: Props) {
     );
   }
 
+  // Replaced by a later send of the carrier agreement — see send-agreement.
+  // A signed link is never replaced, so this only meets an unsigned one.
+  if (data.replacedAt && !data.usedAt) {
+    return (
+      <Shell title={pageTitle}>
+        <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-10 text-center">
+          <p className="text-4xl mb-4">🔗</p>
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">A Newer Version Was Sent</h2>
+          <p className="text-sm text-gray-500">This link has been replaced. Please open the most recent email we sent you and sign from there.</p>
+          <p className="text-xs text-gray-400 mt-3">Order {data.orderNumber}</p>
+        </div>
+      </Shell>
+    );
+  }
+
   if (data.heldAt) {
     return (
       <Shell title={pageTitle}>

@@ -335,6 +335,27 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
                   Send {short}{review.sendTo ? ` to ${review.sendTo.email}` : ''}
                 </button>
               )}
+              {/* Resend, for an email that did not arrive or a link that ran
+                  out. Same route as the first send, so it lands in this
+                  record's sends. A signed agreement is refused by the route. */}
+              {r.status === 'sent' && review.sendTo && (
+                <button type="button" disabled={busy !== ''}
+                  onClick={() => void run('resend', async () => {
+                    const copied = r.ccEmails.length ? `
+
+Copied to: ${r.ccEmails.join(', ')}` : '';
+                    if (!confirm((carrier
+                      ? `Email the ${name} to ${review.sendTo?.email} again? They get a new link with the load as it is now, and the one sent before stops working.`
+                      : `Email the ${name} to ${review.sendTo?.email} again? It is the same link, and it will work for another seven days.`) + copied)) return;
+                    await sendAgreementFor(orderId, party);
+                    trackActivity('agreementsSent');
+                    onSent?.();
+                  })}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-brand-300 px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:opacity-50">
+                  {busy === 'resend' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Resend
+                </button>
+              )}
               {r.status === 'sent' && (
                 <button type="button" disabled={busy !== '' || left.length > 0}
                   onClick={() => void run('done', () => markSaDone(orderId, party))}

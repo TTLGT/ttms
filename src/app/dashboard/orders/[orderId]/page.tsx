@@ -64,7 +64,7 @@ import OrderReadinessCard from '@/components/orders/OrderReadinessCard';
 import { RequestSaButton, SaRequestPanel } from '@/components/orders/SaRequestPanel';
 import SaVerificationRecord from '@/components/orders/SaVerificationRecord';
 import SaAgreementVersions from '@/components/orders/SaAgreementVersions';
-import { fetchSignedSaProof } from '@/lib/orderPaperwork';
+import { fetchSignedSaProof, listAgreementVersions } from '@/lib/orderPaperwork';
 import SignedSaUploads from '@/components/orders/SignedSaUploads';
 import ClientSignLink from '@/components/orders/ClientSignLink';
 import { useAuth } from '@/context/AuthContext';
@@ -329,6 +329,26 @@ export default function OrderDetailPage() {
   // shipper e-sign state
   const [sendingShipperAgreement, setSendingShipperAgreement] = useState(false);
   const [shipperAgreementSentTo, setShipperAgreementSentTo]   = useState('');
+
+  /*
+   * Whether the carrier agreement has already gone out, so a reload shows
+   * "sent — Resend" rather than offering a first send that is really a second.
+   * The newest link is the live one; unsigned and not cancelled means it is
+   * still waiting. Asked only of somebody who can send — nobody else is
+   * offered the button — and only while the carrier has not signed.
+   */
+  const caPending = Boolean(order?.carrierId && !order.carrierSignedAt && can('orders.sendAgreement'));
+  useEffect(() => {
+    if (!caPending) return;
+    let live = true;
+    listAgreementVersions(orderId, 'carrier')
+      .then((vs) => {
+        const latest = vs.find((v) => v.current && !v.revoked && !v.signed);
+        if (live && latest) setAgreementSentTo((prev) => prev || latest.sentTo || 'the carrier');
+      })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [caPending, orderId, order?.carrierId]);
 
   // Dispatching without the client's signature. The reason box is open by
   // default rather than a confirm dialog: this is a decision somebody will be
@@ -706,6 +726,12 @@ export default function OrderDetailPage() {
         driverLicenseStoragePath: driverLicensePath,
       };
       await updateOrder(orderId, patch);
+      // A new carrier: the save switched off the old carrier's link, so the
+      // section goes back to a first send, and the versions list refetches.
+      if (patch.carrierId !== (order.carrierId ?? null)) {
+        setAgreementSentTo('');
+        setCaRefresh((n) => n + 1);
+      }
       setOrder({ ...order, ...patch });
       setAssigningCarrier(false);
       // The carrier is the single most asked-about fact on a load, so it is
@@ -736,7 +762,32 @@ export default function OrderDetailPage() {
       setError(e instanceof Error ? e.message : 'Failed to send agreement');
     } finally {
       setSendingAgreement(false);
+      // The versions list and the review record both gained a send.
+      setCaRefresh((n) => n + 1);
     }
+  }
+
+  /*
+   * Resending, for a client or carrier who lost the email, never got it, or
+   * let the link run out. Asked first because it emails somebody outside the
+   * company. The two differ underneath, and the question says how: the
+   * client's link is the same one with seven more days, while the carrier
+   * gets a new link and the old one stops working (see send-agreement).
+   */
+  function resendShipperAgreement() {
+    if (!confirm(`Email the load confirmation to the client again${shipperAgreementSentTo ? ` (${shipperAgreementSentTo})` : ''}?
+
+`
+      + 'It is the same link, and it will work for another seven days.')) return;
+    void handleSendShipperAgreement();
+  }
+
+  function resendAgreement() {
+    if (!confirm(`Email the carrier agreement to the carrier again${agreementSentTo ? ` (${agreementSentTo})` : ''}?
+
+`
+      + 'They get a new link with the load as it is now. The link sent before stops working.')) return;
+    void handleSendAgreement();
   }
 
   async function handleSendShipperAgreement() {
@@ -1417,9 +1468,17 @@ export default function OrderDetailPage() {
                   </span>
                 </div>
               ) : shipperAgreementSentTo ? (
-                <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                  <span>✉</span>
-                  <span>Load confirmation sent to <strong>{shipperAgreementSentTo}</strong> — awaiting signature</span>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                  <span>✉ Load confirmation sent to <strong>{shipperAgreementSentTo}</strong> — awaiting signature</span>
+                  {can('orders.sendAgreement') && (
+                    <button
+                      onClick={resendShipperAgreement}
+                      disabled={sendingShipperAgreement}
+                      className="px-3 py-1 bg-white text-brand-700 border border-brand-200 text-xs font-semibold rounded-lg hover:bg-brand-50 disabled:opacity-50 transition"
+                    >
+                      {sendingShipperAgreement ? 'Sending…' : 'Resend'}
+                    </button>
+                  )}
                 </div>
               ) : !can('orders.sendAgreement') ? (
                 // Sending is admin and dispatch's, after their review. A
@@ -1443,7 +1502,11 @@ export default function OrderDetailPage() {
               {/* The live link, for sending another way. Its own fetch, and
                   only while unsigned: a signed link cannot be used again. */}
               {!(order.shipperSignedAt || order.shipperSignerName) && (
-                <ClientSignLink orderId={orderId} refreshKey={linkRefresh} />
+                <ClientSignLink
+                  orderId={orderId}
+                  refreshKey={linkRefresh}
+                  onSent={(to) => setShipperAgreementSentTo((prev) => prev || to)}
+                />
               )}
 
               {/* A client who cannot sign on the link: staff upload what they
@@ -1553,9 +1616,17 @@ export default function OrderDetailPage() {
                     </span>
                   </div>
                 ) : agreementSentTo ? (
-                  <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                    <span>✉</span>
-                    <span>Agreement sent to <strong>{agreementSentTo}</strong> — awaiting signature</span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                    <span>✉ Agreement sent to <strong>{agreementSentTo}</strong> — awaiting signature</span>
+                    {can('orders.sendAgreement') && (
+                      <button
+                        onClick={resendAgreement}
+                        disabled={sendingAgreement}
+                        className="px-3 py-1 bg-white text-brand-700 border border-brand-200 text-xs font-semibold rounded-lg hover:bg-brand-50 disabled:opacity-50 transition"
+                      >
+                        {sendingAgreement ? 'Sending…' : 'Resend'}
+                      </button>
+                    )}
                   </div>
                 ) : !awaitingCarrierSignature ? null : clientSignatureSatisfied(order) ? (
                   <>

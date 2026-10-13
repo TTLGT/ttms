@@ -1,16 +1,20 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronDown, ChevronRight, Download, Loader2 } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { ChevronDown, ChevronRight, Download, Eye, Loader2 } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { downloadAgreementPdf, listAgreementVersions, type AgreementVersion } from '@/lib/orderPaperwork';
+import {
+  downloadAgreementPdf, listAgreementVersions, previewAgreementPdf, type AgreementVersion,
+} from '@/lib/orderPaperwork';
+import AgreementPdfPreview from './AgreementPdfPreview';
 
 /**
  * The client's Shipper Agreement as files, in Client Confirmation: the signed
  * one as a PDF, and every version the load has had — each sent, signed or
  * replaced — downloadable as it was. See src/lib/signedAgreements.ts.
  *
- * The list is read only when opened.
+ * The list is read only when opened. Each version can be previewed on screen
+ * or downloaded; both draw the same stored copy.
  */
 export default function SaAgreementVersions({ orderId, signed, refreshKey, party = 'client' }: {
   orderId: string;
@@ -26,6 +30,12 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [loadedFor, setLoadedFor] = useState<unknown>(null);
+  const [preview, setPreview] = useState<{ url: string; name: string; title: string } | null>(null);
+  const doc = party === 'carrier' ? 'Carrier Agreement' : 'SA';
+
+  const closePreview = useCallback(() => {
+    setPreview((p) => { if (p) URL.revokeObjectURL(p.url); return null; });
+  }, []);
 
   function toggle() {
     const next = !open;
@@ -49,14 +59,49 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
     }
   }
 
+  async function show(key: string, title: string, ref?: string) {
+    setBusy(`view-${key}`);
+    setError('');
+    try {
+      const { url, name } = await previewAgreementPdf(orderId, ref, party);
+      setPreview({ url, name, title });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not build the SA');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  // Saves the file already on screen rather than rendering it a second time.
+  function saveShown() {
+    if (!preview) return;
+    const a = document.createElement('a');
+    a.href = preview.url;
+    a.download = preview.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  const previewButton = (key: string, title: string, ref?: string) => (
+    <button type="button" onClick={() => void show(key, title, ref)} disabled={busy !== ''}
+      className="inline-flex items-center gap-1 px-2.5 py-1 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50">
+      {busy === `view-${key}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+      Preview
+    </button>
+  );
+
   return (
     <div className="mt-3 space-y-2">
       {signed && (
-        <button type="button" onClick={() => void download('signed')} disabled={busy !== ''}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 transition">
-          {busy === 'signed' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-          {party === 'carrier' ? 'Download signed Carrier Agreement' : 'Download signed SA'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => void download('signed')} disabled={busy !== ''}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50 transition">
+            {busy === 'signed' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+            Download signed {doc}
+          </button>
+          {previewButton('signed', `Signed ${doc}`)}
+        </div>
       )}
 
       <div>
@@ -90,13 +135,16 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
                       <p className="text-gray-500">Not signed</p>
                     )}
                     {v.supersededAt && <p className="text-gray-400">Replaced {formatDateTime(new Date(v.supersededAt))}</p>}
-                    {v.revoked && <p className="text-amber-700">Link cancelled — the load moved to another client</p>}
+                    {v.revoked && <p className="text-amber-700">Link cancelled — the load moved to another {party === 'carrier' ? 'carrier' : 'client'}</p>}
                   </div>
-                  <button type="button" onClick={() => void download(v.ref, v.ref)} disabled={busy !== ''}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50">
-                    {busy === v.ref ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                    PDF
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {previewButton(v.ref, `${doc} version ${v.version}`, v.ref)}
+                    <button type="button" onClick={() => void download(v.ref, v.ref)} disabled={busy !== ''}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50">
+                      {busy === v.ref ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                      PDF
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -104,6 +152,9 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
         )}
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       </div>
+      {preview && (
+        <AgreementPdfPreview url={preview.url} title={preview.title} onClose={closePreview} onDownload={saveShown} />
+      )}
     </div>
   );
 }

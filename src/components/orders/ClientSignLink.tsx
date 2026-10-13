@@ -27,8 +27,16 @@ type SignLink = {
  *
  * `refreshKey` changes when the order page sends an SA, so the box picks up
  * the new state without a reload.
+ *
+ * `onSent` tells the page the SA already went out, so after a reload it
+ * offers Resend rather than a first send. Only for a live or expired link: a
+ * held one waits on dispatch's review, and sending it is the review's job.
  */
-export default function ClientSignLink({ orderId, refreshKey }: { orderId: string; refreshKey?: unknown }) {
+export default function ClientSignLink({ orderId, refreshKey, onSent }: {
+  orderId: string;
+  refreshKey?: unknown;
+  onSent?: (sentTo: string) => void;
+}) {
   const { formatDate } = useDateFormatters();
   const [link, setLink] = useState<SignLink | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -44,9 +52,15 @@ export default function ClientSignLink({ orderId, refreshKey }: { orderId: strin
         headers: { Authorization: `Bearer ${await user.getIdToken()}` },
       });
       const body = await res.json().catch(() => ({}));
-      if (!cancelled && res.ok) setLink((body as { link: SignLink | null }).link);
+      if (cancelled || !res.ok) return;
+      const next = (body as { link: SignLink | null }).link;
+      setLink(next);
+      if (next && (next.state === 'live' || next.state === 'expired')) onSent?.(next.sentTo || 'the client');
     })().catch(() => {}).finally(() => { if (!cancelled) setLoaded(true); });
     return () => { cancelled = true; };
+    // onSent is left out on purpose: the page passes a new arrow each render,
+    // and refetching on every render would read the link in a loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, refreshKey]);
 
   const preview = (

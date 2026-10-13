@@ -66,6 +66,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     );
   }
 
+  // A resend is for a carrier who has not signed yet. Once they have, a new
+  // link would ask for a second signature on a load already confirmed — the
+  // same refusal the SA route gives. Their signed copy is on the order.
+  if (order.carrierSignedAt) {
+    return NextResponse.json({ error: 'The carrier has already signed this agreement.' }, { status: 409 });
+  }
+
   const carrierSnap = await adminDb.collection('carriers').doc(order.carrierId).get();
   if (!carrierSnap.exists) {
     return NextResponse.json({ error: 'Carrier not found' }, { status: 404 });
@@ -103,8 +110,22 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
    * for this load is version n. One equality filter and the type in memory —
    * no composite index.
    */
-  const earlier = await adminDb.collection('signing_tokens').where('orderId', '==', orderId).get();
-  const version = earlier.docs.filter((d) => d.data().type === 'carrier_agreement').length + 1;
+  const earlier = (await adminDb.collection('signing_tokens').where('orderId', '==', orderId).get())
+    .docs.filter((d) => d.data().type === 'carrier_agreement');
+  const version = earlier.length + 1;
+  /*
+   * A resend switches off every earlier link the carrier has not signed.
+   * Each send is a fresh link with the load as it stands now, so an older one
+   * may quote a pay or a date that has since changed — and the sign route
+   * would take a signature on it all the same. Only the newest can be signed.
+   * A signed link is never touched: it is the legal record of what they
+   * agreed to. See `replacedAt` in the sign route.
+   */
+  const stale = earlier.filter((d) => {
+    const x = d.data();
+    return !x.usedAt && !x.revokedAt && !x.replacedAt;
+  });
+  const kind: 'new' | 'resend' = earlier.length > 0 ? 'resend' : 'new';
   const actor   = await actorForUid(caller.uid, caller.email).catch(() => null);
 
   const token      = randomBytes(32).toString('hex');
@@ -123,7 +144,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(order.carrierPay)
     : '—';
 
-  await adminDb.collection('signing_tokens').doc(token).set({
+  const batch = adminDb.batch();
+  for (const d of stale) batch.update(d.ref, { replacedAt: now });
+  batch.set(adminDb.collection('signing_tokens').doc(token), {
     orderId,
     carrierId:    order.carrierId,
     carrierEmail: carrier.email,
@@ -158,6 +181,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     sentByEmail:  caller.email ?? '',
     lastSentAt:   now,
   });
+  // Before the email, like the SA route: if the send then fails, pressing
+  // Resend again makes another link and switches this one off too.
+  await batch.commit();
 
   const link = signUrl(token);
 
@@ -191,11 +217,15 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   // and failing the request now would invite somebody to send it twice.
   await recordEvent(
     adminDb.collection('orders').doc(orderId),
-    `Emailed the carrier agreement (version ${version}) to the carrier at ${carrier.email}${cc.length ? `, copied to ${cc.join(', ')}` : ''}`,
+    `Emailed the carrier agreement ${kind === 'resend' ? 'again ' : ''}(version ${version}) to the carrier at ${carrier.email}`
+      + `${cc.length ? `, copied to ${cc.join(', ')}` : ''}${stale.length ? '. Earlier unsigned links no longer work' : ''}`,
     actor ?? await actorForUid(caller.uid, caller.email),
   ).catch(() => {});
 
-  await postOrderAlert(orderId, `${agreementSentAlert('carrier', carrier.email)}${cc.length ? ` Copied to ${cc.join(', ')}.` : ''}`).catch(() => {});
+  const line = kind === 'resend'
+    ? `The carrier agreement was emailed again to ${carrier.email} (version ${version}), with a new link.${stale.length ? ' Earlier links no longer work.' : ''}`
+    : agreementSentAlert('carrier', carrier.email);
+  await postOrderAlert(orderId, `${line}${cc.length ? ` Copied to ${cc.join(', ')}.` : ''}${actor ? ` Sent by ${actor.name}.` : ''}`).catch(() => {});
 
   await recordCarrierSend().catch(() => {});
 
@@ -207,7 +237,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
    */
   async function recordCarrierSend() {
     const sentByName = actor?.name ?? caller.email ?? 'Dispatch';
-    const send = sendEntry({ byName: sentByName, sentTo: carrier.email, cc, version, kind: 'new' }, now);
+    const send = sendEntry({ byName: sentByName, sentTo: carrier.email, cc, version, kind }, now);
     const frozen = await buildSaReview(orderId, order, false, 'carrier').then(freezeReview).catch(() => null);
     const reqRef = requestRef('carrier', orderId);
     await adminDb.runTransaction(async (tx) => {
@@ -248,7 +278,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     });
   }
 
-  return NextResponse.json({ success: true, sentTo: carrier.email });
+  return NextResponse.json({ success: true, sentTo: carrier.email, kind, version });
 }
 
 function buildEmailHtml(p: {

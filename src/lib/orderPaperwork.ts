@@ -67,7 +67,8 @@ export async function listAgreementVersions(orderId: string, party: 'client' | '
  * Saves one version of the SA as a PDF — `ref` from the list, or none for
  * the newest signed one. Fetched with the ID token, like the quote.
  */
-export async function downloadAgreementPdf(orderId: string, ref?: string, party: 'client' | 'carrier' = 'client'): Promise<void> {
+/** One agreement PDF as a file: the same render for downloading and for previewing. */
+async function fetchAgreementPdf(orderId: string, ref: string | undefined, party: 'client' | 'carrier'): Promise<{ blob: Blob; name: string }> {
   const q = ref ? `?ref=${encodeURIComponent(ref)}` : `?party=${party}`;
   const res = await fetch(`/api/orders/${orderId}/agreements/pdf${q}`, { headers: await authHeaders() });
   if (!res.ok) {
@@ -76,6 +77,11 @@ export async function downloadAgreementPdf(orderId: string, ref?: string, party:
   }
   const blob = await res.blob();
   const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'Shipper Agreement.pdf';
+  return { blob, name };
+}
+
+export async function downloadAgreementPdf(orderId: string, ref?: string, party: 'client' | 'carrier' = 'client'): Promise<void> {
+  const { blob, name } = await fetchAgreementPdf(orderId, ref, party);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -84,6 +90,16 @@ export async function downloadAgreementPdf(orderId: string, ref?: string, party:
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+/**
+ * The same PDF as a `blob:` URL to show on screen. The caller revokes it when
+ * the preview closes. Typed as a PDF explicitly so the browser's own viewer
+ * draws it rather than offering it as a download.
+ */
+export async function previewAgreementPdf(orderId: string, ref?: string, party: 'client' | 'carrier' = 'client'): Promise<{ url: string; name: string }> {
+  const { blob, name } = await fetchAgreementPdf(orderId, ref, party);
+  return { url: URL.createObjectURL(new Blob([blob], { type: 'application/pdf' })), name };
 }
 
 /** How many signed-SA copies the load holds. See src/lib/signedSaProof.ts. */

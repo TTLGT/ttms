@@ -117,6 +117,11 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       if (data.revokedAt) {
         throw new SignError('This link is no longer valid. Please contact your dispatcher for a new one.', 410);
       }
+      // A carrier link a later send replaced (see send-agreement). Its terms
+      // may be out of date, so only the newest link takes a signature.
+      if (data.replacedAt && !data.usedAt) {
+        throw new SignError('A newer version of this agreement was sent to you. Please sign from the most recent email.', 410);
+      }
       if (data.heldAt) {
         throw new SignError('This agreement is being updated. You will be sent the new version shortly, on this same link.', 409);
       }

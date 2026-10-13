@@ -206,7 +206,30 @@ export async function updateOrderAsCaller(
    */
   const hold = fields.length ? await planAgreementHold(orderId, after, actorOf(caller), now) : null;
 
+  /*
+   * A new carrier switches off the old carrier's signing links. Otherwise the
+   * carrier taken off the load could still sign a rate confirmation for it,
+   * and the signing route would mark the load Carrier Signed for whoever is
+   * on it now. Only unsigned links: a signed one is the legal record of what
+   * that carrier agreed to and stays readable in the versions list. Same
+   * batch as the change, like the client's hold above. One equality filter,
+   * the type in memory — no composite index — and only when the carrier moved.
+   */
+  const carrierLinks = 'carrierId' in patch && !sameValue(before.carrierId, patch.carrierId)
+    ? (await adminDb.collection('signing_tokens').where('orderId', '==', orderId).get()).docs.filter((d) => {
+      const x = d.data();
+      return x.type === 'carrier_agreement' && !x.usedAt && !x.revokedAt;
+    })
+    : [];
+
   const batch = adminDb.batch();
+  for (const d of carrierLinks) batch.update(d.ref, { revokedAt: now, revokedReason: 'carrier_changed' });
+  if (carrierLinks.length) {
+    writeChange(batch, ref, {
+      action: 'event',
+      summary: `The carrier changed, so the Carrier Agreement link${carrierLinks.length === 1 ? '' : 's'} sent to the previous carrier no longer work${carrierLinks.length === 1 ? 's' : ''}. Send it again for the new carrier.`,
+    }, actorOf(caller), now);
+  }
   if (fields.length) {
     writeChange(batch, ref, handSignedNote
       ? { action: 'event', summary: handSignedNote, fields }
