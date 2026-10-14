@@ -28,14 +28,18 @@ import {
   MAX_ACTIVITY_PER_FLUSH,
   TIME_OFF_COLLECTION,
   addDays,
+  backOnTimeWindow,
   datesBetween,
   dayDocId,
   describeDevice,
   emptyDay,
   isClockedIn,
+  officeClock,
   officeDateOf,
   openBreak,
+  pendingReturn,
   readSchedule,
+  storedBackOnTime,
   summarizeDay,
   timeOffOn,
   type ActivityKind,
@@ -51,7 +55,7 @@ import {
   type TimeOffRequest,
 } from '@/types/attendance';
 import { observedHolidaysInYear, type HolidayOverride } from '@/types/holidays';
-import { effectiveReminders, storedReminderOverride, storedReminderSettings } from '@/types/breakReminders';
+import { effectiveReminders, storedReminderOverride, storedReminderSettings, type SlotReminder } from '@/types/breakReminders';
 import { PRESENCE_COLLECTION, isUserStatus, MAX_STATUS_NOTE, type UserStatus } from '@/types/presence';
 
 /**
@@ -216,6 +220,7 @@ export async function loadConfig(): Promise<AttendanceConfig> {
     alerts: typeof d.alerts === 'boolean' ? d.alerts : DEFAULT_ATTENDANCE_CONFIG.alerts,
     alertAfterMinutes: typeof d.alertAfterMinutes === 'number' ? d.alertAfterMinutes : DEFAULT_ATTENDANCE_CONFIG.alertAfterMinutes,
     reminders: storedReminderSettings(d.reminders),
+    backOnTime: storedBackOnTime(d.backOnTime),
   };
 }
 
@@ -425,6 +430,7 @@ export async function clockState(caller: { uid: string; email: string }, now: nu
   // pay the reads — which is most page loads before the shift and none after.
   const notInYet = !open && !(todayDay?.sessions.length);
   const dueAt = notInYet && reminders.clockIn.enabled ? await dueToday(caller.email, today, now) : null;
+  const returning = open ? pendingReturn(open.day, now) : null;
   return {
     date: open?.date ?? today,
     clockedIn: Boolean(open),
@@ -438,6 +444,10 @@ export async function clockState(caller: { uid: string; email: string }, now: nu
     breaksTaken: [...new Set((day?.breaks ?? []).map((b) => b.kind))],
     reminders,
     dueAt,
+    breakDue: brk && config.backOnTime.enabled
+      ? backOnTimeWindow(brk, reminders[brk.kind], config.backOnTime)
+      : null,
+    returning: returning ? { kind: returning.kind, endsAt: returning.end! } : null,
   };
 }
 
@@ -523,13 +533,34 @@ async function clockDetails(req: Request, email: string, deviceIdRaw: unknown, n
   };
 }
 
-export type ClockAction = 'in' | 'out' | 'breakStart' | 'breakEnd';
+export type ClockAction = 'in' | 'out' | 'breakStart' | 'breakEnd' | 'backOnTime' | 'backOnTimeUndo';
+const CLOCK_ACTIONS: ClockAction[] = ['in', 'out', 'breakStart', 'breakEnd', 'backOnTime', 'backOnTimeUndo'];
 
 /**
- * Clock in, clock out, start or end a break.
+ * How early "Back on time" is accepted ahead of the window the card shows in.
+ * The card is timed by the computer's clock and the window by the server's,
+ * and a computer a few seconds fast should not be refused.
+ */
+const BACK_ON_TIME_SLACK_MS = 60_000;
+
+/** The break and lunch slots "Back on time" ends by: the person's own, else the company's. */
+async function breakSlots(email: string, config: AttendanceConfig): Promise<Record<BreakKind, SlotReminder>> {
+  const prefs = await adminDb.collection(ATTENDANCE_PREFS_COLLECTION).doc(email).get();
+  const r = effectiveReminders(config.reminders, storedReminderOverride(prefs.data()?.reminders));
+  return { break: r.break, lunch: r.lunch };
+}
+
+/**
+ * Clock in, clock out, start or end a break — or end one ahead, at its
+ * scheduled end, with "Back on time".
  *
  * In a transaction, because the button can be pressed twice before the first
  * press comes back, and two clock-ins would be two sessions.
+ *
+ * "Back on time" is the one action that writes a time other than `now`, and
+ * it is still the server's time: the break's own start plus its length, never
+ * anything from the request. It is refused outside the window HR set, and
+ * pressed after the break's end it is an ordinary "Back from break".
  */
 export async function clockAction(
   caller: { uid: string; email: string; name: string },
@@ -538,10 +569,16 @@ export async function clockAction(
   now: number,
 ): Promise<ClockState> {
   const action = body.action as ClockAction;
-  if (!['in', 'out', 'breakStart', 'breakEnd'].includes(action)) throw new AttendanceError('Unknown clock action.');
+  if (!CLOCK_ACTIONS.includes(action)) throw new AttendanceError('Unknown clock action.');
 
   const needsDetails = action === 'in' || action === 'out';
   const details = needsDetails ? await clockDetails(req, caller.email, body.deviceId, now) : null;
+  let backOnTime: { config: AttendanceConfig; slots: Record<BreakKind, SlotReminder> } | null = null;
+  if (action === 'backOnTime') {
+    const config = await loadConfig();
+    if (!config.backOnTime.enabled) throw new AttendanceError('Back on time is switched off. Use Back from break.', 409);
+    backOnTime = { config, slots: await breakSlots(caller.email, config) };
+  }
   const today = officeDateOf(now);
   const yesterday = addDays(today, -1);
 
@@ -566,15 +603,41 @@ export async function clockAction(
     const day = open.day;
     const brk = openBreak(day);
 
+    const returning = pendingReturn(day, now);
+
     if (action === 'out') {
       const sessions = day.sessions.map((s, i) => (i === day.sessions.length - 1 ? { ...s, out: details! } : s));
-      // Clocking out ends a break rather than leaving one running overnight.
-      const breaks = day.breaks.map((b) => (b.end === null ? { ...b, end: now } : b));
+      // Clocking out ends a break rather than leaving one running overnight,
+      // and cuts short one ended ahead whose scheduled end is still to come:
+      // no break may outlast the day it belongs to.
+      const breaks = day.breaks.map((b) => (b.end === null || b.end > now ? { ...b, end: now } : b));
       tx.update(open.ref, { sessions, breaks });
     } else if (action === 'breakStart') {
       if (brk) throw new AttendanceError('You are already on a break.', 409);
+      // Two breaks at once would take the same minutes off twice.
+      if (returning) throw new AttendanceError(`Your ${returning.kind} runs until ${officeClock(returning.end!)}. Start the next one after that.`, 409);
       const kind: BreakKind = body.kind === 'lunch' ? 'lunch' : 'break';
       tx.update(open.ref, { breaks: [...day.breaks, { kind, start: now, end: null }] });
+    } else if (action === 'backOnTime') {
+      if (!brk) throw new AttendanceError('You are not on a break.', 409);
+      const { endsAt, offerFrom } = backOnTimeWindow(brk, backOnTime!.slots[brk.kind], backOnTime!.config.backOnTime);
+      if (now < offerFrom - BACK_ON_TIME_SLACK_MS) {
+        throw new AttendanceError(`Back on time opens at ${officeClock(offerFrom)}. Use Back from ${brk.kind} to end it now.`, 409);
+      }
+      // Past the end already: the break ends now, like the ordinary button.
+      const ended = now >= endsAt ? { end: now } : { end: endsAt, earlyAt: now };
+      tx.update(open.ref, { breaks: day.breaks.map((b) => (b.end === null ? { ...b, ...ended } : b)) });
+    } else if (action === 'backOnTimeUndo') {
+      // "Not back yet": the break is open again, as if the button had not
+      // been pressed. Only until its scheduled end — after that it has ended.
+      if (!returning) throw new AttendanceError('There is no early return to undo.', 409);
+      tx.update(open.ref, {
+        breaks: day.breaks.map((b, i) => {
+          if (i !== day.breaks.length - 1) return b;
+          const { earlyAt: _pressed, ...rest } = b;
+          return { ...rest, end: null };
+        }),
+      });
     } else {
       if (!brk) throw new AttendanceError('You are not on a break.', 409);
       tx.update(open.ref, { breaks: day.breaks.map((b) => (b.end === null ? { ...b, end: now } : b)) });
@@ -590,9 +653,11 @@ export async function clockAction(
 
   // What colleagues see. A break is a status like any other; the clock
   // itself is not — nobody else is told when somebody clocked in.
-  if (action === 'breakStart' || action === 'breakEnd' || action === 'out') {
+  // Back on time counts as back for colleagues at once: they are at the desk,
+  // which is what presence says. The record keeps the break to its end.
+  if (action !== 'in') {
     await adminDb.collection(PRESENCE_COLLECTION).doc(caller.uid)
-      .set({ onBreak: action === 'breakStart' }, { merge: true });
+      .set({ onBreak: action === 'breakStart' || action === 'backOnTimeUndo' }, { merge: true });
   }
 
   return clockState(caller, now);

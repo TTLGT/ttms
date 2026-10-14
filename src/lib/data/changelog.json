@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "c03086f7f7c70550f5db4af519083cb5729f14d7",
+      "date": "2026-10-14T11:22:52-06:00",
+      "author": "erwindank",
+      "subject": "Let tasks and their steps have any number of work blocks on the calendar",
+      "body": "A work block is an event linked to one of the person's tasks, or to one\nstep of it (workFor: { taskId, stepId }). It is an ordinary event in every\nother way, so dragging, stretching, repeats, reminders and history need no\nsecond copy.\n\nBlocks are made from the task editor (Schedule a work block, or the\ncalendar-plus on a step) or from any event's \"Work block for\" box, which can\nalso make a new task. The server checks the link on save, deletes a task's\nblocks with it, hands a removed step's blocks back to the task, and carries\nblocks still ahead onto the copy a reschedule or a repeat makes."
+    },
+    {
       "hash": "aa807666a3926a17175286c507aac21f91405de2",
       "date": "2026-10-13T14:26:45-06:00",
       "author": "erwindank",

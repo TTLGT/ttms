@@ -8,6 +8,7 @@ import type {
   ClockState,
   ActivityKind,
   BreakKind,
+  BreakTimes,
   CorrectionRequest,
   DaySummary,
   Schedule,
@@ -133,7 +134,10 @@ export interface MyAttendance {
 
 export const fetchMyAttendance = () => call<MyAttendance>('/api/attendance/me');
 
-export async function clock(action: 'in' | 'out' | 'breakStart' | 'breakEnd', kind?: BreakKind): Promise<ClockState> {
+export async function clock(
+  action: 'in' | 'out' | 'breakStart' | 'breakEnd' | 'backOnTime' | 'backOnTimeUndo',
+  kind?: BreakKind,
+): Promise<ClockState> {
   const counts = takeCounts();
   try {
     const res = await call<{ state: ClockState }>('/api/attendance/clock', json('POST', {
@@ -185,7 +189,16 @@ export const fetchToday = () => call<{ report: AttendanceReport | null }>('/api/
 export const fetchDay = (email: string, date: string) =>
   call<{ day: AttendanceDay | null }>(`/api/attendance/day?email=${encodeURIComponent(email)}&date=${date}`);
 
-export const editDay = (input: { email: string; date: string; clockIn: string | null; clockOut: string | null; reason: string }) =>
+/** `breaks` null leaves them as they are; a list replaces them all. */
+export interface DayChangeInput {
+  date: string;
+  clockIn: string | null;
+  clockOut: string | null;
+  breaks: BreakTimes[] | null;
+  reason: string;
+}
+
+export const editDay = (input: DayChangeInput & { email: string }) =>
   call<{ day: AttendanceDay | null }>('/api/attendance/day', json('PATCH', input));
 
 // ── Setup ────────────────────────────────────────────────────────────────────
@@ -221,6 +234,12 @@ export const fetchReminders = () => call<RemindersResponse>('/api/attendance/rem
 export const saveReminderOverride = (target: string, reminders: ReminderOverride | null) =>
   call('/api/attendance/reminders', json('PUT', { target, reminders }));
 
+/** Everybody's lunch, or several people's, moved in one save. */
+export const moveLunch = (input:
+  | { target: 'everyone'; at: string; until: string; resetOwn: boolean }
+  | { target: 'people'; emails: string[]; at: string; until: string }) =>
+  call<{ moved: number; reset: number }>('/api/attendance/reminders', json('PATCH', input));
+
 // ── Requests ─────────────────────────────────────────────────────────────────
 
 export const fetchTimeOff = (scope: 'self' | 'all') =>
@@ -232,7 +251,7 @@ export const decideTimeOff = (id: string, decision: 'approve' | 'refuse' | 'with
 
 export const fetchCorrections = (scope: 'self' | 'all') =>
   call<{ requests: CorrectionRequest[] }>(`/api/attendance/corrections?scope=${scope}`);
-export const requestCorrection = (input: { date: string; clockIn: string | null; clockOut: string | null; reason: string }) =>
+export const requestCorrection = (input: DayChangeInput) =>
   call<{ request: CorrectionRequest }>('/api/attendance/corrections', json('POST', input));
 export const decideCorrection = (id: string, decision: 'approve' | 'refuse' | 'withdraw', note = '') =>
   call<{ request: CorrectionRequest }>('/api/attendance/corrections', json('PATCH', { id, decision, note }));

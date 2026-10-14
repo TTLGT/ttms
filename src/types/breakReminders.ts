@@ -29,6 +29,11 @@ import { exercisesFor, type PauseExercise } from './pauseExercises';
  * the Break button; taking the break is the ordinary clock action, recorded
  * the ordinary way. Dismissing one is remembered in this browser only.
  *
+ * "Back on time" is shown from here too, during a break, and its button is a
+ * clock action of its own (`backOnTime`), checked and timed by the server —
+ * see BackOnTimeSettings in attendance.ts. HR's switch for it lives on
+ * `attendanceConfig/general.backOnTime`, not in these settings.
+ *
  * Every time here is office time (Guatemala, UTC−6), whatever the computer's
  * own clock says — see OFFICE_UTC_OFFSET_MINUTES.
  */
@@ -203,10 +208,13 @@ export interface ReminderClock {
   /** Kinds of break already started on the open day. */
   breaksTaken: BreakKind[];
   reminders: BreakReminderSettings;
+  /** The open break's end and "Back on time" window — see ClockState.breakDue. */
+  breakDue: { endsAt: number; offerFrom: number } | null;
 }
 
 export interface DueReminder {
-  kind: ReminderKind;
+  /** `backOnTime` is the one shown during a break: see BackOnTimeSettings. */
+  kind: ReminderKind | 'backOnTime';
   /** Stable for one occurrence — what a dismissal and a notification are keyed on. */
   key: string;
   title: string;
@@ -236,7 +244,21 @@ export function dueReminder(
   now: number,
   snoozed: Record<string, number>,
 ): DueReminder | null {
-  if (clock.onBreak) return null;
+  if (clock.onBreak) {
+    // On a break the only reminder is "Back on time", in the last few
+    // minutes before it ends. Keyed on the end, so each break asks once.
+    const due = clock.breakDue;
+    if (!due || now < due.offerFrom || now >= due.endsAt) return null;
+    const key = `${officeDateOf(now)}|backOnTime|${due.endsAt}`;
+    if (snoozed[key] > now) return null;
+    const name = clock.onBreak === 'lunch' ? 'lunch' : 'break';
+    const at = officeClock(due.endsAt);
+    return {
+      kind: 'backOnTime', key, starts: null,
+      title: `Your ${name} ends at ${at}`,
+      body: `Back already? End your ${name} on time now, and it is recorded as ending at ${at}.`,
+    };
+  }
   const date = officeDateOf(now);
   const weekday = weekdayOf(date);
   const minute = officeMinuteOf(now);

@@ -3,7 +3,8 @@ import { attendanceCaller, authErrorResponse } from '@/lib/attendanceServer';
 import { createCorrection, decideCorrection, listCorrections } from '@/lib/attendanceAdmin';
 
 /**
- * "I forgot to clock out." Anybody asks about their own days; only
+ * "I forgot to clock out", or "my lunch was 1 to 2, not 1 to 3". Clock times,
+ * breaks, or both. Anybody asks about their own days; only
  * `attendance.manage` decides, and never on their own request. An approval
  * rewrites the day and keeps the original beside it — see editDay.
  */

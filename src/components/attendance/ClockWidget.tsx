@@ -23,7 +23,7 @@ import { MAX_STATUS_NOTE, USER_STATUSES, USER_STATUS_LABEL, type UserStatus } fr
 const time = (ms: number) => officeClock(ms);
 
 export default function ClockWidget({ rail }: { rail: boolean }) {
-  const { state, busy, error, clearError, clockIn, clockOut, startBreak, endBreak, setStatus } = useAttendance();
+  const { state, busy, error, clearError, clockIn, clockOut, startBreak, endBreak, undoBackOnTime, setStatus } = useAttendance();
   const [now, setNow] = useState(() => Date.now());
   const [note, setNote] = useState('');
 
@@ -61,6 +61,9 @@ export default function ClockWidget({ rail }: { rail: boolean }) {
   );
 
   const running = state.sessionStart ? formatMinutes((now - state.sessionStart) / 60_000) : '';
+  // Ended ahead with "Back on time" and not yet at its end: Undo until then,
+  // and no new break before it (the server refuses one anyway).
+  const returning = state.returning && state.returning.endsAt > now ? state.returning : null;
 
   return (
     <>
@@ -102,11 +105,20 @@ export default function ClockWidget({ rail }: { rail: boolean }) {
               <span className="h-2 w-2 rounded-full bg-green-400" aria-hidden />
               In since {time(state.sessionStart!)} · {running}
             </p>
+            {returning && (
+              <p className="mt-1.5 text-[11px] text-blue-200">
+                Your {returning.kind} is counted until {time(returning.endsAt)}.{' '}
+                <button type="button" onClick={() => void undoBackOnTime()} disabled={busy}
+                  className="underline hover:text-white disabled:opacity-60">
+                  Not back yet? Undo
+                </button>
+              </p>
+            )}
             <div className="mt-2 grid grid-cols-3 gap-1">
               <button
                 type="button"
                 onClick={() => void startBreak('break')}
-                disabled={busy}
+                disabled={busy || Boolean(returning)}
                 title="Start a break"
                 className="flex items-center justify-center gap-1 rounded-md bg-brand-700 px-1.5 py-1.5 text-[11px] font-medium text-blue-100 transition hover:bg-brand-600 disabled:opacity-60"
               >
@@ -115,7 +127,7 @@ export default function ClockWidget({ rail }: { rail: boolean }) {
               <button
                 type="button"
                 onClick={() => void startBreak('lunch')}
-                disabled={busy}
+                disabled={busy || Boolean(returning)}
                 title="Start lunch"
                 className="flex items-center justify-center gap-1 rounded-md bg-brand-700 px-1.5 py-1.5 text-[11px] font-medium text-blue-100 transition hover:bg-brand-600 disabled:opacity-60"
               >

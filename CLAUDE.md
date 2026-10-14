@@ -907,6 +907,24 @@ report), `attendanceAdmin.ts` (schedules, holidays, requests) and
   minutes are evidence shown beside it; idle is never subtracted. Every time
   is set by the server — the clock route takes no time from the browser and no
   parameter for whose clock it is.
+- **"Back on time" is the one clock action that writes a time other than
+  now** — and it is still the server's: the break's start plus its length
+  from the break reminders, never a time from the request, refused outside
+  the window HR set (`attendanceConfig/general.backOnTime`, off by default).
+  **Lunch never ends past the end of the person's lunch slot** (`until`) —
+  out at 1:10 on a 1–2 lunch is back on time at 2:00, not 2:10;
+  `backOnTimeWindow()` is the one definition.
+  The break's `end` is then briefly in the future, with `earlyAt` recording
+  the press; `pendingReturn()` is that state, and a new break, a clock-out and
+  `summarizeDay()` all respect it. Undo reopens the break until its end.
+- **Lunch time is the `lunch` slot of the break reminders** — there is no
+  separate record. Settings → Attendance → Lunch times moves it for everyone
+  or for several people at once (`moveLunch()`, `PATCH
+  /api/attendance/reminders`), writing the same company setting and
+  per-person overrides the Break reminders panel does.
+- **A correction can replace the day's breaks** (`breaks` on the request,
+  the whole list). `breakSpansFrom()` in `attendance.ts` refuses one outside
+  the clocked day or overlapping another.
 - **`summarizeDay()` is the single definition** of late, early, absent and
   hours. The report runs it live on any day not yet closed; the nightly job
   runs it once and stores `summary`. Do not compute a verdict anywhere else.

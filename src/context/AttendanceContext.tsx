@@ -45,6 +45,10 @@ interface AttendanceContextValue {
   clockOut: () => Promise<void>;
   startBreak: (kind: BreakKind) => Promise<void>;
   endBreak: () => Promise<void>;
+  /** End the break at its scheduled end — see BackOnTimeSettings. */
+  backOnTime: () => Promise<void>;
+  /** "Not back yet": reopen a break ended ahead, until its end. */
+  undoBackOnTime: () => Promise<void>;
   setStatus: (status: UserStatus | null, note?: string) => Promise<void>;
   setHideLastSeen: (hide: boolean) => Promise<void>;
   refresh: () => Promise<void>;
@@ -167,6 +171,8 @@ export function AttendanceProvider({ children }: { children: React.ReactNode }) 
     clockOut:   () => run(() => clock('out')),
     startBreak: (kind) => run(() => clock('breakStart', kind)),
     endBreak:   () => run(() => clock('breakEnd')),
+    backOnTime: () => run(() => clock('backOnTime')),
+    undoBackOnTime: () => run(() => clock('backOnTimeUndo')),
     setStatus:  (status, note = '') => run(async () => {
       await saveStatus(status, note);
       setState((s) => (s ? { ...s, status, statusNote: status ? note : '' } : s));

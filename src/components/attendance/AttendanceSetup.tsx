@@ -9,6 +9,7 @@ import {
   fetchHolidayOverrides,
   fetchReminders,
   fetchSchedules,
+  moveLunch,
   saveConfig,
   saveHolidayOverride,
   saveReminderOverride,
@@ -18,12 +19,14 @@ import {
 } from '@/lib/attendance';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
+  BACK_ON_TIME_LEAD,
   DEFAULT_SCHEDULE_ID,
   MAX_GRACE_MINUTES,
   STANDARD_SCHEDULE,
   WEEKDAYS,
   WEEKDAY_LABEL,
   type AttendanceConfig,
+  type BackOnTimeSettings,
   type Schedule,
   type WeekdayKey,
 } from '@/types/attendance';
@@ -49,12 +52,18 @@ import {
  * behind these panels checks it again.
  */
 export default function AttendanceSetup() {
+  // Lunch times and break reminders edit the same settings; a save in either
+  // bumps this so the other reloads instead of showing the old lunch.
+  const [remindersVersion, setRemindersVersion] = useState(0);
+  const bump = useCallback(() => setRemindersVersion((v) => v + 1), []);
   return (
     <div className="grid items-start gap-6 xl:grid-cols-2">
       <SchedulesPanel />
       <div className="space-y-6">
         <HolidaysPanel />
-        <RemindersPanel />
+        <LunchTimesPanel version={remindersVersion} onSaved={bump} />
+        <RemindersPanel version={remindersVersion} onSaved={bump} />
+        <BackOnTimePanel />
         <NetworkPanel />
       </div>
     </div>
@@ -220,7 +229,7 @@ function ScheduleEditor({
 
 const COMPANY = '_company';
 
-function RemindersPanel() {
+function RemindersPanel({ version, onSaved }: { version: number; onSaved: () => void }) {
   const [data, setData] = useState<RemindersResponse | null>(null);
   const [target, setTarget] = useState(COMPANY);
   const [error, setError] = useState('');
@@ -228,7 +237,7 @@ function RemindersPanel() {
   const load = useCallback(async () => {
     try { setData(await fetchReminders()); } catch (e) { setError(e instanceof Error ? e.message : 'Could not load reminders'); }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); }, [load, version]);
 
   if (!data) return <section className={card}><h2 className={h2}>Break reminders</h2><p className={lede}>{error || 'Loading…'}</p></section>;
 
@@ -254,13 +263,14 @@ function RemindersPanel() {
       </select>
 
       <RemindersEditor
-        key={target}
+        // Remounted after any save, so the boxes show what is stored now.
+        key={`${target}|${version}`}
         company={data.company}
         own={isCompany ? null : data.byEmail[target] ?? {}}
         onSave={async (next) => {
           if (isCompany) await saveConfig({ reminders: next as BreakReminderSettings });
           else await saveReminderOverride(target, Object.keys(next).length > 0 ? next : null);
-          await load();
+          onSaved();
         }}
       />
     </section>
@@ -518,6 +528,208 @@ function HolidaysPanel() {
       ) : (
         <button type="button" onClick={() => setAdding(true)} className="mt-3 text-sm font-medium text-brand-600 hover:underline">Add a day off</button>
       )}
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+    </section>
+  );
+}
+
+// ── Lunch times ──────────────────────────────────────────────────────────────
+
+/** "1:00 PM" from "13:00" — the box shows 24-hour, the list reads easier this way. */
+function clock12(hhmm: string): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+/**
+ * Move lunch for everybody, one person or several at once. Lunch is the
+ * `lunch` slot of the break reminders, so this is a quicker way to the same
+ * setting: what it saves shows in Break reminders below, and "Back on time"
+ * ends lunch by its end.
+ */
+function LunchTimesPanel({ version, onSaved }: { version: number; onSaved: () => void }) {
+  const [data, setData] = useState<RemindersResponse | null>(null);
+  const [mode, setMode] = useState<'everyone' | 'people'>('everyone');
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState('');
+  const [at, setAt] = useState('');
+  const [until, setUntil] = useState('');
+  const [resetOwn, setResetOwn] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    fetchReminders()
+      .then((r) => {
+        setData(r);
+        // Start from the company's lunch the first time, never over what HR is typing.
+        setAt((v) => v || r.company.lunch.at);
+        setUntil((v) => v || r.company.lunch.until);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load lunch times'));
+  }, [version]);
+
+  if (!data) return <section className={card}><h2 className={h2}>Lunch times</h2><p className={lede}>{error || 'Loading…'}</p></section>;
+
+  const lunchOf = (email: string) => data.byEmail[email]?.lunch ?? null;
+  const ownCount = data.people.filter((p) => lunchOf(p.email)).length;
+  const q = filter.trim().toLowerCase();
+  const shown = data.people.filter((p) => !q || p.name.toLowerCase().includes(q) || p.email.includes(q));
+  const toggle = (email: string) =>
+    setChosen((s) => { const n = new Set(s); if (n.has(email)) n.delete(email); else n.add(email); return n; });
+
+  async function save() {
+    setBusy(true); setMsg(''); setError('');
+    try {
+      if (mode === 'everyone') {
+        const r = await moveLunch({ target: 'everyone', at, until, resetOwn });
+        setMsg(`Moved the company lunch to ${clock12(at)}–${clock12(until)}${r.reset ? `, and ${r.reset} ${r.reset === 1 ? 'person' : 'people'} back onto it` : ''}.`);
+      } else {
+        const r = await moveLunch({ target: 'people', emails: [...chosen], at, until });
+        setMsg(`Moved lunch to ${clock12(at)}–${clock12(until)} for ${r.moved} ${r.moved === 1 ? 'person' : 'people'}.`);
+        setChosen(new Set());
+      }
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className={card}>
+      <h2 className={h2}>Lunch times</h2>
+      <p className={lede}>
+        Move lunch for everybody, or for several people at once. Lunch ends at the end time even if somebody leaves
+        late, and &ldquo;Back on time&rdquo; uses it too. Company lunch now: {clock12(data.company.lunch.at)}–{clock12(data.company.lunch.until)}.
+      </p>
+
+      <div className="mt-3 flex gap-4 text-sm">
+        <label className="flex items-center gap-2">
+          <input type="radio" name="lunch-mode" checked={mode === 'everyone'} onChange={() => setMode('everyone')} />
+          Everyone
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" name="lunch-mode" checked={mode === 'people'} onChange={() => setMode('people')} />
+          Chosen people
+        </label>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+        New lunch
+        <input type="time" value={at} onChange={(e) => setAt(e.target.value)} aria-label="Lunch starts" className={timeBox} />
+        to
+        <input type="time" value={until} onChange={(e) => setUntil(e.target.value)} aria-label="Lunch ends" className={timeBox} />
+      </div>
+
+      {mode === 'everyone' ? (
+        <label className={`mt-3 flex items-start gap-2 text-sm ${ownCount ? '' : 'opacity-50'}`}>
+          <input type="checkbox" className="mt-0.5" checked={resetOwn} disabled={!ownCount} onChange={(e) => setResetOwn(e.target.checked)} />
+          <span>
+            Also move the {ownCount} {ownCount === 1 ? 'person' : 'people'} with a lunch time of their own
+            <span className="block text-xs text-gray-500">Otherwise they keep their own time.</span>
+          </span>
+        </label>
+      ) : (
+        <div className="mt-3 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Find a person"
+              className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-1.5" />
+            <button type="button" onClick={() => setChosen(new Set([...chosen, ...shown.map((p) => p.email)]))}
+              className="rounded-lg px-2 py-1 text-brand-600 hover:bg-brand-50">Select all shown</button>
+            <button type="button" onClick={() => setChosen(new Set())} disabled={chosen.size === 0}
+              className="rounded-lg px-2 py-1 text-gray-600 hover:bg-gray-100 disabled:opacity-50">Clear</button>
+          </div>
+          <ul className="mt-2 max-h-64 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
+            {shown.map((p) => {
+              const own = lunchOf(p.email);
+              return (
+                <li key={p.email}>
+                  <label className="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-gray-50">
+                    <input type="checkbox" checked={chosen.has(p.email)} onChange={() => toggle(p.email)} />
+                    <span className="min-w-0 flex-1 truncate text-gray-900">{p.name}{p.pending ? ' (not signed in yet)' : ''}</span>
+                    <span className="text-xs text-gray-500">
+                      {own ? `${clock12(own.at)}–${clock12(own.until)}` : 'Company lunch'}
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+            {shown.length === 0 && <li className="px-3 py-3 text-center text-gray-500">Nobody matches.</li>}
+          </ul>
+          <p className="mt-1 text-xs text-gray-500">{chosen.size} chosen. Each gets a lunch time of their own; their other reminders stay as they are.</p>
+        </div>
+      )}
+
+      <button type="button" onClick={() => void save()}
+        disabled={busy || !at || !until || (mode === 'people' && chosen.size === 0)}
+        className="mt-3 rounded-lg bg-brand-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+        {mode === 'everyone'
+          ? 'Move everyone’s lunch'
+          : chosen.size === 0 ? 'Move lunch for the chosen people'
+          : `Move lunch for ${chosen.size} ${chosen.size === 1 ? 'person' : 'people'}`}
+      </button>
+      {msg && <p className="mt-2 text-sm text-green-700">{msg}</p>}
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+    </section>
+  );
+}
+
+// ── Back on time ─────────────────────────────────────────────────────────────
+
+/** Company-wide only, unlike the reminders above: it is one switch and one number. */
+function BackOnTimePanel() {
+  const [value, setValue] = useState<BackOnTimeSettings | null>(null);
+  const [error, setError] = useState('');
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    fetchConfig()
+      .then((r) => setValue(r.config.backOnTime))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load'));
+  }, []);
+
+  async function save(next: BackOnTimeSettings) {
+    setError(''); setMsg('');
+    try {
+      setValue((await saveConfig({ backOnTime: next })).config.backOnTime);
+      setMsg('Saved. Open copies of TTMS pick it up the next time they load the clock.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save');
+    }
+  }
+
+  if (!value) return <section className={card}><h2 className={h2}>Back on time</h2><p className={lede}>{error || 'Loading…'}</p></section>;
+
+  const leads = [];
+  for (let n = BACK_ON_TIME_LEAD.min; n <= BACK_ON_TIME_LEAD.max; n++) leads.push(n);
+
+  return (
+    <section className={card}>
+      <h2 className={h2}>Back on time</h2>
+      <p className={lede}>
+        A few minutes before somebody&rsquo;s break or lunch ends, a reminder asks if they are back. If they are, one
+        click ends the break at the time it was due to end, not earlier, so they do not lose minutes or forget to
+        clock back in. A break ends its length after it started (from the break reminders above). Lunch ends at the
+        end of the person&rsquo;s lunch time — 2:00 if lunch is 1 to 2 — even if they went out late. They can undo it until that
+        time, and the day shows HR when the button was pressed. Only while TTMS is open.
+      </p>
+      <label className="mt-3 flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={value.enabled} onChange={(e) => void save({ ...value, enabled: e.target.checked })} />
+        Offer &ldquo;Back on time&rdquo;
+      </label>
+      <label className={`mt-2 flex items-center gap-2 text-sm ${value.enabled ? '' : 'opacity-50'}`}>
+        Show it
+        <select value={value.leadMinutes} disabled={!value.enabled}
+          onChange={(e) => void save({ ...value, leadMinutes: Number(e.target.value) })}
+          className="rounded-lg border border-gray-300 py-1 pl-2 pr-8">
+          {leads.map((n) => <option key={n} value={n}>{n} minutes</option>)}
+        </select>
+        before the break ends
+      </label>
+      {msg && <p className="mt-2 text-sm text-green-700">{msg}</p>}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </section>
   );

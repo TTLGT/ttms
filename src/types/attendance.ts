@@ -272,6 +272,82 @@ export interface BreakSpan {
   kind: BreakKind;
   start: number;
   end: number | null;
+  /**
+   * Set when the break was ended ahead with "Back on time": the moment the
+   * button was pressed. `end` is then the break's scheduled end, which was
+   * still a few minutes off at the time. Kept so the day shows HR that the
+   * return was pressed early rather than at `end`.
+   */
+  earlyAt?: number;
+}
+
+/**
+ * A break ended ahead with "Back on time" whose scheduled end has not come
+ * yet — the one state in which `end` is in the future. Only the last break can
+ * be in it, because a new one cannot start until it has passed.
+ */
+export function pendingReturn(day: { breaks: BreakSpan[] } | null | undefined, now: number): BreakSpan | null {
+  const last = day?.breaks?.[day.breaks.length - 1];
+  return last && last.end !== null && last.end > now && last.earlyAt != null ? last : null;
+}
+
+/**
+ * "Back on time": a reminder a few minutes before a break or lunch ends, with
+ * a button that ends it **at its scheduled end** — for somebody who is back at
+ * the desk early and would otherwise forget to press the button at all.
+ * HR's, company-wide, off until switched on.
+ *
+ * The scheduled end is the break's start plus its length from the break
+ * reminders (the person's own, if HR set them one). The browser never sends
+ * a time: it asks for "end my break on time", and the server works the time
+ * out and refuses outside the window.
+ */
+export interface BackOnTimeSettings {
+  enabled: boolean;
+  /** How many minutes before the end the reminder appears. */
+  leadMinutes: number;
+}
+
+export const BACK_ON_TIME_LEAD = { min: 3, max: 5 } as const;
+export const DEFAULT_BACK_ON_TIME: BackOnTimeSettings = { enabled: false, leadMinutes: 5 };
+
+export function readBackOnTime(raw: unknown): BackOnTimeSettings | string {
+  if (!raw || typeof raw !== 'object') return 'The back-on-time setting is missing.';
+  const r = raw as Record<string, unknown>;
+  const lead = Math.round(Number(r.leadMinutes));
+  if (!Number.isFinite(lead) || lead < BACK_ON_TIME_LEAD.min || lead > BACK_ON_TIME_LEAD.max) {
+    return `The reminder must come between ${BACK_ON_TIME_LEAD.min} and ${BACK_ON_TIME_LEAD.max} minutes before the break ends.`;
+  }
+  return { enabled: r.enabled === true, leadMinutes: lead };
+}
+
+/** Forgiving, for a stored value: nonsense reads as the default (off). */
+export function storedBackOnTime(raw: unknown): BackOnTimeSettings {
+  const v = raw == null ? DEFAULT_BACK_ON_TIME : readBackOnTime(raw);
+  return typeof v === 'string' ? DEFAULT_BACK_ON_TIME : v;
+}
+
+/**
+ * When an open break is due to end, and from when "Back on time" is offered.
+ * The one definition for the clock state and the clock route.
+ *
+ * A break ends its length after it started. **Lunch also never ends past the
+ * end of the person's lunch slot** (asked for 2026-10-14): everybody is meant
+ * to go at 1 and be back by 2, so somebody who left at 1:10 is back on time
+ * at 2:00, not 2:10. Lunch started at or after the slot's end has no slot to
+ * keep to and simply runs its length.
+ */
+export function backOnTimeWindow(
+  brk: { kind: BreakKind; start: number },
+  slot: { minutes: number; until: string },
+  settings: BackOnTimeSettings,
+): { endsAt: number; offerFrom: number } {
+  let endsAt = brk.start + slot.minutes * 60_000;
+  if (brk.kind === 'lunch' && isHhmm(slot.until)) {
+    const slotEnd = officeTimeToMs(officeDateOf(brk.start), slot.until);
+    if (slotEnd > brk.start) endsAt = Math.min(endsAt, slotEnd);
+  }
+  return { endsAt, offerFrom: endsAt - settings.leadMinutes * 60_000 };
 }
 
 /**
@@ -313,6 +389,8 @@ export interface DayCorrection {
   reason: string;
   before: { clockIn: number | null; clockOut: number | null };
   after:  { clockIn: number | null; clockOut: number | null };
+  /** Only on a change that touched the breaks: all of them, before and after. */
+  breaks?: { before: BreakSpan[]; after: BreakSpan[] };
 }
 
 /**
@@ -486,7 +564,9 @@ export function summarizeDay({ date, day, schedule, holiday, timeOff, now }: Sum
     let worked = 0;
     for (const s of sessions) worked += Math.max(0, (s.out?.at ?? fallbackEnd) - s.in.at);
     let breaks = 0;
-    for (const b of day?.breaks ?? []) breaks += Math.max(0, (b.end ?? fallbackEnd) - b.start);
+    // Never past `now`: a break ended ahead with "Back on time" runs to its
+    // scheduled end, and the minutes before that have not happened yet.
+    for (const b of day?.breaks ?? []) breaks += Math.max(0, Math.min(b.end ?? fallbackEnd, now) - b.start);
 
     const clockIn = first.in.at;
     const clockOut = open ? null : last.out!.at;
@@ -619,6 +699,13 @@ export interface CorrectionRequest {
   date: string;
   clockIn: string | null;
   clockOut: string | null;
+  /**
+   * What the day's breaks should have been, all of them — absent or null to
+   * leave them as they are, an empty list for "I took none". The whole list
+   * rather than one break, so the request reads on its own: HR sees the day
+   * as the person says it was, beside what was recorded.
+   */
+  breaks?: BreakTimes[] | null;
   reason: string;
   status: RequestStatus;
   createdAt: number;
@@ -630,6 +717,39 @@ export interface CorrectionRequest {
 
 export const MAX_REASON_LENGTH = 500;
 
+/** One break as office clock times on the day — what a correction asks for. */
+export interface BreakTimes {
+  kind: BreakKind;
+  start: string;
+  end: string;
+}
+
+export const MAX_CORRECTION_BREAKS = 10;
+
+/** A list of breaks from a request body, or the reason it is not one. */
+export function readBreakTimes(raw: unknown): BreakTimes[] | string {
+  if (!Array.isArray(raw)) return 'The breaks must be a list.';
+  if (raw.length > MAX_CORRECTION_BREAKS) return `At most ${MAX_CORRECTION_BREAKS} breaks in a day.`;
+  const out: BreakTimes[] = [];
+  for (const b of raw as Record<string, unknown>[]) {
+    const kind: BreakKind = b?.kind === 'lunch' ? 'lunch' : 'break';
+    if (!isHhmm(b?.start) || !isHhmm(b?.end)) return `Each ${BREAK_LABEL[kind].toLowerCase()} needs a start and an end, like 10:00.`;
+    out.push({ kind, start: b.start as string, end: b.end as string });
+  }
+  return out;
+}
+
+/** "in 08:00, out 17:30, breaks: Break 10:00–10:20" — a request in one line. */
+export function describeCorrection(c: Pick<CorrectionRequest, 'clockIn' | 'clockOut' | 'breaks'>): string {
+  const parts = [c.clockIn && `in ${c.clockIn}`, c.clockOut && `out ${c.clockOut}`];
+  if (c.breaks) {
+    parts.push(c.breaks.length === 0
+      ? 'no breaks'
+      : `breaks: ${c.breaks.map((b) => `${BREAK_LABEL[b.kind]} ${b.start}–${b.end}`).join(', ')}`);
+  }
+  return parts.filter(Boolean).join(', ');
+}
+
 /**
  * The day with a correction applied, or the reason it cannot be.
  *
@@ -639,7 +759,7 @@ export const MAX_REASON_LENGTH = 500;
  */
 export function applyCorrection(
   day: AttendanceDay,
-  change: { clockIn: string | null; clockOut: string | null },
+  change: { clockIn: string | null; clockOut: string | null; breaks?: BreakTimes[] | null },
   by: { email: string; name: string; reason: string; at: number },
 ): AttendanceDay | string {
   const manual = (at: number): ClockDetails => ({
@@ -658,7 +778,9 @@ export function applyCorrection(
 
   if (sessions.length === 0) {
     if (inAt === null || outAt === null) {
-      return 'There is no clock-in on that day, so both times are needed.';
+      return change.breaks
+        ? 'There is no clock-in on that day, so give the clock-in and clock-out with the breaks.'
+        : 'There is no clock-in on that day, so both times are needed.';
     }
     if (outAt <= inAt) outAt += 24 * 60 * 60_000;
     sessions.push({ in: manual(inAt), out: manual(outAt) });
@@ -679,15 +801,51 @@ export function applyCorrection(
     clockIn: sessions[0]?.in.at ?? null,
     clockOut: sessions[sessions.length - 1]?.out?.at ?? null,
   };
+  let breaks = day.breaks;
+  if (change.breaks) {
+    const replaced = breakSpansFrom(day.date, change.breaks, after.clockIn!, after.clockOut);
+    if (typeof replaced === 'string') return replaced;
+    breaks = replaced;
+  }
+
   const closeAt = after.clockOut ?? Date.now();
   return {
     ...day,
     sessions,
-    breaks: day.breaks.map((b) => (b.end === null ? { ...b, end: Math.max(b.start, closeAt) } : b)),
-    corrections: [...(day.corrections ?? []), { at: by.at, byEmail: by.email, byName: by.name, reason: by.reason, before, after }],
+    breaks: breaks.map((b) => (b.end === null ? { ...b, end: Math.max(b.start, closeAt) } : b)),
+    corrections: [...(day.corrections ?? []), {
+      at: by.at, byEmail: by.email, byName: by.name, reason: by.reason, before, after,
+      ...(change.breaks ? { breaks: { before: day.breaks, after: breaks } } : {}),
+    }],
     // Re-judged: the nightly job's answer was about the day before this change.
     finalized: false,
   };
+}
+
+/**
+ * Breaks as clock times turned into the day's spans, in order, or the reason
+ * they cannot be. A time earlier than the clock-in is read as after midnight,
+ * the same way a clock-out is. Each must end after it starts, end by the
+ * clock-out, and not overlap another — two breaks at once would take the same
+ * minutes off twice.
+ */
+function breakSpansFrom(date: string, times: BreakTimes[], clockIn: number, clockOut: number | null): BreakSpan[] | string {
+  const DAY_MS = 24 * 60 * 60_000;
+  const spans = times.map((t) => {
+    let start = officeTimeToMs(date, t.start);
+    let end = officeTimeToMs(date, t.end);
+    if (start < clockIn) start += DAY_MS;
+    if (end < clockIn) end += DAY_MS;
+    return { kind: t.kind, start, end, label: `${BREAK_LABEL[t.kind]} ${t.start}–${t.end}` };
+  }).sort((a, b) => a.start - b.start);
+
+  for (let i = 0; i < spans.length; i++) {
+    const b = spans[i];
+    if (b.end <= b.start) return `${b.label} ends before it starts.`;
+    if (clockOut !== null && b.end > clockOut) return `${b.label} is outside the clock-in and clock-out times.`;
+    if (i > 0 && b.start < spans[i - 1].end) return `${spans[i - 1].label} and ${b.label} overlap.`;
+  }
+  return spans.map(({ kind, start, end }) => ({ kind, start, end }));
 }
 
 // ── Setup ────────────────────────────────────────────────────────────────────
@@ -711,6 +869,8 @@ export interface AttendanceConfig {
   alertAfterMinutes: number;
   /** The company's break reminders. People can have their own on `attendancePrefs`. */
   reminders: BreakReminderSettings;
+  /** "Back on time" before a break ends — see BackOnTimeSettings. Company-wide only. */
+  backOnTime: BackOnTimeSettings;
 }
 
 // Without `reminders`: their defaults live in breakReminders.ts, which imports
@@ -720,6 +880,7 @@ export const DEFAULT_ATTENDANCE_CONFIG: Omit<AttendanceConfig, 'reminders'> = {
   officeNetworks: [],
   alerts: true,
   alertAfterMinutes: 30,
+  backOnTime: DEFAULT_BACK_ON_TIME,
 };
 
 export const MAX_OFFICE_NETWORKS = 20;
@@ -802,6 +963,17 @@ export interface ClockState {
    * left null to save the reads.
    */
   dueAt: { start: string; end: string } | null;
+  /**
+   * On a break, with "Back on time" switched on: when the break is due to
+   * end and from when the reminder shows. Null otherwise.
+   */
+  breakDue: { endsAt: number; offerFrom: number } | null;
+  /**
+   * A break ended ahead with "Back on time" whose end has not come yet —
+   * offered as Undo until then. The state is not re-read when `endsAt`
+   * passes, so compare it with the time.
+   */
+  returning: { kind: BreakKind; endsAt: number } | null;
 }
 
 export interface ReportPerson {

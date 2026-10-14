@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { attendanceCaller, authErrorResponse, loadConfig, loadPeople } from '@/lib/attendanceServer';
-import { listReminderOverrides, saveReminderOverride } from '@/lib/attendanceAdmin';
+import { listReminderOverrides, moveLunch, saveReminderOverride } from '@/lib/attendanceAdmin';
 
 /**
  * Break reminders: the company's, and everybody who has their own.
@@ -21,6 +21,22 @@ export async function GET(req: NextRequest) {
         .map((p) => ({ email: p.email, name: p.name, pending: !p.uid }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     });
+  } catch (e) {
+    const { error, status } = authErrorResponse(e);
+    return NextResponse.json({ error }, { status });
+  }
+}
+
+/**
+ * Move lunch for everybody or for several people at once — see moveLunch().
+ * `{ target: 'everyone', at, until, resetOwn? }` or `{ target: 'people', emails, at, until }`.
+ */
+export async function PATCH(req: NextRequest) {
+  try {
+    const caller = await attendanceCaller(req);
+    if (!caller.manages) return NextResponse.json({ error: 'You cannot manage attendance.' }, { status: 403 });
+    const body = await req.json().catch(() => ({}));
+    return NextResponse.json(await moveLunch(caller, body));
   } catch (e) {
     const { error, status } = authErrorResponse(e);
     return NextResponse.json({ error }, { status });

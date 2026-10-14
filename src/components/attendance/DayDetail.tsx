@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Building2, Globe, Laptop, X } from 'lucide-react';
+import { Building2, Globe, Laptop, Plus, Trash2, X } from 'lucide-react';
 import { editDay, fetchDay, requestCorrection } from '@/lib/attendance';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   ACTIVITY_KINDS,
   ACTIVITY_LABEL,
   BREAK_LABEL,
+  MAX_CORRECTION_BREAKS,
   MEASURED_BY_LABEL,
   OUTCOME_LABEL,
   TIME_OFF_LABEL,
@@ -17,6 +18,8 @@ import {
   officeHhmm,
   placeLabel,
   type AttendanceDay,
+  type BreakSpan,
+  type BreakTimes,
   type ClockDetails,
   type DaySummary,
 } from '@/types/attendance';
@@ -65,10 +68,14 @@ export default function DayDetail({
   const [clockIn, setClockIn] = useState(hhmm(summary.clockIn));
   const [clockOut, setClockOut] = useState(hhmm(summary.clockOut));
   const [reason, setReason] = useState('');
+  // The breaks as the person says they were — the whole list, sent only when
+  // "Change the breaks too" is ticked. Seeded from the record once it loads.
+  const [fixBreaks, setFixBreaks] = useState(false);
+  const [breaks, setBreaks] = useState<BreakTimes[]>([]);
 
   useEffect(() => {
     fetchDay(email, date)
-      .then((r) => setDay(r.day))
+      .then((r) => { setDay(r.day); setBreaks(asTimes(r.day?.breaks ?? [])); })
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the day'))
       .finally(() => setLoading(false));
   }, [email, date]);
@@ -87,12 +94,15 @@ export default function DayDetail({
       date,
       clockIn: clockIn || null,
       clockOut: clockOut || null,
+      breaks: fixBreaks ? breaks : null,
       reason: reason.trim(),
     };
     try {
       if (canEdit) {
         const res = await editDay({ email, ...input });
         setDay(res.day);
+        setBreaks(asTimes(res.day?.breaks ?? []));
+        setFixBreaks(false);
         setDone('Changed. The original times are kept below.');
       } else {
         await requestCorrection(input);
@@ -165,7 +175,10 @@ export default function DayDetail({
               {day.breaks.length > 0 && (
                 <ul className="mt-2 space-y-1 text-gray-600">
                   {day.breaks.map((b, i) => (
-                    <li key={i}>{BREAK_LABEL[b.kind]}: {clockTime(b.start)} – {b.end ? clockTime(b.end) : 'still on it'}</li>
+                    <li key={i}>
+                      {BREAK_LABEL[b.kind]}: {clockTime(b.start)} – {b.end ? clockTime(b.end) : 'still on it'}
+                      {b.earlyAt && <span className="ml-2 text-xs text-gray-500">Back on time, pressed at {clockTime(b.earlyAt)}</span>}
+                    </li>
                   ))}
                 </ul>
               )}
@@ -190,6 +203,9 @@ export default function DayDetail({
                     <p>
                       {clockTime(c.before.clockIn)}–{clockTime(c.before.clockOut)} → {clockTime(c.after.clockIn)}–{clockTime(c.after.clockOut)}
                     </p>
+                    {c.breaks && (
+                      <p>Breaks: {spansText(c.breaks.before)} → {spansText(c.breaks.after)}</p>
+                    )}
                     <p className="text-xs text-gray-500">By {c.byName}, {formatDate(new Date(c.at))}: {c.reason}</p>
                   </li>
                 ))}
@@ -201,7 +217,7 @@ export default function DayDetail({
             <section className="border-t border-gray-100 pt-4">
               <h3 className="text-sm font-semibold text-gray-900">{canEdit ? 'Change the times' : 'Ask for a correction'}</h3>
               <p className="mt-0.5 text-xs text-gray-500">
-                Office time. Leave a box empty to keep that time as it is. A clock-out earlier than the clock-in counts as after midnight.
+                Office time. Leave a box empty to keep that time as it is. A time earlier than the clock-in counts as after midnight.
               </p>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <label className="text-xs text-gray-600">
@@ -215,6 +231,13 @@ export default function DayDetail({
                     className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm" />
                 </label>
               </div>
+              <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={fixBreaks} onChange={(e) => setFixBreaks(e.target.checked)} />
+                Change the breaks and lunch too
+              </label>
+              {fixBreaks && (
+                <BreaksEditor breaks={breaks} onChange={setBreaks} />
+              )}
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
@@ -238,6 +261,57 @@ export default function DayDetail({
           {done && <p className="text-sm text-green-700">{done}</p>}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The day's breaks as the time boxes hold them. Office time, like the clock boxes. */
+function asTimes(spans: BreakSpan[]): BreakTimes[] {
+  return spans.map((b) => ({ kind: b.kind, start: officeHhmm(b.start), end: b.end ? officeHhmm(b.end) : '' }));
+}
+
+function spansText(spans: BreakSpan[]): string {
+  if (spans.length === 0) return 'none';
+  return spans.map((b) => `${BREAK_LABEL[b.kind]} ${clockTime(b.start)}–${b.end ? clockTime(b.end) : '…'}`).join(', ');
+}
+
+/**
+ * The whole list of breaks, editable: change one, take one out, or add one
+ * that was never pressed. What is sent replaces the day's breaks entirely,
+ * and the server refuses one that ends before it starts, falls after the
+ * clock-out or overlaps another.
+ */
+function BreaksEditor({ breaks, onChange }: { breaks: BreakTimes[]; onChange: (b: BreakTimes[]) => void }) {
+  const set = (i: number, patch: Partial<BreakTimes>) =>
+    onChange(breaks.map((b, j) => (j === i ? { ...b, ...patch } : b)));
+  return (
+    <div className="mt-2 space-y-2">
+      {breaks.map((b, i) => (
+        <div key={i} className="flex flex-wrap items-center gap-2">
+          <select value={b.kind} aria-label="Break or lunch" onChange={(e) => set(i, { kind: e.target.value === 'lunch' ? 'lunch' : 'break' })}
+            className="rounded-lg border border-gray-300 py-1 pl-2 pr-7 text-sm">
+            <option value="break">{BREAK_LABEL.break}</option>
+            <option value="lunch">{BREAK_LABEL.lunch}</option>
+          </select>
+          <input type="time" value={b.start} aria-label="Started" onChange={(e) => set(i, { start: e.target.value })}
+            className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
+          <span className="text-gray-500">to</span>
+          <input type="time" value={b.end} aria-label="Ended" onChange={(e) => set(i, { end: e.target.value })}
+            className="rounded-lg border border-gray-300 px-2 py-1 text-sm" />
+          <button type="button" aria-label="Remove this one" title="Remove"
+            onClick={() => onChange(breaks.filter((_, j) => j !== i))}
+            className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+      {breaks.length === 0 && <p className="text-xs text-gray-500">No breaks — sending this says none were taken.</p>}
+      {breaks.length < MAX_CORRECTION_BREAKS && (
+        <button type="button" onClick={() => onChange([...breaks, { kind: 'break', start: '', end: '' }])}
+          className="flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline">
+          <Plus size={14} /> Add a break or lunch
+        </button>
+      )}
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
   TIME_OFF_LABEL,
   addDays,
   datesBetween,
+  describeCorrection,
   formatMinutes,
   officeDateOf,
   weekdayOf,
@@ -132,7 +133,7 @@ export default function MyAttendanceCard({ email }: { email: string }) {
             {corrections.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center gap-2 py-2.5">
                 <span className="text-gray-900">{formatDate(c.date)}</span>
-                <span className="text-gray-600">{[c.clockIn && `in ${c.clockIn}`, c.clockOut && `out ${c.clockOut}`].filter(Boolean).join(', ')}</span>
+                <span className="text-gray-600">{describeCorrection(c)}</span>
                 <span className="flex-1 text-xs text-gray-500">{STATUS_WORD[c.status]}{c.decisionNote ? ` — ${c.decisionNote}` : ''}</span>
                 {c.status === 'pending' && (
                   <button type="button" onClick={() => void decideCorrection(c.id, 'withdraw').then(load)}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Clock, Coffee, PersonStanding, UtensilsCrossed, X } from 'lucide-react';
+import { Clock, Coffee, PersonStanding, Undo2, UtensilsCrossed, X } from 'lucide-react';
 import { useAttendance } from '@/context/AttendanceContext';
 import { showMessageNotification } from '@/lib/chatNotify';
 import { SNOOZE_MINUTES, dueReminder, type DueReminder } from '@/types/breakReminders';
@@ -9,7 +9,7 @@ import { PAUSE_SAFETY } from '@/types/pauseExercises';
 import { officeDateOf } from '@/types/attendance';
 
 /**
- * The clock-in, break, lunch and active-pause reminders: a card in the corner of every
+ * The clock-in, break, lunch, active-pause and back-on-time reminders: a card in the corner of every
  * page, and a desktop notification when the browser allows one. Both can
  * start the break in one click — clicking the notification itself does it,
  * because a notification raised by a page (rather than a service worker)
@@ -61,10 +61,10 @@ function save(s: Stored): void {
   }
 }
 
-const ICON = { clockIn: Clock, break: Coffee, lunch: UtensilsCrossed, activePause: PersonStanding } as const;
+const ICON = { clockIn: Clock, break: Coffee, lunch: UtensilsCrossed, activePause: PersonStanding, backOnTime: Undo2 } as const;
 
 export default function BreakReminder() {
-  const { state, startBreak, clockIn, refresh, busy } = useAttendance();
+  const { state, startBreak, clockIn, backOnTime, refresh, busy } = useAttendance();
   const [stored, setStored] = useState<Stored>(EMPTY);
   const [now, setNow] = useState(() => Date.now());
 
@@ -114,8 +114,9 @@ export default function BreakReminder() {
   const act = useCallback((r: DueReminder) => {
     finish(r);
     if (r.kind === 'clockIn') void clockIn();
+    else if (r.kind === 'backOnTime') void backOnTime();
     else if (r.starts) void startBreak(r.starts);
-  }, [finish, startBreak, clockIn]);
+  }, [finish, startBreak, clockIn, backOnTime]);
 
   // Once per reminder per browser. The tag is the reminder's key, so a second
   // tab racing the first replaces its notification rather than adding one.
@@ -128,7 +129,7 @@ export default function BreakReminder() {
     // names the day's exercises in both languages and leaves the steps to the card.
     const body = due.exercises
       ? [due.exercises.map((x) => x.name.en).join(', '), due.exercises.map((x) => x.name.es).join(', '), 'Click to see the steps.'].join('\n')
-      : `${due.body}\n${due.kind === 'clockIn' ? 'Click to clock in.' : due.starts ? `Click to start your ${due.starts}.` : 'Click when you are done.'}`;
+      : `${due.body}\n${due.kind === 'clockIn' ? 'Click to clock in.' : due.kind === 'backOnTime' ? 'Click if you are back.' : due.starts ? `Click to start your ${due.starts}.` : 'Click when you are done.'}`;
     showMessageNotification({
       title: due.title,
       body,
@@ -136,7 +137,7 @@ export default function BreakReminder() {
       requireInteraction: true,
       // A pause's click only brings TTMS forward: the steps are on the card,
       // and marking it done before reading them would hide them.
-      onClick: () => { if (due.starts || due.kind === 'clockIn') actRef.current(due); },
+      onClick: () => { if (due.starts || due.kind === 'clockIn' || due.kind === 'backOnTime') actRef.current(due); },
     });
   }, [due, stored.notified, update]);
 
@@ -188,13 +189,17 @@ export default function BreakReminder() {
         </div>
       )}
       <div className="mt-3 flex justify-end gap-2">
-        <button type="button" onClick={() => later(due)}
+        {/* A snooze would outlast the break it asks about, so "Not yet"
+            puts it away for this break instead. */}
+        <button type="button" onClick={() => (due.kind === 'backOnTime' ? finish(due) : later(due))}
           className="rounded-lg px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100">
-          In {SNOOZE_MINUTES} minutes{due.exercises ? ` · En ${SNOOZE_MINUTES} minutos` : ''}
+          {due.kind === 'backOnTime'
+            ? 'Not yet'
+            : <>In {SNOOZE_MINUTES} minutes{due.exercises ? ` · En ${SNOOZE_MINUTES} minutos` : ''}</>}
         </button>
         <button type="button" disabled={busy} onClick={() => act(due)}
           className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
-          {due.kind === 'clockIn' ? 'Clock in' : due.starts === 'lunch' ? 'Start lunch' : due.starts === 'break' ? 'Start break' : 'Done · Listo'}
+          {due.kind === 'clockIn' ? 'Clock in' : due.kind === 'backOnTime' ? 'I’m back' : due.starts === 'lunch' ? 'Start lunch' : due.starts === 'break' ? 'Start break' : 'Done · Listo'}
         </button>
       </div>
     </div>

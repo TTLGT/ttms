@@ -2148,7 +2148,7 @@ beside it, and idle time is shown but never subtracted.
 |---|---|---|
 | `email`, `uid`, `name`, `date` | | `date` is the office date |
 | `sessions` | `{ in: ClockDetails, out: ClockDetails \| null }[]` | One per clock-in. Clocking out and back in again the same day makes two |
-| `breaks` | `{ kind: "break" \| "lunch", start, end \| null }[]` | |
+| `breaks` | `{ kind: "break" \| "lunch", start, end \| null, earlyAt? }[]` | `earlyAt` is set when the break was ended ahead with "Back on time": when the button was pressed. `end` is then the break's scheduled end (start + its length from the break reminders), and may be a few minutes in the future until it passes |
 | `firstActiveAt`, `lastActiveAt` | number \| null | From the heartbeat |
 | `activeMinutes`, `idleMinutes` | number | Five per check-in |
 | `measuredBy` | `{ system?: number, page?: number }` | Clocked-in check-ins measured on the whole computer (browser Idle Detection) vs the TTMS tab only |
@@ -2178,7 +2178,11 @@ Nobody decides their own.
 
 ### `attendanceCorrections/{id}`
 
-`{ email, name, date, clockIn: "HH:MM" | null, clockOut: "HH:MM" | null, reason, status, … }`.
+`{ email, name, date, clockIn: "HH:MM" | null, clockOut: "HH:MM" | null, breaks?: { kind, start: "HH:MM", end: "HH:MM" }[] | null, reason, status, … }`.
+`breaks` absent or null leaves the day's breaks alone; a list — empty
+included — replaces them all, and the `DayCorrection` then carries
+`breaks: { before, after }`. Requests saved before breaks could be corrected
+have no such field and read as "leave them alone".
 Approval rewrites the day through `applyCorrection()` and appends a
 `DayCorrection`; past days are re-judged at once, because the nightly close
 only looks a week back.
@@ -2194,7 +2198,13 @@ the Celebrations calendar uses it too.
 
 ### The rest
 
-- `attendanceConfig/general` — `{ officeNetworks: { ip, label }[], alerts, alertAfterMinutes, reminders }`.
+- `attendanceConfig/general` — `{ officeNetworks: { ip, label }[], alerts, alertAfterMinutes, reminders, backOnTime }`.
+  `backOnTime` is `{ enabled, leadMinutes }` (3–5): the "Back on time"
+  reminder during a break. Company-wide only; absent means off. A break ends
+  its `minutes` after it started; lunch also never past its slot's `until`.
+  The `lunch` slot here and on `attendancePrefs` is the only record of
+  anybody's lunch time — the Lunch times panel (`PATCH
+  /api/attendance/reminders`) moves it for everyone or several people at once.
   `reminders` is the company's break reminders — `clockIn`, `break`, `lunch`
   and `activePause`, each `{ enabled, at, until, minutes, days }`, once a day
   (`src/types/breakReminders.ts`). Of `clockIn` only `enabled` is read: it

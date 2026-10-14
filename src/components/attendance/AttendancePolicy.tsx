@@ -33,6 +33,7 @@ export default function AttendancePolicy({ defaultOpen = false }: { defaultOpen?
             <p className="font-semibold text-gray-800">Recorded</p>
             <ul className="mt-1 list-disc space-y-1 pl-5">
               <li>When you press <strong>Clock in</strong>, <strong>Clock out</strong>, <strong>Break</strong> and <strong>Lunch</strong>. These are your hours.</li>
+              <li>If you press <strong>I&rsquo;m back</strong> a few minutes before a break or lunch ends, the break is recorded as ending when it was due to end, and the time you pressed it is kept beside it.</li>
               <li>At each clock in and out: the internet address you connected from, the city and internet provider that address belongs to, whether it is the office network, and your browser and type of device (for example “Windows · Chrome · desktop”).</li>
               <li>Every five minutes while TTMS is open: whether you used it (clicked, typed or scrolled) in that time. This shows as active or idle minutes. Idle time is never taken off your hours — a phone call looks idle to a browser.</li>
               <li>
@@ -63,7 +64,8 @@ export default function AttendancePolicy({ defaultOpen = false }: { defaultOpen?
           <div>
             <p className="font-semibold text-gray-800">If something is wrong</p>
             <p className="mt-1">
-              Ask for a correction on the day. HR decides it, and the original time is always kept beside the change.
+              Ask for a correction on the day — your clock times, your breaks and lunch, or both. HR decides it, and the
+              original time is always kept beside the change.
               If you forget to clock out, TTMS closes your day at the last time you used it and marks it so you can ask.
             </p>
           </div>

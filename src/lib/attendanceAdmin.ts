@@ -29,11 +29,15 @@ import {
   datesBetween,
   dayDocId,
   emptyDay,
+  hhmmToMinutes,
   isCalendarDateString,
   isHhmm,
   officeDateOf,
+  readBackOnTime,
+  readBreakTimes,
   readSchedule,
   type AttendanceConfig,
+  type BreakTimes,
   type CorrectionRequest,
   type OfficeNetwork,
   type Schedule,
@@ -45,6 +49,7 @@ import {
   readReminderSettings,
   storedReminderOverride,
   type ReminderOverride,
+  type SlotReminder,
 } from '@/types/breakReminders';
 import { overrideIdFor, type HolidayCountry, type HolidayOverride } from '@/types/holidays';
 
@@ -173,6 +178,11 @@ export async function saveConfig(caller: AttendanceCaller, raw: Record<string, u
     if (typeof reminders === 'string') throw new AttendanceError(reminders);
     next.reminders = reminders;
   }
+  if ('backOnTime' in raw) {
+    const backOnTime = readBackOnTime(raw.backOnTime);
+    if (typeof backOnTime === 'string') throw new AttendanceError(backOnTime);
+    next.backOnTime = backOnTime;
+  }
 
   await adminDb.collection(ATTENDANCE_CONFIG_COLLECTION).doc(ATTENDANCE_CONFIG_DOC).set({
     ...next, updatedAt: Date.now(), updatedByEmail: caller.email,
@@ -211,6 +221,82 @@ export async function saveReminderOverride(caller: AttendanceCaller, target: str
       : { reminders: own, remindersUpdatedAt: Date.now(), remindersUpdatedByEmail: caller.email },
     { merge: true },
   );
+}
+
+/**
+ * Move lunch for everybody, or for several people at once (asked for
+ * 2026-10-14). Lunch has no record of its own: it is the `lunch` slot of the
+ * break reminders, which is also what "Back on time" ends lunch by. So this
+ * is a bulk edit of that one slot, keeping whether it is on and on which days.
+ *
+ * - `everyone` moves the company's lunch. People with a lunch of their own
+ *   keep it, unless `resetOwn` — then their own lunch is dropped and they
+ *   follow the company again; their other reminders are untouched.
+ * - `people` gives each named person a lunch of their own at the new time,
+ *   starting from whatever lunch they follow now.
+ *
+ * The slot is the whole lunch, start to end, so its length is the gap.
+ */
+export async function moveLunch(
+  caller: AttendanceCaller,
+  raw: Record<string, unknown>,
+): Promise<{ moved: number; reset: number }> {
+  const at = String(raw.at ?? '');
+  const until = String(raw.until ?? '');
+  if (!isHhmm(at) || !isHhmm(until)) throw new AttendanceError('Give the lunch a start and an end, like 13:00 and 14:00.');
+  const minutes = hhmmToMinutes(until) - hhmmToMinutes(at);
+  const moved = (slot: SlotReminder): SlotReminder => ({ ...slot, at, until, minutes });
+  // Checked through the same reader as any other save, so the limits match.
+  const check = (slot: SlotReminder) => {
+    const read = readReminderOverride({ lunch: slot });
+    if (typeof read === 'string') throw new AttendanceError(read);
+    return read.lunch!;
+  };
+
+  const config = await loadConfig();
+  const prefsCol = adminDb.collection(ATTENDANCE_PREFS_COLLECTION);
+  const stamp = { remindersUpdatedAt: Date.now(), remindersUpdatedByEmail: caller.email };
+
+  if (raw.target === 'everyone') {
+    const lunch = check(moved(config.reminders.lunch));
+    await adminDb.collection(ATTENDANCE_CONFIG_COLLECTION).doc(ATTENDANCE_CONFIG_DOC).set({
+      reminders: { ...config.reminders, lunch }, updatedAt: Date.now(), updatedByEmail: caller.email,
+    }, { merge: true });
+    let reset = 0;
+    if (raw.resetOwn === true) {
+      const snap = await prefsCol.get();
+      const batch = adminDb.batch();
+      for (const doc of snap.docs) {
+        const own = storedReminderOverride(doc.data().reminders);
+        if (!own.lunch) continue;
+        const { lunch: _dropped, ...rest } = own;
+        batch.set(doc.ref, Object.keys(rest).length === 0
+          ? { reminders: FieldValue.delete() }
+          : { reminders: rest, ...stamp }, { merge: true });
+        reset++;
+      }
+      if (reset > 0) await batch.commit();
+    }
+    return { moved: 1, reset };
+  }
+
+  if (raw.target !== 'people') throw new AttendanceError('Choose everyone, or the people to move.');
+  const emails = Array.isArray(raw.emails) ? [...new Set(raw.emails.map((e) => String(e)))] : [];
+  if (emails.length === 0) throw new AttendanceError('Choose at least one person.');
+  if (emails.length > 500) throw new AttendanceError('Too many people at once.');
+
+  // Every person is checked against the allowlist before anything is written,
+  // so one wrong address cannot leave half the list moved.
+  const people = await Promise.all(emails.map((e) => personEntry(e)));
+  const snaps = await adminDb.getAll(...people.map((p) => prefsCol.doc(p.email)));
+  const batch = adminDb.batch();
+  snaps.forEach((snap) => {
+    const own = storedReminderOverride(snap.data()?.reminders);
+    const lunch = check(moved(own.lunch ?? config.reminders.lunch));
+    batch.set(snap.ref, { reminders: { ...own, lunch }, ...stamp }, { merge: true });
+  });
+  await batch.commit();
+  return { moved: people.length, reset: 0 };
 }
 
 // ── Time off ─────────────────────────────────────────────────────────────────
@@ -328,13 +414,25 @@ export async function listCorrections(caller: AttendanceCaller, scope: 'self' | 
   return snap.docs.map((d) => readCorrection(d.id, d.data())).sort((a, b) => b.createdAt - a.createdAt);
 }
 
-function readTimes(raw: Record<string, unknown>): { clockIn: string | null; clockOut: string | null } {
+type DayChange = { clockIn: string | null; clockOut: string | null; breaks: BreakTimes[] | null };
+
+/**
+ * What to change on a day: either clock time, the breaks, or any mix. `breaks`
+ * absent or null leaves them alone; a list (even an empty one) replaces them.
+ */
+function readTimes(raw: Record<string, unknown>): DayChange {
   const clockIn = raw.clockIn ? String(raw.clockIn) : null;
   const clockOut = raw.clockOut ? String(raw.clockOut) : null;
   if (clockIn !== null && !isHhmm(clockIn)) throw new AttendanceError('The clock-in time should look like 08:00.');
   if (clockOut !== null && !isHhmm(clockOut)) throw new AttendanceError('The clock-out time should look like 17:30.');
-  if (!clockIn && !clockOut) throw new AttendanceError('Give a clock-in time, a clock-out time, or both.');
-  return { clockIn, clockOut };
+  let breaks: BreakTimes[] | null = null;
+  if (raw.breaks != null) {
+    const read = readBreakTimes(raw.breaks);
+    if (typeof read === 'string') throw new AttendanceError(read);
+    breaks = read;
+  }
+  if (!clockIn && !clockOut && !breaks) throw new AttendanceError('Give a clock-in time, a clock-out time, the breaks, or any of them.');
+  return { clockIn, clockOut, breaks };
 }
 
 export async function createCorrection(caller: AttendanceCaller, raw: Record<string, unknown>): Promise<CorrectionRequest> {
@@ -380,7 +478,7 @@ export async function decideCorrection(
   }
 
   if (status === 'approved') {
-    await editDay(caller, req.email, req.date, { clockIn: req.clockIn, clockOut: req.clockOut }, `Request: ${req.reason}`);
+    await editDay(caller, req.email, req.date, { clockIn: req.clockIn, clockOut: req.clockOut, breaks: req.breaks ?? null }, `Request: ${req.reason}`);
   }
   const patch = {
     status,
@@ -402,7 +500,7 @@ export async function editDay(
   caller: AttendanceCaller,
   emailRaw: string,
   date: string,
-  times: { clockIn: string | null; clockOut: string | null } | Record<string, unknown>,
+  times: DayChange | Record<string, unknown>,
   reasonRaw: unknown,
 ): Promise<void> {
   if (!caller.manages) throw new AttendanceError('You cannot change attendance records.', 403);

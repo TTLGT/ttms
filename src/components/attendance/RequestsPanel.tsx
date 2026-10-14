@@ -13,6 +13,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   TIME_OFF_KINDS,
   TIME_OFF_LABEL,
+  describeCorrection,
   type CorrectionRequest,
   type ReportPerson,
   type RequestStatus,
@@ -114,7 +115,8 @@ export default function RequestsPanel({
       <section className="rounded-xl border border-gray-200 bg-white p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-900">Corrections</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Somebody asking for a clock time to be changed. Approving rewrites the day and keeps the original beside it.
+          Somebody asking for a clock time, a break or a lunch to be changed. Approving rewrites the day and keeps the
+          original beside it.
         </p>
         <ul className="mt-4 divide-y divide-gray-100">
           {byQueue(corrections).map((r) => (
@@ -123,7 +125,7 @@ export default function RequestsPanel({
                 <span className="font-medium text-gray-900">{r.name}</span>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[r.status]}`}>{r.status}</span>
                 <span className="text-gray-600">
-                  {formatDate(r.date)} · {r.clockIn ? `in ${r.clockIn}` : ''}{r.clockIn && r.clockOut ? ', ' : ''}{r.clockOut ? `out ${r.clockOut}` : ''}
+                  {formatDate(r.date)} · {describeCorrection(r)}
                 </span>
               </div>
               <p className="mt-1 text-gray-600">{r.reason}</p>
