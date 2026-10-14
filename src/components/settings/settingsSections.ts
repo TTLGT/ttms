@@ -10,7 +10,7 @@ import type { Permission } from '@/types/permission';
  */
 
 export type SettingsTabId =
-  | 'overview' | 'people' | 'permissions' | 'organization' | 'operations' | 'data';
+  | 'overview' | 'people' | 'permissions' | 'organization' | 'operations' | 'attendance' | 'data';
 
 export interface SettingsTab {
   id: SettingsTabId;
@@ -46,6 +46,11 @@ export const SETTINGS_TABS: SettingsTab[] = [
   // and nothing else on it.
   { id: 'operations',   label: 'Operations',   href: '/dashboard/settings/operations',   adminOnly: true,
     permissions: ['celebrations.manage', 'presence.manage', 'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage', 'quoteRates.manage', 'agreementTerms.manage'] },
+  // The same panels as Attendance → Setup (asked for 2026-10-14: an admin
+  // looks for settings under Settings). One component, two doors; HR reaches
+  // it on `attendance.manage`, which every panel on it needs.
+  { id: 'attendance',   label: 'Attendance',   href: '/dashboard/settings/attendance',   adminOnly: true,
+    permissions: ['attendance.manage'] },
   { id: 'data',         label: 'Data',         href: '/dashboard/settings/data',         adminOnly: true  },
 ];
 
@@ -202,6 +207,60 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     keywords: 'lead source referral marketing origin how they found us',
     adminOnly: true,
     permissions: ['leadSources.manage'],
+  },
+  {
+    id: 'attendance-schedules',
+    label: 'Work Schedules',
+    tab: 'attendance',
+    blurb: 'When each person is expected to work, and the company default.',
+    keywords: 'schedule shift hours start end grace late absent workday weekday',
+    adminOnly: true,
+    permissions: ['attendance.manage'],
+  },
+  {
+    id: 'attendance-holidays',
+    label: 'Holidays',
+    tab: 'attendance',
+    blurb: 'Public holidays in Guatemala and the US, and any moved or added.',
+    keywords: 'holiday holidays day off public guatemala us observed moved',
+    adminOnly: true,
+    permissions: ['attendance.manage'],
+  },
+  {
+    id: 'lunch-times',
+    label: 'Lunch Times',
+    tab: 'attendance',
+    blurb: 'Move lunch for everybody, or for several people at once.',
+    keywords: 'lunch time move change 1pm 2pm hour break everyone several people',
+    adminOnly: true,
+    permissions: ['attendance.manage'],
+  },
+  {
+    id: 'break-reminders',
+    label: 'Break Reminders',
+    tab: 'attendance',
+    blurb: 'Clock-in, break, lunch and active-pause reminders, for the company or one person.',
+    keywords: 'reminder reminders break lunch clock in active pause stretch exercises notification',
+    adminOnly: true,
+    permissions: ['attendance.manage'],
+  },
+  {
+    id: 'back-on-time',
+    label: 'Back on Time',
+    tab: 'attendance',
+    blurb: 'A reminder just before a break or lunch ends, to clock back in on time.',
+    keywords: 'back on time return break lunch end early clock back reminder minutes before',
+    adminOnly: true,
+    permissions: ['attendance.manage'],
+  },
+  {
+    id: 'office-network',
+    label: 'Office Network and Alerts',
+    tab: 'attendance',
+    blurb: 'Which internet address is the office, and the “not in yet” alerts.',
+    keywords: 'office network ip address alerts not in yet late absent wifi',
+    adminOnly: true,
+    permissions: ['attendance.manage'],
   },
   {
     id: 'bats-import',

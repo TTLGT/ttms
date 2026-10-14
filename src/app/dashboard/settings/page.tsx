@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  ChevronRight, Database, History, MapPin, Route, Tag, UserPlus, Users, Users2, Shield,
+  CalendarClock, CalendarDays, ChevronRight, Coffee, Database, History, MapPin, Route, Tag, Undo2, UserPlus, Users, Users2,
+  Shield, UtensilsCrossed, Wifi,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { listAllowedUsers } from '@/lib/allowedUsers';
@@ -41,6 +42,12 @@ const ICONS: Record<string, React.ComponentType<{ size?: number; className?: str
   'lane-distance': Route,
   'lead-sources':  Tag,
   'bats-import':   Database,
+  'attendance-schedules': CalendarClock,
+  'attendance-holidays':  CalendarDays,
+  'lunch-times':          UtensilsCrossed,
+  'break-reminders':      Coffee,
+  'back-on-time':         Undo2,
+  'office-network':       Wifi,
 };
 
 /**
@@ -61,6 +68,7 @@ const COLUMNS: { tab: SettingsSection['tab']; heading: string }[][] = [
   ],
   [
     { tab: 'operations',   heading: 'Operations' },
+    { tab: 'attendance',   heading: 'Attendance' },
     { tab: 'data',         heading: 'Data' },
   ],
 ];
@@ -98,8 +106,12 @@ export default function SettingsOverviewPage() {
   // HR has one tab, so an overview of tabs they cannot open is nothing but a
   // wall of locked doors. Send them where they were going.
   useEffect(() => {
-    if (!isAdmin) router.replace(seesPeople ? '/dashboard/settings/people' : '/dashboard/settings/operations');
-  }, [isAdmin, seesPeople, router]);
+    if (!isAdmin) {
+      router.replace(seesPeople ? '/dashboard/settings/people'
+        : can('attendance.manage') ? '/dashboard/settings/attendance'
+        : '/dashboard/settings/operations');
+    }
+  }, [isAdmin, seesPeople, can, router]);
 
   useEffect(() => {
     if (!isAdmin) return;

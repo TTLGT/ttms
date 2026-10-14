@@ -57,14 +57,16 @@ export default function AttendanceSetup() {
   const [remindersVersion, setRemindersVersion] = useState(0);
   const bump = useCallback(() => setRemindersVersion((v) => v + 1), []);
   return (
+    // The ids are the anchors Settings search and the Overview cards jump to
+    // (settingsSections.ts); scroll-mt clears the sticky Settings tab bar.
     <div className="grid items-start gap-6 xl:grid-cols-2">
-      <SchedulesPanel />
+      <div id="attendance-schedules" className="scroll-mt-44"><SchedulesPanel /></div>
       <div className="space-y-6">
-        <HolidaysPanel />
-        <LunchTimesPanel version={remindersVersion} onSaved={bump} />
-        <RemindersPanel version={remindersVersion} onSaved={bump} />
-        <BackOnTimePanel />
-        <NetworkPanel />
+        <div id="attendance-holidays" className="scroll-mt-44"><HolidaysPanel /></div>
+        <div id="lunch-times" className="scroll-mt-44"><LunchTimesPanel version={remindersVersion} onSaved={bump} /></div>
+        <div id="break-reminders" className="scroll-mt-44"><RemindersPanel version={remindersVersion} onSaved={bump} /></div>
+        <div id="back-on-time" className="scroll-mt-44"><BackOnTimePanel /></div>
+        <div id="office-network" className="scroll-mt-44"><NetworkPanel /></div>
       </div>
     </div>
   );

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "62fe2fe2849c67e6cbc38db8c3143a43071d1b79",
+      "date": "2026-10-14T11:40:32-06:00",
+      "author": "erwindank",
+      "subject": "Add Back on time for breaks and lunch, break corrections, and moving lunch times for several people",
+      "body": "HR can switch on a reminder 3 to 5 minutes before a break or lunch ends.\nSomebody already back clicks I'm back and the break is recorded as ending\nat its scheduled end, with the press time kept; Undo reopens it until then.\nLunch never ends past the end of the person's lunch time. Nothing ends a\nbreak by itself.\n\nCorrection requests can now change, add or remove breaks and lunch, and\nHR can edit them directly. The original breaks are kept on the day.\n\nSettings > Attendance > Lunch times moves lunch for everyone or for\nseveral chosen people in one save."
+    },
+    {
       "hash": "c03086f7f7c70550f5db4af519083cb5729f14d7",
       "date": "2026-10-14T11:22:52-06:00",
       "author": "erwindank",

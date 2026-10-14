@@ -57,6 +57,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
     || can('paymentTerms.manage')
     || can('quoteRates.manage')
     || can('agreementTerms.manage')
+    || can('attendance.manage')
     || profile?.isSalesManager === true;
 
   useEffect(() => {
