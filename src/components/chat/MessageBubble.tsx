@@ -91,11 +91,21 @@ export default function MessageBubble({
       {!mine && (
         <div className="w-7 flex-shrink-0 self-end">
           {!grouped && (
-            <UserAvatar
-              photoPath={profileOf(message.senderUid)?.photoPath}
-              fallback={(message.senderName || '?').charAt(0).toUpperCase()}
-              size={28}
-            />
+            // The picture opens the same card as the name: it is the bigger
+            // target, and in a direct thread — which shows no names — the
+            // only one there is.
+            <button
+              type="button"
+              title={`${message.senderName || 'Someone'} — contact info`}
+              onClick={(e) => onOpenPerson(message.senderUid, e.currentTarget.getBoundingClientRect())}
+              className="block rounded-full transition hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+            >
+              <UserAvatar
+                photoPath={profileOf(message.senderUid)?.photoPath}
+                fallback={(message.senderName || '?').charAt(0).toUpperCase()}
+                size={28}
+              />
+            </button>
           )}
         </div>
       )}
@@ -127,10 +137,19 @@ export default function MessageBubble({
       >
         {!grouped && !mine && showSenderName && (
           <p className="mb-0.5 text-xs font-semibold text-brand-700">
-            {/* The name stored on the message, unless the sender is someone we
-                can name now — a profile renamed since should read as the
-                person you know today. */}
-            {nameOf(message.senderUid) !== 'Someone' ? nameOf(message.senderUid) : message.senderName}
+            {/* A button, not a link: it opens the same PersonCard an @mention
+                does — contact details and a Message button — without leaving
+                the conversation. */}
+            <button
+              type="button"
+              onClick={(e) => onOpenPerson(message.senderUid, e.currentTarget.getBoundingClientRect())}
+              className="text-left hover:underline focus:outline-none focus-visible:underline"
+            >
+              {/* The name stored on the message, unless the sender is someone we
+                  can name now — a profile renamed since should read as the
+                  person you know today. */}
+              {nameOf(message.senderUid) !== 'Someone' ? nameOf(message.senderUid) : message.senderName}
+            </button>
           </p>
         )}
 

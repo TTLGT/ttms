@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "df791d9dbc5dfb27507eeb5610920bb29c8cdb54",
+      "date": "2026-10-14T14:46:52-06:00",
+      "author": "erwindank",
+      "subject": "Let brokers and dispatch generate BOLs, and send the BOL once both sides have signed",
+      "body": "Generating a BOL is now in the broker baseline, limited to loads the person\ncan see. When the client and the carrier have both signed, TTMS generates the\nBOL and opens a request for admin and dispatch to choose who gets it (carrier,\nclient, shippers, consignees) and email it. The BOL now follows the office's\nStraight Bill of Lading layout and no longer prints any rates."
+    },
+    {
       "hash": "437fe57783ec84d0f3e27fa95db50ac1ee4500dc",
       "date": "2026-10-14T14:27:04-06:00",
       "author": "erwindank",
