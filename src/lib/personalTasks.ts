@@ -5,6 +5,7 @@ import { auth } from './firebase';
 import {
   DEFAULT_BOARD_COLUMNS,
   DEFAULT_TASK_REMINDER_SETTINGS,
+  NEW_TASK_FOR_BLOCK,
   byOrder,
   calendarToday,
   historyCutoff,
@@ -104,11 +105,14 @@ export async function createMyTask(input: PersonalTaskInput): Promise<{ task: Pe
   return authedFetch('/api/me/tasks', { method: 'POST', body: JSON.stringify(input) });
 }
 
-/** `next` is the copy a repeating task made when this save finished it. */
+/**
+ * `next` is the copy a repeating task made when this save finished it;
+ * `blocks` are work blocks the save re-pointed (see WorkLink).
+ */
 export async function updateMyTask(
   id: string,
   input: PersonalTaskInput,
-): Promise<{ task: PersonalTask; next?: PersonalTask | null } & GameReply> {
+): Promise<{ task: PersonalTask; next?: PersonalTask | null; blocks?: PersonalTask[] } & GameReply> {
   return authedFetch(`/api/me/tasks/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(input),
@@ -180,7 +184,7 @@ export async function clearMyDoneTasks(): Promise<string[]> {
 export async function rescheduleMyTask(
   id: string,
   input: { date: string; time?: string | null },
-): Promise<{ task: PersonalTask; copy: PersonalTask }> {
+): Promise<{ task: PersonalTask; copy: PersonalTask; blocks?: PersonalTask[] }> {
   return authedFetch(`/api/me/tasks/${encodeURIComponent(id)}/reschedule`, {
     method: 'POST',
     body: JSON.stringify(input),
@@ -258,10 +262,11 @@ export function usePersonalTasks() {
     reload();
   }, [reload]);
 
-  /** A save's answer: the task as stored, the next copy of a repeating one, and the game. */
+  /** A save's answer: the task as stored, the next copy of a repeating one, its re-pointed blocks, and the game. */
   const took = useCallback((reply: Awaited<ReturnType<typeof updateMyTask>>) => {
+    const changed = new Map([reply.task, ...(reply.blocks ?? [])].map((t) => [t.id, t]));
     setTasks((list) => {
-      const out = (list ?? []).map((t) => (t.id === reply.task.id ? reply.task : t));
+      const out = (list ?? []).map((t) => changed.get(t.id) ?? t);
       return reply.next && !out.some((t) => t.id === reply.next!.id) ? [...out, reply.next] : out;
     });
     takeGame(reply);
@@ -270,6 +275,14 @@ export function usePersonalTasks() {
   const create = useCallback(async (input: PersonalTaskInput) => {
     setError('');
     try {
+      // "A new task with this title" in a block's Work-on box: the task is
+      // made first, in To do, and the block is then saved pointing at it.
+      if (input.workFor?.taskId === NEW_TASK_FOR_BLOCK) {
+        const made = await createMyTask({ kind: 'task', title: input.title, color: input.color });
+        setTasks((list) => [...(list ?? []), made.task]);
+        takeGame(made);
+        input = { ...input, workFor: { taskId: made.task.id, stepId: null } };
+      }
       const reply = await createMyTask(input);
       setTasks((list) => [...(list ?? []), reply.task]);
       takeGame(reply);
@@ -307,8 +320,9 @@ export function usePersonalTasks() {
   const reschedule = useCallback(async (id: string, input: { date: string; time?: string | null }) => {
     setError('');
     try {
-      const { task, copy } = await rescheduleMyTask(id, input);
-      setTasks((list) => [...(list ?? []).map((t) => (t.id === task.id ? task : t)), copy]);
+      const { task, copy, blocks = [] } = await rescheduleMyTask(id, input);
+      const changed = new Map([task, ...blocks].map((t) => [t.id, t]));
+      setTasks((list) => [...(list ?? []).map((t) => changed.get(t.id) ?? t), copy]);
       return copy;
     } catch (e) {
       fail(e, 'Could not reschedule that');
@@ -318,7 +332,8 @@ export function usePersonalTasks() {
 
   const remove = useCallback(async (id: string) => {
     setError('');
-    setTasks((list) => (list ?? []).filter((t) => t.id !== id));
+    // A task's work blocks are deleted with it, server-side; drawn gone at once.
+    setTasks((list) => (list ?? []).filter((t) => t.id !== id && t.workFor?.taskId !== id));
     try {
       await deleteMyTask(id);
     } catch (e) {

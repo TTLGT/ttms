@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type DragEvent } from 'react';
-import { AlertTriangle, CalendarDays, Check, ChevronDown, ChevronUp, GripVertical, Plus, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CalendarPlus, Check, ChevronDown, ChevronUp, GripVertical, Plus, Target, X } from 'lucide-react';
 import DateField from '@/components/DateField';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
@@ -34,6 +34,9 @@ import { StepStatusChip } from './StatusMark';
  * The same box as the due date holds the step's column: "With the task", or a
  * board column of its own — what dragging its card on the board sets. See
  * `TaskStep.status`.
+ *
+ * Given `blocks`, a saved step can have time set aside for it on the calendar
+ * — as many work blocks as it needs (see WorkLink) — and says how many it has.
  */
 export default function StepList({
   steps,
@@ -44,6 +47,7 @@ export default function StepList({
   taskDate = null,
   columns,
   taskStatus,
+  blocks,
 }: {
   steps: TaskStep[];
   onChange: (next: TaskStep[]) => void;
@@ -57,6 +61,8 @@ export default function StepList({
   columns: BoardColumn[];
   /** The task's own column as it stands in the form — picking it is "with the task". */
   taskStatus: TaskStatus;
+  /** Work blocks: how many a step has, whether it can have one yet, and a way to add one. */
+  blocks?: { count: (stepId: string) => number; can: (stepId: string) => boolean; schedule: (stepId: string) => void };
 }) {
   const [text, setText] = useState('');
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
@@ -217,6 +223,12 @@ export default function StepList({
               )}
 
               <StepStatusChip step={s} columns={columns} />
+              {blocks && blocks.count(s.id) > 0 && (
+                <span title={`${blocks.count(s.id)} work block${blocks.count(s.id) === 1 ? '' : 's'} on your calendar`}
+                  className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-full bg-cyan-50 px-1.5 text-[11px] font-medium text-cyan-700">
+                  <Target size={10} /> {blocks.count(s.id)}
+                </span>
+              )}
               {s.date && !s.done && (
                 <button type="button" onClick={() => setDating(dating === s.id ? null : s.id)} title="Change the due date" className="flex-shrink-0">
                   <DueChip date={s.date} today={today} />
@@ -241,6 +253,17 @@ export default function StepList({
                 >
                   <CalendarDays size={14} />
                 </button>
+                {blocks?.can(s.id) && (
+                  <button
+                    type="button"
+                    onClick={() => blocks.schedule(s.id)}
+                    aria-label={`Schedule a work block for ${s.title}`}
+                    title="Schedule a work block on your calendar"
+                    className="rounded p-0.5 text-gray-400 hover:text-gray-700"
+                  >
+                    <CalendarPlus size={14} />
+                  </button>
+                )}
                 <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up" className="rounded p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30">
                   <ChevronUp size={14} />
                 </button>

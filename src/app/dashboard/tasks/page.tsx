@@ -19,7 +19,7 @@ import TaskFocus from '@/components/tasks/TaskFocus';
 import TaskPath from '@/components/tasks/TaskPath';
 import { StreakCard, UpNextCard } from '@/components/tasks/UpNext';
 import {
-  TASK_COLORS, calendarToday, duplicateInput, nextStepOf, placeInQueue, stepWithDone, taskQueue, upNextTask,
+  TASK_COLORS, calendarToday, duplicateInput, newBlockInput, nextStepOf, placeInQueue, stepWithDone, taskQueue, upNextTask,
   type PersonalTask, type PersonalTaskInput, type TaskColor,
 } from '@/types/task';
 
@@ -181,6 +181,12 @@ export default function MyTasksPage() {
         await reschedule(editing.task!.id, { date, time });
         setEditing(null);
       } : undefined}
+      items={tasks ?? []}
+      // Swaps the dialog to a new block for this task (or one of its steps); it lands on the Calendar.
+      onScheduleBlock={editing.task?.kind === 'task'
+        ? (stepId) => setEditing({ task: null, initial: newBlockInput(editing.task!, stepId, today || calendarToday()) })
+        : undefined}
+      onOpenItem={(t) => setEditing({ task: t })}
       onClose={() => setEditing(null)}
     />
   );

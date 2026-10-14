@@ -15,7 +15,9 @@ import {
   TASK_REPEATS,
   PERSONAL_TASK_HISTORY,
   belongsInHistory,
+  blockStillAhead,
   cleanNths,
+  cleanWorkLink,
   historyCutoff,
   cleanContacts,
   cleanOrders,
@@ -24,6 +26,7 @@ import {
   toSteps,
   type PersonalTask,
   type TaskReminderSettings,
+  type WorkLink,
 } from '@/types/task';
 import { isPlanningKind } from '@/types/planning';
 
@@ -122,6 +125,8 @@ export function toTask(snap: DocumentSnapshot): PersonalTask {
       ? (d.skipDates as unknown[]).filter((x): x is string => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x))
       : [],
     detachedFrom: typeof d.detachedFrom === 'string' ? d.detachedFrom : null,
+    // Only an event is a work block; see WorkLink.
+    workFor:   d.kind === 'event' ? cleanWorkLink(d.workFor) : null,
     outcome: d.kind !== 'event' && d.status === 'done'
       ? (d.outcome === 'notdone' || d.outcome === 'rescheduled' ? d.outcome : 'done')
       : null,
@@ -266,4 +271,58 @@ export function syncReminderQueue(
       batch.delete(ref);
     }
   }
+}
+
+/* ------------------------------------------------------------ work blocks */
+
+/** A transaction, or nothing for a plain read — POST checks a link outside one. */
+interface Reads {
+  get(ref: DocumentReference): Promise<DocumentSnapshot>;
+}
+
+/**
+ * A work link as it may be stored: the caller's own task, still a task, and a
+ * step only if that task has it — otherwise the task as a whole. Null when
+ * the task is not there to work on. The path is under the caller's own uid,
+ * so another person's task id simply is not found.
+ */
+export async function resolveWorkLink(uid: string, link: WorkLink, tx?: Reads): Promise<WorkLink | null> {
+  const ref = taskItems(uid).doc(link.taskId);
+  const snap = tx ? await tx.get(ref) : await ref.get();
+  if (!snap.exists) return null;
+  const task = toTask(snap);
+  if (task.kind !== 'task') return null;
+  return { taskId: task.id, stepId: link.stepId && task.steps.some((s) => s.id === link.stepId) ? link.stepId : null };
+}
+
+/**
+ * Every block pointing at a task. An equality on one map field, which
+ * Firestore indexes by itself, so no index needs deploying.
+ */
+export function blocksQuery(uid: string, taskId: string) {
+  return taskItems(uid).where('workFor.taskId', '==', taskId);
+}
+
+/**
+ * Move a task's blocks still to come onto the copy that carries on from it —
+ * a reschedule, or the next round of a repeating task. Past ones stay with the
+ * task they were spent on, as its record. Returns the ids moved.
+ *
+ * `blocks` is read by the caller before its first write, as a transaction
+ * requires. Only the link changes, so the reminder queue is untouched.
+ */
+export function carryBlocks(
+  writes: { update(ref: DocumentReference, data: DocumentData): unknown },
+  blocks: DocumentSnapshot[],
+  toTaskId: string,
+  today: string,
+): string[] {
+  const moved: string[] = [];
+  for (const b of blocks) {
+    const block = toTask(b);
+    if (!block.workFor || !blockStillAhead(block, today)) continue;
+    writes.update(b.ref, { workFor: { ...block.workFor, taskId: toTaskId }, updatedAt: FieldValue.serverTimestamp() });
+    moved.push(b.id);
+  }
+  return moved;
 }

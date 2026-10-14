@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "aa807666a3926a17175286c507aac21f91405de2",
+      "date": "2026-10-13T14:26:45-06:00",
+      "author": "erwindank",
+      "subject": "Redesign the client agreement and quote PDFs in TTL colours, with the load picture and the BATS fields",
+      "body": "The Shipper Agreement PDF now follows the BATS layout: letterhead with the\nfull logo and company address, order date, first available pickup, the\nclient's address and phone, vehicle details with VIN, a load picture, and a\ndigital signature certificate with a QR code to the signing link and a\nSHA-256 fingerprint. The quote gets the same look and the picture.\n\nThe new header details and the picture are copied onto the link at send and\nkept out of the content fingerprint, so they never hold a link for review.\nVehicle details are in it, and are shown on the signing page too.\n\nAlso fixes the logo not drawing on PDFs made on Windows."
+    },
+    {
       "hash": "f54b6cc5ad6f9bb6d80e0138bc09ac19227d55d2",
       "date": "2026-10-13T12:58:26-06:00",
       "author": "erwindank",

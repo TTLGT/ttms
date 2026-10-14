@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/firebase-admin';
-import { syncReminderQueue, taskItems, taskOwnerDoc, toTask } from '@/lib/personalTasksServer';
+import { blocksQuery, carryBlocks, syncReminderQueue, taskItems, taskOwnerDoc, toTask } from '@/lib/personalTasksServer';
+import { officeToday } from '@/types/celebration';
 import { shiftedEnd } from '@/types/planning';
 import { MAX_TASKS_PER_PERSON, cleanTaskInput } from '@/types/task';
 
@@ -43,6 +44,7 @@ export async function POST(
 
     const ref = taskItems(uid).doc(taskId);
     const copyRef = taskItems(uid).doc();
+    let blockIds: string[] = [];
     try {
       await adminDb.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
@@ -51,6 +53,9 @@ export async function POST(
         if (task.kind !== 'task') throw new Refused('Only a task can be rescheduled. Move an event by its date.', 400);
         if (task.status === 'done') throw new Refused('That task is already closed.', 409);
         if (task.date === to.date && !('time' in to)) throw new Refused('It is already on that day.', 400);
+        // Its work blocks, read before any write. Those still to come follow
+        // the copy, which is where the work now is; past ones stay here.
+        const blocks = (await tx.get(blocksQuery(uid, taskId))).docs;
 
         const time = 'time' in to ? to.time ?? null : task.time;
         // The copy keeps the block's length at its new start.
@@ -91,6 +96,8 @@ export async function POST(
           kind: 'task', status: task.status, date: to.date!, time, reminders: task.reminders,
         }, copyRef.id);
 
+        blockIds = carryBlocks(tx, blocks, copyRef.id, officeToday());
+
         // The planning card follows its slot to the new day.
         if (task.planning) {
           tx.set(taskOwnerDoc(uid), { planning: { [task.planning]: { taskId: copyRef.id } } }, { merge: true });
@@ -101,8 +108,12 @@ export async function POST(
       throw e;
     }
 
-    const [task, copy] = await Promise.all([ref.get(), copyRef.get()]);
-    return NextResponse.json({ task: toTask(task), copy: toTask(copy) }, { status: 201 });
+    const [task, copy, blocks] = await Promise.all([
+      ref.get(), copyRef.get(), Promise.all(blockIds.map((id) => taskItems(uid).doc(id).get())),
+    ]);
+    return NextResponse.json({
+      task: toTask(task), copy: toTask(copy), blocks: blocks.filter((b) => b.exists).map(toTask),
+    }, { status: 201 });
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

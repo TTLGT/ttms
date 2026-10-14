@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/firebase-admin';
-import { nextCopyData, syncReminderQueue, taskItems, taskOwnerDoc, toTask } from '@/lib/personalTasksServer';
+import {
+  blocksQuery, nextCopyData, resolveWorkLink, syncReminderQueue, taskItems, taskOwnerDoc, toTask,
+} from '@/lib/personalTasksServer';
 import { gameClock, gameFrom, offDaysFor } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
 import { GameTurn, addDays, daysBetween, type GameEvent, type GameState } from '@/types/taskGame';
 import {
-  cleanTaskInput, nextOccurrence, outcomeOf, repeatEnd, repeatFields, type PersonalTask, type TaskOutcome, type TaskStep,
+  blockStillAhead, cleanTaskInput, nextOccurrence, outcomeOf, repeatEnd, repeatFields,
+  type PersonalTask, type TaskOutcome, type TaskStep,
 } from '@/types/task';
 import { shiftedEnd } from '@/types/planning';
 import { cleanTaskStreak, recordTaskProgress, type TaskStreak } from '@/types/taskStreak';
@@ -39,7 +42,9 @@ export async function PATCH(
     if (input.suggestionId && !brokerSuggestion(input.suggestionId)) delete input.suggestionId;
     const { today, now } = gameClock();
 
-    let result: { nextId: string | null; game: GameState | null; events: GameEvent[]; streak: TaskStreak | null };
+    let result: {
+      nextId: string | null; game: GameState | null; events: GameEvent[]; streak: TaskStreak | null; blockIds: string[];
+    };
     try {
       result = await adminDb.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
@@ -54,6 +59,15 @@ export async function PATCH(
         if (repeat !== 'none' && !date) throw new Refused('A repeating task needs a planned date to repeat from.', 400);
 
         const update: Record<string, unknown> = { ...input, updatedAt: FieldValue.serverTimestamp() };
+        // A work block's link, checked like a new one (see the create route).
+        // Only an event is a block: one turned into a task loses it.
+        if (kind === 'event' && input.workFor) {
+          const link = await resolveWorkLink(uid, input.workFor, tx);
+          if (!link) throw new Refused('The task this block is for no longer exists. Pick another.', 400);
+          update.workFor = link;
+        } else if (kind === 'task' && (current.workFor || 'workFor' in input)) {
+          update.workFor = null;
+        }
         // An event has nothing to finish and no end time is meaningful on a task;
         // turning one into the other tidies both rather than leaving stale fields.
         // An event repeats as a series rather than by copies — see TASK_REPEATS.
@@ -137,6 +151,16 @@ export async function PATCH(
           delete update.steps;
         }
         if (kind === 'event') update.rank = null;
+
+        // This task's work blocks, read only when this save can change them:
+        // a step that is removed hands its blocks back to the task, and the
+        // next copy of a repeating task takes the blocks still to come. Read
+        // here because a transaction does all its reads before any write.
+        const removedSteps = new Set(
+          kind === 'task' && input.steps ? current.steps.filter((st) => !steps.some((n) => n.id === st.id)).map((st) => st.id) : [],
+        );
+        const mayCopy = kind === 'task' && status === 'done' && current.status !== 'done' && !current.nextId && repeat !== 'none';
+        const blocks = removedSteps.size || mayCopy ? (await tx.get(blocksQuery(uid, taskId))).docs : [];
 
         const merged = { ...current, ...input, kind, date, repeat, ...repeating, repeatUntil, status, steps } as PersonalTask;
 
@@ -223,6 +247,19 @@ export async function PATCH(
           }
         }
 
+        // One write per block whatever changed, so a block of a removed step
+        // that is also still ahead lands on the copy, as the task's.
+        const blockIds: string[] = [];
+        for (const b of blocks) {
+          const block = toTask(b);
+          if (!block.workFor) continue;
+          const stepId = block.workFor.stepId && removedSteps.has(block.workFor.stepId) ? null : block.workFor.stepId;
+          const carried = nextId && blockStillAhead(block, today) ? nextId : block.workFor.taskId;
+          if (stepId === block.workFor.stepId && carried === block.workFor.taskId) continue;
+          tx.update(b.ref, { workFor: { taskId: carried, stepId }, updatedAt: FieldValue.serverTimestamp() });
+          blockIds.push(b.id);
+        }
+
         // The queue is rebuilt from what the item will be after this save, in the
         // same transaction — so ticking a task Done cancels its reminders, and moving
         // it to another day moves them with it. A drag that changes only `order`
@@ -242,20 +279,23 @@ export async function PATCH(
             skipDates: current.skipDates,
           }, taskId);
         }
-        return { nextId, game, events, streak };
+        return { nextId, game, events, streak, blockIds };
       });
     } catch (e) {
       if (e instanceof Refused) return NextResponse.json({ error: e.message }, { status: e.status });
       throw e;
     }
 
-    const [task, next] = await Promise.all([
+    const [task, next, blocks] = await Promise.all([
       ref.get(),
       result.nextId ? taskItems(uid).doc(result.nextId).get() : Promise.resolve(null),
+      Promise.all(result.blockIds.map((id) => taskItems(uid).doc(id).get())),
     ]);
     return NextResponse.json({
       task: toTask(task),
       next: next ? toTask(next) : null,
+      // Blocks this save re-pointed, for the page to draw without a reload.
+      blocks: blocks.filter((b) => b.exists).map(toTask),
       game: result.game,
       events: result.events,
       streak: result.streak,
@@ -278,11 +318,26 @@ export async function DELETE(
     // Deleting something already gone is not an error: two tabs, one click each.
     // Its reminders go with it, or a deleted call would still ring. XP a
     // finished task earned stays earned — deleting is tidying, not undoing.
+    //
+    // A task's work blocks go with it: time set aside for work that no longer
+    // exists is clutter on the calendar, and the editor says so before the
+    // click. Six operations each (the block and its five queue slots) against
+    // Firestore's 500 per batch; the task itself goes in the last batch, so a
+    // failure part way leaves it there to delete again rather than orphans.
+    const blocks = (await blocksQuery(uid, taskId).get()).docs;
+    for (let i = 0; i < blocks.length; i += 80) {
+      const chunk = adminDb.batch();
+      for (const b of blocks.slice(i, i + 80)) {
+        chunk.delete(b.ref);
+        syncReminderQueue(chunk, uid, null, b.id);
+      }
+      await chunk.commit();
+    }
     const batch = adminDb.batch();
     batch.delete(taskItems(uid).doc(taskId));
     syncReminderQueue(batch, uid, null, taskId);
     await batch.commit();
-    return NextResponse.json({ deleted: taskId });
+    return NextResponse.json({ deleted: taskId, blocks: blocks.map((b) => b.id) });
   } catch (e) {
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });

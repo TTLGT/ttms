@@ -119,7 +119,7 @@ function layOut(items: PersonalTask[], endOf: (t: PersonalTask) => number): Plac
 
 export default function TaskWeekGrid({
   days, today, selected, items, itemsOn, extrasOn, untimedChip, onSelect, onOpen, onUpdate, onAdd, onAskSeries, nowMinutes,
-  zoom = 0,
+  zoom = 0, forText,
 }: {
   days: string[];
   today: string;
@@ -140,6 +140,8 @@ export default function TaskWeekGrid({
   nowMinutes: number | null;
   /** An index into ZOOM_STEPS: taller hours, larger type, and above 0 a taller window and wrapped names. */
   zoom?: number;
+  /** What a work block is for, as words for its hover title; '' for anything else. */
+  forText?: (t: PersonalTask) => string;
 }) {
   const step = ZOOM_STEPS[Math.max(0, Math.min(zoom, MAX_ZOOM))];
   const HOUR_PX = step.hourPx;
@@ -431,7 +433,7 @@ export default function TaskWeekGrid({
                       }}
                       onClick={(e) => { e.stopPropagation(); onOpen(t); }}
                       onKeyDown={(e) => { if (e.key === 'Enter') onOpen(t); }}
-                      title={`${t.kind === 'event' ? `${EVENT_TYPE_LABEL[t.eventType]}: ` : ''}${t.title}${series ? ` (${repeatText(t)})` : ''}`}
+                      title={`${t.kind === 'event' ? `${EVENT_TYPE_LABEL[t.eventType]}: ` : ''}${t.title}${series ? ` (${repeatText(t)})` : ''}${forText?.(t) ?? ''}`}
                       className={`absolute z-10 overflow-hidden rounded border border-white/60 px-1.5 py-0.5 ${blockText} leading-tight shadow-sm ${
                         NOTE_STYLE[t.color].chip
                       } ${movable ? 'cursor-grab' : 'cursor-pointer'} ${outcome ? OUTCOME_STYLE[outcome] : ''} ${

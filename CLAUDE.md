@@ -1138,6 +1138,19 @@ Types and pure rules in `src/types/task.ts`; server in
   end like an event (`time` / `endTime`, the block it takes; `dueDate` /
   `dueTime` is the separate deadline). One with no end yet is drawn 30
   minutes tall, and pulling its edge gives it one. Phones keep the per-day list.
+- **A task can have any number of work blocks** — events carrying
+  `workFor: { taskId, stepId }` (`WorkLink` in `src/types/task.ts`), so a
+  step can have time of its own too. A block is an ordinary event in every
+  other way (drag, stretch, repeat, detach, reminders, history), which is the
+  point: the calendar machinery has one copy. Made from the task editor
+  ("Schedule a work block", or the calendar-plus on a step) or from any
+  event's "Work block for" box, which can also make a new task. The link is
+  kept honest server-side and **anything that replaces a task with a copy
+  must carry its blocks**: the delete route deletes them, a removed step's
+  fall back to the task (PATCH), and a reschedule or a repeating task's next
+  copy takes the ones still ahead (`carryBlocks()` / `blockStillAhead()`),
+  leaving past ones as the record. (The planning card's `carryOn()` does not:
+  a planning slot is itself the block.)
 - **`monthlyNth`** is "the 1st Tuesday", "the 2nd and 4th Wednesday", "the last
   Friday": `repeatWeekday` (0–6) and `repeatNths` (1–4, 5 = last).
   `repeatFields()` is the one place the stored repeat fields are worked out.

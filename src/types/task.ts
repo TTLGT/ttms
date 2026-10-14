@@ -688,6 +688,106 @@ export function cleanOrders(raw: unknown): TaskOrder[] {
   return out;
 }
 
+/**
+ * A work block: an event that is time set aside to work on one of the
+ * person's tasks, or on one step of it — "Tuesday 9–11, the rate review;
+ * Thursday 2–3, its second step". A task can have as many as it needs, which
+ * is the point: its own `date`/`time` is one block, and most real work does
+ * not fit in one sitting.
+ *
+ * A block is an ordinary event in every other way — dragged, stretched,
+ * repeated, reminded about, moved to history — so none of that machinery has
+ * a second copy for tasks. The link is all that is added, and only an event
+ * carries one. It is a pointer, not a copy: the block keeps its own title and
+ * the calendar names the task and step live from the list.
+ *
+ * The server keeps it honest (see personalTasksServer.ts): a link to
+ * anything but one of the person's own tasks is refused; a step that is
+ * removed hands its blocks back to the task; deleting the task deletes its
+ * blocks; rescheduling it, or finishing a repeating one, carries the blocks
+ * still ahead onto the copy that carries on, leaving past ones with the
+ * record.
+ */
+export interface WorkLink {
+  taskId: string;
+  /** One of the task's steps, or null for the task as a whole. */
+  stepId: string | null;
+}
+
+/** Firestore's own ids, which are all a task id can be. It ends up in a query, so nothing else gets in. */
+const WORK_TASK_ID_RE = /^[A-Za-z0-9]{1,64}$/;
+
+/** A link as sent or stored, or null when it is not a well-formed one. */
+export function cleanWorkLink(raw: unknown): WorkLink | null {
+  const r = (raw && typeof raw === 'object' ? raw : null) as Record<string, unknown> | null;
+  if (!r || typeof r.taskId !== 'string' || !WORK_TASK_ID_RE.test(r.taskId)) return null;
+  const stepId = typeof r.stepId === 'string' && STEP_ID_RE.test(r.stepId) ? r.stepId : null;
+  return { taskId: r.taskId, stepId };
+}
+
+/**
+ * What a block is for, looked up in the list: the task and the step, or the
+ * task alone when the step has since been removed. Null for an item that is
+ * not a block, or whose task is not in the list (deleted, or in history).
+ */
+export function workTargetOf(
+  block: Pick<PersonalTask, 'kind' | 'workFor'>,
+  byId: Map<string, PersonalTask>,
+): { task: PersonalTask; step: TaskStep | null } | null {
+  if (block.kind !== 'event' || !block.workFor) return null;
+  const task = byId.get(block.workFor.taskId);
+  if (!task || task.kind !== 'task') return null;
+  return { task, step: block.workFor.stepId ? task.steps.find((s) => s.id === block.workFor!.stepId) ?? null : null };
+}
+
+/** "Rate review › Call the carrier", or just the task's title. */
+export function workTargetLabel(target: { task: PersonalTask; step: TaskStep | null }): string {
+  return target.step ? `${target.task.title} › ${target.step.title}` : target.task.title;
+}
+
+/** A task's blocks (any step's included, or one step's only), soonest first. */
+export function blocksOf(items: PersonalTask[], taskId: string, stepId?: string): PersonalTask[] {
+  return items
+    .filter((t) => t.kind === 'event' && t.workFor?.taskId === taskId
+      && (stepId === undefined || t.workFor.stepId === stepId))
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || byTime(a, b));
+}
+
+/**
+ * Still to come: a single block on today or later, or a series that has not
+ * ended. What a reschedule or a repeat carries onto the copy; anything else
+ * is a record of time already spent and stays with the task it was spent on.
+ */
+export function blockStillAhead(block: Pick<PersonalTask, 'date' | 'repeat' | 'repeatUntil'>, today: string): boolean {
+  if (!block.date) return false;
+  return (block.repeat !== 'none' ? block.repeatUntil ?? block.date : block.date) >= today;
+}
+
+/**
+ * Sent by the Work-on picker for "a new task with this title". Never reaches
+ * the server: the page makes the task first and sends its real id. It cannot
+ * pass cleanWorkLink(), so one that slipped through would simply be dropped.
+ */
+export const NEW_TASK_FOR_BLOCK = '__new__';
+
+/**
+ * The starting values for a new block for a task, or one step of it: focus
+ * time, in the task's colour, named after what it is for, on the task's
+ * planned day when that is still ahead and otherwise today. No time — the
+ * person picks the hours, which is the whole of what a block is.
+ */
+export function newBlockInput(task: PersonalTask, stepId: string | null, today: string): PersonalTaskInput {
+  const step = stepId ? task.steps.find((s) => s.id === stepId) ?? null : null;
+  return {
+    kind: 'event',
+    eventType: 'focus',
+    title: step ? step.title : task.title,
+    color: task.color,
+    date: task.date && task.date >= today ? task.date : today,
+    workFor: { taskId: task.id, stepId: step ? step.id : null },
+  };
+}
+
 export interface PersonalTask {
   id: string;
   kind: TaskKind;
@@ -758,6 +858,8 @@ export interface PersonalTask {
   skipDates: string[];
   /** The series a separate event was taken out of, for the record. Null on everything else. */
   detachedFrom: string | null;
+  /** Events only: the task (and step) this is a work block for. See WorkLink. */
+  workFor: WorkLink | null;
   /** The copy finishing this one made. Set once, so un-ticking and re-ticking never makes two. */
   nextId: string | null;
   /** Game mode: the XP this task is holding, taken back if it is reopened. */
@@ -852,7 +954,7 @@ export function outcomeOf(t: Pick<PersonalTask, 'kind' | 'status' | 'outcome'>):
 export type PersonalTaskInput = Partial<Pick<PersonalTask,
   'kind' | 'title' | 'notes' | 'status' | 'priority' | 'difficulty' | 'color' | 'date' | 'time' | 'endTime' | 'dueDate' | 'dueTime' | 'order'
   | 'eventType' | 'location' | 'reminders' | 'repeat' | 'repeatWeekday' | 'repeatNths' | 'repeatUntil'
-  | 'suggestionId' | 'steps' | 'rank' | 'contacts' | 'orders' | 'outcome'>>;
+  | 'suggestionId' | 'steps' | 'rank' | 'contacts' | 'orders' | 'outcome' | 'workFor'>>;
 
 /**
  * The starting values for a copy of an item: what it says and when, never how
@@ -885,6 +987,8 @@ export function duplicateInput(t: PersonalTask): PersonalTaskInput {
     repeatUntil: t.repeatUntil,
     contacts: [...t.contacts],
     orders: [...t.orders],
+    // A copy of a work block is another block for the same work.
+    workFor: t.workFor ? { ...t.workFor } : null,
     steps: t.steps.map((s) => ({ ...s, id: newStepId(), done: false, status: null, xp: 0, everDone: false })),
   };
 }
@@ -1010,6 +1114,13 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   if (Array.isArray(b.orders)) out.orders = cleanOrders(b.orders);
   // 'rescheduled' only ever comes from the reschedule route, which makes the copy it points at.
   if (b.outcome === 'done' || b.outcome === 'notdone') out.outcome = b.outcome;
+  // Only the shape here; whether the task is the caller's and really a task
+  // is the route's to check (resolveWorkLink()), which is the one with the list.
+  if (b.workFor === null) out.workFor = null;
+  else if (b.workFor !== undefined) {
+    const link = cleanWorkLink(b.workFor);
+    if (link) out.workFor = link;
+  }
   return out;
 }
 

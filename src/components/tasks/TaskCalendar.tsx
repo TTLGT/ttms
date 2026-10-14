@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react';
-import { Bell, Check, Flag, ChevronLeft, ChevronRight, ExternalLink, Plus, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Bell, Check, Flag, Target, ChevronLeft, ChevronRight, ExternalLink, Plus, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   EVENT_TYPE_LABEL,
@@ -17,6 +17,8 @@ import {
   occurrencesBetween,
   outcomeOf,
   repeatText,
+  workTargetLabel,
+  type TaskStep,
 } from '@/types/task';
 import type { Holiday } from '@/types/holidays';
 import type { CalendarOccurrence } from '@/types/celebrationCalendar';
@@ -118,6 +120,7 @@ export default function TaskCalendar({
   asideTop,
   asideBottom,
   onZoomChange,
+  targetOf,
 }: {
   items: PersonalTask[];
   /** The person's board columns, for the name of a task's status. */
@@ -145,8 +148,15 @@ export default function TaskCalendar({
   asideBottom?: ReactNode;
   /** The zoom step whenever it changes, so the page can widen around it. */
   onZoomChange?: (zoom: number) => void;
+  /** What a work block is for — see WorkLink. Absent: blocks are drawn as plain events. */
+  targetOf?: (t: PersonalTask) => WorkTarget | null;
 }) {
   const { formatCalendarDate } = useDateFormatters();
+  /** " — for Rate review › Call the carrier", added to a hover title. */
+  const forText = (t: PersonalTask) => {
+    const target = targetOf?.(t);
+    return target ? ` — for ${workTargetLabel(target)}` : '';
+  };
   const [mode, setMode] = useState<Mode>('month');
   const [cursor, setCursor] = useState(() => monthOf(selected));
   // The first day of the hour grid, in the day, four-day and week views.
@@ -336,7 +346,7 @@ export default function TaskCalendar({
         }}
         onDragEnd={() => setOver(null)}
         onClick={(e) => { e.stopPropagation(); onOpen(t); }}
-        title={`${t.kind === 'event' ? `${EVENT_TYPE_LABEL[t.eventType]}: ${t.title}` : t.title}${series ? ` (${repeatText(t)})` : ''}`}
+        title={`${t.kind === 'event' ? `${EVENT_TYPE_LABEL[t.eventType]}: ${t.title}` : t.title}${series ? ` (${repeatText(t)})` : ''}${forText(t)}`}
         className={`flex w-full ${movable ? 'cursor-grab' : 'cursor-pointer'} rounded text-left font-medium ${
           roomy ? 'flex-col gap-0.5 px-2 py-1.5 text-xs' : 'items-center gap-1 truncate px-1.5 py-0.5 text-[11px]'
         } ${NOTE_STYLE[t.color].chip} ${outcome ? OUTCOME_STYLE[outcome] : ''} ${
@@ -564,6 +574,7 @@ export default function TaskCalendar({
             onUpdate={onUpdate}
             onAdd={onAdd}
             onAskSeries={onDetach ? setSeriesAsk : undefined}
+            forText={forText}
             nowMinutes={nowMinutes}
             zoom={zoom}
           />
@@ -641,6 +652,7 @@ export default function TaskCalendar({
               onOpen={onOpen}
               onUpdate={onUpdate}
               onPickOccurrence={onPickOccurrence}
+              targetOf={targetOf}
             />
           ) : (
             <p className="text-sm text-gray-500">Nothing on this day.</p>
@@ -686,6 +698,7 @@ export default function TaskCalendar({
                       onOpen={onOpen}
                       onUpdate={onUpdate}
                       onPickOccurrence={onPickOccurrence}
+                      targetOf={targetOf}
                     />
                   </div>
                 ))}
@@ -718,6 +731,9 @@ export default function TaskCalendar({
   );
 }
 
+/** What a work block is for: its task, and the step when it is for one. */
+type WorkTarget = { task: PersonalTask; step: TaskStep | null };
+
 /** One day as a list: holidays, then celebrations, then the viewer's own items. */
 function DayList({
   holidays,
@@ -728,6 +744,7 @@ function DayList({
   onOpen,
   onUpdate,
   onPickOccurrence,
+  targetOf,
 }: {
   holidays: Holiday[];
   occurrences: CalendarOccurrence[];
@@ -738,6 +755,7 @@ function DayList({
   onOpen: (task: PersonalTask) => void;
   onUpdate: (id: string, input: PersonalTaskInput) => void;
   onPickOccurrence?: (o: CalendarOccurrence) => void;
+  targetOf?: (t: PersonalTask) => WorkTarget | null;
 }) {
   return (
     <ul className="space-y-2">
@@ -833,6 +851,20 @@ function DayList({
               ) : t.kind === 'event' && t.location ? (
                 <span className="mt-0.5 block truncate text-xs text-gray-500">{t.location}</span>
               ) : null}
+              {(() => {
+                // A work block names its task, one click from the block.
+                const target = targetOf?.(t);
+                if (!target) return null;
+                return (
+                  <button type="button" onClick={() => onOpen(target.task)}
+                    className="mt-0.5 flex max-w-full items-center gap-1 text-left text-xs font-medium text-brand-700 hover:underline">
+                    <Target size={11} className="flex-shrink-0" />
+                    <span className="truncate">
+                      For {workTargetLabel(target)}{target.task.status === 'done' ? ' (done)' : ''}
+                    </span>
+                  </button>
+                );
+              })()}
             </div>
             <span className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${NOTE_STYLE[t.color].swatch}`} />
           </li>

@@ -22,7 +22,9 @@ import {
   UpcomingCelebrations,
   useCelebrationCalendar,
 } from '@/components/calendar/CelebrationPanels';
-import { calendarToday, defaultColorFor, duplicateInput, type PersonalTask, type PersonalTaskInput } from '@/types/task';
+import {
+  calendarToday, defaultColorFor, duplicateInput, newBlockInput, workTargetOf, type PersonalTask, type PersonalTaskInput,
+} from '@/types/task';
 import { NOTE_STYLE } from '@/components/tasks/taskStyle';
 import {
   HOLIDAY_COUNTRY_LABEL,
@@ -132,6 +134,14 @@ export default function CalendarPage() {
     return [...live, ...history.filter((t) => !ids.has(t.id))]
       .filter((t) => (t.kind === 'task' ? show.tasks : show.events));
   }, [tasks, history, show]);
+
+  // What each work block is for, looked up in everything loaded — the layer
+  // switches above can hide the tasks without hiding what their blocks are for.
+  const allById = useMemo(
+    () => new Map([...history, ...(tasks ?? [])].map((t) => [t.id, t])),
+    [tasks, history],
+  );
+  const targetOf = useCallback((t: PersonalTask) => workTargetOf(t, allById), [allById]);
 
   const save = async (input: PersonalTaskInput) => {
     if (editing?.task) await update(editing.task.id, input);
@@ -253,6 +263,7 @@ export default function CalendarPage() {
           onAdd={(initial) => setEditing({ task: null, initial })}
           onUpdate={update}
           onDetach={detach}
+          targetOf={targetOf}
           holidaysOn={holidaysOn}
           celebrationsOn={hr && cel ? celebrationsOn : undefined}
           pickedOccurrence={picked}
@@ -318,6 +329,12 @@ export default function CalendarPage() {
             await reschedule(editing.task!.id, { date, time });
             setEditing(null);
           } : undefined}
+          items={tasks ?? []}
+          // Swaps the dialog to a new block for this task (or one of its steps).
+          onScheduleBlock={editing.task?.kind === 'task'
+            ? (stepId) => setEditing({ task: null, initial: newBlockInput(editing.task!, stepId, today || calendarToday()) })
+            : undefined}
+          onOpenItem={(t) => setEditing({ task: t })}
           onClose={() => setEditing(null)}
         />
         </TaskDirectoryProvider>

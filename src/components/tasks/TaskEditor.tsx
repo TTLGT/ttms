@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Bell, CalendarClock, Copy, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarClock, CalendarPlus, Copy, Target, Trash2, X } from 'lucide-react';
 import DateField from '@/components/DateField';
 import TimeField from '@/components/TimeField';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -34,6 +34,10 @@ import {
   placeOf,
   reminderInstants,
   reminderLeadLabel,
+  blocksOf,
+  timeRange,
+  NEW_TASK_FOR_BLOCK,
+  type WorkLink,
   type BoardColumn,
   type ColorLabels,
   type EventType,
@@ -75,6 +79,9 @@ export default function TaskEditor({
   onDuplicate,
   copyOf,
   onReschedule,
+  items = [],
+  onScheduleBlock,
+  onOpenItem,
   onClose,
 }: {
   /** The item being edited; null to add one. */
@@ -110,6 +117,15 @@ export default function TaskEditor({
    * Rescheduled. Absent where the page cannot (and for a new task).
    */
   onReschedule?: (date: string, time: string | null) => Promise<void> | void;
+  /**
+   * The person's whole list: where a task's work blocks are found, and the
+   * tasks an event can be made a block for. See WorkLink.
+   */
+  items?: PersonalTask[];
+  /** Open a new work block for this (saved) task, or one of its steps. Absent: not offered. */
+  onScheduleBlock?: (stepId: string | null) => void;
+  /** Swap the dialog over to another item — one of this task's blocks, or a block's task. */
+  onOpenItem?: (item: PersonalTask) => void;
   onClose: () => void;
 }) {
   const start = task ?? initial ?? {};
@@ -155,6 +171,8 @@ export default function TaskEditor({
   const [steps, setSteps]         = useState<TaskStep[]>(start.steps ?? []);
   const [contacts, setContacts]   = useState<TaskContact[]>(start.contacts ?? []);
   const [orders, setOrders]       = useState<TaskOrder[]>(start.orders ?? []);
+  // Events only: the task (and step) this is a work block for.
+  const [workFor, setWorkFor]     = useState<WorkLink | null>(start.workFor ?? null);
   // Blank means "leave it where it is" — or, for a new task, the end of the queue.
   const [place, setPlace]         = useState(queuePlace ? String(queuePlace) : '');
   const [problem, setProblem]     = useState('');
@@ -167,7 +185,7 @@ export default function TaskEditor({
   const draft = JSON.stringify([
     kind, eventType, title, notes, location, status, priority, difficulty, color, date, time, endTime,
     dueDate, dueTime, reminders, repeat, repeatWeekday, repeatNths, repeatUntil, steps,
-    contacts, orders, place,
+    contacts, orders, place, workFor,
   ]);
   const [opened] = useState(draft);
 
@@ -183,6 +201,37 @@ export default function TaskEditor({
   };
   const dismissRef = useRef(dismiss);
   dismissRef.current = dismiss;
+
+  /** Moving to another item leaves this one as saved — the same question as closing. */
+  const leaveFor = (go: () => void) => {
+    if (!readOnly && draft !== opened && !window.confirm(
+      'Leave without saving your changes? This item will stay as it was saved.')) return;
+    go();
+  };
+
+  // ── Work blocks ─────────────────────────────────────────────
+  const byId = new Map(items.map((t) => [t.id, t]));
+  // A task's own blocks, from the list as it stands (this dialog does not edit them).
+  const myBlocks = task && task.kind === 'task' ? blocksOf(items, task.id) : [];
+  const blockCount = (stepId: string) => myBlocks.filter((b) => b.workFor?.stepId === stepId).length;
+  // What an event can be a block for: open tasks, plus the one it is already
+  // for even if that has since been finished, so the box never loses it.
+  const workTask = workFor && workFor.taskId !== NEW_TASK_FOR_BLOCK ? byId.get(workFor.taskId) ?? null : null;
+  const workChoices = items
+    .filter((t) => t.kind === 'task' && !t.fromHistory && (t.status !== 'done' || t.id === workFor?.taskId))
+    .sort((a, b) => a.title.localeCompare(b.title));
+  const initialEventType = start.eventType ?? 'call';
+  const pickWork = (link: WorkLink | null) => {
+    setWorkFor(link);
+    if (!link) return;
+    const t = link.taskId === NEW_TASK_FOR_BLOCK ? null : byId.get(link.taskId);
+    // A block is focus time unless somebody already chose otherwise, and
+    // wears its task's colour unless one was picked.
+    if (eventType === initialEventType) setEventType('focus');
+    if (t && !colorPicked) setColor(t.color);
+    const step = t && link.stepId ? t.steps.find((x) => x.id === link.stepId) : null;
+    if (!title.trim() && t) setTitle(step ? step.title : t.title);
+  };
 
   useEffect(() => { titleRef.current?.focus(); }, []);
 
@@ -256,6 +305,9 @@ export default function TaskEditor({
       contacts,
       orders,
       ...(kind === 'task' ? { steps } : {}),
+      // Sent only when it changed: a block whose task has since been deleted
+      // can still be saved without the server refusing a link nobody touched.
+      ...(kind === 'event' && JSON.stringify(workFor) !== JSON.stringify(task?.workFor ?? null) ? { workFor } : {}),
     }, placeAt);
     setSaving(false);
   };
@@ -340,6 +392,60 @@ export default function TaskEditor({
                 })}
               </div>
               <p className="mt-1.5 text-xs text-gray-500">Events show on your calendar only, not on the board.</p>
+            </div>
+          )}
+
+          {/* A block of time to work on one of your tasks, or one step of it. */}
+          {kind === 'event' && (
+            <div>
+              <label className={`${label} flex items-center gap-1`} htmlFor="task-work-for">
+                <Target size={12} /> Work block for
+              </label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <select
+                  id="task-work-for"
+                  value={workFor?.taskId ?? ''}
+                  onChange={(e) => pickWork(e.target.value ? { taskId: e.target.value, stepId: null } : null)}
+                  className={input}
+                >
+                  <option value="">Not a work block</option>
+                  {workFor && workFor.taskId !== NEW_TASK_FOR_BLOCK && !workTask && (
+                    <option value={workFor.taskId}>A task no longer on your list</option>
+                  )}
+                  {workChoices.map((t) => (
+                    <option key={t.id} value={t.id}>{t.title}{t.status === 'done' ? ' (done)' : ''}</option>
+                  ))}
+                  {/* Only when adding: the page makes the task, then this block for it. */}
+                  {!task && <option value={NEW_TASK_FOR_BLOCK}>+ A new task with this title</option>}
+                </select>
+                {workTask && workTask.steps.length > 0 && (
+                  <select
+                    aria-label={`Which ${stepWords.one}`}
+                    value={workFor?.stepId ?? ''}
+                    onChange={(e) => pickWork({ taskId: workTask.id, stepId: e.target.value || null })}
+                    className={input}
+                  >
+                    <option value="">The whole task</option>
+                    {workTask.steps.map((st) => (
+                      <option key={st.id} value={st.id}>{st.done ? '\u2713 ' : ''}{st.title}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {workFor?.taskId === NEW_TASK_FOR_BLOCK ? (
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Adding this also adds a task with the title below to To do, and makes this its first work block.
+                </p>
+              ) : workTask && onOpenItem ? (
+                <button type="button" onClick={() => leaveFor(() => onOpenItem(workTask))}
+                  className="mt-1.5 text-xs font-medium text-brand-700 hover:underline">
+                  Open the task
+                </button>
+              ) : !workFor ? (
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Pick one of your tasks to make this time set aside for it. A task can have as many blocks as it needs.
+                </p>
+              ) : null}
             </div>
           )}
 
@@ -443,7 +549,51 @@ export default function TaskEditor({
           {kind === 'task' && (
             <div>
               <span className={`${label} capitalize`}>{stepWords.many}</span>
-              <StepList steps={steps} onChange={setSteps} one={stepWords.one} many={stepWords.many} taskDate={dueDate || date || null} columns={columns} taskStatus={status} />
+              <StepList steps={steps} onChange={setSteps} one={stepWords.one} many={stepWords.many} taskDate={dueDate || date || null} columns={columns} taskStatus={status}
+                // Only a step that is saved can have a block: a new one has no
+                // id on the server yet for a block to point at.
+                blocks={task && onScheduleBlock && !readOnly ? {
+                  count: blockCount,
+                  can: (id) => task.steps.some((st) => st.id === id),
+                  schedule: (id) => leaveFor(() => onScheduleBlock(id)),
+                } : undefined}
+              />
+            </div>
+          )}
+
+          {kind === 'task' && (task ? myBlocks.length > 0 || (!!onScheduleBlock && !readOnly) : !!onOpenItem) && (
+            <div>
+              <span className={`${label} flex items-center gap-1`}><Target size={12} /> Work blocks</span>
+              {myBlocks.length > 0 && (
+                <ul className="mb-1.5 space-y-1">
+                  {myBlocks.map((b) => {
+                    const step = b.workFor?.stepId ? task!.steps.find((st) => st.id === b.workFor!.stepId) : null;
+                    return (
+                      <li key={b.id}>
+                        <button type="button" disabled={!onOpenItem}
+                          onClick={() => onOpenItem && leaveFor(() => onOpenItem(b))}
+                          className="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-left text-sm hover:bg-gray-50">
+                          <span className={`h-2 w-2 flex-shrink-0 rounded-full ${NOTE_STYLE[b.color].swatch}`} />
+                          <span className="flex-shrink-0 text-gray-700">
+                            {b.date ? formatCalendarDate(b.date) : ''}{b.time ? ` \u00b7 ${timeRange(b)}` : ''}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-xs text-gray-500">
+                            {step ? step.title : b.title}{b.repeat !== 'none' ? ' \u00b7 repeats' : ''}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {task ? (onScheduleBlock && !readOnly && (
+                <button type="button" onClick={() => leaveFor(() => onScheduleBlock(null))}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline">
+                  <CalendarPlus size={14} /> Schedule a work block
+                </button>
+              )) : (
+                <p className="text-xs text-gray-500">Add the task first, then schedule as many blocks of time for it, or for its {stepWords.many}, as you need.</p>
+              )}
             </div>
           )}
 
@@ -690,7 +840,12 @@ export default function TaskEditor({
           {task && onDelete && !readOnly && (
             <button
               type="button"
-              onClick={() => { if (window.confirm(`Delete "${task.title}"?`)) onDelete(); }}
+              onClick={() => {
+                // Its blocks go with it (the delete route), so say so first.
+                const also = myBlocks.length
+                  ? `\n\nIts ${myBlocks.length} work block${myBlocks.length === 1 ? '' : 's'} on your calendar will be deleted too.` : '';
+                if (window.confirm(`Delete "${task.title}"?${also}`)) onDelete();
+              }}
               className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50"
             >
               <Trash2 size={14} /> Delete

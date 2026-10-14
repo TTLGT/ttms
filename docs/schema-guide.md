@@ -2478,6 +2478,16 @@ personalTasks/{uid}/items/{itemId}
                                    // (a month by default); null when it does not repeat
   skipDates : string[]             // a repeating event's dates taken out of the series
   detachedFrom : string | null     // on the separate event made from one of them: the series' id
+  workFor   : { taskId, stepId } | null
+                                   // events only: a WORK BLOCK, time set aside for one
+                                   // of the person's own tasks (stepId: one of its
+                                   // steps, or null for the whole task). Checked on
+                                   // save (resolveWorkLink()). Any number per task.
+                                   // Deleted with the task; a removed step's blocks
+                                   // fall back to the task; a reschedule or a repeat's
+                                   // next copy takes the blocks still ahead. Found by
+                                   // an equality on workFor.taskId (auto index).
+                                   // Absent reads null; no backfill
   nextId    : string | null        // the copy finishing this one made; set once
   xpEarned  : number               // game mode: taken back if it is reopened
   everDone  : boolean              // game mode: has counted toward missions

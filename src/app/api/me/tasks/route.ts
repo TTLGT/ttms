@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/firebase-admin';
 import { officeToday } from '@/types/celebration';
 import {
+  resolveWorkLink,
   sweepToHistory,
   syncReminderQueue,
   taskItems,
@@ -12,7 +13,7 @@ import {
 import { gameClock, gameFrom, liveStreakFor, runDailyCheck, writeGame } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
 import { GameTurn, type GameEvent, type GameState } from '@/types/taskGame';
-import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanColorLabels, cleanTaskInput, defaultColorFor, repeatEnd, repeatFields } from '@/types/task';
+import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanColorLabels, cleanTaskInput, defaultColorFor, repeatEnd, repeatFields, type WorkLink } from '@/types/task';
 
 /**
  * The caller's own task list and calendar — see src/types/task.ts.
@@ -84,6 +85,16 @@ export async function POST(req: NextRequest) {
       repeatUntil: repeatEnd(repeat, input.date ?? null, input.repeatUntil, null),
     };
     const suggestionId = kind === 'task' && brokerSuggestion(input.suggestionId) ? input.suggestionId! : null;
+    // A work block names one of the caller's own tasks, checked here; a link
+    // to anything else is refused rather than quietly dropped, because the
+    // person picked a task and would otherwise get a block for nothing.
+    let workFor: WorkLink | null = null;
+    if (kind === 'event' && input.workFor) {
+      workFor = await resolveWorkLink(uid, input.workFor);
+      if (!workFor) {
+        return NextResponse.json({ error: 'The task this block is for no longer exists. Pick another.' }, { status: 400 });
+      }
+    }
 
     const items = taskItems(uid);
     // An aggregation, so this costs one read however long the list is.
@@ -130,6 +141,7 @@ export async function POST(req: NextRequest) {
       rank:      kind === 'event' ? null : input.rank ?? null,
       contacts:  input.contacts ?? [],
       orders:    input.orders ?? [],
+      workFor,
       // The browser works out where a new card goes (the bottom of its column)
       // because it is the one holding the column. Absent, the clock stands in:
       // it is always larger than anything orderBetween() hands out, so a task
