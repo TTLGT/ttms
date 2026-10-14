@@ -255,7 +255,11 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
     { label: carrier ? 'Pickup date' : 'First available pickup', value: carrier ? f.pickupDate : f.firstAvailablePickup },
     { label: 'Transport type', value: f.equipment },
     { label: 'Version', value: f.version ? String(f.version) : '' },
-    { label: carrier ? 'Dispatcher' : 'Your contact', value: f.sentByName },
+    // The load's broker. A link from before brokers were named carries only
+    // whoever sent it, and prints that under the label it always had.
+    f.brokerName
+      ? { label: carrier ? 'Broker' : 'Your broker', value: f.brokerName }
+      : { label: carrier ? 'Dispatcher' : 'Your contact', value: f.sentByName },
   ].filter((x): x is { label: string; value: string } => Boolean(x.value && x.value !== '—'));
 
   const freight = f.freight && f.freight.length > 0
@@ -346,9 +350,11 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
                   ))}
                 </View>
               ) : null}
-              {f.sentByEmail
-                ? <Field label={carrier ? 'Dispatch' : 'Questions'} value={`${f.sentByName ? `${f.sentByName} · ` : ''}${f.sentByEmail}`} />
-                : null}
+              {f.brokerName
+                ? <Field label={carrier ? 'Broker contact' : 'Questions'} value={[f.brokerName, f.brokerPhone, f.brokerEmail].filter(Boolean).join(' · ')} />
+                : f.sentByEmail
+                  ? <Field label={carrier ? 'Dispatch' : 'Questions'} value={`${f.sentByName ? `${f.sentByName} · ` : ''}${f.sentByEmail}`} />
+                  : null}
             </View>
           </View>
         </View>

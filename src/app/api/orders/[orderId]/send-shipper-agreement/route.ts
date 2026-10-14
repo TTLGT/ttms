@@ -19,6 +19,7 @@ import { clientPhotoId } from '@/lib/loadPhotosServer';
 import { qrPng } from '@/lib/qrCode';
 import { generateQuoteBuffer } from '@/lib/quote-pdf';
 import { buildQuoteData } from '@/lib/quoteData';
+import { brokerSnapshot, paperworkBroker } from '@/lib/orderOwnersServer';
 import { randomBytes } from 'crypto';
 import { orderDisplayNumber } from '@/types/order';
 import type { Order } from '@/types/order';
@@ -139,6 +140,14 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const now       = Timestamp.now();
   const expiresAt = Timestamp.fromDate(new Date(Date.now() + LINK_DAYS * 24 * 60 * 60 * 1000));
   const actor     = await actorForUid(caller.uid, caller.email).catch(() => null);
+  /*
+   * The broker the client deals with — the order's creator unless another
+   * owner was picked (paperworkBrokerUid()). Named on the quote, the signing
+   * page, the signed PDF and the email, and the email's reply-to, so a
+   * client replying reaches them rather than whoever in dispatch pressed
+   * Send. Falls back to the sender when no person owns the load.
+   */
+  const broker    = await paperworkBroker(order).catch(() => null);
   const orderNumber = orderDisplayNumber(order);
 
   /*
@@ -217,10 +226,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const terms = kind === 'resend' ? null : await currentClientTerms();
   const qr    = await qrPng(link);
   const quote = await generateQuoteBuffer({
-    ...(await buildQuoteData(order as Partial<Order> & Record<string, unknown>, {
-      name:  actor?.name ?? caller.email ?? 'Total Transport Logistics',
-      email: caller.email ?? '',
-    }, orderId)),
+    ...(await buildQuoteData(order as Partial<Order> & Record<string, unknown>, broker
+      ? { name: broker.name, email: broker.email }
+      : { name: actor?.name ?? caller.email ?? 'Total Transport Logistics', email: caller.email ?? '' },
+    orderId)),
     signQr: `data:image/png;base64,${qr.toString('base64')}`,
     signLink: link,
   });
@@ -247,6 +256,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     photoId,
     sentByName:   actor?.name ?? '',
     sentByEmail:  caller.email ?? '',
+    ...brokerSnapshot(broker),
     contentHash:  hash,
     heldAt:       null,
     expiresAt,
@@ -285,6 +295,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       clientEmail: contact.email,
       sentByName:  snapshot.sentByName,
       sentByEmail: snapshot.sentByEmail,
+      // The broker may have changed since the first send; a resend names today's.
+      ...brokerSnapshot(broker),
       heldAt:      null,
       expiresAt,
       lastSentAt:  now,
@@ -334,6 +346,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     from:    `TTL Dispatch <${process.env.RESEND_FROM_EMAIL ?? 'noreply@totaltransportlogistics.us'}>`,
     to:      contact.email,
     ...(cc.length ? { cc } : {}),
+    // The email says "reply to this email"; without this a reply went to the
+    // no-reply sender and nobody read it.
+    ...(broker?.email || caller.email ? { replyTo: broker?.email || caller.email } : {}),
     subject: kind === 'revision' ? `Updated Load Confirmation — ${orderNumber}` : `Load Confirmation — ${orderNumber}`,
     html:    buildEmailHtml({
       kind,
@@ -351,6 +366,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(order.agreedRate)
         : '—',
       signUrl: link,
+      broker:  broker ?? { name: actor?.name ?? '', email: caller.email ?? '', phone: '' },
     }),
     attachments: [
       { filename: `Quote ${orderNumber.replace(/[\\/:*?"<>|]/g, '-')}.pdf`, content: quote, contentType: 'application/pdf' },
@@ -458,6 +474,13 @@ function esc(v: string): string {
   return v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+/** "Your broker: Maria Lopez · (555) 010-2000 ext. 12 · maria@…", or nothing. */
+function brokerLine(b: { name: string; email: string; phone: string }): string {
+  const parts = [b.name, b.phone, b.email].map((x) => x.trim()).filter(Boolean);
+  if (!parts.length) return '';
+  return `<p style="color:#374151;font-size:14px;text-align:center;margin:0 0 12px"><strong>Your broker:</strong> ${parts.map(esc).join(' &middot; ')}</p>`;
+}
+
 function buildEmailHtml(p: {
   kind: SendKind;
   changed: string;
@@ -470,6 +493,8 @@ function buildEmailHtml(p: {
   deliveryStr: string;
   formattedRate: string;
   signUrl: string;
+  /** Who the client should call — see paperworkBroker(). */
+  broker: { name: string; email: string; phone: string };
 }) {
   const row = (label: string, value: string, bg = '#ffffff') =>
     `<tr style="background:${bg}">
@@ -520,7 +545,8 @@ function buildEmailHtml(p: {
           </td>
         </tr>
       </table>
-      <p style="color:#9ca3af;font-size:12px;text-align:center;margin-bottom:0">When you open it, you will be asked for your email address or phone number &mdash; the address this email came to works. This link expires in ${LINK_DAYS} days. If you have any questions, reply to this email or contact your dispatcher.</p>
+      ${brokerLine(p.broker)}
+      <p style="color:#9ca3af;font-size:12px;text-align:center;margin-bottom:0">When you open it, you will be asked for your email address or phone number &mdash; the address this email came to works. This link expires in ${LINK_DAYS} days. If you have any questions, reply to this email or contact your broker.</p>
     </div>
     <div style="border-top:1px solid #e5e7eb;padding:16px 32px;background:#f9fafb">
       <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center">Total Transport Logistics · totaltransportlogistics.us</p>

@@ -36,6 +36,7 @@ const COLUMNS: { key: string; label: string; align?: 'left' | 'right'; width: nu
   // Wide enough for a TTL number beside a load's profile picture.
   { key: 'orderNumber', label: 'Order #',   width: 165 },
   { key: 'client',      label: 'Client',    width: 150 },
+  { key: 'owner',       label: 'Owner',     width: 150 },
   { key: 'shipper',     label: 'Shipper',   width: 165 },
   { key: 'route',       label: 'Route',     width: 230 },
   { key: 'commodity',   label: 'Commodity', width: 300 },
@@ -63,6 +64,20 @@ const PAGE_SIZE = 50;
 function formatCurrency(n: number): string {
   if (!n) return '—';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+}
+
+/**
+ * Who owns a load, for the Owner column — names worked out by the server
+ * (`order.owners`). A BATS name with no account behind it is still worth
+ * showing; an order owned by nobody is open only to admin, dispatch and
+ * finance, which is what "Nobody" tells them.
+ */
+function ownerLabel(order: Order): string {
+  const o = order.owners;
+  if (!o) return '—';
+  const names = [...o.people.map((p) => p.name), ...o.groups.map((g) => g.name), ...o.pending];
+  if (names.length) return names.join(', ');
+  return o.batsName || 'Nobody';
 }
 
 /** Guards the tab read out of the URL — anything else falls back to All. */
@@ -436,6 +451,10 @@ function OrdersList() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-800 break-words">{order.clientName || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 break-words"
+                    title={order.owners?.createdBy ? `Created by ${order.owners.createdBy.name}` : undefined}>
+                    {ownerLabel(order)}
+                  </td>
                   <td className="px-4 py-3 text-sm text-gray-600 break-words">{order.shipperName || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 break-words">
                     {order.origin?.city}, {order.origin?.state}

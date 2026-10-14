@@ -9,6 +9,7 @@ import {
   changedSections, confirmationContent, contentHash, sectionHashes, sectionList, tokenSnapshotFields,
 } from '@/lib/loadConfirmationServer';
 import { signFormData } from '@/lib/signFormProps';
+import { brokerSnapshot, paperworkBroker } from '@/lib/orderOwnersServer';
 import { orderDisplayNumber, type Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -49,9 +50,10 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
 
   let pending = null;
   if (changed) {
-    const [terms, clientSnap] = await Promise.all([
+    const [terms, clientSnap, broker] = await Promise.all([
       currentClientTerms(),
       order.clientId ? adminDb.collection('parties').doc(String(order.clientId)).get() : Promise.resolve(null),
+      paperworkBroker(order).catch(() => null),
     ]);
     const client = clientSnap?.exists ? clientSnap.data()! : {};
     const what = link && pointer ? sectionList(changedSections(pointer.sectionHashes, sections)) : '';
@@ -63,6 +65,8 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
       termsText: terms.text,
       sentByName: caller.displayName,
       sentByEmail: caller.email ?? '',
+      // The broker the send would name, as the send route works it out.
+      ...brokerSnapshot(broker),
       expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
       // Numbered as it would be sent, so the preview carries the same
       // "updated agreement" banner the client will see.

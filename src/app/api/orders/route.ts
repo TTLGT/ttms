@@ -11,6 +11,7 @@ import {
 } from '@/lib/orderAccess';
 import { resolveOwnerFilter } from '@/lib/ownerFilter';
 import { withCoverThumbs } from '@/lib/loadPhotosServer';
+import { withOwnerSummaries } from '@/lib/orderOwnersServer';
 import { ORDER_STATUSES } from '@/types/order';
 import { toOrderView } from '@/types/orderView';
 import { decodePatch } from '@/lib/recordHistory';
@@ -112,7 +113,9 @@ export async function GET(req: NextRequest) {
     const page = await listVisibleOrdersPage(caller, query);
     // The list screens draw each load's profile picture beside its number.
     // Only for `fields=list`: nothing else that pages orders draws one.
-    if (query.fields === 'list') page.orders = await withCoverThumbs(page.orders);
+    // And who owns each — the Owner column. A few reads per page: each
+    // distinct person and group once, however many rows share them.
+    if (query.fields === 'list') page.orders = await withOwnerSummaries(await withCoverThumbs(page.orders));
     return NextResponse.json(page);
   } catch (e) {
     if (e instanceof AdminAuthError) {

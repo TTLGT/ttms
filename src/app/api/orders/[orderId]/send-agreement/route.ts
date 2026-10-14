@@ -6,6 +6,7 @@ import { Resend } from 'resend';
 import { agreementSentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { actorForUid, recordEvent } from '@/lib/recordHistory';
 import { signUrl } from '@/lib/appUrl';
+import { brokerSnapshot, paperworkBroker } from '@/lib/orderOwnersServer';
 import { randomBytes } from 'crypto';
 import {
   archiveRound, buildSaReview, freezeReview, requestRef, roundRef, saGateFactsFor, sendEntry,
@@ -127,6 +128,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   });
   const kind: 'new' | 'resend' = earlier.length > 0 ? 'resend' : 'new';
   const actor   = await actorForUid(caller.uid, caller.email).catch(() => null);
+  // The broker on the load, named on the Dispatch Sheet and the email beside
+  // the dispatcher who sent it — see paperworkBroker().
+  const broker  = await paperworkBroker(order).catch(() => null);
 
   const token      = randomBytes(32).toString('hex');
   const now        = Timestamp.now();
@@ -181,6 +185,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     cc,
     sentByName:   actor?.name ?? '',
     sentByEmail:  caller.email ?? '',
+    ...brokerSnapshot(broker),
     lastSentAt:   now,
   });
   // Before the email, like the SA route: if the send then fails, pressing
@@ -193,6 +198,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     from:    `TTL Dispatch <${process.env.RESEND_FROM_EMAIL ?? 'noreply@totaltransportlogistics.us'}>`,
     to:      carrier.email,
     ...(cc.length ? { cc } : {}),
+    // The email says "reply to this email"; without this a reply went to the
+    // no-reply sender and nobody read it.
+    ...(broker?.email || caller.email ? { replyTo: broker?.email || caller.email } : {}),
     subject: `Rate Confirmation — ${orderDisplayNumber(order)}`,
     html:    buildEmailHtml({
       carrierName:      carrier.companyName,
@@ -204,6 +212,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       deliveryStr,
       formattedPay:     payStr,
       signUrl: link,
+      broker:  broker ?? { name: actor?.name ?? '', email: caller.email ?? '', phone: '' },
     }),
   });
   // Resend reports a refused send in the result rather than by throwing.
@@ -298,12 +307,21 @@ function buildEmailHtml(p: {
   deliveryStr: string;
   formattedPay: string;
   signUrl: string;
+  /** Who the carrier should call about the load — see paperworkBroker(). */
+  broker: { name: string; email: string; phone: string };
 }) {
   const row = (label: string, value: string, bg = '#ffffff') =>
     `<tr style="background:${bg}">
       <td style="padding:10px 16px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:1px;width:120px">${label}</td>
       <td style="padding:10px 16px;font-size:14px;color:#111827;font-weight:500">${value}</td>
     </tr>`;
+
+  // Escaped, unlike the load's own values above: a name is free text typed
+  // into a profile, and this is the one row built from it.
+  const brokerContact = [p.broker.name, p.broker.phone, p.broker.email]
+    .map((x) => x.trim()).filter(Boolean)
+    .map((x) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'))
+    .join(' &middot; ');
 
   return `<!DOCTYPE html>
 <html>
@@ -326,13 +344,14 @@ function buildEmailHtml(p: {
           <td style="padding:10px 16px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:1px">Carrier Pay</td>
           <td style="padding:10px 16px;font-size:18px;color:#111827;font-weight:700">${p.formattedPay}</td>
         </tr>
+        ${brokerContact ? row('Broker', brokerContact, '#f9fafb') : ''}
       </table>
       <div style="text-align:center;margin:32px 0">
         <a href="${p.signUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:14px 48px;border-radius:8px;font-size:16px;font-weight:bold">
           Review &amp; Sign →
         </a>
       </div>
-      <p style="color:#9ca3af;font-size:12px;text-align:center;margin-bottom:0">When you open it, you will be asked for your email address or phone number &mdash; the address this email came to works. This link expires in 7 days. If you have any questions, reply to this email or contact your dispatcher.</p>
+      <p style="color:#9ca3af;font-size:12px;text-align:center;margin-bottom:0">When you open it, you will be asked for your email address or phone number &mdash; the address this email came to works. This link expires in 7 days. If you have any questions, reply to this email or contact your broker.</p>
     </div>
     <div style="border-top:1px solid #e5e7eb;padding:16px 32px;background:#f9fafb">
       <p style="margin:0;font-size:11px;color:#9ca3af;text-align:center">Total Transport Logistics · totaltransportlogistics.us</p>

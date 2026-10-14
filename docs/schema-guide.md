@@ -191,6 +191,9 @@ orders/{orderId}
   clientInstructions?     : string  // quote + client load confirmation; part of its fingerprint
   clientAddedInstructions?: ClientAddedInstruction[]  // SIGNING ROUTE ONLY, append-only
   createdBy       : string          // uid of the broker who created it
+  brokerUid?      : string | null   // the owner the SA and Dispatch Sheet name as broker; absent/null = the creator.
+                                    // Read through paperworkBrokerUid() — falls back when that person stops owning the load.
+  brokerName?     : string          // the name beside brokerUid, set by the server, for the change log
   createdAt       : Timestamp
   updatedAt       : Timestamp
 ```

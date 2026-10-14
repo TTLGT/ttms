@@ -3,6 +3,7 @@ import { AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { readOrder } from '@/lib/orderAccess';
 import { withCoverThumbs } from '@/lib/loadPhotosServer';
+import { withOwnerSummaries } from '@/lib/orderOwnersServer';
 import { decodePatch } from '@/lib/recordHistory';
 import { updateOrderAsCaller } from '@/lib/orderWrites';
 
@@ -48,7 +49,8 @@ export async function GET(
       );
     }
     // The header draws the load's profile picture; see withCoverThumbs().
-    const [order] = await withCoverThumbs([access.order]);
+    // And who created and owns it, by name — the Owners card.
+    const [order] = await withOwnerSummaries(await withCoverThumbs([access.order]));
     return NextResponse.json({ order });
   } catch (e) {
     if (e instanceof AdminAuthError) {

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "f36c7d969647f475a85c7e488f19625d16b0617a",
+      "date": "2026-10-14T13:01:51-06:00",
+      "author": "erwindank",
+      "subject": "Split order notes into internal notes and special instructions for the carrier and the client",
+      "body": "Notes are now staff only and printed on nothing. Carrier instructions go on the\ndispatch sheet and the BOL; client instructions go on the quote and the load\nconfirmation. Clients can add their own instructions when they sign, which are\nkept beside ours on the order and never overwritten."
+    },
+    {
       "hash": "5507b5fbefabd1dc4c2baf1ddac76c68d006936c",
       "date": "2026-10-14T12:02:37-06:00",
       "author": "erwindank",

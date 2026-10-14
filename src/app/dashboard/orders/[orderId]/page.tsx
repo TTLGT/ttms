@@ -68,6 +68,7 @@ import SaAgreementVersions from '@/components/orders/SaAgreementVersions';
 import { fetchSignedSaProof, listAgreementVersions } from '@/lib/orderPaperwork';
 import SignedSaUploads from '@/components/orders/SignedSaUploads';
 import ClientSignLink from '@/components/orders/ClientSignLink';
+import OrderOwnersCard from '@/components/orders/OrderOwnersCard';
 import { useAuth } from '@/context/AuthContext';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
@@ -384,6 +385,26 @@ export default function OrderDetailPage() {
   // Stops the backfill below from re-running and re-writing on every render
   // that produces a new `order` object.
   const backfilledRef = useRef<string | null>(null);
+
+  /**
+   * Re-reads the order after its owners or broker change, so the names, the
+   * broker default and the Owners card come back as the server worked them
+   * out. Only the ownership fields are taken, so an edit in progress
+   * elsewhere on the page is not overwritten by the read.
+   */
+  async function refreshOwners() {
+    const fresh = await getOrder(orderId).catch(() => null);
+    if (fresh?.status !== 'ok') return;
+    setOrder((prev) => (prev ? {
+      ...prev,
+      owners: fresh.order.owners,
+      brokerUid: fresh.order.brokerUid,
+      brokerName: fresh.order.brokerName,
+      assignedToUids: fresh.order.assignedToUids,
+      assignedToGroupIds: fresh.order.assignedToGroupIds,
+      assignedToEmails: fresh.order.assignedToEmails,
+    } : prev));
+  }
 
   useEffect(() => {
     async function load() {
@@ -1150,10 +1171,14 @@ export default function OrderDetailPage() {
               change — see src/types/saRequest.ts. Every later rung keeps the
               plain advance button. */}
           {order.status === 'quote' && (
-            <RequestSaButton orderId={orderId} onRequested={() => {
-              setOrder({ ...order, status: 'booked' });
-              setSaRefresh((n) => n + 1);
-            }} />
+            <RequestSaButton orderId={orderId}
+              owners={order.owners}
+              createdBy={order.createdBy}
+              onBrokerChanged={() => void refreshOwners()}
+              onRequested={() => {
+                setOrder((prev) => (prev ? { ...prev, status: 'booked' } : prev));
+                setSaRefresh((n) => n + 1);
+              }} />
           )}
           {nextStatus && order.status !== 'cancelled' && order.status !== 'quote' && (() => {
             // By hand, Client Signed needs the signed SA uploaded first, and
@@ -1270,6 +1295,9 @@ export default function OrderDetailPage() {
               <DetailRow label="Delivery Date" value={formatDateRange(order.deliveryDate, order.deliveryDateEnd)} />
             </div>
           </div>
+
+          {/* Who created and owns the load, and the broker its agreements name */}
+          <OrderOwnersCard order={order} onChanged={refreshOwners} />
 
           {/* Freight */}
           <div id="freight" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
@@ -1579,6 +1607,9 @@ export default function OrderDetailPage() {
                     orderId={orderId}
                     carrierName={order.carrierName}
                     clientSigned={clientSignatureSatisfied(order)}
+                    owners={order.owners}
+                    createdBy={order.createdBy}
+                    onBrokerChanged={() => void refreshOwners()}
                     onRequested={() => setCaRefresh((n) => n + 1)}
                   />
                 )}

@@ -75,7 +75,11 @@ const SERVER_KEPT_FIELDS = [
 ] as const;
 
 /** Bookkeeping the server sets itself; dropped from a patch rather than refused. */
-const IGNORED_FIELDS = ['id', 'createdAt', 'updatedAt', 'searchTerms', 'coverThumbUrl', 'stopPartyIds'] as const;
+const IGNORED_FIELDS = [
+  'id', 'createdAt', 'updatedAt', 'searchTerms', 'coverThumbUrl', 'stopPartyIds', 'owners',
+  // Set below from the profile whenever brokerUid moves; never taken from a request.
+  'brokerName',
+] as const;
 
 /** The extra pickups and deliveries — see OrderStop in src/types/order.ts. */
 const STOP_FIELDS = ['extraPickups', 'extraDeliveries'] as const;
@@ -150,6 +154,24 @@ export async function updateOrderAsCaller(
   }
   if (touched(before, patch, SOURCE_FIELDS).length && !canEditSource(before, caller.uid, caller.profile)) {
     throw new AdminAuthError('Only an owner of this order can change its lead source.', 403);
+  }
+  /*
+   * The broker on the SA and Dispatch Sheet must own the load: anyone else's
+   * name and number on a client's paperwork would send the client to a
+   * colleague who cannot open it. Null goes back to the default (the
+   * creator). The name beside it is read here, not taken from the request.
+   */
+  if (touched(before, patch, ['brokerUid']).length) {
+    const uid = patch.brokerUid;
+    if (uid === null || uid === '') {
+      patch.brokerUid = null;
+      patch.brokerName = '';
+    } else if (typeof uid === 'string' && ((before.assignedToUids ?? []) as string[]).includes(uid)) {
+      const d = (await adminDb.collection('users').doc(uid).get()).data();
+      patch.brokerName = (d?.displayName as string) || (d?.email as string) || '';
+    } else {
+      throw new AdminAuthError('The broker on the paperwork must be one of the people who own this order.', 400);
+    }
   }
   // A retired status is read but never written again — see LEGACY_STATUSES.
   if (touched(before, patch, ['status']).length && LEGACY_STATUSES.includes(patch.status as OrderStatus)) {

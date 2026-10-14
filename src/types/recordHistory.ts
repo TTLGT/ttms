@@ -77,12 +77,12 @@ export const UNRECORDED_FIELDS: ReadonlySet<string> = new Set([
   'id', 'createdAt', 'updatedAt',
   'searchTerms', 'nameKey', 'phoneKeys',
   'clientOwnerUids', 'clientOwnerGroupIds',
-  'coverThumbUrl', 'photoCount',
+  'coverThumbUrl', 'photoCount', 'owners',
   // When the mileage was worked out moves with the mileage, which is recorded.
   'laneMilesAt',
   // The ids beside a name: the name is what changed as far as a reader is
   // concerned, and it is saved in the same patch every time the id is.
-  'clientId', 'shipperId', 'consigneeId', 'carrierId', 'driverId',
+  'clientId', 'shipperId', 'consigneeId', 'carrierId', 'driverId', 'brokerUid',
   // Worked out from the extra stops, which are recorded.
   'stopPartyIds',
 ]);
@@ -97,6 +97,7 @@ const LABELS: Record<string, string> = {
   shipperName: 'Shipper',
   consigneeName: 'Consignee',
   carrierName: 'Carrier',
+  brokerName: 'Broker on the SA and Dispatch Sheet',
   parentOrderId: 'Parent order',
   commodities: 'Freight items',
   commodityValue: 'Freight value',

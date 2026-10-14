@@ -48,6 +48,10 @@ interface Props {
   validUntil?: string;
   sentByName?: string;
   sentByEmail?: string;
+  /** The load's broker — see signFormData(). '' on older links. */
+  brokerName?: string;
+  brokerEmail?: string;
+  brokerPhone?: string;
   /**
    * The version of the agreement on screen, sent with the signature so the
    * server can refuse it if the link was revised while the page was open.
@@ -136,8 +140,15 @@ export default function SignForm({
   token, type, orderNumber, partyName, driverName, commodity, weight, pieces, dimensions,
   originStr, destinationStr, pickupDate, deliveryDate, rate, notes, instructions,
   terms, stops, freight, equipment, payment, validUntil, sentByName, sentByEmail,
+  brokerName, brokerEmail, brokerPhone,
   version, revisedNote, preview,
 }: Props) {
+  // The broker when the link names one; a link from before brokers were
+  // named shows whoever sent it, as it always did.
+  const contact = brokerName
+    ? [brokerName, brokerPhone, brokerEmail].filter(Boolean).join(' · ')
+    : sentByName ? (sentByEmail ? `${sentByName} · ${sentByEmail}` : sentByName) : '';
+  const contactLabel = brokerName ? 'Your broker' : 'Your contact';
   const [signerName, setSignerName]   = useState('');
   const [signerTitle, setSignerTitle] = useState('');
   const [addedInstructions, setAddedInstructions] = useState('');
@@ -234,7 +245,7 @@ export default function SignForm({
           {/* Who and how much, first: the two things a client checks before reading on. */}
           <Card title="Load Confirmation" aside={<span className="font-mono text-sm font-bold text-gray-800">{orderNumber}</span>}>
             <DetailRow label={partyLabel} value={partyName || '—'} />
-            {sentByName && <DetailRow label="Your contact" value={sentByEmail ? `${sentByName} · ${sentByEmail}` : sentByName} />}
+            {contact && <DetailRow label={contactLabel} value={contact} />}
             {validUntil && <DetailRow label="Sign by" value={validUntil} />}
             <div className="flex justify-between items-baseline pt-3 mt-1 border-t-2 border-gray-200">
               <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">{rateLabel}</span>
@@ -321,6 +332,7 @@ export default function SignForm({
         <Card title="Load Details" aside={<span className="font-mono text-sm font-bold text-gray-800">{orderNumber}</span>}>
           <DetailRow label={partyLabel} value={partyName} />
           {!isClient && driverName && <DetailRow label="Driver" value={driverName} />}
+          {contact && <DetailRow label={contactLabel} value={contact} />}
           <DetailRow label="From"      value={originStr} />
           <DetailRow label="To"        value={destinationStr} />
           <DetailRow label="Commodity" value={commodity} />

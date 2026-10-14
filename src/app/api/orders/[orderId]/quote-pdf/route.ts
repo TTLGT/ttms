@@ -4,6 +4,7 @@ import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { generateQuoteBuffer } from '@/lib/quote-pdf';
 import { buildQuoteData } from '@/lib/quoteData';
+import { paperworkBroker } from '@/lib/orderOwnersServer';
 import { orderDisplayNumber, type Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -28,8 +29,13 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     const caller = await requireCaller(req);
     const order = (await getVisibleOrder(caller, orderId)) as Partial<Order> & Record<string, unknown>;
 
+    // "Prepared by" is the load's broker, as on the quote the SA email
+    // attaches — not whoever happened to download it.
+    const broker = await paperworkBroker(order).catch(() => null);
     const buffer = await generateQuoteBuffer(
-      await buildQuoteData(order, { name: caller.displayName, email: caller.email ?? '' }, orderId),
+      await buildQuoteData(order, broker
+        ? { name: broker.name, email: broker.email }
+        : { name: caller.displayName, email: caller.email ?? '' }, orderId),
     );
 
     const name = `Quote ${orderDisplayNumber(order as { orderNumber?: string; batsId?: string })}.pdf`;

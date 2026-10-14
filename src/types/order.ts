@@ -345,6 +345,46 @@ export function orderAltNumber(
  * MIRRORED_FIELDS in src/lib/userImport.ts. The payroll fields on the
  * allowlist entry are a different matter and must not follow it here.
  */
+/**
+ * An order's people, as the order screens show them. Built server-side by
+ * orderOwnerSummaries() in src/lib/orderOwnersServer.ts.
+ */
+export interface OrderOwnerSummary {
+  /** Who created the load. Null for imported loads, which nobody created in TTMS. */
+  createdBy: { uid: string; name: string } | null;
+  /** Owners with an account. */
+  people: { uid: string; name: string; email: string }[];
+  /** Owning work groups. */
+  groups: { id: string; name: string }[];
+  /** Owners invited but not signed in yet — held by email. */
+  pending: string[];
+  /** The rep as BATS named them; grants nothing. '' on anything made in TTMS. */
+  batsName: string;
+  /** Who sees the load because they own its client. Not owners of the load. */
+  viaClient: string[];
+  /** The broker the SA and Dispatch Sheet name — `paperworkBrokerUid()`. */
+  brokerUid: string | null;
+}
+
+/**
+ * The broker the SA and the Dispatch Sheet name: the one picked on the
+ * order if they still own it, else whoever created it if they still own it,
+ * else the first person owning it. Null when no person owns the load (a work
+ * group, an invite, or nobody) — the paperwork then names whoever sent it,
+ * as it always did.
+ *
+ * Only owners qualify, so taking somebody off the load takes them off its
+ * paperwork too without anything having to clear `brokerUid`.
+ */
+export function paperworkBrokerUid(
+  order: { brokerUid?: string | null; createdBy?: string | null; assignedToUids?: string[] | null },
+): string | null {
+  const owners = order.assignedToUids ?? [];
+  if (order.brokerUid && owners.includes(order.brokerUid)) return order.brokerUid;
+  if (order.createdBy && owners.includes(order.createdBy)) return order.createdBy;
+  return owners[0] ?? null;
+}
+
 export interface OwnerContact {
   /**
    * null when the load is owned by a work group, by somebody invited who has
@@ -822,6 +862,13 @@ export interface Order {
    * prefix is closed to the browser.
    */
   coverThumbUrl?: string | null;
+  /**
+   * Who created, owns and is the broker on this load, with names resolved.
+   * Never stored: added to the response by `/api/orders` (list pages) and
+   * `/api/orders/{id}`, so a screen can name people without reading every
+   * profile in the company. See orderOwnerSummaries().
+   */
+  owners?: OrderOwnerSummary;
   agreedRate: number;
   brokerFee: number;
   carrierPay: number;
@@ -1001,6 +1048,17 @@ export interface Order {
    */
   partyApprovals: OrderPartyApproval[];
   createdBy: string;
+  /**
+   * The broker named on the client's Shipper Agreement and the carrier's
+   * Dispatch Sheet — name, phone and email — when the load has more than one
+   * person owning it and somebody picked one. Absent or null means the
+   * default: whoever created the order. Always read it through
+   * `paperworkBrokerUid()`, which falls back when this person is no longer
+   * an owner. `brokerName` is the name beside the id, set by the server, for
+   * the change log.
+   */
+  brokerUid?: string | null;
+  brokerName?: string;
   /**
    * Fragments this order can be found by — see orderSearchTerms. Derived on
    * save from the number, the party names, the lane and the commodity; never

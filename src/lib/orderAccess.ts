@@ -49,6 +49,10 @@ const LIST_FIELDS = [
   'parentOrderId', 'createdAt',
   // Not a column: the thumbnail beside the order number, signed in the route.
   'coverPhotoId',
+  // Not columns either: turned into the Owner column's names by
+  // withOwnerSummaries() in the route.
+  'assignedToUids', 'assignedToGroupIds', 'assignedToEmails', 'assignedTo',
+  'clientOwnerUids', 'clientOwnerGroupIds', 'createdBy', 'brokerUid',
 ] as const;
 
 /**

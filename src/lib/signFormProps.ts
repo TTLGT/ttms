@@ -48,6 +48,14 @@ export interface SignFormData {
   validUntil?: string;
   sentByName?: string;
   sentByEmail?: string;
+  /**
+   * The load's broker — who the signer should call. '' on links sent before
+   * brokers were named, which show the sender instead. See paperworkBroker().
+   */
+  brokerName?: string;
+  brokerEmail?: string;
+  /** Work number with its extension, ready to print. */
+  brokerPhone?: string;
   version?: number;
   revisedNote?: string;
   /*
@@ -129,6 +137,9 @@ export function signFormData(data: Record<string, any>): SignFormData {
     validUntil: longDate(data.expiresAt),
     sentByName: data.sentByName || '',
     sentByEmail: data.sentByEmail || '',
+    brokerName: data.brokerName || '',
+    brokerEmail: data.brokerEmail || '',
+    brokerPhone: data.brokerPhone || '',
     version: typeof data.version === 'number' ? data.version : undefined,
     revisedNote: typeof data.version === 'number' && data.version > 1
       ? `This is an updated agreement${data.changedSections ? ` (changed: ${data.changedSections})` : ''}. It replaces the version we sent you${data.previousSentAt ? ` on ${longDate(data.previousSentAt)}` : ' before'}. Please review it again before signing.`

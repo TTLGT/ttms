@@ -11,6 +11,8 @@ import {
   getSaRequest, markSaDone, requestSa, returnSaRequest, sendAgreementFor, setSaCc, tickSaCheck, type SaReview,
 } from '@/lib/saRequests';
 import { trackActivity } from '@/lib/attendance';
+import { updateOrder } from '@/lib/orders';
+import type { OrderOwnerSummary } from '@/types/order';
 import { usd } from '@/types/paymentMethod';
 import { readinessOf, type ReadinessItem } from '@/types/orderReadiness';
 import {
@@ -28,9 +30,21 @@ import { ReadinessLine } from './OrderReadinessCard';
  * and send the client the Shipper Agreement, so that is what it says. See
  * src/types/saRequest.ts.
  */
-export function RequestSaButton({ orderId, onRequested, party = 'client', carrierName = '', clientSigned = true }: {
+export function RequestSaButton({
+  orderId, onRequested, party = 'client', carrierName = '', clientSigned = true, owners, createdBy, onBrokerChanged,
+}: {
   orderId: string;
   onRequested: () => void;
+  /**
+   * The load's owners and current broker (`order.owners`), so the dialog can
+   * say whose name, phone and email the agreement will carry and, when more
+   * than one person owns the load, let the requester pick another of them.
+   */
+  owners?: OrderOwnerSummary;
+  /** The order's creator — choosing them stores the default (null). */
+  createdBy?: string;
+  /** The broker was changed from the dialog; the page re-reads the order. */
+  onBrokerChanged?: () => void;
   /** `carrier` is Request Carrier Agreement — see src/types/saRequest.ts. */
   party?: AgreementParty;
   carrierName?: string;
@@ -44,6 +58,9 @@ export function RequestSaButton({ orderId, onRequested, party = 'client', carrie
   const [items, setItems] = useState<ReadinessItem[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const brokers = owners?.people ?? [];
+  const [broker, setBroker] = useState(owners?.brokerUid ?? '');
+  useEffect(() => { if (open) setBroker(owners?.brokerUid ?? ''); }, [open, owners?.brokerUid]);
 
   useEffect(() => {
     if (!open || carrier) return;
@@ -59,6 +76,12 @@ export function RequestSaButton({ orderId, onRequested, party = 'client', carrie
     setBusy(true);
     setError('');
     try {
+      // The broker first: dispatch may send the moment the request lands,
+      // and the agreement should already carry the name chosen here.
+      if (broker && broker !== (owners?.brokerUid ?? '')) {
+        await updateOrder(orderId, { brokerUid: broker === createdBy ? null : broker });
+        onBrokerChanged?.();
+      }
       await requestSa(orderId, note, party);
       setOpen(false);
       setNote('');
@@ -122,6 +145,31 @@ export function RequestSaButton({ orderId, onRequested, party = 'client', carrie
                 <CheckCircle2 className="w-4 h-4" /> Everything the Shipper Agreement prints is filled in.
               </p>
             )}
+
+            {owners && (brokers.length > 1 ? (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1" htmlFor="request-broker">
+                  Broker named on the {name}
+                </label>
+                <select id="request-broker" value={broker} onChange={(e) => setBroker(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
+                  {brokers.map((p) => (
+                    <option key={p.uid} value={p.uid}>
+                      {p.name}{p.uid === createdBy ? ' (created the order)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Their name, work phone and email go on the agreement.</p>
+              </div>
+            ) : brokers.length === 1 ? (
+              <p className="text-xs text-gray-600">
+                The agreement will name <strong>{brokers[0].name}</strong> as the broker, with their work phone and email.
+              </p>
+            ) : (
+              <p className="text-xs text-gray-600">
+                No one person owns this order, so the agreement will name whoever in dispatch sends it.
+              </p>
+            ))}
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Note for dispatch (optional)</label>

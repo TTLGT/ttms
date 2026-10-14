@@ -46,7 +46,9 @@ export async function emailSignedAgreement(token: string): Promise<void> {
   const pdf = await agreementPdf(d, await voidNoteFor(d, d, true), token);
   const orderNumber = String(d.orderNumber ?? '');
   const signedAt = signatureTime(d.usedAt.toDate());
-  const replyTo = typeof d.sentByEmail === 'string' && d.sentByEmail.includes('@') ? d.sentByEmail : undefined;
+  // The broker named on the agreement first; links sent before brokers were
+  // named carry only the sender.
+  const replyTo = [d.brokerEmail, d.sentByEmail].find((e): e is string => typeof e === 'string' && e.includes('@'));
 
   const sent = await new Resend(process.env.RESEND_API_KEY).emails.send({
     from:    `TTL Dispatch <${process.env.RESEND_FROM_EMAIL ?? 'noreply@totaltransportlogistics.us'}>`,
