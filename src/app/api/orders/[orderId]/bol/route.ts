@@ -1,190 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { formatLongDateRange } from '@/lib/dateFormat';
-import { adminDb, adminStorage, requirePermission, AdminAuthError } from '@/lib/firebase-admin';
-import { documentAlert, postOrderAlert } from '@/lib/chatAlerts';
-import { actorForUid, updateWithHistory } from '@/lib/recordHistory';
-import { generateBolBuffer } from '@/lib/bol-pdf';
-import type { BolData, BolStopLine } from '@/lib/bol-pdf';
-import {
-  formatDimensions, itemStop, itemWeightLb, orderCommodityItems, orderDeliveries, orderDisplayNumber,
-  orderPickups, stopLabel, vehicleSummary,
-} from '@/types/order';
-import type { CommodityItem, Order, OrderStop, StopKind } from '@/types/order';
+import { adminStorage, AdminAuthError } from '@/lib/firebase-admin';
+import { can } from '@/lib/accessControl';
+import { requireCaller } from '@/lib/partyAccess';
+import { getVisibleOrder } from '@/lib/orderAccess';
+import { actorOf } from '@/lib/recordHistory';
+import { generateBol } from '@/lib/bolRequests';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
-const fmtDate = (ts: { toDate?: () => Date } | null | undefined): string => {
-  if (!ts || typeof ts.toDate !== 'function') return '—';
-  return ts.toDate().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-};
-
 /**
- * Handed straight back to whoever asked for the generation, so the PDF opens
- * without a second round trip. Reading an *existing* BOL goes through
- * /api/orders/{id}/document instead, which checks order ownership — generating
- * one is gated on `orders.bol`, which is a deliberate grant rather than
- * something a load's owner has by default, so it does not need to.
+ * Generates (or regenerates) the BOL and hands back a link to it, so the PDF
+ * opens without a second round trip.
+ *
+ * Two checks, and both are needed. `orders.bol` is held by everybody but
+ * interns since 2026-10-14, so on its own it would let a broker generate —
+ * and read — the BOL for any load in the company by naming its id.
+ * `getVisibleOrder()` is the same test as opening the load: owners, their
+ * clients' owners, an approved loan, or `orders.viewAll`.
  */
-async function getSignedUrl(filePath: string): Promise<string> {
-  const [url] = await adminStorage.bucket().file(filePath).getSignedUrl({
-    action: 'read',
-    expires: Date.now() + 2 * 60 * 60 * 1000,
-  });
-  return url;
-}
-
 export async function POST(req: NextRequest, { params }: RouteContext) {
-  let caller: { uid: string; email: string | undefined };
+  const { orderId } = await params;
   try {
-    caller = await requirePermission(req, 'orders.bol');
-  } catch (e) {
-    if (e instanceof AdminAuthError) {
-      return NextResponse.json({ error: e.message }, { status: e.status });
+    const caller = await requireCaller(req);
+    if (!can(caller.profile, 'orders.bol')) {
+      return NextResponse.json({ error: 'You cannot generate BOLs.' }, { status: 403 });
     }
+    const order = await getVisibleOrder(caller, orderId);
+    const filePath = await generateBol(orderId, order, actorOf(caller));
+    const [url] = await adminStorage.bucket().file(filePath).getSignedUrl({
+      action: 'read',
+      expires: Date.now() + 2 * 60 * 60 * 1000,
+    });
+    return NextResponse.json({ url, path: filePath });
+  } catch (e) {
+    if (e instanceof AdminAuthError) return NextResponse.json({ error: e.message }, { status: e.status });
     throw e;
   }
-
-  const { orderId } = await params;
-
-  const orderSnap = await adminDb.collection('orders').doc(orderId).get();
-  if (!orderSnap.exists) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-  const order = orderSnap.data()!;
-
-  let carrierDot = '';
-  let carrierMc  = '';
-  if (order.carrierId) {
-    const carrierSnap = await adminDb.collection('carriers').doc(order.carrierId).get();
-    if (carrierSnap.exists) {
-      const c = carrierSnap.data()!;
-      carrierDot = c.dot ?? '';
-      carrierMc  = c.mc  ?? '';
-    }
-  }
-
-  // Phone numbers live on the party records, not the order.
-  const [shipperPhone, consigneePhone] = await Promise.all([
-    partyPhone(order.shipperId),
-    partyPhone(order.consigneeId),
-  ]);
-
-  // Which freight goes through which stop. Only asked on a load with more
-  // than one stop of a kind — see itemStop() — so a plain A-to-B load prints
-  // exactly as it always has.
-  const items = orderCommodityItems(order as Partial<Order>);
-  const pickupCount   = orderPickups(order as Partial<Order>).length;
-  const deliveryCount = orderDeliveries(order as Partial<Order>).length;
-  const multiStop = pickupCount > 1 || deliveryCount > 1;
-  const countOf = (kind: StopKind) => (kind === 'pickup' ? pickupCount : deliveryCount);
-  const routeOf = (it: CommodityItem) => {
-    if (!multiStop) return '';
-    const side = (kind: StopKind) => {
-      const i = itemStop(it, kind, countOf(kind));
-      return i == null ? '—' : stopLabel(kind, i);
-    };
-    return `${side('pickup')} to ${side('delivery')}`;
-  };
-  // "Excavator; 2 x Crated parts" — what comes on or off at one stop.
-  const freightAt = (kind: StopKind, index: number) => {
-    if (!multiStop) return '';
-    return items
-      .filter((it) => itemStop(it, kind, countOf(kind)) === index)
-      .map((it) => {
-        const name = it.description.trim() || 'Unnamed item';
-        return it.quantity > 1 ? `${it.quantity} x ${name}` : name;
-      })
-      .join('; ');
-  };
-
-  // Every pickup and delivery after the first, numbered the way the order
-  // screen numbers them, so the driver and the carrier read the same list.
-  const stopLine = (kind: StopKind) => async (s: OrderStop, i: number): Promise<BolStopLine> => ({
-    label:   stopLabel(kind, i + 1).toUpperCase(),
-    company: s.partyName ?? '',
-    phone:   await partyPhone(s.partyId),
-    street:  s.address?.street ?? '',
-    place:   [s.address?.city, s.address?.state, s.address?.zip].filter(Boolean).join(', '),
-    date:    formatLongDateRange(s.date, s.dateEnd, ''),
-    freight: freightAt(kind, i + 1),
-  });
-  const extraStops = [
-    ...await Promise.all(((order.extraPickups ?? []) as OrderStop[]).map(stopLine('pickup'))),
-    ...await Promise.all(((order.extraDeliveries ?? []) as OrderStop[]).map(stopLine('delivery'))),
-  ];
-
-  const data: BolData = {
-    // The number the load is known by, which for a BATS-era order is its BATS
-    // id — see orderDisplayNumber(). A document must carry what the carrier
-    // and the client already have on file for this load.
-    orderNumber:      orderDisplayNumber(order),
-    clientName:       order.clientName         ?? '',
-    shipperName:      order.shipperName        ?? '',
-    shipperPhone,
-    consigneeName:    order.consigneeName      ?? '',
-    consigneePhone,
-    carrierName:      order.carrierName        ?? '',
-    carrierDot,
-    carrierMc,
-    driverName:       order.driverName         ?? '',
-    driverPhone:      order.driverPhone        ?? '',
-    commodity:        order.commodity          ?? '',
-    pieces:           order.pieces             ?? 0,
-    weight:           order.weight             ?? 0,
-    items:            items.map((it) => ({
-      description: it.description,
-      quantity:    it.quantity ? String(it.quantity) : '',
-      dimensions:  formatDimensions(it),
-      weight:      itemWeightLb(it) ? `${Math.round(itemWeightLb(it)).toLocaleString()} lbs` : '',
-      vehicle:     vehicleSummary(it),
-      vin:         it.vin?.trim() ?? '',
-      route:       routeOf(it),
-    })),
-    originStreet:     order.origin?.street     ?? '',
-    originCity:       order.origin?.city       ?? '',
-    originState:      order.origin?.state      ?? '',
-    originZip:        order.origin?.zip        ?? '',
-    destStreet:       order.destination?.street ?? '',
-    destCity:         order.destination?.city  ?? '',
-    destState:        order.destination?.state ?? '',
-    destZip:          order.destination?.zip   ?? '',
-    pickupDate:       formatLongDateRange(order.pickupDate, order.pickupDateEnd),
-    deliveryDate:     formatLongDateRange(order.deliveryDate, order.deliveryDateEnd),
-    extraStops,
-    originFreight:    freightAt('pickup', 0),
-    destFreight:      freightAt('delivery', 0),
-    agreedRate:       order.agreedRate         ?? 0,
-    brokerFee:        order.brokerFee          ?? 0,
-    carrierPay:       order.carrierPay         ?? 0,
-    // The carrier's instructions, never the order's notes: those are internal.
-    carrierInstructions: order.carrierInstructions ?? '',
-    carrierSignerName: order.carrierSignerName ?? null,
-    carrierSignedAt:   order.carrierSignedAt ? fmtDate(order.carrierSignedAt) : null,
-    carrierSignerIp:   order.carrierSignerIp  ?? null,
-    generatedAt:       new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-  };
-
-  const buffer   = await generateBolBuffer(data);
-  const filePath = `bols/${orderId}.pdf`;
-
-  await adminStorage.bucket().file(filePath).save(buffer, {
-    metadata: { contentType: 'application/pdf' },
-  });
-
-  await updateWithHistory(adminDb.collection('orders').doc(orderId), {
-    bolStoragePath: filePath,
-    updatedAt:      new Date(),
-  }, await actorForUid(caller.uid, caller.email), order.bolStoragePath ? 'Generated the BOL again' : 'Generated the BOL');
-
-  // The room about this load, if anybody has started one. Best-effort: the
-  // BOL exists and is about to be handed back, and a chat write that failed
-  // must not turn that into an error. See postOrderAlert.
-  await postOrderAlert(orderId, documentAlert('BOL', true)).catch(() => {});
-
-  const url = await getSignedUrl(filePath);
-  return NextResponse.json({ url, path: filePath });
-}
-
-async function partyPhone(partyId: string | undefined | null): Promise<string> {
-  if (!partyId) return '';
-  const snap = await adminDb.collection('parties').doc(partyId).get();
-  return snap.exists ? (snap.data()!.phone ?? '') : '';
 }

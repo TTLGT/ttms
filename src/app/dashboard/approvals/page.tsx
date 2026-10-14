@@ -17,6 +17,7 @@ import { UserAvatar } from '@/components/settings/UserAvatar';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { useApprovals } from '@/context/ApprovalsContext';
 import SaRequestsSection from '@/components/orders/SaRequestsSection';
+import BolRequestsSection from '@/components/orders/BolRequestsSection';
 
 type Box = 'incoming' | 'outgoing';
 
@@ -194,6 +195,7 @@ export default function ApprovalsPage() {
           approval, decided by different people, ending in a send rather than
           a yes or no. See src/types/saRequest.ts. */}
       <SaRequestsSection />
+      <BolRequestsSection />
 
       <div className="flex gap-1 mb-5 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
         {([

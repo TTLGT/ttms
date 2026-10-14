@@ -14,6 +14,7 @@ import DiscussButton from '@/components/chat/DiscussButton';
 import { listCarriers } from '@/lib/carriers';
 import PriceAndTermsCard from '@/components/orders/PriceAndTermsCard';
 import SectionEditLink from '@/components/orders/SectionEditLink';
+import BolSendPanel from '@/components/orders/BolSendPanel';
 import type { CommodityItem, Order, OrderStatus, StopKind } from '@/types/order';
 import type { Carrier } from '@/types/carrier';
 import {
@@ -1923,12 +1924,16 @@ export default function OrderDetailPage() {
                       Download PDF
                     </a>
                   )}
-                  <button onClick={handleGenerateBol} disabled={generatingBol}
-                    className="px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
-                    {generatingBol ? 'Generating…' : order.bolStoragePath ? 'Regenerate BOL' : 'Generate BOL'}
-                  </button>
+                  {can('orders.bol') && (
+                    <button onClick={handleGenerateBol} disabled={generatingBol}
+                      className="px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
+                      {generatingBol ? 'Generating…' : order.bolStoragePath ? 'Regenerate BOL' : 'Generate BOL'}
+                    </button>
+                  )}
                 </div>
               </div>
+              {/* Who it goes to once both sides have signed — see src/types/bolRequest.ts. */}
+              <BolSendPanel orderId={orderId} bolVersion={bolUrl ?? ''} />
             </div>
           )}
 
@@ -2011,7 +2016,7 @@ export default function OrderDetailPage() {
                     )}
                     {(['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(
                       order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed'
-                    ) && (
+                    ) && can('orders.bol') && (
                       <button onClick={handleGenerateBol} disabled={generatingBol}
                         className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 bg-brand-50 rounded-lg px-3 py-1.5 font-medium transition hover:bg-brand-100 disabled:opacity-50">
                         {generatingBol ? 'Generating…' : order.bolStoragePath ? 'Regenerate' : 'Generate BOL'}

@@ -3,6 +3,7 @@ import { adminDb, requirePermission, AdminAuthError, FieldValue } from '@/lib/fi
 import { Timestamp } from 'firebase-admin/firestore';
 import { postOrderAlert, signatureWaivedAlert } from '@/lib/chatAlerts';
 import { updateWithHistory } from '@/lib/recordHistory';
+import { openBolRequestIfSigned } from '@/lib/bolRequests';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -90,6 +91,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   // After the write and swallowed: the decision is recorded either way, and a
   // chat room being unreachable is not a reason to fail it.
   await postOrderAlert(orderId, signatureWaivedAlert(byName, reason)).catch(() => {});
+  // A carrier marked signed by hand before the waiver: the waiver is then
+  // the second half. Nearly always a no-op.
+  await openBolRequestIfSigned(orderId, 'The client signature was waived').catch(() => {});
 
   return NextResponse.json({
     success:               true,

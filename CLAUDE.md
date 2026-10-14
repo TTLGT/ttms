@@ -1243,6 +1243,23 @@ Carrier section and on Documents, a confirmation email to the carrier
 hand only once a `signed_ca` file is on the load** — enforced in
 `updateOrderAsCaller()`, the same as Client Signed.
 
+### The BOL — generated on the second signature, sent by a person
+
+Generating a BOL (`orders.bol`) is in the broker baseline since 2026-10-14,
+so everybody but interns has it — **limited to loads they can see**:
+`POST /api/orders/{id}/bol` runs `getVisibleOrder()` after the permission.
+Drop that check and any broker can draw any load's BOL by naming its id.
+
+When both sides have signed, TTMS generates the BOL and opens a
+`bolRequests/{orderId}` for admin and dispatch to choose recipients and send
+it — see `src/types/bolRequest.ts`. Anything new that records a signature
+calls `openBolRequestIfSigned()` after it, swallowed: a signature must never
+fail because of the BOL.
+
+**The BOL prints no money.** It is the office's Straight Bill of Lading
+layout and is emailed to every party on the load; the rates are on the
+agreements, each to its own party.
+
 ### Learn English — underlines that never touch the page
 
 A per-browser switch at the foot of the sidebar (`LearnContext`) that underlines

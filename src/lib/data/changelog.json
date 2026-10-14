@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "437fe57783ec84d0f3e27fa95db50ac1ee4500dc",
+      "date": "2026-10-14T14:27:04-06:00",
+      "author": "erwindank",
+      "subject": "Show who created and owns each order, and name the order's broker on the SA and Dispatch Sheet",
+      "body": "The order page gets an Owners card (creator, owners, client owners), with\nadd and remove for admin and dispatch. The orders list gets an Owner column.\n\nThe SA and Dispatch Sheet used to name whoever pressed Send. They now name\nthe order's broker - the creator by default, or another owner picked on the\nOwners card or in the request dialog - with name, work phone and email, on\nthe signing page, the signed PDF, both emails and the quote. Replies to the\nagreement emails now reach the broker instead of the no-reply address."
+    },
+    {
       "hash": "f36c7d969647f475a85c7e488f19625d16b0617a",
       "date": "2026-10-14T13:01:51-06:00",
       "author": "erwindank",

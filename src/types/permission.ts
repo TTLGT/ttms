@@ -296,7 +296,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'orders.viewAll', label: 'See every load',   detail: 'Every load in the company, not only their own and their clients’.' },
       { key: 'orders.sendAgreement', label: 'Send agreements', detail: 'Email the client agreement and the dispatch sheet for signature.' },
       { key: 'orders.waiveSignature', label: 'Dispatch without a signature', detail: 'Send the dispatch sheet before the client has signed. Admin and dispatch have this already.' },
-      { key: 'orders.bol',     label: 'Generate BOLs',    detail: 'Produce the bill of lading for a load.' },
+      { key: 'orders.bol',     label: 'Generate BOLs',    detail: 'Produce the bill of lading for a load they can see. Everyone but interns has this already.' },
       { key: 'orders.invoice', label: 'Generate invoices', detail: 'Produce the invoice for a load.' },
       { key: 'orders.delete',  label: 'Delete loads',     detail: 'Permanently remove a load. There is no undo.' },
     ],
@@ -413,6 +413,12 @@ export const BASE_PERMISSIONS: readonly Permission[] = [
   'documents.view',
   'directory.view',
   'chat.use',
+  // Added 2026-10-14, widening every role built on this list (broker, dispatch,
+  // sales manager, HR) at their next sign-in. The BOL is the load's own
+  // paperwork and the broker running it is who needs it. The route checks the
+  // caller can see the load (`getVisibleOrder()`), so this reaches only loads
+  // somebody already owns or was lent — never the whole book.
+  'orders.bol',
 ];
 
 /**
@@ -465,7 +471,7 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
   isFinance: [
     ...BASE_PERMISSIONS,
     'orders.viewAll', 'clients.viewAll', 'shippers.viewAll', 'consignees.viewAll',
-    'orders.bol', 'orders.invoice',
+    'orders.invoice',
     // Same reasoning as dispatch: finance sees every load already, and "how
     // much is still open against this broker" is a question they get asked.
     'directory.book',

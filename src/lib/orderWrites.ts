@@ -33,6 +33,7 @@ import { actorOf, diffFields, sameValue, writeChange } from './recordHistory';
 import type { Caller } from './partyAccess';
 import { planAgreementHold } from './clientAgreements';
 import { NO_SIGNED_CA_PROOF, NO_SIGNED_SA_PROOF, signedSaProof } from './signedSaProof';
+import { openBolRequestIfSigned } from './bolRequests';
 import { LEGACY_STATUSES, cleanStops, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
 
 const COL = 'orders';
@@ -275,6 +276,14 @@ export async function updateOrderAsCaller(
   batch.update(ref, write);
   await batch.commit();
   if (hold) await hold.afterCommit();
+  // A signature pressed by hand is the second signature as often as an
+  // e-signature is; same BOL request. After the commit and swallowed — the
+  // save happened.
+  if (handSignedNote) {
+    await openBolRequestIfSigned(orderId,
+      patch.status === 'carrier_signed' ? 'The carrier was marked signed by hand' : 'The client was marked signed by hand',
+    ).catch((e) => console.error('BOL request failed:', e));
+  }
 }
 
 /** The carrier's e-signature on the order — written by the signing route only. */

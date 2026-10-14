@@ -1310,6 +1310,9 @@ service cloud.firestore {
     // SA requests. Read and written only through /api/orders/{id}/sa-request
     // and /api/sa-requests — see src/types/saRequest.ts.
     match /saRequests/{id}              { allow read, write: if false; }
+    // BOL send requests. Read and written only through /api/orders/{id}/bol-request
+    // and /api/bol-requests — see src/types/bolRequest.ts. Identical to the default deny.
+    match /bolRequests/{id}             { allow read, write: if false; }
     // The client's signing link per order — which link, which version, held
     // or not. Read and written only by the SA routes and the order save; see
     // src/lib/clientAgreements.ts. Identical to the default deny.

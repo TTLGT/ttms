@@ -8,13 +8,15 @@ import { describeDevice } from '@/types/saRequest';
 import { markSigned } from '@/lib/clientAgreements';
 import { emailSignedAgreement } from '@/lib/signedAgreementEmail';
 import { SIGN_API_COOKIE, hasSignAccess } from '@/lib/signAccess';
+import { openBolRequestIfSigned } from '@/lib/bolRequests';
 import type { OrderStatus } from '@/types/order';
 
 type RouteContext = { params: Promise<{ token: string }> };
 
-// A client signature also renders their signed PDF and emails it. The
-// headroom is that, on a cold start.
-export const maxDuration = 30;
+// A client signature also renders their signed PDF and emails it, and the
+// second of the two signatures draws the BOL. The headroom is that, on a
+// cold start.
+export const maxDuration = 60;
 
 /**
  * Carries the HTTP status out of the transaction callback.
@@ -318,6 +320,17 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
    */
   if (signed) {
     await emailSignedAgreement(token).catch((e) => console.error('Signed SA email failed:', e));
+  }
+
+  /*
+   * Both sides signed: draw the BOL and ask admin and dispatch to send it —
+   * see src/types/bolRequest.ts. Last, and swallowed, for the same reason as
+   * the email above: the signer is owed their success either way.
+   */
+  if (signed) {
+    await openBolRequestIfSigned(signed.orderId,
+      signed.by === 'carrier' ? 'The carrier signed the Dispatch Sheet' : 'The client signed the Shipper Agreement',
+    ).catch((e) => console.error('BOL request failed:', e));
   }
 
   return NextResponse.json({ success: true });

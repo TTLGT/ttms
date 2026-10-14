@@ -934,6 +934,34 @@ that is missing, withdrawn, replaced, or expired before it was signed, because
 those pages show nothing about the load beyond an order number. Staff previews
 on the order are unaffected.
 
+## Collection: `bolRequests` — BOLs waiting to be sent
+
+One document per order, `bolRequests/{orderId}`. TTMS opens it, and
+generates the BOL, the moment **both sides have signed**: the carrier
+(e-signature, or Carrier Signed by hand) and the client (e-signature, a
+waiver, or a signed SA uploaded for Client Signed by hand). Opened from the
+signing route, the hand-signed order save and the waiver route, through
+`openBolRequestIfSigned()` in `src/lib/bolRequests.ts`.
+
+Admin and dispatch (`orders.sendAgreement`) choose who gets it — carrier,
+client, each shipper, each consignee — from the Bill of Lading card on the
+order, and see the list on Approvals. The browser sends only a role key
+(`carrier`, `shipper:0`…); the address is looked up again on the server, so a
+BOL can only reach somebody on the load.
+
+| Field | Meaning |
+|---|---|
+| `orderId`, `orderNumber`, `clientName`, `carrierName` | Copied for the Approvals list. |
+| `carrierId` | The carrier it was made for. A different carrier signing later opens a new round over this one. |
+| `status` | `open` → `sent` → `done`. |
+| `openedAt`, `openedBecause` | When, and which signature completed the pair. |
+| `sends` | Every email: `{ at, byName, to: [{ label, email }] }`. |
+| `doneAt`, `doneByName` | Who closed it. |
+
+Closed to the client SDK (`allow read, write: if false`, the same as the
+default deny). The BOL itself carries **no prices** since 2026-10-14 — it goes
+to the shipper, consignee, carrier and client alike.
+
 ## Collection: `agreements`
 
 Tracks the e-sign lifecycle for both Carrier and Shipper agreements.
