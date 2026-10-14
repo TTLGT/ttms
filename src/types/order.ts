@@ -100,7 +100,39 @@ export interface CommodityItem {
   vehicleType?: string;
   /** Null when nobody said — "operable" must never be assumed for a car that needs a winch. */
   condition?: VehicleCondition | null;
+  /**
+   * The BOL's handling-unit columns: how many units the pieces travel on and
+   * what they are ("6" "PLT"). Separate from `quantity`, which counts pieces —
+   * 40 boxes on 2 pallets is quantity 40, handling units 2. Optional and
+   * null/'' for "not said"; lines from before 2026-10-14 have neither. Not part
+   * of the client's load confirmation, so editing them never holds an SA.
+   */
+  handlingUnits?: number | null;
+  handlingUnitType?: string;
+  /** The BOL's H.M. column. Absent means not hazardous, which is what every earlier line meant. */
+  hazmat?: boolean;
 }
+
+/** Offered as suggestions for `handlingUnitType`; anything else may still be typed. */
+export const HANDLING_UNIT_SUGGESTIONS = ['PLT', 'SKID', 'CRATE', 'BOX', 'DRUM', 'BUNDLE', 'ROLL', 'TOTE', 'PIECE'];
+
+export type FreightChargeTerms = 'prepaid' | 'collect' | 'third_party';
+export const FREIGHT_CHARGE_TERMS: FreightChargeTerms[] = ['prepaid', 'collect', 'third_party'];
+export const FREIGHT_CHARGE_TERMS_LABEL: Record<FreightChargeTerms, string> = {
+  prepaid: 'Prepaid', collect: 'Collect', third_party: '3rd Party',
+};
+
+export type TrailerLoadedBy = 'shipper' | 'driver';
+export const TRAILER_LOADED_BY: TrailerLoadedBy[] = ['shipper', 'driver'];
+export const TRAILER_LOADED_BY_LABEL: Record<TrailerLoadedBy, string> = {
+  shipper: 'By shipper', driver: 'By driver',
+};
+
+export type FreightCountedBy = 'shipper' | 'driver_pallets' | 'driver_pieces';
+export const FREIGHT_COUNTED_BY: FreightCountedBy[] = ['shipper', 'driver_pallets', 'driver_pieces'];
+export const FREIGHT_COUNTED_BY_LABEL: Record<FreightCountedBy, string> = {
+  shipper: 'By shipper', driver_pallets: 'By driver, pallets said to contain', driver_pieces: 'By driver, pieces',
+};
 
 export type VehicleCondition = 'operable' | 'inoperable';
 export const VEHICLE_CONDITIONS: VehicleCondition[] = ['operable', 'inoperable'];
@@ -189,6 +221,9 @@ export function blankCommodityItem(): CommodityItem {
     vin: '',
     vehicleType: '',
     condition: null,
+    handlingUnits: null,
+    handlingUnitType: '',
+    hazmat: false,
   };
 }
 
@@ -942,6 +977,20 @@ export interface Order {
    * existed — read through `?? ''`.
    */
   carrierInstructions?: string;
+  /*
+   * What the BOL asks that nothing else on the order answers (2026-10-14),
+   * typed in the Bill of Lading card on the order. All optional and absent on
+   * earlier loads: an unset one prints as an empty box for a pen, exactly as
+   * the paper form did. None of them is on the client's load confirmation, so
+   * none of them holds an SA. See BOL_* below for the choices.
+   */
+  truckNumber?: string;
+  trailerNumber?: string;
+  freightChargeTerms?: FreightChargeTerms | null;
+  /** Who pays the freight when the terms are 3rd party — name and address, free text. */
+  thirdPartyBillTo?: string;
+  trailerLoadedBy?: TrailerLoadedBy | null;
+  freightCountedBy?: FreightCountedBy | null;
   /**
    * Special instructions for the client, written by staff: printed on the
    * quote, the client's load confirmation and its signed PDF. Part of the

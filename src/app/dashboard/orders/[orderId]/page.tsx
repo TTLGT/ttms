@@ -15,6 +15,7 @@ import { listCarriers } from '@/lib/carriers';
 import PriceAndTermsCard from '@/components/orders/PriceAndTermsCard';
 import SectionEditLink from '@/components/orders/SectionEditLink';
 import BolSendPanel from '@/components/orders/BolSendPanel';
+import BolDetailsFields from '@/components/orders/BolDetailsFields';
 import type { CommodityItem, Order, OrderStatus, StopKind } from '@/types/order';
 import type { Carrier } from '@/types/carrier';
 import {
@@ -875,8 +876,14 @@ export default function OrderDetailPage() {
     }
   }
 
-  async function handleGenerateBol() {
-    if (!order || !user) return;
+  /**
+   * `base` is the order to merge the new path into — passed when the caller
+   * has just changed the order itself, since `order` here is the value from
+   * before that render. `openIt` is false for a redraw after saving the BOL
+   * details, which should refresh the file without throwing up a new tab.
+   */
+  async function handleGenerateBol(openIt = true, base = order) {
+    if (!base || !user) return;
     setGeneratingBol(true);
     setError('');
     try {
@@ -888,8 +895,8 @@ export default function OrderDetailPage() {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'Failed to generate BOL');
       setBolUrl(body.url);
-      setOrder({ ...order, bolStoragePath: body.path });
-      window.open(body.url, '_blank');
+      setOrder({ ...base, bolStoragePath: body.path });
+      if (openIt) window.open(body.url, '_blank');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to generate BOL');
     } finally {
@@ -1907,8 +1914,9 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* BOL */}
-          {(['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed') && (
+          {/* BOL — drawn from Booked on, so the truck and the freight terms
+              can be filled in before the second signature generates it. */}
+          {order.status !== 'quote' && order.status !== 'cancelled' && (
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -1924,16 +1932,24 @@ export default function OrderDetailPage() {
                       Download PDF
                     </a>
                   )}
-                  {can('orders.bol') && (
-                    <button onClick={handleGenerateBol} disabled={generatingBol}
+                  {can('orders.bol') && (['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed') && (
+                    <button onClick={() => handleGenerateBol()} disabled={generatingBol}
                       className="px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
                       {generatingBol ? 'Generating…' : order.bolStoragePath ? 'Regenerate BOL' : 'Generate BOL'}
                     </button>
                   )}
                 </div>
               </div>
+              <BolDetailsFields order={order} orderId={orderId} canEdit={can('orders.create')}
+                onSaved={(patch) => {
+                  const next = { ...order, ...patch };
+                  setOrder(next);
+                  // A BOL already on file still shows the old values until it
+                  // is drawn again, so it is redrawn here rather than left stale.
+                  if (order.bolStoragePath && can('orders.bol')) void handleGenerateBol(false, next);
+                }} />
               {/* Who it goes to once both sides have signed — see src/types/bolRequest.ts. */}
-              <BolSendPanel orderId={orderId} bolVersion={bolUrl ?? ''} />
+              {order.bolStoragePath && <BolSendPanel orderId={orderId} bolVersion={bolUrl ?? ''} />}
             </div>
           )}
 
@@ -2017,7 +2033,7 @@ export default function OrderDetailPage() {
                     {(['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(
                       order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed'
                     ) && can('orders.bol') && (
-                      <button onClick={handleGenerateBol} disabled={generatingBol}
+                      <button onClick={() => handleGenerateBol()} disabled={generatingBol}
                         className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 bg-brand-50 rounded-lg px-3 py-1.5 font-medium transition hover:bg-brand-100 disabled:opacity-50">
                         {generatingBol ? 'Generating…' : order.bolStoragePath ? 'Regenerate' : 'Generate BOL'}
                       </button>

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "222b2cb0878de6de764119e888d544496db17dd1",
+      "date": "2026-10-14T14:49:39-06:00",
+      "author": "erwindank",
+      "subject": "Open a person's contact card from their name or picture in chat",
+      "body": ""
+    },
+    {
       "hash": "df791d9dbc5dfb27507eeb5610920bb29c8cdb54",
       "date": "2026-10-14T14:46:52-06:00",
       "author": "erwindank",

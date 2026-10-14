@@ -9,7 +9,7 @@ import type { BolData, BolStopLine } from './bol-pdf';
 import { clientContactOf } from './orderReadinessServer';
 import { signedSaProof } from './signedSaProof';
 import {
-  STATUS_RANK, clientSignatureSatisfied, formatDimensions, itemStop, itemWeightLb, orderCommodityItems,
+  STATUS_RANK, clientSignatureSatisfied, formatDimensions, totalCommodityValue, itemStop, itemWeightLb, orderCommodityItems,
   orderDeliveries, orderDisplayNumber, orderPickups, stopLabel, vehicleSummary,
 } from '@/types/order';
 import type { CommodityItem, Order, OrderStatus, OrderStop, StopKind } from '@/types/order';
@@ -30,6 +30,11 @@ const TTMS_ACTOR: ChangeActor = { uid: '', name: 'TTMS', email: '', via: 'app' }
 export const bolRequestRef = (orderId: string) => adminDb.collection(BOL_REQUESTS_COLLECTION).doc(orderId);
 
 export const bolPath = (orderId: string) => `bols/${orderId}.pdf`;
+
+const fmtDate = (ts: { toDate?: () => Date } | null | undefined): string => {
+  if (!ts || typeof ts.toDate !== 'function') return '—';
+  return ts.toDate().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+};
 
 async function partyPhone(partyId: string | undefined | null): Promise<string> {
   if (!partyId) return '';
@@ -115,6 +120,8 @@ async function bolBuffer(order: FirebaseFirestore.DocumentData): Promise<Buffer>
     carrierMc,
     driverName:       order.driverName         ?? '',
     driverPhone:      order.driverPhone        ?? '',
+    truckNumber:      order.truckNumber        ?? '',
+    trailerNumber:    order.trailerNumber      ?? '',
     commodity:        order.commodity          ?? '',
     pieces:           order.pieces             ?? 0,
     weight:           order.weight             ?? 0,
@@ -122,7 +129,9 @@ async function bolBuffer(order: FirebaseFirestore.DocumentData): Promise<Buffer>
       description: it.description,
       quantity:    it.quantity ? String(it.quantity) : '',
       dimensions:  formatDimensions(it),
-      weight:      itemWeightLb(it) ? Math.round(itemWeightLb(it)).toLocaleString() : '',
+      weight:      itemWeightLb(it) ? `${Math.round(itemWeightLb(it)).toLocaleString()} lbs` : '',
+      handlingUnits: [it.handlingUnits ? String(it.handlingUnits) : '', it.handlingUnitType?.trim() ?? ''].filter(Boolean).join(' '),
+      hazmat:      it.hazmat === true,
       vehicle:     vehicleSummary(it),
       vin:         it.vin?.trim() ?? '',
       route:       routeOf(it),
@@ -142,6 +151,19 @@ async function bolBuffer(order: FirebaseFirestore.DocumentData): Promise<Buffer>
     destFreight:      freightAt('delivery', 0),
     // The carrier's instructions, never the order's notes: those are internal.
     carrierInstructions: order.carrierInstructions ?? '',
+    // The goods' worth, summed from the lines' declared values — for
+    // liability, not a price. Blank when no line declared one.
+    declaredValue:    (() => {
+      const v = totalCommodityValue(items);
+      return v ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v) : '';
+    })(),
+    freightChargeTerms: order.freightChargeTerms ?? null,
+    thirdPartyBillTo:   order.thirdPartyBillTo ?? '',
+    trailerLoadedBy:    order.trailerLoadedBy ?? null,
+    freightCountedBy:   order.freightCountedBy ?? null,
+    carrierSignerName: order.carrierSignerName ?? null,
+    carrierSignedAt:   order.carrierSignedAt ? fmtDate(order.carrierSignedAt) : null,
+    carrierSignerIp:   order.carrierSignerIp  ?? null,
     generatedAt:       new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
   };
 

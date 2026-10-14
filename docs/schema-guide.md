@@ -934,6 +934,23 @@ that is missing, withdrawn, replaced, or expired before it was signed, because
 those pages show nothing about the load beyond an order number. Staff previews
 on the order are unaffected.
 
+### BOL fields on an order (2026-10-14)
+
+Typed in the Bill of Lading card on the order and printed on the BOL. All
+optional; absent on earlier loads, and an unset one prints as an empty box.
+
+| Field | Meaning |
+|---|---|
+| `truckNumber`, `trailerNumber` | Unit numbers of the truck and trailer. |
+| `freightChargeTerms` | `prepaid`, `collect`, `third_party`, or null. |
+| `thirdPartyBillTo` | Who pays under 3rd-party terms, free text. Cleared when the terms are anything else. |
+| `trailerLoadedBy` | `shipper` or `driver`. |
+| `freightCountedBy` | `shipper`, `driver_pallets` or `driver_pieces`. |
+
+And on each line of `commodities`: `handlingUnits` (number or null),
+`handlingUnitType` (`PLT`, `SKID`…) and `hazmat` (boolean). The BOL's declared
+value is the sum of the lines' `value`.
+
 ## Collection: `bolRequests` — BOLs waiting to be sent
 
 One document per order, `bolRequests/{orderId}`. TTMS opens it, and
@@ -959,7 +976,7 @@ BOL can only reach somebody on the load.
 | `doneAt`, `doneByName` | Who closed it. |
 
 Closed to the client SDK (`allow read, write: if false`, the same as the
-default deny). The BOL itself carries **no prices** since 2026-10-14 — it goes
+default deny). The BOL itself carries **no rates** since 2026-10-14 — it goes
 to the shipper, consignee, carrier and client alike.
 
 ## Collection: `agreements`

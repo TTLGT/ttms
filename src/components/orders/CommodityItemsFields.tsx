@@ -17,6 +17,7 @@ import {
   VEHICLE_CONDITIONS,
   VEHICLE_CONDITION_LABEL,
   VEHICLE_TYPE_SUGGESTIONS,
+  HANDLING_UNIT_SUGGESTIONS,
 } from '@/types/order';
 import type { CommodityItem, DimensionUnit, StopKind, WeightUnit } from '@/types/order';
 
@@ -95,6 +96,9 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
     <div className="space-y-3">
       <datalist id="vehicle-type-suggestions">
         {VEHICLE_TYPE_SUGGESTIONS.map((t) => <option key={t} value={t} />)}
+      </datalist>
+      <datalist id="handling-unit-suggestions">
+        {HANDLING_UNIT_SUGGESTIONS.map((t) => <option key={t} value={t} />)}
       </datalist>
       {items.map((item, idx) => {
         const lineWeight = itemWeightLb(item);
@@ -227,6 +231,46 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 <div className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-700">
                   {lineWeight ? `${Math.round(lineWeight).toLocaleString()} lbs` : '—'}
                 </div>
+              </div>
+
+              {/* For the BOL's handling-unit and H.M. columns. Pieces above
+                  count the goods; these say what they travel on. */}
+              <div className="col-span-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Handling units</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={item.handlingUnits ? String(item.handlingUnits) : ''}
+                  onChange={(e) => {
+                    const n = Math.round(num(e.target.value));
+                    patch(item.id, { handlingUnits: n > 0 ? n : null });
+                  }}
+                  placeholder="e.g. 2"
+                  title="How many pallets, skids or crates the pieces travel on"
+                  className={INPUT}
+                />
+              </div>
+              <div className="col-span-3">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Unit type</label>
+                <input
+                  maxLength={12}
+                  list="handling-unit-suggestions"
+                  value={item.handlingUnitType ?? ''}
+                  onChange={(e) => patch(item.id, { handlingUnitType: e.target.value.toUpperCase() })}
+                  placeholder="e.g. PLT"
+                  className={INPUT}
+                />
+              </div>
+              <div className="col-span-6 flex items-end">
+                <label className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition ${
+                  item.hazmat ? 'border-red-300 bg-red-50 text-red-700 font-medium' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}>
+                  <input
+                    type="checkbox"
+                    checked={item.hazmat === true}
+                    onChange={(e) => patch(item.id, { hazmat: e.target.checked })}
+                  />
+                  Hazardous material
+                </label>
               </div>
 
               {/* Vehicle — asked on every line. Left blank for freight that

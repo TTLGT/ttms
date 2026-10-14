@@ -1256,9 +1256,18 @@ it — see `src/types/bolRequest.ts`. Anything new that records a signature
 calls `openBolRequestIfSigned()` after it, swallowed: a signature must never
 fail because of the BOL.
 
-**The BOL prints no money.** It is the office's Straight Bill of Lading
-layout and is emailed to every party on the load; the rates are on the
-agreements, each to its own party.
+**The BOL prints no rates.** It is emailed to every party on the load; the
+rates are on the agreements, each to its own party. (The declared value it
+prints is the goods' worth, summed from the freight lines' `value`.)
+
+It is TTMS's own card layout (`src/lib/bol-pdf.tsx`) carrying what the
+office's paper Straight Bill of Lading asked for: truck and trailer number,
+freight charge terms and a 3rd-party bill-to, and the trailer-loaded /
+freight-counted boxes (typed in the Bill of Lading card on the order,
+`BolDetailsFields`), plus handling units and hazmat per freight line. Any of
+them left unset prints as an empty box for a pen. None is on the client's
+load confirmation, so editing them never holds an SA. Saving them redraws a
+BOL already on file.
 
 ### Learn English — underlines that never touch the page
 
