@@ -62,7 +62,6 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     pickupDate:        formatLongDateRange(order.pickupDate, order.pickupDateEnd),
     deliveryDate:      formatLongDateRange(order.deliveryDate, order.deliveryDateEnd),
     agreedRate:        order.agreedRate           ?? 0,
-    notes:             order.notes                ?? '',
     shipperSignerName: order.shipperSignerName    ?? null,
     shipperSignedAt:   order.shipperSignedAt ? fmtDate(order.shipperSignedAt) : null,
     shipperSignerIp:   order.shipperSignerIp      ?? null,

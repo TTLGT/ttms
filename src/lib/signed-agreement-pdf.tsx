@@ -404,9 +404,22 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
           ) : null}
         </View>
 
+        {f.instructions ? (
+          <Panel title="SPECIAL INSTRUCTIONS" style={{ marginBottom: 10 }}>
+            <Text style={s.terms}>{f.instructions}</Text>
+          </Panel>
+        ) : null}
+
+        {/* Only on links sent before notes became internal — see SignFormData.notes. */}
         {f.notes ? (
           <Panel title="NOTES" style={{ marginBottom: 10 }}>
             <Text style={s.terms}>{f.notes}</Text>
+          </Panel>
+        ) : null}
+
+        {f.signerInstructions ? (
+          <Panel title="SPECIAL INSTRUCTIONS ADDED BY THE CLIENT WHEN SIGNING" style={{ marginBottom: 10 }}>
+            <Text style={s.terms}>{f.signerInstructions}</Text>
           </Panel>
         ) : null}
 

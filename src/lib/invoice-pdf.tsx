@@ -17,7 +17,6 @@ export type InvoiceData = {
   pickupDate: string;
   deliveryDate: string;
   agreedRate: number;
-  notes: string;
   shipperSignerName: string | null;
   shipperSignedAt: string | null;
   shipperSignerIp: string | null;
@@ -59,8 +58,6 @@ const s = StyleSheet.create({
   tdTotal:   { flex: 1, padding: 6, fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#ffffff' },
   tdTotalLbl:{ flex: 3, padding: 6, fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#ffffff' },
 
-  notesBox:  { borderWidth: 1, borderColor: GRAY, borderStyle: 'solid', borderRadius: 3, padding: 8, marginBottom: 10 },
-  notesText: { fontSize: 8, color: '#374151', lineHeight: 1.4 },
 
   sigBox:    { borderWidth: 1, borderColor: '#dbeafe', borderStyle: 'solid', backgroundColor: '#eff6ff', borderRadius: 3, padding: 8, marginBottom: 10 },
   sigTitle:  { fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#1e40af', marginBottom: 4 },
@@ -157,13 +154,8 @@ function InvoiceDocument({ d }: { d: InvoiceData }) {
           </View>
         </View>
 
-        {/* Notes */}
-        {d.notes ? (
-          <View style={s.notesBox}>
-            <Text style={s.secTitle}>NOTES</Text>
-            <Text style={s.notesText}>{d.notes}</Text>
-          </View>
-        ) : null}
+        {/* No notes box: the order's notes are internal (2026-10-14), and
+            neither set of special instructions is about paying the bill. */}
 
         {/* Load confirmation signature */}
         {d.shipperSignerName ? (

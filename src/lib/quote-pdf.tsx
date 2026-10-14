@@ -38,7 +38,8 @@ export type QuoteData = {
   items: QuoteFreightLine[];
   totalWeight: string;
   price: number;
-  notes: string;
+  /** Special instructions for the client. The order's internal notes are never printed. */
+  instructions: string;
   preparedBy: string;
   preparedByEmail: string;
   /** What the client still has to give us before an SA can go out. Empty when nothing. */
@@ -266,9 +267,9 @@ function QuoteDocument({ d }: { d: QuoteData }) {
           <Text style={s.priceVal}>{d.price > 0 ? money(d.price) : 'To be confirmed'}</Text>
         </View>
 
-        {d.notes ? (
-          <Panel title="NOTES" style={{ marginBottom: 10 }}>
-            <Text style={{ fontSize: 8.5, lineHeight: 1.4 }}>{d.notes}</Text>
+        {d.instructions ? (
+          <Panel title="SPECIAL INSTRUCTIONS" style={{ marginBottom: 10 }}>
+            <Text style={{ fontSize: 8.5, lineHeight: 1.4 }}>{d.instructions}</Text>
           </Panel>
         ) : null}
 

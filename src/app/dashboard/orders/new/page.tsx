@@ -19,6 +19,8 @@ import PriceAndTermsSection, { blankPriceTerms, priceTermsForSave } from '@/comp
 import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
+import NotesAndInstructionsFields, { BLANK_NOTES_AND_INSTRUCTIONS, notesAndInstructionsForSave } from '@/components/orders/NotesAndInstructionsFields';
+import type { NotesAndInstructions } from '@/components/orders/NotesAndInstructionsFields';
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
 import AddressFields, { BLANK_ADDRESS } from '@/components/orders/AddressFields';
@@ -87,7 +89,7 @@ function NewOrderForm() {
   const [deliveryDateEnd, setDeliveryDateEnd] = useState('');
   const [agreedRate, setAgreedRate]     = useState('');
   const [brokerFee, setBrokerFee]       = useState('');
-  const [notes, setNotes]               = useState('');
+  const [notes, setNotes]               = useState<NotesAndInstructions>(BLANK_NOTES_AND_INSTRUCTIONS);
   const [priceTerms, setPriceTerms]     = useState<PriceTerms>(blankPriceTerms);
 
   const carrierPay = (parseFloat(agreedRate) || 0) - (parseFloat(brokerFee) || 0);
@@ -253,7 +255,7 @@ function NewOrderForm() {
         agreedRate:   parseFloat(agreedRate) || 0,
         brokerFee:    parseFloat(brokerFee)  || 0,
         carrierPay,
-        notes:        notes.trim(),
+        ...notesAndInstructionsForSave(notes),
         ...priceTermsForSave(priceTerms),
         batsId:             null,
         vehicles:           '',
@@ -461,13 +463,7 @@ function NewOrderForm() {
             )}
           </section>
 
-          {/* Notes */}
-          <section className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-3">Notes</h2>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
-              placeholder="Any special instructions or details…"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none" />
-          </section>
+          <NotesAndInstructionsFields value={notes} onChange={setNotes} />
 
           {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600">{error}</div>}
 

@@ -20,6 +20,7 @@ import {
   STATUS_LABEL,
   STATUS_NEXT,
   clientSignatureSatisfied,
+  clientAddedInstructionsOf,
   displayStatus,
   formatDimensions,
   hasVehicleDetails,
@@ -999,6 +1000,12 @@ export default function OrderDetailPage() {
         brokerFee:    0,
         carrierPay:   0,
         notes:        '',
+        // The instructions are about the freight and the client, which a
+        // split keeps, so they carry over to be edited rather than retyped.
+        // What the client added when signing does not: it belongs to the
+        // signature on the parent, and the suborder has none yet.
+        carrierInstructions: order.carrierInstructions ?? '',
+        clientInstructions:  order.clientInstructions ?? '',
         batsId:             null,
         vehicles:           order.vehicles || '',
         transportType:      order.transportType || '',
@@ -1895,14 +1902,44 @@ export default function OrderDetailPage() {
           )}
 
           {/* Always drawn, even empty, so a note can be added from here. */}
-          <div id="notes" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes</h3>
+          <div id="notes" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4 space-y-5">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes and Instructions</h3>
               <SectionEditLink orderId={orderId} section="notes" />
             </div>
-            {order.notes
-              ? <p className="text-sm text-gray-700 whitespace-pre-line">{order.notes}</p>
-              : <p className="text-sm text-gray-400">No notes.</p>}
+            <div>
+              <p className="text-xs font-semibold text-gray-700">
+                Internal notes <span className="font-normal text-gray-400">· staff only, never printed or sent</span>
+              </p>
+              {order.notes
+                ? <p className="text-sm text-gray-700 whitespace-pre-line mt-1">{order.notes}</p>
+                : <p className="text-sm text-gray-400 mt-1">No notes.</p>}
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-700">
+                Special instructions for the carrier <span className="font-normal text-gray-400">· on the dispatch sheet and the BOL</span>
+              </p>
+              {order.carrierInstructions
+                ? <p className="text-sm text-gray-700 whitespace-pre-line mt-1">{order.carrierInstructions}</p>
+                : <p className="text-sm text-gray-400 mt-1">None.</p>}
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-gray-700">
+                Special instructions for the client <span className="font-normal text-gray-400">· on the quote and the load confirmation</span>
+              </p>
+              {order.clientInstructions
+                ? <p className="text-sm text-gray-700 whitespace-pre-line mt-1">{order.clientInstructions}</p>
+                : clientAddedInstructionsOf(order).length === 0 && <p className="text-sm text-gray-400 mt-1">None.</p>}
+              {/* The client's own, beside ours and never in place of them. */}
+              {clientAddedInstructionsOf(order).map((e, i) => (
+                <div key={i} className="mt-2 rounded-lg border border-brand-100 bg-brand-50 px-3 py-2">
+                  <p className="text-xs text-gray-500">
+                    Added by the client · {e.signerName || 'signer'} when signing{e.version ? ` version ${e.version}` : ''}, {formatDateTime(e.at as unknown as { toDate: () => Date })}
+                  </p>
+                  <p className="text-sm text-gray-800 whitespace-pre-line mt-0.5">{e.text}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="text-xs text-gray-400">

@@ -154,7 +154,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     agreedRate:       order.agreedRate         ?? 0,
     brokerFee:        order.brokerFee          ?? 0,
     carrierPay:       order.carrierPay         ?? 0,
-    notes:            order.notes              ?? '',
+    // The carrier's instructions, never the order's notes: those are internal.
+    carrierInstructions: order.carrierInstructions ?? '',
     carrierSignerName: order.carrierSignerName ?? null,
     carrierSignedAt:   order.carrierSignedAt ? fmtDate(order.carrierSignedAt) : null,
     carrierSignerIp:   order.carrierSignerIp  ?? null,

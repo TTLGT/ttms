@@ -3,7 +3,7 @@ import { adminDb, FieldValue } from '@/lib/firebase-admin';
 import { diffFields, writeChange } from '@/lib/recordHistory';
 import { Timestamp } from 'firebase-admin/firestore';
 import { postOrderAlert, signedAlert } from '@/lib/chatAlerts';
-import { STATUS_RANK } from '@/types/order';
+import { MAX_CLIENT_INSTRUCTION, STATUS_RANK, clientAddedInstructionsOf } from '@/types/order';
 import { describeDevice } from '@/types/saRequest';
 import { markSigned } from '@/lib/clientAgreements';
 import { emailSignedAgreement } from '@/lib/signedAgreementEmail';
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const { token } = await params;
 
   const body = (await req.json().catch(() => ({}))) as {
-    signerName?: unknown; signerTitle?: unknown; esignConsent?: unknown; acceptTerms?: unknown; version?: unknown;
+    signerName?: unknown; signerTitle?: unknown; instructions?: unknown; esignConsent?: unknown; acceptTerms?: unknown; version?: unknown;
   };
   // The version of the agreement the page showed. A link can be revised in
   // place (src/lib/clientAgreements.ts), so the signature has to say which
@@ -46,6 +46,11 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   // Optional, and capped for the same reason as the user agent: it is the
   // signer's to write, and it lands on the order.
   const signerTitle = typeof body.signerTitle === 'string' ? body.signerTitle.trim().slice(0, 120) : '';
+  // The client's own special instructions, typed as they sign. Optional, and
+  // capped like the title. Read for a client link only (below).
+  const addedInstructions = typeof body.instructions === 'string'
+    ? body.instructions.trim().slice(0, MAX_CLIENT_INSTRUCTION)
+    : '';
   /*
    * The two boxes on the form, recorded as given. Strictly `true`: a missing
    * key or a string "false" is not consent. Required below for a client
@@ -88,7 +93,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
    * the alert twice, and a failure to write into a chat room must never roll
    * back a signature that is a legal record.
    */
-  let signed: { orderId: string; by: 'carrier' | 'client' } | null = null;
+  let signed: { orderId: string; by: 'carrier' | 'client'; instructions: string } | null = null;
 
   try {
     /**
@@ -144,6 +149,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       // `shipper_agreement` is the client's load confirmation. The token type
       // is historical — it names the field it writes, not who receives it.
       const isClient = data.type === 'shipper_agreement';
+      // A carrier's form has no box for it; anything sent is ignored.
+      const signerInstructions = isClient ? addedInstructions : '';
 
       // The page will not submit without both boxes ticked; this is the check
       // that counts. A client signature recorded without either consent is
@@ -222,6 +229,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         esignConsent,
         termsAccepted: acceptTerms,
         signedVersion: linkVersion,
+        // Part of what they signed, so it is on their signed PDF. Absent
+        // rather than '' when there is none: signatureFingerprint() includes
+        // it only when present, so earlier copies keep their checksum.
+        ...(signerInstructions ? { signerInstructions } : {}),
       });
       // The order's link pointer learns this version is signed, in the same
       // transaction, so an edit a second later knows to ask for a re-sign.
@@ -229,6 +240,19 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         const mark = markSigned(data.orderId, linkVersion, now);
         tx.set(mark.ref, mark.data, { merge: true });
       }
+      /*
+       * What the client added, appended to the order's list — never written
+       * over our `clientInstructions` and never over an earlier signature's
+       * addition. Built from the order read in this transaction rather than
+       * with arrayUnion, so the change-log entry below can show it.
+       */
+      if (signerInstructions && orderSnap.exists) {
+        orderUpdate.clientAddedInstructions = [
+          ...clientAddedInstructionsOf(orderSnap.data()!),
+          { text: signerInstructions, signerName: signer, at: now, version: linkVersion },
+        ];
+      }
+
       tx.update(orderRef, orderUpdate);
 
       // The order's change history, in the same transaction so it can never
@@ -255,6 +279,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       return {
         orderId: data.orderId as string,
         by: (isClient ? 'client' : 'carrier') as 'carrier' | 'client',
+        instructions: signerInstructions,
       };
     });
   } catch (e) {
@@ -277,7 +302,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
    * carrier is owed a success either way.
    */
   if (signed) {
-    await postOrderAlert(signed.orderId, `${signedAlert(signed.by, signer)} Signed electronically on ${device}.`).catch(() => {});
+    // An instruction the client added is said in the room too: it is the one
+    // part of a signature somebody has to act on, and it arrives unannounced.
+    const added = signed.instructions
+      ? ` They added special instructions: "${signed.instructions.length > 300 ? `${signed.instructions.slice(0, 300)}…` : signed.instructions}"`
+      : '';
+    await postOrderAlert(signed.orderId, `${signedAlert(signed.by, signer)} Signed electronically on ${device}.${added}`).catch(() => {});
   }
 
   /*

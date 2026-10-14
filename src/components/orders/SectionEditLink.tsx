@@ -17,7 +17,7 @@ export const ORDER_SECTION_LABEL: Record<OrderSection, string> = {
   freight: 'Freight',
   price:   'Price and Terms',
   route:   'Route',
-  notes:   'Notes',
+  notes:   'Notes and Instructions',
 };
 
 export function isOrderSection(v: string | null): v is OrderSection {

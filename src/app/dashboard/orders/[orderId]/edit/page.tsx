@@ -13,12 +13,15 @@ import PriceAndTermsSection, { blankPriceTerms, priceTermsForSave, priceTermsFro
 import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
+import NotesAndInstructionsFields, { BLANK_NOTES_AND_INSTRUCTIONS, notesAndInstructionsForSave } from '@/components/orders/NotesAndInstructionsFields';
+import type { NotesAndInstructions } from '@/components/orders/NotesAndInstructionsFields';
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
 import AddressFields, { BLANK_ADDRESS } from '@/components/orders/AddressFields';
 import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopDraftsFrom, stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
 import type { StopDraft } from '@/components/orders/ExtraStopsFields';
-import { commoditySummary, hasVehicleDetails, orderCommodityItems, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue, orderDisplayNumber } from '@/types/order';
+import { useDateFormatters } from '@/lib/useDateFormatters';
+import { clientAddedInstructionsOf, commoditySummary, hasVehicleDetails, orderCommodityItems, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue, orderDisplayNumber } from '@/types/order';
 import type { Order, Address, CommodityItem, StopKind } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import { ROLE_LABEL } from '@/types/party';
@@ -61,6 +64,7 @@ function unboundMessage(unbound: string[]): string {
 
 export default function EditOrderPage() {
   const { user, profile } = useAuth();
+  const { formatDateTime } = useDateFormatters();
   const params   = useParams();
   const orderId  = params.orderId as string;
   const router   = useRouter();
@@ -96,7 +100,7 @@ export default function EditOrderPage() {
   const [deliveryDateEnd, setDeliveryDateEnd] = useState('');
   const [agreedRate, setAgreedRate]     = useState('');
   const [brokerFee, setBrokerFee]       = useState('');
-  const [notes, setNotes]               = useState('');
+  const [notes, setNotes]               = useState<NotesAndInstructions>(BLANK_NOTES_AND_INSTRUCTIONS);
   const [priceTerms, setPriceTerms]     = useState<PriceTerms>(blankPriceTerms);
 
   const carrierPay = (parseFloat(agreedRate) || 0) - (parseFloat(brokerFee) || 0);
@@ -175,7 +179,11 @@ export default function EditOrderPage() {
         setDeliveryDateEnd(tsToDateStr(o.deliveryDateEnd ?? null));
         setAgreedRate(o.agreedRate ? String(o.agreedRate) : '');
         setBrokerFee(o.brokerFee ? String(o.brokerFee) : '');
-        setNotes(o.notes ?? '');
+        setNotes({
+          notes:               o.notes ?? '',
+          carrierInstructions: o.carrierInstructions ?? '',
+          clientInstructions:  o.clientInstructions ?? '',
+        });
         setPriceTerms(priceTermsFromOrder(o));
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Failed to load order');
@@ -299,9 +307,7 @@ export default function EditOrderPage() {
           // lines would go on naming a position some other company now holds.
           ...(stopsRenumbered ? { commodities: commodityItems } : {}),
         },
-        notes: {
-          notes:        notes.trim(),
-        },
+        notes: notesAndInstructionsForSave(notes),
       };
 
       await updateOrder(orderId, section
@@ -447,13 +453,9 @@ export default function EditOrderPage() {
           </>)}
 
           {shows('notes') && (<>
-          {/* Notes */}
-          <section className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-3">Notes</h2>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
-              placeholder="Any special instructions or details…"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none" />
-          </section>
+          <NotesAndInstructionsFields value={notes} onChange={setNotes}
+            clientAdded={order ? clientAddedInstructionsOf(order) : []}
+            formatWhen={(at) => formatDateTime(at as unknown as { toDate: () => Date })} />
           </>)}
 
           {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600">{error}</div>}

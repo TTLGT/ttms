@@ -174,7 +174,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     carrierPay:   order.carrierPay   || 0,
     carrierName:  carrier.companyName,
     driverName:   order.driverName   || '',
-    notes:        order.notes        || '',
+    // The carrier's instructions. Never the order's notes, which are internal;
+    // links sent before 2026-10-14 carry `notes` and still show it.
+    specialInstructions: order.carrierInstructions || '',
     version,
     cc,
     sentByName:   actor?.name ?? '',

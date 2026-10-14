@@ -32,6 +32,13 @@ type AnyOrder = Partial<Order> & Record<string, unknown>;
  * The parts of an agreement, each fingerprinted on its own so a change can be
  * named. `client` is special: a link belongs to the client it was sent to, so
  * a change of client is never a revision of that link — see clientAgreements.
+ *
+ * `notes` is the client's special instructions (`clientInstructions`). The key
+ * keeps its old name because it is stored in `sectionHashes` on every live
+ * link: a new key would read as changed on every one of them and hold them
+ * all for review on their next save. Under the old name only a link whose
+ * order had internal notes reads as changed, once — which is true, since the
+ * client is no longer shown them.
  */
 export type AgreementSection = 'client' | 'rate' | 'stops' | 'freight' | 'payment' | 'notes';
 
@@ -41,7 +48,7 @@ export const AGREEMENT_SECTION_LABEL: Record<AgreementSection, string> = {
   stops:   'pickup and delivery',
   freight: 'freight',
   payment: 'payment terms',
-  notes:   'notes',
+  notes:   'special instructions',
 };
 
 const SECTIONS: AgreementSection[] = ['client', 'rate', 'stops', 'freight', 'payment', 'notes'];
@@ -102,7 +109,8 @@ export interface ConfirmationContent {
   pieces: number;
   dimensions: string;
   payment: ConfirmationPayment;
-  notes: string;
+  /** The client's special instructions, as staff wrote them. Not what the client adds when signing — that is theirs, not a term we offer. */
+  instructions: string;
 }
 
 export function confirmationContent(order: AnyOrder): ConfirmationContent {
@@ -117,7 +125,7 @@ export function confirmationContent(order: AnyOrder): ConfirmationContent {
     pieces:     Number(order.pieces) || 0,
     dimensions: dimensionsSummary(orderCommodityItems(order)),
     payment:    clientPaymentDetails(order),
-    notes:      String(order.notes ?? '').trim(),
+    instructions: String(order.clientInstructions ?? '').trim(),
   };
 }
 
@@ -136,7 +144,7 @@ export function sectionHashes(c: ConfirmationContent): Record<AgreementSection, 
     stops:   sha(c.stops),
     freight: sha([c.freight, c.equipment, c.commodity, c.weight, c.pieces, c.dimensions]),
     payment: sha(c.payment),
-    notes:   sha(c.notes),
+    notes:   sha(c.instructions),
   };
 }
 
@@ -175,7 +183,9 @@ export function tokenSnapshotFields(order: AnyOrder, c: ConfirmationContent): Re
     deliveryDateEnd: order.deliveryDateEnd || null,
     agreedRate:      c.agreedRate,
     carrierName:     order.carrierName     || '',
-    notes:           c.notes,
+    // Under its own key: links sent before 2026-10-14 carry `notes`, which
+    // was the order's notes as the client was shown them, and still show it.
+    specialInstructions: c.instructions,
     stops:           c.stops,
     freight:         c.freight,
     equipment:       c.equipment,

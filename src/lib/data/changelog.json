@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "5507b5fbefabd1dc4c2baf1ddac76c68d006936c",
+      "date": "2026-10-14T12:02:37-06:00",
+      "author": "erwindank",
+      "subject": "Add an Attendance tab to Settings with the attendance setup panels",
+      "body": "Admins look for settings under Settings, but schedules, holidays, lunch\ntimes, break reminders, Back on time and the office network were only on\nAttendance > Setup. The same component now shows on both, with Overview\ncards and search entries for each panel. Open to anyone with Manage\nattendance (admin and HR)."
+    },
+    {
       "hash": "62fe2fe2849c67e6cbc38db8c3143a43071d1b79",
       "date": "2026-10-14T11:40:32-06:00",
       "author": "erwindank",

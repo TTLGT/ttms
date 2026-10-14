@@ -54,6 +54,9 @@ const SIGNATURE_FIELDS = [
   'shipperSignerTitle', 'shipperSignedVersion',
   'signatureWaivedAt', 'signatureWaivedByUid', 'signatureWaivedByName',
   'signatureWaivedReason', 'signatureWaived',
+  // What the client typed when signing. Staff write `clientInstructions`
+  // beside it; these are the client's and are only ever appended to.
+  'clientAddedInstructions',
 ] as const;
 
 /**
@@ -372,6 +375,7 @@ export async function createOrderAsCaller(
   // sent. The create rule never checked these; the edit rule did.
   for (const f of SIGNATURE_FIELDS) record[f] = null;
   record.signatureWaived = false;
+  record.clientAddedInstructions = [];
   record.partyApprovals  = [];
 
   Object.assign(record, await clientOwnerMirror(record.clientId));

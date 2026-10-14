@@ -77,7 +77,8 @@ export type BolData = {
   agreedRate: number;
   brokerFee: number;
   carrierPay: number;
-  notes: string;
+  /** Special instructions for the carrier. The order's internal notes are never printed. */
+  carrierInstructions: string;
   carrierSignerName: string | null;
   carrierSignedAt: string | null;
   carrierSignerIp: string | null;
@@ -298,11 +299,11 @@ function BolDocument({ d }: { d: BolData }) {
           </View>
         </View>
 
-        {/* Notes */}
-        {d.notes ? (
+        {/* Special instructions */}
+        {d.carrierInstructions ? (
           <View style={s.notesBox}>
-            <Text style={s.secTitle}>NOTES</Text>
-            <Text style={s.notesText}>{d.notes}</Text>
+            <Text style={s.secTitle}>SPECIAL INSTRUCTIONS</Text>
+            <Text style={s.notesText}>{d.carrierInstructions}</Text>
           </View>
         ) : null}
 

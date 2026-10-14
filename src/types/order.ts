@@ -619,6 +619,27 @@ export function stopPlaces(stops: readonly OrderStop[]): string {
     .join('; ');
 }
 
+/** Longest special instruction a client may add when signing. */
+export const MAX_CLIENT_INSTRUCTION = 2000;
+
+/** One client's addition to the special instructions, made as they signed. */
+export interface ClientAddedInstruction {
+  text: string;
+  /** The name they signed with. */
+  signerName: string;
+  at: Timestamp;
+  /** The version of the load confirmation they signed; null on an unversioned link. */
+  version: number | null;
+}
+
+/** The client's additions, whatever shape an old or hand-edited order stores. */
+export function clientAddedInstructionsOf(order: { clientAddedInstructions?: unknown }): ClientAddedInstruction[] {
+  const list = order.clientAddedInstructions;
+  if (!Array.isArray(list)) return [];
+  return list.filter((e): e is ClientAddedInstruction =>
+    !!e && typeof e === 'object' && typeof (e as ClientAddedInstruction).text === 'string' && !!(e as ClientAddedInstruction).text.trim());
+}
+
 export interface Order {
   id: string;
   batsId: string | null;
@@ -857,7 +878,38 @@ export interface Order {
    * `sourceId` instead.
    */
   sourceName: string;
+  /**
+   * Internal notes — staff only, company-wide. Printed on nothing that leaves
+   * the company: no PDF, no email, no signing page. Instructions meant for a
+   * carrier or a client go in the two fields below.
+   *
+   * It used to be printed on all of them (the BOL, the invoice, the quote and
+   * both agreements), so a load from before 2026-10-14 may hold text written
+   * for a carrier or client here. It is not copied across; whoever next sends
+   * that load's paperwork moves it if it still applies.
+   */
   notes: string;
+  /**
+   * Special instructions for the carrier: printed on the dispatch sheet (its
+   * signing page and signed PDF) and the BOL. Absent on loads from before it
+   * existed — read through `?? ''`.
+   */
+  carrierInstructions?: string;
+  /**
+   * Special instructions for the client, written by staff: printed on the
+   * quote, the client's load confirmation and its signed PDF. Part of the
+   * confirmation's fingerprint, so changing it after sending holds the link
+   * for review like any other change the client would see.
+   */
+  clientInstructions?: string;
+  /**
+   * What the client typed into "Special instructions" when they signed, one
+   * entry per signature, oldest first. Written only by POST /api/sign/[token]
+   * (a SIGNATURE_FIELD in orderWrites.ts), and only ever appended to: staff
+   * edit `clientInstructions` beside it and can never overwrite these. Shown
+   * together with `clientInstructions` as one "client special instructions".
+   */
+  clientAddedInstructions?: ClientAddedInstruction[];
   deliveredAt: Timestamp | null;
   carrierSignedAt: Timestamp | null;
   carrierSignerName: string | null;

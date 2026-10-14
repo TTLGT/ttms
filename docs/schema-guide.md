@@ -186,11 +186,47 @@ orders/{orderId}
   agreedRate      : number          // USD
   brokerFee       : number          // USD
   carrierPay      : number          // USD
-  notes           : string
+  notes           : string          // INTERNAL — staff only, printed on nothing (see below)
+  carrierInstructions?    : string  // dispatch sheet + BOL
+  clientInstructions?     : string  // quote + client load confirmation; part of its fingerprint
+  clientAddedInstructions?: ClientAddedInstruction[]  // SIGNING ROUTE ONLY, append-only
   createdBy       : string          // uid of the broker who created it
   createdAt       : Timestamp
   updatedAt       : Timestamp
 ```
+
+### Notes and special instructions (2026-10-14)
+
+Three boxes, one per reader. Until 2026-10-14 there was one, `notes`, and it was
+printed on the BOL, the invoice, the quote and both agreements — so a remark
+meant for colleagues went to the carrier and the client.
+
+| Field | Who reads it | Printed on |
+|---|---|---|
+| `notes` | staff only | nothing |
+| `carrierInstructions` | the carrier | dispatch sheet (signing page + signed PDF), BOL |
+| `clientInstructions` | the client | quote PDF, load confirmation (signing page + signed PDF) |
+| `clientAddedInstructions` | staff | the order screen; each entry also on that signature's signed PDF |
+
+`clientAddedInstructions` is what the client typed into the optional "Special
+instructions for us" box when they signed: `{ text, signerName, at, version }`,
+one entry per signature, appended by `POST /api/sign/[token]` in the signing
+transaction and never rewritten. It is in `SIGNATURE_FIELDS` in
+`src/lib/orderWrites.ts`, so no edit can touch it — staff change
+`clientInstructions` beside it, and the order screen shows both together. The
+same text is stored on the signing link as `signerInstructions` (and added to
+the signed copy's fingerprint only when present, so older copies keep theirs),
+and the signature's chat alert quotes it.
+
+On the signing links the instructions are snapshotted as `specialInstructions`.
+Links sent before the split carry `notes` instead — the order's notes as the
+signer was shown them — and still show it under "Notes", because that is what
+was signed. The client confirmation's section fingerprint is still keyed
+`notes` (see `AgreementSection` in `src/lib/loadConfirmationServer.ts`), now
+hashing `clientInstructions`.
+
+Old orders' `notes` were not copied into either new field: nobody can tell
+from the text which reader it was for.
 
 ### `orderNumber`
 

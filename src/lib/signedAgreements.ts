@@ -181,6 +181,9 @@ function signatureFingerprint(data: Data): string {
     data.termsText ?? '', data.agreedRate ?? null, data.carrierPay ?? null,
     data.signerName ?? '', data.signerTitle ?? '', data.signerIp ?? '', data.signerUserAgent ?? '',
     data.usedAt?.toMillis?.() ?? null,
+    // Appended only when present, so every copy signed before the client
+    // could add instructions keeps the checksum already printed on it.
+    ...(data.signerInstructions ? [data.signerInstructions] : []),
   ])).digest('base64');
 }
 

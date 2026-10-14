@@ -52,7 +52,8 @@ export async function buildQuoteData(
     items: confirmationFreight(order),
     totalWeight: weight ? `${Math.round(weight).toLocaleString('en-US')} lbs` : '',
     price: Number(order.agreedRate) || 0,
-    notes: String(order.notes ?? ''),
+    // The client's instructions, never the order's notes: those are internal.
+    instructions: String(order.clientInstructions ?? '').trim(),
     preparedBy: preparedBy.name,
     preparedByEmail: preparedBy.email,
     photo,

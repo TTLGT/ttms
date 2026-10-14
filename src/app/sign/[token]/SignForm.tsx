@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { ConfirmationFreight, ConfirmationPayment, ConfirmationStop } from '@/types/loadConfirmation';
 import { CARRIER_TERMS } from '@/types/agreementTerms';
+import { MAX_CLIENT_INSTRUCTION } from '@/types/order';
 
 interface Props {
   /** The link's token. Absent in `preview`, which has nothing to sign with. */
@@ -21,7 +22,12 @@ interface Props {
   pickupDate: string;
   deliveryDate: string;
   rate: string;
+  /** Only on links sent before 2026-10-14 — see SignFormData.notes. */
   notes: string;
+  /** Our special instructions for the signer. */
+  instructions: string;
+  /** What the client added when signing. Not shown on the form; it is for the signed PDF. */
+  signerInstructions?: string;
   /**
    * The terms this link was sent with. For a client agreement it is the copy
    * on the token (or the old standard wording, for a link sent before the
@@ -128,12 +134,13 @@ function StopList({ title, stops }: { title: string; stops: ConfirmationStop[] }
 
 export default function SignForm({
   token, type, orderNumber, partyName, driverName, commodity, weight, pieces, dimensions,
-  originStr, destinationStr, pickupDate, deliveryDate, rate, notes,
+  originStr, destinationStr, pickupDate, deliveryDate, rate, notes, instructions,
   terms, stops, freight, equipment, payment, validUntil, sentByName, sentByEmail,
   version, revisedNote, preview,
 }: Props) {
   const [signerName, setSignerName]   = useState('');
   const [signerTitle, setSignerTitle] = useState('');
+  const [addedInstructions, setAddedInstructions] = useState('');
   const [consent, setConsent]         = useState(false);
   const [agreed, setAgreed]           = useState(false);
   const [submitting, setSubmitting]   = useState(false);
@@ -170,6 +177,8 @@ export default function SignForm({
         body:    JSON.stringify({
           signerName: signerName.trim(),
           signerTitle: signerTitle.trim(),
+          // The client's own additions. A carrier's form has no box for it.
+          ...(isClient ? { instructions: addedInstructions.trim() } : {}),
           esignConsent: consent,
           acceptTerms: agreed,
           version,
@@ -295,6 +304,12 @@ export default function SignForm({
             </p>
           </Card>
 
+          {instructions && (
+            <Card title="Special Instructions">
+              <p className="text-sm text-gray-700 whitespace-pre-line">{instructions}</p>
+            </Card>
+          )}
+
           {notes && (
             <Card title="Notes">
               <p className="text-sm text-gray-700 whitespace-pre-line">{notes}</p>
@@ -318,6 +333,12 @@ export default function SignForm({
             <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">{rateLabel}</span>
             <span className="text-xl font-bold text-gray-900">{rate}</span>
           </div>
+          {instructions && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Special Instructions</p>
+              <p className="text-sm text-gray-700 whitespace-pre-line">{instructions}</p>
+            </div>
+          )}
           {notes && (
             <div className="mt-3 pt-3 border-t border-gray-100">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Notes</p>
@@ -378,6 +399,29 @@ export default function SignForm({
             />
           </div>
         </div>
+
+        {/*
+          The client's chance to tell us anything else. Optional, and added
+          beside our instructions on the order, never in place of them. Not
+          offered to a carrier: their instructions come from dispatch.
+        */}
+        {isClient && (
+          <div>
+            <label htmlFor="signer-instructions" className="block text-sm font-medium text-gray-700 mb-1">
+              Special instructions for us <span className="font-normal text-gray-400">(optional)</span>
+            </label>
+            <textarea
+              id="signer-instructions"
+              value={addedInstructions}
+              onChange={(e) => setAddedInstructions(e.target.value)}
+              rows={3}
+              maxLength={MAX_CLIENT_INSTRUCTION}
+              placeholder="Anything else we should know about this load — gate codes, contact on site, hours."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 resize-y"
+            />
+            <p className="text-xs text-gray-500 mt-1">Kept with your signed agreement and added to the instructions on this load.</p>
+          </div>
+        )}
 
         {/* What the signature will look like — so "typing my name" reads as signing. */}
         <div className="rounded-lg border border-dashed border-gray-300 px-4 py-3">
