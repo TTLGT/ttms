@@ -35,7 +35,6 @@ export type BolStopLine = {
   /** "PICKUP 2", "DELIVERY 3". */
   label: string;
   company: string;
-  phone: string;
   street: string;
   /** City, state and ZIP. */
   place: string;
@@ -45,18 +44,21 @@ export type BolStopLine = {
   freight: string;
 };
 
+/*
+ * No phone numbers, for anybody (2026-10-15) — shipper, consignee, extra
+ * stops or driver. The BOL is emailed to every party on the load and handed
+ * across docks; contacts are on the agreements and in TTMS. They are kept out
+ * of this type rather than just off the page, so none can creep back in.
+ */
 export type BolData = {
   orderNumber: string;
   clientName: string;
   shipperName: string;
-  shipperPhone: string;
   consigneeName: string;
-  consigneePhone: string;
   carrierName: string;
   carrierDot: string;
   carrierMc: string;
   driverName: string;
-  driverPhone: string;
   truckNumber: string;
   trailerNumber: string;
   commodity: string;
@@ -255,9 +257,9 @@ function Check({ on, label }: { on: boolean; label: string }) {
   );
 }
 
-/** A party's place on the load: name, address on two lines, phone and date. */
-function Stop({ name, street, place, phone, dateLabel, date, freightLabel, freight }: {
-  name: string; street: string; place: string; phone: string;
+/** A party's place on the load: name, address on two lines, and date. */
+function Stop({ name, street, place, dateLabel, date, freightLabel, freight }: {
+  name: string; street: string; place: string;
   dateLabel: string; date: string; freightLabel: string; freight: string;
 }) {
   return (
@@ -266,7 +268,6 @@ function Stop({ name, street, place, phone, dateLabel, date, freightLabel, freig
       {street ? <Text style={s.addr}>{street}</Text> : null}
       <Text style={s.addr}>{place || '—'}</Text>
       <View style={s.pair}>
-        <Field label="Phone" value={phone} />
         <Field label={dateLabel} value={date} />
       </View>
       {freight ? <Text style={s.note}><Text style={s.noteLabel}>{freightLabel}:  </Text>{freight}</Text> : null}
@@ -332,11 +333,13 @@ function BolDocument({ d }: { d: BolData }) {
         </View>
         <View style={s.accent} />
 
-        {/* The load at a glance. */}
+        {/* The load at a glance. The dates are the order's plan, so they say
+            "estimated"; the real ones are written by hand at each dock, on
+            the signature cards below. */}
         <View style={s.strip} wrap={false}>
           <StripCell label="CLIENT" value={d.clientName} flex={1.6} />
-          <StripCell label="PICKUP DATE" value={d.pickupDate} />
-          <StripCell label="DELIVERY DATE" value={d.deliveryDate} />
+          <StripCell label="EST. PICKUP" value={d.pickupDate} />
+          <StripCell label="EST. DELIVERY" value={d.deliveryDate} />
           <StripCell label="TOTAL WEIGHT" value={d.weight ? `${d.weight.toLocaleString()} lbs` : ''} flex={0.8} />
         </View>
 
@@ -344,13 +347,13 @@ function BolDocument({ d }: { d: BolData }) {
             pickup and delivery; the others are listed under the freight. */}
         <View style={s.row}>
           <Card n={next()} title={multiPickup ? 'SHIP FROM (PICKUP 1)' : 'SHIP FROM'} half>
-            <Stop name={d.shipperName} street={d.originStreet} place={originLine} phone={d.shipperPhone}
-              dateLabel="Pickup date" date={d.pickupDate} freightLabel="Load here" freight={d.originFreight} />
+            <Stop name={d.shipperName} street={d.originStreet} place={originLine}
+              dateLabel="Estimated pickup" date={d.pickupDate} freightLabel="Load here" freight={d.originFreight} />
           </Card>
           <View style={s.gap} />
           <Card n={next()} title={multiDeliver ? 'SHIP TO (DELIVERY 1)' : 'SHIP TO'} half>
-            <Stop name={d.consigneeName} street={d.destStreet} place={destLine} phone={d.consigneePhone}
-              dateLabel="Delivery date" date={d.deliveryDate} freightLabel="Unload here" freight={d.destFreight} />
+            <Stop name={d.consigneeName} street={d.destStreet} place={destLine}
+              dateLabel="Estimated delivery" date={d.deliveryDate} freightLabel="Unload here" freight={d.destFreight} />
           </Card>
         </View>
 
@@ -375,7 +378,6 @@ function BolDocument({ d }: { d: BolData }) {
           <Card n={next()} title="DRIVER & EQUIPMENT" half>
             <View style={{ flexDirection: 'row' }}>
               <Field label="Driver" value={d.driverName} />
-              <Field label="Driver phone" value={d.driverPhone} />
             </View>
             <View style={s.pair}>
               <Field label="Truck no." value={d.truckNumber} blank />
@@ -435,13 +437,13 @@ function BolDocument({ d }: { d: BolData }) {
               <Text style={[s.th, { width: '14%' }]}>STOP</Text>
               <Text style={[s.th, { width: '26%' }]}>COMPANY</Text>
               <Text style={[s.th, { width: '27%' }]}>ADDRESS</Text>
-              <Text style={[s.th, { width: '14%' }]}>DATE</Text>
+              <Text style={[s.th, { width: '14%' }]}>EST. DATE</Text>
               <Text style={[s.th, { width: '19%' }]}>FREIGHT</Text>
             </View>
             {d.extraStops.map((st, i) => (
               <View key={i} style={i % 2 ? s.tRowAlt : s.tRow} wrap={false}>
                 <Text style={[s.tdBold, { width: '14%' }]}>{st.label}</Text>
-                <Text style={[s.td, { width: '26%' }]}>{[st.company || '—', st.phone].filter(Boolean).join('\n')}</Text>
+                <Text style={[s.td, { width: '26%' }]}>{st.company || '—'}</Text>
                 <Text style={[s.td, { width: '27%' }]}>{[st.street, st.place].filter(Boolean).join('\n') || '—'}</Text>
                 <Text style={[s.td, { width: '14%' }]}>{st.date || '—'}</Text>
                 <Text style={[s.td, { width: '19%' }]}>{st.freight || '—'}</Text>

@@ -36,12 +36,6 @@ const fmtDate = (ts: { toDate?: () => Date } | null | undefined): string => {
   return ts.toDate().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 };
 
-async function partyPhone(partyId: string | undefined | null): Promise<string> {
-  if (!partyId) return '';
-  const snap = await adminDb.collection('parties').doc(partyId).get();
-  return snap.exists ? (snap.data()!.phone ?? '') : '';
-}
-
 /** The PDF, drawn from the order as it stands now. */
 async function bolBuffer(order: FirebaseFirestore.DocumentData): Promise<Buffer> {
   let carrierDot = '';
@@ -54,12 +48,6 @@ async function bolBuffer(order: FirebaseFirestore.DocumentData): Promise<Buffer>
       carrierMc  = c.mc  ?? '';
     }
   }
-
-  // Phone numbers live on the party records, not the order.
-  const [shipperPhone, consigneePhone] = await Promise.all([
-    partyPhone(order.shipperId),
-    partyPhone(order.consigneeId),
-  ]);
 
   // Which freight goes through which stop. Only asked on a load with more
   // than one stop of a kind — see itemStop() — so a plain A-to-B load prints
@@ -91,18 +79,17 @@ async function bolBuffer(order: FirebaseFirestore.DocumentData): Promise<Buffer>
 
   // Every pickup and delivery after the first, numbered the way the order
   // screen numbers them, so the driver and the carrier read the same list.
-  const stopLine = (kind: StopKind) => async (s: OrderStop, i: number): Promise<BolStopLine> => ({
+  const stopLine = (kind: StopKind) => (s: OrderStop, i: number): BolStopLine => ({
     label:   stopLabel(kind, i + 1).toUpperCase(),
     company: s.partyName ?? '',
-    phone:   await partyPhone(s.partyId),
     street:  s.address?.street ?? '',
     place:   [s.address?.city, s.address?.state, s.address?.zip].filter(Boolean).join(', '),
     date:    formatLongDateRange(s.date, s.dateEnd, ''),
     freight: freightAt(kind, i + 1),
   });
   const extraStops = [
-    ...await Promise.all(((order.extraPickups ?? []) as OrderStop[]).map(stopLine('pickup'))),
-    ...await Promise.all(((order.extraDeliveries ?? []) as OrderStop[]).map(stopLine('delivery'))),
+    ...((order.extraPickups ?? []) as OrderStop[]).map(stopLine('pickup')),
+    ...((order.extraDeliveries ?? []) as OrderStop[]).map(stopLine('delivery')),
   ];
 
   const data: BolData = {
@@ -112,14 +99,11 @@ async function bolBuffer(order: FirebaseFirestore.DocumentData): Promise<Buffer>
     orderNumber:      orderDisplayNumber(order),
     clientName:       order.clientName         ?? '',
     shipperName:      order.shipperName        ?? '',
-    shipperPhone,
     consigneeName:    order.consigneeName      ?? '',
-    consigneePhone,
     carrierName:      order.carrierName        ?? '',
     carrierDot,
     carrierMc,
     driverName:       order.driverName         ?? '',
-    driverPhone:      order.driverPhone        ?? '',
     truckNumber:      order.truckNumber        ?? '',
     trailerNumber:    order.trailerNumber      ?? '',
     commodity:        order.commodity          ?? '',

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "e99f8d3954c4c73f30dd16ca3ae9b5c7397aa165",
+      "date": "2026-10-15T10:36:39-06:00",
+      "author": "erwindank",
+      "subject": "Redesign the BOL as one organised page in the TTMS navy-and-cards style, with numbered sections and a consignee signature",
+      "body": "The navy header with the round logo and the BOL number, a summary strip\n(client, pickup, delivery, total weight), numbered cards for each section,\nand the freight and stops tables under navy heading rows. The standard terms\nnow sit above the signatures, and a third signature card lets the consignee\nsign at delivery for proof of delivery. Laid out to fit one Letter page for\nan ordinary load. Still no rates."
+    },
+    {
       "hash": "f48265c4b1f8fb8a35c44a9f1aff705ae45bab89",
       "date": "2026-10-15T08:30:58-06:00",
       "author": "erwindank",
