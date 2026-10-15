@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "248cffb3e48582f9088dc58505f4e69793a20de7",
+      "date": "2026-10-15T11:53:45-06:00",
+      "author": "erwindank",
+      "subject": "Name common Samsung phones and tablets on a signature instead of only their model code",
+      "body": ""
+    },
+    {
       "hash": "25cd01515ddd2e87f609ced64c31936050c5e80a",
       "date": "2026-10-15T11:50:18-06:00",
       "author": "erwindank",

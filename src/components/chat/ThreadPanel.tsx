@@ -87,7 +87,7 @@ export default function ThreadPanel({
 }) {
   const conversationId = conversation.id;
   const { user, profile } = useAuth();
-  const { people, markThreadSeen } = useChat();
+  const { people, markThreadSeen, watching } = useChat();
   const { formatDate } = useDateFormatters();
 
   const [root, setRoot]         = useState<ChatMessage | null>(null);
@@ -163,12 +163,14 @@ export default function ThreadPanel({
    * that lands while the panel is on screen has been read by definition — the
    * reader is looking straight at it. Without the second half, answering
    * somebody in real time would leave a mark behind for a conversation both
-   * people just had.
+   * people just had. Not while this browser tab is hidden, though — a reply
+   * that lands then has not been seen, and is cleared on coming back.
    */
   const newestReplyAt = replies.length > 0 ? millis(replies[replies.length - 1].createdAt) : 0;
   useEffect(() => {
+    if (!watching) return;
     markThreadSeen(rootId);
-  }, [rootId, newestReplyAt, markThreadSeen]);
+  }, [rootId, newestReplyAt, markThreadSeen, watching]);
 
   // Follow the bottom. A thread is short and is nearly always read from the
   // end, so there is none of the window-and-restore machinery the room needs.

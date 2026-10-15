@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from './AuthContext';
 import {
   countUnreadMessages,
@@ -209,6 +209,11 @@ interface ChatContextValue {
   setActiveId: (id: string | null) => void;
   /** Whether the floating panel is open. The page ignores this. */
   popupOpen: boolean;
+  /**
+   * True only while the chat page or the popup is showing and this browser
+   * tab is the visible one. Nothing counts as read while it is false.
+   */
+  watching: boolean;
   setPopupOpen: (open: boolean) => void;
   /** Clears the badge for one conversation. Safe to call repeatedly. */
   markRead: (conversationId: string) => void;
@@ -335,6 +340,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [searchQuery, setSearchQuery]     = useState('');
   const [search, setSearch]               = useState<ChatSearchState | null>(null);
   const [myThreads, setMyThreads]         = useState<ThreadEntry[]>([]);
+
+  /**
+   * Whether the open conversation is actually in front of the reader.
+   *
+   * `activeId` alone is not that: it outlives the screen that set it, because
+   * this provider sits in the dashboard layout. Leave the chat page for Tasks
+   * and the room you were in stays "active" — and was being marked read as its
+   * messages arrived, with the sound skipped, so the badge flashed and vanished
+   * and nobody heard a thing. The same goes for a browser tab somebody has
+   * switched away from. So a conversation counts as seen only while the chat
+   * page or the popup is showing it and this browser tab is the visible one.
+   */
+  const pathname = usePathname();
+  const [tabVisible, setTabVisible] = useState(true);
+  useEffect(() => {
+    const onChange = () => setTabVisible(document.visibilityState === 'visible');
+    onChange();
+    document.addEventListener('visibilitychange', onChange);
+    return () => document.removeEventListener('visibilitychange', onChange);
+  }, []);
+  const onChatScreen = pathname.startsWith('/dashboard/chat') || popupOpen;
+  const watching = onChatScreen && tabVisible;
 
   // Read in an effect, not in useState: the server renders this too and has no
   // localStorage, so reading during the first render would make the server and
@@ -777,11 +804,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
    */
   const readable = conversations.find((c) => c.id === activeId);
   const behindBy = millis(readable?.lastMessage?.at);
+  // Only while it is on screen — see `watching`. Coming back to it (the chat
+  // page, the popup, or this browser tab) re-runs this and clears it then.
   useEffect(() => {
-    if (!activeId || !behindBy) return;
+    if (!watching || !activeId || !behindBy) return;
     if (behindBy <= (lastReadAt[activeId] ?? 0)) return;
     markRead(activeId);
-  }, [activeId, behindBy, lastReadAt, markRead]);
+  }, [watching, activeId, behindBy, lastReadAt, markRead]);
 
   // A thread belongs to the room it was opened from. Switching rooms — or
   // being removed from one — has to take the panel with it, or the reader is
@@ -836,8 +865,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Held in a ref so the effect below can read the current preferences and the
   // current conversation without re-running — and re-announcing — each time
   // either of them changes.
-  const latest = useRef({ notifyPrefs, activeId, uid, nameOf, openThread, notify, lastReadAt, threadReadAt });
-  latest.current = { notifyPrefs, activeId, uid, nameOf, openThread, notify, lastReadAt, threadReadAt };
+  const latest = useRef({ notifyPrefs, activeId, watching, uid, nameOf, openThread, notify, lastReadAt, threadReadAt });
+  latest.current = { notifyPrefs, activeId, watching, uid, nameOf, openThread, notify, lastReadAt, threadReadAt };
 
   /**
    * Whether a stamp is too old to announce: from before this page was open, or
@@ -868,7 +897,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (last.senderUid === latest.current.uid) continue;
       // You are looking straight at it. Announcing a message already on screen
       // is how people learn to ignore notifications.
-      if (c.id === latest.current.activeId && document.visibilityState === 'visible') continue;
+      if (c.id === latest.current.activeId && latest.current.watching) continue;
 
       // How loud this room is for this reader. A room turned down to mentions
       // still speaks up when the message actually named them: the @ mark is
@@ -939,7 +968,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (ping.byUid === latest.current.uid) continue;
       // Already on screen — the reaction appeared under the message as they
       // watched, and a notification for it would be telling them twice.
-      if (c.id === latest.current.activeId && document.visibilityState === 'visible') continue;
+      if (c.id === latest.current.activeId && latest.current.watching) continue;
       // A reaction is on something this person wrote, so it survives a room
       // turned down to mentions — that setting is about the room's ordinary
       // traffic. Only a fully muted room silences it.
@@ -1015,7 +1044,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       // under their eyes is how people learn to ignore notifications.
       if (
         latest.current.openThread?.rootId === ping.rootId
-        && document.visibilityState === 'visible'
+        && latest.current.watching
       ) continue;
       // Aimed at this person by definition — see threadFollowers — so it too
       // survives a room turned down to mentions, and only a mute stops it.
@@ -1063,7 +1092,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       conversations, people, nameOf, profileOf, unreadIds, mentionIds, threadIds,
       myThreads,
       unreadCounts, unreadBadge, lastReadAt, threadReadAt,
-      activeId, setActiveId, popupOpen, setPopupOpen, markRead,
+      activeId, setActiveId, popupOpen, setPopupOpen, watching, markRead,
       openThread, setOpenThread, markThreadSeen,
       pendingReply, setPendingReply, focusMessage, setFocusMessage,
       searchQuery, setSearchQuery, search, runSearch, clearSearch,
@@ -1082,7 +1111,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       conversations, people, nameOf, profileOf, unreadIds, mentionIds, threadIds,
       myThreads,
       unreadCounts, unreadBadge, lastReadAt, threadReadAt,
-      activeId, popupOpen, markRead, openThread, markThreadSeen,
+      activeId, popupOpen, watching, markRead, openThread, markThreadSeen,
       pendingReply, focusMessage,
       searchQuery, search, runSearch, clearSearch,
       startRoomSearch, runRoomSearch, closeRoomSearch,
