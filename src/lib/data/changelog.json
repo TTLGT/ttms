@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "c71a79ccdbfb79c264cbdfd94393a5d065d22587",
+      "date": "2026-10-15T14:04:55-06:00",
+      "author": "erwindank",
+      "subject": "List the accessorials a load needs, and print them on the BOL, the client's SA and the carrier's Dispatch Sheet",
+      "body": "A checklist in the Freight section of the order form: ramps, winch, liftgate, pallet jack,\ntarps, straps, chains, blankets, driver assist, inside delivery, residential, appointment,\nteam drivers, pilot car, oversize permit, hazmat endorsement and TWIC card. A list only,\nno prices. Shown on the order's Freight card, the BOL, both signing pages and their signed\nPDFs, and beside the accessorials and equipment items of the SA and carrier reviews. Part\nof the SA's freight fingerprint only when something is ticked, so no link already sent is\nheld by it."
+    },
+    {
       "hash": "1673bf9c88936b2cf48dde13968b77a83888ab79",
       "date": "2026-10-15T13:03:25-06:00",
       "author": "erwindank",
