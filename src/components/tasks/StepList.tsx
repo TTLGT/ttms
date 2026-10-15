@@ -61,8 +61,11 @@ export default function StepList({
   columns: BoardColumn[];
   /** The task's own column as it stands in the form — picking it is "with the task". */
   taskStatus: TaskStatus;
-  /** Work blocks: how many a step has, whether it can have one yet, and a way to add one. */
-  blocks?: { count: (stepId: string) => number; can: (stepId: string) => boolean; schedule: (stepId: string) => void };
+  /**
+   * Work blocks: how many a step has, whether it can have one yet, and a way
+   * to add one. `adds` means scheduling one adds the (new) task first.
+   */
+  blocks?: { count: (stepId: string) => number; can: (stepId: string) => boolean; schedule: (stepId: string) => void; adds?: boolean };
 }) {
   const [text, setText] = useState('');
   const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
@@ -258,7 +261,7 @@ export default function StepList({
                     type="button"
                     onClick={() => blocks.schedule(s.id)}
                     aria-label={`Schedule a work block for ${s.title}`}
-                    title="Schedule a work block on your calendar"
+                    title={blocks.adds ? 'Add the task and schedule a work block for this on your calendar' : 'Schedule a work block on your calendar'}
                     className="rounded p-0.5 text-gray-400 hover:text-gray-700"
                   >
                     <CalendarPlus size={14} />

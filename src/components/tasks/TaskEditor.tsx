@@ -81,6 +81,7 @@ export default function TaskEditor({
   onReschedule,
   items = [],
   onScheduleBlock,
+  onAddAndScheduleBlock,
   onOpenItem,
   onClose,
 }: {
@@ -124,6 +125,12 @@ export default function TaskEditor({
   items?: PersonalTask[];
   /** Open a new work block for this (saved) task, or one of its steps. Absent: not offered. */
   onScheduleBlock?: (stepId: string | null) => void;
+  /**
+   * For a new task: add it as it stands, then open a new work block for it
+   * (or one of its steps). A block has to point at a saved task, so this is
+   * the one way to reach one before the task exists. Absent: not offered.
+   */
+  onAddAndScheduleBlock?: (input: PersonalTaskInput, place: number | null, stepId: string | null) => Promise<void> | void;
   /** Swap the dialog over to another item — one of this task's blocks, or a block's task. */
   onOpenItem?: (item: PersonalTask) => void;
   onClose: () => void;
@@ -256,24 +263,22 @@ export default function TaskEditor({
   const toggleLead = (lead: TaskReminderLead, on: boolean) =>
     setReminders((r) => (on ? [...r, lead] : r.filter((l) => l !== lead)));
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (readOnly) return;
-    if (!title.trim()) { setProblem('Give it a title.'); return; }
-    if (kind === 'event' && !date) { setProblem('An event needs a date.'); return; }
-    if (kind === 'task' && repeat !== 'none' && !date) { setProblem('A repeating task needs a planned date to repeat from.'); return; }
-    if (repeat === 'monthlyNth' && !nths.length) { setProblem('Pick at least one week of the month.'); return; }
-    if (repeat !== 'none' && !repeatUntil) { setProblem('Pick the day it stops repeating. Nothing repeats for ever.'); return; }
-    if (repeat !== 'none' && date && repeatUntil < date) { setProblem('It stops repeating before it starts.'); return; }
+  /** What the form would save, or null (with the problem shown) when it cannot be. */
+  const collect = (): { input: PersonalTaskInput; place: number | null } | null => {
+    if (!title.trim()) { setProblem('Give it a title.'); return null; }
+    if (kind === 'event' && !date) { setProblem('An event needs a date.'); return null; }
+    if (kind === 'task' && repeat !== 'none' && !date) { setProblem('A repeating task needs a planned date to repeat from.'); return null; }
+    if (repeat === 'monthlyNth' && !nths.length) { setProblem('Pick at least one week of the month.'); return null; }
+    if (repeat !== 'none' && !repeatUntil) { setProblem('Pick the day it stops repeating. Nothing repeats for ever.'); return null; }
+    if (repeat !== 'none' && date && repeatUntil < date) { setProblem('It stops repeating before it starts.'); return null; }
     if (time && endTime && endTime <= time) {
       setProblem('The end time is before the start time.');
-      return;
+      return null;
     }
     const placeNum = Number(place);
     const placeAt = kind === 'task' && status !== 'done' && place.trim() && Number.isInteger(placeNum) && placeNum >= 1
       && placeNum !== queuePlace ? placeNum : null;
-    setSaving(true);
-    await onSave({
+    return { place: placeAt, input: {
       kind,
       eventType: kind === 'event' ? eventType : 'other',
       title: title.trim(),
@@ -308,9 +313,31 @@ export default function TaskEditor({
       // Sent only when it changed: a block whose task has since been deleted
       // can still be saved without the server refusing a link nobody touched.
       ...(kind === 'event' && JSON.stringify(workFor) !== JSON.stringify(task?.workFor ?? null) ? { workFor } : {}),
-    }, placeAt);
+    } };
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (readOnly) return;
+    const ready = collect();
+    if (!ready) return;
+    setSaving(true);
+    await onSave(ready.input, ready.place);
     setSaving(false);
   };
+
+  // A new task's steps already carry the ids they will be saved under, so a
+  // block for one can be opened as soon as the task is added.
+  const addThenSchedule = !task && kind === 'task' && onAddAndScheduleBlock
+    ? async (stepId: string | null) => {
+      if (saving) return;
+      const ready = collect();
+      if (!ready) return;
+      setSaving(true);
+      await onAddAndScheduleBlock(ready.input, ready.place, stepId);
+      setSaving(false);
+    }
+    : null;
 
   const input = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500';
   const label = 'mb-1 block text-xs font-medium text-gray-600';
@@ -556,12 +583,17 @@ export default function TaskEditor({
                   count: blockCount,
                   can: (id) => task.steps.some((st) => st.id === id),
                   schedule: (id) => leaveFor(() => onScheduleBlock(id)),
+                } : addThenSchedule ? {
+                  count: () => 0,
+                  can: () => true,
+                  schedule: (id) => { void addThenSchedule(id); },
+                  adds: true,
                 } : undefined}
               />
             </div>
           )}
 
-          {kind === 'task' && (task ? myBlocks.length > 0 || (!!onScheduleBlock && !readOnly) : !!onOpenItem) && (
+          {kind === 'task' && (task ? myBlocks.length > 0 || (!!onScheduleBlock && !readOnly) : !!onOpenItem || !!addThenSchedule) && (
             <div>
               <span className={`${label} flex items-center gap-1`}><Target size={12} /> Work blocks</span>
               {myBlocks.length > 0 && (
@@ -591,7 +623,15 @@ export default function TaskEditor({
                   className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline">
                   <CalendarPlus size={14} /> Schedule a work block
                 </button>
-              )) : (
+              )) : addThenSchedule ? (
+                <>
+                  <button type="button" disabled={saving} onClick={() => { void addThenSchedule(null); }}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline disabled:opacity-50">
+                    <CalendarPlus size={14} /> Add the task and schedule a work block
+                  </button>
+                  <p className="mt-1 text-xs text-gray-500">Adds this task, then opens a block of time for it. For one of its {stepWords.many}, use the calendar button beside it.</p>
+                </>
+              ) : (
                 <p className="text-xs text-gray-500">Add the task first, then schedule as many blocks of time for it, or for its {stepWords.many}, as you need.</p>
               )}
             </div>

@@ -186,6 +186,13 @@ export default function MyTasksPage() {
       onScheduleBlock={editing.task?.kind === 'task'
         ? (stepId) => setEditing({ task: null, initial: newBlockInput(editing.task!, stepId, today || calendarToday()) })
         : undefined}
+      // A new task: add it (into its queue spot), then swap the dialog to a block for it.
+      onAddAndScheduleBlock={editing.task ? undefined : async (input, place, stepId) => {
+        const made = await create(input);
+        if (!made || made.kind !== 'task') return;
+        if (place && made.status !== 'done') rankQueue(placeInQueue([...queueIds, made.id], made.id, place));
+        setEditing({ task: null, initial: newBlockInput(made, stepId, today || calendarToday()) });
+      }}
       onOpenItem={(t) => setEditing({ task: t })}
       onClose={() => setEditing(null)}
     />

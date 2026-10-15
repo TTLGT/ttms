@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "e27331b70bcc0a17b9f898d5048fda0b6f7004ce",
+      "date": "2026-10-15T11:08:48-06:00",
+      "author": "erwindank",
+      "subject": "Preview the BOL on screen instead of only downloading it",
+      "body": "A Preview button on the Bill of Lading card and the Documents tab opens\nthe PDF in the in-page viewer the agreements use. Generating the BOL now\nopens that preview rather than a new tab, which pop-up blockers stopped."
+    },
+    {
       "hash": "45ed3dfcd87f2ef0d34475762dbbc29d2acd671a",
       "date": "2026-10-15T10:44:49-06:00",
       "author": "erwindank",

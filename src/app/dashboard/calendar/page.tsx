@@ -334,6 +334,14 @@ export default function CalendarPage() {
           onScheduleBlock={editing.task?.kind === 'task'
             ? (stepId) => setEditing({ task: null, initial: newBlockInput(editing.task!, stepId, today || calendarToday()) })
             : undefined}
+          // A new task: add it, then swap the dialog to a block for it. If the
+          // add fails the dialog stays open with the error showing.
+          onAddAndScheduleBlock={editing.task ? undefined : async (input, _place, stepId) => {
+            const made = await create(input);
+            if (made && made.kind === 'task') {
+              setEditing({ task: null, initial: newBlockInput(made, stepId, today || calendarToday()) });
+            }
+          }}
           onOpenItem={(t) => setEditing({ task: t })}
           onClose={() => setEditing(null)}
         />
