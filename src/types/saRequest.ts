@@ -41,6 +41,7 @@ import { MIN_OPERATING_MONTHS, isNewCarrier, officeDay, type OperatingSince } fr
 import { hasVehicleDetails, type CommodityItem } from './order';
 import type { FmcsaConcern } from './fmcsa';
 import type { ReadinessItem } from './orderReadiness';
+import { samsungModelName } from './samsungModels';
 
 export const SA_REQUESTS_COLLECTION = 'saRequests';
 
@@ -429,7 +430,10 @@ export function describeDevice(userAgent: string, hints: DeviceHints = {}): stri
   // model or that note, so nobody wonders whether we forgot to look.
   if (kind !== 'phone' && kind !== 'tablet') return `${browser} on ${where}`;
   const model = hints.model || legacyAndroidModel(ua);
-  return `${browser} on ${where} (${model ? `model ${model}` : 'model not shared'})`;
+  if (!model) return `${browser} on ${where} (model not shared)`;
+  // Samsung reports a code; the name goes first and the code stays beside it.
+  const name = samsungModelName(model);
+  return `${browser} on ${where} (${name ? `${name}, model ${model}` : `model ${model}`})`;
 }
 
 /**

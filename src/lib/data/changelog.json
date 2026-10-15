@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "25cd01515ddd2e87f609ced64c31936050c5e80a",
+      "date": "2026-10-15T11:50:18-06:00",
+      "author": "erwindank",
+      "subject": "Record whether an e-signature came from a phone, tablet or computer, and show staff the client's signing page locked in the agreement preview",
+      "body": "The preview now draws the real signature section, every field disabled and no form to submit, inside the same frame as the public link, instead of a \"Preview only\" placeholder."
+    },
+    {
       "hash": "9c2462d45d45e0c695e1b20798b0f0135632e6e3",
       "date": "2026-10-15T11:30:26-06:00",
       "author": "erwindank",
