@@ -750,6 +750,11 @@ const CHAPTERS: Chapter[] = [
             'Find the other dark window on the taskbar and use that one.',
           ]} />
           <Row cells={[
+            <>&ldquo;The Google sign-in window was blocked&rdquo; on the login page</>,
+            'The browser, or an ad-blocking extension such as AdGuard, stopped the Google window from opening.',
+            'Allow pop-ups for the TTMS site. If they are already allowed, add the TTMS address to the ad blocker’s allow list. If it works in an Incognito window, it is an extension.',
+          ]} />
+          <Row cells={[
             'Someone signs in and is instantly signed back out',
             'Their email is not on the access list.',
             'Add them under Settings → People → Add People.',

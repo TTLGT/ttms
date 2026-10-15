@@ -35,10 +35,14 @@ export default function LoginPage() {
       // Firebase's own wording ("Firebase: Error (auth/popup-blocked).") tells
       // staff nothing they can act on. The popup ones are the common failures,
       // and each has a fix the person can do themselves.
+      //
+      // Blocked is not always Chrome's own pop-up setting: an ad blocker
+      // (AdGuard, 2026-10-15) stopped the window with pop-ups allowed and no
+      // icon in the address bar, so the message names both.
       const code = (err as { code?: unknown } | null)?.code;
       if (code === 'auth/popup-blocked') {
         setError(
-          'Your browser blocked the Google sign-in window. Click the blocked pop-up icon at the right end of the address bar, choose "Always allow pop-ups" for this site, then click Continue with Google again.',
+          'The Google sign-in window was blocked. Allow pop-ups for this site (the icon at the right end of the address bar). If pop-ups are already allowed, an ad blocker such as AdGuard is stopping it: add this site to its allow list. Then click Continue with Google again.',
         );
       } else if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
         setError('The Google sign-in window was closed before sign-in finished. Click Continue with Google to try again.');

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "883669e1c42bb525451cd023776b67d3399feaa2",
+      "date": "2026-10-15T14:41:44-06:00",
+      "author": "erwindank",
+      "subject": "Explain a blocked or closed Google sign-in window in plain words on the login page instead of showing Firebase's error code",
+      "body": ""
+    },
+    {
       "hash": "c71a79ccdbfb79c264cbdfd94393a5d065d22587",
       "date": "2026-10-15T14:04:55-06:00",
       "author": "erwindank",
