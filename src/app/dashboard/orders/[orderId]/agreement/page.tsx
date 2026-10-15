@@ -96,7 +96,22 @@ export default function AgreementPreviewPage() {
             </p>
           )}
 
-          {shown && <SignForm preview {...shown} />}
+          {/*
+            Framed the way /sign/[token] draws it — the grey page and the
+            company header above the title — so this reads as the client's
+            screen rather than a panel of the order.
+          */}
+          {shown && (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-8 sm:px-6">
+              <div className="mb-6 text-center">
+                <p className="text-xs font-bold tracking-widest text-brand-600 uppercase mb-1">Total Transport Logistics</p>
+                <h2 className="text-2xl font-bold text-gray-900">
+                  {shown.type === 'shipper_agreement' ? 'Client Load Confirmation' : 'Dispatch Sheet'}
+                </h2>
+              </div>
+              <SignForm preview {...shown} />
+            </div>
+          )}
         </>
       )}
     </div>

@@ -1667,6 +1667,9 @@ export default function OrderDetailPage() {
                       {order.carrierSignerIp && (
                         <span className="text-green-600 font-mono text-xs ml-1">({order.carrierSignerIp})</span>
                       )}
+                      {order.carrierSignerDevice && (
+                        <span className="text-green-600 text-xs ml-1">· {order.carrierSignerDevice}</span>
+                      )}
                     </span>
                   </div>
                 ) : agreementSentTo ? (

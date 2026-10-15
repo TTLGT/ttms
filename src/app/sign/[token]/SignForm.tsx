@@ -4,6 +4,35 @@ import { useState } from 'react';
 import type { ConfirmationFreight, ConfirmationPayment, ConfirmationStop } from '@/types/loadConfirmation';
 import { CARRIER_TERMS } from '@/types/agreementTerms';
 import { MAX_CLIENT_INSTRUCTION } from '@/types/order';
+import type { DeviceHints } from '@/types/saRequest';
+
+/**
+ * What the browser will say about the device, for the signature record —
+ * see DeviceHints. Never allowed to hold up or fail a signature: any error,
+ * or a browser slower than a second to answer, signs with what it has.
+ */
+async function deviceHints(): Promise<DeviceHints> {
+  const hints: DeviceHints = { touchPoints: navigator.maxTouchPoints ?? 0 };
+  type UaData = {
+    mobile?: boolean;
+    getHighEntropyValues?: (keys: string[]) => Promise<Record<string, unknown>>;
+  };
+  const uaData = (navigator as Navigator & { userAgentData?: UaData }).userAgentData;
+  if (!uaData?.getHighEntropyValues) return hints;
+  try {
+    const values = await Promise.race([
+      uaData.getHighEntropyValues(['model', 'platform', 'platformVersion']),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000)),
+    ]);
+    if (typeof uaData.mobile === 'boolean') hints.mobile = uaData.mobile;
+    if (values) {
+      if (typeof values.model === 'string') hints.model = values.model;
+      if (typeof values.platform === 'string') hints.platform = values.platform;
+      if (typeof values.platformVersion === 'string') hints.platformVersion = values.platformVersion;
+    }
+  } catch { /* signs with the touch count alone */ }
+  return hints;
+}
 
 interface Props {
   /** The link's token. Absent in `preview`, which has nothing to sign with. */
@@ -61,9 +90,11 @@ interface Props {
   /** Shown above everything on version 2 and later. */
   revisedNote?: string;
   /**
-   * Staff preview, from the order page. Everything the client reads, and no
-   * way to sign at all — not a disabled form, no form. A signature from staff
-   * would record their device and address against the client's name.
+   * Staff preview, from the order page. Everything the client sees, the
+   * signature section included, and no way to sign: that section is drawn
+   * inside a disabled fieldset and is not a <form>, so there is nothing to
+   * submit and no token to post to. A signature from staff would record their
+   * device and address against the client's name.
    */
   preview?: boolean;
 }
@@ -80,6 +111,34 @@ export function SignedCopyLink({ token, label = 'Download your signed agreement 
       className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">
       {label}
     </a>
+  );
+}
+
+/**
+ * The signature card: a real form on the client's link, a locked look-alike in
+ * a staff preview, with a line saying why nothing in it responds.
+ */
+function SignatureBox({ preview, onSubmit, children }: {
+  preview?: boolean;
+  onSubmit: (e: React.FormEvent) => void;
+  children: React.ReactNode;
+}) {
+  const className = 'bg-white rounded-xl border border-gray-200 p-6 space-y-4';
+  const heading = <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wide">Sign</h2>;
+  if (!preview) return <form onSubmit={onSubmit} className={className}>{heading}{children}</form>;
+  return (
+    <div className={className} aria-disabled="true">
+      <div className="flex items-center justify-between gap-3">
+        {heading}
+        <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-600">
+          Preview — locked
+        </span>
+      </div>
+      {children}
+      <p className="text-xs text-gray-500 text-center">
+        This is what the client fills in on their own link. Staff cannot type, tick or sign anything here.
+      </p>
+    </div>
   );
 }
 
@@ -193,6 +252,7 @@ export default function SignForm({
           esignConsent: consent,
           acceptTerms: agreed,
           version,
+          deviceHints: await deviceHints(),
         }),
       });
       if (!res.ok) {
@@ -366,18 +426,14 @@ export default function SignForm({
         </div>
       </Card>
 
-      {preview ? (
-        <div className="rounded-xl border border-dashed border-gray-300 bg-white p-6 text-center text-sm text-gray-600">
-          <p className="font-semibold text-gray-800">Preview only</p>
-          <p className="mt-1">
-            This is what the client sees. They sign at the bottom of this page on their own link, by typing their
-            name and ticking two boxes. Staff cannot sign from here.
-          </p>
-        </div>
-      ) : (
-      /* Signature */
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-        <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wide">Sign</h2>
+      {/*
+        Signature. In a preview the same section is drawn, so staff see the
+        page exactly as the client does, but as a plain <div> with every field
+        inside a disabled <fieldset>: nothing can be typed, ticked or pressed,
+        and there is no form to submit even if a browser were coaxed into it.
+      */}
+      <SignatureBox preview={preview} onSubmit={handleSubmit}>
+        <fieldset disabled={preview} className="min-w-0 space-y-4">
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -451,7 +507,7 @@ export default function SignForm({
           is a separate consent under the E-SIGN Act from agreeing to what the
           document says, and a single box that bundles them is the weaker record.
         */}
-        <label className="flex items-start gap-3 cursor-pointer">
+        <label className={`flex items-start gap-3 ${preview ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
           <input
             type="checkbox"
             checked={consent}
@@ -464,7 +520,7 @@ export default function SignForm({
           </span>
         </label>
 
-        <label className="flex items-start gap-3 cursor-pointer">
+        <label className={`flex items-start gap-3 ${preview ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
           <input
             type="checkbox"
             checked={agreed}
@@ -493,8 +549,8 @@ export default function SignForm({
         <p className="text-xs text-gray-400 text-center">
           Your name, title, IP address, device, and the date and time of signing will be recorded for legal purposes.
         </p>
-      </form>
-      )}
+        </fieldset>
+      </SignatureBox>
     </div>
   );
 }

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "9c2462d45d45e0c695e1b20798b0f0135632e6e3",
+      "date": "2026-10-15T11:30:26-06:00",
+      "author": "erwindank",
+      "subject": "Let a new task schedule work blocks for itself and its steps, on the Calendar as well as My Tasks",
+      "body": ""
+    },
+    {
       "hash": "e27331b70bcc0a17b9f898d5048fda0b6f7004ce",
       "date": "2026-10-15T11:08:48-06:00",
       "author": "erwindank",

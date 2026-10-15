@@ -904,6 +904,17 @@ user agent (capped at 500 characters) and a readable summary from
 order. Absent on signatures made before 2026-10-08. Server-written only
 (`SIGNATURE_FIELDS` in `orderWrites.ts`).
 
+Since 2026-10-15 the signing page also asks the browser about itself and
+sends it as `deviceHints` (`DeviceHints` in `src/types/saRequest.ts`): the
+model where a Chromium browser gives one (Android mostly — iPhones never
+do), whether it calls itself mobile, and the touch-point count that tells an
+iPad from a Mac. The cleaned hints are kept on the token only, as
+`signerDeviceHints`; the summary now names the kind of device —
+"Chrome on an Android phone (model Pixel 8)", "Safari on an iPhone (model
+not shared)", "Edge on a Windows computer". Older signatures keep the summary
+they were recorded with ("Chrome on Windows"). It is the signer's browser
+describing itself: evidence beside the IP, not proof of the hardware.
+
 ### Confirming who a signing link is for (2026-10-13)
 
 A signing link no longer opens on the token alone. Before the agreement is

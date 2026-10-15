@@ -47,6 +47,7 @@ type SendKind = 'new' | 'resend' | 'revision';
 /** The fields a signature writes on the link, cleared when it is revised. */
 const LINK_SIGNATURE_RESET = {
   usedAt: null, signerName: null, signerIp: null, signerUserAgent: null, signerDevice: null,
+  signerDeviceHints: null,
   signerTitle: null, esignConsent: null, termsAccepted: null, signedVersion: null,
 };
 

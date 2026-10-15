@@ -340,29 +340,108 @@ export function outstandingChecks(
   return reviewChecks(party).filter((c) => !checks[c.key] || checkBlockedBy(c.key, facts) !== null);
 }
 
-/** "Chrome on Windows", "Safari on iPhone" — the device line on a signature. */
-export function describeDevice(userAgent: string): string {
+/**
+ * What the signing page asks the browser about itself, beyond the user agent
+ * header. Every key is optional: most browsers answer only some of them, and
+ * all of it is the signer's browser speaking, so it is evidence, never proof.
+ *
+ * - `model` — User-Agent Client Hints (`getHighEntropyValues`), which only
+ *   Chromium browsers offer. Chrome stopped putting the model in the user
+ *   agent itself ("Android 10; K"), so this is the only place it still comes
+ *   from. iPhones never give one, in any browser.
+ * - `touchPoints` — `navigator.maxTouchPoints`. An iPad has claimed to be a
+ *   Mac since iPadOS 13, and a touch screen is what tells the two apart.
+ */
+export interface DeviceHints {
+  model?: string;
+  mobile?: boolean;
+  platform?: string;
+  platformVersion?: string;
+  touchPoints?: number;
+}
+
+/**
+ * The hints as the signing route accepts them: from the request body, so
+ * typed, trimmed and capped — like the user agent, they land on the record.
+ */
+export function cleanDeviceHints(raw: unknown): DeviceHints {
+  if (!raw || typeof raw !== 'object') return {};
+  const r = raw as Record<string, unknown>;
+  const text = (v: unknown, max: number) =>
+    typeof v === 'string' ? v.replace(/[^\x20-\x7E]/g, '').trim().slice(0, max) : '';
+  const out: DeviceHints = {};
+  const model = text(r.model, 60);
+  if (model) out.model = model;
+  if (typeof r.mobile === 'boolean') out.mobile = r.mobile;
+  const platform = text(r.platform, 30);
+  if (platform) out.platform = platform;
+  const platformVersion = text(r.platformVersion, 30);
+  if (platformVersion) out.platformVersion = platformVersion;
+  if (typeof r.touchPoints === 'number' && Number.isFinite(r.touchPoints)) {
+    out.touchPoints = Math.max(0, Math.min(20, Math.round(r.touchPoints)));
+  }
+  return out;
+}
+
+export type DeviceKind = 'phone' | 'tablet' | 'computer' | 'unknown';
+
+/**
+ * The device line on a signature: "Chrome on an Android phone (Pixel 8)",
+ * "Safari on an iPhone (model not shared)", "Edge on a Windows computer".
+ *
+ * Signatures made before the hints existed say "Chrome on Windows" or
+ * "Safari on iPhone (mobile)" and are left as they were recorded.
+ */
+export function describeDevice(userAgent: string, hints: DeviceHints = {}): string {
   const ua = userAgent || '';
-  if (!ua) return 'Unknown device';
-  const os =
-    /iPhone/.test(ua) ? 'iPhone'
-    : /iPad/.test(ua) ? 'iPad'
-    : /Android/.test(ua) ? 'Android'
-    : /Windows/.test(ua) ? 'Windows'
-    : /Mac OS X|Macintosh/.test(ua) ? 'Mac'
-    : /CrOS/.test(ua) ? 'Chromebook'
-    : /Linux/.test(ua) ? 'Linux'
-    : 'an unknown system';
+  if (!ua && !hints.model) return 'Unknown device';
   // Order matters: Edge and Opera both say "Chrome", and Chrome says "Safari".
   const browser =
-    /Edg\//.test(ua) ? 'Edge'
+    /Edg\/|EdgA\/|EdgiOS\//.test(ua) ? 'Edge'
+    : /SamsungBrowser\//.test(ua) ? 'Samsung Internet'
     : /OPR\/|Opera/.test(ua) ? 'Opera'
     : /Firefox\/|FxiOS/.test(ua) ? 'Firefox'
     : /Chrome\/|CriOS/.test(ua) ? 'Chrome'
     : /Safari\//.test(ua) ? 'Safari'
     : 'a browser';
-  const mobile = /Mobile|iPhone|Android/.test(ua) ? ' (mobile)' : '';
-  return `${browser} on ${os}${mobile}`;
+
+  const touch = (hints.touchPoints ?? 0) > 1;
+  let kind: DeviceKind;
+  let where: string;
+  if (/iPhone|iPod/.test(ua)) { kind = 'phone'; where = 'an iPhone'; }
+  else if (/iPad/.test(ua) || (/Macintosh/.test(ua) && touch)) { kind = 'tablet'; where = 'an iPad'; }
+  else if (/Android/.test(ua)) {
+    // Android tablets leave "Mobile" out of the user agent; the hint, where
+    // the browser gives it, is the more direct answer.
+    const mobile = hints.mobile ?? /Mobile/.test(ua);
+    kind = mobile ? 'phone' : 'tablet';
+    where = mobile ? 'an Android phone' : 'an Android tablet';
+  }
+  else if (/CrOS/.test(ua)) { kind = 'computer'; where = 'a Chromebook'; }
+  else if (/Windows/.test(ua)) { kind = 'computer'; where = 'a Windows computer'; }
+  else if (/Mac OS X|Macintosh/.test(ua)) { kind = 'computer'; where = 'a Mac'; }
+  else if (/Linux/.test(ua)) { kind = 'computer'; where = 'a Linux computer'; }
+  else if (hints.mobile) { kind = 'phone'; where = 'a phone'; }
+  else { kind = 'unknown'; where = 'an unknown device'; }
+
+  // A computer never says what make it is, so saying "model not shared"
+  // there would read as something missing. A phone or tablet always gets a
+  // model or that note, so nobody wonders whether we forgot to look.
+  if (kind !== 'phone' && kind !== 'tablet') return `${browser} on ${where}`;
+  const model = hints.model || legacyAndroidModel(ua);
+  return `${browser} on ${where} (${model ? `model ${model}` : 'model not shared'})`;
+}
+
+/**
+ * The model from an older Android user agent ("Android 13; SM-S918B Build/…"),
+ * for browsers that still send one and do not answer the hints. Chrome's
+ * reduced agent puts a frozen "K" there, and Firefox "Mobile" or "Tablet" —
+ * none of them a model.
+ */
+function legacyAndroidModel(ua: string): string {
+  const m = /Android [\d.]+;\s*(?:[a-z]{2}[-_][a-z]{2};\s*)?([^;)]+?)(?:\s+Build\/[^;)]*)?[;)]/i.exec(ua);
+  const model = m?.[1]?.trim() ?? '';
+  return !model || /^(K|wv|Mobile|Tablet)$/i.test(model) ? '' : model.slice(0, 60);
 }
 
 /**

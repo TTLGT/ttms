@@ -4,7 +4,7 @@ import { diffFields, writeChange } from '@/lib/recordHistory';
 import { Timestamp } from 'firebase-admin/firestore';
 import { postOrderAlert, signedAlert } from '@/lib/chatAlerts';
 import { MAX_CLIENT_INSTRUCTION, STATUS_RANK, clientAddedInstructionsOf } from '@/types/order';
-import { describeDevice } from '@/types/saRequest';
+import { cleanDeviceHints, describeDevice } from '@/types/saRequest';
 import { markSigned } from '@/lib/clientAgreements';
 import { emailSignedAgreement } from '@/lib/signedAgreementEmail';
 import { SIGN_API_COOKIE, hasSignAccess } from '@/lib/signAccess';
@@ -36,6 +36,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   const body = (await req.json().catch(() => ({}))) as {
     signerName?: unknown; signerTitle?: unknown; instructions?: unknown; esignConsent?: unknown; acceptTerms?: unknown; version?: unknown;
+    deviceHints?: unknown;
   };
   // The version of the agreement the page showed. A link can be revised in
   // place (src/lib/clientAgreements.ts), so the signature has to say which
@@ -72,8 +73,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   // agent is kept as evidence; the summary ("Chrome on Windows") is what the
   // order screen and the room show. Capped, because the header is the
   // signer's to write and a 50 KB one should not land on the order.
-  const userAgent = (req.headers.get('user-agent') ?? '').slice(0, 500);
-  const device    = describeDevice(userAgent);
+  // The hints are what the page asked the browser beyond that header — the
+  // phone's model, and a touch screen to tell an iPad from a Mac. Kept on the
+  // link beside the user agent, as the evidence behind the summary.
+  const userAgent   = (req.headers.get('user-agent') ?? '').slice(0, 500);
+  const deviceHints = cleanDeviceHints(body.deviceHints);
+  const device      = describeDevice(userAgent, deviceHints);
 
   // Computed once, outside the transaction: Firestore may run the callback
   // again if the token document is contended, and the signature should record
@@ -225,6 +230,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         signerIp:   ip,
         signerUserAgent: userAgent,
         signerDevice:    device,
+        signerDeviceHints: deviceHints,
         signerTitle,
         // What they agreed to sits on this same document as `termsText` (for
         // a client link) — the copy they were shown, not today's setting.
@@ -309,7 +315,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const added = signed.instructions
       ? ` They added special instructions: "${signed.instructions.length > 300 ? `${signed.instructions.slice(0, 300)}…` : signed.instructions}"`
       : '';
-    await postOrderAlert(signed.orderId, `${signedAlert(signed.by, signer)} Signed electronically on ${device}.${added}`).catch(() => {});
+    await postOrderAlert(signed.orderId, `${signedAlert(signed.by, signer)} Signed electronically using ${device}.${added}`).catch(() => {});
   }
 
   /*
