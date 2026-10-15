@@ -35,15 +35,21 @@
  * ring) still wins. The surfaces are DARK_SURFACE and DIM_SURFACE in
  * tailwind.config.ts, written out because CSS cannot import them — change
  * one, change both.
+ *
+ * The hue classes are deliberately outside the layer. Tailwind drops any
+ * `@layer` rule whose class it cannot find written out in `content`, and
+ * these are only ever built as `tt-${c}` (taskStyle.ts) — inside the layer
+ * they were purged, `--tag-h` was never set, and every extra colour drew as
+ * nothing. They only set a variable, so layer order does not matter to them.
  */
-@layer components {
-  .tt-h70  { --tag-h: 70; }
-  .tt-h90  { --tag-h: 90; }
-  .tt-h110 { --tag-h: 110; }
-  .tt-h274 { --tag-h: 274; }
-  .tt-h292 { --tag-h: 292; }
-  .tt-h310 { --tag-h: 310; }
+.tt-h70  { --tag-h: 70; }
+.tt-h90  { --tag-h: 90; }
+.tt-h110 { --tag-h: 110; }
+.tt-h274 { --tag-h: 274; }
+.tt-h292 { --tag-h: 292; }
+.tt-h310 { --tag-h: 310; }
 
+@layer components {
   .tt-tag-note, .tt-tag-chip, .tt-tag-swatch {
     --tag-base: hsl(var(--tag-h) 62% 48%);
   }

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "fa9df0f6b09df0ccf881e43e4d1dd356c49d4009",
+      "date": "2026-10-15T12:23:13-06:00",
+      "author": "erwindank",
+      "subject": "Count a chat as seen only while it is on screen and the TTMS browser tab is visible, so messages in a chat left open elsewhere still ring and keep their badge",
+      "body": ""
+    },
+    {
       "hash": "248cffb3e48582f9088dc58505f4e69793a20de7",
       "date": "2026-10-15T11:53:45-06:00",
       "author": "erwindank",
