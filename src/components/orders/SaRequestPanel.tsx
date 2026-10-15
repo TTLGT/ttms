@@ -336,6 +336,13 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
                       <span>
                         <span className="text-gray-900 font-medium">{c.label}</span>
                         <span className="block text-[11px] text-gray-500">{c.detail}</span>
+                        {/* What the order lists — the client's item on the SA, the
+                            truck's on the Dispatch Sheet. */}
+                        {(c.key === 'accessorials' || (party === 'carrier' && c.key === 'equipment')) && review.accessorials && (
+                          <span className="mt-0.5 block text-[11px] text-gray-700">
+                            On the order: {review.accessorials.length ? review.accessorials.join(', ') : 'no accessorials listed'}
+                          </span>
+                        )}
                         {c.key === 'accessorials' && review.accessorialHints.map((h) => (
                           <span key={h} className="mt-0.5 flex items-start gap-1 text-[11px] text-amber-800">
                             <AlertTriangle className="w-3 h-3 shrink-0 mt-px" />{h}

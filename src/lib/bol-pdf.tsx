@@ -106,6 +106,8 @@ export type BolData = {
   showDockBoxes: boolean;
   /** Special instructions for the carrier. The order's internal notes are never printed. */
   carrierInstructions: string;
+  /** What the load needs beyond a truck and a driver — ramps, a liftgate — as labels. Empty prints nothing. */
+  accessorials: string[];
   /** The carrier's e-signature of the Dispatch Sheet, shown as it always was. */
   carrierSignerName: string | null;
   carrierSignedAt: string | null;
@@ -542,6 +544,13 @@ function BolDocument({ d }: { d: BolData }) {
             </>
           ) : null}
         </View>
+
+        {/* Ramps, a winch, a liftgate… — left out when the order asks for none. */}
+        {d.accessorials.length > 0 ? (
+          <Card n={next()} title="ACCESSORIALS" style={{ marginBottom: 6 }}>
+            <Text style={{ fontSize: 8, lineHeight: 1.35 }}>{d.accessorials.join('  ·  ')}</Text>
+          </Card>
+        ) : null}
 
         {/* Special instructions — the carrier's, never the internal notes. */}
         {d.carrierInstructions ? (

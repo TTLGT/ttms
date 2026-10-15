@@ -9,7 +9,7 @@ import type { BolData, BolStopLine } from './bol-pdf';
 import { clientContactOf } from './orderReadinessServer';
 import { signedSaProof } from './signedSaProof';
 import {
-  STATUS_RANK, clientSignatureSatisfied, formatDimensions, totalCommodityValue, itemStop, itemWeightLb, orderCommodityItems,
+  STATUS_RANK, accessorialLabels, clientSignatureSatisfied, formatDimensions, totalCommodityValue, itemStop, itemWeightLb, orderCommodityItems,
   orderDeliveries, orderDisplayNumber, orderPickups, stopLabel, vehicleSummary,
 } from '@/types/order';
 import type { CommodityItem, Order, OrderStatus, OrderStop, StopKind } from '@/types/order';
@@ -135,6 +135,7 @@ async function bolBuffer(order: FirebaseFirestore.DocumentData): Promise<Buffer>
     destFreight:      freightAt('delivery', 0),
     // The carrier's instructions, never the order's notes: those are internal.
     carrierInstructions: order.carrierInstructions ?? '',
+    accessorials:     accessorialLabels(order),
     // The goods' worth, summed from the lines' declared values — for
     // liability, not a price. Blank when no line declared one.
     declaredValue:    (() => {

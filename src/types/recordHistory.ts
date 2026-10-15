@@ -1,4 +1,4 @@
-import { STATUS_LABEL, type OrderStatus } from './order';
+import { STATUS_LABEL, accessorialLabels, type OrderStatus } from './order';
 import { toDate, type DateLike } from '@/lib/dateFormat';
 
 /**
@@ -118,6 +118,7 @@ const LABELS: Record<string, string> = {
   freightCountedBy: 'Counted at pickup by',
   deliveryCountedBy: 'Counted at delivery by',
   bolShowDockBoxes: 'Print all loading and count boxes on the BOL',
+  accessorials: 'Accessorials',
   laneMiles: 'Lane miles',
   laneMilesSource: 'Mileage method',
   firstAvailablePickup: 'First available pickup',
@@ -246,6 +247,10 @@ export function describeChangeValue(
 
   if (field === 'status' && typeof value === 'string') {
     return STATUS_LABEL[value as OrderStatus] ?? value;
+  }
+  // Stored as keys ("pallet_jack"); the log reads them as the documents print them.
+  if (field === 'accessorials' && Array.isArray(value)) {
+    return clip(accessorialLabels({ accessorials: value }).join(', ') || value.join(', '));
   }
   if (STOP_FIELDS.has(field) && Array.isArray(value)) {
     // A stop is a party, an address and a date. Flattened like any other map

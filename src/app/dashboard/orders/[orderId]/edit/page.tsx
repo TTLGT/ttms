@@ -9,6 +9,7 @@ import { listParties, tagPartyRole } from '@/lib/parties';
 import PartyCombobox from '@/components/parties/PartyCombobox';
 import type { PartySelection } from '@/components/parties/PartyCombobox';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
+import AccessorialsField from '@/components/orders/AccessorialsField';
 import PriceAndTermsSection, { blankPriceTerms, priceTermsForSave, priceTermsFromOrder } from '@/components/orders/PriceAndTermsSection';
 import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
@@ -21,8 +22,8 @@ import AddressFields, { BLANK_ADDRESS } from '@/components/orders/AddressFields'
 import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopDraftsFrom, stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
 import type { StopDraft } from '@/components/orders/ExtraStopsFields';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { clientAddedInstructionsOf, commoditySummary, hasVehicleDetails, orderCommodityItems, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue, orderDisplayNumber } from '@/types/order';
-import type { Order, Address, CommodityItem, StopKind } from '@/types/order';
+import { clientAddedInstructionsOf, commoditySummary, orderAccessorials, hasVehicleDetails, orderCommodityItems, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue, orderDisplayNumber } from '@/types/order';
+import type { Accessorial, Order, Address, CommodityItem, StopKind } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import { ROLE_LABEL } from '@/types/party';
 import LeadSourceField from '@/components/orders/LeadSourceField';
@@ -86,6 +87,7 @@ export default function EditOrderPage() {
   const [shipper, setShipper]     = useState<PartySelection>({ id: '', name: '' });
   const [consignee, setConsignee] = useState<PartySelection>({ id: '', name: '' });
   const [commodities, setCommodities]   = useState<CommodityItem[]>([]);
+  const [accessorials, setAccessorials] = useState<Accessorial[]>([]);
   const [origin, setOrigin]             = useState<Address>(BLANK_ADDRESS);
   const [destination, setDest]          = useState<Address>(BLANK_ADDRESS);
   const [extraPickups, setExtraPickups]       = useState<StopDraft[]>([]);
@@ -158,6 +160,7 @@ export default function EditOrderPage() {
         // Orders written before itemised freight existed come back as a
         // single line, so the editor has something to open on.
         setCommodities(orderCommodityItems(o));
+        setAccessorials(orderAccessorials(o));
         setOrigin(o.origin ?? BLANK_ADDRESS);
         setDest(o.destination ?? BLANK_ADDRESS);
         setExtraPickups(stopDraftsFrom(o.extraPickups));
@@ -282,6 +285,7 @@ export default function EditOrderPage() {
           commodityValue: totalCommodityValue(commodityItems),
           pieces:       totalPieces(commodityItems) || 1,
           weight:       Math.round(totalWeightLb(commodityItems)),
+          accessorials,
         },
         price: {
           agreedRate:   parseFloat(agreedRate) || 0,
@@ -405,6 +409,7 @@ export default function EditOrderPage() {
             </div>
             <CommodityItemsFields value={commodities} onChange={setCommodities}
               pickups={pickupChoices} deliveries={deliveryChoices} />
+            <AccessorialsField value={accessorials} onChange={setAccessorials} />
           </section>
           </>)}
 

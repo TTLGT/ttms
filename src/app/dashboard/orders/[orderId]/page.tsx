@@ -44,6 +44,7 @@ import {
   laneMilesLabel,
   orderDisplayNumber,
   orderAltNumber,
+  accessorialLabels,
 } from '@/types/order';
 import { fetchTripDistance } from '@/lib/routeDistanceClient';
 import { toDate } from '@/lib/dateFormat';
@@ -1373,6 +1374,16 @@ export default function OrderDetailPage() {
                   </tfoot>
                 )}
               </table>
+            </div>
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <p className="text-xs font-medium text-gray-500 mb-1.5">Accessorials</p>
+              {accessorialLabels(order).length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {accessorialLabels(order).map((l) => (
+                    <span key={l} className="px-2 py-0.5 rounded-md bg-gray-100 text-xs text-gray-700">{l}</span>
+                  ))}
+                </div>
+              ) : <p className="text-sm text-gray-400">None</p>}
             </div>
           </div>
 

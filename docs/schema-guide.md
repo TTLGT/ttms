@@ -945,6 +945,21 @@ that is missing, withdrawn, replaced, or expired before it was signed, because
 those pages show nothing about the load beyond an order number. Staff previews
 on the order are unaffected.
 
+### Accessorials on an order (2026-10-15)
+
+`accessorials` — an array of keys from `ACCESSORIALS` in `src/types/order.ts`
+(`ramps`, `winch`, `liftgate`, `tarps`, `pilot_car`…): what the load needs
+beyond a truck and a driver. A list only, no prices. Ticked in the Freight
+section of the new and edit forms; stored known keys only, in catalog order.
+Absent on earlier loads, read through `orderAccessorials()`.
+
+Printed on the BOL and copied, as labels, onto both signing links as
+`accessorials` — the client's load confirmation (where it is part of the
+`freight` fingerprint, so a change after sending holds the SA for review) and
+the carrier's Dispatch Sheet — and shown on their signing pages and signed
+PDFs. Renaming or removing a key is a migration: an unknown key is dropped
+and stops printing.
+
 ### BOL fields on an order (2026-10-14)
 
 Typed in the Bill of Lading card on the order and printed on the BOL. All

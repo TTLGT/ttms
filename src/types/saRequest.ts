@@ -283,9 +283,10 @@ export interface SaGateFacts {
 
 /**
  * What the freight lines say the truck will need, beside the accessorials
- * item. A prompt, never a verdict: the order has no field for accessorials,
- * so this reads only what the lines already carry — whether a line is a
- * vehicle, and whether it runs. Nothing here blocks the tick.
+ * item. A prompt, never a verdict: it reads what the lines carry — whether a
+ * line is a vehicle, and whether it runs — beside what the order's own
+ * accessorials list asks for (shown separately), which may not have ticked
+ * everything the freight needs. Nothing here blocks the tick.
  */
 export function accessorialHints(commodities: readonly CommodityItem[] | null | undefined): string[] {
   const lines = commodities ?? [];
@@ -474,6 +475,12 @@ export interface SaReview {
   clientSigned: boolean;
   gate: SaGateFacts;
   accessorialHints: string[];
+  /**
+   * What the order asks for (ramps, a liftgate…), as labels, shown under the
+   * accessorials item on the SA and the equipment item on the Dispatch Sheet.
+   * Absent on reviews frozen before 2026-10-15.
+   */
+  accessorials?: string[];
   /** The client's own addresses, for the CC picker. Empty for a non-reviewer, and never frozen. */
   clientContacts: { name: string; email: string }[];
 }

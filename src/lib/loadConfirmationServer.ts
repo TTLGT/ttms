@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { formatLongDateRange } from '@/lib/dateFormat';
 import {
-  dimensionsSummary, formatDimensions, hasVehicleDetails, itemWeightLb, vehicleSummary, orderCommodityItems, orderDeliveries, orderPickups, stopPlaces,
+  accessorialLabels, dimensionsSummary, formatDimensions, orderAccessorials, hasVehicleDetails, itemWeightLb, vehicleSummary, orderCommodityItems, orderDeliveries, orderPickups, stopPlaces,
   type Order, type OrderStop,
 } from '@/types/order';
 import {
@@ -109,6 +109,8 @@ export interface ConfirmationContent {
   pieces: number;
   dimensions: string;
   payment: ConfirmationPayment;
+  /** Accessorial keys, in catalog order — keys rather than labels, so rewording a label holds no link. */
+  accessorials: string[];
   /** The client's special instructions, as staff wrote them. Not what the client adds when signing — that is theirs, not a term we offer. */
   instructions: string;
 }
@@ -125,6 +127,7 @@ export function confirmationContent(order: AnyOrder): ConfirmationContent {
     pieces:     Number(order.pieces) || 0,
     dimensions: dimensionsSummary(orderCommodityItems(order)),
     payment:    clientPaymentDetails(order),
+    accessorials: orderAccessorials(order),
     instructions: String(order.clientInstructions ?? '').trim(),
   };
 }
@@ -142,7 +145,11 @@ export function sectionHashes(c: ConfirmationContent): Record<AgreementSection, 
     client:  sha(c.clientId),
     rate:    sha(c.agreedRate),
     stops:   sha(c.stops),
-    freight: sha([c.freight, c.equipment, c.commodity, c.weight, c.pieces, c.dimensions]),
+    // Accessorials are what the truck must bring, so they are part of the
+    // freight. Appended only when there are any: every link sent before they
+    // existed fingerprints exactly as it did, and is not held on its next save.
+    freight: sha([c.freight, c.equipment, c.commodity, c.weight, c.pieces, c.dimensions,
+      ...(c.accessorials.length ? [c.accessorials] : [])]),
     payment: sha(c.payment),
     notes:   sha(c.instructions),
   };
@@ -189,6 +196,8 @@ export function tokenSnapshotFields(order: AnyOrder, c: ConfirmationContent): Re
     stops:           c.stops,
     freight:         c.freight,
     equipment:       c.equipment,
+    // As the client reads them. Absent on links sent before 2026-10-15.
+    accessorials:    accessorialLabels(c),
     payment:         c.payment,
     /*
      * Printed on the PDF's header, as BATS printed them, and deliberately not

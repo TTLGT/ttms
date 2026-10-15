@@ -46,6 +46,12 @@ export interface SignFormData {
    * Absent on links sent before 2026-10-15.
    */
   dockWork?: { label: string; value: string }[];
+  /**
+   * What the load needs beyond a truck and a driver, as labels — both
+   * documents. Absent on links sent before 2026-10-15, and empty when the
+   * order asked for none.
+   */
+  accessorials?: string[];
   terms?: string;
   stops?: ConfirmationStop[];
   freight?: ConfirmationFreight[];
@@ -138,6 +144,9 @@ export function signFormData(data: Record<string, any>): SignFormData {
       ? data.dockWork.filter((l: any) => l && typeof l.label === 'string' && typeof l.value === 'string')
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((l: any) => ({ label: l.label, value: l.value }))
+      : undefined,
+    accessorials: Array.isArray(data.accessorials)
+      ? data.accessorials.filter((a: unknown): a is string => typeof a === 'string' && a.length > 0)
       : undefined,
     // A client link sent before the terms were a setting has no copy of
     // them, and was sent under the standard wording — which is what it shows.

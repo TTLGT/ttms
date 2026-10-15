@@ -12,7 +12,7 @@ import {
   archiveRound, buildSaReview, freezeReview, requestRef, roundRef, saGateFactsFor, sendEntry,
 } from '@/lib/saRequestsServer';
 import { cleanCcList, outstandingChecks } from '@/types/saRequest';
-import { clientSignatureSatisfied, dimensionsSummary, dockWorkLines, orderCommodityItems, orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@/types/order';
+import { accessorialLabels, clientSignatureSatisfied, dimensionsSummary, dockWorkLines, orderCommodityItems, orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@/types/order';
 import type { Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -184,6 +184,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     // Who loads, unloads and counts, as worded lines. Snapshotted like the
     // rest: a carrier who signed for a shipper-loaded trailer signed that.
     dockWork:     dockWorkLines(order as Partial<Order>),
+    // Ramps, a winch, a liftgate… as labels, snapshotted with the rest.
+    accessorials: accessorialLabels(order),
     version,
     cc,
     sentByName:   actor?.name ?? '',

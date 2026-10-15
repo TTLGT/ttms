@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "1673bf9c88936b2cf48dde13968b77a83888ab79",
+      "date": "2026-10-15T13:03:25-06:00",
+      "author": "erwindank",
+      "subject": "Record who loads, unloads and counts a load, and print only the answers on the BOL unless the full set of boxes is asked for",
+      "body": "Loaded by and unloaded by take shipper, consignee, driver or a 3rd party (lumper).\nCounted at pickup keeps the driver pallets-only / every-piece split and adds consignee\nand 3rd party; counted at delivery is new. The answers go on the BOL as short lines\n(left off when none are given) and on the carrier's Dispatch Sheet. A per-order switch\nprints the full grid of tick boxes on the BOL when a carrier or client asks for it."
+    },
+    {
       "hash": "9888b579954413ab3b8fd50be92ab4cdd4c51890",
       "date": "2026-10-15T12:26:33-06:00",
       "author": "erwindank",

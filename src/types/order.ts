@@ -175,6 +175,61 @@ export function dockWorkLines(o: Partial<Pick<Order,
   return lines;
 }
 
+/**
+ * Accessorial services: equipment and arrangements a load needs beyond a
+ * truck and a driver. A fixed list rather than free text so the BOL, the SA
+ * and the Dispatch Sheet all print the same words, and so the SA review can
+ * see what was asked for. Anything not on it goes in the special instructions.
+ *
+ * The keys are stored on orders. Adding one is free; renaming or removing
+ * one is a migration — an unknown key is dropped by orderAccessorials(), so
+ * it would quietly vanish from every document.
+ */
+export const ACCESSORIALS = [
+  'ramps', 'winch', 'liftgate', 'pallet_jack', 'tarps', 'straps', 'chains',
+  'blankets', 'driver_assist', 'inside_delivery', 'residential', 'appointment',
+  'team_drivers', 'pilot_car', 'oversize_permit', 'hazmat', 'twic',
+] as const;
+export type Accessorial = typeof ACCESSORIALS[number];
+export const ACCESSORIAL_LABEL: Record<Accessorial, string> = {
+  ramps:           'Ramps',
+  winch:           'Winch',
+  liftgate:        'Liftgate',
+  pallet_jack:     'Pallet jack',
+  tarps:           'Tarps',
+  straps:          'Straps',
+  chains:          'Chains and binders',
+  blankets:        'Moving blankets',
+  driver_assist:   'Driver assist (load / unload)',
+  inside_delivery: 'Inside delivery',
+  residential:     'Residential pickup or delivery',
+  appointment:     'Appointment required',
+  team_drivers:    'Team drivers',
+  pilot_car:       'Pilot car / escort',
+  oversize_permit: 'Oversize permit',
+  hazmat:          'Hazmat endorsement',
+  twic:            'TWIC card',
+};
+
+export function isAccessorial(v: unknown): v is Accessorial {
+  return typeof v === 'string' && (ACCESSORIALS as readonly string[]).includes(v);
+}
+
+/**
+ * The order's accessorials, known keys only, in catalog order — so every
+ * document lists them the same way however they were ticked, and the SA's
+ * fingerprint does not move when only the order of ticking did.
+ */
+export function orderAccessorials(o: { accessorials?: unknown } | null | undefined): Accessorial[] {
+  const raw = Array.isArray(o?.accessorials) ? o!.accessorials as unknown[] : [];
+  return ACCESSORIALS.filter((a) => raw.includes(a));
+}
+
+/** The labels, for printing. Empty when none. */
+export function accessorialLabels(o: { accessorials?: unknown } | null | undefined): string[] {
+  return orderAccessorials(o).map((a) => ACCESSORIAL_LABEL[a]);
+}
+
 export type VehicleCondition = 'operable' | 'inoperable';
 export const VEHICLE_CONDITIONS: VehicleCondition[] = ['operable', 'inoperable'];
 export const VEHICLE_CONDITION_LABEL: Record<VehicleCondition, string> = {
@@ -813,6 +868,15 @@ export interface Order {
    * Null or absent when no line has a value; never 0 for "unknown".
    */
   commodityValue?: number | null;
+  /**
+   * What the load needs beyond a truck and a driver — ramps, a winch, a
+   * liftgate, tarps (2026-10-15). Keys from ACCESSORIALS, a list and nothing
+   * more: no prices, because nothing here bills them. Printed on the BOL, the
+   * client's load confirmation (part of its `freight` fingerprint, so a change
+   * holds a sent SA for review) and the carrier's Dispatch Sheet. Absent on
+   * loads from before it existed — read through `orderAccessorials()`.
+   */
+  accessorials?: Accessorial[];
   /**
    * How the client pays us, and how the carrier is paid — each a copy of the
    * option chosen from Settings, fee and all. See `OrderPaymentTerms` for why

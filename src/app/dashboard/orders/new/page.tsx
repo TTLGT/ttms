@@ -15,6 +15,7 @@ import CarrierCompliance from '@/components/carriers/CarrierCompliance';
 import type { DriverChoice } from '@/components/carriers/DriverPicker';
 import { DEFAULT_RECORD_REGION } from '@/lib/phone';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
+import AccessorialsField from '@/components/orders/AccessorialsField';
 import PriceAndTermsSection, { blankPriceTerms, priceTermsForSave } from '@/components/orders/PriceAndTermsSection';
 import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
@@ -28,7 +29,7 @@ import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopParty
 import type { StopDraft } from '@/components/orders/ExtraStopsFields';
 import { partyDisplayName, ROLE_LABEL } from '@/types/party';
 import { blankCommodityItem, commoditySummary, hasVehicleDetails, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue } from '@/types/order';
-import type { Address, CommodityItem, StopKind } from '@/types/order';
+import type { Accessorial, Address, CommodityItem, StopKind } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import LeadSourceField from '@/components/orders/LeadSourceField';
 import DateField from '@/components/DateField';
@@ -75,6 +76,7 @@ function NewOrderForm() {
   const [error, setError]         = useState('');
 
   const [commodities, setCommodities]   = useState<CommodityItem[]>([blankCommodityItem()]);
+  const [accessorials, setAccessorials] = useState<Accessorial[]>([]);
   const [origin, setOrigin]             = useState<Address>(BLANK_ADDRESS);
   const [destination, setDest]          = useState<Address>(BLANK_ADDRESS);
   const [extraPickups, setExtraPickups]       = useState<StopDraft[]>([]);
@@ -224,6 +226,7 @@ function NewOrderForm() {
         commodityValue: totalCommodityValue(commodityItems),
         pieces:       totalPieces(commodityItems) || 1,
         weight:       Math.round(totalWeightLb(commodityItems)),
+        accessorials,
         origin,
         destination,
         routeMapUrl:  routeMapUrl.trim(),
@@ -371,6 +374,7 @@ function NewOrderForm() {
             </div>
             <CommodityItemsFields value={commodities} onChange={setCommodities}
               pickups={pickupChoices} deliveries={deliveryChoices} />
+            <AccessorialsField value={accessorials} onChange={setAccessorials} />
           </section>
 
           <PriceAndTermsSection

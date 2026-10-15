@@ -3,7 +3,7 @@ import { adminDb, FieldValue } from './firebase-admin';
 import { openedAlert, postOrderAlert } from './chatAlerts';
 import { clientContactOf, readinessFactsFor } from './orderReadinessServer';
 import { CONVERSATIONS_COLLECTION, recordConversationId } from '@/types/conversation';
-import { orderDisplayNumber, type CommodityItem, type Order } from '@/types/order';
+import { accessorialLabels, orderDisplayNumber, type CommodityItem, type Order } from '@/types/order';
 import { orderReadiness } from '@/types/orderReadiness';
 import { LOAD_PHOTOS_COLLECTION } from '@/types/loadPhoto';
 import { fmcsaConcerns, operatingSince, type FmcsaRegistry } from '@/types/fmcsa';
@@ -263,6 +263,7 @@ export async function buildSaReview(
     clientSigned: clientSignatureSatisfied(order as Parameters<typeof clientSignatureSatisfied>[0]),
     gate,
     accessorialHints: accessorialHints(order.commodities as CommodityItem[] | undefined),
+    accessorials: accessorialLabels(order),
     // The client's other contacts, offered as one-click CCs. Reviewers only:
     // a broker reading where their request stands has no use for the
     // client's address book.

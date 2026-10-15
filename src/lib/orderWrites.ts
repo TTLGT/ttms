@@ -34,7 +34,7 @@ import type { Caller } from './partyAccess';
 import { planAgreementHold } from './clientAgreements';
 import { NO_SIGNED_CA_PROOF, NO_SIGNED_SA_PROOF, signedSaProof } from './signedSaProof';
 import { openBolRequestIfSigned } from './bolRequests';
-import { LEGACY_STATUSES, cleanStops, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
+import { LEGACY_STATUSES, cleanStops, orderAccessorials, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
 
 const COL = 'orders';
 
@@ -86,12 +86,15 @@ const IGNORED_FIELDS = [
 const STOP_FIELDS = ['extraPickups', 'extraDeliveries'] as const;
 
 /**
- * Trim any stop lists in a save to the stored shape. The screens only ever
+ * Trim any stop lists (and the accessorials) in a save to the stored shape. The screens only ever
  * send that shape; this is here because the route takes whatever JSON it is
  * given. Done before the change is diffed, so the log records what was kept.
  */
 function cleanStopFields(record: Record<string, unknown>) {
   for (const f of STOP_FIELDS) if (f in record) record[f] = cleanStops(record[f]);
+  // Known keys only, in catalog order: an unknown one would print nowhere,
+  // and ticking order must not read as a change to the client's SA.
+  if ('accessorials' in record) record.accessorials = orderAccessorials(record);
 }
 
 /**

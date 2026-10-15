@@ -410,6 +410,13 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
           ) : null}
         </View>
 
+        {/* Both documents; left out when the order asked for none. */}
+        {f.accessorials && f.accessorials.length > 0 ? (
+          <Panel title="ACCESSORIALS" style={{ marginBottom: 10 }}>
+            <Text style={s.terms}>{f.accessorials.join('  ·  ')}</Text>
+          </Panel>
+        ) : null}
+
         {/* Carrier links only, and only what was answered — see dockWorkLines(). */}
         {f.dockWork && f.dockWork.length > 0 ? (
           <Panel title="LOADING, UNLOADING & COUNT" style={{ marginBottom: 10 }}>
