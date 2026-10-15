@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "f48265c4b1f8fb8a35c44a9f1aff705ae45bab89",
+      "date": "2026-10-15T08:30:58-06:00",
+      "author": "erwindank",
+      "subject": "Say \"plan for today\" and \"plan for tomorrow\" on the planning cards",
+      "body": ""
+    },
+    {
       "hash": "0c7a4dcb85162cb45209673bec71e417806b1679",
       "date": "2026-10-14T15:12:52-06:00",
       "author": "erwindank",
