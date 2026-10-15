@@ -50,7 +50,7 @@ import {
 import TimeWheel from './TimeWheel';
 
 /**
- * The planning card: "When will you plan tomorrow?", a time wheel, how long,
+ * The planning card: "When will you plan for tomorrow?", a time wheel, how long,
  * whether it repeats, and the day it lands on — with one button that puts the
  * slot on the person's own calendar with a reminder at that time. See
  * src/types/planning.ts for when it asks.
@@ -517,7 +517,7 @@ export default function PlanningPrompt() {
             </div>
             {kind === 'morning' && (
               <p className="mt-2 text-xs text-gray-500">
-                Planned today last night? Then this is a quick look over it. If not, this is when you make the plan.
+                Planned for today last night? Then this is a quick look over it. If not, this is when you make the plan.
               </p>
             )}
 

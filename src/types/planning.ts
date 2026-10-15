@@ -74,9 +74,9 @@ export const PLANNING_COPY: Record<PlanningKind, {
   },
   evening: {
     label: 'End-of-day planning',
-    title: 'Plan tomorrow',
-    prompt: 'Finish today by planning tomorrow.',
-    ask: 'When will you plan tomorrow?',
+    title: 'Plan for tomorrow',
+    prompt: 'Finish today by planning for tomorrow.',
+    ask: 'When will you plan for tomorrow?',
     detail: 'Before you log off: what is left over, what is due tomorrow, and what goes first.',
     steps: [
       'Make a list of everything I still have pending',

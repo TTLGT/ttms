@@ -103,7 +103,7 @@ export default function PlanningPanel({ tasks }: { tasks?: PersonalTask[] | null
         <CalendarClock size={15} className="text-brand-600" /> Planning time
       </h2>
       <p className="mt-1 text-xs text-gray-500">
-        Set times to look over today, plan tomorrow, next week and next month, with a reminder when each comes round.
+        Set times to look over today, plan for tomorrow, next week and next month, with a reminder when each comes round.
       </p>
       <ul className="mt-3 space-y-2.5">
         {kinds.map((k) => (

@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
     const [owner, count] = await Promise.all([ownerRef.get(), taskItems(uid).count().get()]);
 
     // Two tabs, or a double click: the second gets the slot the first made
-    // rather than a second "Plan tomorrow" on the same day.
+    // rather than a second "Plan for tomorrow" on the same day.
     // Carrying a missed repeating slot on here too, so it is found to be
     // scheduled rather than made a second time.
     const existing = (await statusFor(uid, cleanPlanningState(owner.data()?.planning), today, '00:00', true))

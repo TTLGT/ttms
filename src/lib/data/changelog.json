@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "0c7a4dcb85162cb45209673bec71e417806b1679",
+      "date": "2026-10-14T15:12:52-06:00",
+      "author": "erwindank",
+      "subject": "Bring back the TTMS BOL design, refreshed, with truck and trailer, handling units, hazmat, freight terms, declared value and dock signatures",
+      "body": "The BOL returns to its card layout in the company colours and adds what the\noffice's paper form asked for. Truck and trailer, freight charge terms,\n3rd-party bill-to and the trailer loaded / freight counted choices are typed\nin the Bill of Lading card on the order; handling units and hazmat on each\nfreight line. Anything left empty prints as a blank box. Still no rates."
+    },
+    {
       "hash": "222b2cb0878de6de764119e888d544496db17dd1",
       "date": "2026-10-14T14:49:39-06:00",
       "author": "erwindank",
