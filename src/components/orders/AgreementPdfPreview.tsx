@@ -15,9 +15,12 @@ import { Download, X } from 'lucide-react';
  *
  * Staff only. The signing link itself is never opened here, so nobody can
  * sign for a client or carrier from it.
+ *
+ * The order page also uses it for the BOL, with the two-hour signed Storage
+ * link in place of a `blob:` URL.
  */
 export default function AgreementPdfPreview({ url, title, onClose, onDownload }: {
-  /** A `blob:` URL; the caller revokes it on close. */
+  /** A `blob:` URL (the caller revokes it on close), or a signed link. */
   url: string;
   title: string;
   onClose: () => void;

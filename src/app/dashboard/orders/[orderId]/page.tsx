@@ -16,6 +16,7 @@ import PriceAndTermsCard from '@/components/orders/PriceAndTermsCard';
 import SectionEditLink from '@/components/orders/SectionEditLink';
 import BolSendPanel from '@/components/orders/BolSendPanel';
 import BolDetailsFields from '@/components/orders/BolDetailsFields';
+import AgreementPdfPreview from '@/components/orders/AgreementPdfPreview';
 import type { CommodityItem, Order, OrderStatus, StopKind } from '@/types/order';
 import type { Carrier } from '@/types/carrier';
 import {
@@ -364,6 +365,7 @@ export default function OrderDetailPage() {
   // BOL state
   const [generatingBol, setGeneratingBol] = useState(false);
   const [bolUrl, setBolUrl]               = useState<string | null>(null);
+  const [showBolPreview, setShowBolPreview] = useState(false);
 
   // invoice state
   const [generatingInvoice, setGeneratingInvoice] = useState(false);
@@ -896,7 +898,9 @@ export default function OrderDetailPage() {
       if (!res.ok) throw new Error(body.error ?? 'Failed to generate BOL');
       setBolUrl(body.url);
       setOrder({ ...base, bolStoragePath: body.path });
-      if (openIt) window.open(body.url, '_blank');
+      // Shown in the page rather than a new tab: a tab opened after the
+      // generate round trip is what pop-up blockers stop.
+      if (openIt) setShowBolPreview(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to generate BOL');
     } finally {
@@ -1927,6 +1931,12 @@ export default function OrderDetailPage() {
                 </div>
                 <div className="flex gap-2">
                   {bolUrl && (
+                    <button type="button" onClick={() => setShowBolPreview(true)}
+                      className="px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition">
+                      Preview
+                    </button>
+                  )}
+                  {bolUrl && (
                     <a href={bolUrl} target="_blank" rel="noreferrer"
                       className="px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition">
                       Download PDF
@@ -2000,6 +2010,16 @@ export default function OrderDetailPage() {
         </div>
       )}
 
+      {/* The BOL on screen, from either tab. The signed link is stored with a
+          PDF content type and no attachment disposition, so the browser's own
+          viewer draws it in the frame. Download keeps the old new-tab link: a
+          `download` attribute is ignored on a cross-origin URL. */}
+      {showBolPreview && bolUrl && (
+        <AgreementPdfPreview url={bolUrl} title="Bill of Lading"
+          onClose={() => setShowBolPreview(false)}
+          onDownload={() => window.open(bolUrl, '_blank', 'noreferrer')} />
+      )}
+
       {/* Documents tab */}
       {tab === 'documents' && (
         <div className="space-y-6">
@@ -2027,8 +2047,12 @@ export default function OrderDetailPage() {
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     {bolUrl && (
+                      <button type="button" onClick={() => setShowBolPreview(true)}
+                        className="text-xs text-brand-600 hover:underline">Preview</button>
+                    )}
+                    {bolUrl && (
                       <a href={bolUrl} target="_blank" rel="noreferrer"
-                        className="text-xs text-brand-600 hover:underline">View BOL</a>
+                        className="text-xs text-brand-600 hover:underline">Download</a>
                     )}
                     {(['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(
                       order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed'

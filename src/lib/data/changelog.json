@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "45ed3dfcd87f2ef0d34475762dbbc29d2acd671a",
+      "date": "2026-10-15T10:44:49-06:00",
+      "author": "erwindank",
+      "subject": "Show pickup and delivery dates on the BOL as estimated, and leave phone numbers off it",
+      "body": "The order's planned dates now read \"Est. pickup\", \"Estimated delivery\" and\n\"Est. date\"; the date lines on the signature cards, where the real dates are\nwritten at the dock, are unchanged. No phone number for the shipper,\nconsignee, extra stops or driver is printed or even looked up any more."
+    },
+    {
       "hash": "e99f8d3954c4c73f30dd16ca3ae9b5c7397aa165",
       "date": "2026-10-15T10:36:39-06:00",
       "author": "erwindank",
