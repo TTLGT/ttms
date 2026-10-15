@@ -4,6 +4,7 @@ import path from 'path';
 import { Document, Page, Text, View, StyleSheet, Image as PdfImage, renderToBuffer } from '@react-pdf/renderer';
 import type { Style } from '@react-pdf/types';
 import { COMPANY, TTL } from './pdfBrand';
+import type { DockParty, FreightCountedBy } from '@/types/order';
 
 /**
  * One freight line as it prints. Pre-formatted by the caller so this module
@@ -97,8 +98,12 @@ export type BolData = {
   /** null prints all three boxes empty, for a pen. */
   freightChargeTerms: 'prepaid' | 'collect' | 'third_party' | null;
   thirdPartyBillTo: string;
-  trailerLoadedBy: 'shipper' | 'driver' | null;
-  freightCountedBy: 'shipper' | 'driver_pallets' | 'driver_pieces' | null;
+  trailerLoadedBy: DockParty | null;
+  freightCountedBy: FreightCountedBy | null;
+  trailerUnloadedBy: DockParty | null;
+  deliveryCountedBy: DockParty | null;
+  /** Print every box for all four questions, answered or not — see the card. */
+  showDockBoxes: boolean;
   /** Special instructions for the carrier. The order's internal notes are never printed. */
   carrierInstructions: string;
   /** The carrier's e-signature of the Dispatch Sheet, shown as it always was. */
@@ -185,7 +190,7 @@ const s = StyleSheet.create({
   boxOn:      { width: 7.5, height: 7.5, borderWidth: 0.8, borderColor: TTL.navy, borderStyle: solid, borderRadius: 1.5, marginRight: 3.5, backgroundColor: TTL.navy, alignItems: 'center', justifyContent: 'center' },
   boxMark:    { fontSize: 5.5, fontFamily: 'Helvetica-Bold', color: '#ffffff', marginTop: 0.5 },
   checkText:  { fontSize: 7.5, color: TTL.ink },
-  inlineLabel:{ width: 58, fontSize: 6.5, color: TTL.faint, marginBottom: 2.5, alignSelf: 'center' },
+  inlineLabel:{ width: 68, fontSize: 6.5, color: TTL.faint, marginBottom: 2.5, alignSelf: 'center' },
   fine:       { fontSize: 6, color: TTL.muted, lineHeight: 1.35 },
 
   // Signatures
@@ -257,6 +262,39 @@ function Check({ on, label }: { on: boolean; label: string }) {
   );
 }
 
+const DOCK_LABEL: Record<DockParty, string> = {
+  shipper: 'Shipper', consignee: 'Consignee', driver: 'Driver', third_party: '3rd party',
+};
+const COUNT_ORDER: FreightCountedBy[] = ['shipper', 'driver_pallets', 'driver_pieces', 'consignee', 'third_party'];
+/* "Said to contain" is the standard BOL wording, kept so the printed form
+   still reads as one to a dock clerk. */
+const COUNT_LABEL: Record<FreightCountedBy, string> = {
+  shipper: 'Shipper', driver_pallets: 'Driver / pallets only, said to contain', driver_pieces: 'Driver / every piece',
+  consignee: 'Consignee', third_party: '3rd party',
+};
+
+/** The answered dock questions as [label, value] — empty when nothing was answered. */
+function dockLinesOf(d: Pick<BolData, 'trailerLoadedBy' | 'freightCountedBy' | 'trailerUnloadedBy' | 'deliveryCountedBy'>): [string, string][] {
+  const out: [string, string][] = [];
+  if (d.trailerLoadedBy)   out.push(['Loaded by', DOCK_LABEL[d.trailerLoadedBy]]);
+  if (d.freightCountedBy)  out.push(['Counted at pickup', COUNT_LABEL[d.freightCountedBy]]);
+  if (d.trailerUnloadedBy) out.push(['Unloaded by', DOCK_LABEL[d.trailerUnloadedBy]]);
+  if (d.deliveryCountedBy) out.push(['Counted at delivery', DOCK_LABEL[d.deliveryCountedBy]]);
+  return out;
+}
+
+/** A labelled row of the four dock parties, the chosen one ticked. */
+function DockRow({ label, value }: { label: string; value: DockParty | null }) {
+  return (
+    <View style={{ flexDirection: 'row' }}>
+      <Text style={[s.inlineLabel, { alignSelf: 'flex-start', marginTop: 1 }]}>{label}</Text>
+      <View style={[s.checkRow, { flex: 1 }]}>
+        {(Object.keys(DOCK_LABEL) as DockParty[]).map((p) => <Check key={p} on={value === p} label={DOCK_LABEL[p]} />)}
+      </View>
+    </View>
+  );
+}
+
 /** A party's place on the load: name, address on two lines, and date. */
 function Stop({ name, street, place, dateLabel, date, freightLabel, freight }: {
   name: string; street: string; place: string;
@@ -305,6 +343,7 @@ function BolDocument({ d }: { d: BolData }) {
   // stops, instructions) only take a number when they print.
   let n = 0;
   const next = () => ++n;
+  const dockLines = dockLinesOf(d);
 
   // Column widths of the freight table, with or without the route column.
   const W = showRoute
@@ -466,24 +505,42 @@ function BolDocument({ d }: { d: BolData }) {
               <Field label="Declared value (not exceeding)" value={d.declaredValue} blank />
             </View>
           </Card>
-          <View style={s.gap} />
-          <Card n={next()} title="LOADING & COUNT" half>
-            <View style={s.checkRow}>
-              <Text style={s.inlineLabel}>Trailer loaded</Text>
-              <Check on={d.trailerLoadedBy === 'shipper'} label="By shipper" />
-              <Check on={d.trailerLoadedBy === 'driver'} label="By driver" />
-            </View>
-            <View style={{ flexDirection: 'row' }}>
-              <Text style={[s.inlineLabel, { alignSelf: 'flex-start', marginTop: 1 }]}>Freight counted</Text>
-              {/* Its own wrapping row, so a third box lines up under the
-                  others rather than under the label. */}
-              <View style={[s.checkRow, { flex: 1 }]}>
-                <Check on={d.freightCountedBy === 'shipper'} label="By shipper" />
-                <Check on={d.freightCountedBy === 'driver_pallets'} label="By driver / pallets said to contain" />
-                <Check on={d.freightCountedBy === 'driver_pieces'} label="By driver / pieces" />
-              </View>
-            </View>
-          </Card>
+          {/* Who loads, unloads and counts. By default only what was
+              answered on the order, as one short line each, and nothing at
+              all when nothing was — the full grid of boxes took a quarter of
+              the page to say "not decided". `showDockBoxes` brings the grid
+              back for a carrier or client who wants boxes to tick by hand. */}
+          {d.showDockBoxes ? (
+            <>
+              <View style={s.gap} />
+              <Card n={next()} title="LOADING, UNLOADING & COUNT" half>
+                {/* One row per question, each its own wrapping row so a box
+                    that spills over lines up under the others rather than
+                    under the label. */}
+                <DockRow label="Loaded by" value={d.trailerLoadedBy} />
+                <View style={{ flexDirection: 'row' }}>
+                  <Text style={[s.inlineLabel, { alignSelf: 'flex-start', marginTop: 1 }]}>Counted at pickup</Text>
+                  <View style={[s.checkRow, { flex: 1 }]}>
+                    {COUNT_ORDER.map((c) => <Check key={c} on={d.freightCountedBy === c} label={COUNT_LABEL[c]} />)}
+                  </View>
+                </View>
+                <DockRow label="Unloaded by" value={d.trailerUnloadedBy} />
+                <DockRow label="Counted at delivery" value={d.deliveryCountedBy} />
+              </Card>
+            </>
+          ) : dockLines.length > 0 ? (
+            <>
+              <View style={s.gap} />
+              <Card n={next()} title="LOADING, UNLOADING & COUNT" half>
+                {dockLines.map(([label, value]) => (
+                  <View key={label} style={{ flexDirection: 'row', marginBottom: 1.5 }}>
+                    <Text style={[s.inlineLabel, { alignSelf: 'flex-start', marginBottom: 0, marginTop: 0.5 }]}>{label}</Text>
+                    <Text style={{ flex: 1, fontSize: 7.5 }}>{value}</Text>
+                  </View>
+                ))}
+              </Card>
+            </>
+          ) : null}
         </View>
 
         {/* Special instructions — the carrier's, never the internal notes. */}

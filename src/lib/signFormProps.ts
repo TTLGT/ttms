@@ -40,6 +40,12 @@ export interface SignFormData {
    * link. '' until signed, and on carrier links. Theirs, kept beside ours.
    */
   signerInstructions: string;
+  /**
+   * Who loads, unloads and counts — carrier links only, and only the
+   * questions answered on the order when it was sent (dockWorkLines()).
+   * Absent on links sent before 2026-10-15.
+   */
+  dockWork?: { label: string; value: string }[];
   terms?: string;
   stops?: ConfirmationStop[];
   freight?: ConfirmationFreight[];
@@ -127,6 +133,12 @@ export function signFormData(data: Record<string, any>): SignFormData {
     notes: data.notes || '',
     instructions: typeof data.specialInstructions === 'string' ? data.specialInstructions : '',
     signerInstructions: typeof data.signerInstructions === 'string' ? data.signerInstructions : '',
+    dockWork: !isClient && Array.isArray(data.dockWork)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ? data.dockWork.filter((l: any) => l && typeof l.label === 'string' && typeof l.value === 'string')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((l: any) => ({ label: l.label, value: l.value }))
+      : undefined,
     // A client link sent before the terms were a setting has no copy of
     // them, and was sent under the standard wording — which is what it shows.
     terms: isClient ? (typeof data.termsText === 'string' && data.termsText ? data.termsText : DEFAULT_CLIENT_TERMS) : CARRIER_TERMS,

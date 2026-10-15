@@ -12,7 +12,7 @@ import {
   archiveRound, buildSaReview, freezeReview, requestRef, roundRef, saGateFactsFor, sendEntry,
 } from '@/lib/saRequestsServer';
 import { cleanCcList, outstandingChecks } from '@/types/saRequest';
-import { clientSignatureSatisfied, dimensionsSummary, orderCommodityItems, orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@/types/order';
+import { clientSignatureSatisfied, dimensionsSummary, dockWorkLines, orderCommodityItems, orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@/types/order';
 import type { Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -181,6 +181,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     // The carrier's instructions. Never the order's notes, which are internal;
     // links sent before 2026-10-14 carry `notes` and still show it.
     specialInstructions: order.carrierInstructions || '',
+    // Who loads, unloads and counts, as worded lines. Snapshotted like the
+    // rest: a carrier who signed for a shipper-loaded trailer signed that.
+    dockWork:     dockWorkLines(order as Partial<Order>),
     version,
     cc,
     sentByName:   actor?.name ?? '',

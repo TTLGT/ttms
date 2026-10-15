@@ -955,8 +955,16 @@ optional; absent on earlier loads, and an unset one prints as an empty box.
 | `truckNumber`, `trailerNumber` | Unit numbers of the truck and trailer. |
 | `freightChargeTerms` | `prepaid`, `collect`, `third_party`, or null. |
 | `thirdPartyBillTo` | Who pays under 3rd-party terms, free text. Cleared when the terms are anything else. |
-| `trailerLoadedBy` | `shipper` or `driver`. |
-| `freightCountedBy` | `shipper`, `driver_pallets` or `driver_pieces`. |
+| `trailerLoadedBy` | Who loads: `shipper`, `consignee`, `driver` or `third_party` (a lumper). Only `shipper` and `driver` before 2026-10-15. |
+| `trailerUnloadedBy` | Who unloads, same four values (2026-10-15). |
+| `freightCountedBy` | Who counts at pickup: `shipper`, `driver_pallets`, `driver_pieces`, `consignee` or `third_party`. The last two added 2026-10-15. |
+| `deliveryCountedBy` | Who counts at delivery, the same four values as `trailerUnloadedBy` (2026-10-15). |
+| `bolShowDockBoxes` | `true` prints every loading, unloading and count box on the BOL, answered or not, for a carrier or client who asks. Absent or `false` (the default) prints only the answers, and no section when there are none. |
+
+The four loading, unloading and count fields are also copied onto the
+carrier's signing link as `dockWork` when the Dispatch Sheet is sent — worded
+lines, only the ones answered (`dockWorkLines()` in `src/types/order.ts`) —
+and shown on its signing page and signed PDF. A link sent earlier has none.
 
 And on each line of `commodities`: `handlingUnits` (number or null),
 `handlingUnitType` (`PLT`, `SKID`…) and `hazmat` (boolean). The BOL's declared

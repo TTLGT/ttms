@@ -122,17 +122,58 @@ export const FREIGHT_CHARGE_TERMS_LABEL: Record<FreightChargeTerms, string> = {
   prepaid: 'Prepaid', collect: 'Collect', third_party: '3rd Party',
 };
 
-export type TrailerLoadedBy = 'shipper' | 'driver';
-export const TRAILER_LOADED_BY: TrailerLoadedBy[] = ['shipper', 'driver'];
-export const TRAILER_LOADED_BY_LABEL: Record<TrailerLoadedBy, string> = {
-  shipper: 'By shipper', driver: 'By driver',
+/**
+ * Who does the work at a dock: loads, unloads or counts. One list for every
+ * one of those questions, all four parties offered on each, because the
+ * unusual answer is real — a consignee's own crew collecting from the
+ * shipper's dock, a lumper hired at a pickup.
+ *
+ * `trailerLoadedBy` was `shipper` | `driver` until 2026-10-15; this only
+ * widened it, so every stored value is still valid.
+ */
+export type DockParty = 'shipper' | 'consignee' | 'driver' | 'third_party';
+export const DOCK_PARTIES: DockParty[] = ['shipper', 'consignee', 'driver', 'third_party'];
+export const DOCK_PARTY_LABEL: Record<DockParty, string> = {
+  shipper: 'Shipper', consignee: 'Consignee', driver: 'Driver', third_party: '3rd party (lumper)',
 };
 
-export type FreightCountedBy = 'shipper' | 'driver_pallets' | 'driver_pieces';
-export const FREIGHT_COUNTED_BY: FreightCountedBy[] = ['shipper', 'driver_pallets', 'driver_pieces'];
+export type TrailerLoadedBy = DockParty;
+export const TRAILER_LOADED_BY = DOCK_PARTIES;
+export const TRAILER_LOADED_BY_LABEL = DOCK_PARTY_LABEL;
+
+/**
+ * The pickup count. Keeps the BOL's driver split — pallets "said to contain"
+ * against pieces counted — because that difference is what decides who
+ * answers for a short count, and it is what the paper form asks. The
+ * consignee and a 3rd party were added 2026-10-15; the first three values
+ * are unchanged.
+ */
+export type FreightCountedBy = 'shipper' | 'driver_pallets' | 'driver_pieces' | 'consignee' | 'third_party';
+export const FREIGHT_COUNTED_BY: FreightCountedBy[] = ['shipper', 'driver_pallets', 'driver_pieces', 'consignee', 'third_party'];
 export const FREIGHT_COUNTED_BY_LABEL: Record<FreightCountedBy, string> = {
-  shipper: 'By shipper', driver_pallets: 'By driver, pallets said to contain', driver_pieces: 'By driver, pieces',
+  // Spelled out: "pallets said to contain" is the paper form's wording and
+  // nobody outside the trade reads it as "the driver did not open them".
+  shipper: 'Shipper',
+  driver_pallets: 'Driver counts pallets only',
+  driver_pieces: 'Driver counts every piece',
+  consignee: 'Consignee', third_party: '3rd party',
 };
+
+/**
+ * Who does what at the docks, as lines for the dispatch sheet — only the
+ * questions somebody answered, so a load with none says nothing rather than
+ * four rows of dashes. '' for "not said" is never printed.
+ */
+export function dockWorkLines(o: Partial<Pick<Order,
+  'trailerLoadedBy' | 'freightCountedBy' | 'trailerUnloadedBy' | 'deliveryCountedBy'>>): { label: string; value: string }[] {
+  const lines: { label: string; value: string }[] = [];
+  const add = (label: string, value: string | undefined) => { if (value) lines.push({ label, value }); };
+  add('Loading',            o.trailerLoadedBy   ? DOCK_PARTY_LABEL[o.trailerLoadedBy] : undefined);
+  add('Count at pickup',    o.freightCountedBy  ? FREIGHT_COUNTED_BY_LABEL[o.freightCountedBy] : undefined);
+  add('Unloading',          o.trailerUnloadedBy ? DOCK_PARTY_LABEL[o.trailerUnloadedBy] : undefined);
+  add('Count at delivery',  o.deliveryCountedBy ? DOCK_PARTY_LABEL[o.deliveryCountedBy] : undefined);
+  return lines;
+}
 
 export type VehicleCondition = 'operable' | 'inoperable';
 export const VEHICLE_CONDITIONS: VehicleCondition[] = ['operable', 'inoperable'];
@@ -991,6 +1032,22 @@ export interface Order {
   thirdPartyBillTo?: string;
   trailerLoadedBy?: TrailerLoadedBy | null;
   freightCountedBy?: FreightCountedBy | null;
+  /**
+   * The delivery end of the same two questions (2026-10-15). Printed on the
+   * BOL and snapshotted onto the dispatch sheet with the loading pair — a
+   * driver who unloads, or pays a lumper, expects to be told before they
+   * accept the load. Not on the client's confirmation, so none holds an SA.
+   */
+  trailerUnloadedBy?: DockParty | null;
+  deliveryCountedBy?: DockParty | null;
+  /**
+   * Print the full grid of loading, unloading and count boxes on the BOL,
+   * answered or not, for a carrier or client who asks for boxes to tick by
+   * hand. Off (absent) by default: the BOL then prints only the answers, and
+   * leaves the section out when there are none. The Dispatch Sheet always
+   * prints only the answers.
+   */
+  bolShowDockBoxes?: boolean;
   /**
    * Special instructions for the client, written by staff: printed on the
    * quote, the client's load confirmation and its signed PDF. Part of the

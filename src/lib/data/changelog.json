@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "9888b579954413ab3b8fd50be92ab4cdd4c51890",
+      "date": "2026-10-15T12:26:33-06:00",
+      "author": "erwindank",
+      "subject": "Show the colour of added task colours instead of white",
+      "body": "The six extra colours took their hue from .tt-h* classes inside\n@layer components. Tailwind drops layer rules whose class it cannot find\nwritten out, and these are only built as tt-${c}, so all six were purged\nand every swatch, note and chip in an extra colour drew with no colour.\nThe hue classes now sit outside the layer."
+    },
+    {
       "hash": "fa9df0f6b09df0ccf881e43e4d1dd356c49d4009",
       "date": "2026-10-15T12:23:13-06:00",
       "author": "erwindank",

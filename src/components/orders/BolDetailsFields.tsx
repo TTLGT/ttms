@@ -3,16 +3,17 @@
 import { useEffect, useState } from 'react';
 import { updateOrder } from '@/lib/orders';
 import {
+  DOCK_PARTIES, DOCK_PARTY_LABEL,
   FREIGHT_CHARGE_TERMS, FREIGHT_CHARGE_TERMS_LABEL, FREIGHT_COUNTED_BY, FREIGHT_COUNTED_BY_LABEL,
-  TRAILER_LOADED_BY, TRAILER_LOADED_BY_LABEL,
-  type FreightChargeTerms, type FreightCountedBy, type Order, type TrailerLoadedBy,
+  type DockParty, type FreightChargeTerms, type FreightCountedBy, type Order,
 } from '@/types/order';
 
 const INPUT =
   'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
 type BolDetails = Pick<Order,
-  'truckNumber' | 'trailerNumber' | 'freightChargeTerms' | 'thirdPartyBillTo' | 'trailerLoadedBy' | 'freightCountedBy'>;
+  'truckNumber' | 'trailerNumber' | 'freightChargeTerms' | 'thirdPartyBillTo' | 'trailerLoadedBy' | 'freightCountedBy'
+  | 'trailerUnloadedBy' | 'deliveryCountedBy' | 'bolShowDockBoxes'>;
 
 function detailsOf(o: Partial<Order>): Required<BolDetails> {
   return {
@@ -22,6 +23,9 @@ function detailsOf(o: Partial<Order>): Required<BolDetails> {
     thirdPartyBillTo:   o.thirdPartyBillTo ?? '',
     trailerLoadedBy:    o.trailerLoadedBy ?? null,
     freightCountedBy:   o.freightCountedBy ?? null,
+    trailerUnloadedBy:  o.trailerUnloadedBy ?? null,
+    deliveryCountedBy:  o.deliveryCountedBy ?? null,
+    bolShowDockBoxes:   o.bolShowDockBoxes === true,
   };
 }
 
@@ -51,9 +55,11 @@ function Choice<T extends string>({ options, labels, value, onChange, disabled }
  * truck, who pays the freight, and what happened at the dock — in the BOL
  * card on the order.
  *
- * Every one is optional. Left unset, the BOL prints an empty box for a pen,
- * the same as the paper form, so a load can be dispatched before anybody
- * knows the trailer number.
+ * Every one is optional. A truck, trailer or charge term left unset prints as
+ * an empty box for a pen, the same as the paper form, so a load can be
+ * dispatched before anybody knows the trailer number. The loading and count
+ * answers are the exception: unanswered ones are left off the BOL unless
+ * `bolShowDockBoxes` asks for the full grid.
  *
  * `onSaved` hands the saved values back, so the page can redraw the BOL with
  * them — a stored BOL does not change by itself.
@@ -88,6 +94,9 @@ export default function BolDetailsFields({ order, orderId, canEdit, onSaved }: {
         thirdPartyBillTo:   draft.freightChargeTerms === 'third_party' ? draft.thirdPartyBillTo.trim() : '',
         trailerLoadedBy:    draft.trailerLoadedBy,
         freightCountedBy:   draft.freightCountedBy,
+        trailerUnloadedBy:  draft.trailerUnloadedBy,
+        deliveryCountedBy:  draft.deliveryCountedBy,
+        bolShowDockBoxes:   draft.bolShowDockBoxes,
       };
       await updateOrder(orderId, patch);
       setSaved(true);
@@ -129,19 +138,48 @@ export default function BolDetailsFields({ order, orderId, canEdit, onSaved }: {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <p className="text-xs font-medium text-gray-600 mb-1.5">Trailer loaded</p>
-          <Choice<TrailerLoadedBy> options={TRAILER_LOADED_BY} labels={TRAILER_LOADED_BY_LABEL}
+          <p className="text-xs font-medium text-gray-600 mb-1.5">Loaded by</p>
+          <Choice<DockParty> options={DOCK_PARTIES} labels={DOCK_PARTY_LABEL}
             value={draft.trailerLoadedBy} onChange={(v) => set({ trailerLoadedBy: v })} disabled={off} />
         </div>
         <div>
-          <p className="text-xs font-medium text-gray-600 mb-1.5">Freight counted</p>
+          <p className="text-xs font-medium text-gray-600 mb-1.5">Unloaded by</p>
+          <Choice<DockParty> options={DOCK_PARTIES} labels={DOCK_PARTY_LABEL}
+            value={draft.trailerUnloadedBy} onChange={(v) => set({ trailerUnloadedBy: v })} disabled={off} />
+        </div>
+        <div>
+          <p className="text-xs font-medium text-gray-600 mb-1.5">Counted at pickup by</p>
           <Choice<FreightCountedBy> options={FREIGHT_COUNTED_BY} labels={FREIGHT_COUNTED_BY_LABEL}
             value={draft.freightCountedBy} onChange={(v) => set({ freightCountedBy: v })} disabled={off} />
+          {(draft.freightCountedBy === 'driver_pallets' || draft.freightCountedBy === 'driver_pieces') && (
+            <p className="text-xs text-gray-500 mt-1.5">
+              {draft.freightCountedBy === 'driver_pallets'
+                ? 'The driver counts the pallets but not what is on them. The pieces are taken on the shipper’s word, so the driver is not responsible for pieces missing from a pallet.'
+                : 'The driver counts every box or piece. The driver is responsible if the count is short at delivery.'}
+            </p>
+          )}
+        </div>
+        <div>
+          <p className="text-xs font-medium text-gray-600 mb-1.5">Counted at delivery by</p>
+          <Choice<DockParty> options={DOCK_PARTIES} labels={DOCK_PARTY_LABEL}
+            value={draft.deliveryCountedBy} onChange={(v) => set({ deliveryCountedBy: v })} disabled={off} />
         </div>
       </div>
 
+      <label className="flex items-start gap-2 text-xs text-gray-600">
+        <input type="checkbox" checked={draft.bolShowDockBoxes} disabled={off}
+          onChange={(e) => set({ bolShowDockBoxes: e.target.checked })} className="mt-0.5" />
+        <span>
+          Print all the loading, unloading and count boxes on the BOL
+          <span className="block text-gray-400">
+            Only when the carrier or client asks for boxes to tick by hand. Otherwise the BOL shows only the answers above, and leaves the section out when there are none.
+          </span>
+        </span>
+      </label>
+
       <p className="text-xs text-gray-400">
-        Handling units and hazardous material are set on each freight line. Anything left empty prints as a blank box to fill in by hand.
+        Handling units and hazardous material are set on each freight line. Truck, trailer and freight charges left empty print as a blank to fill in by hand.
+        Loading, unloading and counts also go on the carrier&apos;s Dispatch Sheet the next time it is sent. Leave a count empty when nobody counts.
       </p>
 
       {canEdit && (

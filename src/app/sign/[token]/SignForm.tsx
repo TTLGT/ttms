@@ -57,6 +57,8 @@ interface Props {
   instructions: string;
   /** What the client added when signing. Not shown on the form; it is for the signed PDF. */
   signerInstructions?: string;
+  /** Who loads, unloads and counts — carrier links only. See SignFormData.dockWork. */
+  dockWork?: { label: string; value: string }[];
   /**
    * The terms this link was sent with. For a client agreement it is the copy
    * on the token (or the old standard wording, for a link sent before the
@@ -197,7 +199,7 @@ function StopList({ title, stops }: { title: string; stops: ConfirmationStop[] }
 
 export default function SignForm({
   token, type, orderNumber, partyName, driverName, commodity, weight, pieces, dimensions,
-  originStr, destinationStr, pickupDate, deliveryDate, rate, notes, instructions,
+  originStr, destinationStr, pickupDate, deliveryDate, rate, notes, instructions, dockWork,
   terms, stops, freight, equipment, payment, validUntil, sentByName, sentByEmail,
   brokerName, brokerEmail, brokerPhone,
   version, revisedNote, preview,
@@ -401,6 +403,7 @@ export default function SignForm({
           {dimensions && <DetailRow label="Dimensions" value={dimensions} />}
           <DetailRow label="Pickup"    value={pickupDate} />
           <DetailRow label="Delivery"  value={deliveryDate} />
+          {(dockWork ?? []).map((l) => <DetailRow key={l.label} label={l.label} value={l.value} />)}
           <div className="flex justify-between pt-3 mt-1 border-t-2 border-gray-200">
             <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">{rateLabel}</span>
             <span className="text-xl font-bold text-gray-900">{rate}</span>

@@ -410,6 +410,13 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
           ) : null}
         </View>
 
+        {/* Carrier links only, and only what was answered — see dockWorkLines(). */}
+        {f.dockWork && f.dockWork.length > 0 ? (
+          <Panel title="LOADING, UNLOADING & COUNT" style={{ marginBottom: 10 }}>
+            {f.dockWork.map((l) => <Field key={l.label} label={l.label} value={l.value} />)}
+          </Panel>
+        ) : null}
+
         {f.instructions ? (
           <Panel title="SPECIAL INSTRUCTIONS" style={{ marginBottom: 10 }}>
             <Text style={s.terms}>{f.instructions}</Text>
