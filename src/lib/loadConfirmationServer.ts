@@ -8,6 +8,7 @@ import {
   clientPaymentDetails,
   type ConfirmationFreight, type ConfirmationPayment, type ConfirmationStop,
 } from '@/types/loadConfirmation';
+import { orderTermsOf } from '@/types/agreementTerms';
 
 /**
  * What the client agrees to when they sign the load confirmation, worked out
@@ -21,9 +22,10 @@ import {
  * Anything printed on the signing page belongs here, and anything here is on
  * the signing page: a field the client cannot see must not hold their link for
  * review, and a field they can see must not change behind a signed agreement
- * without anyone noticing. Terms are deliberately not part of it — they are
- * the company's, not the order's, and a link keeps the terms it went out with
- * (see src/types/agreementTerms.ts).
+ * without anyone noticing. The general terms are deliberately not part of it
+ * — they are the company's, not the order's, and a link keeps the terms it
+ * went out with (see src/types/agreementTerms.ts). Terms set on **this
+ * order** are: they were changed for this client, so the client must see them.
  */
 
 type AnyOrder = Partial<Order> & Record<string, unknown>;
@@ -40,7 +42,7 @@ type AnyOrder = Partial<Order> & Record<string, unknown>;
  * order had internal notes reads as changed, once — which is true, since the
  * client is no longer shown them.
  */
-export type AgreementSection = 'client' | 'rate' | 'stops' | 'freight' | 'payment' | 'notes';
+export type AgreementSection = 'client' | 'rate' | 'stops' | 'freight' | 'payment' | 'notes' | 'terms';
 
 export const AGREEMENT_SECTION_LABEL: Record<AgreementSection, string> = {
   client:  'client',
@@ -49,9 +51,16 @@ export const AGREEMENT_SECTION_LABEL: Record<AgreementSection, string> = {
   freight: 'freight',
   payment: 'payment terms',
   notes:   'special instructions',
+  terms:   'terms and conditions',
 };
 
-const SECTIONS: AgreementSection[] = ['client', 'rate', 'stops', 'freight', 'payment', 'notes'];
+/**
+ * `terms` is last and optional: it is '' — and left out of contentHash() —
+ * for a load that follows the general terms, which is every load sent before
+ * an order could have its own. So no live link reads as changed because the
+ * section was added; only a load given terms of its own does.
+ */
+const SECTIONS: AgreementSection[] = ['client', 'rate', 'stops', 'freight', 'payment', 'notes', 'terms'];
 
 export function confirmationStops(order: AnyOrder): ConfirmationStop[] {
   // Every stop written out in full — the facility, the street and the window —
@@ -113,6 +122,8 @@ export interface ConfirmationContent {
   accessorials: string[];
   /** The client's special instructions, as staff wrote them. Not what the client adds when signing — that is theirs, not a term we offer. */
   instructions: string;
+  /** This order's own client terms, or '' when it follows the general ones. */
+  terms: string;
 }
 
 export function confirmationContent(order: AnyOrder): ConfirmationContent {
@@ -129,6 +140,7 @@ export function confirmationContent(order: AnyOrder): ConfirmationContent {
     payment:    clientPaymentDetails(order),
     accessorials: orderAccessorials(order),
     instructions: String(order.clientInstructions ?? '').trim(),
+    terms:      orderTermsOf(order, 'client') ?? '',
   };
 }
 
@@ -152,11 +164,12 @@ export function sectionHashes(c: ConfirmationContent): Record<AgreementSection, 
       ...(c.accessorials.length ? [c.accessorials] : [])]),
     payment: sha(c.payment),
     notes:   sha(c.instructions),
+    terms:   c.terms ? sha(c.terms) : '',
   };
 }
 
 export function contentHash(sections: Record<AgreementSection, string>): string {
-  return sha(SECTIONS.map((s) => sections[s]));
+  return sha(SECTIONS.filter((s) => s !== 'terms' || sections.terms).map((s) => sections[s]));
 }
 
 /** The sections that differ, by label — "rate, pickup and delivery". */

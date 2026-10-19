@@ -1127,6 +1127,15 @@ export interface Order {
    * together with `clientInstructions` as one "client special instructions".
    */
   clientAddedInstructions?: ClientAddedInstruction[];
+  /**
+   * This load's own terms and conditions for the client's SA and the
+   * carrier's Dispatch Sheet, replacing the general ones on this load only.
+   * Absent or null: the load follows the general terms. Written only by
+   * `/api/orders/{id}/terms`, after an admin's approval when a dispatcher made
+   * the change — see `orderTermsOf()` in src/types/agreementTerms.ts.
+   */
+  clientTerms?: string | null;
+  carrierTerms?: string | null;
   deliveredAt: Timestamp | null;
   carrierSignedAt: Timestamp | null;
   carrierSignerName: string | null;

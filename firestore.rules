@@ -1313,6 +1313,11 @@ service cloud.firestore {
     // BOL send requests. Read and written only through /api/orders/{id}/bol-request
     // and /api/bol-requests — see src/types/bolRequest.ts. Identical to the default deny.
     match /bolRequests/{id}             { allow read, write: if false; }
+    // Proposed changes to the agreement terms, for an admin to approve. Read
+    // and written only through /api/agreement-terms, /api/orders/{id}/terms
+    // and /api/terms-requests — see src/types/agreementTerms.ts. Identical to
+    // the default deny; written out so nobody "fixes" it by opening it.
+    match /termsChangeRequests/{id}     { allow read, write: if false; }
     // The client's signing link per order — which link, which version, held
     // or not. Read and written only by the SA routes and the order save; see
     // src/lib/clientAgreements.ts. Identical to the default deny.

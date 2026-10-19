@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { ConfirmationFreight, ConfirmationPayment, ConfirmationStop } from '@/types/loadConfirmation';
-import { CARRIER_TERMS } from '@/types/agreementTerms';
+import { DEFAULT_CARRIER_TERMS } from '@/types/agreementTerms';
 import { MAX_CLIENT_INSTRUCTION } from '@/types/order';
 import type { DeviceHints } from '@/types/saRequest';
 
@@ -62,9 +62,9 @@ interface Props {
   /** Ramps, a liftgate… as labels. See SignFormData.accessorials. */
   accessorials?: string[];
   /**
-   * The terms this link was sent with. For a client agreement it is the copy
-   * on the token (or the old standard wording, for a link sent before the
-   * terms were a setting); for a carrier it is `CARRIER_TERMS` (src/types/agreementTerms.ts).
+   * The terms this link was sent with: the copy on the token, or the old
+   * standard wording for a link sent before that party's terms were a
+   * setting (src/types/agreementTerms.ts).
    */
   terms?: string;
   /**
@@ -225,7 +225,7 @@ export default function SignForm({
   const isClient   = type === 'shipper_agreement';
   const partyLabel = isClient ? 'Client' : 'Carrier';
   const rateLabel  = isClient ? 'Agreed Rate' : 'Carrier Pay';
-  const termsText  = terms || CARRIER_TERMS;
+  const termsText  = terms || DEFAULT_CARRIER_TERMS;
   const docName    = isClient ? 'Client Load Confirmation' : 'Dispatch Sheet';
 
   // The full review exists only on client links sent since it was added.

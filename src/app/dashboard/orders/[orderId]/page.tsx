@@ -66,6 +66,7 @@ import PersonNameFields from '@/components/PersonNameFields';
 import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload';
 import OrderFiles from '@/components/orders/OrderFiles';
 import OrderReadinessCard from '@/components/orders/OrderReadinessCard';
+import OrderTermsCard from '@/components/orders/OrderTermsCard';
 import { RequestSaButton, SaRequestPanel } from '@/components/orders/SaRequestPanel';
 import SaVerificationRecord from '@/components/orders/SaVerificationRecord';
 import SaAgreementVersions from '@/components/orders/SaAgreementVersions';
@@ -2017,6 +2018,13 @@ export default function OrderDetailPage() {
               ))}
             </div>
           </div>
+
+          {/* This load's own terms, or the general ones. Only for those who
+              keep the terms; the route checks again. A client-terms change can
+              hold the SA, so the review panel re-reads. */}
+          {(can('agreementTerms.manage') || can('settings.manage')) && (
+            <OrderTermsCard orderId={orderId} onChanged={() => setSaRefresh((n) => n + 1)} />
+          )}
 
           <div className="text-xs text-gray-400">
             Created {formatDate(order.createdAt as { toDate: () => Date } | null)} · Last updated {formatDate(order.updatedAt as { toDate: () => Date } | null)}

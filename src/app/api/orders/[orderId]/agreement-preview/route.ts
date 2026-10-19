@@ -3,7 +3,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb, AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
-import { currentClientTerms } from '@/lib/agreementTermsServer';
+import { termsForOrder } from '@/lib/agreementTermsServer';
 import { clientAgreementRef, type ClientAgreementPointer } from '@/lib/clientAgreements';
 import {
   changedSections, confirmationContent, contentHash, sectionHashes, sectionList, tokenSnapshotFields,
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   let pending = null;
   if (changed) {
     const [terms, clientSnap, broker] = await Promise.all([
-      currentClientTerms(),
+      termsForOrder(order, 'client'),
       order.clientId ? adminDb.collection('parties').doc(String(order.clientId)).get() : Promise.resolve(null),
       paperworkBroker(order).catch(() => null),
     ]);

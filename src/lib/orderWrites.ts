@@ -73,6 +73,9 @@ const SERVER_KEPT_FIELDS = [
   'paperCaConfirmedAt', 'paperCaConfirmedTo', 'paperCaConfirmedByName',
   // When the client or carrier last changed — see planPartySwap().
   'clientChangedAt', 'carrierChangedAt',
+  // This load's own agreement terms — /terms, which asks an admin first when
+  // a dispatcher made the change. An edit here would skip that approval.
+  'clientTerms', 'carrierTerms',
 ] as const;
 
 /** Bookkeeping the server sets itself; dropped from a patch rather than refused. */
@@ -411,6 +414,10 @@ export async function createOrderAsCaller(
   record.signatureWaived = false;
   record.clientAddedInstructions = [];
   record.partyApprovals  = [];
+  // A new load follows the general terms, even one copied from a load that had
+  // its own: those were approved for that load, not for this one.
+  delete record.clientTerms;
+  delete record.carrierTerms;
 
   Object.assign(record, await clientOwnerMirror(record.clientId));
 

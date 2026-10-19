@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "4a9e78d2040d327d064e20dcaac18a2b453e7d15",
+      "date": "2026-10-19T06:39:15-06:00",
+      "author": "erwindank",
+      "subject": "Warn people a few minutes before their shift starts so they clock in on time",
+      "body": ""
+    },
+    {
       "hash": "1408c7036d23a66ef9831fd1033b329d3405c64a",
       "date": "2026-10-15T14:49:34-06:00",
       "author": "erwindank",

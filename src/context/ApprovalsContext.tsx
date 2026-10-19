@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { listAccessRequests } from '@/lib/parties';
 import { listOrderAccessRequests } from '@/lib/orders';
 import { listProfileUpdateRequests } from '@/lib/profileRequests';
+import { listTermsRequests } from '@/lib/agreementTerms';
 
 /**
  * How many approvals are waiting, for the badges in the nav.
@@ -41,7 +42,7 @@ export function ApprovalsProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(() => {
     if (!user) { setIncoming(0); setOutgoing(0); return; }
 
-    // Six small queries. Failures are swallowed per box rather than dropping
+    // Eight small queries. Failures are swallowed per box rather than dropping
     // the set: a badge that is short by one is worth more than no badge, and
     // there is nothing useful to tell somebody about a count that did not load.
     // The profile queue answers with an empty list rather than a 403 for
@@ -50,6 +51,8 @@ export function ApprovalsProvider({ children }: { children: React.ReactNode }) {
       listAccessRequests('incoming').catch(() => []),
       listOrderAccessRequests('incoming').catch(() => []),
       listProfileUpdateRequests('incoming').catch(() => []),
+      // Empty for anybody who cannot approve terms, so it costs them nothing.
+      listTermsRequests('incoming').catch(() => []),
     ]).then((boxes) => {
       setIncoming(pending(boxes));
     });
@@ -58,6 +61,7 @@ export function ApprovalsProvider({ children }: { children: React.ReactNode }) {
       listAccessRequests('outgoing').catch(() => []),
       listOrderAccessRequests('outgoing').catch(() => []),
       listProfileUpdateRequests('outgoing').catch(() => []),
+      listTermsRequests('outgoing').catch(() => []),
     ]).then((boxes) => {
       setOutgoing(pending(boxes));
     });

@@ -10,7 +10,7 @@ import {
 } from '@/lib/saRequestsServer';
 import { cleanCcList, outstandingChecks } from '@/types/saRequest';
 import { signUrl } from '@/lib/appUrl';
-import { currentClientTerms } from '@/lib/agreementTermsServer';
+import { termsForOrder } from '@/lib/agreementTermsServer';
 import { clientAgreementRef, planAgreementHold, type ClientAgreementPointer } from '@/lib/clientAgreements';
 import {
   changedSections, confirmationContent, contentHash, sectionHashes, sectionList, tokenSnapshotFields,
@@ -224,7 +224,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
    * quote, or a link naming terms nobody could read, would be worse than a
    * send that fails and is tried again.
    */
-  const terms = kind === 'resend' ? null : await currentClientTerms();
+  // The load's own terms when it has them — see termsForOrder().
+  const terms = kind === 'resend' ? null : await termsForOrder(order, 'client');
   const qr    = await qrPng(link);
   const quote = await generateQuoteBuffer({
     ...(await buildQuoteData(order as Partial<Order> & Record<string, unknown>, broker
@@ -288,6 +289,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
        */
       termsText:      terms!.text,
       termsUpdatedAt: terms!.updatedAt,
+      termsFromOrder: terms!.fromOrder,
     });
   } else if (kind === 'resend') {
     // Only the clock, the recipient and who sent it. The content, the terms
@@ -322,6 +324,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       version,
       termsText:      terms!.text,
       termsUpdatedAt: terms!.updatedAt,
+      termsFromOrder: terms!.fromOrder,
       revisedAt:      now,
       previousSentAt: current!.lastSentAt ?? current!.createdAt ?? null,
       changedSections: changed,

@@ -1,6 +1,6 @@
 import { formatLongDateRange } from '@/lib/dateFormat';
 import { phoneRegionOf, PHONE_COUNTRY_CODE } from '@/lib/phone';
-import { CARRIER_TERMS, DEFAULT_CLIENT_TERMS } from '@/types/agreementTerms';
+import { DEFAULT_TERMS } from '@/types/agreementTerms';
 import type { ConfirmationFreight, ConfirmationPayment, ConfirmationStop } from '@/types/loadConfirmation';
 
 /**
@@ -148,9 +148,11 @@ export function signFormData(data: Record<string, any>): SignFormData {
     accessorials: Array.isArray(data.accessorials)
       ? data.accessorials.filter((a: unknown): a is string => typeof a === 'string' && a.length > 0)
       : undefined,
-    // A client link sent before the terms were a setting has no copy of
+    // A link sent before its party's terms were a setting has no copy of
     // them, and was sent under the standard wording — which is what it shows.
-    terms: isClient ? (typeof data.termsText === 'string' && data.termsText ? data.termsText : DEFAULT_CLIENT_TERMS) : CARRIER_TERMS,
+    terms: typeof data.termsText === 'string' && data.termsText
+      ? data.termsText
+      : DEFAULT_TERMS[isClient ? 'client' : 'carrier'],
     stops: isClient && Array.isArray(data.stops) ? data.stops : undefined,
     freight: isClient && Array.isArray(data.freight) ? data.freight : undefined,
     equipment: isClient ? data.equipment || '' : undefined,

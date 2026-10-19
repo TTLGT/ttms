@@ -7,6 +7,7 @@ import { agreementSentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { actorForUid, recordEvent } from '@/lib/recordHistory';
 import { signUrl } from '@/lib/appUrl';
 import { brokerSnapshot, paperworkBroker } from '@/lib/orderOwnersServer';
+import { termsForOrder } from '@/lib/agreementTermsServer';
 import { randomBytes } from 'crypto';
 import {
   archiveRound, buildSaReview, freezeReview, requestRef, roundRef, saGateFactsFor, sendEntry,
@@ -131,6 +132,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   // The broker on the load, named on the Dispatch Sheet and the email beside
   // the dispatcher who sent it — see paperworkBroker().
   const broker  = await paperworkBroker(order).catch(() => null);
+  // Read before anything is written: a link naming terms nobody could read
+  // would be worse than a send that fails and is tried again.
+  const terms   = await termsForOrder(order, 'carrier');
 
   const token      = randomBytes(32).toString('hex');
   const now        = Timestamp.now();
@@ -186,6 +190,15 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     dockWork:     dockWorkLines(order as Partial<Order>),
     // Ramps, a winch, a liftgate… as labels, snapshotted with the rest.
     accessorials: accessorialLabels(order),
+    /*
+     * The terms as they stand now — this load's own, or the general ones —
+     * copied in full, as the client's link does. A carrier signs what they
+     * were sent, whatever the setting says by the time they open it. Links
+     * sent before 2026-10-19 carry none and show DEFAULT_CARRIER_TERMS.
+     */
+    termsText:      terms.text,
+    termsUpdatedAt: terms.updatedAt,
+    termsFromOrder: terms.fromOrder,
     version,
     cc,
     sentByName:   actor?.name ?? '',

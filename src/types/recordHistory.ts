@@ -112,6 +112,8 @@ const LABELS: Record<string, string> = {
   routeMapUrl: 'Route map link',
   carrierInstructions: 'Carrier special instructions',
   clientInstructions: 'Client special instructions',
+  clientTerms: 'Client SA terms (this load)',
+  carrierTerms: 'Dispatch Sheet terms (this load)',
   clientAddedInstructions: 'Instructions added by the client',
   trailerLoadedBy: 'Loaded by',
   trailerUnloadedBy: 'Unloaded by',

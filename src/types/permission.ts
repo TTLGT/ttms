@@ -181,8 +181,20 @@ export const PERMISSIONS = [
    * Not part of `settings.manage`'s slices on purpose: it is a legal text,
    * not a setting, and a finance or HR person holding the broad permission by
    * hand still reaches it through `settings.manage` below.
+   *
+   * Covers the carrier's Dispatch Sheet as well as the client's SA (since
+   * 2026-10-19), in Settings and on one order. Holding it alone only
+   * **proposes**: the change waits for `agreementTerms.approve` below.
    */
   'agreementTerms.manage',
+  /**
+   * Decide proposed changes to the terms, and edit them without asking. See
+   * `TermsChangeRequest` in src/types/agreementTerms.ts.
+   *
+   * Admin only by default — no role was widened when it was added. Dispatch
+   * keeps the wording; an admin signs off on a change to a contract.
+   */
+  'agreementTerms.approve',
 
   // ── Everything else ──────────────────────────────────────────────────────
   'chat.use',
@@ -353,7 +365,8 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'laneDistance.manage', label: 'Manage lane distance', detail: 'Choose how order mileage is worked out, and recheck a load’s mileage with Google — each recheck is charged. Finance has this already.' },
       { key: 'paymentTerms.manage', label: 'Manage payment terms', detail: 'The payment methods and fee terms offered for clients and carriers, and the fee each one carries. Finance has this already.' },
       { key: 'quoteRates.manage', label: 'Manage quote rates', detail: 'The rates, truck sizes and market figures the quote calculator prices loads with. Everyone who books loads uses the calculator; this changes what it says.' },
-      { key: 'agreementTerms.manage', label: 'Edit agreement terms', detail: 'The terms and conditions clients read and accept when they sign a load confirmation. Admin and dispatch have this already.' },
+      { key: 'agreementTerms.manage', label: 'Edit agreement terms', detail: 'Propose changes to the terms and conditions on the client SA and the carrier Dispatch Sheet, for every load or for one. An admin approves each change. Admin and dispatch have this already.' },
+      { key: 'agreementTerms.approve', label: 'Approve agreement terms', detail: 'Approve or turn down proposed changes to the terms, and change them without asking. Admin only by default.' },
     ],
   },
   {
@@ -463,7 +476,8 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     'leadSources.manage',
     // The terms on the client's load confirmation: dispatch sends every one of
     // them and answers the client's questions about it. Added 2026-10-08,
-    // widening every dispatcher at their next sign-in.
+    // widening every dispatcher at their next sign-in. Since 2026-10-19 it
+    // reaches the carrier's terms too, and only proposes: an admin approves.
     'agreementTerms.manage',
   ],
 

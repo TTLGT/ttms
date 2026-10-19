@@ -860,8 +860,10 @@ show what the order says today instead of what was signed.
 - `?party=carrier` on both does the same for the Carrier Agreement. Each
   carrier send is its own link, so its versions are its links in order (the
   token's `version`, or its place in the list for links sent before
-  2026-10-09). The carrier's terms are `CARRIER_TERMS` in
-  `src/types/agreementTerms.ts`, read by the signing page and the PDF alike.
+  2026-10-09). The carrier's terms are copied onto each link as `termsText`
+  when it is sent (since 2026-10-19), exactly as the client's are; an older
+  link has none and shows `DEFAULT_CARRIER_TERMS` from
+  `src/types/agreementTerms.ts`, on the signing page and the PDF alike.
 - On signing, the signer — client or carrier — is emailed the PDF
   (`src/lib/signedAgreementEmail.ts`); a carrier's copy goes to the carrier's
   address and the link's own `cc`, never to the client.
@@ -984,6 +986,62 @@ and shown on its signing page and signed PDF. A link sent earlier has none.
 And on each line of `commodities`: `handlingUnits` (number or null),
 `handlingUnitType` (`PLT`, `SKID`…) and `hazmat` (boolean). The BOL's declared
 value is the sum of the lines' `value`.
+
+## Agreement terms — general, per load, and the approval (2026-10-19)
+
+The terms and conditions on the client's SA and on the carrier's Dispatch
+Sheet. Types and the rules in `src/types/agreementTerms.ts`; writes in
+`src/lib/termsChangeServer.ts`.
+
+**General terms** live in `appSettings/agreementTerms`, edited in Settings →
+Operations → Agreement Terms (two tabs):
+
+| Field | Type | Notes |
+|---|---|---|
+| `client` | string | The SA's terms. Absent → `DEFAULT_CLIENT_TERMS`. |
+| `updatedAt` / `updatedBy` | Timestamp / string | When the client terms were last saved. Bare names because they predate the carrier's. |
+| `carrier` | string | The Dispatch Sheet's terms. Absent → `DEFAULT_CARRIER_TERMS`. |
+| `carrierUpdatedAt` / `carrierUpdatedBy` | Timestamp / string | Same, for the carrier. |
+
+**One load's own terms** are on the order, set from the Terms and Conditions
+card on the order and nowhere else:
+
+| Field | Type | Notes |
+|---|---|---|
+| `clientTerms` / `carrierTerms` | string \| null | Replaces the general terms on this load only. Null or absent: the load follows the general ones. Server-kept — an ordinary order edit cannot write them, and a new or copied order never carries them. |
+| `clientTermsUpdatedAt` / `carrierTermsUpdatedAt` | Timestamp | When the above was last set. |
+
+Every send copies the terms in force onto the signing link as `termsText`
+(plus `termsFromOrder`), and the link keeps them. A load's own **client** terms
+are part of the SA's fingerprint (`terms` in `sectionHashes`), so changing them
+after the SA went out holds the link for review like a rate change. The section
+is left out of the hash when the load has none, so no existing link reads as
+changed. The carrier's are not fingerprinted: each Dispatch Sheet send is its
+own link, and one already out keeps what it was sent with.
+
+### Collection: `termsChangeRequests`
+
+A change waiting for an admin. Somebody with `agreementTerms.manage` but not
+`agreementTerms.approve` (dispatch, by default) proposes; an admin decides on
+the Approvals screen. An admin's own edit applies at once. Closed in the rules;
+read and written only through `/api/agreement-terms`, `/api/orders/{id}/terms`
+and `/api/terms-requests`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `scope` | `'general'` \| `'order'` | Where it was made, and so what it changes. An order request only ever changes that order. |
+| `party` | `'client'` \| `'carrier'` | |
+| `orderId` / `orderNumber` | string \| null | For an order request. |
+| `text` | string \| null | The proposed wording. Null on an order request: go back to the general terms. |
+| `baseText` | string | What the proposer was looking at, so the approver is warned if the terms moved since. |
+| `reason` | string | Optional, from the proposer. |
+| `status` | `'pending'` \| `'approved'` \| `'denied'` \| `'withdrawn'` | A newer request from the same person for the same thing withdraws the older one. |
+| `requestedByUid` / `requestedByName` / `requestedByEmail` / `requestedAt` | | |
+| `decidedByUid` / `decidedByName` / `decidedAt` / `decisionNote` | | |
+
+Order requests write a change-log entry when made, approved, turned down or
+withdrawn. Queries are single-field only (`status`, `orderId`,
+`requestedByUid`, `requestedAt`), so no composite index is needed.
 
 ## Collection: `bolRequests` — BOLs waiting to be sent
 

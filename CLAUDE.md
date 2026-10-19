@@ -1243,6 +1243,26 @@ Carrier section and on Documents, a confirmation email to the carrier
 hand only once a `signed_ca` file is on the load** — enforced in
 `updateOrderAsCaller()`, the same as Client Signed.
 
+### Terms and conditions — general, per load, approved by an admin
+
+The SA and the Dispatch Sheet each have general terms (Settings → Operations →
+Agreement Terms, `appSettings/agreementTerms`) and a load can have its own
+(`clientTerms` / `carrierTerms` on the order, from the Terms and Conditions
+card on the order — **that load only**). See `src/types/agreementTerms.ts` and
+`termsChangeRequests` in the Schema Guide.
+
+- **`agreementTerms.manage` proposes; `agreementTerms.approve` (admin) decides.**
+  A dispatcher's save files a `termsChangeRequest` and changes nothing; an
+  admin's applies at once. `src/lib/termsChangeServer.ts` is the only writer of
+  either, and the order fields are `SERVER_KEPT_FIELDS` in `orderWrites.ts` —
+  keep them there, or an ordinary order edit skips the approval.
+- **Every send reads `termsForOrder()`**, never the setting directly, and
+  copies the result onto the link as `termsText`. Carrier links carry it since
+  2026-10-19; older ones fall back to `DEFAULT_CARRIER_TERMS`, so editing that
+  constant rewrites what old Dispatch Sheets say.
+- A load's own client terms are the SA's `terms` fingerprint section, left out
+  of the hash when empty so no live link reads as changed.
+
 ### The BOL — generated on the second signature, sent by a person
 
 Generating a BOL (`orders.bol`) is in the broker baseline since 2026-10-14,

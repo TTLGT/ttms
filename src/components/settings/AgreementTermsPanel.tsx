@@ -1,127 +1,95 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { RotateCcw } from 'lucide-react';
-import { getAgreementTerms, saveAgreementTerms } from '@/lib/agreementTerms';
+import { useCallback, useEffect, useState } from 'react';
+import { getAgreementTerms, saveAgreementTerms, type AgreementTermsResponse } from '@/lib/agreementTerms';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { DEFAULT_CLIENT_TERMS, MAX_TERMS_LENGTH, validateClientTerms } from '@/types/agreementTerms';
+import { DEFAULT_TERMS, type TermsParty } from '@/types/agreementTerms';
+import TermsEditor from './TermsEditor';
 
 /**
- * Settings → Operations → Agreement Terms: the terms and conditions a client
- * reads and accepts when they sign a load confirmation. See
- * src/types/agreementTerms.ts.
+ * Settings → Operations → Agreement Terms: the general terms and conditions
+ * on the client's SA and on the carrier's Dispatch Sheet. One load can have
+ * its own instead, from the order. See src/types/agreementTerms.ts.
  *
- * A draft with Save and Discard, like Quote Rates: legal wording is edited a
- * clause at a time, and saving on every keystroke would send half a sentence
- * to whichever client dispatch emailed in the meantime.
+ * An admin's save applies at once; anybody else's goes to an admin to approve
+ * (TermsEditor says which before they press it).
  */
+const TABS: { party: TermsParty; label: string; blurb: string }[] = [
+  {
+    party: 'client',
+    label: 'Client SA',
+    blurb: 'The terms on the client’s Shipper Agreement (load confirmation). Clients read these on the signing page and must accept them before they can sign.',
+  },
+  {
+    party: 'carrier',
+    label: 'Carrier Dispatch Sheet',
+    blurb: 'The terms on the carrier’s Dispatch Sheet (rate confirmation). Carriers read these on the signing page and must accept them before they can sign.',
+  },
+];
+
 export default function AgreementTermsPanel() {
   const { formatDateTime } = useDateFormatters();
-  const [saved, setSaved] = useState<string | null>(null);
-  const [draft, setDraft] = useState('');
-  const [meta, setMeta] = useState<{ isDefault: boolean; updatedAt: string | null; updatedBy: string | null }>(
-    { isDefault: true, updatedAt: null, updatedBy: null },
-  );
-  const [saving, setSaving] = useState(false);
+  const [data, setData] = useState<AgreementTermsResponse | null>(null);
+  const [party, setParty] = useState<TermsParty>('client');
   const [error, setError] = useState('');
-  const [justSaved, setJustSaved] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     getAgreementTerms()
-      .then((res) => {
-        setSaved(res.client);
-        setDraft(res.client);
-        setMeta({ isDefault: res.isDefault, updatedAt: res.updatedAt, updatedBy: res.updatedBy });
-      })
+      .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load the agreement terms'));
   }, []);
+  useEffect(load, [load]);
 
-  const dirty = saved !== null && draft !== saved;
-  const checked = validateClientTerms(draft);
-  const problem = dirty && 'error' in checked ? checked.error : '';
-
-  async function save() {
-    if (!dirty || problem) return;
-    setSaving(true);
-    setError('');
-    setJustSaved(false);
-    try {
-      const stored = await saveAgreementTerms(draft);
-      setSaved(stored);
-      setDraft(stored);
-      setMeta({ isDefault: false, updatedAt: new Date().toISOString(), updatedBy: 'you' });
-      setJustSaved(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save the agreement terms');
-    } finally {
-      setSaving(false);
-    }
-  }
+  const tab = TABS.find((t) => t.party === party)!;
+  const terms = data?.[party];
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-6">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-900">Agreement Terms</h2>
-      <p className="mb-4 mt-1 text-sm text-gray-500">
-        The terms and conditions on the client&rsquo;s load confirmation. Clients read these on the signing page
-        and must accept them before they can sign. A change applies to agreements sent from now on. Links
-        already sent keep the terms they went out with.
+      <p className="mt-1 text-sm text-gray-500">
+        The general terms and conditions for every load. A change applies to agreements sent from now on;
+        links already sent keep the terms they went out with. A single load can be given its own terms
+        from the order.
       </p>
 
-      {saved === null && !error ? (
-        <p className="text-sm text-gray-500">Loading…</p>
-      ) : (
-        <>
-          <textarea
-            value={draft}
-            onChange={(e) => { setDraft(e.target.value); setJustSaved(false); }}
-            rows={18}
-            spellCheck
-            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-xs leading-relaxed text-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-400"
-          />
-          <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
-            <span>
-              {meta.isDefault
-                ? 'Showing the standard terms. Nothing has been saved here yet.'
-                : `Last saved${meta.updatedBy ? ` by ${meta.updatedBy}` : ''}${meta.updatedAt ? `, ${formatDateTime(meta.updatedAt)}` : ''}.`}
-            </span>
-            <span className={draft.length > MAX_TERMS_LENGTH ? 'text-red-600' : ''}>
-              {draft.length.toLocaleString('en-US')} / {MAX_TERMS_LENGTH.toLocaleString('en-US')}
-            </span>
-          </div>
+      <div className="mt-4 mb-3 flex gap-1 border-b border-gray-200">
+        {TABS.map((t) => (
+          <button
+            key={t.party}
+            type="button"
+            onClick={() => setParty(t.party)}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+              party === t.party ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t.label}
+            {(data?.[t.party].pending.length ?? 0) > 0 && (
+              <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 text-[11px] font-semibold text-amber-700">
+                {data![t.party].pending.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      <p className="mb-3 text-sm text-gray-500">{tab.blurb}</p>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void save()}
-              disabled={!dirty || Boolean(problem) || saving}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {saving ? 'Saving…' : 'Save terms'}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setDraft(saved ?? ''); setJustSaved(false); }}
-              disabled={!dirty || saving}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Discard changes
-            </button>
-            {/* Puts the standard wording in the box; nothing is saved until Save. */}
-            <button
-              type="button"
-              onClick={() => { setDraft(DEFAULT_CLIENT_TERMS); setJustSaved(false); }}
-              disabled={draft === DEFAULT_CLIENT_TERMS || saving}
-              className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <RotateCcw className="h-3.5 w-3.5" /> Start from the standard terms
-            </button>
-          </div>
-        </>
+      {!data && !error && <p className="text-sm text-gray-500">Loading…</p>}
+      {data && terms && (
+        <TermsEditor
+          key={party}
+          party={party}
+          saved={terms.text}
+          standard={DEFAULT_TERMS[party]}
+          canApprove={data.canApprove}
+          pending={terms.pending}
+          onSave={(text, reason) => saveAgreementTerms(party, text, reason)}
+          onChanged={load}
+          footer={terms.isDefault
+            ? 'Showing the standard terms. Nothing has been saved here yet.'
+            : `Last saved${terms.updatedBy ? ` by ${terms.updatedBy}` : ''}${terms.updatedAt ? `, ${formatDateTime(terms.updatedAt)}` : ''}.`}
+        />
       )}
-
-      {problem && <p className="mt-3 text-sm text-red-600">{problem}</p>}
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-      {justSaved && <p className="mt-3 text-sm text-green-700">Saved. The next agreement sent will use these terms.</p>}
     </section>
   );
 }
