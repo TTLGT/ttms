@@ -1,6 +1,20 @@
 {
   "changes": [
     {
+      "hash": "064200f3d9bf7283fc6f3fb8893948118e9d2dc9",
+      "date": "2026-10-19T13:47:24-06:00",
+      "author": "erwindank",
+      "subject": "Wrap long load notices in chat, and always build signing links with https",
+      "body": "The alert pill truncated at one line, cutting off who was emailed and copied.\nA site address set without https:// built signing links an email client\ntreats as relative; APP_URL now adds the scheme."
+    },
+    {
+      "hash": "ebae3be91a9fc58ec612cbd725891c614648de42",
+      "date": "2026-10-19T13:47:24-06:00",
+      "author": "erwindank",
+      "subject": "Copy the agreement to an address typed in the CC box even when Add was not pressed",
+      "body": "Send and Resend now save a typed-but-unadded address onto the request first\nand name it in the confirmation; text that is not an address stops the send."
+    },
+    {
       "hash": "fa91e41660e28b3eecfd44c11cb2ffe3e13355b7",
       "date": "2026-10-19T10:44:27-06:00",
       "author": "erwindank",

@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { Check, Copy, PartyPopper, Truck } from 'lucide-react';
 import { clock } from '@/lib/chatFormat';
-import { linksIn, type ChatMessage } from '@/types/conversation';
+import { PRODUCTION_APP_URL } from '@/lib/appUrl';
+import type { ChatMessage } from '@/types/conversation';
 
 /**
  * A line from the server itself, in one of two shapes — see SystemMessageKind.
@@ -29,9 +30,33 @@ import { linksIn, type ChatMessage } from '@/types/conversation';
  * "happy birthday" belongs to colleagues, and the post exists to prompt it
  * rather than to stand in for it.
  */
+/**
+ * Addresses in an alert — anything linksIn() finds, plus our own site written
+ * without a scheme. Alerts posted while NEXT_PUBLIC_APP_URL was set to the
+ * bare host (fixed 2026-10-19, see appUrl.ts) carry signing links as
+ * `ttms.totaltransportlogistics.us/sign/…`, and those stay in the rooms. Only
+ * our own host is matched bare, and only here: linksIn() is mirrored in the
+ * rules and the content-kinds backfill, and widening it would mean all three.
+ * Captured, so split() keeps the addresses among the words around them.
+ */
+const OWN_HOST = new URL(PRODUCTION_APP_URL).host.replace(/\./g, '\\.');
+const ALERT_LINK = new RegExp(`((?:https?:\\/\\/|www\\.|${OWN_HOST}\\/)[^\\s<>"']+)`, 'gi');
+
+/** The addresses in an alert, each with its scheme, once each. */
+function alertLinks(text: string): string[] {
+  const out: string[] = [];
+  for (const raw of text.match(ALERT_LINK) ?? []) {
+    const trimmed = raw.replace(/[.,;:!?)\]}'"]+$/, '');
+    if (!trimmed) continue;
+    const url = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    if (!out.includes(url)) out.push(url);
+  }
+  return out;
+}
+
 export default function SystemMessage({ message }: { message: ChatMessage }) {
   if (message.systemKind === 'announcement') return <Announcement message={message} />;
-  if (linksIn(message.text).length > 0) return <AlertWithLinks message={message} />;
+  if (alertLinks(message.text ?? '').length > 0) return <AlertWithLinks message={message} />;
 
   // Wraps rather than truncates. The pill used to cut a line off at its own
   // width, and a load alert is the record of who was emailed and copied —
@@ -83,10 +108,8 @@ function Announcement({ message }: { message: ChatMessage }) {
  */
 function AlertWithLinks({ message }: { message: ChatMessage }) {
   const text = message.text ?? '';
-  const links = linksIn(text);
-  // Same pattern as linksIn(), with a capture group so split() keeps the
-  // addresses in place among the words around them.
-  const parts = text.split(/((?:https?:\/\/|www\.)[^\s<>"']+)/gi);
+  const links = alertLinks(text);
+  const parts = text.split(ALERT_LINK);
 
   return (
     <div className="flex justify-center px-2 py-1.5">
