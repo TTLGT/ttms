@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "1408c7036d23a66ef9831fd1033b329d3405c64a",
+      "date": "2026-10-15T14:49:34-06:00",
+      "author": "erwindank",
+      "subject": "Tell staff that an ad blocker such as AdGuard can block the Google sign-in window, on the login page and in the Handbook",
+      "body": ""
+    },
+    {
       "hash": "883669e1c42bb525451cd023776b67d3399feaa2",
       "date": "2026-10-15T14:41:44-06:00",
       "author": "erwindank",

@@ -342,12 +342,20 @@ function RemindersEditor({
               </label>
               {kind !== 'clockIn' && <SlotFields kind={kind} r={r} disabled={!editable} onChange={(p) => set(kind, p)} />}
               {kind === 'clockIn' && (
-                <p className="mt-2 text-xs text-gray-500">
-                  Follows each person&rsquo;s work schedule: shown from the start of their shift until they clock in,
-                  dismiss it or the shift ends. Never on a day off, a public holiday or a day of time off (pending
-                  requests too). With no schedule set, 7:00 to 4:00 on weekdays. Not recorded on anybody&rsquo;s
-                  attendance.
-                </p>
+                <>
+                  <label className="mt-2 flex items-center gap-1.5">
+                    Warn
+                    <input type="number" min={MINUTES_LIMITS.clockIn.min} max={MINUTES_LIMITS.clockIn.max} value={r.minutes} disabled={!editable}
+                      onChange={(e) => set(kind, { minutes: Number(e.target.value) })} className={numberBox} />
+                    minutes before the shift starts (0 for no warning)
+                  </label>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Follows each person&rsquo;s work schedule: a warning that many minutes before their shift, then a
+                    reminder from the start of the shift until they clock in, dismiss it or the shift ends. Never on a
+                    day off, a public holiday or a day of time off (pending requests too). With no schedule set, 7:00 to
+                    4:00 on weekdays. Not recorded on anybody&rsquo;s attendance.
+                  </p>
+                </>
               )}
               {kind === 'activePause' && (
                 <p className="mt-2 text-xs text-gray-500">

@@ -60,10 +60,14 @@ export interface BreakReminderSettings {
    * "Time to clock in", for somebody who has TTMS open and has not clocked in
    * yet (asked for 2026-10-09). The only kind shown to somebody clocked *out*.
    *
-   * Only `enabled` is read. When it shows comes from the person's work
-   * schedule instead (ClockState.dueAt): from the start of their shift to the
-   * end of it, and never on a day off, a holiday or time off. `at`, `until`,
-   * `minutes` and `days` keep the shape every kind shares and are ignored.
+   * Only `enabled` and `minutes` are read. When it shows comes from the
+   * person's work schedule instead (ClockState.dueAt): from the start of their
+   * shift to the end of it, and never on a day off, a holiday or time off.
+   *
+   * `minutes` is the heads-up before the shift (asked for 2026-10-19): a
+   * separate "your shift starts at 7:00" that many minutes early, so somebody
+   * waiting for the prompt is not already late when it comes. 0 means none.
+   * `at`, `until` and `days` keep the shape every kind shares and are ignored.
    */
   clockIn: SlotReminder;
   break: SlotReminder;
@@ -98,15 +102,20 @@ const WEEKDAYS_ONLY: WeekdayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri'];
  */
 export const DEFAULT_BREAK_REMINDERS: BreakReminderSettings = {
   // Times unused — see `clockIn` above. Stored only to keep the common shape.
-  clockIn:     { enabled: true,  at: '07:00', until: '16:00', minutes: 0,  days: WEEKDAYS_ONLY },
+  // `minutes` is the heads-up before the shift.
+  clockIn:     { enabled: true,  at: '07:00', until: '16:00', minutes: 5,  days: WEEKDAYS_ONLY },
   break:       { enabled: true,  at: '10:00', until: '11:00', minutes: 20, days: WEEKDAYS_ONLY },
   lunch:       { enabled: true,  at: '13:00', until: '14:00', minutes: 60, days: WEEKDAYS_ONLY },
   activePause: { enabled: false, at: '08:30', until: '09:30', minutes: 5,  days: WEEKDAYS_ONLY },
 };
 
-/** How long each kind may last. A pause is a stretch, not a second break. */
+/**
+ * How long each kind may last. A pause is a stretch, not a second break.
+ * For clock-in it is the heads-up before the shift instead; an hour is
+ * already more warning than anybody waits for.
+ */
 export const MINUTES_LIMITS: Record<ReminderKind, { min: number; max: number }> = {
-  clockIn:     { min: 0, max: 0 },
+  clockIn:     { min: 0, max: 60 },
   break:       { min: 5, max: 120 },
   lunch:       { min: 5, max: 120 },
   activePause: { min: 1, max: 15 },
@@ -277,13 +286,29 @@ export function dueReminder(
       // A shift past midnight is asked about until midnight; the next
       // office day is a different question.
       const to = endMin > from ? endMin : 24 * 60;
+      const startsAt = officeClock(officeTimeToMs(date, shift.start));
+      // The heads-up has a key of its own, so dismissing it or "In 15
+      // minutes" never also hides the one at the start of the shift: somebody
+      // who waved the warning away and is now late still wants telling.
+      // Clamped at midnight; a 00:05 shift is warned from 00:00.
+      const early = Math.max(0, from - r.minutes);
+      if (minute >= early && minute < from) {
+        const key = `${date}|${kind}|early`;
+        if (snoozed[key] > now) continue;
+        const left = from - minute;
+        return {
+          kind, key, starts: null,
+          title: `Your shift starts at ${startsAt}`,
+          body: `In ${spoken(left)}. Clock in now so you start on time.`,
+        };
+      }
       if (minute < from || minute >= to) continue;
       const key = `${date}|${kind}`;
       if (snoozed[key] > now) continue;
       return {
         kind, key, starts: null,
         title: 'Time to clock in',
-        body: `Your shift started at ${officeClock(officeTimeToMs(date, shift.start))}. Clock in so your hours are counted.`,
+        body: `Your shift started at ${startsAt}. Clock in so your hours are counted.`,
       };
     }
     if (!r.days.includes(weekday) || !clock.clockedIn) continue;
