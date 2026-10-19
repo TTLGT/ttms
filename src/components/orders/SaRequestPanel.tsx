@@ -223,6 +223,8 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
   const [error, setError] = useState('');
   const [returning, setReturning] = useState(false);
   const [reason, setReason] = useState('');
+  // The CC box's text, held here so Send and Resend can see it — see pendingCc().
+  const [ccTyped, setCcTyped] = useState('');
 
   function load() {
     getSaRequest(orderId, party).then((d) => { setData(d); onLoaded?.(d.request); }).catch((e) => setError(e instanceof Error ? e.message : 'Could not load the request'));
@@ -254,6 +256,36 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
     } finally {
       setBusy('');
     }
+  }
+
+  /**
+   * An address typed into the CC box but never added — Add or Enter not
+   * pressed — used to be left off the email without a word (2026-10-19).
+   * Send and Resend take it as meant: checked here, saved onto the request
+   * before sending (the route reads the list from there, not from the
+   * call), and named in the confirmation. Throws, inside run(), for text
+   * that is not an address, rather than sending without it.
+   */
+  function pendingCc(): { list: string[]; added: boolean } {
+    const e = ccTyped.trim().toLowerCase();
+    if (!e || r.ccEmails.includes(e) || e === (review.sendTo?.email ?? '').toLowerCase()) {
+      return { list: r.ccEmails, added: false };
+    }
+    if (!isCcEmail(e)) throw new Error(`"${ccTyped.trim()}" in the CC box is not an email address. Fix it or clear it, then send.`);
+    return { list: [...r.ccEmails, e], added: true };
+  }
+
+  async function sendWithCc(question: string) {
+    const { list, added } = pendingCc();
+    const copied = list.length ? `\n\nCopied to: ${list.join(', ')}` : '';
+    if (!confirm(question + copied)) return;
+    if (added) {
+      await setSaCc(orderId, list, party);
+      setCcTyped('');
+    }
+    await sendAgreementFor(orderId, party);
+    trackActivity('agreementsSent');
+    onSent?.();
   }
 
   const tone = r.status === 'done' ? 'border-green-200' : r.status === 'returned' ? 'border-amber-200' : 'border-brand-200';
@@ -363,7 +395,7 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
 
             {(r.status === 'open' || r.status === 'sent') && (
               <CcEditor cc={r.ccEmails} contacts={review.clientContacts} signer={review.sendTo?.email ?? ''}
-                disabled={busy !== ''} party={party}
+                disabled={busy !== ''} party={party} typed={ccTyped} setTyped={setCcTyped}
                 onChange={(next) => run('cc', () => setSaCc(orderId, next, party))} />
             )}
 
@@ -376,15 +408,9 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
                     : !review.sendTo ? `The ${carrier ? 'carrier' : 'client'} has no email address`
                     : sendBlocked ? 'The client has not signed the Shipper Agreement (SA) yet, and no waiver is recorded'
                     : ''}
-                  onClick={() => void run('send', async () => {
-                    const copied = r.ccEmails.length ? `\n\nCopied to: ${r.ccEmails.join(', ')}` : '';
-                    if (!confirm((r.reason === 'changed'
-                      ? `Email the updated ${name} to ${review.sendTo?.email}? Their existing link and QR code will show the update.`
-                      : `Email the ${name} to ${review.sendTo?.email}?`) + copied)) return;
-                    await sendAgreementFor(orderId, party);
-                    trackActivity('agreementsSent');
-                    onSent?.();
-                  })}
+                  onClick={() => void run('send', () => sendWithCc(r.reason === 'changed'
+                    ? `Email the updated ${name} to ${review.sendTo?.email}? Their existing link and QR code will show the update.`
+                    : `Email the ${name} to ${review.sendTo?.email}?`))}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
                   {busy === 'send' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   Send {AGREEMENT_BUTTON[party]}{review.sendTo ? ` to ${review.sendTo.email}` : ''}
@@ -395,17 +421,9 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
                   record's sends. A signed agreement is refused by the route. */}
               {r.status === 'sent' && review.sendTo && (
                 <button type="button" disabled={busy !== ''}
-                  onClick={() => void run('resend', async () => {
-                    const copied = r.ccEmails.length ? `
-
-Copied to: ${r.ccEmails.join(', ')}` : '';
-                    if (!confirm((carrier
-                      ? `Email the ${name} to ${review.sendTo?.email} again? They get a new link with the load as it is now, and the one sent before stops working.`
-                      : `Email the ${name} to ${review.sendTo?.email} again? It is the same link, and it will work for another seven days.`) + copied)) return;
-                    await sendAgreementFor(orderId, party);
-                    trackActivity('agreementsSent');
-                    onSent?.();
-                  })}
+                  onClick={() => void run('resend', () => sendWithCc(carrier
+                    ? `Email the ${name} to ${review.sendTo?.email} again? They get a new link with the load as it is now, and the one sent before stops working.`
+                    : `Email the ${name} to ${review.sendTo?.email} again? It is the same link, and it will work for another seven days.`))}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-brand-300 px-3 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:opacity-50">
                   {busy === 'resend' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   Resend
@@ -466,15 +484,17 @@ Copied to: ${r.ccEmails.join(', ')}` : '';
  * offered as one click; anything else is typed. The signer is left out — they
  * are already who it is sent to.
  */
-function CcEditor({ cc, contacts, signer, disabled, onChange, party }: {
+function CcEditor({ cc, contacts, signer, disabled, onChange, party, typed, setTyped }: {
   party: AgreementParty;
   cc: string[];
   contacts: { name: string; email: string }[];
   signer: string;
   disabled: boolean;
   onChange: (next: string[]) => void;
+  /** The box's text, owned by the panel so a send includes it. */
+  typed: string;
+  setTyped: (v: string) => void;
 }) {
-  const [typed, setTyped] = useState('');
   const [hint, setHint] = useState('');
   const full = cc.length >= MAX_SA_CC;
   const offered = contacts.filter((c) => c.email !== signer.toLowerCase() && !cc.includes(c.email));
@@ -542,6 +562,9 @@ function CcEditor({ cc, contacts, signer, disabled, onChange, party }: {
       )}
       {full && <p className="text-[11px] text-gray-500">That is the most one agreement can be copied to ({MAX_SA_CC}).</p>}
       {hint && <p className="text-[11px] text-red-600">{hint}</p>}
+      {!hint && typed.trim() && (
+        <p className="text-[11px] text-gray-500">Not added yet. Press Add, or it is added when you send.</p>
+      )}
     </div>
   );
 }
