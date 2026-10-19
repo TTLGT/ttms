@@ -67,6 +67,7 @@ import DocumentUpload, { DownloadLink } from '@/components/orders/DocumentUpload
 import OrderFiles from '@/components/orders/OrderFiles';
 import OrderReadinessCard from '@/components/orders/OrderReadinessCard';
 import OrderTermsCard from '@/components/orders/OrderTermsCard';
+import ChangeOrderPanel from '@/components/orders/ChangeOrderPanel';
 import { RequestSaButton, SaRequestPanel } from '@/components/orders/SaRequestPanel';
 import SaVerificationRecord from '@/components/orders/SaVerificationRecord';
 import SaAgreementVersions from '@/components/orders/SaAgreementVersions';
@@ -1251,6 +1252,18 @@ export default function OrderDetailPage() {
           come — a quote, or a load waiting on its SA. The quote PDF only while
           it is a quote: after that the client has the SA, and two documents
           with a price on them is one too many. */}
+      {/* A broker's change to paperwork already sent, waiting for dispatch.
+          Approving changes the whole load, so the page reads it again and
+          both reviews refetch (each may have just reopened). */}
+      <ChangeOrderPanel
+        orderId={orderId}
+        onDecided={() => {
+          void getOrder(orderId).then((fresh) => { if (fresh.status === 'ok') setOrder(fresh.order); }).catch(() => {});
+          setSaRefresh((n) => n + 1);
+          setCaRefresh((n) => n + 1);
+        }}
+      />
+
       <SaRequestPanel
         orderId={orderId}
         refreshKey={`${saRefresh}-${order.status}`}

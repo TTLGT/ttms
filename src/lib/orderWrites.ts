@@ -31,10 +31,18 @@ import { can, canEditSource, canSeeOrder } from './accessControl';
 import { allocateOrderNumber } from './orderNumber';
 import { actorOf, diffFields, sameValue, writeChange } from './recordHistory';
 import type { Caller } from './partyAccess';
-import { planAgreementHold } from './clientAgreements';
+import { clientAgreementRef, planAgreementHold } from './clientAgreements';
+import { carrierContentChanged, carrierLinksFor, planCarrierHold } from './carrierAgreements';
+import { confirmationContent, contentHash, sectionHashes } from './loadConfirmationServer';
+import { ChangeOrderNeeded, canApplyOrderChanges, changeOrderRef, changeOrderSummary } from './changeOrders';
+import { bringIntoOrderRoom, reviewersWhoSeeEverything } from './saRequestsServer';
+import { postOrderAlert } from './chatAlerts';
+import { APP_URL } from './appUrl';
+import type { QueryDocumentSnapshot, WriteBatch } from 'firebase-admin/firestore';
+import type { ChangeOrderAffects } from '@/types/changeOrder';
 import { NO_SIGNED_CA_PROOF, NO_SIGNED_SA_PROOF, signedSaProof } from './signedSaProof';
 import { openBolRequestIfSigned } from './bolRequests';
-import { LEGACY_STATUSES, cleanStops, orderAccessorials, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
+import { LEGACY_STATUSES, cleanStops, orderAccessorials, orderDisplayNumber, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
 
 const COL = 'orders';
 
@@ -132,11 +140,21 @@ async function clientOwnerMirror(clientId: unknown) {
  * Save part of an order. Returns nothing; the caller already holds the values
  * it sent, and the history is read separately.
  */
+export interface UpdateOrderOptions {
+  /** Submit the patch as a change order rather than saving it, when it needs one. */
+  propose?: { reason: string };
+  /** Written into the save's own batch — approving a change order marks it with this. */
+  inBatch?: (batch: WriteBatch) => void;
+  /** Leads the change-log entry, which then reads as an event rather than a plain save. */
+  summary?: string;
+}
+
 export async function updateOrderAsCaller(
   caller: Caller,
   orderId: string,
   rawPatch: Record<string, unknown>,
-): Promise<void> {
+  options: UpdateOrderOptions = {},
+): Promise<{ changeOrder: boolean }> {
   const ref  = adminDb.collection(COL).doc(orderId);
   const snap = await ref.get();
   if (!snap.exists) throw new AdminAuthError('Order not found', 404);
@@ -238,6 +256,36 @@ export async function updateOrderAsCaller(
   }
 
   /*
+   * The carrier's links, read once and only when they could matter: the
+   * carrier moved, or something the Dispatch Sheet prints did. Shared by the
+   * change-order gate, the revoke and the carrier's hold below.
+   */
+  const carrierMoved = 'carrierId' in patch && !sameValue(before.carrierId, patch.carrierId);
+  const allCarrierLinks = carrierMoved || (fields.length && carrierContentChanged(before, after))
+    ? await carrierLinksFor(orderId)
+    : undefined;
+
+  /*
+   * A change order instead of a save — see src/types/changeOrder.ts. Only for
+   * somebody without `orders.applyChanges`, and only when this save changes
+   * something printed on an agreement that has already gone out. Checked
+   * after every refusal above, so a change order can only ever hold a patch
+   * that would have been accepted.
+   */
+  const affects = fields.length ? await sentAgreementsTouched(orderId, before, after, allCarrierLinks) : [];
+  if (options.propose) {
+    if (!fields.length) throw new AdminAuthError('Nothing in this change differs from the load as it is.', 400);
+    if (affects.length) {
+      await proposeChange(caller, orderId, before, patch, fields, affects, options.propose.reason, now);
+      return { changeOrder: true };
+    }
+    // Nothing sent is touched (the agreement was withdrawn in the meantime,
+    // say): there is nothing to approve, so it is simply saved.
+  } else if (affects.length && !canApplyOrderChanges(caller)) {
+    throw new ChangeOrderNeeded(affects);
+  }
+
+  /*
    * The client's signing link, if this save changed anything printed on it.
    * Planned now and written in this same batch, so a change and the hold on
    * the link land together — see src/lib/clientAgreements.ts. One read on
@@ -254,12 +302,19 @@ export async function updateOrderAsCaller(
    * batch as the change, like the client's hold above. One equality filter,
    * the type in memory — no composite index — and only when the carrier moved.
    */
-  const carrierLinks = 'carrierId' in patch && !sameValue(before.carrierId, patch.carrierId)
-    ? (await adminDb.collection('signing_tokens').where('orderId', '==', orderId).get()).docs.filter((d) => {
-      const x = d.data();
-      return x.type === 'carrier_agreement' && !x.usedAt && !x.revokedAt;
-    })
+  const carrierLinks = carrierMoved
+    ? (allCarrierLinks ?? []).filter((d) => !d.data().usedAt && !d.data().revokedAt)
     : [];
+
+  /*
+   * The carrier's Dispatch Sheet, the same way as the client's link above:
+   * held, its signature cleared, and its review reopened when this save
+   * changed anything it prints — see src/lib/carrierAgreements.ts. Costs a
+   * read only when something printed on it changed.
+   */
+  const carrierHold = fields.length
+    ? await planCarrierHold(orderId, before, after, actorOf(caller), now, allCarrierLinks)
+    : null;
 
   const batch = adminDb.batch();
   for (const d of carrierLinks) batch.update(d.ref, { revokedAt: now, revokedReason: 'carrier_changed' });
@@ -270,18 +325,22 @@ export async function updateOrderAsCaller(
     }, actorOf(caller), now);
   }
   if (fields.length) {
-    writeChange(batch, ref, handSignedNote
-      ? { action: 'event', summary: handSignedNote, fields }
+    const summary = [options.summary, handSignedNote].filter(Boolean).join(' ');
+    writeChange(batch, ref, summary
+      ? { action: 'event', summary, fields }
       : { action: 'updated', fields }, actorOf(caller), now);
   }
   hold?.apply(batch, write);
+  carrierHold?.apply(batch, write);
   if (swap) {
     Object.assign(write, swap.write);
     writeChange(batch, ref, { action: 'event', summary: swap.summary, fields: diffFields(before, swap.write) }, actorOf(caller), now);
   }
+  options.inBatch?.(batch);
   batch.update(ref, write);
   await batch.commit();
   if (hold) await hold.afterCommit();
+  if (carrierHold) await carrierHold.afterCommit();
   // A signature pressed by hand is the second signature as often as an
   // e-signature is; same BOL request. After the commit and swallowed — the
   // save happened.
@@ -290,6 +349,95 @@ export async function updateOrderAsCaller(
       patch.status === 'carrier_signed' ? 'The carrier was marked signed by hand' : 'The client was marked signed by hand',
     ).catch((e) => console.error('BOL request failed:', e));
   }
+  return { changeOrder: false };
+}
+
+/**
+ * Which agreements already sent this save would change: the client's SA when
+ * its link is out (and still the client's — a link cancelled by a change of
+ * client has nobody holding it), the carrier's Dispatch Sheet when one is
+ * live or signed. Before against after, so a save that changes only things
+ * neither prints asks nobody.
+ */
+async function sentAgreementsTouched(
+  orderId: string,
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+  carrierLinks: QueryDocumentSnapshot[] | undefined,
+): Promise<ChangeOrderAffects[]> {
+  const affects: ChangeOrderAffects[] = [];
+  const clientHash = (o: Record<string, unknown>) => contentHash(sectionHashes(confirmationContent(o)));
+  if (clientHash(before) !== clientHash(after)) {
+    const p = (await clientAgreementRef(orderId).get()).data();
+    if (p?.token && !p.clientChanged) affects.push('client');
+  }
+  // carrierLinks is read only when the sheet's content or the carrier moved.
+  const carrierSent = (carrierLinks ?? []).some((d) => !d.data().revokedAt && !d.data().replacedAt);
+  if (carrierSent && (carrierContentChanged(before, after) || !sameValue(before.carrierId, after.carrierId))) {
+    affects.push('carrier');
+  }
+  return affects;
+}
+
+/**
+ * File the change order, with its change-log entry, in one batch, and tell
+ * the room. The patch is stored as it would have been saved — already
+ * cleaned and checked above — with the values it replaces, so approving can
+ * refuse if somebody changed the same fields in the meantime.
+ */
+async function proposeChange(
+  caller: Caller,
+  orderId: string,
+  before: Record<string, unknown>,
+  patch: Record<string, unknown>,
+  fields: ReturnType<typeof diffFields>,
+  affects: ChangeOrderAffects[],
+  reason: string,
+  now: Timestamp,
+): Promise<void> {
+  if (!reason.trim()) throw new AdminAuthError('Say why the load is changing — dispatch reads it before resending.', 400);
+  const coRef = changeOrderRef(orderId);
+  const orderRef = adminDb.collection(COL).doc(orderId);
+  const base: Record<string, unknown> = {};
+  for (const f of Object.keys(patch)) base[f] = before[f] ?? null;
+  const label = orderDisplayNumber(before as { orderNumber?: string; batsId?: string });
+
+  await adminDb.runTransaction(async (tx) => {
+    const current = await tx.get(coRef);
+    if (current.exists && current.data()?.status === 'pending') {
+      throw new AdminAuthError('A change order is already waiting for this load. Withdraw it first, or wait for dispatch to decide it.', 409);
+    }
+    tx.set(coRef, {
+      orderId,
+      orderNumber: label,
+      clientName: String(before.clientName ?? ''),
+      status: 'pending',
+      reason: reason.trim(),
+      affects,
+      patch,
+      base,
+      changes: fields,
+      requestedByUid: caller.uid,
+      requestedByName: caller.displayName,
+      requestedByEmail: caller.email ?? '',
+      requestedAt: now,
+      decidedByUid: null, decidedByName: null, decidedAt: null, decisionNote: '',
+    });
+    // The values are on the entry, so the log shows what was asked even if
+    // it is turned down; nothing on the order itself moves.
+    writeChange(tx, orderRef, {
+      action: 'event',
+      summary: `${changeOrderSummary(caller.displayName, reason.trim(), affects)}. Nothing changes on the load until it is approved.`,
+      fields,
+    }, actorOf(caller), now);
+  });
+
+  const reviewers = await reviewersWhoSeeEverything().catch(() => [] as string[]);
+  await bringIntoOrderRoom(orderId, before, [...reviewers, caller.uid], caller.uid).catch(() => {});
+  await postOrderAlert(orderId,
+    `${changeOrderSummary(caller.displayName, reason.trim(), affects)}. `
+    + `Nothing changes until admin or dispatch approves it. Approve or turn it down here: ${APP_URL}/dashboard/orders/${orderId}#change-order`,
+  ).catch(() => {});
 }
 
 /** The carrier's e-signature on the order — written by the signing route only. */

@@ -3,6 +3,7 @@ import { adminDb, AdminAuthError } from './firebase-admin';
 import { can } from './accessControl';
 import { actorOf, writeChange, type ChangeActor } from './recordHistory';
 import { planAgreementHold } from './clientAgreements';
+import { planCarrierHold } from './carrierAgreements';
 import { agreementTermsDoc, currentTerms, ORDER_TERMS_AT, TERMS_STAMP } from './agreementTermsServer';
 import type { Caller } from './partyAccess';
 import { orderDisplayNumber } from '@/types/order';
@@ -52,9 +53,9 @@ export async function applyGeneralTerms(party: TermsParty, text: string, actor: 
  * For the client this is a change to what the SA says, so it goes through
  * planAgreementHold() exactly as a changed rate does: a link already sent is
  * held for review and re-sent, and a signed one is signed again. The
- * carrier's are different only because each Dispatch Sheet send is its own
- * link: one already out keeps the terms it was sent with, and the entry says
- * so, because a carrier signing it is agreeing to those.
+ * carrier's go through planCarrierHold() the same way (since 2026-10-19): the
+ * live Dispatch Sheet is held and its review reopened, because a carrier
+ * signing it would be agreeing to terms the load no longer has.
  */
 export async function applyOrderTerms(
   orderId: string,
@@ -76,13 +77,9 @@ export async function applyOrderTerms(
   const after = { ...before, ...write };
   const doc = TERMS_DOC_LABEL[party];
 
-  const hold = party === 'client' ? await planAgreementHold(orderId, after, actor, now) : null;
-  const liveCarrierLinks = party === 'carrier'
-    ? (await adminDb.collection('signing_tokens').where('orderId', '==', orderId).get()).docs.filter((d) => {
-      const x = d.data();
-      return x.type === 'carrier_agreement' && !x.usedAt && !x.revokedAt && !x.replacedAt;
-    }).length
-    : 0;
+  const hold = party === 'client'
+    ? await planAgreementHold(orderId, after, actor, now)
+    : await planCarrierHold(orderId, before, after, actor, now);
 
   const summary = [
     text === null
@@ -91,7 +88,6 @@ export async function applyOrderTerms(
         ? `This load’s own terms and conditions on the ${doc} were changed.`
         : `This load was given its own terms and conditions on the ${doc}.`,
     approvedBy ? `Approved by ${approvedBy}.` : '',
-    liveCarrierLinks ? 'The Dispatch Sheet already sent keeps the terms it went out with; send it again for the carrier to see these.' : '',
   ].filter(Boolean).join(' ');
 
   const batch = adminDb.batch();

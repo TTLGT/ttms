@@ -409,7 +409,9 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
                     : sendBlocked ? 'The client has not signed the Shipper Agreement (SA) yet, and no waiver is recorded'
                     : ''}
                   onClick={() => void run('send', () => sendWithCc(r.reason === 'changed'
-                    ? `Email the updated ${name} to ${review.sendTo?.email}? Their existing link and QR code will show the update.`
+                    ? carrier
+                      ? `Email the updated ${name} to ${review.sendTo?.email}? They get a new link with the load as it is now, and the one sent before stops working.`
+                      : `Email the updated ${name} to ${review.sendTo?.email}? Their existing link and QR code will show the update.`
                     : `Email the ${name} to ${review.sendTo?.email}?`))}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
                   {busy === 'send' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

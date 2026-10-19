@@ -828,6 +828,19 @@ license, truck pictures, payment setup — and send from the review.
   unsigned carrier link for the load, and writes a change-log line saying so.
   A signed link is kept as it is: it is the record of what that carrier agreed.
   Staff still read every version — Preview or PDF — in the versions list.
+- **Changing the load after the Dispatch Sheet went out** (2026-10-19,
+  `planCarrierHold()` in `src/lib/carrierAgreements.ts`, same batch as the
+  change). When a save changes anything the sheet prints — carrier, carrier
+  pay, stops (full address and window), freight, accessorials, dock work,
+  carrier instructions, the load's own carrier terms — the newest live
+  carrier link gets `heldAt` and `pendingHash`; the sign route and page
+  refuse it ("being updated… with a new link"). If the carrier had signed it,
+  the order's `carrierSigned*` fields are cleared (the link keeps the
+  signature and its PDF), which is what lets send-agreement send again. A
+  fresh round opens with `reason: 'changed'`, posted in the load's room. The
+  driver is deliberately not part of it. Each send since then stores
+  `contentHash` + `sectionHashes` on the link; a link from before is compared
+  against the order as it was before the save.
 - The carrier items moved off the SA review on 2026-10-09. SA rounds from
   before keep their carrier ticks and still show them in the record.
 - `GET /api/sa-rounds?party=carrier` is the carrier verification record;
@@ -1042,6 +1055,41 @@ and `/api/terms-requests`.
 Order requests write a change-log entry when made, approved, turned down or
 withdrawn. Queries are single-field only (`status`, `orderId`,
 `requestedByUid`, `requestedAt`), so no composite index is needed.
+
+## Collection: `changeOrders` — a broker's change to sent paperwork (2026-10-19)
+
+`changeOrders/{orderId}`, one per load — the current one; a new submission
+after a decision overwrites it, and every submission and decision is on the
+order's change log. Types in `src/types/changeOrder.ts`; gate in
+`updateOrderAsCaller()`; decisions in `src/lib/changeOrderDecisions.ts`.
+Closed in `firestore.rules`.
+
+Once the client's SA link (`clientAgreements/{orderId}`, not cancelled by a
+change of client) or a live carrier link exists, a save by somebody without
+`orders.applyChanges` (admin and dispatch have it) that changes anything
+printed on that agreement is refused with `409 { needsChangeOrder, affects }`.
+The browser asks for a reason and posts the same patch to
+`POST /api/orders/{id}/change-order`, which runs every check a save runs and
+then stores it instead of saving.
+
+| Field | Type | Notes |
+|---|---|---|
+| `orderId`, `orderNumber`, `clientName` | string | |
+| `status` | `pending` \| `approved` \| `rejected` \| `withdrawn` | one `pending` per load |
+| `reason` | string | the broker's, required |
+| `affects` | (`client` \| `carrier`)[] | which sent agreement it touches |
+| `patch` | map | the save as it would have been written |
+| `base` | map | the stored value of every key in `patch` when asked |
+| `changes` | FieldChange[] | from → to, as the change log shows it |
+| `requestedByUid` / `Name` / `Email`, `requestedAt` | | |
+| `decidedByUid` / `Name`, `decidedAt`, `decisionNote` | | a note is required to turn one down |
+
+`PATCH /api/orders/{id}/change-order` decides it. Approving refuses if any
+`base` value has moved since, then saves `patch` as the approver through
+`updateOrderAsCaller()` — so the client hold and the carrier hold above happen
+as for any save — and marks it approved in the same batch, conditioned on its
+update time. `GET /api/change-orders?box=incoming` is the pending ones an
+approver can see (single-field query); `box=outgoing` the caller's own.
 
 ## Collection: `bolRequests` — BOLs waiting to be sent
 

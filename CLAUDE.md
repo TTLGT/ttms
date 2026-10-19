@@ -1243,6 +1243,34 @@ Carrier section and on Documents, a confirmation email to the carrier
 hand only once a `signed_ca` file is on the load** — enforced in
 `updateOrderAsCaller()`, the same as Client Signed.
 
+### Change orders — editing a load after its paperwork went out
+
+Two halves, both 2026-10-19. See `changeOrders` in the Schema Guide.
+
+- **The Dispatch Sheet is held like the SA.** A save that changes anything
+  the sheet prints holds the carrier's newest live link, clears a carrier
+  e-signature that no longer matches, and reopens the carrier review with
+  `reason: 'changed'` (`planCarrierHold()`, `src/lib/carrierAgreements.ts`,
+  same batch as the save). Before this, a carrier could sign a pay the load
+  no longer carried. The driver is deliberately not part of the fingerprint.
+  A carrier swap also opens the review and says so in the room.
+- **A broker's edit to sent paperwork is a change order, not a save.**
+  Without `orders.applyChanges` (admin and dispatch — this widened dispatch),
+  `updateOrderAsCaller()` refuses such a save with `ChangeOrderNeeded`;
+  `saveOrderPatch()` in `src/lib/orders.ts` asks for a reason through
+  `ChangeOrderPrompt` (dashboard layout) and files the same patch. Doing it
+  at that one door is why no edit screen knows about change orders —
+  **keep every order edit going through `saveOrderPatch()`**.
+- **Approval is an ordinary save as the approver**, so both holds and the
+  change log happen exactly as if dispatch had typed it. It refuses when a
+  field in the patch has moved since (`base`), rather than quietly undoing
+  somebody's newer edit.
+- `canApplyOrderChanges()` also reads the role bundle, because a
+  dispatcher's mirrored permission list gains the key only at their next
+  sign-in. Drop that once everybody has signed in or the sync has run.
+- Only e-signature links count as "sent". An SA or sheet signed on paper
+  with no link out does not trigger a change order.
+
 ### Terms and conditions — general, per load, approved by an admin
 
 The SA and the Dispatch Sheet each have general terms (Settings → Operations →

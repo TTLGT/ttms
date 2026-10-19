@@ -1322,6 +1322,12 @@ service cloud.firestore {
     // or not. Read and written only by the SA routes and the order save; see
     // src/lib/clientAgreements.ts. Identical to the default deny.
     match /clientAgreements/{id}        { allow read, write: if false; }
+    // Change orders: a broker's edit to a load whose SA or Dispatch Sheet has
+    // gone out, waiting for admin or dispatch. Read and written only through
+    // /api/orders/{id}/change-order and /api/change-orders — see
+    // src/types/changeOrder.ts. Identical to the default deny; a change order
+    // carries the load's rates, so it must never be opened to the browser.
+    match /changeOrders/{id}            { allow read, write: if false; }
     match /attendanceAlerts/{id}        { allow read, write: if false; }
     match /attendanceCorrections/{id}   { allow read, write: if false; }
     match /timeOffRequests/{id}         { allow read, write: if false; }

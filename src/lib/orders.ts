@@ -1,6 +1,8 @@
 import { auth } from './firebase';
 import { trackActivity } from './attendance';
 import { encodeRecordPatch } from './recordWire';
+import { ChangeOrderSubmitted, askForChangeOrderReason, submitChangeOrder } from './changeOrdersClient';
+import type { ChangeOrderAffects } from '@/types/changeOrder';
 import type { Order, OrderStatus } from '@/types/order';
 import type { ChangeEntry } from '@/types/recordHistory';
 import type { CarrierCoiRow, OrderDocumentKind } from '@/types/orderDocument';
@@ -390,6 +392,23 @@ async function saveOrderPatch(orderId: string, patch: Record<string, unknown>): 
     headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
     body:    JSON.stringify({ patch: encodeRecordPatch(patch) }),
   });
+  /*
+   * The load's SA or Dispatch Sheet is already out and this edit changes it:
+   * ask for a reason and send the same patch as a change order instead. Done
+   * here, the one door every edit goes through — see changeOrdersClient.ts.
+   * A cancelled box is a failed save, said plainly, so no screen carries on
+   * as if the edit had landed.
+   */
+  if (res.status === 409) {
+    const data = await res.clone().json().catch(() => ({})) as { needsChangeOrder?: boolean; affects?: ChangeOrderAffects[]; error?: string };
+    if (data.needsChangeOrder) {
+      const reason = await askForChangeOrderReason(data.affects ?? [], data.error ?? '');
+      if (reason === null) throw new Error('Not saved. This change needs a change order, which was cancelled.');
+      const filed = await submitChangeOrder(orderId, patch, reason);
+      if (filed) throw new ChangeOrderSubmitted();
+      return;
+    }
+  }
   await unwrap<{ ok: true }>(res);
 }
 

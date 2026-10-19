@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "999d136dfc0354f40621602cb012428d0e4f72cf",
+      "date": "2026-10-19T14:14:57-06:00",
+      "author": "erwindank",
+      "subject": "Make signing links in chat notices clickable and copyable even when saved without https",
+      "body": "Notices posted while the site address was set without https:// carry links\nlike ttms.totaltransportlogistics.us/sign/...; our own host is now recognised\nbare in alerts, so those get a real link and a Copy link button too."
+    },
+    {
       "hash": "064200f3d9bf7283fc6f3fb8893948118e9d2dc9",
       "date": "2026-10-19T13:47:24-06:00",
       "author": "erwindank",

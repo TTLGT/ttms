@@ -6,6 +6,7 @@ import { withCoverThumbs } from '@/lib/loadPhotosServer';
 import { withOwnerSummaries } from '@/lib/orderOwnersServer';
 import { decodePatch } from '@/lib/recordHistory';
 import { updateOrderAsCaller } from '@/lib/orderWrites';
+import { ChangeOrderNeeded } from '@/lib/changeOrders';
 
 /**
  * One order, or 403 when the caller does not own it and does not own its client.
@@ -76,6 +77,11 @@ export async function PATCH(
     await updateOrderAsCaller(caller, orderId, decodePatch(body.patch));
     return NextResponse.json({ ok: true });
   } catch (e) {
+    // Not a failure: the browser offers to send the same patch as a change
+    // order (POST /api/orders/{id}/change-order). See src/types/changeOrder.ts.
+    if (e instanceof ChangeOrderNeeded) {
+      return NextResponse.json({ error: e.message, needsChangeOrder: true, affects: e.affects }, { status: 409 });
+    }
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });
     }

@@ -43,6 +43,7 @@ import PreferenceSync from '@/components/dashboard/PreferenceSync';
 import LearnSwitch from '@/components/dashboard/LearnSwitch';
 import LearnLayer from '@/components/learn/LearnLayer';
 import PlanningPrompt from '@/components/planning/PlanningPrompt';
+import ChangeOrderPrompt from '@/components/orders/ChangeOrderPrompt';
 import BreakReminder from '@/components/attendance/BreakReminder';
 import { LearnProvider } from '@/context/LearnContext';
 import { AttendanceProvider, useAttendance } from '@/context/AttendanceContext';
@@ -623,6 +624,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Break, lunch and active-pause reminders — nothing unless clocked in and one is due. */}
       <BreakReminder />
+
+      {/* "Submit a change order" — nothing until an order save needs one. */}
+      <ChangeOrderPrompt />
     </div>
   );
 }

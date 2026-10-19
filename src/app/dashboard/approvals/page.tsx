@@ -19,6 +19,7 @@ import { useApprovals } from '@/context/ApprovalsContext';
 import SaRequestsSection from '@/components/orders/SaRequestsSection';
 import BolRequestsSection from '@/components/orders/BolRequestsSection';
 import TermsRequestsSection from '@/components/orders/TermsRequestsSection';
+import ChangeOrdersSection from '@/components/orders/ChangeOrdersSection';
 
 type Box = 'incoming' | 'outgoing';
 
@@ -192,6 +193,9 @@ export default function ApprovalsPage() {
         </p>
       </div>
 
+      {/* First: a waiting change order holds a load's paperwork. See
+          src/types/changeOrder.ts. */}
+      <ChangeOrdersSection />
       {/* Its own block, above the access requests: a different kind of
           approval, decided by different people, ending in a send rather than
           a yes or no. See src/types/saRequest.ts. */}

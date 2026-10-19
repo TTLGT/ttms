@@ -144,7 +144,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         throw new SignError('A newer version of this agreement was sent to you. Please sign from the most recent email.', 410);
       }
       if (data.heldAt) {
-        throw new SignError('This agreement is being updated. You will be sent the new version shortly, on this same link.', 409);
+        throw new SignError(data.type === 'carrier_agreement'
+          ? 'This agreement is being updated. You will be emailed the new version shortly, with a new link.'
+          : 'This agreement is being updated. You will be sent the new version shortly, on this same link.', 409);
       }
       if (data.usedAt) {
         throw new SignError('This document has already been signed', 409);

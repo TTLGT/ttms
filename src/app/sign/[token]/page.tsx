@@ -104,11 +104,15 @@ export default async function SignPage({ params }: Props) {
             Something about this load changed after we sent you the agreement. We are reviewing the change and will
             email you the updated version shortly.
           </p>
+          {/* The client's link is revised in place; a carrier's next send is a
+              new link (see send-agreement), so this one will not show it. */}
           <p className="text-sm text-gray-600 mt-2">
-            This same link and QR code will show it, so there is no need to look for a new one.
+            {isClient
+              ? 'This same link and QR code will show it, so there is no need to look for a new one.'
+              : 'It will come with a new link, and this one can no longer be signed.'}
           </p>
           {/* Signed before the change: the version they signed is still theirs. */}
-          {isClient && data.usedAt && (
+          {data.usedAt && (
             <div className="mt-4"><SignedCopyLink token={token} label="Download the version you signed (PDF)" /></div>
           )}
           <p className="text-xs text-gray-400 mt-3">Order {data.orderNumber}</p>

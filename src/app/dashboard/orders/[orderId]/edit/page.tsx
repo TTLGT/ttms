@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Timestamp } from 'firebase/firestore';
 import { getOrder, updateOrder } from '@/lib/orders';
+import { ChangeOrderSubmitted } from '@/lib/changeOrdersClient';
 import { listParties, tagPartyRole } from '@/lib/parties';
 import PartyCombobox from '@/components/parties/PartyCombobox';
 import type { PartySelection } from '@/components/parties/PartyCombobox';
@@ -319,6 +320,9 @@ export default function EditOrderPage() {
         : Object.assign({}, ...Object.values(patches)));
       router.push(backHref);
     } catch (err: unknown) {
+      // Filed for dispatch instead of saved: back to the load, where the
+      // change order now shows. See src/types/changeOrder.ts.
+      if (err instanceof ChangeOrderSubmitted) { router.push(`/dashboard/orders/${orderId}#change-order`); return; }
       setError(err instanceof Error ? err.message : 'Failed to save order');
       setSaving(false);
     }

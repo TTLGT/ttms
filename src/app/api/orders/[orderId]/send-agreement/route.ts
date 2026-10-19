@@ -8,6 +8,7 @@ import { actorForUid, recordEvent } from '@/lib/recordHistory';
 import { signUrl } from '@/lib/appUrl';
 import { brokerSnapshot, paperworkBroker } from '@/lib/orderOwnersServer';
 import { termsForOrder } from '@/lib/agreementTermsServer';
+import { carrierFingerprint } from '@/lib/carrierAgreements';
 import { randomBytes } from 'crypto';
 import {
   archiveRound, buildSaReview, freezeReview, requestRef, roundRef, saGateFactsFor, sendEntry,
@@ -71,6 +72,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   // A resend is for a carrier who has not signed yet. Once they have, a new
   // link would ask for a second signature on a load already confirmed — the
   // same refusal the SA route gives. Their signed copy is on the order.
+  // A change to the load after they signed clears carrierSignedAt (see
+  // planCarrierHold), which is what lets the updated sheet go out.
   if (order.carrierSignedAt) {
     return NextResponse.json({ error: 'The carrier has already signed this agreement.' }, { status: 409 });
   }
@@ -199,6 +202,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     termsText:      terms.text,
     termsUpdatedAt: terms.updatedAt,
     termsFromOrder: terms.fromOrder,
+    // What this sheet says, fingerprinted, so a later edit can be told from
+    // a save that changed nothing it prints — see src/lib/carrierAgreements.ts.
+    // Links sent before 2026-10-19 carry none and are compared another way.
+    ...carrierFingerprint(order),
     version,
     cc,
     sentByName:   actor?.name ?? '',

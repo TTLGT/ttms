@@ -57,6 +57,13 @@ export const PERMISSIONS = [
    * person at a time.
    */
   'orders.waiveSignature',
+  /**
+   * Save a change to a load whose SA or Dispatch Sheet has already gone out,
+   * and approve or turn down other people's change orders. Without it, such
+   * an edit becomes a change order (see src/types/changeOrder.ts). Admin and
+   * dispatch by default — they are the ones who resend the paperwork.
+   */
+  'orders.applyChanges',
   'orders.bol',
   'orders.invoice',
 
@@ -308,6 +315,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'orders.viewAll', label: 'See every load',   detail: 'Every load in the company, not only their own and their clients’.' },
       { key: 'orders.sendAgreement', label: 'Send agreements', detail: 'Email the client agreement and the dispatch sheet for signature.' },
       { key: 'orders.waiveSignature', label: 'Dispatch without a signature', detail: 'Send the dispatch sheet before the client has signed. Admin and dispatch have this already.' },
+      { key: 'orders.applyChanges', label: 'Change loads after agreements are sent', detail: 'Save changes to a load whose SA or Dispatch Sheet is already out, and approve other people’s change orders. Admin and dispatch have this already.' },
       { key: 'orders.bol',     label: 'Generate BOLs',    detail: 'Produce the bill of lading for a load they can see. Everyone but interns has this already.' },
       { key: 'orders.invoice', label: 'Generate invoices', detail: 'Produce the invoice for a load.' },
       { key: 'orders.delete',  label: 'Delete loads',     detail: 'Permanently remove a load. There is no undo.' },
@@ -464,6 +472,9 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     // in the morning but the truck has to be booked tonight. They are the ones
     // who already carry that judgement, so they carry the waiver with it.
     'orders.waiveSignature',
+    // Dispatch resends the SA and the Dispatch Sheet after a change, so they
+    // are who applies one — and who approves a broker's change order.
+    'orders.applyChanges',
     // The extension sheet on the wall by the phones is dispatch's, and they
     // are the ones who notice first when a number on it is wrong.
     'directory.export',
