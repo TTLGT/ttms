@@ -768,8 +768,8 @@ system message rather than a different string. `systemLine()` takes a
 `senderName` and a `systemKind`; `SYSTEM_SENDER_UID` never changes, so the name
 is a label and can never become an identity. An `announcement` is drawn by
 `SystemMessage.tsx` as a card with the sender written out and the text
-un-truncated — the `alert` shape is an 11px pill with `truncate` on it, which
-would cut a greeting off mid-name. **Add a new kind rather than restyling
+in the normal text size — the `alert` shape is an 11px grey pill (it wraps now,
+since 2026-10-19, but still reads as a notice, not a greeting). **Add a new kind rather than restyling
 either**, and keep both inert: no reactions, no thread. "Happy birthday" belongs
 to colleagues, and the post exists to prompt it, not to stand in for it.
 

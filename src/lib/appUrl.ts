@@ -20,8 +20,20 @@
  */
 export const PRODUCTION_APP_URL = 'https://ttms.totaltransportlogistics.us';
 
-/** Base URL for links that leave the company. Never ends in a slash. */
-export const APP_URL = (process.env.NEXT_PUBLIC_APP_URL ?? PRODUCTION_APP_URL).replace(/\/+$/, '');
+/**
+ * Base URL for links that leave the company. Never ends in a slash, and always
+ * starts with a scheme. A variable set to the bare host
+ * (`ttms.totaltransportlogistics.us`) built links with no `https://`. An email
+ * client reads that as a relative address, so the Review & Sign button went
+ * nowhere, and chat did not recognise it as a link (2026-10-19). A host typed
+ * without a scheme is taken to mean https; a blank variable means the
+ * production host.
+ */
+export const APP_URL = withScheme(process.env.NEXT_PUBLIC_APP_URL?.trim() || PRODUCTION_APP_URL).replace(/\/+$/, '');
+
+function withScheme(url: string): string {
+  return /^https?:\/\//i.test(url) ? url : `https://${url.replace(/^\/+/, '')}`;
+}
 
 /** Absolute URL for a one-time signing token. */
 export function signUrl(token: string) {

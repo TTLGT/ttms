@@ -33,13 +33,19 @@ export default function SystemMessage({ message }: { message: ChatMessage }) {
   if (message.systemKind === 'announcement') return <Announcement message={message} />;
   if (linksIn(message.text).length > 0) return <AlertWithLinks message={message} />;
 
+  // Wraps rather than truncates. The pill used to cut a line off at its own
+  // width, and a load alert is the record of who was emailed and copied —
+  // half a sentence of that is unreadable, not tidier. Short lines still
+  // draw as the same one-line pill.
   return (
-    <div className="flex justify-center py-1.5">
-      <span className="flex max-w-[85%] items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[11px] text-gray-600 shadow-sm">
-        <Truck size={11} className="flex-shrink-0 text-brand-500" />
-        <span className="truncate">{message.text}</span>
-        <span className="flex-shrink-0 text-gray-400">{clock(message)}</span>
-      </span>
+    <div className="flex justify-center px-2 py-1.5">
+      <p className="flex max-w-[85%] items-start gap-1.5 rounded-2xl bg-white px-3 py-1 text-[11px] text-gray-600 shadow-sm">
+        <Truck size={11} className="mt-0.5 flex-shrink-0 text-brand-500" />
+        <span className="min-w-0 select-text whitespace-pre-line break-words [overflow-wrap:anywhere]">
+          {message.text}
+          <span className="ml-1.5 text-gray-400">{clock(message)}</span>
+        </span>
+      </p>
     </div>
   );
 }

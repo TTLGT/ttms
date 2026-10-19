@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "fa91e41660e28b3eecfd44c11cb2ffe3e13355b7",
+      "date": "2026-10-19T10:44:27-06:00",
+      "author": "erwindank",
+      "subject": "Let admins and dispatch edit the terms and conditions for the SA and the Dispatch Sheet, for every load or one load, with dispatch changes approved by an admin",
+      "body": "- Settings → Agreement Terms now has a tab for the carrier Dispatch Sheet as well as the client SA.\n- An order can have its own terms for either document, from a new card on the order; it changes that order only.\n- A dispatcher's change becomes a request on the Approvals screen; an admin approves or turns it down. Admin edits apply at once (new permission agreementTerms.approve).\n- Carrier signing links now keep a copy of the terms they were sent with, as client links already did.\n- A load's own client terms are part of the SA fingerprint, so changing them after sending holds the SA for review."
+    },
+    {
       "hash": "4a9e78d2040d327d064e20dcaac18a2b453e7d15",
       "date": "2026-10-19T06:39:15-06:00",
       "author": "erwindank",
