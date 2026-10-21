@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Download, HelpCircle, Loader2, XCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Download, HelpCircle, Loader2, XCircle } from 'lucide-react';
 import { downloadQuotePdf, fetchOrderReadiness } from '@/lib/orderPaperwork';
 import {
   READINESS_DOC_LABEL,
@@ -10,6 +10,7 @@ import {
   type ReadinessDoc,
   type ReadinessItem,
 } from '@/types/orderReadiness';
+import { READINESS_FIX, type FixTarget } from './fixTargets';
 
 /**
  * What a quote still needs before its paperwork can go out, beside the button
@@ -111,7 +112,12 @@ function Column({ doc, items }: { doc: ReadinessDoc; items: ReadinessItem[] }) {
   );
 }
 
-export function ReadinessLine({ item }: { item: ReadinessItem }) {
+/**
+ * `onFix`, where the page can act on it, turns a line that is not filled in
+ * into a link to the place it is filled in — see fixTargets.ts.
+ */
+export function ReadinessLine({ item, onFix }: { item: ReadinessItem; onFix?: (target: FixTarget) => void }) {
+  const target = item.ok !== true && onFix ? READINESS_FIX[item.key] : undefined;
   return (
     <li className="flex items-start gap-1.5 text-xs">
       {item.ok === true && <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-px text-green-600" />}
@@ -120,9 +126,20 @@ export function ReadinessLine({ item }: { item: ReadinessItem }) {
       <span className={item.ok === true ? 'text-gray-600' : 'text-gray-900'}>
         {item.label}
         {item.ok === null && <span className="text-amber-700"> — check</span>}
+        {target && <FixButton onClick={() => onFix!(target)} />}
         {item.ok === false && item.hint && <span className="block text-[11px] text-gray-500">{item.hint}</span>}
       </span>
     </li>
+  );
+}
+
+/** The small "Fix" link beside something missing. */
+export function FixButton({ onClick, label = 'Fix' }: { onClick: () => void; label?: string }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="ml-1.5 inline-flex items-center gap-0.5 rounded px-1 text-[11px] font-semibold text-brand-600 hover:bg-brand-50 hover:text-brand-700 align-baseline">
+      {label} <ArrowRight className="w-3 h-3" />
+    </button>
   );
 }
 

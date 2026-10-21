@@ -156,7 +156,8 @@ export default function PriceAndTermsSection({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div>
+        {/* field-* ids are where the SA review's "Fix" links land — see fixTargets.ts. */}
+        <div id="field-agreedRate">
           <label className="block text-xs font-medium text-gray-600 mb-1">Agreed Rate (USD)</label>
           <MoneyInput value={agreedRate} onChange={onAgreedRate}
             placeholder="0.00" className={INPUT} />
@@ -175,9 +176,11 @@ export default function PriceAndTermsSection({
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <PaymentTermsField side="client" methods={methods.client}
-          value={terms.clientPayment} onChange={(v) => set({ clientPayment: v })}
-          base={feeBase('client', bases)} />
+        <div id="field-clientPayment">
+          <PaymentTermsField side="client" methods={methods.client}
+            value={terms.clientPayment} onChange={(v) => set({ clientPayment: v })}
+            base={feeBase('client', bases)} />
+        </div>
         {!complex.enabled && (
           <>
             <PaymentTermsField side="carrier" methods={methods.carrier}

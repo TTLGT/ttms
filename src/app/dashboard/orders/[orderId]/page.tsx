@@ -69,6 +69,7 @@ import OrderReadinessCard from '@/components/orders/OrderReadinessCard';
 import OrderTermsCard from '@/components/orders/OrderTermsCard';
 import ChangeOrderPanel from '@/components/orders/ChangeOrderPanel';
 import { RequestSaButton, SaRequestPanel } from '@/components/orders/SaRequestPanel';
+import type { FixTarget } from '@/components/orders/fixTargets';
 import SaVerificationRecord from '@/components/orders/SaVerificationRecord';
 import SaAgreementVersions from '@/components/orders/SaAgreementVersions';
 import { fetchSignedSaProof, listAgreementVersions } from '@/lib/orderPaperwork';
@@ -388,6 +389,36 @@ export default function OrderDetailPage() {
     const id = window.location.hash.slice(1);
     if (id) document.getElementById(id)?.scrollIntoView({ block: 'start' });
   }, [order]);
+
+  /**
+   * A "Fix" link in one of the reviews. Order fields open the edit screen on
+   * the field itself; the carrier, its driver and the truck pictures live on
+   * this page, so those switch tab, open the Carrier form when the driver is
+   * what is missing, and scroll there once it has been drawn.
+   */
+  const [fixScroll, setFixScroll] = useState<string | null>(null);
+  useEffect(() => {
+    if (!fixScroll) return;
+    document.getElementById(fixScroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setFixScroll(null);
+  }, [fixScroll, tab, assigningCarrier]);
+
+  function goFix(target: FixTarget) {
+    if (target.kind === 'edit') {
+      router.push(`/dashboard/orders/${orderId}/edit?section=${target.section}&field=${target.field}`);
+    } else if (target.kind === 'client') {
+      router.push(order?.clientId
+        ? `/dashboard/parties/${order.clientId}`
+        : `/dashboard/orders/${orderId}/edit?section=general&field=client`);
+    } else if (target.kind === 'pictures') {
+      setTab('pictures');
+      setFixScroll('order-tabs');
+    } else {
+      setTab('details');
+      if (target.editor && !assigningCarrier) openCarrierAssign();
+      setFixScroll('carrier');
+    }
+  }
 
   // Stops the backfill below from re-running and re-writing on every render
   // that produces a new `order` object.
@@ -1269,6 +1300,7 @@ export default function OrderDetailPage() {
         refreshKey={`${saRefresh}-${order.status}`}
         onStatusChange={(status) => setOrder((prev) => (prev ? { ...prev, status } : prev))}
         onSent={() => setLinkRefresh((n) => n + 1)}
+        onFix={goFix}
       />
 
       {/* The carrier's review, the same shape as the SA's, once a broker asks. */}
@@ -1278,6 +1310,7 @@ export default function OrderDetailPage() {
         refreshKey={`${caRefresh}-${order.carrierId ?? ''}`}
         onLoaded={(r) => setCaStatus(r?.status ?? null)}
         onSent={() => setCaRefresh((n) => n + 1)}
+        onFix={goFix}
       />
 
       {(order.status === 'quote' || order.status === 'booked') && (
@@ -1290,7 +1323,7 @@ export default function OrderDetailPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-4 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
+      <div id="order-tabs" className="flex gap-1 mb-4 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll scroll-mt-4 [&>*]:flex-shrink-0">
         {(['details', 'documents', 'pictures', 'suborders', 'history'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition ${
@@ -1629,7 +1662,7 @@ export default function OrderDetailPage() {
           )}
 
           {/* Carrier */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div id="carrier" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Carrier</h3>
               {!assigningCarrier && (

@@ -20,7 +20,8 @@ import {
   reviewChecks, type AgreementParty, type SaRequest,
 } from '@/types/saRequest';
 import { isNewCarrier, MIN_OPERATING_MONTHS, officeDay } from '@/types/fmcsa';
-import { ReadinessLine } from './OrderReadinessCard';
+import { FixButton, ReadinessLine } from './OrderReadinessCard';
+import { CHECK_FIX, FACT_FIX, type FixTarget } from './fixTargets';
 
 /**
  * "Request SA" — the step after a quote is accepted.
@@ -205,8 +206,13 @@ export function RequestSaButton({
  * and names who made it, so the second person sees what the first already
  * did; the panel reloads after every action rather than trusting its own copy.
  */
-export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, onLoaded, party = 'client' }: {
+export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, onLoaded, onFix, party = 'client' }: {
   orderId: string;
+  /**
+   * Takes the reviewer to where something missing is filled in. Without it
+   * the lines are drawn as before, with no links.
+   */
+  onFix?: (target: FixTarget) => void;
   refreshKey?: unknown;
   /** The request as it was just read — null when there is none — so the page can offer the button to ask. */
   onLoaded?: (request: SaRequest | null) => void;
@@ -336,16 +342,16 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
           {/* Facts TTMS can check */}
           <div className="space-y-3">
             <p className="text-xs font-semibold text-gray-800 uppercase tracking-wide">What TTMS checked</p>
-            <Facts review={review} formatDate={formatDate} party={party} />
+            <Facts review={review} formatDate={formatDate} party={party} onFix={onFix} />
             {!carrier && (
               <div>
                 <p className="text-[11px] font-semibold text-gray-600 mb-1">Shipper Agreement fields</p>
-                <ul className="space-y-1">{readinessOf(review.readiness, 'sa').items.map((i) => <ReadinessLine key={i.key} item={i} />)}</ul>
+                <ul className="space-y-1">{readinessOf(review.readiness, 'sa').items.map((i) => <ReadinessLine key={i.key} item={i} onFix={onFix} />)}</ul>
               </div>
             )}
             <div>
               <p className="text-[11px] font-semibold text-gray-600 mb-1">{carrier ? 'What the driver’s paperwork needs (BOL)' : 'BOL fields (can follow later)'}</p>
-              <ul className="space-y-1">{readinessOf(review.readiness, 'bol').items.map((i) => <ReadinessLine key={i.key} item={i} />)}</ul>
+              <ul className="space-y-1">{readinessOf(review.readiness, 'bol').items.map((i) => <ReadinessLine key={i.key} item={i} onFix={onFix} />)}</ul>
             </div>
           </div>
 
@@ -377,12 +383,20 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
                         )}
                         {c.key === 'accessorials' && review.accessorialHints.map((h) => (
                           <span key={h} className="mt-0.5 flex items-start gap-1 text-[11px] text-amber-800">
-                            <AlertTriangle className="w-3 h-3 shrink-0 mt-px" />{h}
+                            <AlertTriangle className="w-3 h-3 shrink-0 mt-px" />
+                            <span>{h}{onFix && <FixButton onClick={() => onFix(FACT_FIX.accessorials)} />}</span>
                           </span>
                         ))}
                         {blocked && (
                           <span className="mt-0.5 flex items-start gap-1 text-[11px] text-red-700">
-                            <AlertTriangle className="w-3 h-3 shrink-0 mt-px" />{blocked}{mark ? ' The tick no longer counts.' : ''}
+                            <AlertTriangle className="w-3 h-3 shrink-0 mt-px" />
+                            <span>
+                              {blocked}{mark ? ' The tick no longer counts.' : ''}
+                              {/* A button inside the label, which the browser does not treat as a click on the box. */}
+                              {onFix && CHECK_FIX[c.key] && (
+                                <FixButton onClick={() => onFix(CHECK_FIX[c.key])} />
+                              )}
+                            </span>
                           </span>
                         )}
                         {mark && <span className="block text-[11px] text-green-700">✓ {mark.byName} · {formatDateTime(new Date(mark.at))}</span>}
@@ -588,8 +602,10 @@ function StatusPill({ request }: { request: SaRequest }) {
  * has expired since was still in date — so it reads as it did to the person
  * who sent it.
  */
-export function Facts({ review, formatDate, asOf, party = 'client' }: {
+export function Facts({ review, formatDate, asOf, party = 'client', onFix }: {
   review: SaReview;
+  /** Links on the rows that need something done. Left out on the frozen record. */
+  onFix?: (target: FixTarget) => void;
   formatDate: (v: Date) => string;
   asOf?: number;
   /** The SA's review shows the client's side; the carrier's shows the carrier's. */
@@ -612,13 +628,18 @@ export function Facts({ review, formatDate, asOf, party = 'client' }: {
   const phoneDiffers = c && c.fmcsaPhone && c.phone
     && c.fmcsaPhone.replace(/\D/g, '').slice(-10) !== c.phone.replace(/\D/g, '').slice(-10);
 
-  const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className="flex justify-between gap-3 text-xs"><span className="text-gray-500">{label}</span><span className="text-right text-gray-900">{children}</span></div>
+  // `fix` is passed only while the row is a problem, so a link means "go and sort this".
+  const Row = ({ label, children, fix }: { label: string; children: React.ReactNode; fix?: FixTarget | false | null }) => (
+    <div className="flex justify-between gap-3 text-xs">
+      <span className="text-gray-500">{label}</span>
+      <span className="text-right text-gray-900">{children}{fix && onFix && <FixButton onClick={() => onFix(fix)} />}</span>
+    </div>
   );
 
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1.5">
-      <Row label={party === 'carrier' ? 'Dispatch Sheet goes to' : 'Shipper Agreement (SA) goes to'}>
+      <Row label={party === 'carrier' ? 'Dispatch Sheet goes to' : 'Shipper Agreement (SA) goes to'}
+        fix={!review.sendTo && (party === 'carrier' ? FACT_FIX.carrierCard : FACT_FIX.client)}>
         {review.sendTo
           ? `${review.sendTo.name ? `${review.sendTo.name} · ` : ''}${review.sendTo.email}`
           : <span className="text-red-600">{party === 'carrier' ? 'No email on the carrier' : 'No email on the client'}</span>}
@@ -626,7 +647,7 @@ export function Facts({ review, formatDate, asOf, party = 'client' }: {
       <Row label="Agreed rate">{usd(review.agreedRate)}</Row>
       <Row label="Carrier pay / our fee">{usd(review.carrierPay)} / {usd(review.brokerFee)}{margin !== null && ` (${margin.toFixed(1)}%)`}</Row>
       {party === 'client' && (
-        <Row label="Client payment terms">{review.hasClientPayment ? 'Set' : <span className="text-amber-700">Not set</span>}</Row>
+        <Row label="Client payment terms" fix={!review.hasClientPayment && FACT_FIX.clientPayment}>{review.hasClientPayment ? 'Set' : <span className="text-amber-700">Not set</span>}</Row>
       )}
       {party === 'carrier' && (
         <Row label="Client signature">
@@ -634,19 +655,19 @@ export function Facts({ review, formatDate, asOf, party = 'client' }: {
         </Row>
       )}
       {party === 'client' ? null : !c ? (
-        <Row label="Carrier">Not assigned yet</Row>
+        <Row label="Carrier" fix={FACT_FIX.driver}>Not assigned yet</Row>
       ) : (
         <>
           <Row label="Carrier">{c.name} · DOT {c.dot || '—'} · MC {c.mc || '—'}</Row>
-          <Row label="Insurance certificate">
+          <Row label="Insurance certificate" fix={(!c.insuranceOnFile || insuranceOk === false) && FACT_FIX.carrierCard}>
             {c.insuranceOnFile ? 'On file' : <span className="text-red-600">Not on file</span>}
             {c.insuranceExpiration && <span className={insuranceOk ? '' : 'text-red-600'}> · expires {formatDate(new Date(c.insuranceExpiration))}{insuranceOk === false && ' — before pickup'}</span>}
           </Row>
-          <Row label="FMCSA check">
+          <Row label="FMCSA check" fix={fmcsaStale && FACT_FIX.carrierCard}>
             {c.fmcsaCheckedAt ? formatDate(new Date(c.fmcsaCheckedAt)) : 'Never run'}
             {fmcsaStale && <span className="text-amber-700"> — run it again</span>}
           </Row>
-          <Row label="Operating since">
+          <Row label="Operating since" fix={!since && FACT_FIX.carrierCard}>
             {since ? (
               <span className={newCarrier ? 'text-red-600' : ''}>
                 {formatDate(new Date(`${since.day}T12:00:00Z`))}
@@ -657,12 +678,12 @@ export function Facts({ review, formatDate, asOf, party = 'client' }: {
               <span className="text-amber-700">Unknown — run the FMCSA check again, or look on SAFER</span>
             )}
           </Row>
-          <Row label="Driver’s license">
+          <Row label="Driver’s license" fix={(!g.licenseOnFile || licenseExpired) && FACT_FIX.driver}>
             {!g.licenseOnFile ? <span className="text-red-600">Not on file</span>
               : licenseExpired ? <span className="text-red-600">Expired {formatDate(new Date(g.licenseExpiration!))}</span>
               : <>On file{g.licenseExpiration !== null && ` · expires ${formatDate(new Date(g.licenseExpiration))}`}</>}
           </Row>
-          <Row label="Truck pictures">
+          <Row label="Truck pictures" fix={g.truckPhotos === 0 && FACT_FIX.pictures}>
             {g.truckPhotos > 0 ? `${g.truckPhotos} on file` : <span className="text-red-600">None — upload in Pictures as “Truck”</span>}
           </Row>
           {phoneDiffers && (

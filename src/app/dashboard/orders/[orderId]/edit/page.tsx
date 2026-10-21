@@ -73,7 +73,10 @@ export default function EditOrderPage() {
   const router   = useRouter();
   // Set when opened from one card's Edit on the order page: only that section
   // is drawn, and only its fields are saved. Absent = the whole order.
-  const askedSection = useSearchParams().get('section');
+  const search = useSearchParams();
+  const askedSection = search.get('section');
+  // Set by a "Fix" link in the SA or Dispatch Sheet review — see fixTargets.ts.
+  const askedField = search.get('field');
   const section: OrderSection | null = isOrderSection(askedSection) ? askedSection : null;
   const shows = (s: OrderSection) => !section || section === s;
   // Back to the card the edit started from, not the top of the page.
@@ -200,6 +203,20 @@ export default function EditOrderPage() {
     }
     load();
   }, [orderId]);
+
+  // Once the form is drawn, take the reviewer to the field they came to fill
+  // in: scrolled to, outlined for a few seconds, its first box focused.
+  useEffect(() => {
+    if (loading || !askedField || !/^[A-Za-z]+$/.test(askedField)) return;
+    const el = document.getElementById(`field-${askedField}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.querySelector<HTMLElement>('input:not([type=hidden]):not([disabled]), select, textarea')?.focus({ preventScroll: true });
+    const ring = ['ring-2', 'ring-amber-400', 'ring-offset-4', 'rounded-lg'];
+    el.classList.add(...ring);
+    const t = setTimeout(() => el.classList.remove(...ring), 4000);
+    return () => clearTimeout(t);
+  }, [loading, askedField]);
 
   function cacheParty(p: Party) {
     setParties((prev) => (prev.some((x) => x.id === p.id) ? prev : [...prev, p]));
@@ -382,7 +399,7 @@ export default function EditOrderPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Shipper and consignee sit in Route, above their addresses —
                   same layout as the new-order form. */}
-              <div className="col-span-1 sm:col-span-2 sm:max-w-md">
+              <div id="field-client" className="col-span-1 sm:col-span-2 sm:max-w-md">
                 <PartyCombobox role="client"    label="Client (signs the contract)" parties={parties}
                   value={client}    onChange={setClient}    onPartyCreated={cacheParty} required />
               </div>
@@ -392,14 +409,18 @@ export default function EditOrderPage() {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
                 <p className="text-xs text-gray-500 mt-1">Earliest the client says the freight can be collected.</p>
               </div>
-              <DateRangeField label="Pickup Date"
-                start={pickupDate} end={pickupDateEnd}
-                onStartChange={setPickupDate} onEndChange={setPickupDateEnd}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              <DateRangeField label="Delivery Date"
-                start={deliveryDate} end={deliveryDateEnd}
-                onStartChange={setDeliveryDate} onEndChange={setDeliveryDateEnd}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+              <div id="field-pickupDate">
+                <DateRangeField label="Pickup Date"
+                  start={pickupDate} end={pickupDateEnd}
+                  onStartChange={setPickupDate} onEndChange={setPickupDateEnd}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+              </div>
+              <div id="field-deliveryDate">
+                <DateRangeField label="Delivery Date"
+                  start={deliveryDate} end={deliveryDateEnd}
+                  onStartChange={setDeliveryDate} onEndChange={setDeliveryDateEnd}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+              </div>
               <LeadSourceField
                 value={sourceId}
                 onChange={setSourceId}
@@ -421,10 +442,16 @@ export default function EditOrderPage() {
                 weight are added up for you.
               </p>
             </div>
-            <TransportTypeField value={transportType} onChange={setTransportType} required />
-            <CommodityItemsFields value={commodities} onChange={setCommodities}
-              pickups={pickupChoices} deliveries={deliveryChoices} />
-            <AccessorialsField value={accessorials} onChange={setAccessorials} />
+            <div id="field-transportType">
+              <TransportTypeField value={transportType} onChange={setTransportType} required />
+            </div>
+            <div id="field-commodities">
+              <CommodityItemsFields value={commodities} onChange={setCommodities}
+                pickups={pickupChoices} deliveries={deliveryChoices} />
+            </div>
+            <div id="field-accessorials">
+              <AccessorialsField value={accessorials} onChange={setAccessorials} />
+            </div>
           </section>
           </>)}
 
@@ -445,16 +472,24 @@ export default function EditOrderPage() {
             <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Route</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <PartyCombobox role="shipper"   label="Shipper (pickup)"     parties={parties}
-                  value={shipper}   onChange={setShipper}   onPartyCreated={cacheParty} />
-                <AddressFields label="Origin" value={origin} onChange={setOrigin} />
+                <div id="field-shipper">
+                  <PartyCombobox role="shipper"   label="Shipper (pickup)"     parties={parties}
+                    value={shipper}   onChange={setShipper}   onPartyCreated={cacheParty} />
+                </div>
+                <div id="field-origin">
+                  <AddressFields label="Origin" value={origin} onChange={setOrigin} />
+                </div>
                 <ExtraStopsFields kind="pickup" value={extraPickups} onChange={setExtraPickups}
                   parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('pickup')} />
               </div>
               <div className="space-y-4">
-                <PartyCombobox role="consignee" label="Consignee (delivery)" parties={parties}
-                  value={consignee} onChange={setConsignee} onPartyCreated={cacheParty} />
-                <AddressFields label="Destination" value={destination} onChange={setDest} />
+                <div id="field-consignee">
+                  <PartyCombobox role="consignee" label="Consignee (delivery)" parties={parties}
+                    value={consignee} onChange={setConsignee} onPartyCreated={cacheParty} />
+                </div>
+                <div id="field-destination">
+                  <AddressFields label="Destination" value={destination} onChange={setDest} />
+                </div>
                 <ExtraStopsFields kind="delivery" value={extraDeliveries} onChange={setExtraDeliveries}
                   parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('delivery')} />
               </div>

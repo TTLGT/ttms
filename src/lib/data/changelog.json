@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "9075f1bd919bbfe77da2e5930836a5e18d52b0c3",
+      "date": "2026-10-21T10:38:41-06:00",
+      "author": "erwindank",
+      "subject": "Record the transport type on every order and print it on the SA, the Dispatch Sheet and the BOL, and make load pictures searchable by it",
+      "body": "The truck or trailer a load moves on is now required when an order is created\n(checked on the server too, except for a suborder, which copies its parent's).\nOlder loads are asked for it when their freight is edited, and it is on the\nSA/BOL readiness checklist. It is copied onto both signing links and the rate\nconfirmation email, and printed in the BOL's Driver & Equipment box. On the\ncarrier's fingerprint it counts only when set, so sheets already sent are not\nheld for it.\n\nThe Documents screen's load pictures can be searched and filtered by it,\nread from the load each time so nothing needs backfilling."
+    },
+    {
       "hash": "7aee48b0144d3e4dbf4d0d214e1a9f63e1397033",
       "date": "2026-10-19T15:38:18-06:00",
       "author": "erwindank",
