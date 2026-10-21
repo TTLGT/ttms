@@ -9,6 +9,7 @@ import {
   LOAD_PHOTOS_COLLECTION,
   MAX_CAPTION,
   MAX_PHOTO_COMMODITY,
+  MAX_PHOTO_LOCATION,
   commodityKey,
   isPhotoStage,
 } from '@/types/loadPhoto';
@@ -37,11 +38,11 @@ async function photoOf(orderId: string, photoId: string) {
 }
 
 /**
- * Changes a picture's caption, stage or commodity label.
+ * Changes a picture's caption, type (`stage`), commodity or location label.
  *
  * Open to anybody who can see the load, the same as editing the order: the
  * label is a note about the load, and the person who notices it is wrong is
- * usually not the one who uploaded it. Only the three keys are read.
+ * usually not the one who uploaded it. Only those four keys are read.
  */
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const { orderId, photoId } = await params;
@@ -59,6 +60,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       patch.commodity    = commodity;
       patch.commodityKey = commodityKey(commodity);
     }
+    if (typeof body.location === 'string') patch.location = body.location.trim().slice(0, MAX_PHOTO_LOCATION);
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: 'Nothing to change' }, { status: 400 });
     }

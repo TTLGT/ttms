@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "1fc1bb6edc892b033d0b9005a4f237053b313edb",
+      "date": "2026-10-21T11:12:22-06:00",
+      "author": "erwindank",
+      "subject": "Link each missing item in the SA and Dispatch Sheet reviews to the place it is filled in",
+      "body": "A Fix link beside a missing field opens the edit screen on that field,\noutlined and focused; carrier, driver and truck-picture items open the\nCarrier form, the Carrier card or the Pictures tab on the order, and a\nmissing client email opens the client's record. Targets live in\nsrc/components/orders/fixTargets.ts."
+    },
+    {
       "hash": "9075f1bd919bbfe77da2e5930836a5e18d52b0c3",
       "date": "2026-10-21T10:38:41-06:00",
       "author": "erwindank",

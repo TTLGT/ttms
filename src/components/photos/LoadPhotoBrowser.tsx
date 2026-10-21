@@ -149,7 +149,7 @@ export default function LoadPhotoBrowser() {
       if (!q) return true;
       return [
         r.orderNumber, r.altNumber ?? '', r.clientName, r.shipperName, r.consigneeName,
-        r.commodity, r.orderCommodity, r.transportType, r.caption, r.uploadedByName,
+        r.commodity, r.orderCommodity, r.transportType, r.caption, r.location, r.uploadedByName,
         r.originLabel, r.destinationLabel, PHOTO_STAGE_LABEL[r.stage],
       ].some((v) => v.toLowerCase().includes(q));
     });
@@ -258,7 +258,7 @@ export default function LoadPhotoBrowser() {
         <div className="relative flex-1 min-w-0">
           <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by order #, client, commodity, transport type, caption, city…"
+            placeholder="Search by order #, client, commodity, transport type, caption, stop, city…"
             className={`${field} w-full pl-8`} />
         </div>
         <select value={commodity} onChange={(e) => setCommodity(e.target.value)} className={`${field} lg:w-56`}
@@ -335,7 +335,7 @@ export default function LoadPhotoBrowser() {
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
               <tr>
-                {['Picture', 'Order', 'Client / Shipper', 'Commodity', 'Stage', 'Caption', 'Lane', 'Added'].map((h) => (
+                {['Picture', 'Order', 'Client / Shipper', 'Commodity', 'Type / Stop', 'Caption', 'Lane', 'Added'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -351,7 +351,10 @@ export default function LoadPhotoBrowser() {
                   </td>
                   <td className="px-4 py-2 text-sm text-gray-700">{r.clientName || r.shipperName || '—'}</td>
                   <td className="px-4 py-2 text-sm text-gray-600">{labelOf(r)}</td>
-                  <td className="px-4 py-2"><StageBadge stage={r.stage} /></td>
+                  <td className="px-4 py-2">
+                    <StageBadge stage={r.stage} />
+                    {r.location && <p className="text-xs text-gray-500 mt-1 max-w-[14rem]">{r.location}</p>}
+                  </td>
                   <td className="px-4 py-2 text-sm text-gray-600 max-w-xs">{r.caption || <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{lane(r) || '—'}</td>
                   <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">

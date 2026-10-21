@@ -9,6 +9,7 @@ import {
   MAX_CAPTION,
   MAX_PHOTO_BYTES,
   MAX_PHOTO_COMMODITY,
+  MAX_PHOTO_LOCATION,
   MAX_PHOTOS_PER_ORDER,
   MAX_THUMB_BYTES,
   commodityKey,
@@ -99,6 +100,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const caption   = String(form?.get('caption') ?? '').trim().slice(0, MAX_CAPTION);
     const commodity = (String(form?.get('commodity') ?? '').trim()
       || String(order.commodity ?? '')).slice(0, MAX_PHOTO_COMMODITY);
+    // A label, not a link — see `location` on LoadPhoto — so it is trimmed and
+    // kept rather than checked against the load's current stops.
+    const location  = String(form?.get('location') ?? '').trim().slice(0, MAX_PHOTO_LOCATION);
     const width     = Math.max(0, Math.round(Number(form?.get('width')) || 0));
     const height    = Math.max(0, Math.round(Number(form?.get('height')) || 0));
 
@@ -128,6 +132,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       stage,
       commodity,
       commodityKey:   commodityKey(commodity),
+      location,
       width,
       height,
       uploadedByUid:  caller.uid,

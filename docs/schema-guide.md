@@ -636,9 +636,10 @@ index scope the service account cannot create. Types: `src/types/loadPhoto.ts`.
 |---|---|---|
 | `orderId` | string | The load. The only link — no ownership is copied here. |
 | `caption` | string | Optional, up to 300 characters. |
-| `stage` | `pickup` \| `in_transit` \| `delivery` \| `damage` \| `truck` \| `signed_sa` \| `other` | Chosen by the uploader; defaults from the load's status. `truck` is the driver's truck and trailer, which the SA review asks for. `signed_sa` is a photo of the client's SA signed on paper — see below. |
+| `stage` | `pickup` \| `in_transit` \| `delivery` \| `damage` \| `truck` \| `signed_sa` \| `other` | Shown as "Type". Chosen by the uploader, per picture, before it is saved — there is no default. `truck` is the driver's truck and trailer, which the SA review asks for. `signed_sa` is a photo of the client's SA signed on paper — see below. |
 | `commodity` | string | Which of the load's commodity lines it shows, or the load's summary. Copied, not linked. |
 | `commodityKey` | string | `commodityKey(commodity)` — lower-cased, spaces collapsed. |
+| `location` | string | Which stop it was taken at, e.g. `Pickup 2 — Acme Steel, Dallas, TX` (`photoLocationChoices()`), or `''`. Copied as text, not a stop index, because removing a stop shifts the ones after it. Absent on pictures saved before 2026-10-21; read as `''`. |
 | `width`, `height` | number | Pixels of the stored picture. |
 | `uploadedByUid`, `uploadedByName` | string | |
 | `createdAt` | timestamp | Server time. |

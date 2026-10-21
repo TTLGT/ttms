@@ -17,6 +17,8 @@
  * would need an index scope this project's service account cannot create.
  */
 
+import { orderDeliveries, orderPickups, stopLabel, type Order, type StopKind } from './order';
+
 export const LOAD_PHOTOS_COLLECTION = 'loadPhotos';
 
 /**
@@ -85,6 +87,41 @@ export const MAX_PHOTOS_PER_ORDER = 200;
 export const MAX_CAPTION          = 300;
 /** Longest commodity label, in characters. */
 export const MAX_PHOTO_COMMODITY  = 120;
+/** Longest location label, in characters. */
+export const MAX_PHOTO_LOCATION   = 160;
+
+/**
+ * Which stops a picture of this type can be tagged with. A pickup picture is
+ * at a pickup and a delivery one at a delivery; damage and "other" can be
+ * anywhere on the trip; in transit is on the road, and a truck or a signed SA
+ * is not about a stop at all.
+ */
+export function locationKindsFor(stage: PhotoStage | ''): StopKind[] {
+  if (stage === 'pickup')   return ['pickup'];
+  if (stage === 'delivery') return ['delivery'];
+  if (stage === 'damage' || stage === 'other') return ['pickup', 'delivery'];
+  return [];
+}
+
+/**
+ * The stops of a load as picture locations: "Pickup 2 — Acme Steel, Dallas, TX".
+ * Numbered only when the load has more than one of that kind, which is the
+ * case the tag exists for.
+ */
+export function photoLocationChoices(order: Order, kinds: StopKind[]): string[] {
+  const out: string[] = [];
+  for (const kind of kinds) {
+    const stops = kind === 'pickup' ? orderPickups(order) : orderDeliveries(order);
+    stops.forEach((s, i) => {
+      const name  = kind === 'pickup' ? 'Pickup' : 'Delivery';
+      const head  = stops.length > 1 ? stopLabel(kind, i) : name;
+      const place = [s.address?.city, s.address?.state].filter(Boolean).join(', ');
+      const where = [s.partyName.trim(), place].filter(Boolean).join(', ');
+      out.push((where ? `${head} — ${where}` : head).slice(0, MAX_PHOTO_LOCATION));
+    });
+  }
+  return out;
+}
 
 /**
  * Where a picture lives in the bucket.
@@ -120,6 +157,13 @@ export interface LoadPhoto {
    * of the coils stays a picture of the coils if the line is later reworded.
    */
   commodity: string;
+  /**
+   * Which stop the picture was taken at — one of photoLocationChoices(), or ''
+   * when it is not tied to one. Copied as text for the same reason as
+   * `commodity`: stops are positions, and removing one shifts the rest, so an
+   * index would quietly move a picture to a different company's dock.
+   */
+  location: string;
   width: number;
   height: number;
   uploadedByUid: string;

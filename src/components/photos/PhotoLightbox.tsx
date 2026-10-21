@@ -6,6 +6,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   MAX_CAPTION,
   MAX_PHOTO_COMMODITY,
+  MAX_PHOTO_LOCATION,
   PHOTO_STAGES,
   PHOTO_STAGE_LABEL,
   type LoadPhoto,
@@ -13,7 +14,7 @@ import {
 } from '@/types/loadPhoto';
 import { StageBadge } from './PhotoBits';
 
-export interface PhotoPatch { caption: string; stage: PhotoStage; commodity: string }
+export interface PhotoPatch { caption: string; stage: PhotoStage; commodity: string; location: string }
 
 interface Props<T extends LoadPhoto> {
   photos: T[];
@@ -30,6 +31,12 @@ interface Props<T extends LoadPhoto> {
   context?: (photo: T) => ReactNode;
   /** Suggestions for the commodity box when editing. */
   commodityOptions?: string[];
+  /**
+   * The load's stops a picture of this type can be tagged with. Given on the
+   * order's own Pictures tab; without it (the Documents screen, which has no
+   * order to hand) the stop is a plain text box.
+   */
+  locationsFor?: (stage: PhotoStage) => string[];
 }
 
 /**
@@ -44,14 +51,14 @@ interface Props<T extends LoadPhoto> {
  */
 export default function PhotoLightbox<T extends LoadPhoto>({
   photos, index, onIndex, onClose,
-  isCover, onSetCover, onSave, onDelete, canDelete, context, commodityOptions = [],
+  isCover, onSetCover, onSave, onDelete, canDelete, context, commodityOptions = [], locationsFor,
 }: Props<T>) {
   const { formatDateTime } = useDateFormatters();
   const photo = photos[index];
   const [busy, setBusy]       = useState<'' | 'cover' | 'save' | 'delete'>('');
   const [error, setError]     = useState('');
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft]     = useState<PhotoPatch>({ caption: '', stage: 'other', commodity: '' });
+  const [draft, setDraft]     = useState<PhotoPatch>({ caption: '', stage: 'other', commodity: '', location: '' });
   const [loaded, setLoaded]   = useState(false);
   const strip   = useRef<HTMLDivElement>(null);
   const touchX  = useRef<number | null>(null);
@@ -103,6 +110,12 @@ export default function PhotoLightbox<T extends LoadPhoto>({
   }
 
   const cover = isCover?.(photo) ?? false;
+  // The picture's own stop stays on the list even when the load's stops have
+  // changed since, so opening the editor never quietly drops it.
+  const stopChoices = locationsFor
+    ? [...new Set([...locationsFor(draft.stage), ...(draft.location ? [draft.location] : [])])]
+    : [];
+  const darkField = 'w-full rounded-md bg-[rgba(255,255,255,0.1)] border border-white/20 px-2 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-brand-400';
   const deletable = onDelete && (canDelete ? canDelete(photo) : true);
   const btn = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-white/90 hover:bg-[rgba(255,255,255,0.1)] disabled:opacity-50 transition';
 
@@ -123,7 +136,7 @@ export default function PhotoLightbox<T extends LoadPhoto>({
           )}
           {onSave && (
             <button type="button" className={btn} disabled={busy !== ''}
-              onClick={() => { setDraft({ caption: photo.caption, stage: photo.stage, commodity: photo.commodity }); setEditing((v) => !v); }}>
+              onClick={() => { setDraft({ caption: photo.caption, stage: photo.stage, commodity: photo.commodity, location: photo.location }); setEditing((v) => !v); }}>
               <Pencil className="w-4 h-4" /><span className="hidden sm:inline">Edit</span>
             </button>
           )}
@@ -191,7 +204,7 @@ export default function PhotoLightbox<T extends LoadPhoto>({
         {context && <div className="mb-1">{context(photo)}</div>}
         {editing && onSave ? (
           <form
-            className="flex flex-col sm:flex-row sm:items-end gap-2"
+            className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               void run('save', async () => { await onSave(photo, draft); setEditing(false); });
@@ -204,12 +217,30 @@ export default function PhotoLightbox<T extends LoadPhoto>({
                 className="w-full rounded-md bg-[rgba(255,255,255,0.1)] border border-white/20 px-2 py-1.5 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-brand-400" />
             </label>
             <label>
-              <span className="block text-xs text-white/60 mb-0.5">Stage</span>
+              <span className="block text-xs text-white/60 mb-0.5">Type</span>
               <select value={draft.stage} onChange={(e) => setDraft({ ...draft, stage: e.target.value as PhotoStage })}
                 className="rounded-md bg-[rgba(255,255,255,0.1)] border border-white/20 px-2 py-1.5 text-white focus:outline-none">
                 {PHOTO_STAGES.map((s) => <option key={s} value={s} className="text-black">{PHOTO_STAGE_LABEL[s]}</option>)}
               </select>
             </label>
+            {locationsFor ? (
+              stopChoices.length > 0 && (
+                <label className="sm:w-56">
+                  <span className="block text-xs text-white/60 mb-0.5">Stop</span>
+                  <select value={draft.location} onChange={(e) => setDraft({ ...draft, location: e.target.value })}
+                    className={darkField}>
+                    <option value="" className="text-black">Not tied to one stop</option>
+                    {stopChoices.map((l) => <option key={l} value={l} className="text-black">{l}</option>)}
+                  </select>
+                </label>
+              )
+            ) : (
+              <label className="sm:w-56">
+                <span className="block text-xs text-white/60 mb-0.5">Stop</span>
+                <input value={draft.location} maxLength={MAX_PHOTO_LOCATION}
+                  onChange={(e) => setDraft({ ...draft, location: e.target.value })} className={darkField} />
+              </label>
+            )}
             <label className="sm:w-56">
               <span className="block text-xs text-white/60 mb-0.5">Commodity</span>
               <input value={draft.commodity} maxLength={MAX_PHOTO_COMMODITY} list="lightbox-commodities"
@@ -228,6 +259,7 @@ export default function PhotoLightbox<T extends LoadPhoto>({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <StageBadge stage={photo.stage} />
             {photo.caption && <span className="text-white">{photo.caption}</span>}
+            {photo.location && <span className="text-white/80">{photo.location}</span>}
             {photo.commodity && <span className="text-white/60">{photo.commodity}</span>}
             <span className="text-white/40 text-xs ml-auto">
               {photo.uploadedByName}{photo.createdAt ? ` · ${formatDateTime(new Date(photo.createdAt))}` : ''}

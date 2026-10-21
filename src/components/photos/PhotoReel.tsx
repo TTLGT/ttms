@@ -71,7 +71,7 @@ export default function PhotoReel({ photos, coverPhotoId, onOpen, height = 176 }
               onClick={() => onOpen(i)}
               style={{ width, height }}
               className="relative flex-shrink-0 snap-start rounded-lg overflow-hidden bg-gray-100 border border-gray-200 hover:ring-2 hover:ring-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
-              title={p.caption || 'Open picture'}
+              title={[p.location, p.caption].filter(Boolean).join(' — ') || 'Open picture'}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- signed link to a private bucket */}
               <img src={p.thumbUrl} alt={p.caption} loading="lazy" className="w-full h-full object-cover" />

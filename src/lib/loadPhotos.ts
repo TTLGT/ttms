@@ -54,7 +54,7 @@ export async function setOrderCover(orderId: string, photoId: string | null): Pr
 export async function updateLoadPhoto(
   orderId: string,
   photoId: string,
-  patch: { caption?: string; stage?: PhotoStage; commodity?: string },
+  patch: { caption?: string; stage?: PhotoStage; commodity?: string; location?: string },
 ): Promise<LoadPhoto> {
   const res = await fetch(`/api/orders/${orderId}/photos/${photoId}`, {
     method:  'PATCH',
@@ -148,7 +148,7 @@ export async function prepareLoadPhoto(file: File): Promise<PreparedPhoto> {
 export async function uploadLoadPhoto(
   orderId: string,
   prepared: PreparedPhoto,
-  meta: { caption: string; stage: PhotoStage; commodity: string },
+  meta: { caption: string; stage: PhotoStage; commodity: string; location: string },
   onProgress?: (percent: number) => void,
 ): Promise<{ photo: LoadPhoto; coverPhotoId: string | null }> {
   const form = new FormData();
@@ -159,6 +159,7 @@ export async function uploadLoadPhoto(
   form.append('caption', meta.caption);
   form.append('stage', meta.stage);
   form.append('commodity', meta.commodity);
+  form.append('location', meta.location);
 
   const headers = await authHeaders();
   const result = await new Promise<{ photo: LoadPhoto; coverPhotoId: string | null }>((resolve, reject) => {
