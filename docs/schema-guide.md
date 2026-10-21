@@ -636,8 +636,8 @@ index scope the service account cannot create. Types: `src/types/loadPhoto.ts`.
 |---|---|---|
 | `orderId` | string | The load. The only link — no ownership is copied here. |
 | `caption` | string | Optional, up to 300 characters. |
-| `stage` | `pickup` \| `in_transit` \| `delivery` \| `damage` \| `truck` \| `signed_sa` \| `other` | Shown as "Type". Chosen by the uploader, per picture, before it is saved — there is no default. `truck` is the driver's truck and trailer, which the SA review asks for. `signed_sa` is a photo of the client's SA signed on paper — see below. |
-| `commodity` | string | Which of the load's commodity lines it shows, or the load's summary. Copied, not linked. |
+| `stage` | `commodity` \| `truck` \| `location` \| `proof` \| `other` | Shown as "Type". Chosen by the uploader, per picture, before it is saved — there is no default. `truck` is the driver's truck and trailer, which the SA review asks for. `proof` is evidence (damage, a broken seal). Pictures saved before 2026-10-21 carry the old list — `pickup`, `in_transit`, `delivery` read as Commodity, `damage` as Proof, `signed_sa` as Other (`normalizeStage()`); nothing was rewritten. An old `signed_sa` picture still counts as a signed SA — see below. A signed SA is now uploaded on the Documents tab, not as a picture. |
+| `commodity` | string | The load's commodity summary, filled in by the server. No longer asked on upload; older pictures may name one commodity line. Copied, not linked. |
 | `commodityKey` | string | `commodityKey(commodity)` — lower-cased, spaces collapsed. |
 | `location` | string | Which stop it was taken at, e.g. `Pickup 2 — Acme Steel, Dallas, TX` (`photoLocationChoices()`), or `''`. Copied as text, not a stop index, because removing a stop shifts the ones after it. Absent on pictures saved before 2026-10-21; read as `''`. |
 | `width`, `height` | number | Pixels of the stored picture. |
@@ -730,7 +730,7 @@ touched: it is a recorded decision about the load and is never cleared.
 
 **A signed SA by hand.** Moving a load to Client Signed without an
 e-signature needs at least one `orderFiles` of kind `signed_sa` or
-`loadPhotos` of stage `signed_sa` on it (`signedSaProof()` in
+`loadPhotos` of stage `signed_sa` (saved before 2026-10-21; Pictures no longer offer it) on it (`signedSaProof()` in
 `src/lib/signedSaProof.ts`, two equality counts — no composite index).
 `updateOrderAsCaller()` refuses the move without one, and the change-log entry
 says it was by hand and on what. The button is greyed out until then, from
@@ -898,7 +898,7 @@ review; links sent before they existed simply leave them off the PDF.
 | `clientPhone` / `clientPhoneRegion` | The client party's main phone and its country. |
 | `orderCreatedAt` | The order's `createdAt` — BATS's "Order Date". |
 | `firstAvailablePickup` | The order's `firstAvailablePickup`. |
-| `photoId` | The load picture drawn on the PDF, or null. Chosen by `clientPhotoId()` in `src/lib/loadPhotosServer.ts`: the profile picture if it is a freight picture, otherwise the first pickup picture. `truck`, `damage` and `signed_sa` pictures are never shown to a client. Read from `loadPhotoPath()`, so it can only name a file in that order's own folder. |
+| `photoId` | The load picture drawn on the PDF, or null. Chosen by `clientPhotoId()` in `src/lib/loadPhotosServer.ts`: the profile picture if the client may see it, otherwise the first Commodity picture, then any other eligible one. `truck`, `proof` (and the old `damage` and `signed_sa`) pictures are never shown to a client. Read from `loadPhotoPath()`, so it can only name a file in that order's own folder. |
 
 `freight[]` lines also gain `vehicle` and `vin` when the line is a vehicle.
 Those **are** in the fingerprint — the client is confirming which vehicle —

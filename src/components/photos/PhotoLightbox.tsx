@@ -5,7 +5,6 @@ import { ChevronLeft, ChevronRight, Download, Pencil, Star, Trash2, X } from 'lu
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   MAX_CAPTION,
-  MAX_PHOTO_COMMODITY,
   MAX_PHOTO_LOCATION,
   PHOTO_STAGES,
   PHOTO_STAGE_LABEL,
@@ -14,7 +13,7 @@ import {
 } from '@/types/loadPhoto';
 import { StageBadge } from './PhotoBits';
 
-export interface PhotoPatch { caption: string; stage: PhotoStage; commodity: string; location: string }
+export interface PhotoPatch { caption: string; stage?: PhotoStage; location: string }
 
 interface Props<T extends LoadPhoto> {
   photos: T[];
@@ -29,8 +28,6 @@ interface Props<T extends LoadPhoto> {
   canDelete?: (photo: T) => boolean;
   /** Extra line above the caption — the Documents screen puts the load there. */
   context?: (photo: T) => ReactNode;
-  /** Suggestions for the commodity box when editing. */
-  commodityOptions?: string[];
   /**
    * The load's stops a picture of this type can be tagged with. Given on the
    * order's own Pictures tab; without it (the Documents screen, which has no
@@ -51,14 +48,14 @@ interface Props<T extends LoadPhoto> {
  */
 export default function PhotoLightbox<T extends LoadPhoto>({
   photos, index, onIndex, onClose,
-  isCover, onSetCover, onSave, onDelete, canDelete, context, commodityOptions = [], locationsFor,
+  isCover, onSetCover, onSave, onDelete, canDelete, context, locationsFor,
 }: Props<T>) {
   const { formatDateTime } = useDateFormatters();
   const photo = photos[index];
   const [busy, setBusy]       = useState<'' | 'cover' | 'save' | 'delete'>('');
   const [error, setError]     = useState('');
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft]     = useState<PhotoPatch>({ caption: '', stage: 'other', commodity: '', location: '' });
+  const [draft, setDraft]     = useState<Required<PhotoPatch>>({ caption: '', stage: 'other', location: '' });
   const [loaded, setLoaded]   = useState(false);
   const strip   = useRef<HTMLDivElement>(null);
   const touchX  = useRef<number | null>(null);
@@ -136,7 +133,7 @@ export default function PhotoLightbox<T extends LoadPhoto>({
           )}
           {onSave && (
             <button type="button" className={btn} disabled={busy !== ''}
-              onClick={() => { setDraft({ caption: photo.caption, stage: photo.stage, commodity: photo.commodity, location: photo.location }); setEditing((v) => !v); }}>
+              onClick={() => { setDraft({ caption: photo.caption, stage: photo.stage, location: photo.location }); setEditing((v) => !v); }}>
               <Pencil className="w-4 h-4" /><span className="hidden sm:inline">Edit</span>
             </button>
           )}
@@ -207,7 +204,12 @@ export default function PhotoLightbox<T extends LoadPhoto>({
             className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              void run('save', async () => { await onSave(photo, draft); setEditing(false); });
+              // The type only when it was changed: an old Signed SA picture
+              // reads as Other, and saving its caption must not rewrite it
+              // to Other and take it out of signedSaProof().
+              const patch: PhotoPatch = { caption: draft.caption, location: draft.location };
+              if (draft.stage !== photo.stage) patch.stage = draft.stage;
+              void run('save', async () => { await onSave(photo, patch); setEditing(false); });
             }}
           >
             <label className="flex-1 min-w-0">
@@ -241,15 +243,6 @@ export default function PhotoLightbox<T extends LoadPhoto>({
                   onChange={(e) => setDraft({ ...draft, location: e.target.value })} className={darkField} />
               </label>
             )}
-            <label className="sm:w-56">
-              <span className="block text-xs text-white/60 mb-0.5">Commodity</span>
-              <input value={draft.commodity} maxLength={MAX_PHOTO_COMMODITY} list="lightbox-commodities"
-                onChange={(e) => setDraft({ ...draft, commodity: e.target.value })}
-                className="w-full rounded-md bg-[rgba(255,255,255,0.1)] border border-white/20 px-2 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              <datalist id="lightbox-commodities">
-                {commodityOptions.map((c) => <option key={c} value={c} />)}
-              </datalist>
-            </label>
             <button type="submit" disabled={busy !== ''}
               className="px-4 py-1.5 rounded-md bg-brand-600 hover:bg-brand-700 text-white font-medium disabled:opacity-50">
               {busy === 'save' ? 'Saving…' : 'Save'}

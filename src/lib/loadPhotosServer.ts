@@ -1,8 +1,8 @@
 import { adminDb, adminStorage } from './firebase-admin';
 import {
   LOAD_PHOTOS_COLLECTION,
-  isPhotoStage,
   loadPhotoPath,
+  normalizeStage,
   type LoadPhoto,
 } from '@/types/loadPhoto';
 
@@ -87,7 +87,7 @@ export async function toLoadPhoto(
     id,
     orderId,
     caption:        String(d.caption ?? ''),
-    stage:          isPhotoStage(d.stage) ? d.stage : 'other',
+    stage:          normalizeStage(d.stage),
     commodity:      String(d.commodity ?? ''),
     location:       String(d.location ?? ''),
     width:         Number(d.width) || 0,
@@ -125,30 +125,32 @@ export async function deletePhotoFiles(orderId: string, photoId: string): Promis
 
 /**
  * Pictures that may go on a document the client receives — the quote and the
- * client's load confirmation. Only pictures of the freight itself:
+ * client's load confirmation. Not:
  *
- * - `truck` is the carrier's truck, and who carries the load is not the
+ * - `truck` — the carrier's truck, and who carries the load is not the
  *   client's business (the agreement says as much);
- * - `damage` on a document asking somebody to sign is the wrong picture to
- *   lead with, whatever it shows;
- * - `signed_sa` is a photo of the client's own paperwork, not of the load.
+ * - `proof` (and the old `damage`) — on a document asking somebody to sign it
+ *   is the wrong picture to lead with, whatever it shows;
+ * - the old `signed_sa` — a photo of the client's own paperwork, not of the
+ *   load. Tested on the stored value, since normalizeStage() reads it as Other.
  */
-const CLIENT_PHOTO_STAGES = new Set(['pickup', 'in_transit', 'delivery', 'other']);
+const CLIENT_PHOTO_STAGES = new Set(['commodity', 'location', 'other']);
 
 /**
  * The picture a client document shows for this load, or null.
  *
  * The profile picture when it is one the client may see — that is the one
  * somebody chose to represent the load — otherwise the first eligible picture,
- * pickup ones before the rest. One single-field query, as listOrderPhotos().
+ * pictures of the freight before the rest. One single-field query, as
+ * listOrderPhotos().
  */
 export async function clientPhotoId(orderId: string, coverPhotoId: unknown): Promise<string | null> {
   const snap = await adminDb.collection(LOAD_PHOTOS_COLLECTION).where('orderId', '==', orderId).get();
   const eligible = snap.docs
-    .filter((d) => CLIENT_PHOTO_STAGES.has(String(d.data().stage ?? 'other')))
-    .map((d) => ({ id: d.id, stage: String(d.data().stage ?? 'other'), at: millis(d.data().createdAt) }));
+    .filter((d) => d.data().stage !== 'signed_sa' && CLIENT_PHOTO_STAGES.has(normalizeStage(d.data().stage)))
+    .map((d) => ({ id: d.id, stage: normalizeStage(d.data().stage), at: millis(d.data().createdAt) }));
   if (typeof coverPhotoId === 'string' && eligible.some((p) => p.id === coverPhotoId)) return coverPhotoId;
-  eligible.sort((a, b) => Number(b.stage === 'pickup') - Number(a.stage === 'pickup') || a.at - b.at);
+  eligible.sort((a, b) => Number(b.stage === 'commodity') - Number(a.stage === 'commodity') || a.at - b.at);
   return eligible[0]?.id ?? null;
 }
 

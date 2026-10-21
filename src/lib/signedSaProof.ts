@@ -10,7 +10,7 @@ import { LOAD_PHOTOS_COLLECTION } from '@/types/loadPhoto';
  *
  * Whether a load holds a copy of the client's signed Shipper Agreement made
  * some other way than the e-signature link — a file of kind `signed_sa` under
- * Documents, or a picture of stage `signed_sa` under Pictures.
+ * Documents, or (saved before 2026-10-21) a picture of stage `signed_sa`.
  *
  * It is what moving a load to Client Signed **by hand** requires (enforced in
  * `updateOrderAsCaller()`, mirrored by the button). Without it the status
@@ -36,7 +36,8 @@ export async function signedSaProof(
   const [files, photos] = await Promise.all([
     adminDb.collection(ORDER_FILES_COLLECTION)
       .where('orderId', '==', orderId).where('kind', '==', SIGNED_AGREEMENT_KIND[party]).get(),
-    // The Pictures "Signed SA" stage is the client's only.
+    // Pictures no longer offer "Signed SA" — it is uploaded under Documents —
+    // but a picture saved with it before 2026-10-21 still counts. The client's only.
     party === 'client'
       ? adminDb.collection(LOAD_PHOTOS_COLLECTION)
         .where('orderId', '==', orderId).where('stage', '==', 'signed_sa').get()

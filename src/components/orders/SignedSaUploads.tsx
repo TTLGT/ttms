@@ -33,8 +33,10 @@ import { AGREEMENT_BUTTON } from '@/types/saRequest';
  * Mark Carrier Signed and the confirmation emailed to the carrier.
  */
 export default function SignedSaUploads({
-  orderId, eSigned, confirmation, canMarkSigned, onMarkSigned, onChange, party = 'client',
+  orderId, eSigned, confirmation, canMarkSigned, onMarkSigned, onChange, onCount, party = 'client',
 }: {
+  /** How many copies the slot holds, whenever that is known or changes — for a status column beside it. */
+  onCount?: (count: number) => void;
   orderId: string;
   party?: 'client' | 'carrier';
   /** The client signed on the link. */
@@ -113,6 +115,9 @@ export default function SignedSaUploads({
       setBusy('');
     }
   }
+
+  const count = files?.length;
+  useEffect(() => { if (count !== undefined) onCount?.(count); }, [count, onCount]);
 
   const mayRemove = (f: OrderFile) => !eSigned && (f.uploadedByUid === user?.uid || can('orders.viewAll'));
   const last = sent ?? confirmation;

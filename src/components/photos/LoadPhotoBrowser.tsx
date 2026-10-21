@@ -438,7 +438,6 @@ export default function LoadPhotoBrowser() {
               .filter((r) => r.id !== p.id)
               .map((r) => (r.orderId === p.orderId ? { ...r, isCover: r.id === cover } : r)));
           }}
-          commodityOptions={commodities.map((c) => c.label)}
         />
       )}
     </div>

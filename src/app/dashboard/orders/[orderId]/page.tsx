@@ -276,6 +276,11 @@ export default function OrderDetailPage() {
    */
   const [signedSaCopies, setSignedSaCopies] = useState<number | null>(null);
   const [filesVersion, setFilesVersion] = useState(0);
+  // Uploaded copies in the Documents tab's two signed-agreement rows, for
+  // their Status column. Reported by the slots themselves, which already
+  // read the files — no second request.
+  const [saUploads, setSaUploads] = useState<number | null>(null);
+  const [caUploads, setCaUploads] = useState<number | null>(null);
   const handSignable = Boolean(order && !order.shipperSignedAt
     && (order.status === 'booked' || order.status === 'carrier_assigned'));
   useEffect(() => {
@@ -2207,64 +2212,100 @@ export default function OrderDetailPage() {
                     : <span className="text-xs text-gray-400">—</span>}
                 </td>
               </tr>
+
+              {/* The client's signed SA: the e-signed PDF when they signed on
+                  the link, otherwise the copy staff uploaded — a scan, a PDF
+                  or a photo of the page. A row of its own, beside the other
+                  paperwork, rather than one of the other files. The same
+                  slot as in Client Confirmation. */}
+              <tr className="hover:bg-gray-50 transition align-top">
+                <td className="px-6 py-4">
+                  <p className="text-sm font-medium text-gray-900">Signed Shipper Agreement (SA)</p>
+                  <p className="text-xs text-gray-400">
+                    {order.shipperSignedAt ? 'Signed on the link' : 'PDF or picture, when signed on paper or by email'}
+                  </p>
+                </td>
+                <td className="px-6 py-4">
+                  {order.shipperSignedAt ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap">
+                      ✓ Signed {formatDate(order.shipperSignedAt as { toDate: () => Date })}
+                    </span>
+                  ) : saUploads ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Uploaded</span>
+                  ) : (
+                    <span className="text-xs text-gray-400">Not uploaded</span>
+                  )}
+                </td>
+                <td className="px-6 py-4 space-y-2">
+                  {order.shipperSignedAt && (
+                    <>
+                      <p className="text-xs text-gray-500">
+                        Signed electronically by <strong>{order.shipperSignerName || 'the client'}</strong>.
+                      </p>
+                      <SaAgreementVersions orderId={orderId} signed refreshKey={linkRefresh} />
+                    </>
+                  )}
+                  <SignedSaUploads
+                    orderId={orderId}
+                    eSigned={Boolean(order.shipperSignedAt)}
+                    confirmation={order.paperSaConfirmedAt && order.paperSaConfirmedTo
+                      ? { at: order.paperSaConfirmedAt, to: order.paperSaConfirmedTo, byName: order.paperSaConfirmedByName ?? '' }
+                      : null}
+                    canMarkSigned={handSignable && STATUS_NEXT[order.status] === 'shipper_signed'}
+                    onMarkSigned={() => void handleAdvance()}
+                    onChange={() => setFilesVersion((n) => n + 1)}
+                    onCount={setSaUploads}
+                  />
+                </td>
+              </tr>
+
+              {/* The carrier's signed agreement, the same way as the client's above. */}
+              {order.carrierId && (
+                <tr className="hover:bg-gray-50 transition align-top">
+                  <td className="px-6 py-4">
+                    <p className="text-sm font-medium text-gray-900">Signed Dispatch Sheet</p>
+                    <p className="text-xs text-gray-400">
+                      {order.carrierSignedAt ? 'Signed on the link' : 'PDF or picture, when signed on paper or by email'}
+                    </p>
+                  </td>
+                  <td className="px-6 py-4">
+                    {order.carrierSignedAt ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap">
+                        ✓ Signed {formatDate(order.carrierSignedAt as { toDate: () => Date })}
+                      </span>
+                    ) : caUploads ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Uploaded</span>
+                    ) : (
+                      <span className="text-xs text-gray-400">Not uploaded</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 space-y-2">
+                    {order.carrierSignedAt && (
+                      <>
+                        <p className="text-xs text-gray-500">
+                          Signed electronically by <strong>{order.carrierSignerName || 'the carrier'}</strong>.
+                        </p>
+                        <SaAgreementVersions orderId={orderId} party="carrier" signed refreshKey={caRefresh} />
+                      </>
+                    )}
+                    <SignedSaUploads
+                      party="carrier"
+                      orderId={orderId}
+                      eSigned={Boolean(order.carrierSignedAt)}
+                      confirmation={order.paperCaConfirmedAt && order.paperCaConfirmedTo
+                        ? { at: order.paperCaConfirmedAt, to: order.paperCaConfirmedTo, byName: order.paperCaConfirmedByName ?? '' }
+                        : null}
+                      canMarkSigned={handCarrierSignable}
+                      onMarkSigned={() => void handleAdvance()}
+                      onChange={() => setFilesVersion((n) => n + 1)}
+                      onCount={setCaUploads}
+                    />
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
-        {/* The client's signed SA: the e-signed PDF when they signed on the
-            link, otherwise the copy staff uploaded. Its own section — the
-            same slot as in Client Confirmation — not one of the other files. */}
-        <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Signed Shipper Agreement (SA)</h2>
-            <p className="text-xs text-gray-500 mt-1">
-              {order.shipperSignedAt
-                ? <>Signed electronically by <strong>{order.shipperSignerName || 'the client'}</strong>
-                    {order.shipperSignedAt && <> on {formatDate(order.shipperSignedAt as { toDate: () => Date })}</>}.</>
-                : 'The client’s signed Shipper Agreement. When they sign on the link it appears here by itself; if they sign on paper or by email, upload it here.'}
-            </p>
-          </div>
-          {order.shipperSignedAt && (
-            <SaAgreementVersions orderId={orderId} signed refreshKey={linkRefresh} />
-          )}
-          <SignedSaUploads
-            orderId={orderId}
-            eSigned={Boolean(order.shipperSignedAt)}
-            confirmation={order.paperSaConfirmedAt && order.paperSaConfirmedTo
-              ? { at: order.paperSaConfirmedAt, to: order.paperSaConfirmedTo, byName: order.paperSaConfirmedByName ?? '' }
-              : null}
-            canMarkSigned={handSignable && STATUS_NEXT[order.status] === 'shipper_signed'}
-            onMarkSigned={() => void handleAdvance()}
-            onChange={() => setFilesVersion((n) => n + 1)}
-          />
-        </section>
-        {/* The carrier's signed agreement, the same way as the client's above. */}
-        {order.carrierId && (
-          <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Signed Dispatch Sheet</h2>
-              <p className="text-xs text-gray-500 mt-1">
-                {order.carrierSignedAt
-                  ? <>Signed electronically by <strong>{order.carrierSignerName || 'the carrier'}</strong>
-                      {' '}on {formatDate(order.carrierSignedAt as { toDate: () => Date })}.</>
-                  : 'The carrier’s signed dispatch sheet. When they sign on the link it appears here by itself; if they sign on paper or by email, upload it here.'}
-              </p>
-            </div>
-            {order.carrierSignedAt && (
-              <SaAgreementVersions orderId={orderId} party="carrier" signed refreshKey={caRefresh} />
-            )}
-            <SignedSaUploads
-              party="carrier"
-              orderId={orderId}
-              eSigned={Boolean(order.carrierSignedAt)}
-              confirmation={order.paperCaConfirmedAt && order.paperCaConfirmedTo
-                ? { at: order.paperCaConfirmedAt, to: order.paperCaConfirmedTo, byName: order.paperCaConfirmedByName ?? '' }
-                : null}
-              canMarkSigned={handCarrierSignable}
-              onMarkSigned={() => void handleAdvance()}
-              onChange={() => setFilesVersion((n) => n + 1)}
-            />
-          </section>
-        )}
         <OrderFiles orderId={orderId} onChange={() => setFilesVersion((n) => n + 1)} />
         </div>
       )}

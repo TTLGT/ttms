@@ -6,14 +6,12 @@ import { PHOTO_STAGE_LABEL, type PhotoStage } from '@/types/loadPhoto';
 /** Small pieces shared by every picture view. */
 
 export const STAGE_COLOR: Record<PhotoStage, string> = {
-  pickup:     'bg-blue-50 text-blue-700 border-blue-200',
-  in_transit: 'bg-amber-50 text-amber-700 border-amber-200',
-  delivery:   'bg-green-50 text-green-700 border-green-200',
-  // Red because a damage photo is the one somebody will be looking for.
-  damage:     'bg-red-50 text-red-700 border-red-200',
-  truck:      'bg-purple-50 text-purple-700 border-purple-200',
-  signed_sa:  'bg-emerald-50 text-emerald-700 border-emerald-200',
-  other:      'bg-gray-100 text-gray-600 border-gray-200',
+  commodity: 'bg-blue-50 text-blue-700 border-blue-200',
+  truck:     'bg-purple-50 text-purple-700 border-purple-200',
+  location:  'bg-green-50 text-green-700 border-green-200',
+  // Red because a proof photo is the one somebody will be looking for.
+  proof:     'bg-red-50 text-red-700 border-red-200',
+  other:     'bg-gray-100 text-gray-600 border-gray-200',
 };
 
 export function StageBadge({ stage }: { stage: PhotoStage }) {

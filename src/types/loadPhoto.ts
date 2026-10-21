@@ -22,35 +22,32 @@ import { orderDeliveries, orderPickups, stopLabel, type Order, type StopKind } f
 export const LOAD_PHOTOS_COLLECTION = 'loadPhotos';
 
 /**
- * Where in the load's life the picture was taken.
- *
- * Its own field rather than something inferred from the upload time, because
- * the answer that matters in a claim — "was it already broken at pickup?" — is
- * one the uploader knows and a clock does not: pickup photos are routinely
- * sent in hours after the truck has left.
+ * What the picture is of — shown as "Type". Stored as `stage`, its name from
+ * when it said where in the trip the picture was taken; *where* is now the
+ * separate `location` tag.
  */
-export const PHOTO_STAGES = ['pickup', 'in_transit', 'delivery', 'damage', 'truck', 'signed_sa', 'other'] as const;
+export const PHOTO_STAGES = ['commodity', 'truck', 'location', 'proof', 'other'] as const;
 export type PhotoStage = (typeof PHOTO_STAGES)[number];
 
 export const PHOTO_STAGE_LABEL: Record<PhotoStage, string> = {
-  pickup:     'Pickup',
-  in_transit: 'In transit',
-  delivery:   'Delivery',
-  damage:     'Damage',
+  /** The freight itself — on the dock, on the deck, at the door. */
+  commodity: 'Commodity',
   /**
    * The driver's truck and trailer, before the load is tendered — not the
    * freight. The SA review asks for at least one (see src/types/saRequest.ts):
    * a truck that turns up looking nothing like its pictures is how a
    * double-brokered load shows itself at the dock.
    */
-  truck:      'Truck',
+  truck:     'Truck',
+  /** The place — a facility, a dock door, a gate, a yard. */
+  location:  'Location',
   /**
-   * A photo of the client's Shipper Agreement signed on paper. Like a
-   * `signed_sa` file, it is what lets staff move the load to Client Signed by
-   * hand — see src/lib/signedSaProof.ts.
+   * Evidence: damage, a broken seal, a shortage. Never shown to the client
+   * (see clientPhotoId()), because a document asking somebody to sign is the
+   * wrong place to lead with it.
    */
-  signed_sa:  'Signed Shipper Agreement (SA)',
-  other:      'Other',
+  proof:     'Proof',
+  other:     'Other',
 };
 
 export function isPhotoStage(value: unknown): value is PhotoStage {
@@ -58,13 +55,20 @@ export function isPhotoStage(value: unknown): value is PhotoStage {
 }
 
 /**
- * The stage a new picture most likely belongs to, from where the load is.
- * Only a starting point for the picker — the uploader can always change it.
+ * A stored value as one of today's types. Pictures saved before 2026-10-21
+ * carry the old list: pickup, in transit and delivery were all pictures of the
+ * freight, and damage is what Proof is for.
+ *
+ * `signed_sa` reads as Other. A signed SA belongs on the Documents tab now,
+ * but an old picture of one still counts as proof in signedSaProof(), which
+ * reads the stored value — so the viewer only sends a type when somebody
+ * changes it, and opening one to fix its caption does not quietly undo that.
  */
-export function defaultStageFor(status: string): PhotoStage {
-  if (status === 'in_transit') return 'in_transit';
-  if (status === 'delivered' || status === 'completed') return 'delivery';
-  return 'pickup';
+export function normalizeStage(value: unknown): PhotoStage {
+  if (isPhotoStage(value)) return value;
+  if (value === 'pickup' || value === 'in_transit' || value === 'delivery') return 'commodity';
+  if (value === 'damage') return 'proof';
+  return 'other';
 }
 
 /*
@@ -91,16 +95,11 @@ export const MAX_PHOTO_COMMODITY  = 120;
 export const MAX_PHOTO_LOCATION   = 160;
 
 /**
- * Which stops a picture of this type can be tagged with. A pickup picture is
- * at a pickup and a delivery one at a delivery; damage and "other" can be
- * anywhere on the trip; in transit is on the road, and a truck or a signed SA
- * is not about a stop at all.
+ * Which stops a picture of this type can be tagged with: any of them, except
+ * for the truck, which is the carrier's and not about a stop.
  */
 export function locationKindsFor(stage: PhotoStage | ''): StopKind[] {
-  if (stage === 'pickup')   return ['pickup'];
-  if (stage === 'delivery') return ['delivery'];
-  if (stage === 'damage' || stage === 'other') return ['pickup', 'delivery'];
-  return [];
+  return stage === 'truck' ? [] : ['pickup', 'delivery'];
 }
 
 /**

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "e30f556d3e413268178054b556eff81ecedf9692",
+      "date": "2026-10-21T13:02:57-06:00",
+      "author": "erwindank",
+      "subject": "Tag load pictures before they are saved, and record which stop each one was taken at",
+      "body": "Choosing pictures now puts them in a review tray with a preview. Each one\ngets a type (required, no default), a stop, what it shows and a caption, and\nnothing is uploaded until Save. Several at once can be tagged together.\n\"Stage\" is now shown as \"Type\", and the stop is editable in the viewer and\nsearchable on the Documents screen."
+    },
+    {
       "hash": "1fc1bb6edc892b033d0b9005a4f237053b313edb",
       "date": "2026-10-21T11:12:22-06:00",
       "author": "erwindank",

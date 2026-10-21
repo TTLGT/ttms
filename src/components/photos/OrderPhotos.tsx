@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, ImageUp, Images, Loader2, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -21,7 +21,7 @@ import {
   type LoadPhoto,
   type PhotoStage,
 } from '@/types/loadPhoto';
-import { orderCommodityItems, type Order } from '@/types/order';
+import type { Order } from '@/types/order';
 import PhotoReel from './PhotoReel';
 import PhotoLightbox from './PhotoLightbox';
 
@@ -43,7 +43,6 @@ interface Draft {
   /** '' until somebody picks one — the type is the one tag that is required. */
   stage: PhotoStage | '';
   location: string;
-  commodity: string;
   caption: string;
 }
 
@@ -59,11 +58,13 @@ interface Props {
  * picture.
  *
  * Adding is two steps on purpose. Choosing files only puts them in the tray;
- * the type, stop, commodity and caption are set there, per picture, and Save
- * sends them. The type is what the SA review counts (`truck`), what proves a
- * paper signature (`signed_sa`) and what keeps a picture off the client's
- * documents — too much rides on it to take from a dropdown somebody set before
- * choosing the files and forgot about.
+ * the type, stop and caption are set there, per picture, and Save sends them.
+ * The type is what the SA review counts (`truck`) and what keeps a picture off
+ * the client's documents (`truck`, `proof`) — too much rides on it to take
+ * from a dropdown somebody set before choosing the files and forgot about.
+ *
+ * What the picture shows is not asked: the server files it under the load's
+ * commodity, which is all the Documents screen groups by.
  *
  * Anybody who can open the load can add pictures and choose its profile
  * picture, the same as editing any other part of it. Removing one is narrower
@@ -91,16 +92,6 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
   const preparing = useRef(false);
   const draftsRef = useRef<Draft[]>([]);
   draftsRef.current = drafts;
-
-  // The load's own lines, so a picture can say which freight it shows. The
-  // whole-load summary is the empty choice and is what the server files it
-  // under when nothing narrower is picked.
-  const commodityChoices = useMemo(() => {
-    const seen = new Set<string>();
-    return orderCommodityItems(order)
-      .map((i) => i.description.trim())
-      .filter((d) => d && !seen.has(d.toLowerCase()) && seen.add(d.toLowerCase()));
-  }, [order]);
 
   const locationsFor = useCallback(
     (stage: PhotoStage | '') => photoLocationChoices(order, locationKindsFor(stage)),
@@ -189,7 +180,7 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
     const stamp = Date.now();
     const fresh: Draft[] = images.map((f, i) => ({
       key: `${stamp}-${i}-${f.name}`, name: f.name, state: 'preparing', progress: 0,
-      stage: '', location: '', commodity: '', caption: '',
+      stage: '', location: '', caption: '',
     }));
     // Written to the ref as well as the state so the shrinking loop, which
     // checks the ref, sees them before React has rendered.
@@ -230,7 +221,7 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
         patchDraft(d.key, { state: 'uploading', progress: 0, error: undefined });
         const { photo, coverPhotoId } = await uploadLoadPhoto(
           order.id, d.prepared!,
-          { caption: d.caption, stage: d.stage as PhotoStage, commodity: d.commodity, location: d.location },
+          { caption: d.caption, stage: d.stage as PhotoStage, commodity: '', location: d.location },
           (progress) => patchDraft(d.key, { progress }),
         );
         list = [...list, photo];
@@ -250,7 +241,7 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
   const untyped        = drafts.filter((d) => d.prepared && !d.stage).length;
 
   // "Set for all": a value shows only when every picture already agrees on it.
-  const same = <K extends 'stage' | 'location' | 'commodity'>(k: K): Draft[K] | '' =>
+  const same = <K extends 'stage' | 'location'>(k: K): Draft[K] | '' =>
     drafts.length > 0 && drafts.every((d) => d[k] === drafts[0][k]) ? drafts[0][k] : '';
   const allStage     = same('stage');
   const allLocations = allStage ? locationsFor(allStage) : [];
@@ -328,16 +319,6 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
                   </select>
                 </label>
               )}
-              {commodityChoices.length > 0 && (
-                <label>
-                  <span className={label}>Shows</span>
-                  <select value={same('commodity')} disabled={saving} className={`${field} max-w-[14rem]`}
-                    onChange={(e) => { const v = e.target.value; setDrafts((list) => list.map((d) => ({ ...d, commodity: v }))); }}>
-                    <option value="">Whole load{order.commodity ? ` — ${order.commodity}` : ''}</option>
-                    {commodityChoices.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </label>
-              )}
             </div>
           )}
 
@@ -380,7 +361,7 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
                     {d.state === 'failed' && !d.prepared ? (
                       <p className="text-xs text-red-600">{d.error}</p>
                     ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-[12rem_1fr_1fr] gap-2">
                         <label>
                           <span className={label}>Type <span className="text-red-500">*</span></span>
                           <select value={d.stage} disabled={locked}
@@ -401,18 +382,7 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
                             </select>
                           </label>
                         )}
-                        {commodityChoices.length > 0 && (
-                          <label>
-                            <span className={label}>Shows</span>
-                            <select value={d.commodity} disabled={locked}
-                              onChange={(e) => patchDraft(d.key, { commodity: e.target.value })}
-                              className={`${field} w-full`}>
-                              <option value="">Whole load{order.commodity ? ` — ${order.commodity}` : ''}</option>
-                              {commodityChoices.map((c) => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                          </label>
-                        )}
-                        <label className="sm:col-span-2 lg:col-span-1 lg:flex-1">
+                        <label className={locations.length > 0 ? '' : 'sm:col-span-2'}>
                           <span className={label}>Caption</span>
                           <input value={d.caption} maxLength={MAX_CAPTION} disabled={locked}
                             onChange={(e) => patchDraft(d.key, { caption: e.target.value })}
@@ -491,7 +461,6 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
             announceCover(nextCover, rest);
             if (rest.length === 0) setOpen(null);
           }}
-          commodityOptions={[order.commodity, ...commodityChoices].filter(Boolean)}
           locationsFor={locationsFor}
         />
       )}
