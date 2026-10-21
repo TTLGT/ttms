@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "7aee48b0144d3e4dbf4d0d214e1a9f63e1397033",
+      "date": "2026-10-19T15:38:18-06:00",
+      "author": "erwindank",
+      "subject": "Hold the Dispatch Sheet when a load changes after it was sent, and turn a broker's change to sent paperwork into a change order for dispatch to approve",
+      "body": "Carrier side: a save that changes anything the Dispatch Sheet prints holds\nthe carrier's newest live link, clears a carrier e-signature that no longer\nmatches, and reopens the carrier review with reason 'changed', in the same\nbatch as the save (src/lib/carrierAgreements.ts). A carrier swap also opens\nthe review and posts in the room. Each new send stores a fingerprint on the\nlink. Carrier terms changes go through the same hold.\n\nChange orders: once an SA or Dispatch Sheet link is out, a save by somebody\nwithout the new orders.applyChanges permission (admin and dispatch) that\nchanges what it prints is refused; the browser asks for a reason and files\nthe patch as changeOrders/{orderId}. Admin and dispatch approve (applied as\nan ordinary save, so the holds and change log run) or turn it down with a\nnote, from the load or from Approvals. Firestore rules: changeOrders closed\n(deployed). See changeorderplan.md."
+    },
+    {
       "hash": "999d136dfc0354f40621602cb012428d0e4f72cf",
       "date": "2026-10-19T14:14:57-06:00",
       "author": "erwindank",

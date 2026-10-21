@@ -325,7 +325,7 @@ export default function SignForm({
           </Card>
 
           <Card title="Freight">
-            {equipment && <DetailRow label="Equipment" value={equipment} />}
+            {equipment && <DetailRow label="Transport type" value={equipment} />}
             {accessorials && accessorials.length > 0 && <DetailRow label="Accessorials" value={accessorials.join(', ')} />}
             {freight && freight.length > 0 ? (
               <div className="mt-2 overflow-x-auto">
@@ -401,6 +401,7 @@ export default function SignForm({
           <DetailRow label="From"      value={originStr} />
           <DetailRow label="To"        value={destinationStr} />
           <DetailRow label="Commodity" value={commodity} />
+          {equipment && <DetailRow label="Transport type" value={equipment} />}
           <DetailRow label="Weight"    value={weight} />
           <DetailRow label="Pieces"    value={pieces} />
           {dimensions && <DetailRow label="Dimensions" value={dimensions} />}

@@ -104,6 +104,7 @@ async function bolBuffer(order: FirebaseFirestore.DocumentData): Promise<Buffer>
     carrierDot,
     carrierMc,
     driverName:       order.driverName         ?? '',
+    transportType:    order.transportType      ?? '',
     truckNumber:      order.truckNumber        ?? '',
     trailerNumber:    order.trailerNumber      ?? '',
     commodity:        order.commodity          ?? '',

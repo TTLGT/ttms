@@ -975,6 +975,21 @@ the carrier's Dispatch Sheet — and shown on their signing pages and signed
 PDFs. Renaming or removing a key is a migration: an unknown key is dropped
 and stops printing.
 
+### Transport type on an order (2026-10-21)
+
+`transportType` — the truck or trailer the load moves on ("Open car carrier",
+"Flatbed"). Not a freight line's `vehicleType`, which is the vehicle being
+shipped. Free text with suggestions (`TRANSPORT_TYPE_SUGGESTIONS`), because
+the BATS import brought its own wording. **Required on a new order** —
+`createOrderAsCaller()` refuses one without it, except a suborder, which
+copies its parent's. Older loads may have `''`; `orderReadiness()` lists it as
+missing, and the edit form asks for it whenever the Freight section is open.
+
+Printed on the SA and the Dispatch Sheet (copied onto both signing links as
+`equipment`, and part of both `freight` fingerprints — on the carrier's only
+when set, so sheets sent before it existed are not held) and on the BOL.
+Carrier links sent before 2026-10-21 carry none and show none.
+
 ### BOL fields on an order (2026-10-14)
 
 Typed in the Bill of Lading card on the order and printed on the BOL. All

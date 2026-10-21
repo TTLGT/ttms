@@ -549,6 +549,14 @@ export async function createOrderAsCaller(
   const record: Record<string, unknown> = { ...data };
   for (const f of IGNORED_FIELDS) delete record[f];
 
+  // Every document the load produces prints it, so a new load needs one. A
+  // suborder is let through: it copies its parent's, and refusing to split an
+  // older load that predates the field would help nobody.
+  record.transportType = typeof record.transportType === 'string' ? record.transportType.trim() : '';
+  if (!record.transportType && !record.parentOrderId) {
+    throw new AdminAuthError('Choose the transport type — the truck or trailer this load moves on.', 400);
+  }
+
   // Orders are closed by default, so a creator missing from their own order
   // could not open it. The rule required it; this guarantees it.
   const uids = Array.isArray(record.assignedToUids) ? (record.assignedToUids as unknown[]).map(String) : [];

@@ -16,6 +16,7 @@ import type { DriverChoice } from '@/components/carriers/DriverPicker';
 import { DEFAULT_RECORD_REGION } from '@/lib/phone';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
 import AccessorialsField from '@/components/orders/AccessorialsField';
+import TransportTypeField from '@/components/orders/TransportTypeField';
 import PriceAndTermsSection, { blankPriceTerms, priceTermsForSave } from '@/components/orders/PriceAndTermsSection';
 import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
@@ -77,7 +78,8 @@ function NewOrderForm() {
 
   const [commodities, setCommodities]   = useState<CommodityItem[]>([blankCommodityItem()]);
   const [accessorials, setAccessorials] = useState<Accessorial[]>([]);
-  const [origin, setOrigin]             = useState<Address>(BLANK_ADDRESS);
+  const [transportType, setTransportType] = useState('');
+  const [origin, setOrigin]           = useState<Address>(BLANK_ADDRESS);
   const [destination, setDest]          = useState<Address>(BLANK_ADDRESS);
   const [extraPickups, setExtraPickups]       = useState<StopDraft[]>([]);
   const [extraDeliveries, setExtraDeliveries] = useState<StopDraft[]>([]);
@@ -188,6 +190,8 @@ function NewOrderForm() {
     if (badRange) { setError(badRange); return; }
     const badStop = stopsProblem('pickup', extraPickups) || stopsProblem('delivery', extraDeliveries);
     if (badStop) { setError(badStop); return; }
+    // The input is `required`, but a value of spaces gets past that.
+    if (!transportType.trim()) { setError('Choose the transport type — the truck or trailer this load moves on.'); return; }
 
     setError('');
     setSaving(true);
@@ -262,7 +266,7 @@ function NewOrderForm() {
         ...priceTermsForSave(priceTerms),
         batsId:             null,
         vehicles:           '',
-        transportType:      '',
+        transportType:      transportType.trim(),
         assignedTo:         '',
         // Whoever writes the order owns it. Orders are closed by default —
         // unlike a party, one with no owner is visible only to admin, dispatch
@@ -372,6 +376,7 @@ function NewOrderForm() {
                 weight are added up for you.
               </p>
             </div>
+            <TransportTypeField value={transportType} onChange={setTransportType} required />
             <CommodityItemsFields value={commodities} onChange={setCommodities}
               pickups={pickupChoices} deliveries={deliveryChoices} />
             <AccessorialsField value={accessorials} onChange={setAccessorials} />

@@ -59,6 +59,8 @@ export function orderReadiness(order: Partial<Order>, facts: ReadinessFacts = {}
     { key: 'deliveryDate', label: 'Delivery date', ok: filled(order.deliveryDate) },
     { key: 'commodity', label: 'What the freight is', ok: described },
     { key: 'weight', label: 'Weight', ok: weighed },
+    { key: 'transportType', label: 'Transport type (the truck or trailer)', ok: filled(order.transportType),
+      hint: 'Edit the freight and choose one. It prints on the SA, the Dispatch Sheet and the BOL.' },
     { key: 'agreedRate', label: 'Agreed rate', ok: (Number(order.agreedRate) || 0) > 0,
       hint: 'The quote calculator can work this out.' },
   ];

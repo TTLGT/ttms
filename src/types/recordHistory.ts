@@ -121,6 +121,7 @@ const LABELS: Record<string, string> = {
   deliveryCountedBy: 'Counted at delivery by',
   bolShowDockBoxes: 'Print all loading and count boxes on the BOL',
   accessorials: 'Accessorials',
+  transportType: 'Transport type',
   laneMiles: 'Lane miles',
   laneMilesSource: 'Mileage method',
   firstAvailablePickup: 'First available pickup',

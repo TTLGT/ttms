@@ -244,6 +244,17 @@ export const VEHICLE_TYPE_SUGGESTIONS = [
   'Box truck', 'Semi truck', 'Bus', 'Heavy equipment', 'Farm equipment',
 ];
 
+/**
+ * What the load moves on (`Order.transportType`), offered on the form;
+ * anything else may still be typed. Not to be confused with the list above,
+ * which is the vehicle being shipped.
+ */
+export const TRANSPORT_TYPE_SUGGESTIONS = [
+  'Open car carrier', 'Enclosed car carrier', 'Hotshot', 'Flatbed', 'Step deck',
+  'RGN / Lowboy', 'Conestoga', 'Dry van', 'Reefer', 'Box truck', 'Power only',
+  'Tow truck', 'Container / Drayage',
+];
+
 /** True when any vehicle detail was entered on the line. */
 export function hasVehicleDetails(item: CommodityItem): boolean {
   return Boolean(
@@ -897,6 +908,16 @@ export interface Order {
   pieces: number;
   /** Total load weight in pounds. Derived — see `totalWeightLb`. */
   weight: number;
+  /**
+   * The truck or trailer the load moves on — "Open car carrier", "Flatbed".
+   * Not to be confused with a freight line's `vehicleType`, which is the
+   * vehicle being *shipped*. Required when an order is created (enforced in
+   * createOrderAsCaller()), and printed on the SA, the Dispatch Sheet and the
+   * BOL. Free text with suggestions (TRANSPORT_TYPE_SUGGESTIONS), because the
+   * BATS import brought its own wording and every one of those must stay
+   * valid. '' on imported loads BATS left blank and on every load made here
+   * before 2026-10-21; orderReadiness() flags those before paperwork goes out.
+   */
   transportType: string;
   origin: Address;
   destination: Address;

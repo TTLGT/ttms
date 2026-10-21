@@ -90,6 +90,7 @@ export default function LoadPhotoBrowser() {
   const [sort, setSort]         = useState<SortId>('newest');
   const [search, setSearch]     = useState('');
   const [commodity, setCommodity] = useState('');
+  const [transport, setTransport] = useState('');
   const [stages, setStages]     = useState<PhotoStage[]>([]);
   const [coversOnly, setCoversOnly] = useState(false);
   const [openId, setOpenId]     = useState<string | null>(null);
@@ -122,16 +123,33 @@ export default function LoadPhotoBrowser() {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [rows]);
 
+  // Transport types the same way, keyed by commodityKey() so "Flatbed" and
+  // "flatbed " are one entry. Loads with none are left out of the list: there
+  // is nothing to pick them by, and "All" still shows them.
+  const transports = useMemo(() => {
+    const byKey = new Map<string, { label: string; count: number }>();
+    for (const r of rows) {
+      if (!r.transportType) continue;
+      const key = commodityKey(r.transportType);
+      const entry = byKey.get(key);
+      if (entry) entry.count += 1; else byKey.set(key, { label: r.transportType, count: 1 });
+    }
+    return [...byKey.entries()]
+      .map(([key, v]) => ({ key, ...v }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [rows]);
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = rows.filter((r) => {
       if (coversOnly && !r.isCover) return false;
       if (stages.length && !stages.includes(r.stage)) return false;
       if (commodity && commodityKey(labelOf(r)) !== commodity) return false;
+      if (transport && commodityKey(r.transportType) !== transport) return false;
       if (!q) return true;
       return [
         r.orderNumber, r.altNumber ?? '', r.clientName, r.shipperName, r.consigneeName,
-        r.commodity, r.orderCommodity, r.caption, r.uploadedByName,
+        r.commodity, r.orderCommodity, r.transportType, r.caption, r.uploadedByName,
         r.originLabel, r.destinationLabel, PHOTO_STAGE_LABEL[r.stage],
       ].some((v) => v.toLowerCase().includes(q));
     });
@@ -142,7 +160,7 @@ export default function LoadPhotoBrowser() {
       commodity: (a, b) => labelOf(a).localeCompare(labelOf(b)) || b.createdAt - a.createdAt,
     };
     return [...filtered].sort(cmp[sort]);
-  }, [rows, search, commodity, stages, coversOnly, sort]);
+  }, [rows, search, commodity, transport, stages, coversOnly, sort]);
 
   // The grouped views. Each group's rows are in the order they are drawn, so
   // the viewer slides through them in the same order the eye does.
@@ -240,13 +258,18 @@ export default function LoadPhotoBrowser() {
         <div className="relative flex-1 min-w-0">
           <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by order #, client, commodity, caption, city…"
+            placeholder="Search by order #, client, commodity, transport type, caption, city…"
             className={`${field} w-full pl-8`} />
         </div>
         <select value={commodity} onChange={(e) => setCommodity(e.target.value)} className={`${field} lg:w-56`}
           aria-label="Commodity">
           <option value="">All commodities</option>
           {commodities.map((c) => <option key={c.key} value={c.key}>{c.label} ({c.count})</option>)}
+        </select>
+        <select value={transport} onChange={(e) => setTransport(e.target.value)} className={`${field} lg:w-48`}
+          aria-label="Transport type">
+          <option value="">All transport types</option>
+          {transports.map((t) => <option key={t.key} value={t.key}>{t.label} ({t.count})</option>)}
         </select>
         <select value={sort} onChange={(e) => setSort(e.target.value as SortId)} className={`${field} lg:w-40`}
           aria-label="Sort">

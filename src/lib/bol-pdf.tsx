@@ -60,6 +60,8 @@ export type BolData = {
   carrierDot: string;
   carrierMc: string;
   driverName: string;
+  /** What the load moves on (`Order.transportType`). '' on an older load. */
+  transportType: string;
   truckNumber: string;
   trailerNumber: string;
   commodity: string;
@@ -417,8 +419,10 @@ function BolDocument({ d }: { d: BolData }) {
           </Card>
           <View style={s.gap} />
           <Card n={next()} title="DRIVER & EQUIPMENT" half>
-            <View style={{ flexDirection: 'row' }}>
+            <View style={s.pair}>
               <Field label="Driver" value={d.driverName} />
+              {/* A box for a pen when unset, like the truck and trailer numbers. */}
+              <Field label="Transport type" value={d.transportType} blank />
             </View>
             <View style={s.pair}>
               <Field label="Truck no." value={d.truckNumber} blank />

@@ -155,7 +155,9 @@ export function signFormData(data: Record<string, any>): SignFormData {
       : DEFAULT_TERMS[isClient ? 'client' : 'carrier'],
     stops: isClient && Array.isArray(data.stops) ? data.stops : undefined,
     freight: isClient && Array.isArray(data.freight) ? data.freight : undefined,
-    equipment: isClient ? data.equipment || '' : undefined,
+    // Both documents. A carrier link sent before 2026-10-21 carries none and
+    // shows none, rather than reading today's order.
+    equipment: typeof data.equipment === 'string' ? data.equipment : '',
     payment: isClient ? data.payment ?? null : undefined,
     validUntil: longDate(data.expiresAt),
     sentByName: data.sentByName || '',

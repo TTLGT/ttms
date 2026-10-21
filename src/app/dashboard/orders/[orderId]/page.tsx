@@ -1332,6 +1332,12 @@ export default function OrderDetailPage() {
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Freight</h3>
               <SectionEditLink orderId={orderId} section="freight" />
             </div>
+            <div className="mb-4">
+              <p className="text-xs font-medium text-gray-500 mb-0.5">Transport type</p>
+              {order.transportType?.trim()
+                ? <p className="text-sm text-gray-900">{order.transportType}</p>
+                : <p className="text-sm text-amber-700">Not set — edit the freight to choose one before the paperwork goes out.</p>}
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>

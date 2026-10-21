@@ -11,6 +11,7 @@ import PartyCombobox from '@/components/parties/PartyCombobox';
 import type { PartySelection } from '@/components/parties/PartyCombobox';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
 import AccessorialsField from '@/components/orders/AccessorialsField';
+import TransportTypeField from '@/components/orders/TransportTypeField';
 import PriceAndTermsSection, { blankPriceTerms, priceTermsForSave, priceTermsFromOrder } from '@/components/orders/PriceAndTermsSection';
 import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
@@ -89,7 +90,8 @@ export default function EditOrderPage() {
   const [consignee, setConsignee] = useState<PartySelection>({ id: '', name: '' });
   const [commodities, setCommodities]   = useState<CommodityItem[]>([]);
   const [accessorials, setAccessorials] = useState<Accessorial[]>([]);
-  const [origin, setOrigin]             = useState<Address>(BLANK_ADDRESS);
+  const [transportType, setTransportType] = useState('');
+  const [origin, setOrigin]           = useState<Address>(BLANK_ADDRESS);
   const [destination, setDest]          = useState<Address>(BLANK_ADDRESS);
   const [extraPickups, setExtraPickups]       = useState<StopDraft[]>([]);
   const [extraDeliveries, setExtraDeliveries] = useState<StopDraft[]>([]);
@@ -162,6 +164,7 @@ export default function EditOrderPage() {
         // single line, so the editor has something to open on.
         setCommodities(orderCommodityItems(o));
         setAccessorials(orderAccessorials(o));
+        setTransportType(o.transportType ?? '');
         setOrigin(o.origin ?? BLANK_ADDRESS);
         setDest(o.destination ?? BLANK_ADDRESS);
         setExtraPickups(stopDraftsFrom(o.extraPickups));
@@ -228,6 +231,12 @@ export default function EditOrderPage() {
       ? stopsProblem('pickup', extraPickups) || stopsProblem('delivery', extraDeliveries)
       : '';
     if (badStop) { setError(badStop); return; }
+    // Asked for whenever the freight is on screen, so an older load without
+    // one gets it the first time somebody edits its freight.
+    if (shows('freight') && !transportType.trim()) {
+      setError('Choose the transport type — the truck or trailer this load moves on.');
+      return;
+    }
 
     setError('');
     setSaving(true);
@@ -287,6 +296,7 @@ export default function EditOrderPage() {
           pieces:       totalPieces(commodityItems) || 1,
           weight:       Math.round(totalWeightLb(commodityItems)),
           accessorials,
+          transportType: transportType.trim(),
         },
         price: {
           agreedRate:   parseFloat(agreedRate) || 0,
@@ -411,6 +421,7 @@ export default function EditOrderPage() {
                 weight are added up for you.
               </p>
             </div>
+            <TransportTypeField value={transportType} onChange={setTransportType} required />
             <CommodityItemsFields value={commodities} onChange={setCommodities}
               pickups={pickupChoices} deliveries={deliveryChoices} />
             <AccessorialsField value={accessorials} onChange={setAccessorials} />

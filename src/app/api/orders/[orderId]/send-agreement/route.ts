@@ -176,6 +176,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     // Snapshotted with the rest of the load: what the carrier signed against
     // must not shift if the order is edited afterwards.
     dimensions:   dimensionsSummary(orderCommodityItems(order as Partial<Order>)),
+    // What the load moves on, under the key the client's link uses for it.
+    // Absent on carrier links sent before 2026-10-21, which show none.
+    equipment:    order.transportType || '',
     originStr,
     destinationStr,
     pickupDate:   order.pickupDate   || null,
@@ -233,6 +236,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       originStr,
       destinationStr,
       commodity:        order.commodity || '—',
+      transportType:    order.transportType || '',
       pickupStr,
       deliveryStr,
       formattedPay:     payStr,
@@ -328,6 +332,8 @@ function buildEmailHtml(p: {
   originStr: string;
   destinationStr: string;
   commodity: string;
+  /** '' leaves the row out, on an older load that has none. */
+  transportType: string;
   pickupStr: string;
   deliveryStr: string;
   formattedPay: string;
@@ -363,6 +369,7 @@ function buildEmailHtml(p: {
         ${row('From',      p.originStr,      '#f9fafb')}
         ${row('To',        p.destinationStr, '#ffffff')}
         ${row('Commodity', p.commodity,      '#f9fafb')}
+        ${p.transportType ? row('Transport type', p.transportType.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), '#f9fafb') : ''}
         ${row('Pickup',    p.pickupStr,      '#ffffff')}
         ${row('Delivery',  p.deliveryStr,    '#f9fafb')}
         <tr style="background:#fff">

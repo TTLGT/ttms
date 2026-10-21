@@ -28,7 +28,7 @@ const MAX_PHOTOS = 600;
 /** Only what a row shows or visibility needs. */
 const ORDER_FIELDS = [
   'orderNumber', 'batsId', 'previousOrderNumber',
-  'clientName', 'shipperName', 'consigneeName', 'commodity',
+  'clientName', 'shipperName', 'consigneeName', 'commodity', 'transportType',
   'origin', 'destination', 'coverPhotoId',
   'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
   'clientOwnerUids', 'clientOwnerGroupIds',
@@ -85,6 +85,7 @@ export async function GET(req: NextRequest) {
             shipperName:      String(order.shipperName ?? ''),
             consigneeName:    String(order.consigneeName ?? ''),
             orderCommodity:   String(order.commodity ?? ''),
+            transportType:    String(order.transportType ?? '').trim(),
             originLabel:      place(order.origin),
             destinationLabel: place(order.destination),
             isCover:          order.coverPhotoId === d.id,

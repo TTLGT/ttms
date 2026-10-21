@@ -143,6 +143,8 @@ export interface LoadPhotoRow extends LoadPhoto {
   consigneeName: string;
   /** The load's own one-line commodity, which the picture's label may narrow. */
   orderCommodity: string;
+  /** The truck or trailer the load moved on (`Order.transportType`); '' when unset. */
+  transportType: string;
   /** "Laredo, TX" — for the table and the search box. */
   originLabel: string;
   destinationLabel: string;

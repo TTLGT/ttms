@@ -77,9 +77,13 @@ export function carrierSectionHashes(order: AnyOrder): Record<CarrierSection, st
     carrier: sha(String(order.carrierId ?? '')),
     pay:     sha(Number(order.carrierPay) || 0),
     stops:   sha(confirmationStops(order)),
+    // The transport type is appended only when there is one, the same trick
+    // the client's freight section uses for accessorials: a sheet sent before
+    // it was printed fingerprints exactly as it did and is not held for it.
     freight: sha([
       String(order.commodity ?? ''), Number(order.weight) || 0, Number(order.pieces) || 0,
       dimensionsSummary(items), orderAccessorials(order), dockWorkLines(order),
+      ...(String(order.transportType ?? '').trim() ? [String(order.transportType).trim()] : []),
     ]),
     notes:   sha(String(order.carrierInstructions ?? '').trim()),
     terms:   sha(orderTermsOf(order, 'carrier') ?? ''),
