@@ -14,6 +14,7 @@ import { orderDisplayNumber } from '@/types/order';
 import { ORDER_FILES_COLLECTION, SIGNED_AGREEMENT_KIND, orderFilePath } from '@/types/orderFile';
 import { AGREEMENT_NAME, cleanCcList, isAgreementParty, type AgreementParty } from '@/types/saRequest';
 import { millisOf, partyChangedAt } from '@/lib/signedSaProof';
+import { reviewOf } from '@/types/signatureRecord';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -43,7 +44,7 @@ const FIELDS: Record<AgreementParty, { at: string; to: string; by: string }> = {
  *
  * - Who: `orders.sendAgreement` (admin and dispatch), the people who send the
  *   agreements in the first place. Reply-To is whoever sent it.
- * - Refused with nothing uploaded, and once that party has e-signed: then the
+ * - Refused with nothing verified uploaded, and once that party has e-signed: then the
  *   e-signature email (src/lib/signedAgreementEmail.ts) is their copy.
  *
  * Every send is recorded on the order (`paperSaConfirmed*` / `paperCaConfirmed*`,
@@ -74,9 +75,16 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const since = partyChangedAt(order as Record<string, unknown>, party);
     const snap = await adminDb.collection(ORDER_FILES_COLLECTION)
       .where('orderId', '==', orderId).where('kind', '==', SIGNED_AGREEMENT_KIND[party]).get();
-    const signedDocs = snap.docs.filter((d) => millisOf(d.data().createdAt) > since);
+    // Copies uploaded since this party last changed, and of those only the
+    // verified ones: telling somebody their acceptance is registered, with a
+    // file nobody has checked attached, is the one thing the review exists to
+    // stop. See src/types/signatureRecord.ts.
+    const current = snap.docs.filter((d) => millisOf(d.data().createdAt) > since);
+    const signedDocs = current.filter((d) => reviewOf(d.data().review) === 'approved');
     if (signedDocs.length === 0) {
-      return NextResponse.json({ error: `Upload the signed ${name} first.` }, { status: 409 });
+      return NextResponse.json({ error: current.length === 0
+        ? `Upload the signed ${name} first.`
+        : `The signed ${name} has to be verified by admin or dispatch first.` }, { status: 409 });
     }
 
     // Who it goes to: the carrier's own address, or the client contact.

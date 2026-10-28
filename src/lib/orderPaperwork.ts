@@ -2,6 +2,9 @@
 
 import { auth } from './firebase';
 import type { ReadinessItem } from '@/types/orderReadiness';
+import type { OrderFile } from '@/types/orderFile';
+import type { SignatureDetails } from '@/types/signatureRecord';
+import type { CarrierLookup, SignedDocumentRow } from '@/types/signedDocument';
 
 /**
  * The browser's side of an order's paperwork before it goes out: what is still
@@ -102,12 +105,56 @@ export async function previewAgreementPdf(orderId: string, ref?: string, party: 
   return { url: URL.createObjectURL(new Blob([blob], { type: 'application/pdf' })), name };
 }
 
-/** How many signed-SA copies the load holds. See src/lib/signedSaProof.ts. */
-export async function fetchSignedSaProof(orderId: string, party: 'client' | 'carrier' = 'client'): Promise<{ files: number; photos: number }> {
+/** How many verified signed-SA copies the load holds, and how many wait. See src/lib/signedSaProof.ts. */
+export async function fetchSignedSaProof(orderId: string, party: 'client' | 'carrier' = 'client'): Promise<{ files: number; photos: number; pending: number }> {
   const res = await fetch(`/api/orders/${orderId}/signed-sa-proof?party=${party}`, { headers: await authHeaders() });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not check for a signed Shipper Agreement (SA)');
-  return data as { files: number; photos: number };
+  return data as { files: number; photos: number; pending: number };
+}
+
+/**
+ * The signature details of a signed copy, and the decision on it. See
+ * /api/orders/{id}/files/{fileId}/signature and src/types/signatureRecord.ts.
+ * `advanceError` is set when the approval stood but the status move after it
+ * was refused.
+ */
+export async function submitSignedCopy(
+  orderId: string,
+  fileId: string,
+  body:
+    | { action: 'save'; details: SignatureDetails }
+    | { action: 'approve'; details?: SignatureDetails; advance?: boolean }
+    | { action: 'reject'; reason: string },
+): Promise<{ file: OrderFile; advanceError: string }> {
+  const res = await fetch(`/api/orders/${orderId}/files/${fileId}/signature`, {
+    method: 'POST',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not save it');
+  return data as { file: OrderFile; advanceError: string };
+}
+
+/** The signed copies on the Approvals screen. See /api/signed-documents. */
+export async function listSignedDocuments(): Promise<{ rows: SignedDocumentRow[]; isVerifier: boolean }> {
+  const res = await fetch('/api/signed-documents', { headers: await authHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not load the signed copies');
+  return data as { rows: SignedDocumentRow[]; isVerifier: boolean };
+}
+
+/** Switches the Record import label on a load. Admin and dispatch. */
+export async function setRecordImport(orderId: string, on: boolean): Promise<{ recordImport: boolean; changedAt: number; changedByName: string }> {
+  const res = await fetch(`/api/orders/${orderId}/record-import`, {
+    method: 'POST',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ on }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not change the label');
+  return data as { recordImport: boolean; changedAt: number; changedByName: string };
 }
 
 /**
@@ -125,4 +172,16 @@ export async function sendSignedSaConfirmation(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not send the confirmation');
   return data as { sentTo: string; cc: string[]; at: number };
+}
+
+/**
+ * Who the carrier on a signed dispatch sheet is: what the sheet names, the
+ * matching carriers already in TTMS, and FMCSA's companies under that name
+ * when nothing here matches. See /api/orders/{id}/files/{fileId}/carrier.
+ */
+export async function lookupSignedCopyCarrier(orderId: string, fileId: string): Promise<CarrierLookup> {
+  const res = await fetch(`/api/orders/${orderId}/files/${fileId}/carrier`, { headers: await authHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not look the carrier up');
+  return data as CarrierLookup;
 }

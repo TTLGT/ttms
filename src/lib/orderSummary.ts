@@ -105,6 +105,7 @@ const CARD_FIELDS = [
   // So the unsigned-agreements hover list can say which signature is missing,
   // and say "waived" rather than "missing" where somebody decided that.
   'carrierSignedAt', 'shipperSignedAt', 'signatureWaivedAt',
+  'clientSignatureRecord', 'carrierSignatureRecord',
   // Read only by the alerts: whether a load is late, whether the invoice
   // landed, and how long a quote has been sitting.
   'deliveryDate', 'invoiceStoragePath', 'createdAt',
@@ -371,7 +372,9 @@ async function activeClientLoads(caller: Caller): Promise<Record<string, number>
  */
 async function unsignedStat(col: FirebaseFirestore.Query): Promise<SummaryStat> {
   const scoped = col.where('status', 'in', [...SIGNABLE]);
-  const noCarrier = scoped.where('carrierSignedAt', '==', null);
+  // A signature recorded off a verified signed copy is not missing either.
+  // ⚠️ KEEP IN SYNC with the `unsigned` view in orderViews.ts.
+  const noCarrier = scoped.where('carrierSignedAt', '==', null).where('carrierSignatureRecorded', '==', false);
   /*
    * A load dispatched without the client's signature is not waiting for one,
    * so it does not belong on a card that exists to say what to chase.
@@ -384,15 +387,18 @@ async function unsignedStat(col: FirebaseFirestore.Query): Promise<SummaryStat> 
    */
   const noClient = scoped
     .where('shipperSignedAt', '==', null)
-    .where('signatureWaived', '==', false);
+    .where('signatureWaived', '==', false)
+    .where('clientSignatureRecorded', '==', false);
 
   const [a, b, both, sample] = await Promise.all([
     noCarrier.count().get(),
     noClient.count().get(),
     scoped
       .where('carrierSignedAt', '==', null)
+      .where('carrierSignatureRecorded', '==', false)
       .where('shipperSignedAt', '==', null)
       .where('signatureWaived', '==', false)
+      .where('clientSignatureRecorded', '==', false)
       .count().get(),
     noCarrier.limit(TOOLTIP_LIMIT).select(...CARD_FIELDS).get(),
   ]);
@@ -504,7 +510,8 @@ async function summariseInMemory(
     // signature can still be outstanding. Mirrors unsignedStat() above.
     unsignedOrders:     pick(orders.filter((o) =>
       (SIGNABLE as readonly string[]).includes(status(o))
-      && (!o.carrierSignedAt || (!o.shipperSignedAt && !o.signatureWaivedAt)))),
+      && ((!o.carrierSignedAt && !o.carrierSignatureRecord)
+        || (!o.shipperSignedAt && !o.signatureWaivedAt && !o.clientSignatureRecord)))),
     staleQuotes:        pick(orders.filter((o) =>
       status(o) === 'quote' && ms(o.updatedAt) > 0 && ms(o.updatedAt) <= at.staleBefore.toMillis())),
     documentsMissing:   pick(orders.filter((o) => {

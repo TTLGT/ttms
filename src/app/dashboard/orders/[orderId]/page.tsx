@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { ExternalLink, Map, Plus, RefreshCw, Route } from 'lucide-react';
 import Link from 'next/link';
@@ -74,6 +74,7 @@ import SaVerificationRecord from '@/components/orders/SaVerificationRecord';
 import SaAgreementVersions from '@/components/orders/SaAgreementVersions';
 import { fetchSignedSaProof, listAgreementVersions } from '@/lib/orderPaperwork';
 import SignedSaUploads from '@/components/orders/SignedSaUploads';
+import RecordImportBadge, { RecordImportRemoved } from '@/components/orders/RecordImportBadge';
 import ClientSignLink from '@/components/orders/ClientSignLink';
 import OrderOwnersCard from '@/components/orders/OrderOwnersCard';
 import { useAuth } from '@/context/AuthContext';
@@ -275,19 +276,38 @@ export default function OrderDetailPage() {
    * is not stale after an upload. The save refuses without it regardless.
    */
   const [signedSaCopies, setSignedSaCopies] = useState<number | null>(null);
+  // Copies uploaded and not yet verified, so the button can say it is waiting
+  // on admin or dispatch rather than on an upload.
+  const [signedSaWaiting, setSignedSaWaiting] = useState(0);
+  const [carrierSignedWaiting, setCarrierSignedWaiting] = useState(0);
   const [filesVersion, setFilesVersion] = useState(0);
   // Uploaded copies in the Documents tab's two signed-agreement rows, for
   // their Status column. Reported by the slots themselves, which already
   // read the files — no second request.
   const [saUploads, setSaUploads] = useState<number | null>(null);
   const [caUploads, setCaUploads] = useState<number | null>(null);
+  // Of those, how many admin or dispatch verified — "Uploaded" alone would
+  // read as done while a copy still waits (src/types/signatureRecord.ts).
+  const [saVerified, setSaVerified] = useState(0);
+  const [caVerified, setCaVerified] = useState(0);
+  /*
+   * A signed copy uploaded, verified, refused or removed. Verifying one writes
+   * the signature onto the order itself (src/types/signatureRecord.ts), so the
+   * order is read again — one read, only when a copy actually changed.
+   */
+  const signedCopyChanged = useCallback(() => {
+    setFilesVersion((n) => n + 1);
+    getOrder(orderId)
+      .then((access) => { if (access.status === 'ok') setOrder(access.order); })
+      .catch(() => {});
+  }, [orderId]);
   const handSignable = Boolean(order && !order.shipperSignedAt
     && (order.status === 'booked' || order.status === 'carrier_assigned'));
   useEffect(() => {
     if (!handSignable) return;
     let live = true;
     fetchSignedSaProof(orderId)
-      .then((p) => { if (live) setSignedSaCopies(p.files + p.photos); })
+      .then((p) => { if (live) { setSignedSaCopies(p.files + p.photos); setSignedSaWaiting(p.pending); } })
       .catch(() => { if (live) setSignedSaCopies(null); });
     return () => { live = false; };
   }, [handSignable, orderId, tab, photoCount, filesVersion]);
@@ -300,7 +320,7 @@ export default function OrderDetailPage() {
     if (!handCarrierSignable) return;
     let live = true;
     fetchSignedSaProof(orderId, 'carrier')
-      .then((p) => { if (live) setCarrierSignedCopies(p.files); })
+      .then((p) => { if (live) { setCarrierSignedCopies(p.files); setCarrierSignedWaiting(p.pending); } })
       .catch(() => { if (live) setCarrierSignedCopies(null); });
     return () => { live = false; };
   }, [handCarrierSignable, orderId, tab, filesVersion]);
@@ -1189,6 +1209,10 @@ export default function OrderDetailPage() {
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-bold text-gray-900 font-mono">{orderDisplayNumber(order)}</h1>
             <StatusBadge status={order.status} />
+            {order.recordImport && (
+              <RecordImportBadge size="md" orderId={orderId}
+                onChange={(on) => setOrder((prev) => (prev ? { ...prev, recordImport: on, recordImportChangedByName: user?.displayName ?? null } : prev))} />
+            )}
             {order.parentOrderId && (
               <Link href={`/dashboard/orders/${order.parentOrderId}`} className="text-xs text-gray-400 hover:text-brand-600">
                 Suborder of {parentLabel(order.parentOrderId)}
@@ -1203,6 +1227,14 @@ export default function OrderDetailPage() {
           {orderAltNumber(order) && (
             <p className="text-xs text-gray-400 mt-1 font-mono">
               {order.batsId ? 'TTMS ' : 'previously '}{orderAltNumber(order)}
+            </p>
+          )}
+          {/* Where the label was, for admin and dispatch: an undo for a
+              removal made by mistake. Nobody else is shown anything. */}
+          {order.batsId && order.recordImport === false && (
+            <p className="mt-1">
+              <RecordImportRemoved orderId={orderId} byName={order.recordImportChangedByName}
+                onChange={(on) => setOrder((prev) => (prev ? { ...prev, recordImport: on } : prev))} />
             </p>
           )}
         </div>
@@ -1240,9 +1272,13 @@ export default function OrderDetailPage() {
             return (
               <button onClick={handleAdvance} disabled={advancing || needsCopy}
                 title={needsSa
-                  ? 'Upload the client’s signed Shipper Agreement (SA) first, in Client Confirmation or under Documents → Signed Shipper Agreement (SA). It moves on its own when the client e-signs.'
+                  ? signedSaWaiting
+                    ? 'The signed Shipper Agreement (SA) uploaded to this load is waiting for admin or dispatch to verify it.'
+                    : 'Upload the client’s signed Shipper Agreement (SA) first, in Client Confirmation or under Documents → Signed Shipper Agreement (SA), and have admin or dispatch verify it. It moves on its own when the client e-signs.'
                   : needsCa
-                    ? 'Upload the carrier’s signed Dispatch Sheet first, in the Carrier section or under Documents → Signed Dispatch Sheet. It moves on its own when the carrier e-signs.'
+                    ? carrierSignedWaiting
+                      ? 'The signed Dispatch Sheet uploaded to this load is waiting for admin or dispatch to verify it.'
+                      : 'Upload the carrier’s signed Dispatch Sheet first, in the Carrier section or under Documents → Signed Dispatch Sheet, and have admin or dispatch verify it. It moves on its own when the carrier e-signs.'
                     : undefined}
                 className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                 {advancing ? 'Updating…' : `→ ${STATUS_LABEL[nextStatus]}`}
@@ -1634,6 +1670,7 @@ export default function OrderDetailPage() {
                   client that it is registered. Gone once they e-sign. */}
               <div className="mt-3">
                 <SignedSaUploads
+                  order={order}
                   orderId={orderId}
                   eSigned={Boolean(order.shipperSignedAt)}
                   confirmation={order.paperSaConfirmedAt && order.paperSaConfirmedTo
@@ -1641,7 +1678,7 @@ export default function OrderDetailPage() {
                     : null}
                   canMarkSigned={handSignable && STATUS_NEXT[order.status] === 'shipper_signed'}
                   onMarkSigned={() => void handleAdvance()}
-                  onChange={() => setFilesVersion((n) => n + 1)}
+                  onChange={signedCopyChanged}
                 />
               </div>
 
@@ -1706,9 +1743,12 @@ export default function OrderDetailPage() {
             {/* A carrier who cannot sign on the link: upload what they signed,
                 mark the load Carrier Signed on it, and email them that it is
                 registered. Gone once they e-sign. */}
-            {!assigningCarrier && order.carrierId && (
+            {/* Also on a BATS load with no carrier linked — the import linked
+                none, and its signed dispatch sheet still needs a home. */}
+            {!assigningCarrier && (order.carrierId || order.recordImport) && (
               <div className="mb-4">
                 <SignedSaUploads
+                  order={order}
                   party="carrier"
                   orderId={orderId}
                   eSigned={Boolean(order.carrierSignedAt)}
@@ -1717,7 +1757,7 @@ export default function OrderDetailPage() {
                     : null}
                   canMarkSigned={handCarrierSignable}
                   onMarkSigned={() => void handleAdvance()}
-                  onChange={() => setFilesVersion((n) => n + 1)}
+                  onChange={signedCopyChanged}
                 />
               </div>
             )}
@@ -2230,8 +2270,10 @@ export default function OrderDetailPage() {
                     <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap">
                       ✓ Signed {formatDate(order.shipperSignedAt as { toDate: () => Date })}
                     </span>
+                  ) : order.clientSignatureRecord || saVerified ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Verified</span>
                   ) : saUploads ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Uploaded</span>
+                    <span className="inline-flex items-center gap-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 whitespace-nowrap">Waiting for verification</span>
                   ) : (
                     <span className="text-xs text-gray-400">Not uploaded</span>
                   )}
@@ -2246,6 +2288,7 @@ export default function OrderDetailPage() {
                     </>
                   )}
                   <SignedSaUploads
+                    order={order}
                     orderId={orderId}
                     eSigned={Boolean(order.shipperSignedAt)}
                     confirmation={order.paperSaConfirmedAt && order.paperSaConfirmedTo
@@ -2253,14 +2296,16 @@ export default function OrderDetailPage() {
                       : null}
                     canMarkSigned={handSignable && STATUS_NEXT[order.status] === 'shipper_signed'}
                     onMarkSigned={() => void handleAdvance()}
-                    onChange={() => setFilesVersion((n) => n + 1)}
+                    onChange={signedCopyChanged}
                     onCount={setSaUploads}
+                    onVerifiedCount={setSaVerified}
                   />
                 </td>
               </tr>
 
-              {/* The carrier's signed agreement, the same way as the client's above. */}
-              {order.carrierId && (
+              {/* The carrier's signed agreement, the same way as the client's above —
+                  on a BATS load too, whose import linked no carrier. */}
+              {(order.carrierId || order.recordImport) && (
                 <tr className="hover:bg-gray-50 transition align-top">
                   <td className="px-6 py-4">
                     <p className="text-sm font-medium text-gray-900">Signed Dispatch Sheet</p>
@@ -2273,8 +2318,10 @@ export default function OrderDetailPage() {
                       <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap">
                         ✓ Signed {formatDate(order.carrierSignedAt as { toDate: () => Date })}
                       </span>
+                    ) : order.carrierSignatureRecord || caVerified ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Verified</span>
                     ) : caUploads ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Uploaded</span>
+                      <span className="inline-flex items-center gap-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 whitespace-nowrap">Waiting for verification</span>
                     ) : (
                       <span className="text-xs text-gray-400">Not uploaded</span>
                     )}
@@ -2289,6 +2336,7 @@ export default function OrderDetailPage() {
                       </>
                     )}
                     <SignedSaUploads
+                      order={order}
                       party="carrier"
                       orderId={orderId}
                       eSigned={Boolean(order.carrierSignedAt)}
@@ -2297,8 +2345,9 @@ export default function OrderDetailPage() {
                         : null}
                       canMarkSigned={handCarrierSignable}
                       onMarkSigned={() => void handleAdvance()}
-                      onChange={() => setFilesVersion((n) => n + 1)}
+                      onChange={signedCopyChanged}
                       onCount={setCaUploads}
+                      onVerifiedCount={setCaVerified}
                     />
                   </td>
                 </tr>

@@ -64,6 +64,25 @@ export const PERMISSIONS = [
    * dispatch by default — they are the ones who resend the paperwork.
    */
   'orders.applyChanges',
+  /**
+   * Verify signed paperwork uploaded to a load, and the label on imported ones.
+   *
+   * Anybody who can open a load may upload the signed SA or Dispatch Sheet
+   * somebody sent back — that is often the broker who got the email. What
+   * makes it count is somebody opening the file and confirming it really is a
+   * signed agreement for this load, with the signer and time it says: only
+   * then is the signature recorded on the order, and only then does it let a
+   * load move to Client or Carrier Signed by hand. See
+   * src/types/signatureRecord.ts.
+   *
+   * The same people switch off the "Record import" label on a load that came
+   * from BATS, once they have looked it over — the label is what tells
+   * everybody else that the load's paperwork never went through TTMS.
+   *
+   * Admin and dispatch by default; added 2026-10-28, widening every
+   * dispatcher at their next sign-in.
+   */
+  'orders.verifyRecords',
   'orders.bol',
   'orders.invoice',
 
@@ -316,6 +335,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'orders.sendAgreement', label: 'Send agreements', detail: 'Email the client agreement and the dispatch sheet for signature.' },
       { key: 'orders.waiveSignature', label: 'Dispatch without a signature', detail: 'Send the dispatch sheet before the client has signed. Admin and dispatch have this already.' },
       { key: 'orders.applyChanges', label: 'Change loads after agreements are sent', detail: 'Save changes to a load whose SA or Dispatch Sheet is already out, and approve other people’s change orders. Admin and dispatch have this already.' },
+      { key: 'orders.verifyRecords', label: 'Verify signed paperwork', detail: 'Approve a signed SA or Dispatch Sheet someone uploaded, which records the signature on the load, and remove the Record import label. Admin and dispatch have this already.' },
       { key: 'orders.bol',     label: 'Generate BOLs',    detail: 'Produce the bill of lading for a load they can see. Everyone but interns has this already.' },
       { key: 'orders.invoice', label: 'Generate invoices', detail: 'Produce the invoice for a load.' },
       { key: 'orders.delete',  label: 'Delete loads',     detail: 'Permanently remove a load. There is no undo.' },
@@ -475,6 +495,9 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     // Dispatch resends the SA and the Dispatch Sheet after a change, so they
     // are who applies one — and who approves a broker's change order.
     'orders.applyChanges',
+    // Verifying a signed copy uploaded to a load is the same judgement as
+    // sending the agreement in the first place. Added 2026-10-28.
+    'orders.verifyRecords',
     // The extension sheet on the wall by the phones is dispatch's, and they
     // are the ones who notice first when a number on it is wrong.
     'directory.export',

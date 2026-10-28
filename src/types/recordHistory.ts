@@ -85,6 +85,10 @@ export const UNRECORDED_FIELDS: ReadonlySet<string> = new Set([
   'clientId', 'shipperId', 'consigneeId', 'carrierId', 'driverId', 'brokerUid',
   // Worked out from the extra stops, which are recorded.
   'stopPartyIds',
+  // Mirrors of the signature records beside them, which are recorded.
+  'clientSignatureRecorded', 'carrierSignatureRecorded',
+  // Who and when, which the entry itself already says.
+  'recordImportChangedAt', 'recordImportChangedByName',
 ]);
 
 /** What each field is called on screen, where the field name is not already plain. */
@@ -151,6 +155,9 @@ const LABELS: Record<string, string> = {
   signatureWaivedByUid: 'Waived by (account)',
   signatureWaivedReason: 'Reason for waiving',
   signatureWaived: 'Dispatched without signature',
+  clientSignatureRecord: 'Client signature (recorded from a signed copy)',
+  carrierSignatureRecord: 'Carrier signature (recorded from a signed copy)',
+  recordImport: 'Record import label',
   // Parties
   companyName: 'Company name',
   contactName: 'Contact name',
@@ -203,6 +210,8 @@ const OPAQUE_FIELDS = new Set([
   'driverLicenseStoragePath', 'bolStoragePath', 'invoiceStoragePath',
   'podStoragePath', 'insuranceStoragePath', 'coverPhotoId', 'sourceId',
   'parentOrderId', 'signatureWaivedByUid', 'partyApprovals', 'fmcsa',
+  // The entry beside the change says who signed and when, in words.
+  'clientSignatureRecord', 'carrierSignatureRecord',
 ]);
 
 /** An order's extra pickups and deliveries — see OrderStop in src/types/order.ts. */

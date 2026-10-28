@@ -28,7 +28,10 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['@react-pdf/renderer'],
+  // `unpdf` is pdf.js, which reads the signature block off an uploaded signed
+  // agreement (src/lib/signatureReader.ts). Loaded by Node as it ships rather
+  // than bundled, like the PDF renderer beside it.
+  serverExternalPackages: ['@react-pdf/renderer', 'unpdf'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },

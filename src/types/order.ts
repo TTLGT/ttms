@@ -2,6 +2,7 @@ import type { Timestamp } from 'firebase/firestore';
 import type { PhoneRegion } from '@/lib/phone';
 import type { OrderPartyApproval } from './accessRequest';
 import type { ComplexTerms, OrderPaymentTerms } from './paymentMethod';
+import type { SignatureRecord } from './signatureRecord';
 
 export type OrderStatus =
   | 'quote'
@@ -1243,6 +1244,38 @@ export interface Order {
    */
   signatureWaived: boolean;
   /**
+   * A signature recorded from a signed copy uploaded to the load — a BATS
+   * e-signed PDF, a scan of paper — once admin or dispatch verified the file.
+   * See src/types/signatureRecord.ts.
+   *
+   * Deliberately **not** `shipperSignedAt` / `carrierSignedAt`: those are the
+   * audit trail of a signature made on TTMS's own link, with the IP and device
+   * it captured itself. This is what a person read off somebody else's
+   * paperwork, and says so wherever it is shown. Written only by
+   * POST /api/orders/{id}/files/{fileId}/signature.
+   */
+  clientSignatureRecord?: SignatureRecord | null;
+  carrierSignatureRecord?: SignatureRecord | null;
+  /**
+   * Mirrors of the two above being set, for the same reason as
+   * `signatureWaived`: the dashboard's unsigned count is an aggregation, and
+   * Firestore cannot ask "null or absent". Must be on every order —
+   * scripts/backfill-record-import.js. Never test these in application code;
+   * call `clientSignatureSatisfied()` / `carrierSignatureRecorded()`.
+   */
+  clientSignatureRecorded?: boolean;
+  carrierSignatureRecorded?: boolean;
+  /**
+   * The load came from an imported list (BATS) and was never processed in
+   * TTMS — so its paperwork was not sent, signed or checked here. Shown as
+   * the "Record import" label. Set by the importers; switched off (or back
+   * on) only by `orders.verifyRecords`, through
+   * POST /api/orders/{id}/record-import, which records who and when.
+   */
+  recordImport?: boolean;
+  recordImportChangedAt?: Timestamp | null;
+  recordImportChangedByName?: string | null;
+  /**
    * Proof of authorization when this order uses a party the creator does not
    * own. Written server-side only — see /api/orders/[orderId]/party-approvals.
    */
@@ -1485,9 +1518,12 @@ export const STATUS_RANK: Record<Exclude<OrderStatus, 'cancelled'>, number> = {
  * so the screen can never offer something the route will refuse.
  */
 export function clientSignatureSatisfied(
-  order: Pick<Partial<Order>, 'shipperSignedAt' | 'signatureWaivedAt'>,
+  order: Pick<Partial<Order>, 'shipperSignedAt' | 'signatureWaivedAt' | 'clientSignatureRecord'>,
 ): boolean {
-  return Boolean(order.shipperSignedAt) || Boolean(order.signatureWaivedAt);
+  // A signature recorded off a verified signed copy counts: it is the
+  // client's acceptance, checked by admin or dispatch against the document.
+  return Boolean(order.shipperSignedAt) || Boolean(order.signatureWaivedAt)
+    || Boolean(order.clientSignatureRecord);
 }
 
 export const STATUS_NEXT: Partial<Record<OrderStatus, OrderStatus>> = {

@@ -20,6 +20,7 @@ import SaRequestsSection from '@/components/orders/SaRequestsSection';
 import BolRequestsSection from '@/components/orders/BolRequestsSection';
 import TermsRequestsSection from '@/components/orders/TermsRequestsSection';
 import ChangeOrdersSection from '@/components/orders/ChangeOrdersSection';
+import SignedDocumentsSection from '@/components/orders/SignedDocumentsSection';
 
 type Box = 'incoming' | 'outgoing';
 
@@ -202,6 +203,11 @@ export default function ApprovalsPage() {
       <SaRequestsSection />
       <BolRequestsSection />
       <TermsRequestsSection />
+
+      {/* Signed copies uploaded to loads, waiting to be verified — decided
+          by the same people as the agreement requests, and ending in a
+          signature recorded on the load. See src/types/signatureRecord.ts. */}
+      <SignedDocumentsSection />
 
       <div className="flex gap-1 mb-5 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
         {([

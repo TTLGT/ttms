@@ -156,17 +156,27 @@ const VIEWS: Record<OrderViewId, OrderView> = {
    * cannot ask "null or absent", and against the real field in memory where
    * there is no such limit.
    */
+  /*
+   * A signature recorded off a verified signed copy (src/types/signatureRecord.ts)
+   * is not missing either — that is most of the BATS book. Same mirror trick:
+   * `clientSignatureRecorded` / `carrierSignatureRecorded` are on every order
+   * (scripts/backfill-record-import.js), so `== false` can be asked.
+   *
+   * ⚠️ KEEP IN SYNC with unsignedStat() and `unsignedOrders` in orderSummary.ts.
+   */
   unsigned: {
     queries: (col) => {
       const scoped = col.where('status', 'in', [...SIGNABLE]);
       return [
-        scoped.where('carrierSignedAt', '==', null),
-        scoped.where('shipperSignedAt', '==', null).where('signatureWaived', '==', false),
+        scoped.where('carrierSignedAt', '==', null).where('carrierSignatureRecorded', '==', false),
+        scoped.where('shipperSignedAt', '==', null).where('signatureWaived', '==', false)
+          .where('clientSignatureRecorded', '==', false),
       ];
     },
     matches: (o) =>
       (SIGNABLE as readonly string[]).includes(statusOf(o))
-      && (!o.carrierSignedAt || (!o.shipperSignedAt && !o.signatureWaivedAt)),
+      && ((!o.carrierSignedAt && !o.carrierSignatureRecord)
+        || (!o.shipperSignedAt && !o.signatureWaivedAt && !o.clientSignatureRecord)),
   },
 
   stale_quotes: {
@@ -207,6 +217,7 @@ export const VIEW_MATCH_FIELDS = [
   'status', 'createdAt', 'deliveredAt', 'updatedAt',
   'invoiceStoragePath', 'bolStoragePath', 'podStoragePath',
   'carrierSignedAt', 'shipperSignedAt', 'signatureWaivedAt',
+  'clientSignatureRecord', 'carrierSignatureRecord',
 ] as const;
 
 /**

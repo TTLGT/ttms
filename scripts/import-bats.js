@@ -462,6 +462,11 @@ const PRESERVE = {
     'shipperSignedAt', 'shipperSignerName', 'shipperSignerIp',
     'clientSignedAt',  'clientSignerName',  'clientSignerIp',
     'partyApprovals',
+    // A signature recorded off a verified signed copy, and the Record import
+    // label once admin or dispatch has taken it off — both TTMS's work, never
+    // BATS's. See src/types/signatureRecord.ts.
+    'clientSignatureRecord', 'carrierSignatureRecord', 'clientSignatureRecorded', 'carrierSignatureRecorded',
+    'recordImport', 'recordImportChangedAt', 'recordImportChangedByName',
     // Ownership is assigned on creation and maintained in the TMS afterwards.
     // A refreshed export still carries the original BATS rep name, so without
     // this a re-import would hand every reassigned load back to whoever used to
@@ -1426,6 +1431,16 @@ async function importOrders() {
         clientSignedAt:           null,
         clientSignerName:         null,
         clientSignerIp:           null,
+        // Nothing recorded off a signed copy yet; present as false so the
+        // dashboard's unsigned count can find the load. KEEP IN SYNC with
+        // createOrderAsCaller() in src/lib/orderWrites.ts.
+        clientSignatureRecord:    null,
+        carrierSignatureRecord:   null,
+        clientSignatureRecorded:  false,
+        carrierSignatureRecorded: false,
+        // The "Record import" label: this load's paperwork never went through
+        // TTMS. Only admin or dispatch takes it off — PRESERVE keeps that.
+        recordImport:             true,
         createdBy:                'bats-import',
         createdAt:                ts(str(r[7])) || now,
         updatedAt:                now,

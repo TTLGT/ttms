@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "fe2ef05324645325cda91ec3ef273ce288a75094",
+      "date": "2026-10-21T14:28:22-06:00",
+      "author": "erwindank",
+      "subject": "Sort load pictures as Commodity, Truck, Location, Proof or Other, and give the signed SA and Dispatch Sheet their own rows on the Documents tab",
+      "body": "The picture types are now Commodity, Truck, Location, Proof and Other, and\nevery type but Truck can name the stop it was taken at. The \"Shows\" box is\ngone; pictures are filed under the load's commodity. Older pictures keep\ntheir stored value and read under the new names, and an old Signed SA\npicture still counts as proof of a paper signature.\n\nA signed SA is no longer a picture type. The Signed Shipper Agreement and\nthe Signed Dispatch Sheet are rows in the Documents table beside the BOL,\ninvoice, POD and licence, taking a PDF or a picture."
+    },
+    {
       "hash": "e30f556d3e413268178054b556eff81ecedf9692",
       "date": "2026-10-21T13:02:57-06:00",
       "author": "erwindank",

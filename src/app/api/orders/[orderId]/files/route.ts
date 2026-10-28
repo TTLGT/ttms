@@ -4,6 +4,9 @@ import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { actorOf, writeChange } from '@/lib/recordHistory';
 import { listOrderFiles, toOrderFile } from '@/lib/orderFilesServer';
+import { can } from '@/lib/accessControl';
+import { readSignature } from '@/lib/signatureReader';
+import { AGREEMENT_LABEL, notifyVerifiers, partyOfKind } from '@/lib/signedDocuments';
 import {
   MAX_FILES_PER_ORDER,
   MAX_ORDER_FILE_BYTES,
@@ -18,6 +21,9 @@ import {
 } from '@/types/orderFile';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
+
+// Reading a signed PDF's signature block downloads it and runs pdf.js over it.
+export const maxDuration = 30;
 
 function fail(e: unknown) {
   if (e instanceof AdminAuthError) {
@@ -92,17 +98,39 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     }
 
     const ref = adminDb.collection(ORDER_FILES_COLLECTION).doc(fileId);
-    const record = {
+    const contentType = String(meta.contentType ?? 'application/octet-stream');
+    const record: Record<string, unknown> = {
       orderId,
       name,
       kind,
       note,
-      contentType:    String(meta.contentType ?? 'application/octet-stream'),
+      contentType,
       size,
       uploadedByUid:  caller.uid,
       uploadedByName: caller.displayName,
       createdAt:      FieldValue.serverTimestamp(),
     };
+
+    /*
+     * A signed agreement arrives waiting for admin or dispatch to verify it,
+     * whoever uploaded it — see src/types/signatureRecord.ts. A PDF is read
+     * for its signature block first, so the details can be offered rather
+     * than typed. A failed reading is not a failed upload: a scan has no
+     * text, and the form is typed by hand then.
+     */
+    const party = partyOfKind(kind);
+    if (party) {
+      record.review = 'pending';
+      record.detected = null;
+      if (contentType === 'application/pdf') {
+        try {
+          const [bytes] = await file.download();
+          record.detected = await readSignature(new Uint8Array(bytes));
+        } catch {
+          // Unreadable or encrypted: nothing found, which the form says.
+        }
+      }
+    }
 
     const orderRef = adminDb.collection('orders').doc(orderId);
     const batch = adminDb.batch();
@@ -110,9 +138,18 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     batch.update(orderRef, { fileCount: FieldValue.increment(1) });
     writeChange(batch, orderRef, {
       action:  'event',
-      summary: `Added a file: ${name} (${ORDER_FILE_KIND_LABEL[kind]})`,
+      summary: party
+        ? `Added a file: ${name} (${ORDER_FILE_KIND_LABEL[kind]}), waiting for admin or dispatch to verify it`
+        : `Added a file: ${name} (${ORDER_FILE_KIND_LABEL[kind]})`,
     }, actorOf(caller));
     await batch.commit();
+
+    // Somebody who can verify it is about to, in the dialog that opens on
+    // upload; telling the room would only announce their own next click.
+    if (party && !can(caller.profile, 'orders.verifyRecords')) {
+      await notifyVerifiers(orderId, order, caller.uid,
+        `${caller.displayName} uploaded the ${AGREEMENT_LABEL[party]} (${name}) and it needs verifying before it counts.`);
+    }
 
     const saved = await ref.get();
     return NextResponse.json({ file: await toOrderFile(fileId, saved.data() ?? record) });

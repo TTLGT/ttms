@@ -33,21 +33,28 @@ import { runFmcsaCheck } from '@/lib/fmcsaClient';
  */
 export default function QuickAddCarrierModal({
   prefillName = '',
+  prefill,
   onCreated,
   onCancel,
 }: {
   /** The name already typed into the picker that opened this. */
   prefillName?: string;
+  /**
+   * What a signed dispatch sheet said about the carrier (SignedCopyReview),
+   * and a number to look up on FMCSA straight away — one the sheet printed,
+   * or one picked from FMCSA's name search.
+   */
+  prefill?: { companyName?: string; contactName?: string; phone?: string; lookup?: { kind: 'dot' | 'mc'; number: string } };
   onCreated: (carrier: Carrier) => void;
   onCancel: () => void;
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
 
-  const [companyName, setCompanyName]       = useState(prefillName);
-  const [contactName, setContactName]       = useState('');
+  const [companyName, setCompanyName]       = useState(prefill?.companyName ?? prefillName);
+  const [contactName, setContactName]       = useState(prefill?.contactName ?? '');
   const [contactTitle, setContactTitle]      = useState('');
-  const [phone, setPhone]                   = useState('');
+  const [phone, setPhone]                   = useState(prefill?.phone ?? '');
   const [phoneRegion, setPhoneRegion]       = useState<PhoneRegion | undefined>(undefined);
   const [email, setEmail]                   = useState('');
   const [dot, setDot]                       = useState('');
@@ -123,6 +130,7 @@ export default function QuickAddCarrierModal({
           </div>
 
           <FmcsaLookupBox
+            initial={prefill?.lookup}
             onFill={(f) => {
             setCompanyName(f.companyName); setDot(f.dot); setMc(f.mc); setAddress(f.address);
             setPhone(f.phone); setPhoneRegion(f.phoneRegion); setEmail(f.email);

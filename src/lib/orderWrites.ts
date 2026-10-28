@@ -84,6 +84,11 @@ const SERVER_KEPT_FIELDS = [
   // This load's own agreement terms — /terms, which asks an admin first when
   // a dispatcher made the change. An edit here would skip that approval.
   'clientTerms', 'carrierTerms',
+  // A signature recorded off a verified signed copy — /files/{id}/signature.
+  // A broker writing their own would be a signature nobody checked.
+  'clientSignatureRecord', 'carrierSignatureRecord', 'clientSignatureRecorded', 'carrierSignatureRecorded',
+  // The "Record import" label — /record-import, orders.verifyRecords only.
+  'recordImport', 'recordImportChangedAt', 'recordImportChangedByName',
 ] as const;
 
 /** Bookkeeping the server sets itself; dropped from a patch rather than refused. */
@@ -212,16 +217,19 @@ export async function updateOrderAsCaller(
   if (touched(before, patch, ['status']).length && patch.status === 'shipper_signed' && !before.shipperSignedAt) {
     const proof = await signedSaProof(orderId, 'client', before);
     if (proof.files + proof.photos === 0) throw new AdminAuthError(NO_SIGNED_SA_PROOF, 409);
-    handSignedNote = `Marked Client Signed by hand, on the signed SA uploaded to the load (${
+    handSignedNote = `Marked Client Signed by hand, on the verified signed SA uploaded to the load (${
       [proof.files && `${proof.files} file${proof.files === 1 ? '' : 's'}`, proof.photos && `${proof.photos} picture${proof.photos === 1 ? '' : 's'}`]
         .filter(Boolean).join(' and ')}). There is no e-signature.`;
   }
   // The carrier's the same way: Carrier Signed by hand needs their signed
   // Carrier Agreement on the load.
+  if (touched(before, patch, ['status']).length && patch.status === 'carrier_signed' && !({ ...before, ...patch }).carrierId) {
+    throw new AdminAuthError('Link the carrier to this load before marking it Carrier Signed.', 409);
+  }
   if (touched(before, patch, ['status']).length && patch.status === 'carrier_signed' && !before.carrierSignedAt) {
     const proof = await signedSaProof(orderId, 'carrier', before);
     if (proof.files === 0) throw new AdminAuthError(NO_SIGNED_CA_PROOF, 409);
-    handSignedNote = `Marked Carrier Signed by hand, on the signed Dispatch Sheet uploaded to the load (${proof.files} file${proof.files === 1 ? '' : 's'}). There is no e-signature.`;
+    handSignedNote = `Marked Carrier Signed by hand, on the verified signed Dispatch Sheet uploaded to the load (${proof.files} file${proof.files === 1 ? '' : 's'}). There is no e-signature.`;
   }
 
   const now = Timestamp.now();
@@ -501,10 +509,13 @@ async function planPartySwap(
     write.clientChangedAt = now;
     clear(CLIENT_SIGNATURE_FIELDS);
     clear(['paperSaConfirmedAt', 'paperSaConfirmedTo', 'paperSaConfirmedByName']);
+    // A signature recorded off the previous client's signed copy goes too —
+    // it stays in this save's change-log entry, and the copy stays filed.
+    if (before.clientSignatureRecord) { write.clientSignatureRecord = null; write.clientSignatureRecorded = false; }
     if (!statusAsked && before.status === 'shipper_signed') {
       write.status = 'booked';
       said.push('The client changed, so the load is back at Booked until the new client signs the Shipper Agreement (SA).');
-    } else if (before.shipperSignedAt || before.status === 'shipper_signed') {
+    } else if (before.shipperSignedAt || before.clientSignatureRecord || before.status === 'shipper_signed') {
       said.push('The client changed, so the previous client’s signature no longer counts.');
     }
   }
@@ -513,15 +524,16 @@ async function planPartySwap(
     write.carrierChangedAt = now;
     clear(CARRIER_SIGNATURE_FIELDS);
     clear(['paperCaConfirmedAt', 'paperCaConfirmedTo', 'paperCaConfirmedByName']);
+    if (before.carrierSignatureRecord) { write.carrierSignatureRecord = null; write.carrierSignatureRecorded = false; }
     if (!statusAsked && before.status === 'carrier_signed') {
       // Whether the client's side stands on a signature — by link, or by hand
       // with the signed SA uploaded since the client last changed — rather
       // than only a waiver. A waived load never was Client Signed.
-      const clientSigned = !clientSwap && (Boolean(before.shipperSignedAt)
+      const clientSigned = !clientSwap && (Boolean(before.shipperSignedAt) || Boolean(before.clientSignatureRecord)
         || await signedSaProof(orderId, 'client', before).then((p) => p.files + p.photos > 0));
       write.status = clientSigned ? 'shipper_signed' : 'booked';
       said.push(`The carrier changed, so the load is back at ${clientSigned ? 'Client Signed' : 'Booked'} until the new carrier signs the Dispatch Sheet.`);
-    } else if (before.carrierSignedAt || before.status === 'carrier_signed') {
+    } else if (before.carrierSignedAt || before.carrierSignatureRecord || before.status === 'carrier_signed') {
       said.push('The carrier changed, so the previous carrier’s signature no longer counts. The new carrier needs to sign the Dispatch Sheet.');
     }
   }
@@ -574,6 +586,16 @@ export async function createOrderAsCaller(
   // its own: those were approved for that load, not for this one.
   delete record.clientTerms;
   delete record.carrierTerms;
+  // Nothing recorded either, and present as false so the dashboard's unsigned
+  // count can find it (see clientSignatureRecorded on the Order type). A load
+  // made here is not an import, whatever the request says.
+  record.clientSignatureRecord    = null;
+  record.carrierSignatureRecord   = null;
+  record.clientSignatureRecorded  = false;
+  record.carrierSignatureRecorded = false;
+  delete record.recordImport;
+  delete record.recordImportChangedAt;
+  delete record.recordImportChangedByName;
 
   Object.assign(record, await clientOwnerMirror(record.clientId));
 

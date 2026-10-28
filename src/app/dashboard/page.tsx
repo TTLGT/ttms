@@ -482,11 +482,12 @@ export default function DashboardPage() {
       href: ordersView('unsigned'), alert: true,
       items: as(unsignedOrders.items).map((o) => {
         const missing: string[] = [];
-        if (!o.carrierSignedAt) missing.push('Carrier');
+        // A signature recorded off a verified signed copy is not missing.
+        if (!o.carrierSignedAt && !o.carrierSignatureRecord) missing.push('Carrier');
         // Waived is not missing: somebody decided this load goes without the
         // client's signature, so listing it as outstanding would send staff
         // chasing a decision that has already been made.
-        if (!o.shipperSignedAt && !o.signatureWaivedAt) missing.push('Client');
+        if (!o.shipperSignedAt && !o.signatureWaivedAt && !o.clientSignatureRecord) missing.push('Client');
         return orderToItem(o, `Missing: ${missing.join(', ')}`);
       }),
       emptyMsg: 'All agreements signed',

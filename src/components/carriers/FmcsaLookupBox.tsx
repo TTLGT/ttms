@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Search, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react';
 import { lookupFmcsa } from '@/lib/fmcsaClient';
 import type { FmcsaLookupResult } from '@/lib/fmcsaClient';
@@ -32,18 +32,35 @@ const inputCls = 'border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outl
 export default function FmcsaLookupBox({
   onFill,
   renderExisting,
+  initial,
 }: {
   onFill: (fill: FmcsaCarrierFill, answer: FmcsaAnswer) => void;
   renderExisting: (existing: NonNullable<FmcsaLookupResult['existing']>) => React.ReactNode;
+  /**
+   * A number already known — picked from FMCSA's name search, or printed on a
+   * dispatch sheet. Looked up as soon as the box opens, so the broker sees
+   * the answer (or "already in TTMS") without retyping it.
+   */
+  initial?: { kind: 'dot' | 'mc'; number: string };
 }) {
-  const [kind, setKind]       = useState<'dot' | 'mc'>('dot');
-  const [number, setNumber]   = useState('');
+  const [kind, setKind]       = useState<'dot' | 'mc'>(initial?.kind ?? 'dot');
+  const [number, setNumber]   = useState(initial?.number ?? '');
   const [running, setRunning] = useState(false);
   const [error, setError]     = useState('');
   const [result, setResult]   = useState<FmcsaLookupResult | null>(null);
   const { formatCalendarDate } = useDateFormatters();
 
   const digits = number.replace(/\D+/g, '');
+
+  // Once, on opening, for a number handed in. `run` reads the state set from
+  // `initial` above, which is already in place on the first effect.
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (autoRan.current || !initial?.number) return;
+    autoRan.current = true;
+    void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, []);
 
   async function run() {
     if (!digits || running) return;

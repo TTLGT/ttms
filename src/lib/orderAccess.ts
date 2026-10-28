@@ -53,6 +53,8 @@ const LIST_FIELDS = [
   // withOwnerSummaries() in the route.
   'assignedToUids', 'assignedToGroupIds', 'assignedToEmails', 'assignedTo',
   'clientOwnerUids', 'clientOwnerGroupIds', 'createdBy', 'brokerUid',
+  // The "Record import" label under the status.
+  'recordImport',
 ] as const;
 
 /**

@@ -197,7 +197,10 @@ export async function generateBol(
 async function bothSidesSigned(orderId: string, order: FirebaseFirestore.DocumentData): Promise<boolean> {
   if (!order.carrierId || order.status === 'cancelled') return false;
   const rank = STATUS_RANK[order.status as Exclude<OrderStatus, 'cancelled'>] ?? -1;
-  const carrierSigned = Boolean(order.carrierSignedAt) || rank >= STATUS_RANK.carrier_signed;
+  // A signature recorded off a verified signed Dispatch Sheet counts too
+  // (src/types/signatureRecord.ts).
+  const carrierSigned = Boolean(order.carrierSignedAt) || Boolean(order.carrierSignatureRecord)
+    || rank >= STATUS_RANK.carrier_signed;
   if (!carrierSigned) return false;
   if (clientSignatureSatisfied(order as Partial<Order>)) return true;
   const proof = await signedSaProof(orderId, 'client', order);

@@ -7,6 +7,7 @@ import { listOrderAccessRequests } from '@/lib/orders';
 import { listProfileUpdateRequests } from '@/lib/profileRequests';
 import { listTermsRequests } from '@/lib/agreementTerms';
 import { listChangeOrders } from '@/lib/changeOrdersClient';
+import { listSignedDocuments } from '@/lib/orderPaperwork';
 
 /**
  * How many approvals are waiting, for the badges in the nav.
@@ -48,6 +49,17 @@ export function ApprovalsProvider({ children }: { children: React.ReactNode }) {
     // there is nothing useful to tell somebody about a count that did not load.
     // The profile queue answers with an empty list rather than a 403 for
     // somebody who cannot decide those, so it costs a broker nothing.
+    // Signed copies waiting for verification count too: on a verifier's
+    // badge as work waiting on them, on an uploader's as their own waiting.
+    // One request serves both directions — the route already answers by who
+    // is asking.
+    const signed = listSignedDocuments()
+      .then(({ rows, isVerifier }) => ({
+        rows: rows.map((r) => ({ status: r.file.review ?? '' })),
+        isVerifier,
+      }))
+      .catch(() => ({ rows: [] as { status: string }[], isVerifier: false }));
+
     Promise.all([
       listAccessRequests('incoming').catch(() => []),
       listOrderAccessRequests('incoming').catch(() => []),
@@ -56,6 +68,7 @@ export function ApprovalsProvider({ children }: { children: React.ReactNode }) {
       listTermsRequests('incoming').catch(() => []),
       // Empty for anybody who cannot decide change orders.
       listChangeOrders('incoming').catch(() => []),
+      signed.then((s) => (s.isVerifier ? s.rows : [])),
     ]).then((boxes) => {
       setIncoming(pending(boxes));
     });
@@ -66,6 +79,7 @@ export function ApprovalsProvider({ children }: { children: React.ReactNode }) {
       listProfileUpdateRequests('outgoing').catch(() => []),
       listTermsRequests('outgoing').catch(() => []),
       listChangeOrders('outgoing').catch(() => []),
+      signed.then((s) => (s.isVerifier ? [] : s.rows)),
     ]).then((boxes) => {
       setOutgoing(pending(boxes));
     });

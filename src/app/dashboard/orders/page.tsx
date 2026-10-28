@@ -7,6 +7,7 @@ import { orderViewLabel, toOrderView, viewIsSorted } from '@/types/orderView';
 import { listOrdersPage, countOrdersByStatus } from '@/lib/orders';
 import type { Order, OrderStatus } from '@/types/order';
 import StatusBadge from '@/components/orders/StatusBadge';
+import RecordImportBadge from '@/components/orders/RecordImportBadge';
 import OrderLink from '@/components/orders/OrderLink';
 import { OrderCoverThumb } from '@/components/photos/PhotoBits';
 import ResizableTh from '@/components/table/ResizableTh';
@@ -465,6 +466,7 @@ function OrdersList() {
                   <td className="px-4 py-3 text-sm text-gray-600 break-words">{order.commodity || '—'}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={order.status} />
+                    {order.recordImport && <div className="mt-1"><RecordImportBadge /></div>}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600 truncate">
                     {formatDate(order.pickupDate as { toDate: () => Date } | null)}

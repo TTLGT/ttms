@@ -340,6 +340,10 @@ scripts cannot import TypeScript either:
 |---|---|
 | the `unsigned` and `documents_missing` queries | `unsignedStat()` / `missingDocumentsStat()` in `src/lib/orderSummary.ts` |
 
+| `createOrderAsCaller()` in `src/lib/orderWrites.ts` | mirrored in |
+|---|---|
+| `clientSignatureRecorded` / `carrierSignatureRecorded` written `false` on create | the new-order records in `src/lib/batsImport.ts` and `scripts/import-bats.js` |
+
 | `src/types/order.ts` | mirrored in |
 |---|---|
 | `orderSearchTerms()` + `searchWords()` | `scripts/backfill-order-search-terms.js`, `scripts/import-bats.js` |
@@ -534,9 +538,10 @@ deliberately absent from `STATUS_RANK`. **`carrier_assigned` is retired**
 It stays in the type for old change-log entries, is read as `booked` through
 `displayStatus()`, and `updateOrderAsCaller()` refuses to write it
 (`LEGACY_STATUSES`). Booked → Client Signed may be pressed by hand for a client
-who signed some other way, **only once a signed SA is uploaded to the load**
-(a `signed_sa` file or picture — `signedSaProof()`, enforced in
-`updateOrderAsCaller()`, not just on the button). That moves the status only —
+who signed some other way, **only once a signed SA is uploaded to the load and
+verified by admin or dispatch** (an approved `signed_sa` file — `signedSaProof()`,
+enforced in `updateOrderAsCaller()`, not just on the button; pictures stopped
+counting on 2026-10-28 because they are never reviewed). That moves the status only —
 the carrier agreement still asks `clientSignatureSatisfied()`. `parentOrderId` set
 means a suborder — its own carrier, dates and BOL.
 
@@ -1316,6 +1321,73 @@ freight-counted boxes (typed in the Bill of Lading card on the order,
 them left unset prints as an empty box for a pen. None is on the client's
 load confirmation, so editing them never holds an SA. Saving them redraws a
 BOL already on file.
+### Signed copies and BATS imports — verified, then recorded
+
+A signed SA or Carrier Agreement made somewhere other than TTMS's link — the
+BATS e-signed PDFs of imported loads, a scan of paper — is uploaded into the
+Signed SA / Signed Carrier Agreement slot by **anybody who can open the load**,
+and counts for **nothing** until somebody with `orders.verifyRecords` (admin
+and dispatch; added 2026-10-28, widening dispatch) has opened it and approved
+it. Types and the whole flow in `src/types/signatureRecord.ts`.
+
+- **Every signed upload arrives `review: 'pending'`** (`POST /files`), and the
+  uploader's admin and dispatch are brought into the load's room and told.
+  A file from before reviews has no `review` and reads as approved
+  (`reviewOf()`); `PATCH /files/{id}` refuses re-kinding into or out of a
+  signed slot, which is what keeps that absence from being manufactured.
+- **TTMS reads the signature block off a PDF on its own server**
+  (`src/lib/signatureReader.ts`, pdf.js via `unpdf`, in
+  `serverExternalPackages`). Nothing is sent anywhere — same reasoning as the
+  glossary not being a translation service. It knows the BATS SA ("Digital
+  Signature Certificate"), the BATS dispatch sheet ("Carrier Acceptance and
+  Signature") and TTMS's own signed PDF, and the printed order number, which
+  the review compares with the load. A scan yields nothing and is typed by
+  hand. **A reading is never a record**: it only pre-fills the form.
+- **Approval is the only write of the signature**:
+  `POST /api/orders/{id}/files/{fileId}/signature` (`save` by anybody who can
+  open the load while pending; `approve`/`reject` by `orders.verifyRecords`)
+  writes `clientSignatureRecord` / `carrierSignatureRecord` and its mirror
+  flag in one transaction with the change-log entry. Both are server-kept in
+  `orderWrites.ts`. **They are deliberately not `shipperSignedAt` & co.** —
+  those are the e-signature audit trail TTMS captured itself; a recorded
+  signature is what a person read off somebody else's paperwork, and every
+  screen says "recorded from a signed copy". If the party already e-signed,
+  approval files the copy and leaves the e-signature as the record.
+- **A recorded client signature satisfies `clientSignatureSatisfied()`**, so
+  it opens the carrier agreement like an e-signature or a waiver. Only a
+  verified copy is attached to the acceptance email, and only somebody who
+  verifies may remove a verified copy — which removes the signature recorded
+  from it.
+- **The dashboard's unsigned count excludes recorded signatures** through
+  `clientSignatureRecorded` / `carrierSignatureRecorded == false`, the same
+  mirror trick as `signatureWaived`: every order must carry both, which
+  `createOrderAsCaller()`, both importers and
+  `scripts/backfill-record-import.js` see to. Until that script has run the
+  card reads 0.
+- **The "Record import" label** is `recordImport: true` on an order, set by
+  both importers and by the backfill on every order with a `batsId`, and
+  shown on the load and the orders list. Only `orders.verifyRecords` takes it
+  off or puts it back (`POST /api/orders/{id}/record-import`, logged).
+  Importers `PRESERVE` it and the records, so a re-import never relabels a
+  load or drops a signature.
+- **A Carrier Agreement is verified only on a load with a carrier** — the
+  approve route answers 409 without `carrierId`, and so does Carrier Signed by
+  hand. BATS loads have none, so the review window's first step
+  (`SignedCopyCarrierStep.tsx`) reads the carrier and driver off the dispatch
+  sheet (`detected.carrier`; the sheet prints no MC or DOT), lists matching
+  carriers already in TTMS (`GET /files/{id}/carrier`, by MC/DOT, else a
+  `nameKey` prefix), and only when none match asks FMCSA by name
+  (`searchCarriersByName()`, QCMobile `/name/`). Picking one opens Add Carrier
+  with that DOT already looked up, so the usual FMCSA check and its "already
+  in TTMS" test run. Linking is the ordinary order save. Like every FMCSA call
+  it fails from the Guatemala office (FMCSA blocks non-US addresses) and works
+  on the live site.
+- **A refusal reaches the uploader**: they are brought into the load's room and
+  the line names them; their Approvals list shows the reason. A verifier's own
+  fresh upload opens with the "I opened this file" box ticked — one click.
+- The queue is the "Signed copies to verify" block on Approvals
+  (`GET /api/signed-documents`, single-field queries, every row re-checked
+  with `canSeeOrder()`), and it counts toward the nav badge.
 
 ### Learn English — underlines that never touch the page
 

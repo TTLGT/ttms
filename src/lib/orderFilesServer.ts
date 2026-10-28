@@ -2,9 +2,14 @@ import { adminDb, adminStorage } from './firebase-admin';
 import {
   ORDER_FILES_COLLECTION,
   isOrderFileKind,
+  isSignedAgreementKind,
   orderFilePath,
   type OrderFile,
 } from '@/types/orderFile';
+import {
+  isSignatureMethod, isSignatureZone, reviewOf,
+  type DetectedSignature, type SignatureMethod, type SignatureRecord, type SignatureZone,
+} from '@/types/signatureRecord';
 
 /**
  * Server side of an order's other files: reading the records and signing their
@@ -47,6 +52,37 @@ export async function toOrderFile(id: string, d: FirebaseFirestore.DocumentData)
     uploadedByName: String(d.uploadedByName ?? ''),
     createdAt:      millis(d.createdAt),
     url:            await sign(orderId, id, name),
+    ...signedFileFields(d),
+  };
+}
+
+/** The review half of a file record, for the two signed-agreement kinds. */
+function signedFileFields(d: FirebaseFirestore.DocumentData) {
+  if (!isSignedAgreementKind(d.kind)) {
+    return { review: null, reviewedByName: '', reviewedAt: 0, rejectReason: '', detected: null, signature: null };
+  }
+  const s = d.signature as Record<string, unknown> | null | undefined;
+  return {
+    review:         reviewOf(d.review),
+    reviewedByName: String(d.reviewedByName ?? ''),
+    reviewedAt:     millis(d.reviewedAt),
+    rejectReason:   String(d.rejectReason ?? ''),
+    detected:       (d.detected ?? null) as DetectedSignature | null,
+    signature: s && typeof s.signerName === 'string'
+      ? {
+        signerName:    String(s.signerName),
+        signerTitle:   String(s.signerTitle ?? ''),
+        date:          String(s.date ?? ''),
+        time:          String(s.time ?? ''),
+        zone:          (isSignatureZone(s.zone) ? s.zone : 'CST') as SignatureZone,
+        signerIp:      String(s.signerIp ?? ''),
+        method:        (isSignatureMethod(s.method) ? s.method : 'other') as SignatureMethod,
+        reference:     String(s.reference ?? ''),
+        enteredByName: String(s.enteredByName ?? ''),
+        enteredAt:     Number(s.enteredAt) || 0,
+        source:        (s.source === 'pdf' || s.source === 'pdf_edited' ? s.source : 'typed') as SignatureRecord['source'],
+      }
+      : null,
   };
 }
 

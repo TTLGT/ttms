@@ -684,6 +684,16 @@ orderFiles/{fileId}                 // fileId is random, made by the browser
   uploadedByUid  : string
   uploadedByName : string
   createdAt      : Timestamp
+
+  // signed_sa / signed_ca only — see "Verifying a signed copy" below
+  review         : "pending" | "approved" | "rejected"   // absent = approved (before reviews)
+  detected       : map | null       // what TTMS read off the PDF (signatureReader.ts)
+  signature      : map | null       // signer, date, time, zone, IP, method, reference,
+                                    // enteredByUid/Name/At, source: pdf | pdf_edited | typed
+  reviewedByUid  : string
+  reviewedByName : string
+  reviewedAt     : Timestamp
+  rejectReason   : string
 ```
 
 The file is at `order-files/{orderId}/{fileId}`, worked out from the two ids
@@ -729,12 +739,48 @@ keeps its status. Assigning a first carrier changes nothing. A waiver is not
 touched: it is a recorded decision about the load and is never cleared.
 
 **A signed SA by hand.** Moving a load to Client Signed without an
-e-signature needs at least one `orderFiles` of kind `signed_sa` or
-`loadPhotos` of stage `signed_sa` (saved before 2026-10-21; Pictures no longer offer it) on it (`signedSaProof()` in
-`src/lib/signedSaProof.ts`, two equality counts — no composite index).
-`updateOrderAsCaller()` refuses the move without one, and the change-log entry
-says it was by hand and on what. The button is greyed out until then, from
-`GET /api/orders/{id}/signed-sa-proof`.
+e-signature needs at least one **approved** `orderFiles` of kind `signed_sa`
+on it, or a `loadPhotos` picture of stage `signed_sa` saved before 2026-10-21
+(Pictures no longer offer it), uploaded since the client last changed
+(`signedSaProof()` in `src/lib/signedSaProof.ts`, two equality queries — no
+composite index). `updateOrderAsCaller()` refuses
+the move without one, and the change-log entry says it was by hand and on
+what. The button is greyed out until then, from
+`GET /api/orders/{id}/signed-sa-proof`, which also says how many wait.
+
+### Verifying a signed copy
+
+Every `signed_sa` / `signed_ca` upload arrives `pending`, whoever uploaded it.
+A PDF is read on registration for its signature block (BATS SA, BATS dispatch
+sheet, TTMS's own signed PDF) and the result kept as `detected`. The uploader
+checks or types the details (`signature`); admin and dispatch
+(`orders.verifyRecords`) open the file in the review window and approve or
+refuse it — on the load, or in the "Signed copies to verify" block on
+Approvals (`GET /api/signed-documents`). All of it goes through
+`POST /api/orders/{id}/files/{fileId}/signature`.
+
+Approval writes the signature onto the order, in the same transaction as the
+change-log entry:
+
+| Order field | Meaning |
+|---|---|
+| `clientSignatureRecord` / `carrierSignatureRecord` | The signer, date, time and printed zone, `signedAt` (epoch ms), IP, method, reference, the file it came from, who entered it and who approved it. Server-kept. |
+| `clientSignatureRecorded` / `carrierSignatureRecorded` | Boolean mirrors, on every order, for the dashboard's unsigned count. |
+
+Not `shipperSignedAt` / `carrierSignedAt`, which stay the e-signature audit
+trail. A recorded client signature satisfies `clientSignatureSatisfied()`.
+Refusing an approved copy, or removing it (only `orders.verifyRecords` may),
+takes its record off the order.
+
+### The Record import label
+
+`recordImport: true` marks a load imported from BATS and never processed in
+TTMS. Set by both importers and by `scripts/backfill-record-import.js`, which
+also puts the two mirrors above on every order. Changed only through
+`POST /api/orders/{id}/record-import` (`orders.verifyRecords`), which records
+`recordImportChangedAt` / `recordImportChangedByName` and a change-log entry.
+The importers `PRESERVE` it, so a re-import does not put back a label somebody
+removed.
 
 ## Collection: `saRequests` — "Request SA"
 

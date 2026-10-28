@@ -172,3 +172,38 @@ export async function lookupCarrier(dot: string, mc: string): Promise<FmcsaLooku
     registry,
   };
 }
+
+/** One company FMCSA lists under a name — enough to pick the right one. */
+export interface FmcsaNameMatch {
+  dotNumber: string;
+  legalName: string;
+  dbaName: string;
+  city: string;
+  state: string;
+  /** "Y" or "N", as FMCSA prints it. */
+  allowedToOperate: string;
+}
+
+/**
+ * The companies FMCSA lists under a name, for a carrier we know only by name —
+ * a BATS dispatch sheet prints the carrier's name and phone and no numbers.
+ * The broker picks one, and the ordinary DOT lookup (and its "already in
+ * TTMS" test) runs from there. Same key, same rules about the URL.
+ */
+export async function searchCarriersByName(name: string, limit = 8): Promise<FmcsaNameMatch[]> {
+  const q = name.trim().replace(/[/\\?#%]/g, ' ').replace(/\s+/g, ' ').slice(0, 80);
+  if (!q) return [];
+  const content = await get(`/name/${encodeURIComponent(q)}`);
+  if (!Array.isArray(content)) return [];
+  return content.slice(0, limit)
+    .map((row) => ((row as { carrier?: Raw }).carrier ?? row) as Raw)
+    .map((c) => ({
+      dotNumber: str(c.dotNumber),
+      legalName: str(c.legalName),
+      dbaName: str(c.dbaName),
+      city: str(c.phyCity),
+      state: str(c.phyState),
+      allowedToOperate: str(c.allowedToOperate),
+    }))
+    .filter((c) => c.dotNumber);
+}

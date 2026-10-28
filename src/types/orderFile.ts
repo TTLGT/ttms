@@ -28,6 +28,8 @@
  * cannot create.
  */
 
+import type { DetectedSignature, SignatureDetails, SignatureRecord, SignedFileReview } from './signatureRecord';
+
 export const ORDER_FILES_COLLECTION = 'orderFiles';
 
 /** What the file is. Free text says the rest; this is for scanning a list. */
@@ -39,8 +41,9 @@ export type OrderFileKind = (typeof ORDER_FILE_KINDS)[number];
 export const ORDER_FILE_KIND_LABEL: Record<OrderFileKind, string> = {
   /**
    * The client's Shipper Agreement signed some other way — on paper, by
-   * email — and scanned or saved here. It is the proof that lets staff move a
-   * load to Client Signed by hand; see `signedSaProof()` in
+   * email, or in BATS — and scanned or saved here. Once admin or dispatch
+   * verify it (src/types/signatureRecord.ts) it is the proof that lets staff
+   * move a load to Client Signed by hand; see `signedSaProof()` in
    * src/lib/signedSaProof.ts.
    */
   signed_sa:         'Signed Shipper Agreement (SA)',
@@ -119,6 +122,23 @@ export interface OrderFile {
   createdAt: number;
   /** Signed, short-lived. */
   url: string;
+  /**
+   * A signed agreement's review (`signed_sa` / `signed_ca` only) — see
+   * src/types/signatureRecord.ts. Null on every other kind of file.
+   */
+  review: SignedFileReview | null;
+  reviewedByName: string;
+  reviewedAt: number;
+  rejectReason: string;
+  /** What TTMS read off the PDF, if anything. Kept beside what was saved. */
+  detected: DetectedSignature | null;
+  /** The details entered for it — by the uploader, or corrected by the approver. */
+  signature: (SignatureDetails & { enteredByName: string; enteredAt: number; source: SignatureRecord['source'] }) | null;
+}
+
+/** Whether a file is one of the two signed-agreement kinds, which are reviewed. */
+export function isSignedAgreementKind(kind: unknown): kind is 'signed_sa' | 'signed_ca' {
+  return kind === 'signed_sa' || kind === 'signed_ca';
 }
 
 /** "1.4 MB", "820 KB". */
