@@ -89,6 +89,8 @@ export const UNRECORDED_FIELDS: ReadonlySet<string> = new Set([
   'clientSignatureRecorded', 'carrierSignatureRecorded',
   // Who and when, which the entry itself already says.
   'recordImportChangedAt', 'recordImportChangedByName',
+  // Worked out from the order when the BOL is generated, which is recorded.
+  'bolFingerprint',
 ]);
 
 /** What each field is called on screen, where the field name is not already plain. */

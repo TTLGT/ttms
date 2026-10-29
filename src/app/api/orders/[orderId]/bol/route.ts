@@ -5,6 +5,7 @@ import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { actorOf } from '@/lib/recordHistory';
 import { generateBol } from '@/lib/bolRequests';
+import { bolFingerprint } from '@/types/bolRequest';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -31,7 +32,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       action: 'read',
       expires: Date.now() + 2 * 60 * 60 * 1000,
     });
-    return NextResponse.json({ url, path: filePath });
+    // The fingerprint goes back too, so the page clears its "out of date"
+    // banner without reading the order again.
+    return NextResponse.json({ url, path: filePath, fingerprint: bolFingerprint(order) });
   } catch (e) {
     if (e instanceof AdminAuthError) return NextResponse.json({ error: e.message }, { status: e.status });
     throw e;

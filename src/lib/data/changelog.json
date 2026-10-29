@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "e5039557c9860b87b38af100b7e5b991c3ff1b2f",
+      "date": "2026-10-28T23:54:35-06:00",
+      "author": "erwindank",
+      "subject": "Keep every earlier BOL when it is generated again, with who made it, who replaced it and who it was emailed to",
+      "body": ""
+    },
+    {
       "hash": "6218f7ed6512ba0af035453df74f914815a3404b",
       "date": "2026-10-28T22:51:16-06:00",
       "author": "erwindank",

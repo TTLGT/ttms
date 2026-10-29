@@ -1007,6 +1007,8 @@ export interface Order {
   driverPhoneRegion?: PhoneRegion;
   driverLicenseStoragePath: string | null;
   bolStoragePath: string | null;
+  /** What the BOL on file printed — `bolFingerprint()` in src/types/bolRequest.ts. Absent before 2026-10-29. */
+  bolFingerprint?: string | null;
   invoiceStoragePath: string | null;
   podStoragePath: string | null;
   /**

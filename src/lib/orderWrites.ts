@@ -84,6 +84,9 @@ const SERVER_KEPT_FIELDS = [
   // This load's own agreement terms — /terms, which asks an admin first when
   // a dispatcher made the change. An edit here would skip that approval.
   'clientTerms', 'carrierTerms',
+  // What the BOL on file printed — generateBol() only. A save that set it
+  // would hide the "out of date" banner without redrawing anything.
+  'bolFingerprint',
   // A signature recorded off a verified signed copy — /files/{id}/signature.
   // A broker writing their own would be a signature nobody checked.
   'clientSignatureRecord', 'carrierSignatureRecord', 'clientSignatureRecorded', 'carrierSignatureRecorded',

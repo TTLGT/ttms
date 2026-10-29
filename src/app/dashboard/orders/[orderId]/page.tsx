@@ -16,6 +16,8 @@ import PriceAndTermsCard from '@/components/orders/PriceAndTermsCard';
 import SectionEditLink from '@/components/orders/SectionEditLink';
 import BolSendPanel from '@/components/orders/BolSendPanel';
 import BolVersions from '@/components/orders/BolVersions';
+import BolOutdatedBanner from '@/components/orders/BolOutdatedBanner';
+import { bolOutdated } from '@/types/bolRequest';
 import BolDetailsFields from '@/components/orders/BolDetailsFields';
 import AgreementPdfPreview from '@/components/orders/AgreementPdfPreview';
 import type { CommodityItem, Order, OrderStatus, StopKind } from '@/types/order';
@@ -959,12 +961,12 @@ export default function OrderDetailPage() {
   }
 
   /**
-   * `base` is the order to merge the new path into — passed when the caller
-   * has just changed the order itself, since `order` here is the value from
-   * before that render. `openIt` is false for a redraw after saving the BOL
-   * details, which should refresh the file without throwing up a new tab.
+   * Only ever pressed. Saving the order no longer redraws the BOL behind
+   * anybody's back — the card says when it is out of date instead
+   * (`bolOutdated()`), and regenerating keeps the one it replaces.
    */
-  async function handleGenerateBol(openIt = true, base = order) {
+  async function handleGenerateBol() {
+    const base = order;
     if (!base || !user) return;
     setGeneratingBol(true);
     setError('');
@@ -977,10 +979,10 @@ export default function OrderDetailPage() {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'Failed to generate BOL');
       setBolUrl(body.url);
-      setOrder({ ...base, bolStoragePath: body.path });
+      setOrder({ ...base, bolStoragePath: body.path, bolFingerprint: body.fingerprint });
       // Shown in the page rather than a new tab: a tab opened after the
       // generate round trip is what pop-up blockers stop.
-      if (openIt) setShowBolPreview(true);
+      setShowBolPreview(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to generate BOL');
     } finally {
@@ -1207,6 +1209,9 @@ export default function OrderDetailPage() {
   const nextStatus  = STATUS_NEXT[order.status];
   const currentStep = PIPELINE.indexOf(displayStatus(order.status));
   const milesAtNote = laneMilesAtNote(order.laneMilesSource, formatDateTime(order.laneMilesAt, ''));
+  const bolIsOutdated = bolOutdated(order as unknown as Record<string, unknown>);
+  const canRegenerateBol = can('orders.bol')
+    && ['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'].includes(order.status);
 
 
   return (
@@ -2092,14 +2097,11 @@ export default function OrderDetailPage() {
                   )}
                 </div>
               </div>
+              {bolIsOutdated && <BolOutdatedBanner canRegenerate={canRegenerateBol} />}
+              {/* A BOL on file keeps the old values until somebody presses
+                  Regenerate; the banner above is what tells them. */}
               <BolDetailsFields order={order} orderId={orderId} canEdit={can('orders.create')}
-                onSaved={(patch) => {
-                  const next = { ...order, ...patch };
-                  setOrder(next);
-                  // A BOL already on file still shows the old values until it
-                  // is drawn again, so it is redrawn here rather than left stale.
-                  if (order.bolStoragePath && can('orders.bol')) void handleGenerateBol(false, next);
-                }} />
+                onSaved={(patch) => setOrder({ ...order, ...patch })} />
               {/* Who it goes to once both sides have signed — see src/types/bolRequest.ts. */}
               {order.bolStoragePath && <BolSendPanel orderId={orderId} bolVersion={bolUrl ?? ''} />}
               {order.bolStoragePath && <BolVersions orderId={orderId} refreshKey={bolUrl} />}
@@ -2217,6 +2219,7 @@ export default function OrderDetailPage() {
                       </button>
                     )}
                   </div>
+                  {bolIsOutdated && <BolOutdatedBanner canRegenerate={canRegenerateBol} />}
                   {order.recordImport && (
                     <OrderFileSlot orderId={orderId} kind="bol_copy" uploadLabel="Upload the BOL from BATS"
                       hint="The BOL as it was sent from BATS, PDF or picture." onCount={setBolCopies} />

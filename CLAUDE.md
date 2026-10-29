@@ -1343,8 +1343,16 @@ freight charge terms and a 3rd-party bill-to, and the trailer-loaded /
 freight-counted boxes (typed in the Bill of Lading card on the order,
 `BolDetailsFields`), plus handling units and hazmat per freight line. Any of
 them left unset prints as an empty box for a pen. None is on the client's
-load confirmation, so editing them never holds an SA. Saving them redraws a
-BOL already on file.
+load confirmation, so editing them never holds an SA.
+
+**Nothing redraws a BOL behind anybody's back** (2026-10-29). It is drawn
+when both sides have signed and when somebody presses Generate/Regenerate —
+never on a save. Each BOL stores `bolFingerprint` (what it printed); the
+order page compares it with the load through `bolOutdated()` and shows a
+banner saying it needs regenerating. `bolFingerprint()` in
+`src/types/bolRequest.ts` must list every field `bolBuffer()` prints, or
+changing that field will not raise the banner. Regenerating keeps the one
+it replaces (`orders/{id}/bolVersions`, "Earlier BOLs").
 ### Signed copies and BATS imports — verified, then recorded
 
 A signed SA or Carrier Agreement made somewhere other than TTMS's link — the

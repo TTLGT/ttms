@@ -14,7 +14,7 @@ import {
 } from '@/types/order';
 import type { CommodityItem, Order, OrderStatus, OrderStop, StopKind } from '@/types/order';
 import {
-  BOL_REQUESTS_COLLECTION, BOL_ROLE_LABEL,
+  BOL_REQUESTS_COLLECTION, BOL_ROLE_LABEL, bolFingerprint,
   type BolRecipient, type BolRecipientRole, type BolRequest, type BolRequestStatus, type BolSend, type BolVersion,
 } from '@/types/bolRequest';
 
@@ -231,6 +231,8 @@ export async function generateBol(
   });
   await updateWithHistory(adminDb.collection('orders').doc(orderId), {
     bolStoragePath: filePath,
+    // What this BOL printed, so the order page can say when it is out of date.
+    bolFingerprint: bolFingerprint(order),
     updatedAt:      new Date(),
   }, actor, summary ?? (order.bolStoragePath ? 'Generated the BOL again' : 'Generated the BOL'));
   // The room about this load, if anybody has started one. Best-effort: the

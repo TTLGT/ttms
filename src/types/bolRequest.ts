@@ -25,7 +25,81 @@
  * /api/orders/{id}/bol-request. See src/lib/bolRequests.ts.
  */
 
+import { accessorialLabels, orderCommodityItems, orderDisplayNumber, type Order } from './order';
+
 export const BOL_REQUESTS_COLLECTION = 'bolRequests';
+
+/**
+ * What the BOL prints, reduced to a short string — stored on the order as
+ * `bolFingerprint` each time it is generated, and compared with the order as
+ * it stands to say "this BOL is out of date".
+ *
+ * Why a fingerprint and not a redraw on every save: a redraw quietly changed
+ * a document that may already be with a dock or a driver, and made a new
+ * version on every keystroke-level save. Now a person regenerates on purpose.
+ *
+ * Runs in the browser and on the server over the same order, so every value
+ * goes in as plain JSON: timestamps as whole seconds (the browser receives
+ * them serialized), keys sorted, absent read as null. The carrier's DOT and
+ * MC come off the carrier record and are not in it — a different carrier is
+ * (`carrierId`), a corrected number on the same one is not.
+ *
+ * Keep in step with `bolBuffer()` in src/lib/bolRequests.ts: a field the BOL
+ * starts printing belongs here too, or changing it will not raise the banner.
+ */
+export function bolFingerprint(order: Record<string, unknown>): string {
+  const o = order as Partial<Order> & Record<string, unknown>;
+  // Whole seconds: the browser gets `{ _seconds, _nanoseconds }` and the
+  // server a Timestamp, and seconds are what both can agree on exactly.
+  const secs = (v: unknown): number | null => {
+    if (!v || typeof v !== 'object') return null;
+    const t = v as { toMillis?: () => number; seconds?: number; _seconds?: number };
+    if (typeof t.toMillis === 'function') return Math.floor(t.toMillis() / 1000);
+    const s = t.seconds ?? t._seconds;
+    return typeof s === 'number' ? s : null;
+  };
+  const pick = (...keys: string[]) => Object.fromEntries(keys.map((k) => [k, o[k] ?? null]));
+  const printed = {
+    number: orderDisplayNumber(o),
+    ...pick(
+      'clientName', 'shipperName', 'consigneeName', 'carrierId', 'carrierName', 'driverName',
+      'transportType', 'truckNumber', 'trailerNumber', 'commodity', 'pieces', 'weight',
+      'origin', 'destination', 'pickupDate', 'pickupDateEnd', 'deliveryDate', 'deliveryDateEnd',
+      'extraPickups', 'extraDeliveries', 'carrierInstructions',
+      'freightChargeTerms', 'thirdPartyBillTo', 'trailerLoadedBy', 'freightCountedBy',
+      'trailerUnloadedBy', 'deliveryCountedBy', 'bolShowDockBoxes', 'carrierSignerName', 'carrierSignerIp',
+    ),
+    items:        orderCommodityItems(o),
+    accessorials: accessorialLabels(o),
+    carrierSignedAt: secs(o.carrierSignedAt),
+  };
+  const stable = (v: unknown): string => {
+    if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`;
+    if (v && typeof v === 'object') {
+      return `{${Object.keys(v).sort()
+        .filter((k) => (v as Record<string, unknown>)[k] !== undefined)
+        .map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`).join(',')}}`;
+    }
+    return JSON.stringify(v ?? null);
+  };
+  // FNV-1a: short to store, and a collision only costs a missing banner.
+  let h = 0x811c9dc5;
+  for (const ch of stable(printed)) {
+    h ^= ch.charCodeAt(0);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+/**
+ * True when the BOL on file no longer matches the order. False for a BOL
+ * generated before fingerprints were stored: nothing to compare, and a banner
+ * on every older load would be noise rather than news.
+ */
+export function bolOutdated(order: Record<string, unknown>): boolean {
+  const stored = order.bolFingerprint;
+  return Boolean(order.bolStoragePath) && typeof stored === 'string' && stored !== bolFingerprint(order);
+}
 
 /**
  * - `open` — the BOL is generated; nobody has sent it yet.

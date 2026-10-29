@@ -1233,7 +1233,10 @@ to the shipper, consignee, carrier and client alike.
 ### Subcollection: `orders/{orderId}/bolVersions` — earlier BOLs (2026-10-28)
 
 The current BOL is always `bols/{orderId}.pdf`, and generating it again
-replaces that file. Before it does, `generateBol()` copies the old one to
+replaces that file. Saving the order never does (since 2026-10-29): the order
+carries `bolFingerprint`, a hash of what the BOL on file printed, and the
+order page shows "This BOL is out of date" when the load no longer matches it.
+Only Generate/Regenerate and the second signature draw one. Before it does, `generateBol()` copies the old one to
 `bol-versions/{orderId}/{versionId}.pdf` and writes one document here. If the
 copy fails, the generate fails — the old BOL is never lost silently.
 
