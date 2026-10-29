@@ -1,6 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 import { auth } from './firebase';
 import type { FmcsaAnswer, FmcsaCheck } from '@/types/fmcsa';
+import type { FmcsaPageSource } from '@/types/fmcsaPage';
 
 /**
  * Browser half of the FMCSA check. The lookup, the key and the write all
@@ -23,6 +24,34 @@ export async function runFmcsaCheck(carrierId: string): Promise<FmcsaCheck> {
   if (!res.ok || !data.check) throw new Error(data.error ?? 'The FMCSA check failed.');
 
   return { ...data.check, checkedAt: Timestamp.fromDate(new Date(data.check.checkedAt)) };
+}
+
+export interface FmcsaPage {
+  html: string;
+  /** Where it lives on FMCSA — reachable from Guatemala only on a US VPN. */
+  url: string;
+  companyName: string;
+  fetchedAt: string;
+}
+
+/**
+ * One of FMCSA's public pages about a carrier, fetched by TTMS's US server.
+ * The error carries FMCSA's own address when the route knew it, so the page
+ * can still offer the VPN route.
+ */
+export async function fetchFmcsaPage(carrierId: string, source: FmcsaPageSource): Promise<FmcsaPage> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not signed in');
+
+  const res = await fetch(
+    `/api/carriers/${encodeURIComponent(carrierId)}/fmcsa-page/${source}`,
+    { headers: { Authorization: `Bearer ${await user.getIdToken()}` } },
+  );
+  const data = (await res.json().catch(() => ({}))) as Partial<FmcsaPage> & { error?: string };
+  if (!res.ok || typeof data.html !== 'string') {
+    throw Object.assign(new Error(data.error ?? 'Could not load the FMCSA page.'), { url: data.url });
+  }
+  return data as FmcsaPage;
 }
 
 export interface FmcsaLookupResult {

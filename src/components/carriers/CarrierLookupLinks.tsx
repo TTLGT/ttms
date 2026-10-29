@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { copyToClipboard } from '@/lib/clipboard';
+import { FMCSA_PAGE_LABEL, FMCSA_PAGE_SOURCES, fmcsaPageUrl } from '@/types/fmcsaPage';
+import type { FmcsaPageSource } from '@/types/fmcsaPage';
 
 /** The digits of a DOT or MC as typed — "MC-123456" and "123456" are one number. */
 function digits(value: string): string {
@@ -22,37 +24,27 @@ type Lookup = {
   paste?: boolean;
 };
 
+const FMCSA_TITLE: Record<FmcsaPageSource, string> = {
+  safer: 'FMCSA company snapshot: operating status, authority, fleet and inspections',
+  sms:   'FMCSA Safety Measurement System: safety scores, inspections and crashes',
+  li:    'FMCSA L&I: authority history, insurance filings and cancellations',
+};
+
 /**
- * FMCSA's own pages open the carrier directly; their address formats are
- * long-standing and public. The commercial sites are linked to their front
- * page instead: none of them publishes a per-carrier address, and one that
- * guessed wrong would land a broker on somebody else's record mid-vetting.
+ * FMCSA's own pages open inside TTMS, fetched by the US server: FMCSA turns
+ * away the Guatemala office without a VPN. The commercial sites are linked to
+ * their front page instead: none of them publishes a per-carrier address, and
+ * one that guessed wrong would land a broker on somebody else's record
+ * mid-vetting.
  */
-function lookups(dot: string, mc: string): Lookup[] {
-  const out: Lookup[] = [];
-  if (dot) {
-    out.push({
-      label: 'SaferWeb',
-      title: 'FMCSA company snapshot: operating status, authority, fleet and inspections',
-      href: `https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${dot}`,
-    });
-    out.push({
-      label: 'FMCSA SMS',
-      title: 'FMCSA Safety Measurement System: safety scores, inspections and crashes',
-      href: `https://ai.fmcsa.dot.gov/SMS/Carrier/${dot}/CarrierOverview.aspx`,
-    });
-    out.push({
-      label: 'Licensing & Insurance',
-      title: 'FMCSA L&I: authority history, insurance filings and cancellations',
-      href: `https://li-public.fmcsa.dot.gov/LIVIEW/pkg_carrquery.prc_carrlist?n_dotno=${dot}&s_prefix=MC&n_docketno=&s_legalname=&s_dbaname=&s_state=`,
-    });
-  } else if (mc) {
-    out.push({
-      label: 'SaferWeb',
-      title: 'FMCSA company snapshot: operating status, authority, fleet and inspections',
-      href: `https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=MC_MX&query_string=${mc}`,
-    });
-  }
+function lookups(carrierId: string, dot: string, mc: string): Lookup[] {
+  const out: Lookup[] = FMCSA_PAGE_SOURCES
+    .filter((s) => fmcsaPageUrl(s, dot, mc))
+    .map((s) => ({
+      label: FMCSA_PAGE_LABEL[s],
+      title: FMCSA_TITLE[s],
+      href: `/dashboard/carriers/${encodeURIComponent(carrierId)}/fmcsa/${s}`,
+    }));
   out.push(
     { label: 'SaferWatch',     title: 'Carrier monitoring and fraud alerts (needs a SaferWatch sign-in)', href: 'https://www.saferwatch.com/', paste: true },
     { label: 'Broker Snapshot', title: 'Carrier history, contacts, inspections and authority timeline', href: 'https://brokersnapshot.com/', paste: true },
@@ -67,7 +59,7 @@ function lookups(dot: string, mc: string): Lookup[] {
  * the rest — inspection history, insurance changes, fraud reports — which
  * TTMS does not fetch and should not pretend to have checked.
  */
-export default function CarrierLookupLinks({ dot, mc }: { dot: string; mc: string }) {
+export default function CarrierLookupLinks({ carrierId, dot, mc }: { carrierId: string; dot: string; mc: string }) {
   const dotNo = digits(dot);
   const mcNo  = digits(mc);
   const [copied, setCopied] = useState('');
@@ -82,7 +74,7 @@ export default function CarrierLookupLinks({ dot, mc }: { dot: string; mc: strin
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="text-xs font-medium text-gray-500">Look up on</span>
-        {lookups(dotNo, mcNo).map((l) => (
+        {lookups(carrierId, dotNo, mcNo).map((l) => (
           <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" title={l.title}
             // Not awaited: the link must open in the same click, or the
             // browser treats the new tab as a pop-up and blocks it.

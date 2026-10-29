@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "a172cc702ed6d567ee292995f4b3d53f22b48277",
+      "date": "2026-10-28T21:01:55-06:00",
+      "author": "erwindank",
+      "subject": "Link each carrier to SaferWeb, FMCSA SMS, Licensing & Insurance, SaferWatch, Broker Snapshot and USDOT411",
+      "body": ""
+    },
+    {
       "hash": "4070e977821e2d63d931864b2433de9e3f8a3a53",
       "date": "2026-10-28T20:51:10-06:00",
       "author": "erwindank",

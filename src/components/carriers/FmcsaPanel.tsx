@@ -148,7 +148,7 @@ export default function FmcsaPanel({
           {button}
         </div>
         {error && <p className="text-xs text-red-600">{error}</p>}
-        <CarrierLookupLinks dot={dot} mc={mc} />
+        <CarrierLookupLinks carrierId={carrierId} dot={dot} mc={mc} />
       </div>
     );
   }
@@ -204,7 +204,7 @@ export default function FmcsaPanel({
 
       {/* FMCSA's DOT where the record has none: it is the number every
           site searches by, and the check has already found it. */}
-      <CarrierLookupLinks dot={dot || check.dotNumber || ''} mc={mc} />
+      <CarrierLookupLinks carrierId={carrierId} dot={dot || check.dotNumber || ''} mc={mc} />
 
       {concerns.length > 0 ? (
         <ul className="space-y-1">
