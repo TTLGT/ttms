@@ -35,7 +35,7 @@ export const ORDER_FILES_COLLECTION = 'orderFiles';
 /** What the file is. Free text says the rest; this is for scanning a list. */
 export const ORDER_FILE_KINDS = [
   'signed_sa', 'signed_ca', 'carrier_invoice', 'bol_copy', 'client_invoice',
-  'rate_confirmation', 'receipt', 'customs', 'permit', 'insurance', 'correspondence', 'other',
+  'rate_confirmation', 'receipt', 'customs', 'permit', 'insurance', 'correspondence', 'payment_proof', 'other',
 ] as const;
 export type OrderFileKind = (typeof ORDER_FILE_KINDS)[number];
 
@@ -66,6 +66,12 @@ export const ORDER_FILE_KIND_LABEL: Record<OrderFileKind, string> = {
   permit:            'Permit',
   insurance:         'Insurance',
   correspondence:    'Correspondence',
+  /**
+   * Evidence that money moved — a transfer screenshot, a photo of a cheque.
+   * What a payment mark points at (src/types/orderPayment.ts); a driver's
+   * arrives from their link, a staff member's from the Payments card.
+   */
+  payment_proof:     'Payment proof',
   other:             'Other',
 };
 

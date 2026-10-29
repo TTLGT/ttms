@@ -42,6 +42,7 @@ import type { QueryDocumentSnapshot, WriteBatch } from 'firebase-admin/firestore
 import type { ChangeOrderAffects } from '@/types/changeOrder';
 import { NO_SIGNED_CA_PROOF, NO_SIGNED_SA_PROOF, signedSaProof } from './signedSaProof';
 import { openBolRequestIfSigned } from './bolRequests';
+import { isCodLoad, missingSentence, paymentsMissing } from '@/types/orderPayment';
 import { LEGACY_STATUSES, cleanStops, orderAccessorials, orderDisplayNumber, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
 
 const COL = 'orders';
@@ -92,6 +93,10 @@ const SERVER_KEPT_FIELDS = [
   'clientSignatureRecord', 'carrierSignatureRecord', 'clientSignatureRecorded', 'carrierSignatureRecorded',
   // The "Record import" label — /record-import, orders.verifyRecords only.
   'recordImport', 'recordImportChangedAt', 'recordImportChangedByName',
+  // What the driver reported from their link, and whether the money moved —
+  // the driver link and /payments. A payment a broker could write for
+  // themselves would close a load nobody was paid for.
+  'driverProgress', 'driverLocation', 'paymentMarks',
 ] as const;
 
 /** Bookkeeping the server sets itself; dropped from a patch rather than refused. */
@@ -233,6 +238,16 @@ export async function updateOrderAsCaller(
     const proof = await signedSaProof(orderId, 'carrier', before);
     if (proof.files === 0) throw new AdminAuthError(NO_SIGNED_CA_PROOF, 409);
     handSignedNote = `Marked Carrier Signed by hand, on the verified signed Dispatch Sheet uploaded to the load (${proof.files} file${proof.files === 1 ? '' : 's'}). There is no e-signature.`;
+  }
+
+  /*
+   * Completed means the client paid and the driver was paid — see
+   * src/types/orderPayment.ts. A load normally gets there by itself when the
+   * last payment is recorded; pressing the button is refused until then.
+   */
+  if (touched(before, patch, ['status']).length && patch.status === 'completed') {
+    const missing = paymentsMissing({ ...before, ...patch });
+    if (missing.length) throw new AdminAuthError(missingSentence(missing, isCodLoad({ ...before, ...patch })), 409);
   }
 
   const now = Timestamp.now();

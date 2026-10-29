@@ -568,9 +568,14 @@ at / Delivered to" column and lists what is loaded or unloaded at each stop.
 "carrier_signed" — Carrier Agreement e-signed
 "in_transit"     — picked up, en route
 "delivered"      — delivered; awaiting BOL + invoice upload
-"completed"      — all paperwork received, payment settled
+"completed"      — client paid and driver paid (see Payments below)
 "cancelled"
 ```
+
+**Completed waits on payment** (2026-10-29). `updateOrderAsCaller()` refuses
+`completed` until `paymentsMissing()` (`src/types/orderPayment.ts`) is empty,
+and a delivered load moves there by itself when the last payment is recorded.
+Loads already Completed before this are left as they are.
 
 **The client signs first.** `shipper_signed` ranks *below* `carrier_signed` in
 `STATUS_RANK` — the Carrier Agreement is not sent until the client has signed
@@ -621,6 +626,54 @@ query(collection(db, 'orders'), where('parentOrderId', '==', primaryOrderId))
 ```
 
 > **Subcollection:** `orders/{orderId}/documents` — order-level docs (BOL, Invoice, Carrier Agreement, Shipper Agreement)
+
+### Payments on an order — `paymentMarks` (2026-10-29)
+
+Server-kept map on the order, written only by `POST/DELETE
+/api/orders/{id}/payments` (`orders.payments` — admin and finance) and by the
+driver's link. Each mark is `{ at (epoch ms), byUid, byName, via: 'staff' |
+'driver', fileIds, note }`; `fileIds` are `orderFiles` of kind
+`payment_proof`, which are kept when a mark is undone.
+
+| Mark | Ordinary load | COD load |
+|---|---|---|
+| `clientPaid` | staff — the client paid us | the driver ("the client paid me in full", proof required) or staff |
+| `driverPaid` | the driver or staff — **proof always required** | not needed: the COD payment was the driver's pay |
+| `brokerPaid` | — | staff only — the carrier paid us our share |
+
+A load is COD when its complex terms put money on Customer Pays Carrier, or
+its Carrier Pay Terms option has "COD" in its name (`isCodLoad()`).
+
+### The driver's reports — `driverProgress`, `driverLocation` (2026-10-29)
+
+Server-kept, written only from the driver's link. `driverProgress` is a map
+from step (`arrived_pickup`, `picked_up`, `in_transit`, `arrived_delivery`,
+`delivered`) to `{ at (epoch ms), point: {lat, lng, accuracy} | null, photoId? }`.
+`driverLocation` is the last location sent, `{ lat, lng, accuracy, at }`.
+Picked up / In transit move the status to `in_transit` and Delivered to
+`delivered` — forward only, and only once the load is at least Carrier Signed.
+
+## Collection: `driverLinks` — the driver's link (2026-10-29)
+
+`driverLinks/{token}`, token = 48 random hex characters. Closed to the client
+SDK (no rule); read and written only by `/api/orders/{id}/driver-link` (staff)
+and `/api/driver/{token}` (public). See `src/types/driverLink.ts`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `orderId`, `orderNumber` | string | |
+| `carrierId` | string | the link stops working when the load's carrier changes |
+| `driverName`, `driverPhone`, `driverPhoneRegion` | string | copied from the order when made; the phone (or the order's current one) opens it |
+| `createdAt`, `expiresAt` | Timestamp | 45 days |
+| `createdByUid`, `createdByName` | string | |
+| `revokedAt` | Timestamp \| null | set by Switch off, or when a newer link is made |
+| `accessKey` | string | set on the first right phone answer; the cookie carries it |
+| `verifyFailures` | number | ten locks the link |
+| `lastSentTo`, `lastSentAt` | string, Timestamp \| null | the last email |
+
+Queried by `orderId ==` alone (automatic single-field index). Pictures from
+the link land in `loadPhotos` with `uploadedByUid: ''` and `uploadedVia:
+'driver'`; the Delivered picture is a `proof` picture at the delivery stop.
 
 ---
 

@@ -81,6 +81,9 @@ import SignedSaUploads from '@/components/orders/SignedSaUploads';
 import OrderFileSlot from '@/components/orders/OrderFileSlot';
 import RecordImportBadge, { RecordImportRemoved } from '@/components/orders/RecordImportBadge';
 import ClientSignLink from '@/components/orders/ClientSignLink';
+import DriverLinkCard from '@/components/orders/DriverLinkCard';
+import PaymentsCard from '@/components/orders/PaymentsCard';
+import { isCodLoad, missingSentence, paymentsMissing } from '@/types/orderPayment';
 import OrderOwnersCard from '@/components/orders/OrderOwnersCard';
 import { useAuth } from '@/context/AuthContext';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
@@ -1297,10 +1300,12 @@ export default function OrderDetailPage() {
             // Carrier Signed the signed Carrier Agreement.
             const needsSa = nextStatus === 'shipper_signed' && handSignable && !signedSaCopies;
             const needsCa = nextStatus === 'carrier_signed' && handCarrierSignable && !carrierSignedCopies;
-            const needsCopy = needsSa || needsCa;
+            // Completed waits on the client and the driver being paid.
+            const unpaid = nextStatus === 'completed' ? paymentsMissing(order) : [];
+            const needsCopy = needsSa || needsCa || unpaid.length > 0;
             return (
               <button onClick={handleAdvance} disabled={advancing || needsCopy}
-                title={needsSa
+                title={unpaid.length ? missingSentence(unpaid, isCodLoad(order)) : needsSa
                   ? signedSaWaiting
                     ? 'The signed Shipper Agreement (SA) uploaded to this load is waiting for admin or dispatch to verify it.'
                     : 'Upload the client’s signed Shipper Agreement (SA) first, in Client Confirmation or under Documents → Signed Shipper Agreement (SA), and have admin or dispatch verify it. It moves on its own when the client e-signs.'
@@ -2042,7 +2047,18 @@ export default function OrderDetailPage() {
                 </div>
               );
             })()}
+            {!assigningCarrier && order.carrierId && (
+              <DriverLinkCard orderId={orderId} progress={order.driverProgress} location={order.driverLocation} />
+            )}
           </div>
+
+          {/* Payments — what Completed waits on. Shown once a carrier is booked. */}
+          {['carrier_signed', 'in_transit', 'delivered', 'completed'].includes(order.status) && (
+            <PaymentsCard orderId={orderId} order={order}
+              onChanged={() => {
+                void getOrder(orderId).then((fresh) => { if (fresh.status === 'ok') setOrder(fresh.order); }).catch(() => {});
+              }} />
+          )}
 
           {/* Shared-record approvals */}
           {(order.partyApprovals ?? []).length > 0 && (

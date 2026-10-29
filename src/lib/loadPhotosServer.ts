@@ -1,6 +1,8 @@
 import { adminDb, adminStorage } from './firebase-admin';
 import {
   LOAD_PHOTOS_COLLECTION,
+  MAX_PHOTO_BYTES,
+  MAX_THUMB_BYTES,
   loadPhotoPath,
   normalizeStage,
   type LoadPhoto,
@@ -170,4 +172,56 @@ export async function photoDataUrl(orderId: string, photoId: string): Promise<st
   } catch {
     return null;
   }
+}
+
+/** True when the bytes open like a JPEG. The browser re-encodes every upload to one. */
+async function isJpeg(file: File): Promise<boolean> {
+  const head = new Uint8Array(await file.slice(0, 3).arrayBuffer());
+  return head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
+}
+
+/**
+ * The picture and thumbnail out of an upload form, checked, or the sentence
+ * and status to refuse it with. Shared by the staff route and the driver's
+ * link, so a picture is held to the same limits whoever sends it.
+ *
+ * Checked by content, not by the type the browser declared: the bucket
+ * serves these back with image/jpeg, and anything else under that label is
+ * something nobody meant to upload.
+ */
+export async function readPhotoUpload(
+  form: FormData | null,
+  names: { photo: string; thumb: string } = { photo: 'photo', thumb: 'thumb' },
+): Promise<{ full: File; thumb: File; width: number; height: number } | { error: string; status: number }> {
+  const full  = form?.get(names.photo);
+  const thumb = form?.get(names.thumb);
+  if (!(full instanceof File) || !(thumb instanceof File)) {
+    return { error: 'Send the picture and its thumbnail', status: 400 };
+  }
+  if (full.size > MAX_PHOTO_BYTES || thumb.size > MAX_THUMB_BYTES) {
+    return { error: 'That picture is too large', status: 413 };
+  }
+  if (!(await isJpeg(full)) || !(await isJpeg(thumb))) {
+    return { error: 'Pictures must be sent as JPEG', status: 400 };
+  }
+  return {
+    full,
+    thumb,
+    width:  Math.max(0, Math.round(Number(form?.get('width')) || 0)),
+    height: Math.max(0, Math.round(Number(form?.get('height')) || 0)),
+  };
+}
+
+/** Puts a picture's two files in the bucket, under the name loadPhotoPath() gives them. */
+export async function savePhotoFiles(orderId: string, photoId: string, full: File, thumb: File): Promise<void> {
+  const bucket = adminStorage.bucket();
+  // `private` so no shared cache keeps a copy; a day because the object
+  // never changes under its name — a replaced picture is a new id.
+  const metadata = { contentType: 'image/jpeg', cacheControl: 'private, max-age=86400' };
+  await Promise.all([
+    bucket.file(loadPhotoPath(orderId, photoId, 'full'))
+      .save(Buffer.from(await full.arrayBuffer()), { metadata, resumable: false }),
+    bucket.file(loadPhotoPath(orderId, photoId, 'thumb'))
+      .save(Buffer.from(await thumb.arrayBuffer()), { metadata, resumable: false }),
+  ]);
 }

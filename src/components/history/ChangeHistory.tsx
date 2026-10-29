@@ -111,6 +111,9 @@ export default function ChangeHistory({
                         (outside signer{e.actorEmail ? `, link sent to ${e.actorEmail}` : ''})
                       </span>
                     )}
+                    {e.via === 'driver' && (
+                      <span className="text-xs text-gray-500">(driver, from the driver link)</span>
+                    )}
                     <span className="text-xs text-gray-400">{formatDateTime(e.at)}</span>
                   </div>
 

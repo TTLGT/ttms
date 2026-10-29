@@ -85,6 +85,14 @@ export const PERMISSIONS = [
   'orders.verifyRecords',
   'orders.bol',
   'orders.invoice',
+  /**
+   * Record that a load's client paid, that its driver was paid (with proof),
+   * and on a COD load that the carrier paid us our share — which is what lets
+   * a load reach Completed. See src/types/orderPayment.ts. Admin and finance
+   * by default; added 2026-10-29, widening every finance account at their
+   * next sign-in.
+   */
+  'orders.payments',
 
   // ── Clients, shippers, consignees ────────────────────────────────────────
   // Split by record type rather than one "see every party": the same party can
@@ -338,6 +346,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'orders.verifyRecords', label: 'Verify signed paperwork', detail: 'Approve a signed SA or Dispatch Sheet someone uploaded, which records the signature on the load, and remove the Record import label. Admin and dispatch have this already.' },
       { key: 'orders.bol',     label: 'Generate BOLs',    detail: 'Produce the bill of lading for a load they can see. Everyone but interns has this already.' },
       { key: 'orders.invoice', label: 'Generate invoices', detail: 'Produce the invoice for a load.' },
+      { key: 'orders.payments', label: 'Record payments', detail: 'Mark that the client paid and that the driver was paid (with proof), which lets a load reach Completed. Admin and finance have this already.' },
       { key: 'orders.delete',  label: 'Delete loads',     detail: 'Permanently remove a load. There is no undo.' },
     ],
   },
@@ -520,6 +529,9 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     ...BASE_PERMISSIONS,
     'orders.viewAll', 'clients.viewAll', 'shippers.viewAll', 'consignees.viewAll',
     'orders.invoice',
+    // Whether the client paid and the driver was paid is finance's own
+    // ledger, and it is what lets a load close. Added 2026-10-29.
+    'orders.payments',
     // Same reasoning as dispatch: finance sees every load already, and "how
     // much is still open against this broker" is a question they get asked.
     'directory.book',

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "c0088a84eb9063dfab6b0dc0c7fd8659dd2cac55",
+      "date": "2026-10-29T02:05:24-06:00",
+      "author": "erwindank",
+      "subject": "Show the carrier's signature on the Dispatch Sheet request too, and link the Client Confirmation and Carrier section names to those sections",
+      "body": ""
+    },
+    {
       "hash": "4c142c6573a22512adb6065f541669e78d6fb8d5",
       "date": "2026-10-29T01:47:27-06:00",
       "author": "erwindank",

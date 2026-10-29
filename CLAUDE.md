@@ -418,6 +418,13 @@ answers lock the link until the agreement is sent again. It is a speed bump
 against a forwarded or leaked link, not a password, and it must never hint at
 what is on file.
 
+**The driver's link is the other public surface** (2026-10-29):
+`/driver/[token]`, `POST /api/driver/[token]/verify` and `POST
+/api/driver/[token]`. Same shape — a random token plus a cookie set by a
+phone-number check, ten wrong answers lock it — see "The driver's link and
+payments" below. It may only add facts about the trip (steps, pictures,
+location, payment with proof); never let it edit an order field.
+
 The second, beside it, is `GET /api/sign/[token]/pdf` — the signer's own copy
 of what they signed (client or carrier), offered on the completion screen and
 on every later visit to the link. Same credential (the token plus the access cookie), and narrower: it
@@ -1353,6 +1360,34 @@ banner saying it needs regenerating. `bolFingerprint()` in
 `src/types/bolRequest.ts` must list every field `bolBuffer()` prints, or
 changing that field will not raise the banner. Regenerating keeps the one
 it replaces (`orders/{id}/bolVersions`, "Earlier BOLs").
+### The driver's link and payments — what Completed waits on (2026-10-29)
+
+A page the driver opens from a text or email (`/driver/[token]`, English or
+Spanish) to tap Arrived at pickup, Picked up, In transit, Arrived at delivery
+and Delivered, add pictures, send their location (a Google Maps link on the
+load and in its room), and say they were paid. Made, copied, emailed and
+switched off from the Carrier section (`DriverLinkCard`). Types in
+`src/types/driverLink.ts`, server in `src/lib/driverLinksServer.ts`;
+`driverLinks` in the Schema Guide.
+
+- **Opened with the driver's phone**, the signing link's speed bump
+  (`hasSignAccess()` reused, its own cookies). One live link per load: a new
+  one revokes the old, and a carrier change kills it.
+- **Steps move the status forward only, and only from Carrier Signed up**
+  (`stepStatus()`): a driver's tap is not a rate confirmation. Delivered
+  needs a picture, filed as a `proof` load photo. Every write carries a
+  change-log entry with `via: 'driver'`.
+- **Completed waits on payment.** `paymentMarks` (`src/types/orderPayment.ts`)
+  — client paid and driver paid, or on COD client-paid-the-driver and broker
+  paid. `paymentsMissing()` is the one definition; `updateOrderAsCaller()`
+  refuses `completed` without it and `settlementStatus()` moves a delivered
+  load there by itself. **Paying the driver always needs a proof file**,
+  whoever records it. Staff record under `orders.payments` (admin, finance —
+  this widened finance). `driverProgress`, `driverLocation`, `paymentMarks`
+  are `SERVER_KEPT_FIELDS`.
+- COD is read from the order (`isCodLoad()`): Customer Pays Carrier in
+  complex terms, or "COD" in the Carrier Pay Terms name.
+
 ### Signed copies and BATS imports — verified, then recorded
 
 A signed SA or Carrier Agreement made somewhere other than TTMS's link — the

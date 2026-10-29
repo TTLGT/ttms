@@ -3,6 +3,8 @@ import type { PhoneRegion } from '@/lib/phone';
 import type { OrderPartyApproval } from './accessRequest';
 import type { ComplexTerms, OrderPaymentTerms } from './paymentMethod';
 import type { SignatureRecord } from './signatureRecord';
+import type { DriverLocation, DriverProgress } from './driverLink';
+import type { PaymentMarks } from './orderPayment';
 
 export type OrderStatus =
   | 'quote'
@@ -1020,6 +1022,18 @@ export interface Order {
   coverPhotoId?: string | null;
   /** How many pictures the load has. Kept by the photo routes; absent = none. */
   photoCount?: number;
+  /**
+   * What the driver has reported from their link, step by step — see
+   * src/types/driverLink.ts. Server-kept; absent until the first tap.
+   */
+  driverProgress?: DriverProgress | null;
+  /** The last location the driver sent from their link. */
+  driverLocation?: DriverLocation | null;
+  /**
+   * Whether the client and the driver have been paid, which is what lets the
+   * load reach Completed. See src/types/orderPayment.ts. Server-kept.
+   */
+  paymentMarks?: PaymentMarks | null;
   /**
    * A signed link to the profile picture's thumbnail. Never stored: added to
    * the response by `/api/orders` and `/api/orders/{id}`, since the bucket

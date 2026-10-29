@@ -39,3 +39,8 @@ function withScheme(url: string): string {
 export function signUrl(token: string) {
   return `${APP_URL}/sign/${token}`;
 }
+
+/** Absolute URL for a driver's link — see src/types/driverLink.ts. */
+export function driverUrl(token: string) {
+  return `${APP_URL}/driver/${token}`;
+}

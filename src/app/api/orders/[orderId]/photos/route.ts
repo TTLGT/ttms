@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb, adminStorage, AdminAuthError, FieldValue } from '@/lib/firebase-admin';
+import { adminDb, AdminAuthError, FieldValue } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { actorOf, writeChange } from '@/lib/recordHistory';
-import { deletePhotoFiles, listOrderPhotos, toLoadPhoto } from '@/lib/loadPhotosServer';
+import { deletePhotoFiles, listOrderPhotos, readPhotoUpload, savePhotoFiles, toLoadPhoto } from '@/lib/loadPhotosServer';
 import {
   LOAD_PHOTOS_COLLECTION,
   MAX_CAPTION,
-  MAX_PHOTO_BYTES,
   MAX_PHOTO_COMMODITY,
   MAX_PHOTO_LOCATION,
   MAX_PHOTOS_PER_ORDER,
-  MAX_THUMB_BYTES,
   commodityKey,
   isPhotoStage,
-  loadPhotoPath,
 } from '@/types/loadPhoto';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -50,12 +47,6 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   }
 }
 
-/** True when the bytes open like a JPEG. The browser re-encodes every upload to one. */
-async function isJpeg(file: File): Promise<boolean> {
-  const head = new Uint8Array(await file.slice(0, 3).arrayBuffer());
-  return head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
-}
-
 /**
  * Adds one picture to a load.
  *
@@ -79,21 +70,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const caller = await requireCaller(req);
     const order  = await getVisibleOrder(caller, orderId);
 
-    const form  = await req.formData().catch(() => null);
-    const full  = form?.get('photo');
-    const thumb = form?.get('thumb');
-    if (!(full instanceof File) || !(thumb instanceof File)) {
-      return NextResponse.json({ error: 'Send the picture and its thumbnail' }, { status: 400 });
-    }
-    if (full.size > MAX_PHOTO_BYTES || thumb.size > MAX_THUMB_BYTES) {
-      return NextResponse.json({ error: 'That picture is too large' }, { status: 413 });
-    }
-    // Checked by content, not by the type the browser declared: the bucket
-    // serves these back with image/jpeg, and anything else under that label
-    // is something nobody meant to upload.
-    if (!(await isJpeg(full)) || !(await isJpeg(thumb))) {
-      return NextResponse.json({ error: 'Pictures must be sent as JPEG' }, { status: 400 });
-    }
+    const form   = await req.formData().catch(() => null);
+    const upload = await readPhotoUpload(form);
+    if ('error' in upload) return NextResponse.json({ error: upload.error }, { status: upload.status });
+    const { full, thumb, width, height } = upload;
 
     const stageRaw  = form?.get('stage');
     const stage     = isPhotoStage(stageRaw) ? stageRaw : 'other';
@@ -103,8 +83,6 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     // A label, not a link — see `location` on LoadPhoto — so it is trimmed and
     // kept rather than checked against the load's current stops.
     const location  = String(form?.get('location') ?? '').trim().slice(0, MAX_PHOTO_LOCATION);
-    const width     = Math.max(0, Math.round(Number(form?.get('width')) || 0));
-    const height    = Math.max(0, Math.round(Number(form?.get('height')) || 0));
 
     const current = Number(order.photoCount) || 0;
     if (current >= MAX_PHOTOS_PER_ORDER) {
@@ -114,17 +92,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const ref    = adminDb.collection(LOAD_PHOTOS_COLLECTION).doc();
-    const bucket = adminStorage.bucket();
-    // `private` so no shared cache keeps a copy; a day because the object
-    // never changes under its name — a replaced picture is a new id.
-    const metadata = { contentType: 'image/jpeg', cacheControl: 'private, max-age=86400' };
-    await Promise.all([
-      bucket.file(loadPhotoPath(orderId, ref.id, 'full'))
-        .save(Buffer.from(await full.arrayBuffer()), { metadata, resumable: false }),
-      bucket.file(loadPhotoPath(orderId, ref.id, 'thumb'))
-        .save(Buffer.from(await thumb.arrayBuffer()), { metadata, resumable: false }),
-    ]);
+    const ref = adminDb.collection(LOAD_PHOTOS_COLLECTION).doc();
+    await savePhotoFiles(orderId, ref.id, full, thumb);
 
     const record = {
       orderId,

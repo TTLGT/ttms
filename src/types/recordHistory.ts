@@ -40,8 +40,11 @@ export type ChangeAction = 'created' | 'updated' | 'event';
  *  - `signer` somebody outside the company on a public e-sign link. There is
  *             no uid; the name is the one they typed, and the email is the
  *             address the link was sent to.
+ *  - `driver` the driver on the load, from their driver link
+ *             (src/types/driverLink.ts). No uid; the name is the one on the
+ *             load when the link was made.
  */
-export type ChangeVia = 'app' | 'signer';
+export type ChangeVia = 'app' | 'signer' | 'driver';
 
 export interface FieldChange {
   field: string;
