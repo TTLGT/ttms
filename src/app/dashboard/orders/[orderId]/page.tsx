@@ -1371,6 +1371,9 @@ export default function OrderDetailPage() {
         onStatusChange={(status) => setOrder((prev) => (prev ? { ...prev, status } : prev))}
         onSent={() => setLinkRefresh((n) => n + 1)}
         onFix={goFix}
+        signed={order.shipperSignedAt
+          ? { at: (order.shipperSignedAt as { toDate: () => Date }).toDate().getTime(), by: order.shipperSignerName || 'the client' }
+          : null}
       />
 
       {/* The carrier's review, the same shape as the SA's, once a broker asks. */}
@@ -1381,6 +1384,9 @@ export default function OrderDetailPage() {
         onLoaded={(r) => setCaStatus(r?.status ?? null)}
         onSent={() => setCaRefresh((n) => n + 1)}
         onFix={goFix}
+        signed={order.carrierSignedAt
+          ? { at: (order.carrierSignedAt as { toDate: () => Date }).toDate().getTime(), by: order.carrierSignerName || 'the carrier' }
+          : null}
       />
 
       {(order.status === 'quote' || order.status === 'booked') && (

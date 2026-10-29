@@ -17,7 +17,7 @@ import { usd } from '@/types/paymentMethod';
 import { readinessOf, type ReadinessItem } from '@/types/orderReadiness';
 import {
   AGREEMENT_BUTTON, AGREEMENT_LABEL, MAX_SA_CC, SA_STATUS_LABEL, checkBlockedBy, isCcEmail, outstandingChecks,
-  reviewChecks, type AgreementParty, type SaRequest,
+  changeSummary, reviewChecks, type AgreementParty, type SaRequest,
 } from '@/types/saRequest';
 import { isNewCarrier, MIN_OPERATING_MONTHS, officeDay } from '@/types/fmcsa';
 import { FixButton, ReadinessLine } from './OrderReadinessCard';
@@ -206,8 +206,14 @@ export function RequestSaButton({
  * and names who made it, so the second person sees what the first already
  * did; the panel reloads after every action rather than trusting its own copy.
  */
-export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, onLoaded, onFix, party = 'client' }: {
+export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, onLoaded, onFix, party = 'client', signed = null }: {
   orderId: string;
+  /**
+   * This party's e-signature on the order, if any. Only read on a `changed`
+   * round that has gone out, to say whether the update has been signed —
+   * the full record stays in the order's own Confirmation / Carrier section.
+   */
+  signed?: { at: number; by: string } | null;
   /**
    * Takes the reviewer to where something missing is filled in. Without it
    * the lines are drawn as before, with no links.
@@ -295,6 +301,11 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
   }
 
   const tone = r.status === 'done' ? 'border-green-200' : r.status === 'returned' ? 'border-amber-200' : 'border-brand-200';
+  const updateSent = r.reason === 'changed' && (Boolean(r.sentAt) || r.status === 'done');
+  // Only a signature made after this round went out signs the update; an
+  // older one is the version the change replaced.
+  const signedUpdate = updateSent && signed && r.sentAt && signed.at >= r.sentAt ? signed : null;
+  const detailsSection = carrier ? 'Carrier' : 'Client Confirmation';
 
   return (
     <section className={`bg-white rounded-xl border-2 ${tone} p-5 mb-6 space-y-4`}>
@@ -308,7 +319,12 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
           </p>
           {r.note && (r.reason === 'changed'
             // TTMS's own words, so not in quotes as if somebody had written them.
-            ? <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-1.5">{r.note}</p>
+            // Once the update has gone out the hold is over: the warning becomes
+            // a plain line saying only what changed (changeSummary()), and the
+            // sent and signed lines below say the rest.
+            ? (updateSent
+              ? <p className="text-sm text-gray-700 mt-1.5">{changeSummary(r.note)}</p>
+              : <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-1.5">{r.note}</p>)
             : <p className="text-sm text-gray-800 mt-1.5 whitespace-pre-wrap">&ldquo;{r.note}&rdquo;</p>)}
         </div>
         <StatusPill request={r} />
@@ -321,6 +337,15 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
           {r.sentCc.length > 0 && <> (copied to {r.sentCc.join(', ')})</>} by {r.sentByName} · {formatDateTime(new Date(r.sentAt))}
         </p>
       )}
+      {updateSent && r.sentAt && (signedUpdate ? (
+        <p className="flex items-center gap-1.5 text-xs text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Update signed by <strong>{signedUpdate.by}</strong> · {formatDateTime(new Date(signedUpdate.at))}. The signature details are in the {detailsSection} section below.
+        </p>
+      ) : (
+        <p className="flex items-center gap-1.5 text-xs text-gray-600">
+          <Clock className="w-3.5 h-3.5 shrink-0" /> Not signed yet. The {carrier ? 'carrier' : 'client'} can sign the update from the link they were sent.
+        </p>
+      ))}
       {r.status === 'done' && r.doneAt && (
         <p className="flex items-center gap-1.5 text-xs text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
           <CheckCircle2 className="w-3.5 h-3.5" /> Approved and marked done by <strong>{r.doneByName}</strong> · {formatDateTime(new Date(r.doneAt))}

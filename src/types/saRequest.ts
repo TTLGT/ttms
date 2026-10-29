@@ -330,6 +330,29 @@ export function isReviewCheckKey(party: AgreementParty, value: unknown): value i
 }
 
 /**
+ * What a `changed` round's note says happened, without what it says will
+ * happen next. The note is written once, when the hold is raised, and is
+ * kept word for word as the record — but "the link is on hold until this is
+ * sent again" stops being true the moment it is sent, and a panel still
+ * saying it reads as if the client were stuck (2026-10-29). So once a round
+ * is sent the panel shows only the first part, which stays true for ever;
+ * the verification record keeps printing the whole note.
+ *
+ * Matched against the fixed wording in src/lib/clientAgreements.ts and
+ * src/lib/carrierAgreements.ts. Change either and change this; a note that
+ * matches neither (older wording) is returned whole, never cut wrongly.
+ */
+export function changeSummary(note: string): string {
+  const changed = /^The order changed after .+? was sent: [^.]*\./.exec(note);
+  if (changed) return changed[0];
+  // A carrier swap. Carrier names can hold a full stop ("Inc."), so the cut is
+  // at the fixed sentence that follows rather than at the first full stop.
+  const swap = /^(The carrier changed from .+?\.)\s+The Dispatch Sheet sent to the previous carrier/.exec(note);
+  if (swap) return swap[1];
+  return note;
+}
+
+/**
  * The items still needed on this party's review. With `facts`, an item
  * ticked earlier whose file has since gone — a license deleted, a picture
  * removed — counts as outstanding again.

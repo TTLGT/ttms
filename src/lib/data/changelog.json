@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "1cc78ed1f1a6fc2153a1a9ea00f13ad77d895d3a",
+      "date": "2026-10-29T00:34:53-06:00",
+      "author": "erwindank",
+      "subject": "Stop redrawing the BOL on every save, and show a banner when the BOL on file is out of date so it is regenerated on purpose",
+      "body": ""
+    },
+    {
       "hash": "e5039557c9860b87b38af100b7e5b991c3ff1b2f",
       "date": "2026-10-28T23:54:35-06:00",
       "author": "erwindank",
