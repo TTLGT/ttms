@@ -1371,8 +1371,10 @@ export default function OrderDetailPage() {
         onStatusChange={(status) => setOrder((prev) => (prev ? { ...prev, status } : prev))}
         onSent={() => setLinkRefresh((n) => n + 1)}
         onFix={goFix}
-        signed={order.shipperSignedAt
-          ? { at: (order.shipperSignedAt as { toDate: () => Date }).toDate().getTime(), by: order.shipperSignerName || 'the client' }
+        // Through toDate(): the order came over the API, so the timestamp is
+        // a plain {_seconds} object with no .toDate() of its own.
+        signed={order.shipperSignedAt && toDate(order.shipperSignedAt)
+          ? { at: toDate(order.shipperSignedAt)!.getTime(), by: order.shipperSignerName || 'the client' }
           : null}
       />
 
@@ -1384,8 +1386,8 @@ export default function OrderDetailPage() {
         onLoaded={(r) => setCaStatus(r?.status ?? null)}
         onSent={() => setCaRefresh((n) => n + 1)}
         onFix={goFix}
-        signed={order.carrierSignedAt
-          ? { at: (order.carrierSignedAt as { toDate: () => Date }).toDate().getTime(), by: order.carrierSignerName || 'the carrier' }
+        signed={order.carrierSignedAt && toDate(order.carrierSignedAt)
+          ? { at: toDate(order.carrierSignedAt)!.getTime(), by: order.carrierSignerName || 'the carrier' }
           : null}
       />
 
