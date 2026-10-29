@@ -17,6 +17,8 @@ export type FixTarget =
   /** The Carrier card on the order. `editor` opens its form, where the driver is typed. */
   | { kind: 'carrier'; editor?: boolean }
   | { kind: 'pictures' }
+  /** The Client Confirmation card on the order, where the client's signature is shown. */
+  | { kind: 'clientConfirmation' }
   /** The client's own record — its email is not on the order. */
   | { kind: 'client' };
 

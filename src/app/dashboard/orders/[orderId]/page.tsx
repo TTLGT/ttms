@@ -461,6 +461,9 @@ export default function OrderDetailPage() {
     } else if (target.kind === 'pictures') {
       setTab('pictures');
       setFixScroll('order-tabs');
+    } else if (target.kind === 'clientConfirmation') {
+      setTab('details');
+      setFixScroll('client-confirmation');
     } else {
       setTab('details');
       if (target.editor && !assigningCarrier) openCarrierAssign();
@@ -1637,7 +1640,7 @@ export default function OrderDetailPage() {
               it is now the first signature of the two, so waiting for the
               carrier would be waiting on the thing it gates. */}
           {clientConfirmationStarted && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <div id="client-confirmation" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Client Confirmation</h3>
                 {/* Who verified what before each SA went out — kept for good. */}

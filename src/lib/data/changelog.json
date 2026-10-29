@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "4c142c6573a22512adb6065f541669e78d6fb8d5",
+      "date": "2026-10-29T01:47:27-06:00",
+      "author": "erwindank",
+      "subject": "Reword the out-of-date BOL warning so it names the Regenerate BOL button in plain words",
+      "body": ""
+    },
+    {
       "hash": "43b37cee07340c01444d2472f50711f5a5d6ca86",
       "date": "2026-10-29T01:22:37-06:00",
       "author": "erwindank",
