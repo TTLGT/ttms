@@ -14,7 +14,7 @@ export default function BolOutdatedBanner({ canRegenerate }: { canRegenerate: bo
         <strong>This BOL is out of date.</strong> The load has changed since it was generated, so the PDF
         no longer matches it.{' '}
         {canRegenerate
-          ? <>Press <strong>Regenerate</strong> to draw it again before sending it. The current one is kept under Earlier BOLs.</>
+          ? <>Press <strong>Regenerate BOL</strong> to make a new one with the load&apos;s current details before sending it. The current one is kept under Earlier BOLs.</>
           : <>Ask somebody who can generate BOLs to regenerate it before it is sent.</>}
       </p>
     </div>
