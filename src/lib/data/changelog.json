@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "d359b2e162d22c851ff6568a18a85f6e6e7e598a",
+      "date": "2026-10-28T16:49:57-06:00",
+      "author": "erwindank",
+      "subject": "Verify signed SAs and Dispatch Sheets uploaded to a load, read the signer and time off BATS PDFs, and label BATS loads as Record import",
+      "body": "Anybody who can open a load can upload a signed copy; it counts only once admin or dispatch (new orders.verifyRecords permission) open it and approve it, which records the signature on the load. TTMS reads the signer, IP and time off BATS PDFs on its own server, and the carrier and driver off a dispatch sheet, finding the carrier in TTMS or on FMCSA. A Dispatch Sheet is verified only once the load has a carrier. Refusals are posted to the uploader in the load's room. A recorded signature is cleared when the client or carrier changes, and verifying never generates a BOL for a Record import."
+    },
+    {
       "hash": "fe2ef05324645325cda91ec3ef273ce288a75094",
       "date": "2026-10-21T14:28:22-06:00",
       "author": "erwindank",

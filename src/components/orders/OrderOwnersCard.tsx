@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Loader2, Plus, X } from 'lucide-react';
+import { Loader2, Plus, UserRound, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { addOrderOwners, removeOrderOwners, updateOrder } from '@/lib/orders';
 import { listUserProfiles } from '@/lib/userProfiles';
@@ -114,39 +114,27 @@ export default function OrderOwnersCard({ order, onChanged }: {
 
   if (!owners) return null;
 
-  const chip = 'inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-sm text-gray-800';
+  const chip = 'inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-sm font-medium text-gray-900';
   const nobody = !owners.people.length && !owners.groups.length && !owners.pending.length;
+  const createdBy = owners.createdBy?.name || (owners.batsName ? 'Imported from BATS' : null);
 
+  // A compact strip under the status bar rather than a card in Details: who
+  // owns a load is the first thing people need when they open it, on every
+  // tab, so it sits above the tabs and takes as little height as it can.
   return (
-    <div id="owners" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Owners</h3>
-        {canAssign && !adding && (
-          <button type="button" onClick={openPicker} disabled={busy}
-            className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline disabled:opacity-50">
-            <Plus className="w-3.5 h-3.5" /> Add owner
-          </button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div>
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Created by</p>
-          <p className="text-sm text-gray-900">
-            {owners.createdBy?.name || (owners.batsName ? 'Imported from BATS' : '—')}
-          </p>
-        </div>
-
-        <div className="sm:col-span-2">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Owned by</p>
+    <div id="owners" className="bg-white rounded-xl border border-gray-200 px-4 py-3 mb-6 scroll-mt-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          <UserRound className="w-3.5 h-3.5" /> {owners.people.length + owners.groups.length + owners.pending.length > 1 ? 'Owners' : 'Owner'}
+        </span>
           {nobody ? (
-            <p className="text-sm text-gray-900">
+            <span className="text-sm text-gray-900">
               {owners.batsName
                 ? <>{owners.batsName} <span className="text-gray-500">(BATS name, no TTMS account linked)</span></>
-                : 'Nobody — only admin, dispatch and finance can see it'}
-            </p>
+                : <span className="text-amber-700">Nobody — only admin, dispatch and finance can see it</span>}
+            </span>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <>
               {owners.people.map((p) => (
                 <span key={p.uid} className={chip} title={p.email}>
                   {p.name}
@@ -185,18 +173,26 @@ export default function OrderOwnersCard({ order, onChanged }: {
                   )}
                 </span>
               ))}
-            </div>
+            </>
           )}
-          {owners.viaClient.length > 0 && (
-            <p className="text-xs text-gray-500 mt-2">
-              Also open to the client&apos;s owners: {owners.viaClient.join(', ')}.
-            </p>
-          )}
-        </div>
+        {canAssign && !adding && (
+          <button type="button" onClick={openPicker} disabled={busy}
+            className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline disabled:opacity-50">
+            <Plus className="w-3.5 h-3.5" /> Add owner
+          </button>
+        )}
       </div>
 
+      {(createdBy || owners.viaClient.length > 0) && (
+        <p className="text-xs text-gray-500 mt-1.5">
+          {createdBy && <>Created by {createdBy}</>}
+          {createdBy && owners.viaClient.length > 0 && ' · '}
+          {owners.viaClient.length > 0 && <>Also open to the client&apos;s owners: {owners.viaClient.join(', ')}</>}
+        </p>
+      )}
+
       {canAssign && adding && (
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           {people === null && !error ? (
             <span className="inline-flex items-center gap-2 text-sm text-gray-500">
               <Loader2 className="w-4 h-4 animate-spin" /> Loading people…
@@ -231,23 +227,22 @@ export default function OrderOwnersCard({ order, onChanged }: {
       )}
 
       {owners.people.length > 1 && (
-        <div className="mt-4 border-t border-gray-100 pt-4">
-          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1" htmlFor="order-broker">
+        <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center gap-2">
+          <label className="text-xs text-gray-500" htmlFor="order-broker">
             Broker on the SA and Dispatch Sheet
           </label>
+          {/* The explanation is a tooltip so the strip stays one line high. */}
           <select id="order-broker" value={owners.brokerUid ?? ''} disabled={busy}
             onChange={(e) => setBroker(e.target.value)}
-            className="min-w-[14rem] rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
+            title="Their name, work phone and email go on the agreements, and replies to those emails reach them. Applies to the next send; anything already sent keeps the name it went out with."
+            className="rounded-md border border-gray-300 px-2 py-0.5 text-xs">
             {owners.people.map((p) => (
               <option key={p.uid} value={p.uid}>
                 {p.name}{p.uid === order.createdBy ? ' (created the order)' : ''}
               </option>
             ))}
           </select>
-          <p className="text-xs text-gray-500 mt-1">
-            Their name, work phone and email go on the agreements, and replies to those emails reach them.
-            Applies to the next send; anything already sent keeps the name it went out with.
-          </p>
+          <span className="text-xs text-gray-400">Applies to the next send.</span>
         </div>
       )}
 

@@ -1318,6 +1318,9 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
+      {/* Who owns the load, on every tab — the first thing people look for */}
+      <OrderOwnersCard order={order} onChanged={refreshOwners} />
+
       {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600 mb-4">{error}</div>}
 
       {/* What the paperwork still needs, while there is still paperwork to
@@ -1396,9 +1399,6 @@ export default function OrderDetailPage() {
               <DetailRow label="Delivery Date" value={formatDateRange(order.deliveryDate, order.deliveryDateEnd)} />
             </div>
           </div>
-
-          {/* Who created and owns the load, and the broker its agreements name */}
-          <OrderOwnersCard order={order} onChanged={refreshOwners} />
 
           {/* Freight */}
           <div id="freight" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
