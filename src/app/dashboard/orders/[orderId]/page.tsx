@@ -261,6 +261,19 @@ export default function OrderDetailPage() {
     askedTab === 'documents' || askedTab === 'suborders' || askedTab === 'pictures' || askedTab === 'history'
       ? askedTab : 'details',
   );
+  /*
+    …and the tab goes back into the URL when it changes, so a refresh (or a
+    copied link) reopens the tab the reader was on rather than Details.
+    replaceState, not router.replace: it changes the address without a
+    navigation, so nothing refetches and the back button is not filled with
+    one entry per tab click. Other parameters (`from`) are kept.
+  */
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (tab === 'details') url.searchParams.delete('tab');
+    else url.searchParams.set('tab', tab);
+    if (url.href !== window.location.href) window.history.replaceState(window.history.state, '', url);
+  }, [tab]);
   // Kept apart from `order` so the tab label can count pictures added or
   // removed on this visit without refetching the load.
   const [photoCount, setPhotoCount] = useState<number | null>(null);
