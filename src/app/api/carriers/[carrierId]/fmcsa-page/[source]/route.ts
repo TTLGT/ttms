@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, requirePermission, AdminAuthError } from '@/lib/firebase-admin';
 import { carrierNumber } from '@/types/carrier';
 import { fetchFmcsaPage, FmcsaPageUnavailableError } from '@/lib/fmcsaPages';
-import { fmcsaPageUrl, isFmcsaPageSource } from '@/types/fmcsaPage';
+import { fmcsaPageUrl, isFmcsaPageSource, isShownInTtms } from '@/types/fmcsaPage';
 
 type RouteContext = { params: Promise<{ carrierId: string; source: string }> };
 
@@ -16,9 +16,10 @@ export const maxDuration = 60;
  *
  * Gated on `carriers.view`, like the FMCSA check beside it. The numbers come
  * off the carrier record, never from the request, so this can only ever
- * fetch one of three FMCSA pages about a carrier TTMS holds. The DOT falls
- * back to the one FMCSA itself returned on the last check, for a carrier
- * saved by MC alone; that too is on the record, not something a caller sent.
+ * fetch a page on `FMCSA_PAGES_SHOWN_IN_TTMS` about a carrier TTMS holds.
+ * The DOT falls back to the one FMCSA itself returned on the last check, for
+ * a carrier saved by MC alone; that too is on the record, not something a
+ * caller sent.
  *
  * Writes nothing. Reading a public page is not a check, and does not go in
  * the change log.
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   }
 
   const { carrierId, source } = await params;
-  if (!isFmcsaPageSource(source)) {
+  if (!isFmcsaPageSource(source) || !isShownInTtms(source)) {
     return NextResponse.json({ error: 'Unknown FMCSA page' }, { status: 404 });
   }
 

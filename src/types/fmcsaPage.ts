@@ -1,7 +1,8 @@
 /**
- * FMCSA's public carrier pages that TTMS can fetch from the US on a broker's
- * behalf, and their addresses. Pure, so the links in the browser and the
- * route on the server read one list — the fetching is in lib/fmcsaPages.
+ * FMCSA's public carrier pages a broker is linked to, their addresses, and
+ * which of them TTMS fetches from the US on the broker's behalf. Pure, so the
+ * links in the browser and the route on the server read one list — the
+ * fetching is in lib/fmcsaPages.
  */
 
 export const FMCSA_PAGE_SOURCES = ['safer', 'sms', 'li'] as const;
@@ -9,6 +10,23 @@ export type FmcsaPageSource = (typeof FMCSA_PAGE_SOURCES)[number];
 
 export function isFmcsaPageSource(v: string): v is FmcsaPageSource {
   return (FMCSA_PAGE_SOURCES as readonly string[]).includes(v);
+}
+
+/**
+ * The ones TTMS fetches and shows itself. The others are only linked, and
+ * from Guatemala need the US VPN — tried on 2026-10-28 and taken back out:
+ *
+ * - SMS draws its page with scripts in the browser, and the frame runs none,
+ *   so it came through blank. Running FMCSA's scripts is not on the table.
+ * - L&I puts a challenge question in front of every search. That is FMCSA
+ *   keeping automated callers out on purpose; do not try to get past it.
+ *
+ * The route refuses anything not on this list.
+ */
+export const FMCSA_PAGES_SHOWN_IN_TTMS: readonly FmcsaPageSource[] = ['safer'];
+
+export function isShownInTtms(source: FmcsaPageSource): boolean {
+  return FMCSA_PAGES_SHOWN_IN_TTMS.includes(source);
 }
 
 export const FMCSA_PAGE_LABEL: Record<FmcsaPageSource, string> = {

@@ -10,7 +10,7 @@
  * which machine asks.
  *
  * It is not an open proxy, and must not become one. The route reads the
- * carrier's numbers off its record and picks one of three fixed addresses;
+ * carrier's numbers off its record and picks a fixed FMCSA address;
  * nothing in the request reaches a URL.
  *
  * What comes back is somebody else's HTML, so it is shown only inside an
@@ -41,7 +41,7 @@ async function get(url: string): Promise<Response> {
  * Inline the page's own stylesheets. The frame cannot load them itself: the
  * browser fetching them is the one in Guatemala, and FMCSA refuses it. Only
  * the page's own host, and only a handful — a page that names more than that
- * is not one of the three this was written for.
+ * is not one this was written for.
  */
 async function inlineStylesheets(html: string, pageUrl: string): Promise<string> {
   const host = new URL(pageUrl).host;
@@ -73,8 +73,9 @@ function sanitize(html: string, pageUrl: string): string {
   let out = html
     .replace(/<script\b[\s\S]*?<\/script\s*>/gi, '')
     .replace(/<script\b[^>]*\/?>/gi, '')
-    // Scripts will not run, so show what the page offers people without them.
-    .replace(/<\/?noscript\b[^>]*>/gi, '')
+    // FMCSA's are warnings that the page "may not work correctly without this
+    // script" — true in the frame, and nothing a reader can act on.
+    .replace(/<noscript\b[\s\S]*?<\/noscript\s*>/gi, '')
     .replace(/<(iframe|frame|object|embed)\b[\s\S]*?(<\/\1\s*>|\/>)/gi, '')
     .replace(/<link\b[^>]*>/gi, '')
     .replace(/<meta\b[^>]*http-equiv[^>]*>/gi, '')

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "a569b5ee0de016123148a2911fd53f630d80f30e",
+      "date": "2026-10-28T21:23:55-06:00",
+      "author": "erwindank",
+      "subject": "Show SaferWeb, FMCSA SMS and Licensing & Insurance inside TTMS, fetched from the US so they open without a VPN",
+      "body": ""
+    },
+    {
       "hash": "a172cc702ed6d567ee292995f4b3d53f22b48277",
       "date": "2026-10-28T21:01:55-06:00",
       "author": "erwindank",

@@ -11,7 +11,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 
 /**
  * An FMCSA page about one carrier, as TTMS's US server sees it — so the
- * Guatemala office can read SaferWeb, SMS and L&I without a VPN. See
+ * Guatemala office can read SaferWeb without a VPN. See
  * lib/fmcsaPages for why, and for why the frame is sandboxed the way it is.
  *
  * The sandbox has no `allow-scripts` and no `allow-same-origin`: the page is

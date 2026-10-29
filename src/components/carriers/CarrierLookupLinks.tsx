@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { copyToClipboard } from '@/lib/clipboard';
-import { FMCSA_PAGE_LABEL, FMCSA_PAGE_SOURCES, fmcsaPageUrl } from '@/types/fmcsaPage';
+import { FMCSA_PAGE_LABEL, FMCSA_PAGE_SOURCES, fmcsaPageUrl, isShownInTtms } from '@/types/fmcsaPage';
 import type { FmcsaPageSource } from '@/types/fmcsaPage';
 
 /** The digits of a DOT or MC as typed — "MC-123456" and "123456" are one number. */
@@ -22,6 +22,8 @@ type Lookup = {
    * the way out, so the search is one paste.
    */
   paste?: boolean;
+  /** FMCSA itself, which refuses addresses outside the US. */
+  vpn?: boolean;
 };
 
 const FMCSA_TITLE: Record<FmcsaPageSource, string> = {
@@ -31,20 +33,24 @@ const FMCSA_TITLE: Record<FmcsaPageSource, string> = {
 };
 
 /**
- * FMCSA's own pages open inside TTMS, fetched by the US server: FMCSA turns
- * away the Guatemala office without a VPN. The commercial sites are linked to
- * their front page instead: none of them publishes a per-carrier address, and
- * one that guessed wrong would land a broker on somebody else's record
- * mid-vetting.
+ * FMCSA turns the Guatemala office away without a VPN, so the pages TTMS can
+ * fetch from the US open inside TTMS; the rest go straight to FMCSA and say
+ * they need the VPN (see `FMCSA_PAGES_SHOWN_IN_TTMS` for why). The commercial
+ * sites are linked to their front page: none of them publishes a per-carrier
+ * address, and one that guessed wrong would land a broker on somebody else's
+ * record mid-vetting.
  */
 function lookups(carrierId: string, dot: string, mc: string): Lookup[] {
-  const out: Lookup[] = FMCSA_PAGE_SOURCES
-    .filter((s) => fmcsaPageUrl(s, dot, mc))
-    .map((s) => ({
-      label: FMCSA_PAGE_LABEL[s],
-      title: FMCSA_TITLE[s],
-      href: `/dashboard/carriers/${encodeURIComponent(carrierId)}/fmcsa/${s}`,
-    }));
+  const out: Lookup[] = [];
+  for (const s of FMCSA_PAGE_SOURCES) {
+    const url = fmcsaPageUrl(s, dot, mc);
+    if (!url) continue;
+    out.push(isShownInTtms(s)
+      ? { label: FMCSA_PAGE_LABEL[s], title: FMCSA_TITLE[s],
+          href: `/dashboard/carriers/${encodeURIComponent(carrierId)}/fmcsa/${s}` }
+      : { label: FMCSA_PAGE_LABEL[s], title: `${FMCSA_TITLE[s]}. Opens on FMCSA — needs the US VPN from Guatemala.`,
+          href: url, vpn: true });
+  }
   out.push(
     { label: 'SaferWatch',     title: 'Carrier monitoring and fraud alerts (needs a SaferWatch sign-in)', href: 'https://www.saferwatch.com/', paste: true },
     { label: 'Broker Snapshot', title: 'Carrier history, contacts, inspections and authority timeline', href: 'https://brokersnapshot.com/', paste: true },
@@ -82,7 +88,9 @@ export default function CarrierLookupLinks({ carrierId, dot, mc }: { carrierId: 
               copyToClipboard(pasteValue).then((ok) => setCopied(ok ? l.label : ''));
             } : undefined}
             className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline">
-            {l.label} <ExternalLink className="w-3 h-3" />
+            {l.label}
+            {l.vpn && <span className="px-1 rounded bg-gray-100 text-[10px] font-semibold text-gray-500">VPN</span>}
+            <ExternalLink className="w-3 h-3" />
           </a>
         ))}
       </div>
