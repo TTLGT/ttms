@@ -893,6 +893,34 @@ license, truck pictures, payment setup — and send from the review.
 - `GET /api/sa-rounds?party=carrier` is the carrier verification record;
   `GET /api/sa-requests` lists both kinds for Approvals.
 
+## Collection: `carrierVettings` — proof the carrier was checked (2026-10-28)
+
+The Supreme Court's 2026-05-14 ruling in *Montgomery v. Caribe Transport II*
+lets a broker be sued under state law for negligently selecting a carrier. A
+vetting record is the evidence for the defence: what TTMS knew about the
+carrier at the moment it was hired, frozen. Types in
+`src/types/carrierVetting.ts`, server in `src/lib/carrierVetting.ts`.
+
+- **Taken** automatically after every Dispatch Sheet email
+  (`trigger: 'dispatch_sheet'`, with its `dispatchVersion`), and by hand from
+  **Vetting records** in the order's Carrier section (`'manual'`).
+- **Holds** FMCSA's answer asked live at that moment (`fmcsaSource: 'live'`;
+  `'stored'` when FMCSA was unreachable and the carrier's last check was kept
+  instead), the concerns worked out from it, the carrier's details and
+  certificate fields, the driver, licence and truck-picture facts, the load,
+  and every Dispatch Sheet review check with who confirmed it and when.
+- **Files**: a copy of the SaferWeb page and of the certificate of insurance
+  under `carrier-vetting/{orderId}/{vettingId}/`, each with its SHA-256.
+  A copy that failed is recorded in `fileErrors` rather than left as a gap.
+- **`hash`** is a SHA-256 over the record (`vettingHashInput()`, keys sorted).
+  The Carrier Selection File PDF re-checks it and both files on every print.
+- **Never updated or deleted.** Written with `create()`; there is no route
+  that changes one, and `firestore.rules` closes the collection. One equality
+  filter on `orderId`, sorted in memory — no composite index.
+- `GET`/`POST /api/orders/{id}/vetting`, `GET …/vetting/{vettingId}/pdf`,
+  `GET …/vetting/{vettingId}/file?which=saferWeb|insurance`, all behind the
+  load's own visibility.
+
 ### The signed SA as a PDF, and every version of it
 
 Nothing new is stored. Each client link (`signing_tokens/{token}`) and each
@@ -1261,6 +1289,8 @@ documents/{documentId}
 /avatars/{email}/requested-{timestamp}.{ext}  one waiting on a profile request
 /load-photos/{orderId}/{photoId}.jpg          a load picture (Admin SDK only)
 /load-photos/{orderId}/{photoId}_thumb.jpg    its thumbnail
+/carrier-vetting/{orderId}/{vettingId}/saferweb.html            SaferWeb copy (Admin SDK only)
+/carrier-vetting/{orderId}/{vettingId}/insurance-certificate.*  certificate copy (Admin SDK only)
 ```
 
 An avatar path is stored on the record, never a download URL — URLs carry a

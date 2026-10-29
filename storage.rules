@@ -132,6 +132,12 @@ service firebase.storage {
     // as the BOL and POD, without even the open write those prefixes keep. See
     // src/types/loadPhoto.ts.
 
+    // Carrier vetting copies (`carrier-vetting/`) — the SaferWeb page and the
+    // insurance certificate kept with each vetting record — have no match
+    // either, for the same reason and one more: they are evidence, and nothing
+    // but the server may ever write them. Read through
+    // /api/orders/{id}/vetting/{vettingId}/file. See src/types/carrierVetting.ts.
+
     // Everything else is denied by default. That is deliberate rather than an
     // oversight: a new upload path has to be added here to work at all, which
     // is the point at which somebody has to decide who may read it. There is

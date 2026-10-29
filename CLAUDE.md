@@ -1248,6 +1248,27 @@ Carrier section and on Documents, a confirmation email to the carrier
 hand only once a `signed_ca` file is on the load** — enforced in
 `updateOrderAsCaller()`, the same as Client Signed.
 
+### Carrier vetting records — proof the carrier was checked (2026-10-28)
+
+Since *Montgomery v. Caribe Transport II* (Supreme Court, 2026-05-14) a broker
+can be sued under state law for negligently choosing a carrier. A vetting
+record (`carrierVettings`, `src/types/carrierVetting.ts`) is the evidence:
+FMCSA asked **live** at the moment of hiring, the carrier's details and
+insurance, copies of the SaferWeb page and the certificate, and every review
+check with who confirmed it. The Carrier Selection File PDF prints one.
+
+- **Taken after every Dispatch Sheet email**, best-effort; a failure posts in
+  the load's room asking for one by hand. Anything new that hires a carrier
+  another way should take one too (`takeCarrierVetting()`).
+- **Evidence is append-only.** No route updates or deletes a record or its
+  files; do not add one. A correction is a new record.
+- **`hash` must keep matching.** It is taken over the record exactly as
+  stored (`vettingHashInput()`). Adding a field to new records is fine;
+  rewriting old ones — even a "harmless" backfill — breaks their hash and
+  the PDF will say the record was altered.
+- **The PDF prints only what the record holds.** Never fill it from the live
+  carrier or a current FMCSA answer: it is what we knew then.
+
 ### Change orders — editing a load after its paperwork went out
 
 Two halves, both 2026-10-19. See `changeOrders` in the Schema Guide.

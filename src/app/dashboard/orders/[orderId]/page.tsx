@@ -71,6 +71,7 @@ import ChangeOrderPanel from '@/components/orders/ChangeOrderPanel';
 import { RequestSaButton, SaRequestPanel } from '@/components/orders/SaRequestPanel';
 import type { FixTarget } from '@/components/orders/fixTargets';
 import SaVerificationRecord from '@/components/orders/SaVerificationRecord';
+import CarrierVettingRecords from '@/components/orders/CarrierVettingRecords';
 import SaAgreementVersions from '@/components/orders/SaAgreementVersions';
 import { fetchSignedSaProof, listAgreementVersions } from '@/lib/orderPaperwork';
 import SignedSaUploads from '@/components/orders/SignedSaUploads';
@@ -1732,6 +1733,7 @@ export default function OrderDetailPage() {
                   />
                 )}
                 <SaVerificationRecord orderId={orderId} party="carrier" />
+                <CarrierVettingRecords orderId={orderId} />
               </div>
             )}
             {/* The signed Carrier Agreement as a PDF, and every one sent. */}

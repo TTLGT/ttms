@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "bdb7bf3c4c7ca0ea973c30bc28e3b2f5861d6195",
+      "date": "2026-10-28T21:32:31-06:00",
+      "author": "erwindank",
+      "subject": "Link FMCSA SMS and Licensing & Insurance straight to FMCSA with a VPN tag, and keep only SaferWeb inside TTMS",
+      "body": ""
+    },
+    {
       "hash": "a569b5ee0de016123148a2911fd53f630d80f30e",
       "date": "2026-10-28T21:23:55-06:00",
       "author": "erwindank",

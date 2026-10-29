@@ -1307,6 +1307,12 @@ service cloud.firestore {
     // An order's other files. Same reasoning as loadPhotos: read and written
     // only through /api/orders/{id}/files. See src/types/orderFile.ts.
     match /orderFiles/{id}              { allow read, write: if false; }
+    // Carrier vetting records — the legal proof of what we knew about a
+    // carrier when it was hired. Written once by the server, never changed,
+    // read only through /api/orders/{id}/vetting. See
+    // src/types/carrierVetting.ts. Identical to the default deny; written out
+    // so nobody opens it — a record the browser could write is not evidence.
+    match /carrierVettings/{id}         { allow read, write: if false; }
     // SA requests. Read and written only through /api/orders/{id}/sa-request
     // and /api/sa-requests — see src/types/saRequest.ts.
     match /saRequests/{id}              { allow read, write: if false; }

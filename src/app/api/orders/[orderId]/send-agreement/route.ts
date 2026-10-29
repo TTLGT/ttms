@@ -9,6 +9,7 @@ import { signUrl } from '@/lib/appUrl';
 import { brokerSnapshot, paperworkBroker } from '@/lib/orderOwnersServer';
 import { termsForOrder } from '@/lib/agreementTermsServer';
 import { carrierFingerprint } from '@/lib/carrierAgreements';
+import { takeCarrierVetting } from '@/lib/carrierVetting';
 import { randomBytes } from 'crypto';
 import {
   archiveRound, buildSaReview, freezeReview, requestRef, roundRef, saGateFactsFor, sendEntry,
@@ -18,6 +19,10 @@ import { accessorialLabels, clientSignatureSatisfied, dimensionsSummary, dockWor
 import type { Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
+
+// The email, then the carrier vetting record, which asks FMCSA live and
+// copies the SaferWeb page — up to a few seconds each on a slow day.
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest, { params }: RouteContext) {
   let caller: { uid: string; email: string | undefined };
@@ -273,6 +278,23 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   await postOrderAlert(orderId, `${line}${cc.length ? ` Copied to ${cc.join(', ')}.` : ''}${actor ? ` Sent by ${actor.name}.` : ''} E-signature link: ${link}`).catch(() => {});
 
   await recordCarrierSend().catch(() => {});
+
+  /*
+   * The carrier vetting record — the proof of what TTMS knew about the
+   * carrier at the moment it was hired. See src/types/carrierVetting.ts.
+   * After the email, never before: a send must not fail because FMCSA is
+   * slow. But not silently either — a missing record is exactly the gap it
+   * exists to close, so the room is told to save one by hand.
+   */
+  await takeCarrierVetting({
+    orderId,
+    order,
+    actor: actor ?? await actorForUid(caller.uid, caller.email),
+    trigger: 'dispatch_sheet',
+    dispatchVersion: version,
+  }).catch(() => postOrderAlert(orderId,
+    'TTMS could not save the carrier vetting record for this Dispatch Sheet. Save one from Vetting records in the Carrier section.',
+  ).catch(() => {}));
 
   /**
    * The send goes into the load's carrier verification record, the same way
