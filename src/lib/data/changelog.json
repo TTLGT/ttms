@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "4070e977821e2d63d931864b2433de9e3f8a3a53",
+      "date": "2026-10-28T20:51:10-06:00",
+      "author": "erwindank",
+      "subject": "Show who owns an order in a compact strip at the top of every tab",
+      "body": ""
+    },
+    {
       "hash": "d359b2e162d22c851ff6568a18a85f6e6e7e598a",
       "date": "2026-10-28T16:49:57-06:00",
       "author": "erwindank",

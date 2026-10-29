@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ShieldCheck, ShieldAlert, ShieldX, RefreshCw, ExternalLink, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, ShieldX, RefreshCw, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import CarrierLookupLinks from './CarrierLookupLinks';
 import { updateCarrier } from '@/lib/carriers';
 import { useAuth } from '@/context/AuthContext';
 import type { Carrier } from '@/types/carrier';
@@ -39,11 +40,6 @@ const FILL_LABELS: Partial<Record<keyof Carrier, string>> = {
   insuranceCoverage: 'liability amount',
   insuranceCargoCoverage: 'cargo amount',
 };
-
-/** FMCSA's public page for the carrier, for anybody who wants the source. */
-function saferUrl(dot: string): string {
-  return `https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=${encodeURIComponent(dot)}`;
-}
 
 /**
  * The FMCSA check for one carrier: whether it may haul, whether FMCSA has its
@@ -152,6 +148,7 @@ export default function FmcsaPanel({
           {button}
         </div>
         {error && <p className="text-xs text-red-600">{error}</p>}
+        <CarrierLookupLinks dot={dot} mc={mc} />
       </div>
     );
   }
@@ -200,18 +197,14 @@ export default function FmcsaPanel({
             {!numbersChanged && stale && ' — over a day old'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {check.dotNumber && (
-            <a href={saferUrl(check.dotNumber)} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-brand-600 hover:underline">
-              SAFER <ExternalLink className="w-3 h-3" />
-            </a>
-          )}
-          {button}
-        </div>
+        {button}
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
+
+      {/* FMCSA's DOT where the record has none: it is the number every
+          site searches by, and the check has already found it. */}
+      <CarrierLookupLinks dot={dot || check.dotNumber || ''} mc={mc} />
 
       {concerns.length > 0 ? (
         <ul className="space-y-1">
