@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "e3adcedc2567eb9a60d7040ed92cae5acd1e36cc",
+      "date": "2026-10-28T22:38:12-06:00",
+      "author": "erwindank",
+      "subject": "Keep every Carrier Selection File handed out, list vetting records on the Documents tab, and keep the Documents status tags on one line",
+      "body": ""
+    },
+    {
       "hash": "006f857ffdbd61000546ff75d0988f35b8e94c1a",
       "date": "2026-10-28T22:22:02-06:00",
       "author": "erwindank",

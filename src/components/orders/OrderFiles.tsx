@@ -10,6 +10,7 @@ import {
   MAX_ORDER_FILE_NOTE,
   OTHER_FILE_KINDS,
   ORDER_FILE_KIND_LABEL,
+  SLOTTED_FILE_KINDS,
   formatFileSize,
   type OrderFile,
   type OrderFileKind,
@@ -100,8 +101,9 @@ export default function OrderFiles({ orderId, readOnly = false, onChange }: {
     }
   }
 
-  // A signed SA has its own slot (SignedSaUploads), not a line among receipts.
-  const others = files?.filter((f) => f.kind !== 'signed_sa' && f.kind !== 'signed_ca') ?? null;
+  // A signed SA, a carrier invoice and the BATS copies have their own slots
+  // (SignedSaUploads, OrderFileSlot), not a line among receipts.
+  const others = files?.filter((f) => !SLOTTED_FILE_KINDS.includes(f.kind)) ?? null;
   const mayRemove = (f: OrderFile) => !readOnly && (f.uploadedByUid === user?.uid || can('orders.viewAll'));
 
   return (

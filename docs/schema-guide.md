@@ -676,8 +676,9 @@ an order's Documents tab. See `src/types/orderFile.ts`.
 orderFiles/{fileId}                 // fileId is random, made by the browser
   orderId        : string
   name           : string           // as it was on the uploader's computer
-  kind           : "signed_sa" | "signed_ca" | "rate_confirmation" | "receipt" | "customs"
-                 | "permit" | "insurance" | "correspondence" | "other"
+  kind           : "signed_sa" | "signed_ca" | "carrier_invoice" | "bol_copy" | "client_invoice"
+                 | "rate_confirmation" | "receipt" | "customs" | "permit" | "insurance"
+                 | "correspondence" | "other"
   note           : string
   contentType    : string           // read off the stored object, not the request
   size           : number           // bytes, likewise
@@ -726,6 +727,18 @@ CC list (never the client — it quotes carrier pay), and records
 `paperCaConfirmedAt` / `paperCaConfirmedTo` / `paperCaConfirmedByName`.
 Moving a load to **Carrier Signed** by hand needs at least one `signed_ca`
 file (`signedSaProof(orderId, 'carrier')`), enforced in `updateOrderAsCaller()`.
+
+**The Carrier Invoice, BOL copy and invoice copy slots** (2026-10-28) are
+three more kinds with places of their own, kept out of "Other files" and drawn
+by `OrderFileSlot.tsx`. None is reviewed — they prove nothing TTMS acts on.
+`carrier_invoice` is the carrier's bill to us: a row on the Documents tab and a
+slot in the Carrier section, on any load with a carrier and on every BATS
+load. `bol_copy` and `client_invoice` are the BOL and the client invoice as
+they were sent from BATS, uploaded on the BOL and Invoice rows of a
+`recordImport` load only. They are deliberately not written into
+`bolStoragePath` / `invoiceStoragePath`: those are TTMS's generated documents,
+which Generate overwrites. So the dashboard's "missing BOL" and "not invoiced"
+counts still read only those two fields.
 
 **Changing the client or carrier undoes their signature** (2026-10-13,
 `planPartySwap()` in `src/lib/orderWrites.ts`, in the same save). The

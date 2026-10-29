@@ -34,7 +34,8 @@ export const ORDER_FILES_COLLECTION = 'orderFiles';
 
 /** What the file is. Free text says the rest; this is for scanning a list. */
 export const ORDER_FILE_KINDS = [
-  'signed_sa', 'signed_ca', 'rate_confirmation', 'receipt', 'customs', 'permit', 'insurance', 'correspondence', 'other',
+  'signed_sa', 'signed_ca', 'carrier_invoice', 'bol_copy', 'client_invoice',
+  'rate_confirmation', 'receipt', 'customs', 'permit', 'insurance', 'correspondence', 'other',
 ] as const;
 export type OrderFileKind = (typeof ORDER_FILE_KINDS)[number];
 
@@ -49,6 +50,16 @@ export const ORDER_FILE_KIND_LABEL: Record<OrderFileKind, string> = {
   signed_sa:         'Signed Shipper Agreement (SA)',
   /** The carrier's Carrier Agreement (rate confirmation) signed some other way. Same role as `signed_sa`, for the carrier. */
   signed_ca:         'Signed Dispatch Sheet',
+  /** The carrier's bill to us for hauling the load — what we pay, not what we charge. */
+  carrier_invoice:   'Carrier invoice',
+  /**
+   * The BOL and the client invoice of a load imported from BATS, as they were
+   * sent from there. TTMS's own `bolStoragePath` / `invoiceStoragePath` slots
+   * are what TTMS generated, and Generate / Regenerate overwrite them, so a
+   * copy kept from BATS lives here instead, where nothing redraws it.
+   */
+  bol_copy:          'Bill of Lading (copy from BATS)',
+  client_invoice:    'Invoice to the client (copy from BATS)',
   rate_confirmation: 'Dispatch sheet',
   receipt:           'Receipt (lumper, fuel, scale…)',
   customs:           'Customs',
@@ -59,12 +70,21 @@ export const ORDER_FILE_KIND_LABEL: Record<OrderFileKind, string> = {
 };
 
 /**
- * What the "Other files" list offers and shows. `signed_sa` is filed through
- * the same upload and the same records, but it has its own place — the Signed
- * SA slot in Client Confirmation and on the Documents tab — so it is kept out
- * of the general list rather than being one more kind among receipts.
+ * Kinds with a place of their own — a row on the Documents tab, and for some
+ * a slot on the Overview — drawn by SignedSaUploads (the two signed kinds) or
+ * OrderFileSlot (the rest).
  */
-export const OTHER_FILE_KINDS = ORDER_FILE_KINDS.filter((k) => k !== 'signed_sa' && k !== 'signed_ca');
+export const SLOTTED_FILE_KINDS: readonly OrderFileKind[] = [
+  'signed_sa', 'signed_ca', 'carrier_invoice', 'bol_copy', 'client_invoice',
+];
+
+/**
+ * What the "Other files" list offers and shows. A slotted kind is filed
+ * through the same upload and the same records, but it has its own place, so
+ * it is kept out of the general list rather than being one more kind among
+ * receipts.
+ */
+export const OTHER_FILE_KINDS = ORDER_FILE_KINDS.filter((k) => !SLOTTED_FILE_KINDS.includes(k));
 
 /** The file kind that holds each party's hand-signed agreement. */
 export const SIGNED_AGREEMENT_KIND = { client: 'signed_sa', carrier: 'signed_ca' } as const;
