@@ -26,6 +26,11 @@ export interface VettingPdfInput {
   intact: { record: boolean; saferWeb: boolean | null; insurance: boolean | null };
   printedAt: number;
   printedBy: string;
+  /**
+   * This copy's id in the record's `prints` — on the page, so a copy that
+   * turns up somewhere can be matched to the one TTMS kept of it.
+   */
+  printId: string;
 }
 
 const s = StyleSheet.create({
@@ -49,7 +54,7 @@ const s = StyleSheet.create({
   check:    { flexDirection: 'row', marginBottom: 3 },
   box:      { width: 22, fontFamily: 'Helvetica-Bold' },
   note:     { fontSize: 7.5, color: TTL.muted, lineHeight: 1.35 },
-  footer:   { position: 'absolute', bottom: 20, left: 36, right: 36, flexDirection: 'row', justifyContent: 'space-between',
+  footer:   { position: 'absolute', bottom: 16, left: 36, right: 36, flexDirection: 'column', gap: 2,
               fontSize: 7, color: TTL.faint },
 });
 
@@ -267,7 +272,7 @@ function VettingDocument({ d }: { d: VettingPdfInput }) {
 
         <View style={s.footer} fixed>
           <Text>{COMPANY.legalName} · {COMPANY.street}, {COMPANY.city} · {COMPANY.phone}</Text>
-          <Text render={({ pageNumber, totalPages }) => `Printed ${when(d.printedAt)} by ${d.printedBy} · Page ${pageNumber} of ${totalPages}`} />
+          <Text render={({ pageNumber, totalPages }) => `Copy ${d.printId} · printed ${when(d.printedAt)} by ${d.printedBy} · Page ${pageNumber} of ${totalPages}`} />
         </View>
       </Page>
     </Document>

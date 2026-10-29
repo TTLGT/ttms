@@ -917,9 +917,17 @@ carrier at the moment it was hired, frozen. Types in
 - **Never updated or deleted.** Written with `create()`; there is no route
   that changes one, and `firestore.rules` closes the collection. One equality
   filter on `orderId`, sorted in memory — no composite index.
+- **Every PDF handed out is kept** in `carrierVettings/{id}/prints/{printId}`
+  (who, when, SHA-256, what its integrity checks said), with the PDF itself at
+  `carrier-vetting/{orderId}/{vettingId}/prints/{printId}.pdf`. It is saved
+  before the download is answered; if it cannot be, the download is refused.
+  The copy id is printed in each PDF's footer. A subcollection, so a print
+  never changes the record or its hash.
 - `GET`/`POST /api/orders/{id}/vetting`, `GET …/vetting/{vettingId}/pdf`,
-  `GET …/vetting/{vettingId}/file?which=saferWeb|insurance`, all behind the
-  load's own visibility.
+  `GET …/vetting/{vettingId}/prints`,
+  `GET …/vetting/{vettingId}/file?which=saferWeb|insurance|print&printId=`,
+  all behind the load's own visibility. Shown from **Vetting records** in the
+  Carrier section and as a row on the Documents tab.
 
 ### The signed SA as a PDF, and every version of it
 
@@ -1291,6 +1299,7 @@ documents/{documentId}
 /load-photos/{orderId}/{photoId}_thumb.jpg    its thumbnail
 /carrier-vetting/{orderId}/{vettingId}/saferweb.html            SaferWeb copy (Admin SDK only)
 /carrier-vetting/{orderId}/{vettingId}/insurance-certificate.*  certificate copy (Admin SDK only)
+/carrier-vetting/{orderId}/{vettingId}/prints/{printId}.pdf      each Carrier Selection File handed out
 ```
 
 An avatar path is stored on the record, never a download URL — URLs carry a

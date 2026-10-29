@@ -1,7 +1,7 @@
 'use client';
 
 import { auth } from './firebase';
-import type { CarrierVetting } from '@/types/carrierVetting';
+import type { CarrierVetting, VettingPrint } from '@/types/carrierVetting';
 
 /** The browser's side of carrier vetting records — see src/types/carrierVetting.ts. */
 
@@ -29,8 +29,15 @@ export async function saveCarrierVetting(orderId: string): Promise<CarrierVettin
   return (await json<{ record: CarrierVetting }>(res, 'Could not save the vetting record')).record;
 }
 
+/** Every Carrier Selection File handed out for one record, newest first. */
+export async function listVettingPrints(orderId: string, vettingId: string): Promise<VettingPrint[]> {
+  const res = await fetch(`${base(orderId)}/${encodeURIComponent(vettingId)}/prints`, { headers: await authHeaders() });
+  return (await json<{ prints: VettingPrint[] }>(res, 'Could not load the earlier PDFs')).prints;
+}
+
 /**
- * Builds the Carrier Selection File and saves it. Fetched with the ID token
+ * Builds the Carrier Selection File and saves it. The server keeps this exact
+ * copy before handing it over. Fetched with the ID token
  * and handed over as a file, because a plain link cannot carry the header.
  */
 export async function downloadVettingPdf(orderId: string, vettingId: string): Promise<void> {
@@ -53,10 +60,16 @@ export async function downloadVettingPdf(orderId: string, vettingId: string): Pr
  * link is fetched, in the same click: opened after an await, the browser
  * takes it for a pop-up and blocks it.
  */
-export async function openVettingFile(orderId: string, vettingId: string, which: 'saferWeb' | 'insurance'): Promise<void> {
+export async function openVettingFile(
+  orderId: string,
+  vettingId: string,
+  which: 'saferWeb' | 'insurance' | 'print',
+  printId = '',
+): Promise<void> {
   const tab = window.open('', '_blank');
   try {
-    const res = await fetch(`${base(orderId)}/${encodeURIComponent(vettingId)}/file?which=${which}`, { headers: await authHeaders() });
+    const q = `which=${which}${printId ? `&printId=${encodeURIComponent(printId)}` : ''}`;
+    const res = await fetch(`${base(orderId)}/${encodeURIComponent(vettingId)}/file?${q}`, { headers: await authHeaders() });
     const { url } = await json<{ url: string }>(res, 'Could not open the file');
     if (tab) tab.location.href = url;
     else window.location.href = url;

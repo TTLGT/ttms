@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FileDown, FileText, Globe, Loader2, Save, ShieldCheck, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, FileDown, FileText, Globe, Loader2, Save, ShieldCheck, X } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
-  downloadVettingPdf, listCarrierVettings, openVettingFile, saveCarrierVetting,
+  downloadVettingPdf, listCarrierVettings, listVettingPrints, openVettingFile, saveCarrierVetting,
 } from '@/lib/carrierVettingClient';
-import { VETTING_TRIGGER_LABEL, vettingLevel, type CarrierVetting } from '@/types/carrierVetting';
+import {
+  VETTING_TRIGGER_LABEL, vettingLevel, type CarrierVetting, type VettingPrint,
+} from '@/types/carrierVetting';
 
 const LEVEL: Record<ReturnType<typeof vettingLevel>, { label: string; cls: string }> = {
   ok:      { label: 'No FMCSA concerns',  cls: 'bg-green-100 text-green-700' },
@@ -24,13 +26,19 @@ const LEVEL: Record<ReturnType<typeof vettingLevel>, { label: string; cls: strin
  * now" is for everything else: a carrier booked on paper, or a second look
  * on pickup day. Read only when opened, like the verification record beside it.
  */
-export default function CarrierVettingRecords({ orderId }: { orderId: string }) {
+export default function CarrierVettingRecords({ orderId, onSaved }: {
+  orderId: string;
+  /** A record was saved from the window, for a page that shows a count. */
+  onSaved?: () => void;
+}) {
   const { formatDateTime } = useDateFormatters();
   const [open, setOpen] = useState(false);
   const [records, setRecords] = useState<CarrierVetting[] | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState('');
+  // Bumped after each download, so an open list of earlier PDFs shows the new one.
+  const [printsVersion, setPrintsVersion] = useState(0);
 
   function show() {
     setOpen(true);
@@ -45,6 +53,7 @@ export default function CarrierVettingRecords({ orderId }: { orderId: string }) 
     try {
       const r = await saveCarrierVetting(orderId);
       setRecords((prev) => [r, ...(prev ?? [])]);
+      onSaved?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save the record');
     } finally {
@@ -131,7 +140,7 @@ export default function CarrierVettingRecords({ orderId }: { orderId: string }) 
                       )}
                       <div className="flex flex-wrap gap-2">
                         <button type="button" className={btn} disabled={busy !== ''}
-                          onClick={() => run(`${r.id}pdf`, () => downloadVettingPdf(orderId, r.id))}>
+                          onClick={() => run(`${r.id}pdf`, () => downloadVettingPdf(orderId, r.id).then(() => setPrintsVersion((n) => n + 1)))}>
                           {busy === `${r.id}pdf` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
                           Carrier Selection File (PDF)
                         </button>
@@ -152,6 +161,7 @@ export default function CarrierVettingRecords({ orderId }: { orderId: string }) 
                           <span className="text-xs text-amber-700 self-center">No certificate copy{r.fileErrors?.insurance ? `: ${r.fileErrors.insurance}` : ''}</span>
                         )}
                       </div>
+                      <PrintHistory orderId={orderId} vettingId={r.id} version={printsVersion} />
                     </li>
                   );
                 })}
@@ -162,5 +172,101 @@ export default function CarrierVettingRecords({ orderId }: { orderId: string }) 
         document.body,
       )}
     </>
+  );
+}
+
+/**
+ * Every Carrier Selection File handed out for one record, each downloadable
+ * exactly as it was — see VettingPrint. Read only when opened.
+ */
+function PrintHistory({ orderId, vettingId, version }: { orderId: string; vettingId: string; version: number }) {
+  const { formatDateTime } = useDateFormatters();
+  const [open, setOpen] = useState(false);
+  const [prints, setPrints] = useState<VettingPrint[] | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    setError('');
+    listVettingPrints(orderId, vettingId)
+      .then((p) => { if (live) setPrints(p); })
+      .catch((e) => { if (live) setError(e instanceof Error ? e.message : 'Could not load the earlier PDFs'); });
+    return () => { live = false; };
+  }, [open, orderId, vettingId, version]);
+
+  return (
+    <div>
+      <button type="button" onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900">
+        {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+        PDFs generated{prints ? ` (${prints.length})` : ''}
+      </button>
+      {open && (
+        <div className="mt-1 ml-5 space-y-1">
+          {error ? <p className="text-xs text-red-600">{error}</p>
+            : prints === null ? <p className="text-xs text-gray-500">Loading…</p>
+            : prints.length === 0 ? <p className="text-xs text-gray-500">None yet. Each one is kept the moment it is downloaded.</p>
+            : (
+              <ul className="space-y-1">
+                {prints.map((p) => {
+                  const altered = !p.intact.record || p.intact.saferWeb === false || p.intact.insurance === false;
+                  return (
+                    <li key={p.id} className="flex flex-wrap items-center gap-x-2 text-xs text-gray-600">
+                      <span className="text-gray-900">{formatDateTime(new Date(p.printedAt))}</span>
+                      <span>by {p.printedByName}</span>
+                      <span className="text-gray-400">copy {p.id}</span>
+                      {altered && <span className="text-red-700 font-medium">showed a fingerprint mismatch</span>}
+                      <button type="button" className="text-brand-600 hover:underline"
+                        onClick={() => { openVettingFile(orderId, vettingId, 'print', p.id).catch((e) => setError(e instanceof Error ? e.message : 'Could not open it')); }}>
+                        Download this copy
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The vetting records as a row of the order's Documents tab, beside the BOL
+ * and the signed agreements: how many there are, and the same window. One
+ * query when the tab is opened.
+ */
+export function CarrierVettingDocumentsRow({ orderId }: { orderId: string }) {
+  const { formatDateTime } = useDateFormatters();
+  const [records, setRecords] = useState<CarrierVetting[] | null>(null);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    listCarrierVettings(orderId).then((r) => { if (live) setRecords(r); }).catch(() => { if (live) setRecords(null); });
+    return () => { live = false; };
+  }, [orderId, version]);
+
+  const latest = records?.[0];
+  return (
+    <tr className="hover:bg-gray-50 transition align-top">
+      <td className="px-6 py-4">
+        <p className="text-sm font-medium text-gray-900">Carrier vetting records</p>
+        <p className="text-xs text-gray-400">Proof the carrier was checked before it was hired · Carrier Selection File PDF</p>
+      </td>
+      <td className="px-6 py-4">
+        {latest ? (
+          <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap">
+            <Check className="w-3 h-3 shrink-0" />{records!.length} saved · latest {formatDateTime(new Date(latest.takenAt))}
+          </span>
+        ) : (
+          <span className="text-xs text-gray-400 whitespace-nowrap">{records ? 'None saved yet' : '—'}</span>
+        )}
+      </td>
+      <td className="px-6 py-4">
+        <CarrierVettingRecords orderId={orderId} onSaved={() => setVersion((n) => n + 1)} />
+      </td>
+    </tr>
   );
 }

@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminStorage, AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
-import { getCarrierVetting } from '@/lib/carrierVetting';
+import { getCarrierVetting, getVettingPrint } from '@/lib/carrierVetting';
 
 type RouteContext = { params: Promise<{ orderId: string; vettingId: string }> };
 
 /**
  * A signed link to one of the files kept with a vetting record — the
- * SaferWeb copy or the certificate of insurance.
+ * SaferWeb copy, the certificate of insurance, or a Carrier Selection File
+ * exactly as it was handed out (`which=print&printId=`).
  *
  * `carrier-vetting/` has no storage rule, so the browser can neither read nor
  * write it; this is the only way in, behind the load's own visibility. The
@@ -17,18 +18,25 @@ type RouteContext = { params: Promise<{ orderId: string; vettingId: string }> };
  */
 export async function GET(req: NextRequest, { params }: RouteContext) {
   const { orderId, vettingId } = await params;
-  const which = new URL(req.url).searchParams.get('which');
-  if (which !== 'saferWeb' && which !== 'insurance') {
+  const search = new URL(req.url).searchParams;
+  const which = search.get('which');
+  const printId = search.get('printId') ?? '';
+  if (which !== 'saferWeb' && which !== 'insurance' && which !== 'print') {
     return NextResponse.json({ error: 'Unknown file' }, { status: 400 });
   }
   try {
     const caller = await requireCaller(req);
     await getVisibleOrder(caller, orderId);
     const v = await getCarrierVetting(orderId, vettingId);
-    const file = v?.files[which];
-    if (!file) return NextResponse.json({ error: 'That file was not kept with this record' }, { status: 404 });
+    if (!v) return NextResponse.json({ error: 'Vetting record not found' }, { status: 404 });
+    // A kept Carrier Selection File is read under its record, which has just
+    // been checked to belong to this load — a print id alone opens nothing.
+    const path = which === 'print'
+      ? (printId ? (await getVettingPrint(vettingId, printId))?.path : undefined)
+      : v.files[which]?.path;
+    if (!path) return NextResponse.json({ error: 'That file was not kept with this record' }, { status: 404 });
 
-    const [url] = await adminStorage.bucket().file(file.path).getSignedUrl({
+    const [url] = await adminStorage.bucket().file(path).getSignedUrl({
       action: 'read',
       expires: Date.now() + 2 * 60 * 60 * 1000,
     });

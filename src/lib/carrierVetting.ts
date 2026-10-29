@@ -11,11 +11,13 @@ import { orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@
 import { CA_REVIEW_CHECKS } from '@/types/saRequest';
 import {
   CARRIER_VETTINGS_COLLECTION,
+  VETTING_PRINTS_SUBCOLLECTION,
   vettingFilePath,
   vettingHashInput,
   vettingLevel,
   type CarrierVetting,
   type VettingFile,
+  type VettingPrint,
   type VettingTrigger,
 } from '@/types/carrierVetting';
 
@@ -264,6 +266,59 @@ export async function getCarrierVetting(orderId: string, vettingId: string): Pro
   const snap = await adminDb.collection(CARRIER_VETTINGS_COLLECTION).doc(vettingId).get();
   if (!snap.exists || snap.data()?.orderId !== orderId) return null;
   return toCarrierVetting(snap.id, snap.data()!);
+}
+
+function printsOf(vettingId: string) {
+  return adminDb.collection(CARRIER_VETTINGS_COLLECTION).doc(vettingId).collection(VETTING_PRINTS_SUBCOLLECTION);
+}
+
+/** A fresh id for a print about to be drawn, so the PDF can carry it. */
+export function newVettingPrintId(vettingId: string): string {
+  return printsOf(vettingId).doc().id;
+}
+
+/**
+ * Keeps a Carrier Selection File exactly as it is about to be handed out —
+ * see VettingPrint. Throws when it cannot, and the caller then does not hand
+ * it out: an unrecorded copy is the thing this exists to prevent.
+ */
+export async function keepVettingPrint(opts: {
+  orderId: string;
+  vettingId: string;
+  printId: string;
+  pdf: Buffer;
+  printedAt: number;
+  printedByName: string;
+  printedByEmail: string;
+  intact: VettingPrint['intact'];
+}): Promise<VettingPrint> {
+  const path = vettingFilePath(opts.orderId, opts.vettingId, `prints/${opts.printId}.pdf`);
+  await adminStorage.bucket().file(path).save(opts.pdf, { contentType: 'application/pdf', resumable: false });
+  const print: Omit<VettingPrint, 'id'> = {
+    printedAt: opts.printedAt,
+    printedByName: opts.printedByName,
+    printedByEmail: opts.printedByEmail,
+    path,
+    sha256: sha256(opts.pdf),
+    bytes: opts.pdf.length,
+    intact: opts.intact,
+  };
+  // create(): a print, like the record, is written once.
+  await printsOf(opts.vettingId).doc(opts.printId).create(print);
+  return { ...print, id: opts.printId };
+}
+
+/** Every copy of one record ever handed out, newest first. */
+export async function listVettingPrints(vettingId: string): Promise<VettingPrint[]> {
+  const snap = await printsOf(vettingId).get();
+  return snap.docs
+    .map((d) => ({ ...(d.data() as Omit<VettingPrint, 'id'>), id: d.id }))
+    .sort((a, b) => b.printedAt - a.printedAt);
+}
+
+export async function getVettingPrint(vettingId: string, printId: string): Promise<VettingPrint | null> {
+  const snap = await printsOf(vettingId).doc(printId).get();
+  return snap.exists ? { ...(snap.data() as Omit<VettingPrint, 'id'>), id: snap.id } : null;
 }
 
 /** Whether the record still reads as it did when it was written. */

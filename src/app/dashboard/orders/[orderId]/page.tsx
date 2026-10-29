@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { ExternalLink, Map, Plus, RefreshCw, Route } from 'lucide-react';
+import { Check, ExternalLink, Map, Plus, RefreshCw, Route } from 'lucide-react';
 import Link from 'next/link';
 import {
   announceOrderEvent, getOrder, orderDocumentUrl, requestOrderAccess, updateOrderStatus, updateOrder,
@@ -71,7 +71,7 @@ import ChangeOrderPanel from '@/components/orders/ChangeOrderPanel';
 import { RequestSaButton, SaRequestPanel } from '@/components/orders/SaRequestPanel';
 import type { FixTarget } from '@/components/orders/fixTargets';
 import SaVerificationRecord from '@/components/orders/SaVerificationRecord';
-import CarrierVettingRecords from '@/components/orders/CarrierVettingRecords';
+import CarrierVettingRecords, { CarrierVettingDocumentsRow } from '@/components/orders/CarrierVettingRecords';
 import SaAgreementVersions from '@/components/orders/SaAgreementVersions';
 import { fetchSignedSaProof, listAgreementVersions } from '@/lib/orderPaperwork';
 import SignedSaUploads from '@/components/orders/SignedSaUploads';
@@ -2162,8 +2162,8 @@ export default function OrderDetailPage() {
                 </td>
                 <td className="px-6 py-4">
                   {order.bolStoragePath
-                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Available</span>
-                    : <span className="text-xs text-gray-400">Not generated</span>}
+                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Available</span>
+                    : <span className="text-xs text-gray-400 whitespace-nowrap">Not generated</span>}
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
@@ -2195,8 +2195,8 @@ export default function OrderDetailPage() {
                 </td>
                 <td className="px-6 py-4">
                   {invoicePath
-                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Available</span>
-                    : <span className="text-xs text-gray-400">Not generated</span>}
+                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Available</span>
+                    : <span className="text-xs text-gray-400 whitespace-nowrap">Not generated</span>}
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
@@ -2229,8 +2229,8 @@ export default function OrderDetailPage() {
                 </td>
                 <td className="px-6 py-4">
                   {podPath
-                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Uploaded</span>
-                    : <span className="text-xs text-gray-400">Not uploaded</span>}
+                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Uploaded</span>
+                    : <span className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>}
                 </td>
                 <td className="px-6 py-4">
                   <DocumentUpload orderId={orderId} docType="pod" existingPath={podPath} onUploaded={handlePodUploaded} />
@@ -2245,8 +2245,8 @@ export default function OrderDetailPage() {
                 </td>
                 <td className="px-6 py-4">
                   {order.driverLicenseStoragePath
-                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Uploaded</span>
-                    : <span className="text-xs text-gray-400">Not uploaded</span>}
+                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Uploaded</span>
+                    : <span className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>}
                 </td>
                 <td className="px-6 py-4">
                   {order.driverLicenseStoragePath
@@ -2270,14 +2270,14 @@ export default function OrderDetailPage() {
                 <td className="px-6 py-4">
                   {order.shipperSignedAt ? (
                     <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap">
-                      ✓ Signed {formatDate(order.shipperSignedAt as { toDate: () => Date })}
+                      <Check className="w-3 h-3 shrink-0" />Signed {formatDate(order.shipperSignedAt as { toDate: () => Date })}
                     </span>
                   ) : order.clientSignatureRecord || saVerified ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Verified</span>
+                    <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Verified</span>
                   ) : saUploads ? (
                     <span className="inline-flex items-center gap-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 whitespace-nowrap">Waiting for verification</span>
                   ) : (
-                    <span className="text-xs text-gray-400">Not uploaded</span>
+                    <span className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>
                   )}
                 </td>
                 <td className="px-6 py-4 space-y-2">
@@ -2318,14 +2318,14 @@ export default function OrderDetailPage() {
                   <td className="px-6 py-4">
                     {order.carrierSignedAt ? (
                       <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap">
-                        ✓ Signed {formatDate(order.carrierSignedAt as { toDate: () => Date })}
+                        <Check className="w-3 h-3 shrink-0" />Signed {formatDate(order.carrierSignedAt as { toDate: () => Date })}
                       </span>
                     ) : order.carrierSignatureRecord || caVerified ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">✓ Verified</span>
+                      <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Verified</span>
                     ) : caUploads ? (
                       <span className="inline-flex items-center gap-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 whitespace-nowrap">Waiting for verification</span>
                     ) : (
-                      <span className="text-xs text-gray-400">Not uploaded</span>
+                      <span className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>
                     )}
                   </td>
                   <td className="px-6 py-4 space-y-2">
@@ -2354,6 +2354,10 @@ export default function OrderDetailPage() {
                   </td>
                 </tr>
               )}
+
+              {/* The proof the carrier was vetted, and every Carrier
+                  Selection File handed out — see src/types/carrierVetting.ts. */}
+              {order.carrierId && <CarrierVettingDocumentsRow orderId={orderId} />}
             </tbody>
           </table>
         </div>

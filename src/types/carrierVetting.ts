@@ -149,6 +149,34 @@ export interface CarrierVetting {
 }
 
 /**
+ * One Carrier Selection File as it was handed out, kept at
+ * `carrierVettings/{vettingId}/prints/{printId}` with the PDF itself beside
+ * the record's other files.
+ *
+ * The PDF is drawn fresh from the record every time, so two prints of one
+ * record can differ — the integrity line, the date printed, a layout changed
+ * since. Each copy that left TTMS is kept byte for byte, so the copy a
+ * lawyer was given can be produced again exactly. A print is saved before
+ * the PDF is handed over: if it cannot be kept, it is not given out.
+ *
+ * A subcollection, so a print never touches the record and its hash.
+ */
+export interface VettingPrint {
+  id: string;
+  /** Epoch ms. */
+  printedAt: number;
+  printedByName: string;
+  printedByEmail: string;
+  path: string;
+  sha256: string;
+  bytes: number;
+  /** What the integrity checks said on this copy. */
+  intact: { record: boolean; saferWeb: boolean | null; insurance: boolean | null };
+}
+
+export const VETTING_PRINTS_SUBCOLLECTION = 'prints';
+
+/**
  * The exact text the hash is taken over: the record without its hash, every
  * object's keys sorted, so the same record always gives the same string
  * whatever order Firestore hands the fields back in.

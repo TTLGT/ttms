@@ -1266,6 +1266,9 @@ check with who confirmed it. The Carrier Selection File PDF prints one.
   stored (`vettingHashInput()`). Adding a field to new records is fine;
   rewriting old ones — even a "harmless" backfill — breaks their hash and
   the PDF will say the record was altered.
+- **Every PDF handed out is kept**, byte for byte, in the record's `prints`
+  before the download is answered — no copy leaves TTMS unrecorded. Keep the
+  save ahead of the response.
 - **The PDF prints only what the record holds.** Never fill it from the live
   carrier or a current FMCSA answer: it is what we knew then.
 

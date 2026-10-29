@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "006f857ffdbd61000546ff75d0988f35b8e94c1a",
+      "date": "2026-10-28T22:22:02-06:00",
+      "author": "erwindank",
+      "subject": "Keep a carrier vetting record each time a Dispatch Sheet is sent, with FMCSA asked live, copies of SaferWeb and the insurance certificate, and a Carrier Selection File PDF",
+      "body": ""
+    },
+    {
       "hash": "bdb7bf3c4c7ca0ea973c30bc28e3b2f5861d6195",
       "date": "2026-10-28T21:32:31-06:00",
       "author": "erwindank",

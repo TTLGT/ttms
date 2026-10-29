@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
-import { getCarrierVetting, vettingFileIntact, vettingIntact } from '@/lib/carrierVetting';
+import {
+  getCarrierVetting, keepVettingPrint, newVettingPrintId, vettingFileIntact, vettingIntact,
+} from '@/lib/carrierVetting';
 import { generateVettingPdf } from '@/lib/carrier-vetting-pdf';
 
 type RouteContext = { params: Promise<{ orderId: string; vettingId: string }> };
 
-// One PDF render and two small downloads to re-check the fingerprints.
+// One PDF render, two small downloads to re-check the fingerprints, and one
+// upload to keep the copy.
 export const maxDuration = 30;
 
 /**
@@ -16,6 +19,10 @@ export const maxDuration = 30;
  * Every print re-checks the record and its two files against the
  * fingerprints stored when it was taken, and says plainly on the page if one
  * no longer matches — the page is only worth handing over if it can say that.
+ *
+ * And every print is kept, byte for byte, before it is handed over (see
+ * VettingPrint): if the copy cannot be saved, the download is refused, so no
+ * copy ever leaves TTMS without one kept of it.
  */
 export async function GET(req: NextRequest, { params }: RouteContext) {
   const { orderId, vettingId } = await params;
@@ -29,12 +36,23 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
       v.files.saferWeb ? vettingFileIntact(v.files.saferWeb) : Promise.resolve(null),
       v.files.insurance ? vettingFileIntact(v.files.insurance) : Promise.resolve(null),
     ]);
-    const buffer = await generateVettingPdf({
-      v,
-      intact: { record: vettingIntact(v), saferWeb, insurance },
-      printedAt: Date.now(),
-      printedBy: caller.displayName || caller.email || 'TTMS',
-    });
+    const intact = { record: vettingIntact(v), saferWeb, insurance };
+    const printId = newVettingPrintId(vettingId);
+    const printedAt = Date.now();
+    const printedByName = caller.displayName || caller.email || 'TTMS';
+    const buffer = await generateVettingPdf({ v, intact, printedAt, printedBy: printedByName, printId });
+
+    try {
+      await keepVettingPrint({
+        orderId, vettingId, printId, pdf: buffer, printedAt, printedByName,
+        printedByEmail: caller.email ?? '', intact,
+      });
+    } catch {
+      return NextResponse.json(
+        { error: 'TTMS could not keep a copy of this PDF, so it was not handed out. Try again in a minute.' },
+        { status: 503 },
+      );
+    }
 
     const day = new Date(v.takenAt).toISOString().slice(0, 10);
     const name = `Carrier Selection File ${v.orderNumber} ${day}.pdf`.replace(/["\\/]/g, '');
