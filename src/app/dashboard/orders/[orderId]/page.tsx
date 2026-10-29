@@ -15,6 +15,7 @@ import { listCarriers } from '@/lib/carriers';
 import PriceAndTermsCard from '@/components/orders/PriceAndTermsCard';
 import SectionEditLink from '@/components/orders/SectionEditLink';
 import BolSendPanel from '@/components/orders/BolSendPanel';
+import BolVersions from '@/components/orders/BolVersions';
 import BolDetailsFields from '@/components/orders/BolDetailsFields';
 import AgreementPdfPreview from '@/components/orders/AgreementPdfPreview';
 import type { CommodityItem, Order, OrderStatus, StopKind } from '@/types/order';
@@ -2101,6 +2102,7 @@ export default function OrderDetailPage() {
                 }} />
               {/* Who it goes to once both sides have signed — see src/types/bolRequest.ts. */}
               {order.bolStoragePath && <BolSendPanel orderId={orderId} bolVersion={bolUrl ?? ''} />}
+              {order.bolStoragePath && <BolVersions orderId={orderId} refreshKey={bolUrl} />}
             </div>
           )}
 

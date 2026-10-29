@@ -15,7 +15,7 @@ import {
 import type { CommodityItem, Order, OrderStatus, OrderStop, StopKind } from '@/types/order';
 import {
   BOL_REQUESTS_COLLECTION, BOL_ROLE_LABEL,
-  type BolRecipient, type BolRecipientRole, type BolRequest, type BolRequestStatus, type BolSend,
+  type BolRecipient, type BolRecipientRole, type BolRequest, type BolRequestStatus, type BolSend, type BolVersion,
 } from '@/types/bolRequest';
 
 /**
@@ -30,6 +30,17 @@ const TTMS_ACTOR: ChangeActor = { uid: '', name: 'TTMS', email: '', via: 'app' }
 export const bolRequestRef = (orderId: string) => adminDb.collection(BOL_REQUESTS_COLLECTION).doc(orderId);
 
 export const bolPath = (orderId: string) => `bols/${orderId}.pdf`;
+
+/**
+ * Where a replaced BOL is kept. Deliberately not under `bols/`: that prefix is
+ * browser-writable in storage.rules, overwrite included, and a kept copy that
+ * anybody could replace is not a record. No rule names this prefix, so the
+ * browser can neither read nor write it — the same arrangement as load photos.
+ */
+export const bolVersionPath = (orderId: string, versionId: string) => `bol-versions/${orderId}/${versionId}.pdf`;
+
+export const bolVersionsRef = (orderId: string) =>
+  adminDb.collection('orders').doc(orderId).collection('bolVersions');
 
 const fmtDate = (ts: { toDate?: () => Date } | null | undefined): string => {
   if (!ts || typeof ts.toDate !== 'function') return '—';
@@ -160,8 +171,49 @@ async function bolBuffer(order: FirebaseFirestore.DocumentData): Promise<Buffer>
 }
 
 /**
- * Generates the BOL, stores it over the last one and records it on the order.
- * The caller has already decided this person (or TTMS) may.
+ * Copies the BOL on file aside before a new one replaces it, with the emails
+ * that went out while it was current.
+ *
+ * The sends are copied now, not matched up later, because the request they
+ * live on is replaced whole when a different carrier signs — after that,
+ * only this record still says which BOL the old carrier was sent.
+ *
+ * Not best-effort: if the copy fails, generating fails, rather than quietly
+ * overwriting the only copy of a document that may already be with a driver.
+ */
+async function keepPreviousBol(orderId: string, replacedBy: ChangeActor): Promise<void> {
+  const bucket = adminStorage.bucket();
+  const current = bucket.file(bolPath(orderId));
+  const [exists] = await current.exists();
+  if (!exists) return;
+
+  const [meta] = await current.getMetadata();
+  const drawn = meta.updated ?? meta.timeCreated;
+  const generatedAt = drawn ? Timestamp.fromDate(new Date(drawn)) : null;
+  const madeBy = meta.metadata?.generatedByName;
+
+  const request = (await bolRequestRef(orderId).get()).data();
+  const sends = (Array.isArray(request?.sends) ? request.sends : []).filter((s: { at?: Timestamp }) => {
+    const at = s.at?.toMillis?.() ?? 0;
+    return !generatedAt || at >= generatedAt.toMillis();
+  });
+
+  const ref = bolVersionsRef(orderId).doc();
+  const storagePath = bolVersionPath(orderId, ref.id);
+  await current.copy(bucket.file(storagePath));
+  await ref.set({
+    storagePath,
+    generatedAt,
+    generatedByName: madeBy ? String(madeBy) : null,
+    replacedAt:      Timestamp.now(),
+    replacedByName:  replacedBy.name || 'TTMS',
+    sends,
+  });
+}
+
+/**
+ * Generates the BOL, keeps the last one as a version, and records it on the
+ * order. The caller has already decided this person (or TTMS) may.
  */
 export async function generateBol(
   orderId: string,
@@ -171,7 +223,12 @@ export async function generateBol(
 ): Promise<string> {
   const buffer = await bolBuffer(order);
   const filePath = bolPath(orderId);
-  await adminStorage.bucket().file(filePath).save(buffer, { metadata: { contentType: 'application/pdf' } });
+  await keepPreviousBol(orderId, actor);
+  // Who drew it rides on the file, so the version record can name them when
+  // this one is replaced in turn.
+  await adminStorage.bucket().file(filePath).save(buffer, {
+    metadata: { contentType: 'application/pdf', metadata: { generatedByName: actor.name || 'TTMS' } },
+  });
   await updateWithHistory(adminDb.collection('orders').doc(orderId), {
     bolStoragePath: filePath,
     updatedAt:      new Date(),
@@ -255,6 +312,23 @@ export async function openBolRequestIfSigned(orderId: string, because: string): 
   await postOrderAlert(orderId,
     'Both sides have signed, so TTMS generated the BOL. Admin and dispatch: choose who to send it to from the order.',
   ).catch(() => {});
+}
+
+/** Every earlier BOL on this load, newest first. The caller has checked the order. */
+export async function listBolVersions(orderId: string): Promise<BolVersion[]> {
+  const ms = (v: unknown) => (v && typeof (v as Timestamp).toMillis === 'function' ? (v as Timestamp).toMillis() : 0);
+  const snap = await bolVersionsRef(orderId).orderBy('replacedAt', 'desc').get();
+  return snap.docs.map((d) => {
+    const v = d.data();
+    return {
+      id:              d.id,
+      generatedAt:     v.generatedAt ? ms(v.generatedAt) : null,
+      generatedByName: v.generatedByName ? String(v.generatedByName) : null,
+      replacedAt:      ms(v.replacedAt),
+      replacedByName:  String(v.replacedByName ?? ''),
+      sends:           toBolRequest({ sends: v.sends }).sends,
+    };
+  });
 }
 
 export function toBolRequest(d: FirebaseFirestore.DocumentData): BolRequest {

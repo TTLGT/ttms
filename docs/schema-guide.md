@@ -1230,6 +1230,26 @@ Closed to the client SDK (`allow read, write: if false`, the same as the
 default deny). The BOL itself carries **no rates** since 2026-10-14 — it goes
 to the shipper, consignee, carrier and client alike.
 
+### Subcollection: `orders/{orderId}/bolVersions` — earlier BOLs (2026-10-28)
+
+The current BOL is always `bols/{orderId}.pdf`, and generating it again
+replaces that file. Before it does, `generateBol()` copies the old one to
+`bol-versions/{orderId}/{versionId}.pdf` and writes one document here. If the
+copy fails, the generate fails — the old BOL is never lost silently.
+
+| Field | Meaning |
+|---|---|
+| `storagePath` | The kept PDF. Read only through `GET /api/orders/{id}/bol/versions?version=<id>`, which checks the order first. |
+| `generatedAt`, `generatedByName` | When the replaced BOL was drawn, and by whom (from the file's metadata; null for one drawn before 2026-10-28). |
+| `replacedAt`, `replacedByName` | Who generated the BOL that replaced it — `TTMS` when a signature did. |
+| `sends` | The emails that went out while it was current, copied from `bolRequests` — that request is replaced whole when a new carrier signs. |
+
+Closed to the client SDK by the default deny. `bol-versions/` has no rule in
+`storage.rules` on purpose: `bols/` is browser-writable, and a kept copy anybody
+could overwrite is not a record. Shown as "Earlier BOLs" in the Bill of Lading
+card. A BOL generated before this existed is kept from its next regenerate on;
+nothing replaced earlier can be recovered.
+
 ## Collection: `agreements`
 
 Tracks the e-sign lifecycle for both Carrier and Shipper agreements.

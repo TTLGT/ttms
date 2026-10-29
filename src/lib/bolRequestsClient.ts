@@ -1,7 +1,7 @@
 'use client';
 
 import { auth } from './firebase';
-import type { BolRecipient, BolRequest } from '@/types/bolRequest';
+import type { BolRecipient, BolRequest, BolVersion } from '@/types/bolRequest';
 
 /** BOL requests from the browser. See src/types/bolRequest.ts. */
 
@@ -33,6 +33,19 @@ export async function markBolRequestDone(orderId: string): Promise<{ request: Bo
   return unwrap(await fetch(`/api/orders/${orderId}/bol-request`, {
     method: 'POST', headers: await authHeaders(), body: JSON.stringify({ action: 'done' }),
   }));
+}
+
+export async function listBolVersions(orderId: string): Promise<BolVersion[]> {
+  return (await unwrap<{ versions: BolVersion[] }>(
+    await fetch(`/api/orders/${orderId}/bol/versions`, { headers: await authHeaders() }),
+  )).versions;
+}
+
+/** A two-hour link to one earlier BOL. */
+export async function bolVersionUrl(orderId: string, versionId: string): Promise<string> {
+  return (await unwrap<{ url: string }>(await fetch(
+    `/api/orders/${orderId}/bol/versions?version=${encodeURIComponent(versionId)}`, { headers: await authHeaders() },
+  ))).url;
 }
 
 export async function listBolRequests(): Promise<BolRequest[]> {

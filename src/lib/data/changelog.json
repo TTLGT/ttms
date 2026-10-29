@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "6218f7ed6512ba0af035453df74f914815a3404b",
+      "date": "2026-10-28T22:51:16-06:00",
+      "author": "erwindank",
+      "subject": "Keep the open order tab in the address, so a refresh reopens the same tab instead of Details",
+      "body": ""
+    },
+    {
       "hash": "963e4b09decd8801345d1bf6058c528394dc5227",
       "date": "2026-10-28T22:47:04-06:00",
       "author": "erwindank",

@@ -98,3 +98,21 @@ export interface BolRequest {
   doneAt: number | null;
   doneByName: string | null;
 }
+
+/**
+ * A BOL that was on file until somebody generated it again — kept, not
+ * overwritten, because it may already have gone to a dock or a driver and
+ * "what did the carrier actually receive?" has to stay answerable.
+ * `orders/{orderId}/bolVersions/{id}`; the PDF is `bol-versions/{orderId}/{id}.pdf`.
+ */
+export interface BolVersion {
+  id: string;
+  /** Epoch ms the PDF was drawn; null only if Storage did not say. */
+  generatedAt: number | null;
+  /** Null for a BOL drawn before versions were kept, which recorded nobody. */
+  generatedByName: string | null;
+  replacedAt: number;
+  replacedByName: string;
+  /** The emails that went out while this was the BOL on file. */
+  sends: BolSend[];
+}
