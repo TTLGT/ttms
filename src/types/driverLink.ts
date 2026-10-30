@@ -56,6 +56,22 @@ export function statusForStep(step: DriverStep): OrderStatus | null {
   return null;
 }
 
+/**
+ * The steps that cannot be sent without a picture, and which stop it is
+ * filed against. Picked up and Delivered are the two that change who holds
+ * the freight, so they are the two worth evidence — usually the signed BOL
+ * or the freight on the deck / at the door. The server refuses either
+ * without one (`recordStep()`); the page asks for it before it sends.
+ */
+export const STEP_PHOTO: Partial<Record<DriverStep, { stop: 'pickup' | 'delivery'; caption: string }>> = {
+  picked_up: { stop: 'pickup',   caption: 'Proof of pickup' },
+  delivered: { stop: 'delivery', caption: 'Proof of delivery' },
+};
+
+export function stepNeedsPhoto(step: DriverStep): boolean {
+  return Boolean(STEP_PHOTO[step]);
+}
+
 /** Where a step was tapped, when the driver let the phone say. */
 export interface DriverPoint {
   lat: number;
@@ -72,7 +88,7 @@ export interface DriverPoint {
 export interface DriverStepMark {
   at: number;
   point: DriverPoint | null;
-  /** The delivery picture, for `delivered`. */
+  /** The step's picture, for the steps in `STEP_PHOTO`. */
   photoId?: string | null;
 }
 

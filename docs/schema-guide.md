@@ -673,7 +673,9 @@ and `/api/driver/{token}` (public). See `src/types/driverLink.ts`.
 
 Queried by `orderId ==` alone (automatic single-field index). Pictures from
 the link land in `loadPhotos` with `uploadedByUid: ''` and `uploadedVia:
-'driver'`; the Delivered picture is a `proof` picture at the delivery stop.
+'driver'`; the Picked up and Delivered pictures (both required) are `proof`
+pictures at the pickup and delivery stop, and `driverProgress[step].photoId`
+points at them.
 
 ---
 

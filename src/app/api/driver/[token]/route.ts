@@ -29,8 +29,8 @@ export const maxDuration = 30;
  * src/types/driverLink.ts.
  *
  * One multipart form with an `action`:
- * - `step`     — `step`, optional `lat`/`lng`/`accuracy`; `delivered` also
- *                needs `photo` + `thumb`.
+ * - `step`     — `step`, optional `lat`/`lng`/`accuracy`; `picked_up` and
+ *                `delivered` also need `photo` + `thumb` (STEP_PHOTO).
  * - `location` — `lat`, `lng`, `accuracy`.
  * - `photo`    — `photo` + `thumb`, `stage`, `caption`.
  * - `paid`     — `mark` (`driverPaid`, or `clientPaid` on COD), `proof`, `note`.

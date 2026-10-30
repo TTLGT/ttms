@@ -1374,8 +1374,11 @@ switched off from the Carrier section (`DriverLinkCard`). Types in
   (`hasSignAccess()` reused, its own cookies). One live link per load: a new
   one revokes the old, and a carrier change kills it.
 - **Steps move the status forward only, and only from Carrier Signed up**
-  (`stepStatus()`): a driver's tap is not a rate confirmation. Delivered
-  needs a picture, filed as a `proof` load photo. Every write carries a
+  (`stepStatus()`): a driver's tap is not a rate confirmation. Picked up
+  and Delivered each need a picture (`STEP_PHOTO`, refused server-side
+  without one), filed as a `proof` load photo at that stop — usually the
+  signed BOL. The page's picture buttons open the phone camera
+  (`capture`) beside a pick-from-gallery one. Every write carries a
   change-log entry with `via: 'driver'`.
 - **Completed waits on payment.** `paymentMarks` (`src/types/orderPayment.ts`)
   — client paid and driver paid, or on COD client-paid-the-driver and broker

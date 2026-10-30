@@ -15,6 +15,7 @@ import {
   DRIVER_LINK_DAYS,
   DRIVER_STEP_LABEL,
   MIN_LOCATION_GAP_MS,
+  STEP_PHOTO,
   mapsUrl,
   statusForStep,
   type DriverLinkInfo,
@@ -317,16 +318,21 @@ function photoRoom(order: Data): void {
   }
 }
 
-/** The delivery stop's label, for the proof-of-delivery picture. */
-function deliveryLabel(order: Data): string {
-  return photoLocationChoices(order as Order, ['delivery'])[0] ?? '';
+/** The first pickup or delivery stop's label, for a step's proof picture. */
+function stopLabel(order: Data, stop: 'pickup' | 'delivery'): string {
+  return photoLocationChoices(order as Order, [stop])[0] ?? '';
 }
 
 /**
  * One step of the trip. A step already recorded is not recorded again — the
  * driver tapping twice in a yard with one bar of signal is the normal case.
- * `delivered` needs its picture; it is filed as a Proof picture at the
- * delivery stop and is what the step points at.
+ * The steps in `STEP_PHOTO` (picked up, delivered) need their picture; it is
+ * filed as a Proof picture at that stop and is what the step points at.
+ * Proof, not Commodity, because it is usually the signed BOL — paperwork,
+ * which clientPhotoId() keeps off client documents.
+ *
+ * A step sent with a picture it does not need still files it, against the
+ * delivery stop as before.
  */
 export async function recordStep(
   link: Data,
@@ -338,8 +344,11 @@ export async function recordStep(
   const orderRef = adminDb.collection('orders').doc(orderId);
   const order    = (await orderRef.get()).data() ?? {};
   if (order.driverProgress?.[step]) return { moved: null, already: true };
-  if (step === 'delivered' && !photo) {
-    throw new DriverActionError('Take a picture of the delivered freight or the signed delivery receipt first.', 400);
+  const needs = STEP_PHOTO[step];
+  if (needs && !photo) {
+    throw new DriverActionError(step === 'picked_up'
+      ? 'Take a picture of the loaded freight or the signed BOL first.'
+      : 'Take a picture of the delivered freight or the signed delivery receipt first.', 400);
   }
 
   let photoId: string | null = null;
@@ -371,8 +380,8 @@ export async function recordStep(
   const batch = adminDb.batch();
   if (photo && photoId) {
     Object.assign(write, queuePhoto(batch, orderId, order, photoId, {
-      ...photo, stage: 'proof', location: deliveryLabel(order),
-      caption: photo.caption || 'Proof of delivery',
+      ...photo, stage: 'proof', location: stopLabel(order, needs?.stop ?? 'delivery'),
+      caption: photo.caption || (needs?.caption ?? STEP_PHOTO.delivered!.caption),
     }, link));
   }
   // `update` with a dotted path, so an order with no driverProgress map yet

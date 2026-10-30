@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { Camera, Check, CircleDollarSign, ImagePlus, MapPin, Navigation, Paperclip } from 'lucide-react';
 import { prepareLoadPhoto } from '@/lib/imagePrep';
-import { DRIVER_STEPS, type DriverPoint, type DriverProgress, type DriverStep } from '@/types/driverLink';
+import { DRIVER_STEPS, stepNeedsPhoto, type DriverPoint, type DriverProgress, type DriverStep } from '@/types/driverLink';
 import { PHOTO_STAGES, type PhotoStage } from '@/types/loadPhoto';
 import { DriverHeader, useDriverLang } from './DriverChrome';
 import { errorText, type Lang, type Strings } from './strings';
@@ -168,9 +168,9 @@ export default function DriverPanel({ data }: { data: DriverPageData }) {
                   </li>
                 );
               }
-              if (step === 'delivered') {
-                return <DeliveredStep key={step} t={t} busy={busy === step} disabled={Boolean(busy)}
-                  highlight={nextStep === step} onSend={(photo) => tapStep('delivered', photo)} onError={setError} />;
+              if (stepNeedsPhoto(step)) {
+                return <PhotoStep key={step} step={step} t={t} busy={busy === step} disabled={Boolean(busy)}
+                  highlight={nextStep === step} onSend={(photo) => tapStep(step, photo)} onError={setError} />;
               }
               return (
                 <li key={step}>
@@ -279,12 +279,12 @@ function Stops({ title, stops, t, lang }: { title: string; stops: DriverStopView
 }
 
 /**
- * Delivered, which needs its picture. Two buttons rather than one: `capture`
- * opens the camera straight away on a phone, and the other lets a driver who
- * already took the picture pick it.
+ * A step that needs its picture — Picked up and Delivered (STEP_PHOTO).
+ * Two buttons rather than one: `capture` opens the camera straight away on a
+ * phone, and the other lets a driver who already took the picture pick it.
  */
-function DeliveredStep({ t, busy, disabled, highlight, onSend, onError }: {
-  t: Strings; busy: boolean; disabled: boolean; highlight: boolean;
+function PhotoStep({ step, t, busy, disabled, highlight, onSend, onError }: {
+  step: DriverStep; t: Strings; busy: boolean; disabled: boolean; highlight: boolean;
   onSend: (photo: { photo: Blob; thumb: Blob; width: number; height: number }) => Promise<void>;
   onError: (m: string) => void;
 }) {
@@ -313,7 +313,7 @@ function DeliveredStep({ t, busy, disabled, highlight, onSend, onError }: {
           className={`w-full rounded-lg px-4 py-3.5 text-left text-base font-semibold transition disabled:opacity-60 ${
             highlight ? 'bg-brand-600 text-white hover:bg-brand-700' : 'border border-gray-300 bg-white text-gray-800 hover:bg-gray-50'
           }`}>
-          {t.step.delivered}
+          {t.step[step]}
         </button>
       </li>
     );
@@ -321,8 +321,8 @@ function DeliveredStep({ t, busy, disabled, highlight, onSend, onError }: {
 
   return (
     <li className="rounded-lg border border-brand-300 bg-brand-50 p-3">
-      <p className="text-sm font-semibold text-gray-900">{t.step.delivered}</p>
-      <p className="mt-1 text-xs text-gray-600">{t.deliveredNeedsPhoto}</p>
+      <p className="text-sm font-semibold text-gray-900">{t.step[step]}</p>
+      <p className="mt-1 text-xs text-gray-600">{t.stepNeedsPhoto[step === 'picked_up' ? 'picked_up' : 'delivered']}</p>
       <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden"
         onChange={(e) => { void pick(e.target.files); e.target.value = ''; }} />
       <input ref={gallery} type="file" accept="image/*" className="hidden"
@@ -346,7 +346,7 @@ function DeliveredStep({ t, busy, disabled, highlight, onSend, onError }: {
         <button type="button" disabled={!prepared || disabled}
           onClick={() => prepared && void onSend(prepared)}
           className="flex-1 rounded-lg bg-brand-600 px-4 py-3 text-base font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
-          {busy ? t.sending : t.confirmDelivered}
+          {busy ? t.sending : t.confirmStep(t.step[step])}
         </button>
         <button type="button" disabled={busy} onClick={() => { setOpen(false); setPrepared(null); setPreview(''); }}
           className="rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-700">
@@ -375,7 +375,15 @@ function PhotosCard({ t, busy, disabled, onSend }: {
 }) {
   const [stage, setStage] = useState<PhotoStage>('commodity');
   const [caption, setCaption] = useState('');
-  const input = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
+  const gallery = useRef<HTMLInputElement>(null);
+
+  function pick(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length) void onSend(files, stage, caption).then(() => setCaption(''));
+  }
+
   return (
     <Card>
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{t.pictures}</p>
@@ -387,16 +395,25 @@ function PhotosCard({ t, busy, disabled, onSend }: {
       </select>
       <input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder={t.caption} maxLength={300}
         className="mb-3 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base" />
-      <input ref={input} type="file" accept="image/*" multiple className="hidden"
-        onChange={(e) => {
-          const files = Array.from(e.target.files ?? []);
-          e.target.value = '';
-          if (files.length) void onSend(files, stage, caption).then(() => setCaption(''));
-        }} />
-      <button type="button" disabled={disabled} onClick={() => input.current?.click()}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-3 text-base font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60">
-        <Camera className="h-5 w-5" /> {busy ? t.sending : t.addPictures}
-      </button>
+      {/* `capture` opens the phone's camera straight away, one picture a
+          press; the gallery button takes several already on the phone. On a
+          computer, `capture` is ignored and both open the file picker. */}
+      <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden" onChange={pick} />
+      <input ref={gallery} type="file" accept="image/*" multiple className="hidden" onChange={pick} />
+      {busy ? (
+        <p className="rounded-lg border border-gray-300 bg-white px-4 py-3 text-center text-base font-semibold text-gray-800">{t.sending}</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" disabled={disabled} onClick={() => camera.current?.click()}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-3 py-3 text-base font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
+            <Camera className="h-5 w-5" /> {t.takePhoto}
+          </button>
+          <button type="button" disabled={disabled} onClick={() => gallery.current?.click()}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-3 text-base font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60">
+            <ImagePlus className="h-5 w-5" /> {t.choosePhoto}
+          </button>
+        </div>
+      )}
     </Card>
   );
 }
@@ -408,6 +425,7 @@ function PaymentCard({ t, lang, cod, delivered, paidAt, busy, disabled, onSend }
   const [file, setFile] = useState<File | null>(null);
   const [note, setNote] = useState('');
   const input = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
   const label = cod ? t.paidCod : t.paidDriver;
 
   return (
@@ -426,12 +444,25 @@ function PaymentCard({ t, lang, cod, delivered, paidAt, busy, disabled, onSend }
       ) : (
         <>
           <p className="mb-3 mt-1 text-xs text-gray-500">{cod ? t.paidCodHint : t.paidDriverHint}</p>
+          <input ref={camera} type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.target.value = ''; }} />
           <input ref={input} type="file" accept="image/*,application/pdf" className="hidden"
             onChange={(e) => { setFile(e.target.files?.[0] ?? null); e.target.value = ''; }} />
-          <button type="button" disabled={disabled} onClick={() => input.current?.click()}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50">
-            <Paperclip className="h-4 w-4" /> {file ? file.name : t.attachProof}
-          </button>
+          {file && (
+            <p className="mb-2 flex items-center gap-1.5 truncate text-sm text-gray-800">
+              <Paperclip className="h-4 w-4 shrink-0" /> {file.name}
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" disabled={disabled} onClick={() => camera.current?.click()}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50">
+              <Camera className="h-4 w-4" /> {t.takePhoto}
+            </button>
+            <button type="button" disabled={disabled} onClick={() => input.current?.click()}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50">
+              <Paperclip className="h-4 w-4" /> {t.attachProof}
+            </button>
+          </div>
           <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t.caption} maxLength={300}
             className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base" />
           <button type="button" disabled={!file || disabled}
