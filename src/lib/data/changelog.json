@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "43d52694f9b94f83cad6a2e0ad012339be315ba3",
+      "date": "2026-10-29T21:55:05-06:00",
+      "author": "erwindank",
+      "subject": "Let the driver take pictures with the phone camera from their link, and require a picture to mark a load picked up as well as delivered",
+      "body": ""
+    },
+    {
       "hash": "07152af07e8e65d7de85849e97deb4affb597f9a",
       "date": "2026-10-29T06:02:03-06:00",
       "author": "erwindank",

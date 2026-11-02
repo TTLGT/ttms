@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ChevronDown, ChevronRight, Download, Eye, Loader2 } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { bolVersionUrl, listBolVersions } from '@/lib/bolRequestsClient';
+import { bolVersionPdf, listBolVersions } from '@/lib/bolRequestsClient';
 import AgreementPdfPreview from './AgreementPdfPreview';
 import type { BolVersion } from '@/types/bolRequest';
 
@@ -22,7 +22,11 @@ export default function BolVersions({ orderId, refreshKey }: { orderId: string; 
   const [loadedFor, setLoadedFor] = useState<unknown>(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
-  const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
+  const [preview, setPreview] = useState<{ url: string; name: string; title: string } | null>(null);
+
+  const closePreview = useCallback(() => {
+    setPreview((p) => { if (p) URL.revokeObjectURL(p.url); return null; });
+  }, []);
 
   function toggle() {
     const next = !open;
@@ -35,15 +39,16 @@ export default function BolVersions({ orderId, refreshKey }: { orderId: string; 
     }
   }
 
-  // A fresh link each time rather than one per row up front: they last two
-  // hours, and most of this list is never opened.
+  // Fetched when opened rather than up front: the server stamps each one VOID
+  // on the way out, and most of this list is never opened.
   async function openVersion(key: string, v: BolVersion, n: number) {
     setBusy(key);
     setError('');
     try {
-      const url = await bolVersionUrl(orderId, v.id);
-      if (key.startsWith('view-')) setPreview({ url, title: `Bill of Lading, version ${n}` });
-      else window.open(url, '_blank', 'noreferrer');
+      const { url, name } = await bolVersionPdf(orderId, v.id);
+      const named = name.replace(/ VOID\.pdf$/, ` v${n} VOID.pdf`);
+      if (key.startsWith('view-')) setPreview({ url, name: named, title: `Bill of Lading, version ${n} (void)` });
+      else { save(url, named); setTimeout(() => URL.revokeObjectURL(url), 10_000); }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not open that BOL');
     } finally {
@@ -51,7 +56,16 @@ export default function BolVersions({ orderId, refreshKey }: { orderId: string; 
     }
   }
 
-  const button = 'inline-flex items-center gap-1 px-2.5 py-1 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50';
+  function save(url: string, name: string) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  const button ='inline-flex items-center gap-1 px-2.5 py-1 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50';
 
   return (
     <div className="mt-3">
@@ -106,8 +120,8 @@ export default function BolVersions({ orderId, refreshKey }: { orderId: string; 
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       {preview && (
         <AgreementPdfPreview url={preview.url} title={preview.title}
-          onClose={() => setPreview(null)}
-          onDownload={() => window.open(preview.url, '_blank', 'noreferrer')} />
+          onClose={closePreview}
+          onDownload={() => save(preview.url, preview.name)} />
       )}
     </div>
   );

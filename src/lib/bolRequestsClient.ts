@@ -41,11 +41,18 @@ export async function listBolVersions(orderId: string): Promise<BolVersion[]> {
   )).versions;
 }
 
-/** A two-hour link to one earlier BOL. */
-export async function bolVersionUrl(orderId: string, versionId: string): Promise<string> {
-  return (await unwrap<{ url: string }>(await fetch(
+/**
+ * One earlier BOL, stamped VOID by the server, as a `blob:` URL typed as a PDF
+ * so the browser's viewer draws it. The caller revokes it when done.
+ */
+export async function bolVersionPdf(orderId: string, versionId: string): Promise<{ url: string; name: string }> {
+  const res = await fetch(
     `/api/orders/${orderId}/bol/versions?version=${encodeURIComponent(versionId)}`, { headers: await authHeaders() },
-  ))).url;
+  );
+  if (!res.ok) await unwrap(res);
+  const blob = await res.blob();
+  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'BOL VOID.pdf';
+  return { url: URL.createObjectURL(new Blob([blob], { type: 'application/pdf' })), name };
 }
 
 export async function listBolRequests(): Promise<BolRequest[]> {

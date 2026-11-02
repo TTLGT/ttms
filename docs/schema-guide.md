@@ -1297,7 +1297,7 @@ copy fails, the generate fails — the old BOL is never lost silently.
 
 | Field | Meaning |
 |---|---|
-| `storagePath` | The kept PDF. Read only through `GET /api/orders/{id}/bol/versions?version=<id>`, which checks the order first. |
+| `storagePath` | The kept PDF, never altered. Read only through `GET /api/orders/{id}/bol/versions?version=<id>`, which checks the order first and hands out a copy stamped VOID on every page (`src/lib/bolVoidStamp.ts`, since 2026-11-02) — never a link to the stored file, which would go out unstamped. |
 | `generatedAt`, `generatedByName` | When the replaced BOL was drawn, and by whom (from the file's metadata; null for one drawn before 2026-10-28). |
 | `replacedAt`, `replacedByName` | Who generated the BOL that replaced it — `TTMS` when a signature did. |
 | `sends` | The emails that went out while it was current, copied from `bolRequests` — that request is replaced whole when a new carrier signs. |
