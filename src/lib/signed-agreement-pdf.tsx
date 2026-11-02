@@ -161,6 +161,13 @@ const s = StyleSheet.create({
   voidBox:   { borderWidth: 1.5, borderColor: '#dc2626', borderStyle: 'solid', backgroundColor: '#fef2f2', borderRadius: 4, padding: 8, marginBottom: 10 },
   voidHead:  { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#b91c1c', marginBottom: 2 },
   voidTxt:   { fontSize: 8, color: '#991b1b' },
+  // The certificate carries its own stamp. The page stamp sits in the middle,
+  // and a certificate that lands at the top or foot of a page would otherwise
+  // be the one part of a void copy with nothing over it — and the part most
+  // worth cropping out and passing off as current.
+  certVoid:  { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  certVoidMark: { fontSize: 96, fontFamily: 'Helvetica-Bold', color: '#dc2626', opacity: 0.22, transform: 'rotate(-12deg)', letterSpacing: 10 },
+  certVoidNote: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#b91c1c', paddingHorizontal: 10, paddingBottom: 6 },
 });
 
 function PanelHead({ title }: { title: string }) {
@@ -447,7 +454,9 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
           <View style={s.cert} wrap={false}>
             <View style={s.certHead}>
               <Text style={s.certTitle}>DIGITAL SIGNATURE CERTIFICATE</Text>
-              <Text style={s.certBadge}>SIGNED ELECTRONICALLY</Text>
+              {d.voidNote
+                ? <Text style={[s.certBadge, { backgroundColor: '#b91c1c' }]}>VOID · NO LONGER VALID</Text>
+                : <Text style={s.certBadge}>SIGNED ELECTRONICALLY</Text>}
             </View>
             <Text style={s.consent}>
               By choosing to sign electronically and entering their full name, the signer agreed that this electronic
@@ -485,10 +494,21 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
               Signed under the U.S. E-SIGN Act. The signer&apos;s name, title, IP address, device, and the date and time were
               recorded by Total Transport Logistics at the moment of signing.
             </Text>
+            {d.voidNote ? (
+              <Text style={s.certVoidNote}>
+                VOID: {d.voidNote}. This signature is kept as a record only and does not bind either party to this version.
+              </Text>
+            ) : null}
             <View style={s.printBar}>
               <Text style={s.printLbl}>DIGITAL FINGERPRINT (SHA-256)</Text>
               <Text style={s.printVal}>{sig.fingerprint}</Text>
             </View>
+            {/* Last inside the box, so it is drawn over the signature. */}
+            {d.voidNote ? (
+              <View style={s.certVoid}>
+                <Text style={s.certVoidMark}>VOID</Text>
+              </View>
+            ) : null}
           </View>
         ) : null}
 
@@ -511,7 +531,10 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
 
         <View style={s.footer} fixed>
           <Text style={s.footTxt}>{COMPANY.legalName} · {COMPANY.phone} · {COMPANY.web}</Text>
-          <Text style={s.footTxt}>{docName} · Order {f.orderNumber}</Text>
+          {/* Every page says it, so no single page of a void copy reads as current. */}
+          <Text style={d.voidNote ? [s.footTxt, { color: '#b91c1c', fontFamily: 'Helvetica-Bold' }] : s.footTxt}>
+            {docName} · Order {f.orderNumber}{d.voidNote ? ' · VOID' : ''}
+          </Text>
           <Text style={s.footTxt} render={({ pageNumber, totalPages }) => `Generated ${d.generatedAt} · Page ${pageNumber} of ${totalPages}`} />
         </View>
       </Page>
