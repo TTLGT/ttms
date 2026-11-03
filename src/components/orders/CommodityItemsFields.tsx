@@ -1,6 +1,7 @@
 'use client';
 
-import { Plus, Trash2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Info, Plus, Trash2 } from 'lucide-react';
 import MoneyInput from '@/components/MoneyInput';
 import {
   blankCommodityItem,
@@ -23,6 +24,31 @@ import type { CommodityItem, DimensionUnit, StopKind, WeightUnit } from '@/types
 
 const INPUT =
   'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
+
+/**
+ * An (i) beside a label that explains it on hover. Not a native `title`:
+ * that waits a second, never shows on a phone, and is easy to miss. This one
+ * also opens on focus, so a tap or Tab reaches it. Sits inside the <label>,
+ * so preventDefault stops a click on it from jumping into the input.
+ */
+function FieldHint({ children }: { children: ReactNode }) {
+  return (
+    <span
+      tabIndex={0}
+      onClick={(e) => e.preventDefault()}
+      className="group relative inline-flex cursor-help text-gray-400 hover:text-gray-600 focus:text-gray-600 focus:outline-none"
+      aria-label="What is this?"
+    >
+      <Info size={13} />
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-1/2 bottom-full z-20 mb-1.5 w-64 -translate-x-1/2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-normal leading-snug text-gray-700 shadow-lg opacity-0 transition-opacity group-hover:opacity-100 group-focus:opacity-100"
+      >
+        {children}
+      </span>
+    </span>
+  );
+}
 
 /**
  * Number inputs are held as strings so a half-typed value ("1.", "") is not
@@ -236,7 +262,14 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
               {/* For the BOL's handling-unit and H.M. columns. Pieces above
                   count the goods; these say what they travel on. */}
               <div className="col-span-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Handling units</label>
+                <label className="flex items-center gap-1 text-xs font-medium text-gray-600 mb-1">
+                  Handling units
+                  <FieldHint>
+                    How many separate things get moved on and off the truck — usually
+                    what a forklift picks up. 40 boxes wrapped onto 2 pallets is
+                    Pieces 40, Handling units 2. Printed on the BOL.
+                  </FieldHint>
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -246,18 +279,20 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                     patch(item.id, { handlingUnits: n > 0 ? n : null });
                   }}
                   placeholder="e.g. 2"
-                  title="How many pallets, skids or crates the pieces travel on"
                   className={INPUT}
                 />
               </div>
               <div className="col-span-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Unit type</label>
+                {/* Was "Unit type", which read as a unit of measure next to
+                    the in/lbs boxes. Not "Pallet type" either: drums, rolls
+                    and crates are handling units too. Stored field unchanged. */}
+                <label className="block text-xs font-medium text-gray-600 mb-1">Packaging</label>
                 <input
                   maxLength={12}
                   list="handling-unit-suggestions"
                   value={item.handlingUnitType ?? ''}
                   onChange={(e) => patch(item.id, { handlingUnitType: e.target.value.toUpperCase() })}
-                  placeholder="e.g. PLT"
+                  placeholder="PLT, CRATE, DRUM…"
                   className={INPUT}
                 />
               </div>

@@ -1,6 +1,20 @@
 {
   "changes": [
     {
+      "hash": "b6b32d3cd2453b194964586fe5d9360579be2ae2",
+      "date": "2026-11-02T15:36:39-06:00",
+      "author": "erwindank",
+      "subject": "Stamp earlier BOLs VOID on every page when they are previewed or downloaded, keeping the stored copy untouched",
+      "body": ""
+    },
+    {
+      "hash": "9a517e34d234d4bd429218ae20e629d340b92aa1",
+      "date": "2026-11-02T15:36:38-06:00",
+      "author": "erwindank",
+      "subject": "Stamp the signature box of a void agreement VOID and mark every page's footer, so no part of a replaced SA or Dispatch Sheet reads as current",
+      "body": ""
+    },
+    {
       "hash": "43d52694f9b94f83cad6a2e0ad012339be315ba3",
       "date": "2026-10-29T21:55:05-06:00",
       "author": "erwindank",
