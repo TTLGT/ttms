@@ -1703,6 +1703,7 @@ export default function OrderDetailPage() {
                   signed: it is where the client downloads their signed copy. */}
               <ClientSignLink
                 orderId={orderId}
+                orderNumber={orderDisplayNumber(order)}
                 refreshKey={linkRefresh}
                 onSent={(to) => setShipperAgreementSentTo((prev) => prev || to)}
               />
@@ -1922,6 +1923,7 @@ export default function OrderDetailPage() {
                     Carrier Agreement has gone to this carrier. */}
                 <ClientSignLink
                   orderId={orderId}
+                  orderNumber={orderDisplayNumber(order)}
                   party="carrier"
                   refreshKey={caRefresh}
                   onSent={(to) => setAgreementSentTo((prev) => prev || to)}

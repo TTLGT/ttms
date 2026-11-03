@@ -25,18 +25,8 @@ export const TTL = {
   rule:      '#d6dbea',
 } as const;
 
-/**
- * The letterhead, as BATS printed it on the Shipper Agreement. Written here
- * rather than read from settings because nothing in the app edits it; if the
- * office moves, this is the line to change.
- */
-export const COMPANY = {
-  legalName: 'Total Transport Logistics, Inc.',
-  street:    '4833 W Royal Ln',
-  city:      'Irving, TX 75063',
-  phone:     '(469) 472-2334',
-  web:       'totaltransportlogistics.us',
-} as const;
+// The letterhead moved to company.ts so the browser can read it too.
+export { COMPANY } from './company';
 
 const LOGO_FULL_PATH = path.join(process.cwd(), 'public', 'logo-full.png');
 let logoFullData: Buffer | null = null;

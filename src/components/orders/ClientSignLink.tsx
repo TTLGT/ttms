@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Check, Copy, Eye } from 'lucide-react';
+import { Check, Copy, Eye, QrCode } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { copyToClipboard } from '@/lib/clipboard';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -33,12 +33,18 @@ type SignLink = {
  * `refreshKey` changes when the order page sends an SA, so the box picks up
  * the new state without a reload.
  *
+ * QR card downloads a small printable "scan to sign" card for the link
+ * (src/lib/signQrCard.ts) — only while the link is live: a held, expired or
+ * signed link would send whoever scans it to a page where they cannot sign.
+ *
  * `onSent` tells the page the SA already went out, so after a reload it
  * offers Resend rather than a first send. Only for a live or expired link: a
  * held one waits on dispatch's review, and sending it is the review's job.
  */
-export default function ClientSignLink({ orderId, party = 'client', refreshKey, onSent }: {
+export default function ClientSignLink({ orderId, orderNumber, party = 'client', refreshKey, onSent }: {
   orderId: string;
+  /** Printed on the QR card so the signer knows which load it is for. */
+  orderNumber?: string;
   party?: 'client' | 'carrier';
   refreshKey?: unknown;
   onSent?: (sentTo: string) => void;
@@ -49,6 +55,7 @@ export default function ClientSignLink({ orderId, party = 'client', refreshKey, 
   const [link, setLink] = useState<SignLink | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [copy, setCopy] = useState<'idle' | 'copied' | 'manual'>('idle');
+  const [card, setCard] = useState<'idle' | 'working' | 'failed'>('idle');
   const box = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -107,6 +114,19 @@ export default function ClientSignLink({ orderId, party = 'client', refreshKey, 
     }
   }
 
+  async function downloadCard() {
+    if (!link) return;
+    setCard('working');
+    try {
+      // Loaded on demand: the QR encoder is only needed for this one click.
+      const { downloadSignQrCard } = await import('@/lib/signQrCard');
+      await downloadSignQrCard({ url: link.url, party, orderNumber, expiresAt: link.expiresAt });
+      setCard('idle');
+    } catch {
+      setCard('failed');
+    }
+  }
+
   const held = link.state === 'held';
   const tone = held ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50';
 
@@ -157,8 +177,20 @@ export default function ClientSignLink({ orderId, party = 'client', refreshKey, 
             ? <><Check className="h-3.5 w-3.5 text-green-600" /> Copied</>
             : <><Copy className="h-3.5 w-3.5" /> Copy</>}
         </button>
+        {link.state === 'live' && (
+          <button
+            type="button"
+            onClick={() => void downloadCard()}
+            disabled={card === 'working'}
+            title={`Download a card with a QR code the ${who} can scan to sign`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <QrCode className="h-3.5 w-3.5" /> {card === 'working' ? 'Making…' : 'QR card'}
+          </button>
+        )}
         {!carrier && preview}
       </div>
+      {card === 'failed' && <p className="mt-1 text-xs text-red-700">The QR card could not be made. Try again, or copy the link instead.</p>}
       {copy === 'manual' && <p className="mt-1 text-xs text-amber-700">Copying is blocked here. The link is selected — press Ctrl+C.</p>}
     </div>
   );
