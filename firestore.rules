@@ -1338,6 +1338,11 @@ service cloud.firestore {
     match /attendanceCorrections/{id}   { allow read, write: if false; }
     match /timeOffRequests/{id}         { allow read, write: if false; }
     match /holidayOverrides/{id}        { allow read, write: if false; }
+    // Shared day plans — the copy of somebody's plan their manager reads on
+    // the Calendar's Team plans view. Who may read whose is a team query a
+    // rule cannot run, so it is closed here and served by /api/team-plans
+    // and /api/me/plan. See src/types/dayPlan.ts.
+    match /dayPlans/{id}                { allow read, write: if false; }
 
     // One person's favourite stickers and their folders. Self-service, for
     // the same reason chatReads is: it says nothing about access, and the uid

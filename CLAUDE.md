@@ -1016,6 +1016,20 @@ Types and pure rules in `src/types/task.ts`; server in
   path — the same arrangement as `vocabulary`. It is a notepad, not a record
   of work: nothing may read it to report on somebody. Assigning work to
   someone else would be a different feature.
+- **Team plans are a copy the person hands over, not a window in**
+  (2026-11-04, asked for when the company went fully remote). Ticking the
+  morning review Done shares that day's plan, end-of-day planning the next
+  working day's, into `dayPlans/{uid}__{date}` — titles and times only — and
+  a notice says so. Admins (`plans.viewAll`) and Sales Managers (their team,
+  via `managedUids`) read those copies on the Calendar's Team plans tab
+  (Agenda, Table, Timeline, Week) through `/api/team-plans`. The owner sees
+  exactly what was shared on their own Calendar and can mark any item Busy.
+  `publishDayPlan()` in `src/lib/dayPlansServer.ts` is the **only** code
+  that reads a list for somebody else's benefit, and only on its owner's own
+  request. **Never make the copy live or add whether items were done** —
+  that turns a plan into a performance measure, the thing the list
+  deliberately is not. Change what is copied and change
+  `DAY_PLAN_DISCLOSURE` the same day.
 - **The board's columns are per person** (`boardColumns` on the parent
   document; six built-ins plus up to twelve of their own, in their order).
   A status is any string `isTaskStatus()` accepts, not a fixed list.

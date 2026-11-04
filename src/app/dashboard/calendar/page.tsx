@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Bell, CalendarClock, Landmark, ListTodo, Mail, MessageCircle, X } from 'lucide-react';
+import { Bell, CalendarClock, Landmark, ListTodo, Mail, MessageCircle, User, Users, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { usePersonalTasks, useTaskHistory } from '@/lib/personalTasks';
 import { fetchHolidayOverrides } from '@/lib/attendance';
 import TaskCalendar from '@/components/tasks/TaskCalendar';
 import PlanningPanel from '@/components/planning/PlanningPanel';
+import MySharedPlanPanel from '@/components/calendar/MySharedPlanPanel';
+import TeamPlans from '@/components/calendar/TeamPlans';
 import { PLANNING_CHANGED_EVENT } from '@/types/planning';
 import TaskEditor from '@/components/tasks/TaskEditor';
 import { TaskDirectoryProvider } from '@/components/tasks/TaskContacts';
@@ -50,10 +52,19 @@ import {
  *   check here only decides whether to ask; /api/celebration-calendar is
  *   what refuses everybody else. See CelebrationPanels.tsx.
  *
+ * - Admins (`plans.viewAll`) and Sales Managers: a Team plans tab — the day
+ *   plans their people shared when they finished planning. Copies, never the
+ *   lists themselves; see src/types/dayPlan.ts. Everybody sees what they
+ *   themselves shared in the "My shared plan" panel.
+ *
  * Not Google Calendar: nothing here is read from or sent to Google.
  */
 export default function CalendarPage() {
-  const { can } = useAuth();
+  const { can, profile } = useAuth();
+  // Whether to offer the tab at all. The route decides what is in it, and
+  // refuses a Sales Manager whose team is empty with a sentence saying so.
+  const seesTeamPlans = can('plans.viewAll') || profile?.isSalesManager === true;
+  const [tab, setTab] = useState<'mine' | 'team'>('mine');
   const { formatCalendarDate } = useDateFormatters();
   const { tasks, settings, columns, colorLabels, game, notices, dismissNotice, saveSettings, error, setError, create, update, detach, reschedule, remove, reload } = usePersonalTasks();
   const [editing, setEditing] = useState<{ task: PersonalTask | null; initial?: PersonalTaskInput; copyOf?: PersonalTask } | null>(null);
@@ -228,14 +239,34 @@ export default function CalendarPage() {
   return (
     <div className={`p-4 sm:p-6 lg:p-8 ${zoomed ? '' : 'max-w-7xl'}`}>
       <div className="mb-5">
-        <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
+          {seesTeamPlans && (
+            <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
+              {([['mine', 'My calendar', User], ['team', 'Team plans', Users]] as const).map(([id, label, Icon]) => (
+                <button key={id} type="button" aria-pressed={tab === id} onClick={() => setTab(id)}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium ${
+                    tab === id ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                  }`}>
+                  <Icon size={14} /> {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {tab === 'team' ? (
+          <p className="mt-0.5 text-sm text-gray-500">
+            What your {can('plans.viewAll') ? 'people' : 'team'} planned for the day, as each of them shared it when they finished their planning.
+          </p>
+        ) : (
         <p className="mt-0.5 flex flex-wrap items-center gap-1 text-sm text-gray-500">
-          Your own tasks and events, which only you can see, and public holidays.
+          Your own tasks and events, which only you can see — your manager sees only the plan you share — and public holidays.
           {hr && ' Birthdays and work anniversaries are shown to admins and HR only.'}
           <Link href="/dashboard/tasks" className="ml-2 inline-flex items-center gap-1 text-brand-700 hover:underline">
             <ListTodo size={13} /> Open my tasks
           </Link>
         </p>
+        )}
       </div>
 
       {(error || celebrations.notice) && (
@@ -247,7 +278,9 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {tasks === null || !today ? (
+      {tab === 'team' && today ? (
+        <TeamPlans initialDate={today} />
+      ) : tasks === null || !today ? (
         <div className="flex justify-center py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
         </div>
@@ -286,6 +319,7 @@ export default function CalendarPage() {
             <>
               {deliveryPanel}
               <PlanningPanel tasks={tasks} />
+              <MySharedPlanPanel />
               {hr && cel && (
                 <>
                   <UpcomingCelebrations

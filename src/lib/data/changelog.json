@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "0015ee48b9203db8f8c50408d64c25326ad172e6",
+      "date": "2026-11-04T12:58:18-06:00",
+      "author": "erwindank",
+      "subject": "Work out the Agreed Rate from carrier pay, broker fee and additional services, and itemise the services on the client's SA and invoice with who arranges each",
+      "body": "Carrier Pay is now typed and the Agreed Rate is their sum. \"Services with a\ncost\" are renamed Additional Services, and each says who arranges it — the\ncarrier, the client or TTL — which the form requires. One the client\narranges is always $0 and reads \"Arranged by the client\" where its price\nwould be.\n\nThe client's SA (signing page and signed PDF) and invoice break the rate\ninto Freight Transportation (carrier pay and broker fee, never apart) and\neach additional service. The Dispatch Sheet names each service with who\narranges it, never a price. The breakdown joins the SA's rate fingerprint\nand the arrangers both freight fingerprints, appended only when present,\nso nothing already sent is held. The quote calculator now fills carrier\npay and broker fee; an imported load whose stored figures disagree is\nflagged before a save rewrites its rate."
+    },
+    {
       "hash": "7c2a4b34a30e3f89795755e17301b709505a48c1",
       "date": "2026-11-04T11:34:56-06:00",
       "author": "erwindank",

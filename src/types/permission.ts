@@ -302,6 +302,16 @@ export const PERMISSIONS = [
    * Admin and HR by default.
    */
   'attendance.manage',
+  /**
+   * See everybody's shared day plans on the Calendar's Team plans view: the
+   * names and times of the tasks and events each person planned, as they
+   * shared them when they finished their planning (src/types/dayPlan.ts).
+   *
+   * A Sales Manager sees their own team's without this, scoped like
+   * `attendance.view`. Admin only by default. It never reaches anybody's task
+   * list itself — only the copy they shared.
+   */
+  'plans.viewAll',
   /** The intern's own area: their guide, their onboarding survey, their tasks. */
   'intern.section',
 ] as const;
@@ -390,6 +400,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'profile.decideUpdates', label: 'Decide profile change requests', detail: 'Approve or refuse the changes people ask for on their own record — a number, a spelling, a photo. Never a role.' },
       { key: 'attendance.view',   label: 'See everyone’s attendance', detail: 'Clock times, breaks, lateness, absences and where each clock-in came from, for the whole company. Admin and HR have this already.' },
       { key: 'attendance.manage', label: 'Manage attendance', detail: 'Schedules, holidays, office networks and alerts, and approving time off and corrections. Admin and HR have this already.' },
+      { key: 'plans.viewAll', label: 'See everyone’s shared day plans', detail: 'The Team plans view on the Calendar, for the whole company: the names and times of what each person planned for the day, once they have shared it. A Sales Manager sees their own team’s already. Admins have this already.' },
     ],
   },
   {

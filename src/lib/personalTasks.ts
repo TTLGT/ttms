@@ -18,6 +18,7 @@ import {
   type TaskReminderSettings,
 } from '@/types/task';
 import type { GameEvent, GameState, GameTheme } from '@/types/taskGame';
+import { DAY_PLAN_SHARED_EVENT } from '@/types/dayPlan';
 import { EMPTY_TASK_STREAK, type TaskStreak } from '@/types/taskStreak';
 
 /**
@@ -112,11 +113,18 @@ export async function createMyTask(input: PersonalTaskInput): Promise<{ task: Pe
 export async function updateMyTask(
   id: string,
   input: PersonalTaskInput,
-): Promise<{ task: PersonalTask; next?: PersonalTask | null; blocks?: PersonalTask[] } & GameReply> {
-  return authedFetch(`/api/me/tasks/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    body: JSON.stringify(input),
-  });
+): Promise<{ task: PersonalTask; next?: PersonalTask | null; blocks?: PersonalTask[]; sharedPlan?: string | null } & GameReply> {
+  const reply = await authedFetch<{ task: PersonalTask; next?: PersonalTask | null; blocks?: PersonalTask[]; sharedPlan?: string | null } & GameReply>(
+    `/api/me/tasks/${encodeURIComponent(id)}`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+  // Finishing a planning slot shared a day's plan (src/types/dayPlan.ts).
+  // Announced here, the one door every tick goes through — board, table,
+  // calendar, editor — so the notice and the Calendar panel hear of it.
+  if (reply.sharedPlan) {
+    window.dispatchEvent(new CustomEvent(DAY_PLAN_SHARED_EVENT, { detail: reply.sharedPlan }));
+  }
+  return reply;
 }
 
 /** Take one date out of a repeating event as an event of its own. See /api/me/tasks/{id}/detach. */

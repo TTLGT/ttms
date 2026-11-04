@@ -12,6 +12,10 @@ import {
 } from '@/types/task';
 import { shiftedEnd } from '@/types/planning';
 import { cleanTaskStreak, recordTaskProgress, type TaskStreak } from '@/types/taskStreak';
+import { publishDayPlan } from '@/lib/dayPlansServer';
+import { normalizeEmail } from '@/lib/accessControl';
+import { fullName } from '@/types/allowedUser';
+import { nextWorkingDay } from '@/types/dayPlan';
 
 class Refused extends Error {
   constructor(message: string, readonly status: number) { super(message); }
@@ -30,7 +34,7 @@ export async function PATCH(
   { params }: { params: Promise<{ taskId: string }> },
 ) {
   try {
-    const { uid, email } = await requireCompanyUser(req);
+    const { uid, email, entry } = await requireCompanyUser(req);
     const { taskId } = await params;
     const ref = taskItems(uid).doc(taskId);
     const owner = taskOwnerDoc(uid);
@@ -44,6 +48,7 @@ export async function PATCH(
 
     let result: {
       nextId: string | null; game: GameState | null; events: GameEvent[]; streak: TaskStreak | null; blockIds: string[];
+      share: { date: string; via: 'morning' | 'evening' } | null;
     };
     try {
       result = await adminDb.runTransaction(async (tx) => {
@@ -279,11 +284,33 @@ export async function PATCH(
             skipDates: current.skipDates,
           }, taskId);
         }
-        return { nextId, game, events, streak, blockIds };
+        // Finishing the morning review shares that day's plan; finishing the
+        // end-of-day planning shares the next working day's. Only Done does —
+        // Not done or Rescheduled is no finished plan. See src/types/dayPlan.ts.
+        const share = gainsDone && date && (current.planning === 'morning' || current.planning === 'evening')
+          ? { date: current.planning === 'morning' ? date : nextWorkingDay(date), via: current.planning }
+          : null;
+        return { nextId, game, events, streak, blockIds, share };
       });
     } catch (e) {
       if (e instanceof Refused) return NextResponse.json({ error: e.message }, { status: e.status });
       throw e;
+    }
+
+    // After the save, never inside it, and swallowed: ticking a task must not
+    // fail because the copy for the manager could not be written. The person
+    // can share again from the Calendar.
+    let shared: string | null = null;
+    if (result.share) {
+      try {
+        await publishDayPlan(
+          { uid, email: normalizeEmail(email), name: (entry ? fullName(entry) : '') || normalizeEmail(email) },
+          result.share.date, result.share.via,
+        );
+        shared = result.share.date;
+      } catch (e) {
+        console.error('[day plan] share after planning failed', e);
+      }
     }
 
     const [task, next, blocks] = await Promise.all([
@@ -299,6 +326,8 @@ export async function PATCH(
       game: result.game,
       events: result.events,
       streak: result.streak,
+      // The day whose plan this save shared, for the page to say so.
+      sharedPlan: shared,
     });
   } catch (e) {
     if (e instanceof AdminAuthError) {

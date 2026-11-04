@@ -3082,3 +3082,37 @@ separate from the celebration and attendance rooms. A run with nothing due
 costs one read; 288 runs a day.
 
 Closed to clients by default: no rule for the path.
+
+## Collection: `dayPlans` (Team plans on the Calendar)
+
+A **copy** of what somebody planned for one day, made by their own act, for
+their manager to read. Their `personalTasks` list stays private; nobody but
+its owner reads it. See `src/types/dayPlan.ts`.
+
+```
+dayPlans/{uid}__{YYYY-MM-DD}
+  uid, email, name : string                // the owner, as on the allowlist
+  date             : 'YYYY-MM-DD'          // the day planned
+  via              : 'morning' | 'evening' | 'manual'
+  sharedAt         : Timestamp             // the latest share
+  items            : [{ id, title, kind, eventType, start, end, busy }]
+  busyIds          : string[]              // items the owner shows as "Busy"
+```
+
+- **Written** when the owner ticks a planning slot Done — the morning review
+  shares that day, end-of-day planning the next working day — in
+  `PATCH /api/me/tasks/{id}` after the save, best-effort; and by "Share
+  again" (`POST /api/me/plan`). Each share replaces the day's document.
+- **What is copied:** for each task planned for that day and each event
+  falling on it, its title (or "Busy"), kind, event type and start/end time.
+  No notes, steps, contacts, orders, status or XP. A "Busy" item's title is
+  replaced before writing, so the copy never holds it.
+- **Not live.** Ticking things off does not change it, and nothing records
+  whether the plan was followed.
+- **Read** only through `GET /api/team-plans?from=&to=` (at most 7 days):
+  `plans.viewAll` (admin) sees everybody, a Sales Manager their team via
+  `managedUids` / `managedEmails`. The owner reads their own through
+  `GET /api/me/plan`. `allow read, write: if false` in `firestore.rules`.
+- **Indexes:** none — `date ==` and the `date` range are single-field.
+  Building a copy uses two single-field queries on the owner's items (`date
+  ==` and `repeat in`).
