@@ -1699,6 +1699,17 @@ a company address that was never invited is refused.
 | `allowedUsers` | The allowlist, keyed by lowercased email. Source of truth for roles. Readable by admins and HR, never client-writable. |
 | `users`        | Live profile for someone who has actually signed in, keyed by uid. Provisioned server-side from the allowlist. |
 
+**Changing someone's work email** (Settings → People, the editor, admins only)
+moves the entry to `allowedUsers/{new}` and keeps the old address in
+`previousEmails`, with `emailChangedAt` / `emailChangedBy`. Everything else
+keyed by the address moves with it — attendance days, schedules, prefs and
+devices, time off, corrections, profile requests, one-off celebration
+reminders, a pending team lead, and pending `memberEmails` / `assignedToEmails`.
+The list is `src/lib/emailChange.ts`; **anything new keyed by email belongs on
+it.** A signed-in person keeps their uid only if the address was renamed on the
+same Google account (Google Workspace admin console); the access history logs
+it as `emailChanged` with `previousEmail`.
+
 **Roles.** `isAdmin`, `isDispatcher`, `isFinance`, `isHr`, `isSalesManager`,
 `isIntern`. Broker is derived — it is what someone has when none of them is set
 (`isBroker()` in `src/lib/accessControl.ts`) — and is deliberately never stored.

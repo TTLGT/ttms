@@ -191,6 +191,21 @@ export async function setAllowedUserSuspended(email: string, suspended: boolean)
   });
 }
 
+/**
+ * Move somebody to a new work email — the address they sign in with. Admin
+ * only. Everything keyed by the old address moves with them; see
+ * src/lib/emailChange.ts for the list and for who it works for.
+ */
+export async function changeAllowedUserEmail(
+  email: string,
+  newEmail: string,
+): Promise<{ email: string; signedOut: boolean; moved: number }> {
+  return authedFetch('/api/admin/users', {
+    method: 'PATCH',
+    body: JSON.stringify({ email, field: 'email', value: newEmail }),
+  });
+}
+
 export async function revokeUser(email: string): Promise<void> {
   await authedFetch(`/api/admin/users?email=${encodeURIComponent(email)}`, { method: 'DELETE' });
 }

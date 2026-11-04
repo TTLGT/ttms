@@ -21,6 +21,7 @@ import { normalizeCalendarDate } from '@/types/allowedUser';
 import { isPermission, ROLE_ORDER, type Permission, type RoleKey } from '@/types/permission';
 import { applyClaims, claimsFor, syncPermissionsFor } from '@/lib/userSync';
 import { syncManagedScopes } from '@/lib/teamScope';
+import { changeWorkEmail, EmailChangeError } from '@/lib/emailChange';
 import { personName, recordPeopleEvent, rolesHeld } from '@/lib/peopleEvents';
 import {
   DEFAULT_OTHER_REGION,
@@ -585,6 +586,23 @@ export async function PATCH(req: NextRequest) {
   // toggles that can half-apply.
   if (field === 'grantedPermissions') {
     return updateGrants(caller, email, body.value);
+  }
+
+  // Moving somebody to a new sign-in address. Admin only, like adding or
+  // removing them: it decides which Google account is let in, which is the
+  // company-level act a Sales Manager's team scope stops short of.
+  if (field === 'email') {
+    const denied = requireFullManage(caller);
+    if (denied) return denied;
+    try {
+      const result = await changeWorkEmail(email, String(body.value ?? ''), caller);
+      return NextResponse.json({ ok: true, ...result });
+    } catch (e) {
+      if (e instanceof EmailChangeError) {
+        return NextResponse.json({ error: e.message }, { status: e.status });
+      }
+      throw e;
+    }
   }
 
   if (!([...ROLE_ORDER, 'suspended'] as string[]).includes(field)) {

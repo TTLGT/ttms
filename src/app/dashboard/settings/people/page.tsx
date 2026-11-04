@@ -12,6 +12,7 @@ import {
   setAllowedUserPhoto,
   setAllowedUserSuspended,
   setAllowedUserPermissions,
+  changeAllowedUserEmail,
   revokeUser,
 } from '@/lib/allowedUsers';
 import { canManagePerson, isBootstrapAdmin, isBroker, normalizeEmail } from '@/lib/accessControl';
@@ -209,6 +210,13 @@ export default function SettingsPeoplePage() {
    * saved blank. Kept apart from `error`, because the save itself worked.
    */
   const [notice, setNotice]   = useState('');
+
+  /**
+   * The new work email being typed, kept apart from `draft` on purpose: it is
+   * not saved by "Save details". Changing the sign-in address moves records
+   * and signs the person out, so it has its own button and its own confirm.
+   */
+  const [emailDraft, setEmailDraft] = useState('');
 
   /**
    * Rewrite a phone field into the shape it is stored in when it loses focus.
@@ -414,6 +422,7 @@ export default function SettingsPeoplePage() {
 
     setEditing(person.email);
     setNotice('');
+    setEmailDraft(person.email);
     setDraft({
       ...name,
       legalName:     person.legalName ?? '',
@@ -473,6 +482,50 @@ export default function SettingsPeoplePage() {
       setEditing(null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not save the details');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Move somebody to a new work email. The server does the moving — the
+   * allowlist entry, attendance, pending assignments and the rest; this only
+   * asks first and then re-keys the row, since the address is its key.
+   */
+  async function handleChangeEmail(person: AllowedUser) {
+    const next = normalizeEmail(emailDraft);
+    if (!next || next === person.email) return;
+
+    const active = accessStatus(person) !== 'pending';
+    const ok = window.confirm(
+      `Change the work email for ${fullName(person) || person.email}?\n\n`
+      + `From: ${person.email}\nTo:   ${next}\n\n`
+      + (active
+        ? 'They will be signed out and must sign in again with the new address. '
+          + 'Rename them in the Google Workspace admin console first, so their Google '
+          + 'account has the new address — otherwise they will not be able to sign in.'
+        : 'They have not signed in yet, so they will simply sign in with the new address.'),
+    );
+    if (!ok) return;
+
+    setBusy(`${person.email}:email`);
+    setError('');
+    setNotice('');
+    try {
+      const result = await changeAllowedUserEmail(person.email, next);
+      setPeople((prev) =>
+        prev.map((p) => (p.email === person.email ? { ...p, email: result.email } : p)),
+      );
+      // The editor is keyed on the address too, so it follows the row.
+      setEditing(result.email);
+      setEmailDraft(result.email);
+      setNotice(
+        result.signedOut
+          ? `Work email changed to ${result.email}. They have been signed out and sign in again with the new address.`
+          : `Work email changed to ${result.email}.`,
+      );
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not change the work email');
     } finally {
       setBusy(null);
     }
@@ -661,6 +714,45 @@ They will be signed out immediately and cannot sign in until you restore them. T
           onChange={(path) => handlePhoto(p, path)}
         />
       </div>
+
+      {/* Admins only, and never for a protected account or your own — the
+          same three refusals the server makes, drawn here so a box that would
+          only fail is not offered. */}
+      {canManageAll && !isBootstrapAdmin(p.email) && p.email !== myEmail && (
+        <div className="pb-4 mb-4 border-b border-gray-200">
+          <label className="block text-xs text-gray-500">
+            Work email
+            <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+              <input
+                type="email"
+                value={emailDraft}
+                onChange={(e) => setEmailDraft(e.target.value)}
+                placeholder="name@totaltransportlogistics.us"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400 sm:max-w-md"
+              />
+              <button
+                type="button"
+                onClick={() => handleChangeEmail(p)}
+                disabled={
+                  busy === `${p.email}:email`
+                  || !normalizeEmail(emailDraft)
+                  || normalizeEmail(emailDraft) === p.email
+                }
+                className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+              >
+                <AtSign size={13} />
+                {busy === `${p.email}:email` ? 'Changing…' : 'Change email'}
+              </button>
+            </div>
+          </label>
+          <p className="text-[11px] text-gray-400 mt-1">
+            The address they sign in with. Saved on its own, not by Save details.
+            Their attendance, schedule, team and anything assigned to them move
+            with it. Someone already signed in is signed out and signs in again
+            with the new address — rename them in Google Workspace first.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <label className="text-xs text-gray-500">

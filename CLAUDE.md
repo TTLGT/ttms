@@ -186,6 +186,7 @@ claims. Any failure signs the user straight back out. Preserve that property:
 - `allowedUsers/{email}` — the allowlist, keyed by lowercased email, source of truth for roles. `uid: null` = pending invite.
 - `users/{uid}` — live profile, provisioned server-side.
 - Neither is client-writable. All mutations go through the Admin SDK so nobody can self-promote.
+- **The address can change** (admins, Settings → People → editor): `src/lib/emailChange.ts` moves the entry and everything else keyed by email — attendance, pending assignments, team leads, requests. **Anything new keyed by email must be added to its list**, or it is left behind on the old address.
 
 ### Ability is a permission, not a role
 

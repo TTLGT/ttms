@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { Download, ScrollText, UserMinus, UserPlus, UserRoundCheck } from 'lucide-react';
+import { AtSign, Download, ScrollText, UserMinus, UserPlus, UserRoundCheck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { listPeopleEvents } from '@/lib/allowedUsers';
 import { downloadCsv, toCsv } from '@/lib/csv';
@@ -32,6 +32,7 @@ const ACTION_STYLE: Record<PeopleEventAction, { Icon: LucideIcon; dot: string; t
   added:    { Icon: UserPlus,       dot: 'bg-green-100 text-green-700', text: 'text-green-700' },
   removed:  { Icon: UserMinus,      dot: 'bg-red-100 text-red-700',     text: 'text-red-700' },
   restored: { Icon: UserRoundCheck, dot: 'bg-blue-100 text-blue-700',   text: 'text-blue-700' },
+  emailChanged: { Icon: AtSign,     dot: 'bg-amber-100 text-amber-700', text: 'text-amber-700' },
 };
 
 /** The filter chips, in the order they read: everything, then each action. */
@@ -40,6 +41,7 @@ const FILTERS: { id: 'all' | PeopleEventAction; label: string }[] = [
   { id: 'added',    label: 'Added' },
   { id: 'removed',  label: 'Removed' },
   { id: 'restored', label: 'Put back' },
+  { id: 'emailChanged', label: 'Email changed' },
 ];
 
 /** How each source reads at the end of a line. Empty for the ordinary case. */
@@ -100,7 +102,9 @@ export default function AccessHistoryPanel() {
       csvWhen(e.at),
       PEOPLE_EVENT_LABEL[e.action] ?? e.action,
       e.name || '',
-      e.email,
+      // The old address rides in the same cell, so the export stays the
+      // columns the other two exports use.
+      e.previousEmail ? `${e.email} (was ${e.previousEmail})` : e.email,
       // Same convention as the other two exports: Broker is the absence of a
       // role, so it is spelled out rather than left blank.
       e.roles?.length ? e.roles.join(', ') : 'Broker',
@@ -223,6 +227,9 @@ export default function AccessHistoryPanel() {
                         <span className="font-medium text-gray-900">{e.name || e.email}</span>
                         {e.name && (
                           <span className="text-gray-500"> · {e.email}</span>
+                        )}
+                        {e.previousEmail && (
+                          <span className="text-gray-500"> (was {e.previousEmail})</span>
                         )}
                       </p>
                       <p className="mt-0.5 text-xs text-gray-500">

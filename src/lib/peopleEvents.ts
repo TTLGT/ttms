@@ -45,6 +45,8 @@ export async function recordPeopleEvent(event: {
   source: PeopleEventSource;
   /** The `removedUsers` row behind a removal or a restore; null for an add. */
   removalId?: string | null;
+  /** The old address, on an `emailChanged` row only. */
+  previousEmail?: string | null;
 }): Promise<void> {
   try {
     await adminDb.collection(PEOPLE_EVENTS_COLLECTION).add({
@@ -58,6 +60,7 @@ export async function recordPeopleEvent(event: {
       actorUid:   event.actorUid,
       source:     event.source,
       removalId:  event.removalId ?? null,
+      ...(event.previousEmail ? { previousEmail: event.previousEmail } : {}),
       at:         FieldValue.serverTimestamp(),
     });
   } catch (e) {

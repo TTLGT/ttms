@@ -22,7 +22,7 @@
  * the record of who had access to the company's freight, and that question
  * does not expire. Do not add a purge, a TTL or a delete path.
  */
-export type PeopleEventAction = 'added' | 'removed' | 'restored';
+export type PeopleEventAction = 'added' | 'removed' | 'restored' | 'emailChanged';
 
 /**
  * Where the change came from. Worth keeping apart: an address that arrived in
@@ -56,6 +56,12 @@ export interface PeopleEvent {
    */
   removalId: string | null;
   /**
+   * The address they had before, on an `emailChanged` row only — `email` is
+   * the new one. Absent on every other action and on rows written before
+   * addresses could change.
+   */
+  previousEmail?: string | null;
+  /**
    * ISO 8601, not a Timestamp — same reasoning as RemovedUser. These rows only
    * ever arrive over JSON from /api/admin/users/events, and the route converts
    * them so nothing downstream has to know what a Firestore Timestamp is.
@@ -68,4 +74,5 @@ export const PEOPLE_EVENT_LABEL: Record<PeopleEventAction, string> = {
   added:    'Added',
   removed:  'Removed',
   restored: 'Restored',
+  emailChanged: 'Email changed',
 };

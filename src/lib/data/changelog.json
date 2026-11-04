@@ -1,6 +1,20 @@
 {
   "changes": [
     {
+      "hash": "cdced70560252b6757d0fb48fcd91281e7564a14",
+      "date": "2026-11-04T15:36:55-06:00",
+      "author": "erwindank",
+      "subject": "Add IT support: anybody can report an issue with screenshots and documents, and only the IT account sees every ticket, with a desk to reply, add internal notes and set status and priority",
+      "body": ""
+    },
+    {
+      "hash": "2e73223f1732591c50eaec6cd22727242bf13a26",
+      "date": "2026-11-04T15:02:44-06:00",
+      "author": "erwindank",
+      "subject": "Add a small month calendar to the Calendar's side column: click a day to take the calendar there in the view it is in, with today, the days on screen and days with your own items marked",
+      "body": ""
+    },
+    {
       "hash": "e0740b7b5075db884effff48eb171e9adef37d37",
       "date": "2026-11-04T14:52:38-06:00",
       "author": "erwindank",
