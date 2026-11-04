@@ -3131,3 +3131,64 @@ dayPlans/{uid}__{YYYY-MM-DD}
 - **Indexes:** none — `date ==` and the `date` range are single-field.
   Building a copy uses two single-field queries on the owner's items (`date
   ==` and `repeat in`).
+
+## Collections: `itTickets`, `itTickets/*/messages`, `itTicketCounters` (IT support)
+
+Issues anybody reports to IT, worked by the IT role account
+(`it@totaltransportlogistics.us`) at `/dashboard/it-support`. Types in
+`src/types/itTicket.ts`, server in `src/lib/itTicketsServer.ts`.
+
+```
+itTickets/{autoId}
+  number            : number                 // shown as IT-0001, from itTicketCounters/counter
+  title             : string                 // ≤ 140
+  category          : 'problem' | 'access' | 'request' | 'equipment' | 'accounts' | 'other'
+  priority          : 'low' | 'normal' | 'high' | 'urgent'
+  status            : 'new' | 'in_progress' | 'waiting' | 'resolved' | 'closed'
+  reporterUid, reporterEmail, reporterName : string
+  page              : string                 // the TTMS page they came from, editable on the form
+  device            : string                 // user agent + screen and window size
+  needsIt           : boolean                // the last word is the reporter's; drives IT's badge
+  reporterUnreadUid : string | null          // the reporter's uid while IT has said something unread
+  messageCount, attachmentCount : number
+  lastMessageText   : string                 // preview, ≤ 160; internal notes never land here
+  lastMessageFromIt : boolean
+  createdAt, updatedAt : Timestamp
+  resolvedAt        : Timestamp | null       // set on resolved or closed, cleared on reopen
+
+itTickets/{id}/messages/{autoId}
+  kind        : 'message' | 'event'          // event = a status or priority change
+  text        : string                       // ≤ 8000
+  authorUid, authorName : string
+  fromIt      : boolean
+  internal    : boolean                      // IT-only note; never sent to the reporter
+  attachments : [{ id, name, contentType, size, uploaderUid }]
+  createdAt   : Timestamp
+
+itTicketCounters/counter
+  next        : number                       // the next ticket number
+```
+
+- **Closed to the browser.** No rule in `firestore.rules` matches any of the
+  three, so every client read and write is refused (default deny). Everything
+  goes through `/api/it-tickets`.
+- **Who sees what** is decided from the verified email, never a parameter:
+  `isItDesk()` (the IT account, by address — not a permission, so it cannot
+  be granted) gets every ticket and the internal notes; anybody else only
+  tickets where `reporterUid` is theirs, internal notes removed on the server.
+  Somebody else's ticket answers 404, the same as a missing one.
+- **Attachments** are uploaded from the browser to
+  `it-tickets/{uploaderUid}/{fileId}` (storage.rules: create only, own uid
+  only, ≤ 25 MB, no read) and recorded on the message once the server has
+  found them at the caller's own path. Read only through the two-hour signed
+  links `GET /api/it-tickets/{id}` hands back. An upload that is never sent
+  stays in the bucket, readable by nobody.
+- **Who changes what:** the reporter can reply (reopens a `waiting` or
+  `resolved` ticket) and close their own; a `closed` ticket takes no more
+  replies from them. Status, priority and category are the IT account's.
+- **Telling people:** a new ticket or a reporter's reply emails the IT
+  account (Resend, best-effort). IT's replies and status changes post into the
+  reporter's own locked `notice_it_{uid}` chat room, "IT support".
+- **Indexes:** none. The desk list is `orderBy('updatedAt')` (single field),
+  a reporter's list is `reporterUid ==` sorted in memory, and the two nav
+  badges are count aggregations on `needsIt ==` and `reporterUnreadUid ==`.

@@ -125,6 +125,21 @@ service firebase.storage {
         && request.resource.size <= 25 * 1024 * 1024;
     }
 
+    // IT ticket attachments — screenshots and documents sent to IT. Each person
+    // may only create files in their own folder, and only create: no read, no
+    // overwrite, no delete. A file is not part of a ticket until
+    // /api/it-tickets has found it at the caller's own path and recorded it,
+    // and it is read only through the signed links that route hands back — to
+    // the reporter and the IT account, nobody else. A screenshot can show
+    // anything on somebody's screen, so it is not left readable by every staff
+    // account the way chat files are. Interns can report too, so no intern
+    // test. 25 MB matches MAX_IT_FILE_BYTES in src/types/itTicket.ts.
+    match /it-tickets/{uid}/{fileId} {
+      allow create: if isAllowedUser()
+        && request.auth.uid == uid
+        && request.resource.size <= 25 * 1024 * 1024;
+    }
+
     // Load pictures (`load-photos/`) deliberately have no match here, so the
     // client SDK can neither read nor write them. They are uploaded and served
     // only through /api/orders/{id}/photos, which checks canSeeOrder() with the

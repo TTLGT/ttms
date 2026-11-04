@@ -1525,6 +1525,29 @@ not a permission, so it cannot be granted from Settings. Served whole by
   commit title by `changeTypeOf()` at read time, not stored. Commit titles are
   what the page shows — write them as plain sentences, as now.
 
+### IT support — tickets only the IT account reads
+
+Anybody, interns included, reports an issue at `/dashboard/it-support` (title,
+type, how stuck they are, description, screenshots and documents). The same
+page is the IT account's desk: every ticket, filters, priorities, replies,
+internal notes. Types in `src/types/itTicket.ts`, server in
+`src/lib/itTicketsServer.ts`; `itTickets` in the Schema Guide.
+
+- **The desk is an address test (`isItDesk()`), not a permission**, for the
+  Change history's reason: it must not be grantable from Settings. Admins do
+  not see other people's tickets.
+- **Closed to the browser.** No rule matches `itTickets`, so Firestore refuses
+  every client read and write; `/api/it-tickets` is the only way in, and it
+  decides desk-or-reporter from the verified email. **Internal notes are
+  removed on the server** for anybody but the desk — never filter them in
+  the page.
+- **Attachments** are create-only in `it-tickets/{uid}/` (own uid only, no
+  read) and served only as signed links from `GET /api/it-tickets/{id}`. Do
+  not add `read` to that storage rule: a screenshot can show anything.
+- Notifications are best-effort and must never fail a save: email to the IT
+  account for new tickets and replies, and a line in the reporter's own
+  `notice_it_{uid}` room for IT's answers.
+
 ## Conventions
 
 - **Comments explain why, not what.** This codebase is unusually well commented on non-obvious decisions, and that is the main reason it is handoverable. Match that density. When you make a non-obvious call, leave the reasoning.

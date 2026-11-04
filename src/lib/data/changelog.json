@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "e0740b7b5075db884effff48eb171e9adef37d37",
+      "date": "2026-11-04T14:52:38-06:00",
+      "author": "erwindank",
+      "subject": "Let an event invite the colleagues in its With box: it goes on their calendars to accept or decline, follows the organiser's moves, changes and cancellations, and each step is posted in their private reminders room",
+      "body": ""
+    },
+    {
       "hash": "d42525b3f17ab6b3bff30318bf143bd74c65a860",
       "date": "2026-11-04T13:09:05-06:00",
       "author": "erwindank",

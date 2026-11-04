@@ -24,6 +24,7 @@ import {
   CalendarDays,
   Calculator,
   History,
+  LifeBuoy,
   Menu,
   X,
   LogOut,
@@ -50,6 +51,8 @@ import { LearnProvider } from '@/context/LearnContext';
 import { AttendanceProvider, useAttendance } from '@/context/AttendanceContext';
 import ClockWidget from '@/components/attendance/ClockWidget';
 import { canSeeChangelog } from '@/types/changelog';
+import { IT_TICKETS_CHANGED, itTicketBadge, rememberPage } from '@/lib/itTickets';
+import { isItDesk } from '@/types/itTicket';
 
 /**
  * The sidebar, and the permission each entry needs.
@@ -122,6 +125,9 @@ const NAV_ITEMS: {
             'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage',
             'celebrations.manage', 'presence.manage', 'quoteRates.manage'] },
   { href: '/dashboard/handbook',  label: 'Handbook',  Icon: BookOpen,      needs: 'handbook.view' },
+  // Everybody, interns included, so no permission: anyone can be stuck. The
+  // same page is the IT account's desk — see src/types/itTicket.ts.
+  { href: '/dashboard/it-support', label: 'IT support', Icon: LifeBuoy },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -184,6 +190,37 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const { incoming, outgoing }          = useApprovals();
 
   const { seesOthers: seesAttendance }  = useAttendance();
+
+  /**
+   * The IT support badge: tickets waiting on IT for the IT account, answers
+   * not yet read for anybody else. One count aggregation per check — on
+   * load, every five minutes while the tab is visible, and straight after
+   * anything on the IT support page that changes it.
+   */
+  const [itBadge, setItBadge] = useState(0);
+  useEffect(() => {
+    let live = true;
+    const check = () => {
+      if (document.visibilityState === 'hidden') return;
+      itTicketBadge().then((n) => { if (live) setItBadge(n); }).catch(() => {});
+    };
+    check();
+    const timer = setInterval(check, 5 * 60 * 1000);
+    window.addEventListener(IT_TICKETS_CHANGED, check);
+    return () => {
+      live = false;
+      clearInterval(timer);
+      window.removeEventListener(IT_TICKETS_CHANGED, check);
+    };
+  }, []);
+
+  // Where somebody was before opening IT support, offered on the report
+  // form as "where did it happen". Per tab, so two tabs do not cross.
+  useEffect(() => {
+    if (!pathname.startsWith('/dashboard/it-support')) {
+      rememberPage(`${pathname}${window.location.search}`);
+    }
+  }, [pathname]);
 
   /**
    * The sidebar is a drawer on a phone and a column on a desktop.
@@ -339,6 +376,15 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     // cannot end up showing different numbers for the same thing.
     if (href === '/dashboard/chat' && unreadBadge !== '') {
       return [{ key: 'chat', text: unreadBadge, className: 'bg-amber-400 text-brand-900' }];
+    }
+    // Red for the IT account (people are waiting on it), amber for anybody
+    // else (an answer is waiting for them) — the same split as Approvals.
+    if (href === '/dashboard/it-support' && itBadge > 0) {
+      return [{
+        key: 'it',
+        text: String(itBadge),
+        className: isItDesk(user?.email) ? 'bg-red-500 text-white' : 'bg-amber-400 text-brand-900',
+      }];
     }
     return [];
   };
