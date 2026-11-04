@@ -413,7 +413,8 @@ export default function TaskWeekGrid({
                 {placed.map(({ task: t, start, end, lane, lanes }) => {
                   const series = isSeries(t);
                   // History is a record: opened to read, never moved or stretched.
-                  const movable = !t.fromHistory && (!series || !!onAskSeries);
+                  // An invitation moves when its organiser moves it, never from here.
+    const movable = !t.fromHistory && !t.invitedBy && (!series || !!onAskSeries);
                   const done = t.kind === 'task' && t.status === 'done';
                   const outcome = outcomeOf(t);
                   const EventIcon = t.kind === 'event' ? EVENT_ICON[t.eventType]
@@ -436,7 +437,7 @@ export default function TaskWeekGrid({
                       title={`${t.kind === 'event' ? `${EVENT_TYPE_LABEL[t.eventType]}: ` : ''}${t.title}${series ? ` (${repeatText(t)})` : ''}${forText?.(t) ?? ''}`}
                       className={`absolute z-10 overflow-hidden rounded border border-white/60 px-1.5 py-0.5 ${blockText} leading-tight shadow-sm ${
                         NOTE_STYLE[t.color].chip
-                      } ${movable ? 'cursor-grab' : 'cursor-pointer'} ${outcome ? OUTCOME_STYLE[outcome] : ''} ${
+                      } ${t.inviteResponse === 'pending' ? 'outline-dashed outline-1 outline-gray-500' : ''} ${movable ? 'cursor-grab' : 'cursor-pointer'} ${outcome ? OUTCOME_STYLE[outcome] : ''} ${
                         stretch?.id === t.id && stretch.date === date ? 'z-30 ring-2 ring-brand-400' : ''
                       } ${dragging?.task.id === t.id && dragging.date === date ? 'opacity-40' : ''}`}
                       style={{

@@ -176,7 +176,7 @@ async function deliver(uid: string, due: DueEntry[]): Promise<'sent' | 'not-allo
 /* ------------------------------------------------------------- the wording */
 
 /** "today at 10:00 AM", "tomorrow", "Friday, September 26 at 3:30 PM". */
-function whenText(t: PersonalTask, date: string): string {
+export function whenText(t: Pick<PersonalTask, 'time' | 'endTime'>, date: string): string {
   const today = officeToday();
   const [y, m, d] = today.split('-').map(Number);
   const tomorrow = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
@@ -207,7 +207,7 @@ export function reminderText(due: DueEntry[]): string {
  * room is closed by its policy, not by its id. See `notice` in
  * src/types/conversation.ts.
  */
-async function postTaskNotice(uid: string, text: string): Promise<void> {
+export async function postTaskNotice(uid: string, text: string): Promise<void> {
   const room = adminDb.collection(CONVERSATIONS_COLLECTION).doc(`notice_tasks_${uid}`);
   await room.create({
     kind:        'notice',

@@ -332,7 +332,8 @@ export default function TaskCalendar({
     // the series — and asks first. Otherwise it is moved by editing the event.
     const series = t.kind === 'event' && t.repeat !== 'none';
     // History is a record: opened to read, never moved.
-    const movable = !t.fromHistory && (!series || !!onDetach);
+    // An invitation moves when its organiser moves it, never from here.
+    const movable = !t.fromHistory && !t.invitedBy && (!series || !!onDetach);
     return (
       <button
         key={t.id}
@@ -350,6 +351,8 @@ export default function TaskCalendar({
         className={`flex w-full ${movable ? 'cursor-grab' : 'cursor-pointer'} rounded text-left font-medium ${
           roomy ? 'flex-col gap-0.5 px-2 py-1.5 text-xs' : 'items-center gap-1 truncate px-1.5 py-0.5 text-[11px]'
         } ${NOTE_STYLE[t.color].chip} ${outcome ? OUTCOME_STYLE[outcome] : ''} ${
+          // An invitation not yet answered: dashed, like a pencilled-in entry.
+          t.inviteResponse === 'pending' ? 'outline-dashed outline-1 outline-gray-500' : ''} ${
           isOverdue(t, today) ? 'ring-1 ring-red-400' : ''
         }`}
       >

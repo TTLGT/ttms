@@ -3083,6 +3083,21 @@ costs one read; 288 runs a day.
 
 Closed to clients by default: no rule for the path.
 
+### Event invitations (fields on `personalTasks/{uid}/items/{itemId}`)
+
+```
+// On the organiser's event
+invite          : boolean            // "Invite them" — the people in `contacts`
+invitees        : [{ email, uid, name, response: 'pending' | 'accepted' | 'declined' }]  // server-kept
+// On each invitee's copy, id inv_{organiserUid}_{eventId}
+invitedBy       : { uid, email, name, eventId }
+inviteResponse  : 'pending' | 'accepted'   // a declined copy is deleted
+```
+
+Absent on everything saved before 2026-11-04, which invites nobody. Written
+only by `src/lib/taskInvitesServer.ts` (the copies and `invitees`) and by the
+invitee's own PATCH (their answer). No new index: copies are found by id.
+
 ## Collection: `dayPlans` (Team plans on the Calendar)
 
 A **copy** of what somebody planned for one day, made by their own act, for

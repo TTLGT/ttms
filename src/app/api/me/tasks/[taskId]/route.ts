@@ -16,6 +16,9 @@ import { publishDayPlan } from '@/lib/dayPlansServer';
 import { normalizeEmail } from '@/lib/accessControl';
 import { fullName } from '@/types/allowedUser';
 import { nextWorkingDay } from '@/types/dayPlan';
+import {
+  hasInvites, organizerFrom, recordAnswer, syncInvitesQuietly, tellOrganizer,
+} from '@/lib/taskInvitesServer';
 
 class Refused extends Error {
   constructor(message: string, readonly status: number) { super(message); }
@@ -49,13 +52,45 @@ export async function PATCH(
     let result: {
       nextId: string | null; game: GameState | null; events: GameEvent[]; streak: TaskStreak | null; blockIds: string[];
       share: { date: string; via: 'morning' | 'evening' } | null;
+      /** An invitee accepted: the organiser is told after the save. */
+      answered?: PersonalTask | null;
     };
+    const me = organizerFrom(uid, email, entry);
+    // Whether this save is to an event that invites (or did): read off what
+    // was sent and what the transaction found, so no extra read is spent.
+    let inviting = false;
     try {
       result = await adminDb.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
         if (!snap.exists) throw new Refused('That item no longer exists.', 404);
         const ownerSnap = await tx.get(owner);
         const current = toTask(snap);
+
+        // Somebody else's event, on this list because they were invited. Only
+        // the answer, the colour and the reminders are theirs to change; the
+        // rest follows the organiser (src/lib/taskInvitesServer.ts).
+        if (current.invitedBy) {
+          const allowed = new Set(['color', 'order', 'rank', 'reminders', 'inviteResponse']);
+          if (Object.keys(input).some((k) => !allowed.has(k))) {
+            throw new Refused(`Only ${current.invitedBy.name} can change this event. You can accept or decline it, and change its colour and reminders.`, 409);
+          }
+          // Declining takes it off the list, so it goes through DELETE.
+          if (input.inviteResponse === 'declined') throw new Refused('To decline, use Decline.', 400);
+          const apply = input.inviteResponse ? await recordAnswer(tx, current, me, input.inviteResponse) : null;
+          const copyUpdate: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
+          if (input.color) copyUpdate.color = input.color;
+          if (typeof input.order === 'number') copyUpdate.order = input.order;
+          if (input.reminders) copyUpdate.reminders = input.reminders;
+          if (input.inviteResponse) copyUpdate.inviteResponse = input.inviteResponse;
+          apply?.();
+          tx.update(ref, copyUpdate);
+          if (input.reminders) syncReminderQueue(tx, uid, { ...current, reminders: input.reminders }, taskId);
+          return {
+            nextId: null, game: null, events: [], streak: null, blockIds: [], share: null,
+            answered: apply ? current : null,
+          };
+        }
+        inviting = hasInvites({ invite: input.invite ?? current.invite, invitees: current.invitees });
 
         const kind = input.kind ?? current.kind;
         const date = 'date' in input ? input.date ?? null : current.date;
@@ -64,6 +99,11 @@ export async function PATCH(
         if (repeat !== 'none' && !date) throw new Refused('A repeating task needs a planned date to repeat from.', 400);
 
         const update: Record<string, unknown> = { ...input, updatedAt: FieldValue.serverTimestamp() };
+        // An answer is an invitee's; on one's own item it means nothing.
+        delete update.inviteResponse;
+        // Only an event invites; one turned into a task stops (and the sync
+        // after the save takes it off everybody's calendar).
+        if (kind === 'task' && (current.invite || 'invite' in input)) update.invite = false;
         // A work block's link, checked like a new one (see the create route).
         // Only an event is a block: one turned into a task loses it.
         if (kind === 'event' && input.workFor) {
@@ -313,6 +353,11 @@ export async function PATCH(
       }
     }
 
+    // Invitees' copies follow the organiser's event, after the save and
+    // before it is read back so the reply carries the fresh invitee list.
+    if (inviting) await syncInvitesQuietly(me, taskId);
+    if (result.answered && input.inviteResponse) await tellOrganizer(result.answered, me.name, input.inviteResponse);
+
     const [task, next, blocks] = await Promise.all([
       ref.get(),
       result.nextId ? taskItems(uid).doc(result.nextId).get() : Promise.resolve(null),
@@ -342,8 +387,28 @@ export async function DELETE(
   { params }: { params: Promise<{ taskId: string }> },
 ) {
   try {
-    const { uid } = await requireCompanyUser(req);
+    const { uid, email, entry } = await requireCompanyUser(req);
     const { taskId } = await params;
+    const me = organizerFrom(uid, email, entry);
+    // Read first, for the two kinds of item a delete reaches beyond this list.
+    const snap = await taskItems(uid).doc(taskId).get();
+    const item = snap.exists ? toTask(snap) : null;
+
+    // Deleting an invitation is declining it: the organiser sees the answer,
+    // and later edits to the event do not put it back.
+    if (item?.invitedBy) {
+      let answered = false;
+      await adminDb.runTransaction(async (tx) => {
+        const apply = await recordAnswer(tx, item, me, 'declined');
+        apply?.();
+        answered = !!apply;
+        tx.delete(snap.ref);
+        syncReminderQueue(tx, uid, null, taskId);
+      });
+      if (answered) await tellOrganizer(item, me.name, 'declined');
+      return NextResponse.json({ deleted: taskId, blocks: [] });
+    }
+
     // Deleting something already gone is not an error: two tabs, one click each.
     // Its reminders go with it, or a deleted call would still ring. XP a
     // finished task earned stays earned — deleting is tidying, not undoing.
@@ -366,6 +431,8 @@ export async function DELETE(
     batch.delete(taskItems(uid).doc(taskId));
     syncReminderQueue(batch, uid, null, taskId);
     await batch.commit();
+    // An event that invited people is cancelled for all of them.
+    if (hasInvites(item)) await syncInvitesQuietly(me, taskId, item);
     return NextResponse.json({ deleted: taskId, blocks: blocks.map((b) => b.id) });
   } catch (e) {
     if (e instanceof AdminAuthError) {

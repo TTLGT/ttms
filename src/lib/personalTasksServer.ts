@@ -145,6 +145,18 @@ export function toTask(snap: DocumentSnapshot): PersonalTask {
     rank:      typeof d.rank === 'number' ? d.rank : null,
     // Absent on everything saved before contacts existed, which had none.
     contacts:  cleanContacts(d.contacts),
+    invite:    d.kind === 'event' && d.invite === true,
+    invitees:  Array.isArray(d.invitees)
+      ? (d.invitees as Record<string, unknown>[]).filter((i) => i && typeof i.email === 'string' && typeof i.uid === 'string')
+        .map((i) => ({
+          email: String(i.email), uid: String(i.uid), name: String(i.name ?? i.email),
+          response: i.response === 'accepted' || i.response === 'declined' ? i.response : 'pending' as const,
+        }))
+      : [],
+    invitedBy: d.invitedBy && typeof d.invitedBy.uid === 'string' && typeof d.invitedBy.eventId === 'string'
+      ? { uid: d.invitedBy.uid, email: String(d.invitedBy.email ?? ''), name: String(d.invitedBy.name ?? ''), eventId: d.invitedBy.eventId }
+      : null,
+    inviteResponse: d.invitedBy ? (d.inviteResponse === 'accepted' ? 'accepted' : 'pending') : null,
     // Likewise orders.
     orders:    cleanOrders(d.orders),
     createdAt: iso(d.createdAt),

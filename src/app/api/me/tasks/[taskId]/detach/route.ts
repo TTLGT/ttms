@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/firebase-admin';
+import { hasInvites, organizerFrom, syncInvitesQuietly } from '@/lib/taskInvitesServer';
 import { syncReminderQueue, taskItems, toTask } from '@/lib/personalTasksServer';
 import { MAX_TASKS_PER_PERSON, cleanTaskInput, occursOn } from '@/types/task';
 
@@ -28,7 +29,7 @@ export async function POST(
   { params }: { params: Promise<{ taskId: string }> },
 ) {
   try {
-    const { uid } = await requireCompanyUser(req);
+    const { uid, email, entry } = await requireCompanyUser(req);
     const { taskId } = await params;
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     // The same checks as any save: real dates, real times.
@@ -50,6 +51,7 @@ export async function POST(
         const snap = await tx.get(seriesRef);
         if (!snap.exists) throw new Refused('That event no longer exists.', 404);
         const series = toTask(snap);
+        if (series.invitedBy) throw new Refused(`Only ${series.invitedBy.name} can move this event.`, 409);
         if (series.kind !== 'event' || series.repeat === 'none') {
           throw new Refused('That is not a repeating event.', 400);
         }
@@ -87,6 +89,15 @@ export async function POST(
     } catch (e) {
       if (e instanceof Refused) return NextResponse.json({ error: e.message }, { status: e.status });
       throw e;
+    }
+
+    // Both follow on the invitees' calendars: the date leaves their series and
+    // arrives as its own event, with the answers they already gave.
+    const before = toTask(await seriesRef.get());
+    if (hasInvites(before)) {
+      const org = organizerFrom(uid, email, entry);
+      await syncInvitesQuietly(org, taskId);
+      await syncInvitesQuietly(org, newRef.id);
     }
 
     const [series, event] = await Promise.all([seriesRef.get(), newRef.get()]);

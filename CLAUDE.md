@@ -1030,6 +1030,18 @@ Types and pure rules in `src/types/task.ts`; server in
   that turns a plan into a performance measure, the thing the list
   deliberately is not. Change what is copied and change
   `DAY_PLAN_DISCLOSURE` the same day.
+- **Event invitations are the one write into somebody else's list**
+  (2026-11-04). An event with "Invite them" on (`invite`) puts a copy on the
+  list of each colleague in its With box, at `inv_{organiserUid}_{eventId}`,
+  marked `invitedBy`; answers are kept on the organiser's `invitees`.
+  `syncInvites()` in `src/lib/taskInvitesServer.ts` rewrites every copy after
+  each create, save, one-date detach and delete of the event, and **anything
+  new that changes an event must call it too**, or invitees keep the old
+  time. A copy is refused every edit but its answer, colour and reminders
+  (PATCH), cannot be detached or dragged, and deleting it is declining it; a
+  decline is never undone by a later edit. Notices go to the private
+  `notice_tasks_{uid}` room, never email. The copy carries no orders.
+  Nothing here reads anybody's own items — only the copy at that fixed id.
 - **The board's columns are per person** (`boardColumns` on the parent
   document; six built-ins plus up to twelve of their own, in their order).
   A status is any string `isTaskStatus()` accepts, not a fixed list.

@@ -12,6 +12,7 @@ import {
 } from '@/lib/personalTasksServer';
 import { gameClock, gameFrom, liveStreakFor, runDailyCheck, writeGame } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
+import { organizerFrom, syncInvitesQuietly } from '@/lib/taskInvitesServer';
 import { GameTurn, type GameEvent, type GameState } from '@/types/taskGame';
 import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanColorLabels, cleanTaskInput, defaultColorFor, repeatEnd, repeatFields, type WorkLink } from '@/types/task';
 
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { uid } = await requireCompanyUser(req);
+    const { uid, email, entry } = await requireCompanyUser(req);
     const input = cleanTaskInput(await req.json().catch(() => ({})));
 
     if (!input.title) {
@@ -140,6 +141,9 @@ export async function POST(req: NextRequest) {
       steps:     kind === 'event' ? [] : (input.steps ?? []).map((st) => ({ ...st, xp: 0, everDone: st.done })),
       rank:      kind === 'event' ? null : input.rank ?? null,
       contacts:  input.contacts ?? [],
+      // Only an event invites; the people are the "With" box above.
+      invite:    kind === 'event' && input.invite === true,
+      invitees:  [],
       orders:    input.orders ?? [],
       workFor,
       // The browser works out where a new card goes (the bottom of its column)
@@ -178,6 +182,9 @@ export async function POST(req: NextRequest) {
         return { game: out.state, events: out.events };
       }));
     }
+
+    // On the invitees' calendars as soon as it is on the organiser's.
+    if (kind === 'event' && input.invite) await syncInvitesQuietly(organizerFrom(uid, email, entry), ref.id);
 
     return NextResponse.json({ task: toTask(await ref.get()), game, events }, { status: 201 });
   } catch (e) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Bell, CalendarClock, CalendarPlus, Copy, Target, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarClock, CalendarPlus, Copy, Target, Trash2, UserPlus, X } from 'lucide-react';
 import DateField from '@/components/DateField';
 import TimeField from '@/components/TimeField';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -49,6 +49,7 @@ import {
   type TaskReminderLead,
   type TaskRepeat,
   type TaskStep,
+  INVITE_RESPONSE_LABEL,
 } from '@/types/task';
 import { shiftedEnd } from '@/types/planning';
 import { TASK_XP } from '@/types/taskGame';
@@ -136,7 +137,11 @@ export default function TaskEditor({
   onClose: () => void;
 }) {
   const start = task ?? initial ?? {};
-  const readOnly = !!task?.fromHistory;
+  // History is a record; an invitation is somebody else's event. Both are
+  // shown in full and changed by nobody here — an invitation is answered.
+  const invitedBy = task?.invitedBy ?? null;
+  const readOnly = !!task?.fromHistory || !!invitedBy;
+  const [answering, setAnswering] = useState(false);
   const [kind, setKind]           = useState<TaskKind>(start.kind ?? 'task');
   const [eventType, setEventType] = useState<EventType>(start.eventType ?? 'call');
   const [title, setTitle]         = useState(start.title ?? '');
@@ -177,6 +182,8 @@ export default function TaskEditor({
   );
   const [steps, setSteps]         = useState<TaskStep[]>(start.steps ?? []);
   const [contacts, setContacts]   = useState<TaskContact[]>(start.contacts ?? []);
+  // Events only: put it on the calendars of the people in the With box.
+  const [invite, setInvite]       = useState<boolean>(start.invite ?? false);
   const [orders, setOrders]       = useState<TaskOrder[]>(start.orders ?? []);
   // Events only: the task (and step) this is a work block for.
   const [workFor, setWorkFor]     = useState<WorkLink | null>(start.workFor ?? null);
@@ -192,7 +199,7 @@ export default function TaskEditor({
   const draft = JSON.stringify([
     kind, eventType, title, notes, location, status, priority, difficulty, color, date, time, endTime,
     dueDate, dueTime, reminders, repeat, repeatWeekday, repeatNths, repeatUntil, steps,
-    contacts, orders, place, workFor,
+    contacts, orders, place, workFor, invite,
   ]);
   const [opened] = useState(draft);
 
@@ -309,6 +316,7 @@ export default function TaskEditor({
       reminders: date ? reminders.filter((l) => leads.includes(l)) : [],
       contacts,
       orders,
+      ...(kind === 'event' ? { invite } : {}),
       ...(kind === 'task' ? { steps } : {}),
       // Sent only when it changed: a block whose task has since been deleted
       // can still be saved without the server refusing a link nobody touched.
@@ -367,6 +375,31 @@ export default function TaskEditor({
 
         {/* History is a record: everything shown, nothing changeable. A
             disabled fieldset turns off every control inside it at once. */}
+        {invitedBy && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-inherit bg-white/60 px-5 py-3 text-sm">
+            <UserPlus size={15} className="shrink-0 text-brand-600" />
+            <p className="min-w-0 flex-1 text-gray-700">
+              <span className="font-medium">{invitedBy.name}</span> invited you.
+              {task?.inviteResponse === 'accepted' ? ' You accepted.' : ' You have not answered yet.'}
+            </p>
+            {task?.inviteResponse !== 'accepted' && (
+              <button type="button" disabled={answering}
+                onClick={async () => { setAnswering(true); await onSave({ inviteResponse: 'accepted' }, null); setAnswering(false); }}
+                className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+                Accept
+              </button>
+            )}
+            {onDelete && (
+              <button type="button" disabled={answering}
+                onClick={() => {
+                  if (window.confirm(`Decline "${task!.title}"? It comes off your calendar and ${invitedBy.name} is told.`)) onDelete();
+                }}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50">
+                Decline
+              </button>
+            )}
+          </div>
+        )}
         <fieldset disabled={readOnly} className="min-w-0">
         <div className="space-y-4 px-5 py-4">
           {copyOf !== undefined && (
@@ -565,6 +598,31 @@ export default function TaskEditor({
           <div>
             <span className={label}>With</span>
             <TaskContactPicker value={contacts} onChange={setContacts} inputClass={input} />
+            {kind === 'event' && !invitedBy && (
+              <label className="mt-2 flex items-start gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={invite} onChange={(e) => setInvite(e.target.checked)}
+                  className="mt-0.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+                <span>
+                  Invite them — put it on their calendars
+                  <span className="block text-xs text-gray-500">
+                    They can accept or decline. When you move, change or delete it, their calendars follow, and they get a chat message.
+                  </span>
+                </span>
+              </label>
+            )}
+            {kind === 'event' && !invitedBy && (task?.invitees?.length ?? 0) > 0 && (
+              <ul className="mt-2 space-y-1">
+                {task!.invitees!.map((i) => (
+                  <li key={i.uid} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="truncate text-gray-700">{i.name}</span>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 font-medium ${
+                      i.response === 'accepted' ? 'bg-green-100 text-green-800'
+                        : i.response === 'declined' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                    }`}>{INVITE_RESPONSE_LABEL[i.response]}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* The load it is about, so the order is one click from the task. */}

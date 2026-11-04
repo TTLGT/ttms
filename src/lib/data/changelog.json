@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "d42525b3f17ab6b3bff30318bf143bd74c65a860",
+      "date": "2026-11-04T13:09:05-06:00",
+      "author": "erwindank",
+      "subject": "Add Team plans to the Calendar: finishing the morning review or end-of-day planning shares that day's task names and times with the person's manager, shown to admins and Sales Managers as an agenda, a table, a timeline and a week",
+      "body": ""
+    },
+    {
       "hash": "0015ee48b9203db8f8c50408d64c25326ad172e6",
       "date": "2026-11-04T12:58:18-06:00",
       "author": "erwindank",

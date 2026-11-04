@@ -788,6 +788,38 @@ export function newBlockInput(task: PersonalTask, stepId: string | null, today: 
   };
 }
 
+/**
+ * Inviting colleagues to an event — see src/lib/taskInvitesServer.ts.
+ *
+ * The organiser's event names its people in `contacts` (the "With" box) and
+ * sets `invite`; the server then keeps a copy on each of their own lists,
+ * marked `invitedBy`, and the answers on the organiser's `invitees`. Neither
+ * `invitees`, `invitedBy` nor `inviteResponse` can be written by the browser
+ * except an invitee's own answer, through the PATCH of their copy.
+ */
+export type InviteResponse = 'pending' | 'accepted' | 'declined';
+
+export interface TaskInvitee {
+  email: string;
+  uid: string;
+  name: string;
+  response: InviteResponse;
+}
+
+export interface InvitedBy {
+  uid: string;
+  email: string;
+  name: string;
+  /** The organiser's event, on the organiser's own list. Never opened from here. */
+  eventId: string;
+}
+
+export const INVITE_RESPONSE_LABEL: Record<InviteResponse, string> = {
+  pending: 'No answer yet',
+  accepted: 'Accepted',
+  declined: 'Declined',
+};
+
 export interface PersonalTask {
   id: string;
   kind: TaskKind;
@@ -893,6 +925,14 @@ export interface PersonalTask {
   rank: number | null;
   /** Colleagues this task is with, in the order they were added. Empty for none. */
   contacts: TaskContact[];
+  /** Organiser's event: put it on the calendars of the colleagues in `contacts`. */
+  invite?: boolean;
+  /** Organiser's event: who was invited and what they answered. Server-kept. */
+  invitees?: TaskInvitee[];
+  /** Invitee's copy: whose event this is. Null on everything of one's own. */
+  invitedBy?: InvitedBy | null;
+  /** Invitee's copy: their answer. A declined copy is taken off, so never 'declined' here. */
+  inviteResponse?: InviteResponse | null;
   /** Loads this task is about, in the order they were added. Empty for none. */
   orders: TaskOrder[];
   /** ISO strings on the wire. */
@@ -954,7 +994,7 @@ export function outcomeOf(t: Pick<PersonalTask, 'kind' | 'status' | 'outcome'>):
 export type PersonalTaskInput = Partial<Pick<PersonalTask,
   'kind' | 'title' | 'notes' | 'status' | 'priority' | 'difficulty' | 'color' | 'date' | 'time' | 'endTime' | 'dueDate' | 'dueTime' | 'order'
   | 'eventType' | 'location' | 'reminders' | 'repeat' | 'repeatWeekday' | 'repeatNths' | 'repeatUntil'
-  | 'suggestionId' | 'steps' | 'rank' | 'contacts' | 'orders' | 'outcome' | 'workFor'>>;
+  | 'suggestionId' | 'steps' | 'rank' | 'contacts' | 'orders' | 'outcome' | 'workFor' | 'invite' | 'inviteResponse'>>;
 
 /**
  * The starting values for a copy of an item: what it says and when, never how
@@ -1111,6 +1151,10 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   if (b.rank === null) out.rank = null;
   else if (typeof b.rank === 'number' && Number.isInteger(b.rank) && b.rank >= 1 && b.rank <= MAX_QUEUE_RANK) out.rank = b.rank;
   if (Array.isArray(b.contacts)) out.contacts = cleanContacts(b.contacts);
+  if (typeof b.invite === 'boolean') out.invite = b.invite;
+  // Only an answer; 'pending' is the server's to set. The route checks the
+  // item really is an invitation before it reads this.
+  if (b.inviteResponse === 'accepted' || b.inviteResponse === 'declined') out.inviteResponse = b.inviteResponse;
   if (Array.isArray(b.orders)) out.orders = cleanOrders(b.orders);
   // 'rescheduled' only ever comes from the reschedule route, which makes the copy it points at.
   if (b.outcome === 'done' || b.outcome === 'notdone') out.outcome = b.outcome;
