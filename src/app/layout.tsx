@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
-import { Rajdhani } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { THEME_BOOT_SCRIPT } from '@/lib/themeBoot';
 
-const rajdhani = Rajdhani({ weight: '700', subsets: ['latin'], variable: '--font-rajdhani' });
+// From src/fonts rather than next/font/google, which downloads at build time
+// and broke Vercel deploys — see src/components/tasks/themeFonts.ts.
+const rajdhani = localFont({ src: '../fonts/rajdhani-700.woff2', weight: '700', variable: '--font-rajdhani' });
 
 export const metadata: Metadata = {
   title: 'TTL TMS — Total Transport Logistics',

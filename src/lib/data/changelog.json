@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "8002550c79d3236d5fd489085f755966703ca0d1",
+      "date": "2026-11-04T11:28:22-06:00",
+      "author": "erwindank",
+      "subject": "Print services with a cost on their own Services arranged line on the SA, the Dispatch Sheet and the BOL, apart from the equipment accessorials",
+      "body": "Under one Accessorials heading a carrier read \"Crane\" as something the truck\nhad to bring. Names only, never costs. The fingerprints still hash the\naccessorial keys, so no sent link is held and no BOL reads as outdated;\nlinks sent earlier keep showing both together, as they were sent."
+    },
+    {
       "hash": "6c4115f0cfd7b2da803c0486034ea6e8c60622f7",
       "date": "2026-11-04T10:31:22-06:00",
       "author": "erwindank",
