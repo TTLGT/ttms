@@ -16,10 +16,22 @@ import {
   usd,
 } from '@/types/paymentMethod';
 import type { ComplexTerms, OrderPaymentTerms, PaymentMethod, PaymentSide } from '@/types/paymentMethod';
-import type { CommodityItem, Order } from '@/types/order';
+import {
+  ACCESSORIAL_LABEL,
+  MAX_SERVICE_CHARGES,
+  OTHER_CHARGE_SUGGESTIONS,
+  cleanServiceCharges,
+  isPaidService,
+  serviceChargesTotal,
+} from '@/types/order';
+import type { Accessorial, CommodityItem, Order, ServiceCharge } from '@/types/order';
+import { Plus, X } from 'lucide-react';
 
 const INPUT =
   'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
+
+/** A charge typed by hand, while it is being edited — the label may still be blank. */
+interface OtherCharge { label: string; amount: number | null }
 
 /** Everything in Price and Terms except the three money boxes the form already had. */
 export interface PriceTerms {
@@ -28,6 +40,13 @@ export interface PriceTerms {
   brokerFeeTerms: OrderPaymentTerms | null;
   specialTerms: string;
   complexTerms: ComplexTerms;
+  /**
+   * The cost typed for each paid service, kept even while its box is
+   * unticked, so unticking and re-ticking in one sitting does not lose the
+   * figure. Only ticked ones are saved — see priceTermsForSave().
+   */
+  serviceCosts: Partial<Record<Accessorial, number | null>>;
+  otherCharges: OtherCharge[];
 }
 
 export function blankPriceTerms(): PriceTerms {
@@ -37,16 +56,24 @@ export function blankPriceTerms(): PriceTerms {
     brokerFeeTerms: null,
     specialTerms: '',
     complexTerms: blankComplexTerms(),
+    serviceCosts: {},
+    otherCharges: [],
   };
 }
 
 export function priceTermsFromOrder(o: Partial<Order>): PriceTerms {
+  const charges = cleanServiceCharges(o.serviceCharges);
+  const serviceCosts: PriceTerms['serviceCosts'] = {};
+  for (const c of charges) if (c.service !== 'other') serviceCosts[c.service] = c.amount;
   return {
     clientPayment: o.clientPayment ?? null,
     carrierPayment: o.carrierPayment ?? null,
     brokerFeeTerms: o.brokerFeeTerms ?? null,
     specialTerms: o.specialTerms ?? '',
     complexTerms: { ...blankComplexTerms(), ...(o.complexTerms ?? {}) },
+    serviceCosts,
+    otherCharges: charges.filter((c) => c.service === 'other')
+      .map((c) => ({ label: c.label ?? '', amount: c.amount })),
   };
 }
 
@@ -55,17 +82,36 @@ export function priceTermsFromOrder(o: Partial<Order>): PriceTerms {
  * dropdowns, as in BATS, so whichever set is not in use is saved as null —
  * otherwise the record would show a "COD - Cash" nobody chose alongside a
  * leg-by-leg breakdown that contradicts it.
+ *
+ * `accessorials` is what is ticked as the save goes out — on the order on
+ * file when only this section is being saved — so a service no longer ticked
+ * takes its cost with it. Paid services go in catalog order, then the typed
+ * ones, so a save never reads as a change for the order alone.
  */
-export function priceTermsForSave(t: PriceTerms): Pick<Order,
-  'clientPayment' | 'carrierPayment' | 'brokerFeeTerms' | 'specialTerms' | 'complexTerms'> {
+export function priceTermsForSave(t: PriceTerms, accessorials: readonly Accessorial[]): Pick<Order,
+  'clientPayment' | 'carrierPayment' | 'brokerFeeTerms' | 'specialTerms' | 'complexTerms' | 'serviceCharges'> {
   const complex = t.complexTerms.enabled;
+  const serviceCharges: ServiceCharge[] = [
+    ...accessorials.filter((a) => isPaidService(a) && t.serviceCosts[a] != null)
+      .map((a): ServiceCharge => ({ service: a, amount: t.serviceCosts[a] ?? null })),
+    ...t.otherCharges.filter((c) => c.label.trim())
+      .map((c): ServiceCharge => ({ service: 'other', label: c.label.trim(), amount: c.amount })),
+  ];
   return {
     clientPayment: t.clientPayment,
     carrierPayment: complex ? null : t.carrierPayment,
     brokerFeeTerms: complex ? null : t.brokerFeeTerms,
     specialTerms: t.specialTerms.trim(),
     complexTerms: complex ? t.complexTerms : null,
+    serviceCharges,
   };
+}
+
+/** Why the form cannot be saved as it stands, or '' — a typed charge with an amount but no name. */
+export function priceTermsProblem(t: PriceTerms): string {
+  return t.otherCharges.some((c) => !c.label.trim() && c.amount != null)
+    ? 'Name the service for every charge added by hand in Price and Terms, or remove the line.'
+    : '';
 }
 
 /** A blank box is "nothing on this leg", kept as null rather than a false 0. */
@@ -88,6 +134,8 @@ interface Props {
    * size and weight. Optional: without them it opens on the miles alone.
    */
   commodities?: readonly CommodityItem[];
+  /** What is ticked in Freight — each paid service among them gets a cost line here. */
+  accessorials: readonly Accessorial[];
 }
 
 /**
@@ -98,7 +146,7 @@ interface Props {
  * Carrier Pay stays worked out from the other two, as it always has been here.
  */
 export default function PriceAndTermsSection({
-  agreedRate, onAgreedRate, brokerFee, onBrokerFee, carrierPay, laneMiles, terms, onTerms, commodities,
+  agreedRate, onAgreedRate, brokerFee, onBrokerFee, carrierPay, laneMiles, terms, onTerms, commodities, accessorials,
 }: Props) {
   const [methods, setMethods] = useState<Record<PaymentSide, PaymentMethod[]>>({
     client: [], carrier: [], brokerFee: [],
@@ -174,6 +222,15 @@ export default function PriceAndTermsSection({
           </div>
         </div>
       </div>
+
+      <ServiceChargesFields
+        accessorials={accessorials}
+        costs={terms.serviceCosts}
+        onCosts={(serviceCosts) => set({ serviceCosts })}
+        others={terms.otherCharges}
+        onOthers={(otherCharges) => set({ otherCharges })}
+        agreedRate={rate}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div id="field-clientPayment">
@@ -260,6 +317,115 @@ function ComplexTermsFields({ terms, onChange, carrierPay, brokerFee }: {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * What the Agreed Rate pays for besides the move: a line per paid service
+ * ticked in Freight, plus any typed by hand. A breakdown of the rate, not an
+ * addition to it — see ServiceCharge — so the rest of the rate is shown as
+ * the linehaul, and a breakdown bigger than the rate is flagged rather than
+ * refused (the rate may simply not be typed yet).
+ */
+function ServiceChargesFields({ accessorials, costs, onCosts, others, onOthers, agreedRate }: {
+  accessorials: readonly Accessorial[];
+  costs: PriceTerms['serviceCosts'];
+  onCosts: (c: PriceTerms['serviceCosts']) => void;
+  others: OtherCharge[];
+  onOthers: (o: OtherCharge[]) => void;
+  agreedRate: number;
+}) {
+  const paid = accessorials.filter(isPaidService);
+  const lines = [
+    ...paid.map((a) => ({ amount: costs[a] ?? null })),
+    ...others.filter((o) => o.label.trim()),
+  ];
+  const total = serviceChargesTotal(lines);
+  const linehaul = Math.round((agreedRate - total) * 100) / 100;
+  const setOther = (i: number, patch: Partial<OtherCharge>) =>
+    onOthers(others.map((o, j) => (j === i ? { ...o, ...patch } : o)));
+  const full = paid.length + others.length >= MAX_SERVICE_CHARGES;
+
+  return (
+    <div id="field-serviceCharges" className="rounded-lg border border-gray-200 bg-gray-50/60 p-4 space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-gray-800">Services in the Agreed Rate</p>
+        <p className="text-xs text-gray-500 mt-0.5">
+          What part of the Agreed Rate pays for each service — not added on top of it. Tick a service under
+          Freight → Services with a cost and its line appears here; add anything rarer by hand. These figures
+          are kept on the load only and are not printed on the SA, the Dispatch Sheet or the invoice.
+        </p>
+      </div>
+
+      {paid.length === 0 && others.length === 0 && (
+        <p className="text-xs text-gray-500 italic">No services with a cost on this load.</p>
+      )}
+
+      {paid.map((a) => (
+        <div key={a} className="grid grid-cols-[minmax(0,1fr)_9rem_2rem] gap-2 items-center">
+          <span className="text-sm text-gray-700">{ACCESSORIAL_LABEL[a]}</span>
+          <MoneyInput
+            value={costs[a] == null ? '' : String(costs[a])}
+            onChange={(v) => onCosts({ ...costs, [a]: money(v) })}
+            placeholder="0.00"
+            className={INPUT}
+          />
+          {/* No remove here: the line belongs to the tick box in Freight. */}
+          <span />
+        </div>
+      ))}
+
+      {others.map((o, i) => (
+        <div key={i} className="grid grid-cols-[minmax(0,1fr)_9rem_2rem] gap-2 items-center">
+          <input
+            value={o.label}
+            onChange={(e) => setOther(i, { label: e.target.value })}
+            list="other-charge-suggestions"
+            maxLength={80}
+            placeholder="Service, e.g. Detention"
+            aria-label="Service name"
+            className={INPUT}
+          />
+          <MoneyInput
+            value={o.amount == null ? '' : String(o.amount)}
+            onChange={(v) => setOther(i, { amount: money(v) })}
+            placeholder="0.00"
+            className={INPUT}
+          />
+          <button type="button" onClick={() => onOthers(others.filter((_, j) => j !== i))}
+            aria-label="Remove this charge"
+            className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 transition">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      ))}
+      <datalist id="other-charge-suggestions">
+        {OTHER_CHARGE_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
+      </datalist>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        <button type="button" disabled={full}
+          onClick={() => onOthers([...others, { label: '', amount: null }])}
+          className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:text-brand-700 disabled:opacity-50">
+          <Plus className="w-4 h-4" /> Add a charge by hand
+        </button>
+        {lines.length > 0 && (
+          <p className="text-xs text-gray-600">
+            Services: <span className="font-semibold text-gray-900">{usd(total)}</span>
+            {agreedRate > 0 && (
+              <>{' · '}Linehaul (the rest of the rate): <span className="font-semibold text-gray-900">{usd(Math.max(0, linehaul))}</span></>
+            )}
+          </p>
+        )}
+      </div>
+
+      {agreedRate > 0 && linehaul < 0 && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          The services add up to {usd(total)}, which is more than the Agreed Rate of {usd(agreedRate)}. They are
+          part of the rate, so either a cost is too high or the rate needs raising.
+        </p>
+      )}
     </div>
   );
 }

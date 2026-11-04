@@ -17,7 +17,7 @@ import { DEFAULT_RECORD_REGION } from '@/lib/phone';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
 import AccessorialsField from '@/components/orders/AccessorialsField';
 import TransportTypeField from '@/components/orders/TransportTypeField';
-import PriceAndTermsSection, { blankPriceTerms, priceTermsForSave } from '@/components/orders/PriceAndTermsSection';
+import PriceAndTermsSection, { blankPriceTerms, priceTermsForSave, priceTermsProblem } from '@/components/orders/PriceAndTermsSection';
 import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
@@ -190,6 +190,8 @@ function NewOrderForm() {
     if (badRange) { setError(badRange); return; }
     const badStop = stopsProblem('pickup', extraPickups) || stopsProblem('delivery', extraDeliveries);
     if (badStop) { setError(badStop); return; }
+    const badCharge = priceTermsProblem(priceTerms);
+    if (badCharge) { setError(badCharge); return; }
     // The input is `required`, but a value of spaces gets past that.
     if (!transportType.trim()) { setError('Choose the transport type — the truck or trailer this load moves on.'); return; }
 
@@ -263,7 +265,7 @@ function NewOrderForm() {
         brokerFee:    parseFloat(brokerFee)  || 0,
         carrierPay,
         ...notesAndInstructionsForSave(notes),
-        ...priceTermsForSave(priceTerms),
+        ...priceTermsForSave(priceTerms, accessorials),
         batsId:             null,
         vehicles:           '',
         transportType:      transportType.trim(),
@@ -389,6 +391,7 @@ function NewOrderForm() {
             laneMiles={distance.laneMiles}
             terms={priceTerms} onTerms={setPriceTerms}
             commodities={commodities}
+            accessorials={accessorials}
           />
 
           {/* Route */}

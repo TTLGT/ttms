@@ -12,7 +12,7 @@ import type { PartySelection } from '@/components/parties/PartyCombobox';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
 import AccessorialsField from '@/components/orders/AccessorialsField';
 import TransportTypeField from '@/components/orders/TransportTypeField';
-import PriceAndTermsSection, { blankPriceTerms, priceTermsForSave, priceTermsFromOrder } from '@/components/orders/PriceAndTermsSection';
+import PriceAndTermsSection, { blankPriceTerms, priceTermsForSave, priceTermsFromOrder, priceTermsProblem } from '@/components/orders/PriceAndTermsSection';
 import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
@@ -248,6 +248,8 @@ export default function EditOrderPage() {
       ? stopsProblem('pickup', extraPickups) || stopsProblem('delivery', extraDeliveries)
       : '';
     if (badStop) { setError(badStop); return; }
+    const badCharge = shows('price') ? priceTermsProblem(priceTerms) : '';
+    if (badCharge) { setError(badCharge); return; }
     // Asked for whenever the freight is on screen, so an older load without
     // one gets it the first time somebody edits its freight.
     if (shows('freight') && !transportType.trim()) {
@@ -319,7 +321,8 @@ export default function EditOrderPage() {
           agreedRate:   parseFloat(agreedRate) || 0,
           brokerFee:    parseFloat(brokerFee)  || 0,
           carrierPay:   Math.max(0, carrierPay),
-          ...priceTermsForSave(priceTerms),
+          // A Price-only save sees the ticks on file, which is what counts.
+          ...priceTermsForSave(priceTerms, accessorials),
         },
         route: {
           shipperId:     shipper.id,
@@ -463,6 +466,7 @@ export default function EditOrderPage() {
             laneMiles={distance.laneMiles}
             terms={priceTerms} onTerms={setPriceTerms}
             commodities={commodities}
+            accessorials={accessorials}
           />
           </>)}
 

@@ -1,6 +1,20 @@
 {
   "changes": [
     {
+      "hash": "fc1e9ca21be2f3da8be01f5ab7957362c5160ed7",
+      "date": "2026-11-03T15:41:14-06:00",
+      "author": "erwindank",
+      "subject": "Add a downloadable QR card to the signing link, so a client or carrier can scan it and sign the SA or Dispatch Sheet",
+      "body": "The card is drawn in the browser and saved as a PNG: logo, document and\nload number, the QR code, four plain steps, the link's expiry and the\noffice phone. Offered only while the link is live. The company letterhead\nmoved to src/lib/company.ts so the browser can read the phone number\nwithout pulling in pdfBrand's fs."
+    },
+    {
+      "hash": "e10e51a935f8901713615dd8df448ac4d8d511bc",
+      "date": "2026-11-03T15:13:03-06:00",
+      "author": "erwindank",
+      "subject": "Explain handling units with an info icon on the freight line, and rename Unit type to Packaging so it no longer reads as a unit of measure",
+      "body": ""
+    },
+    {
       "hash": "b6b32d3cd2453b194964586fe5d9360579be2ae2",
       "date": "2026-11-02T15:36:39-06:00",
       "author": "erwindank",

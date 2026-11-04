@@ -192,6 +192,12 @@ export const ACCESSORIALS = [
   'ramps', 'winch', 'liftgate', 'pallet_jack', 'tarps', 'straps', 'chains',
   'blankets', 'driver_assist', 'inside_delivery', 'residential', 'appointment',
   'team_drivers', 'pilot_car', 'oversize_permit', 'hazmat', 'twic',
+  // Services somebody is paid for (2026-11-04) — see PAID_SERVICES. Appended
+  // rather than slotted in beside their neighbours: the catalog order is the
+  // printed order, and it is part of the SA's freight fingerprint, so moving
+  // an existing key would make every sent SA with two ticked read as changed.
+  'towing', 'cleaning', 'mechanic', 'auto_parts', 'scaling', 'forklift', 'crane',
+  'rigging', 'storage', 'lumper',
 ] as const;
 export type Accessorial = typeof ACCESSORIALS[number];
 export const ACCESSORIAL_LABEL: Record<Accessorial, string> = {
@@ -212,10 +218,127 @@ export const ACCESSORIAL_LABEL: Record<Accessorial, string> = {
   oversize_permit: 'Oversize permit',
   hazmat:          'Hazmat endorsement',
   twic:            'TWIC card',
+  towing:          'Towing assistance',
+  cleaning:        'Cleaning',
+  mechanic:        'Mechanic',
+  auto_parts:      'Auto parts',
+  scaling:         'Scaling (weigh ticket)',
+  forklift:        'Forklift',
+  crane:           'Crane',
+  rigging:         'Rigging',
+  storage:         'Storage',
+  lumper:          'Lumper (unloading crew)',
 };
 
 export function isAccessorial(v: unknown): v is Accessorial {
   return typeof v === 'string' && (ACCESSORIALS as readonly string[]).includes(v);
+}
+
+/**
+ * The accessorials that are a service somebody is paid for — a crane, a tow,
+ * a pilot car — as opposed to equipment the truck brings. Ticking one opens a
+ * cost line for it in Price and Terms (`serviceCharges`). A subset of
+ * ACCESSORIALS, so it prints on the documents like any other; only the cost
+ * is extra. Adding a key here is free; it only decides where the box is drawn.
+ */
+export const PAID_SERVICES: readonly Accessorial[] = [
+  'pilot_car', 'oversize_permit',
+  'towing', 'cleaning', 'mechanic', 'auto_parts', 'scaling', 'forklift', 'crane',
+  'rigging', 'storage', 'lumper',
+];
+
+export function isPaidService(a: Accessorial): boolean {
+  return PAID_SERVICES.includes(a);
+}
+
+/**
+ * Offered for a charge typed by hand — the ones too rare, or too much an
+ * after-the-fact event, for a tick box in Freight. Anything else may be typed.
+ */
+export const OTHER_CHARGE_SUGGESTIONS = [
+  'Detention', 'Layover', 'Truck ordered not used (TONU)', 'Re-delivery',
+  'Stop-off', 'Fuel delivery', 'Jump start', 'Key replacement', 'Washout',
+];
+
+/**
+ * One line of what the Agreed Rate pays for, beyond moving the freight
+ * (2026-11-04). The amount is **part of** `agreedRate`, not on top of it — a
+ * breakdown, so nothing that reads the rate (the SA, the invoice, carrier pay)
+ * changes, and none of these lines is printed on any document.
+ *
+ * `service` is a PAID_SERVICES key, whose line exists only while that
+ * accessorial is ticked (`serviceChargeLines()` filters, because Freight and
+ * Price and Terms are saved separately and an untick in one cannot reach the
+ * other), or `'other'` for one typed by hand, which carries its own `label`.
+ */
+export interface ServiceCharge {
+  service: Accessorial | 'other';
+  label?: string;
+  /** Null for "not priced yet" — never 0 for unknown. */
+  amount: number | null;
+}
+
+/** Most lines one order keeps; far past any real load, it caps a pasted payload. */
+export const MAX_SERVICE_CHARGES = 30;
+const MAX_CHARGE_LABEL = 80;
+
+/**
+ * The stored shape, from whatever JSON came in: known services once each,
+ * typed ones with a name, amounts non-negative to the cent. Shared by the
+ * save route and the readers, so neither trusts the other's input.
+ */
+export function cleanServiceCharges(raw: unknown): ServiceCharge[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: ServiceCharge[] = [];
+  for (const r of raw) {
+    if (!r || typeof r !== 'object') continue;
+    const c = r as Record<string, unknown>;
+    const n = typeof c.amount === 'number' ? c.amount : NaN;
+    const amount = Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+    if (c.service === 'other') {
+      const label = typeof c.label === 'string' ? c.label.trim().slice(0, MAX_CHARGE_LABEL) : '';
+      if (label) out.push({ service: 'other', label, amount });
+    } else if (isAccessorial(c.service) && isPaidService(c.service) && !seen.has(c.service)) {
+      seen.add(c.service);
+      out.push({ service: c.service, amount });
+    }
+    if (out.length >= MAX_SERVICE_CHARGES) break;
+  }
+  return out;
+}
+
+/** One line as shown: the name to print and the amount. */
+export interface ServiceChargeLine {
+  service: Accessorial | 'other';
+  label: string;
+  amount: number | null;
+}
+
+/**
+ * The charges that count: one line per ticked paid service, in catalog order,
+ * with its amount if one was typed, then the typed ones. The single
+ * definition — the form, the order card and the total all read this.
+ */
+export function serviceChargeLines(
+  o: { accessorials?: unknown; serviceCharges?: unknown } | null | undefined,
+): ServiceChargeLine[] {
+  const stored = cleanServiceCharges(o?.serviceCharges);
+  const ticked = orderAccessorials(o).filter(isPaidService);
+  return [
+    ...ticked.map((s) => ({
+      service: s,
+      label: ACCESSORIAL_LABEL[s],
+      amount: stored.find((c) => c.service === s)?.amount ?? null,
+    })),
+    ...stored.filter((c) => c.service === 'other')
+      .map((c) => ({ service: 'other' as const, label: c.label ?? '', amount: c.amount })),
+  ];
+}
+
+/** What the lines add up to, to the cent. 0 when none is priced. */
+export function serviceChargesTotal(lines: readonly { amount: number | null }[]): number {
+  return Math.round(lines.reduce((sum, l) => sum + (l.amount ?? 0), 0) * 100) / 100;
 }
 
 /**
@@ -891,6 +1014,14 @@ export interface Order {
    * loads from before it existed — read through `orderAccessorials()`.
    */
   accessorials?: Accessorial[];
+  /**
+   * What the Agreed Rate pays for besides the move — the crane, the tow, a
+   * lumper — typed in Price and Terms (2026-11-04). Part of `agreedRate`, not
+   * added to it, and printed nowhere. Read through `serviceChargeLines()`,
+   * never directly: a paid service's line counts only while it is ticked.
+   * Absent on every load from before it existed.
+   */
+  serviceCharges?: ServiceCharge[];
   /**
    * How the client pays us, and how the carrier is paid — each a copy of the
    * option chosen from Settings, fee and all. See `OrderPaymentTerms` for why

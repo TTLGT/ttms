@@ -43,7 +43,7 @@ import type { ChangeOrderAffects } from '@/types/changeOrder';
 import { NO_SIGNED_CA_PROOF, NO_SIGNED_SA_PROOF, signedSaProof } from './signedSaProof';
 import { openBolRequestIfSigned } from './bolRequests';
 import { isCodLoad, missingSentence, paymentsMissing } from '@/types/orderPayment';
-import { LEGACY_STATUSES, cleanStops, orderAccessorials, orderDisplayNumber, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
+import { LEGACY_STATUSES, cleanServiceCharges, cleanStops, orderAccessorials, orderDisplayNumber, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
 
 const COL = 'orders';
 
@@ -119,6 +119,7 @@ function cleanStopFields(record: Record<string, unknown>) {
   // Known keys only, in catalog order: an unknown one would print nowhere,
   // and ticking order must not read as a change to the client's SA.
   if ('accessorials' in record) record.accessorials = orderAccessorials(record);
+  if ('serviceCharges' in record) record.serviceCharges = cleanServiceCharges(record.serviceCharges);
 }
 
 /**

@@ -1,4 +1,4 @@
-import { STATUS_LABEL, accessorialLabels, type OrderStatus } from './order';
+import { ACCESSORIAL_LABEL, STATUS_LABEL, accessorialLabels, cleanServiceCharges, type OrderStatus } from './order';
 import { toDate, type DateLike } from '@/lib/dateFormat';
 
 /**
@@ -130,6 +130,7 @@ const LABELS: Record<string, string> = {
   deliveryCountedBy: 'Counted at delivery by',
   bolShowDockBoxes: 'Print all loading and count boxes on the BOL',
   accessorials: 'Accessorials',
+  serviceCharges: 'Services in the agreed rate',
   transportType: 'Transport type',
   laneMiles: 'Lane miles',
   laneMilesSource: 'Mileage method',
@@ -268,6 +269,14 @@ export function describeChangeValue(
   // Stored as keys ("pallet_jack"); the log reads them as the documents print them.
   if (field === 'accessorials' && Array.isArray(value)) {
     return clip(accessorialLabels({ accessorials: value }).join(', ') || value.join(', '));
+  }
+  // Every stored line, ticked or not — the log records what was saved.
+  if (field === 'serviceCharges' && Array.isArray(value)) {
+    const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+    return clip(cleanServiceCharges(value).map((c) => {
+      const name = c.service === 'other' ? c.label : ACCESSORIAL_LABEL[c.service];
+      return `${name} ${c.amount == null ? '(no amount)' : usd.format(c.amount)}`;
+    }).join('; '));
   }
   if (STOP_FIELDS.has(field) && Array.isArray(value)) {
     // A stop is a party, an address and a date. Flattened like any other map

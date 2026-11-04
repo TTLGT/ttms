@@ -1124,7 +1124,32 @@ Printed on the BOL and copied, as labels, onto both signing links as
 `freight` fingerprint, so a change after sending holds the SA for review) and
 the carrier's Dispatch Sheet — and shown on their signing pages and signed
 PDFs. Renaming or removing a key is a migration: an unknown key is dropped
-and stops printing.
+and stops printing. New keys are **appended**, never slotted in: the catalog
+order is part of the SA's fingerprint.
+
+### Service charges on an order (2026-11-04)
+
+Some accessorials are a service somebody is paid for — `PAID_SERVICES`:
+towing, cleaning, mechanic, auto parts, scaling, forklift, crane, rigging,
+storage, lumper, pilot car, oversize permit. The Freight form draws them as a
+second group, "Services with a cost", and ticking one opens a cost line in
+Price and Terms. Anything rarer is typed there by hand.
+
+`serviceCharges` — an array of `{ service, label?, amount }`. `service` is a
+`PAID_SERVICES` key, or `'other'` with its own `label` (80 characters at
+most). `amount` is dollars or null for "not priced yet". At most 30 lines;
+`cleanServiceCharges()` enforces the shape on every save.
+
+- **A breakdown of `agreedRate`, not an addition to it.** Carrier pay, the
+  SA, the Dispatch Sheet, the invoice and the BOL are unchanged, and none of
+  them prints these lines — so editing one never holds a sent agreement. The
+  forms show the rest of the rate as the linehaul and warn when the services
+  add up to more than the rate.
+- **Read through `serviceChargeLines()`**, never the field directly. A paid
+  service's line counts only while its accessorial is ticked: Freight and
+  Price and Terms save separately, so unticking in Freight leaves the stored
+  line behind until Price and Terms is next saved.
+- Absent on every load from before it existed.
 
 ### Transport type on an order (2026-10-21)
 
