@@ -27,6 +27,7 @@ import { EVENT_ICON, NOTE_STYLE, OCCURRENCE_DRAG_TYPE, OUTCOME_ICON, OUTCOME_STY
 import OutcomeBadge from './OutcomeBadge';
 import SeriesChoice, { type SeriesAsk } from './SeriesChoice';
 import TaskWeekGrid, { MAX_ZOOM, ZOOM_STEPS } from './TaskWeekGrid';
+import MiniMonth from './MiniMonth';
 import { officeNowTime } from '@/types/planning';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -288,6 +289,37 @@ export default function TaskCalendar({
       const index = c.year * 12 + (c.month - 1) + by;
       return { year: Math.floor(index / 12), month: (index % 12) + 1 };
     });
+  };
+
+  /**
+   * The little month's click: take the big calendar to that day in the view
+   * it is in. Done here rather than by `onSelect` alone, because clicking the
+   * day already selected — after paging away with the arrows — changes
+   * nothing the follow effect above would see.
+   */
+  const jumpTo = (date: string) => {
+    setCursor(monthOf(date));
+    setGridStart((g) => {
+      if (mode === 'month') return g;
+      return date >= g && date <= addDays(g, SPAN[mode] - 1) ? g : gridStartFor(mode, date);
+    });
+    onSelect(date);
+  };
+
+  // Which days of a month have something of the person's own on them, for
+  // the little month's dots — worked out a month at a time when it is first
+  // asked about, and thrown away when the list changes.
+  const dotsByMonth = useMemo(() => new Map<string, Set<string>>(), [items]);
+  const hasItems = (date: string): boolean => {
+    const key = date.slice(0, 7);
+    let set = dotsByMonth.get(key);
+    if (!set) {
+      const from = `${key}-01`;
+      const to = addDays(`${key}-${String(new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 0)).getUTCDate()).padStart(2, '0')}`, 0);
+      set = new Set(items.flatMap((t) => occurrencesBetween(t, from, to)));
+      dotsByMonth.set(key, set);
+    }
+    return set.has(date);
   };
 
   const goToday = () => {
@@ -621,6 +653,15 @@ export default function TaskCalendar({
       </section>
 
       <aside className="h-fit min-w-0 space-y-4">
+        <MiniMonth
+          today={today}
+          selected={selected}
+          shownFrom={mode === 'month' ? monthStart : gridDays[0]}
+          shownTo={mode === 'month' ? addDays(addDays(monthStart, 31).slice(0, 8) + '01', -1) : gridDays[gridDays.length - 1]}
+          follow={mode === 'month' ? monthStart : gridDays[0]}
+          hasItems={hasItems}
+          onPick={jumpTo}
+        />
         {asideTop}
 
         {/* ── The chosen day ─────────────────────────────────────── */}
