@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "7c2a4b34a30e3f89795755e17301b709505a48c1",
+      "date": "2026-11-04T11:34:56-06:00",
+      "author": "erwindank",
+      "subject": "Serve the TTMS and task-theme fonts from the repo instead of downloading them from Google at build time, which was failing Vercel deploys",
+      "body": "next/font/google fetches every face during the build, and on Vercel the\nOrbitron fetch failed with \"next/font/google queries have exactly one\nentry\" on 2026-10-29 and again today, with the build cache off. The same\nlatin woff2 files now live in src/fonts and load through next/font/local,\nunder the same CSS variables, so nothing on screen changes."
+    },
+    {
       "hash": "8002550c79d3236d5fd489085f755966703ca0d1",
       "date": "2026-11-04T11:28:22-06:00",
       "author": "erwindank",

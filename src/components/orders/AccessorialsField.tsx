@@ -44,11 +44,11 @@ export default function AccessorialsField({ value, onChange }: {
       <div>
         <p className="text-sm font-medium text-gray-700 flex items-center gap-1">
           <DollarSign className="w-3.5 h-3.5 text-gray-500" aria-hidden />
-          Services with a cost
+          Additional Services
         </p>
         <p className="text-xs text-gray-500 mb-2">
-          Printed like the ones above. Ticking one also opens a line for its cost in Price and Terms. A service
-          not listed can be added there by hand.
+          Services the client pays for on top of the move. Ticking one opens a line for its cost in Price and
+          Terms, which is added to the Agreed Rate. A service not listed can be added there by hand.
         </p>
         <div className={grid}>{ACCESSORIALS.filter(isPaidService).map(box)}</div>
       </div>

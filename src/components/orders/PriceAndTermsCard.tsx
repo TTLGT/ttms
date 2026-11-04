@@ -11,7 +11,7 @@ import {
   usd,
 } from '@/types/paymentMethod';
 import type { OrderPaymentTerms, PaymentSide } from '@/types/paymentMethod';
-import { serviceChargeLines, serviceChargesTotal } from '@/types/order';
+import { CLIENT_ARRANGES_NOTE, SERVICE_ARRANGER_LABEL, serviceChargeLines, serviceChargesTotal } from '@/types/order';
 import type { Order } from '@/types/order';
 
 type Props = Pick<Order, 'agreedRate' | 'brokerFee' | 'carrierPay' | 'laneMiles'
@@ -49,7 +49,6 @@ export default function PriceAndTermsCard({ order, action }: {
   const payPpm = perMile(order.carrierPay, order.laneMiles);
   const services = serviceChargeLines(order);
   const servicesTotal = serviceChargesTotal(services);
-  const linehaul = Math.round(((order.agreedRate || 0) - servicesTotal) * 100) / 100;
 
   function terms(side: PaymentSide, t: OrderPaymentTerms | null | undefined) {
     return (
@@ -90,29 +89,29 @@ export default function PriceAndTermsCard({ order, action }: {
 
       {services.length > 0 && (
         <div className="mt-6 pt-6 border-t border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Services in the Agreed Rate</p>
-          <p className="text-xs text-gray-500 mb-3">Part of the rate, not added to it. Not printed on any document.</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Additional Services</p>
+          <p className="text-xs text-gray-500 mb-3">
+            Included in the Agreed Rate, and listed one by one on the client&apos;s SA and invoice. Carrier pay and the
+            broker fee are shown to the client together, as Freight Transportation.
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
             {services.map((s, i) => (
               <div key={`${s.service}-${i}`} className="flex justify-between gap-4 border-b border-gray-100 py-1">
-                <span className="text-gray-600">{s.label}</span>
-                <span className={s.amount == null ? 'text-gray-400' : 'text-gray-900'}>
-                  {s.amount == null ? 'No cost entered' : usd(s.amount)}
+                <span className="text-gray-600">
+                  {s.label}
+                  <span className={`block text-xs ${s.arrangedBy ? 'text-gray-500' : 'text-amber-700'}`}>
+                    {s.arrangedBy ? `Arranged by ${SERVICE_ARRANGER_LABEL[s.arrangedBy]}` : 'Nobody chosen to arrange it'}
+                  </span>
+                </span>
+                <span className={s.arrangedBy !== 'client' && s.amount == null ? 'text-gray-400' : 'text-gray-900'}>
+                  {s.arrangedBy === 'client' ? CLIENT_ARRANGES_NOTE : s.amount == null ? 'No cost entered' : usd(s.amount)}
                 </span>
               </div>
             ))}
           </div>
           <p className="text-xs text-gray-600 mt-3">
-            Services: <span className="font-semibold text-gray-900">{usd(servicesTotal)}</span>
-            {order.agreedRate > 0 && (
-              <>{' · '}Linehaul (the rest of the rate): <span className="font-semibold text-gray-900">{usd(Math.max(0, linehaul))}</span></>
-            )}
+            Additional services: <span className="font-semibold text-gray-900">{usd(servicesTotal)}</span>
           </p>
-          {order.agreedRate > 0 && linehaul < 0 && (
-            <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              The services add up to more than the Agreed Rate.
-            </p>
-          )}
         </div>
       )}
 

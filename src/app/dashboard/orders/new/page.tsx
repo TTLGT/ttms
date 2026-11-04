@@ -17,7 +17,7 @@ import { DEFAULT_RECORD_REGION } from '@/lib/phone';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
 import AccessorialsField from '@/components/orders/AccessorialsField';
 import TransportTypeField from '@/components/orders/TransportTypeField';
-import PriceAndTermsSection, { blankPriceTerms, priceTermsForSave, priceTermsProblem } from '@/components/orders/PriceAndTermsSection';
+import PriceAndTermsSection, { agreedRateFrom, blankPriceTerms, priceTermsForSave, priceTermsProblem } from '@/components/orders/PriceAndTermsSection';
 import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
@@ -91,12 +91,13 @@ function NewOrderForm() {
   const [deliveryDate, setDeliveryDate] = useState('');
   const [pickupDateEnd, setPickupDateEnd]     = useState('');
   const [deliveryDateEnd, setDeliveryDateEnd] = useState('');
-  const [agreedRate, setAgreedRate]     = useState('');
+  const [carrierPay, setCarrierPay]     = useState('');
   const [brokerFee, setBrokerFee]       = useState('');
   const [notes, setNotes]               = useState<NotesAndInstructions>(BLANK_NOTES_AND_INSTRUCTIONS);
   const [priceTerms, setPriceTerms]     = useState<PriceTerms>(blankPriceTerms);
 
-  const carrierPay = (parseFloat(agreedRate) || 0) - (parseFloat(brokerFee) || 0);
+  // Worked out, not typed (2026-11-04): carrier pay + broker fee + additional services.
+  const agreedRate = agreedRateFrom(priceTerms, accessorials, brokerFee, carrierPay);
 
   // The legacy single-value fields stay on the order, derived from the items,
   // so lists, PDFs and agreement emails keep working unchanged.
@@ -190,7 +191,7 @@ function NewOrderForm() {
     if (badRange) { setError(badRange); return; }
     const badStop = stopsProblem('pickup', extraPickups) || stopsProblem('delivery', extraDeliveries);
     if (badStop) { setError(badStop); return; }
-    const badCharge = priceTermsProblem(priceTerms);
+    const badCharge = priceTermsProblem(priceTerms, accessorials);
     if (badCharge) { setError(badCharge); return; }
     // The input is `required`, but a value of spaces gets past that.
     if (!transportType.trim()) { setError('Choose the transport type — the truck or trailer this load moves on.'); return; }
@@ -261,9 +262,9 @@ function NewOrderForm() {
         bolStoragePath: null,
         invoiceStoragePath: null,
         podStoragePath: null,
-        agreedRate:   parseFloat(agreedRate) || 0,
+        agreedRate,
         brokerFee:    parseFloat(brokerFee)  || 0,
-        carrierPay,
+        carrierPay:   parseFloat(carrierPay) || 0,
         ...notesAndInstructionsForSave(notes),
         ...priceTermsForSave(priceTerms, accessorials),
         batsId:             null,
@@ -385,9 +386,8 @@ function NewOrderForm() {
           </section>
 
           <PriceAndTermsSection
-            agreedRate={agreedRate} onAgreedRate={setAgreedRate}
             brokerFee={brokerFee} onBrokerFee={setBrokerFee}
-            carrierPay={carrierPay}
+            carrierPay={carrierPay} onCarrierPay={setCarrierPay}
             laneMiles={distance.laneMiles}
             terms={priceTerms} onTerms={setPriceTerms}
             commodities={commodities}

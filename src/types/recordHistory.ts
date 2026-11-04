@@ -1,4 +1,4 @@
-import { ACCESSORIAL_LABEL, STATUS_LABEL, accessorialLabels, cleanServiceCharges, type OrderStatus } from './order';
+import { ACCESSORIAL_LABEL, SERVICE_ARRANGER_LABEL, STATUS_LABEL, accessorialLabels, cleanServiceCharges, type OrderStatus } from './order';
 import { toDate, type DateLike } from '@/lib/dateFormat';
 
 /**
@@ -130,7 +130,7 @@ const LABELS: Record<string, string> = {
   deliveryCountedBy: 'Counted at delivery by',
   bolShowDockBoxes: 'Print all loading and count boxes on the BOL',
   accessorials: 'Accessorials',
-  serviceCharges: 'Services in the agreed rate',
+  serviceCharges: 'Additional services',
   transportType: 'Transport type',
   laneMiles: 'Lane miles',
   laneMilesSource: 'Mileage method',
@@ -275,7 +275,8 @@ export function describeChangeValue(
     const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
     return clip(cleanServiceCharges(value).map((c) => {
       const name = c.service === 'other' ? c.label : ACCESSORIAL_LABEL[c.service];
-      return `${name} ${c.amount == null ? '(no amount)' : usd.format(c.amount)}`;
+      const by = c.arrangedBy ? `, arranged by ${SERVICE_ARRANGER_LABEL[c.arrangedBy]}` : '';
+      return `${name} ${c.amount == null ? '(no amount)' : usd.format(c.amount)}${by}`;
     }).join('; '));
   }
   if (STOP_FIELDS.has(field) && Array.isArray(value)) {

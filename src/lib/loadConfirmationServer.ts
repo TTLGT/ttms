@@ -1,8 +1,8 @@
 import { createHash } from 'crypto';
 import { formatLongDateRange } from '@/lib/dateFormat';
 import {
-  equipmentLabels, serviceLabels, dimensionsSummary, formatDimensions, orderAccessorials, hasVehicleDetails, itemWeightLb, vehicleSummary, orderCommodityItems, orderDeliveries, orderPickups, stopPlaces,
-  type Order, type OrderStop,
+  clientChargeLines, equipmentLabels, inClientBreakdown, serviceArrangerKeys, serviceChargeLines, serviceWithArranger, dimensionsSummary, formatDimensions, orderAccessorials, hasVehicleDetails, itemWeightLb, vehicleSummary, orderCommodityItems, orderDeliveries, orderPickups, stopPlaces,
+  type ClientChargeLine, type Order, type OrderStop,
 } from '@/types/order';
 import {
   clientPaymentDetails,
@@ -110,6 +110,14 @@ export function confirmationFreight(order: AnyOrder): ConfirmationFreight[] {
 export interface ConfirmationContent {
   clientId: string;
   agreedRate: number;
+  /**
+   * The rate broken down as the client is shown it — Freight Transportation and
+   * each priced additional service (clientChargeLines()). Empty when there
+   * is no priced service, which is every link sent before 2026-11-04.
+   */
+  charges: ClientChargeLine[];
+  /** Who arranges which service — serviceArrangerKeys(). Empty until somebody is chosen. */
+  serviceArrangers: string[];
   stops: ConfirmationStop[];
   freight: ConfirmationFreight[];
   equipment: string;
@@ -130,6 +138,8 @@ export function confirmationContent(order: AnyOrder): ConfirmationContent {
   return {
     clientId:   String(order.clientId ?? ''),
     agreedRate: Number(order.agreedRate) || 0,
+    charges:    clientChargeLines(order),
+    serviceArrangers: serviceArrangerKeys(order),
     stops:      confirmationStops(order),
     freight:    confirmationFreight(order),
     equipment:  String(order.transportType ?? ''),
@@ -155,13 +165,20 @@ const sha = (v: unknown) => createHash('sha256').update(JSON.stringify(v)).diges
 export function sectionHashes(c: ConfirmationContent): Record<AgreementSection, string> {
   return {
     client:  sha(c.clientId),
-    rate:    sha(c.agreedRate),
+    // The breakdown is a price the client agrees to line by line, so moving
+    // a service's cost holds the link even when the total does not move.
+    // Appended only when there is one, so every link sent before it existed
+    // fingerprints exactly as it did.
+    rate:    c.charges.length ? sha([c.agreedRate, c.charges]) : sha(c.agreedRate),
     stops:   sha(c.stops),
     // Accessorials are what the truck must bring, so they are part of the
     // freight. Appended only when there are any: every link sent before they
     // existed fingerprints exactly as it did, and is not held on its next save.
+    // Who arranges a service is whose job it is, so it holds the link too —
+    // appended the same way, only once somebody has been chosen.
     freight: sha([c.freight, c.equipment, c.commodity, c.weight, c.pieces, c.dimensions,
-      ...(c.accessorials.length ? [c.accessorials] : [])]),
+      ...(c.accessorials.length ? [c.accessorials] : []),
+      ...(c.serviceArrangers.length ? [c.serviceArrangers] : [])]),
     payment: sha(c.payment),
     notes:   sha(c.instructions),
     terms:   c.terms ? sha(c.terms) : '',
@@ -213,7 +230,12 @@ export function tokenSnapshotFields(order: AnyOrder, c: ConfirmationContent): Re
     // Split from `services` since 2026-11-04; an older link carries both in
     // `accessorials` and shows them as one line, as it was sent.
     accessorials:    equipmentLabels(c),
-    services:        serviceLabels(c),
+    // Names only, and only the services the breakdown below does not already
+    // price — so each ticked service appears once on the SA, priced or not.
+    services:        serviceChargeLines(order)
+      .filter((l) => l.service !== 'other' && !inClientBreakdown(l)).map(serviceWithArranger),
+    // The rate, line by line. Absent on links sent before 2026-11-04.
+    charges:         c.charges,
     payment:         c.payment,
     /*
      * Printed on the PDF's header, as BATS printed them, and deliberately not

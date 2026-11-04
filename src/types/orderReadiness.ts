@@ -1,4 +1,4 @@
-import { orderCommodityItems, type Address, type Order } from './order';
+import { orderCommodityItems, serviceChargeLines, type Address, type Order } from './order';
 
 /**
  * What an order still needs before its paperwork can go out: the Shipper
@@ -48,6 +48,7 @@ export function orderReadiness(order: Partial<Order>, facts: ReadinessFacts = {}
   const items = orderCommodityItems(order);
   const described = Boolean(order.commodity?.trim()) || items.some((i) => i.description?.trim());
   const weighed = (Number(order.weight) || 0) > 0;
+  const services = serviceChargeLines(order);
 
   const sa: Omit<ReadinessItem, 'doc'>[] = [
     { key: 'client', label: 'Client', ok: filled(order.clientId), hint: 'Pick the client on the order.' },
@@ -63,6 +64,13 @@ export function orderReadiness(order: Partial<Order>, facts: ReadinessFacts = {}
       hint: 'Edit the freight and choose one. It prints on the SA, the Dispatch Sheet and the BOL.' },
     { key: 'agreedRate', label: 'Agreed rate', ok: (Number(order.agreedRate) || 0) > 0,
       hint: 'The quote calculator can work this out.' },
+    // Only on a load with additional services. The order form refuses to
+    // save without it, but a Freight-only edit can tick one without saying.
+    ...(services.length ? [{
+      key: 'serviceArrangers', label: 'Who arranges each additional service',
+      ok: services.every((l) => l.arrangedBy),
+      hint: 'Edit Price and Terms and choose the carrier, the client or TTL for each. It prints on the SA and the Dispatch Sheet.',
+    }] : []),
   ];
 
   const bol: Omit<ReadinessItem, 'doc'>[] = [

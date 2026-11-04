@@ -35,6 +35,7 @@ export const READINESS_FIX: Record<string, FixTarget> = {
   pieces:         { kind: 'edit', section: 'freight', field: 'commodities' },
   transportType:  { kind: 'edit', section: 'freight', field: 'transportType' },
   agreedRate:     { kind: 'edit', section: 'price', field: 'agreedRate' },
+  serviceArrangers: { kind: 'edit', section: 'price', field: 'serviceCharges' },
   shipper:        { kind: 'edit', section: 'route', field: 'shipper' },
   pickupStreet:   { kind: 'edit', section: 'route', field: 'origin' },
   consignee:      { kind: 'edit', section: 'route', field: 'consignee' },

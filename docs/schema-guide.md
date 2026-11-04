@@ -1127,36 +1127,55 @@ PDFs. Renaming or removing a key is a migration: an unknown key is dropped
 and stops printing. New keys are **appended**, never slotted in: the catalog
 order is part of the SA's fingerprint.
 
-### Service charges on an order (2026-11-04)
+### Additional services and the Agreed Rate (2026-11-04)
 
-Some accessorials are a service somebody is paid for — `PAID_SERVICES`:
-towing, cleaning, mechanic, auto parts, scaling, forklift, crane, rigging,
-storage, lumper, pilot car, oversize permit. The Freight form draws them as a
-second group, "Services with a cost", and ticking one opens a cost line in
-Price and Terms. Anything rarer is typed there by hand.
+Some accessorials are a service the client pays for on top of the move —
+`PAID_SERVICES`: towing, cleaning, mechanic, auto parts, scaling, forklift,
+crane, rigging, storage, lumper, pilot car, oversize permit. The Freight form
+draws them as a second group, **Additional Services**, and ticking one opens a
+cost line in Price and Terms. Anything rarer is typed there by hand.
 
-`serviceCharges` — an array of `{ service, label?, amount }`. `service` is a
-`PAID_SERVICES` key, or `'other'` with its own `label` (80 characters at
-most). `amount` is dollars or null for "not priced yet". At most 30 lines;
-`cleanServiceCharges()` enforces the shape on every save.
+`serviceCharges` — an array of `{ service, label?, amount, arrangedBy }`.
+`service` is a `PAID_SERVICES` key, or `'other'` with its own `label` (80
+characters at most). `amount` is dollars or null for "not priced yet".
+`arrangedBy` is `carrier`, `client` or `ttl` — whose job it is — or null for
+not said yet. At most 30 lines;
+`cleanServiceCharges()` enforces the shape on every save. Read through
+`serviceChargeLines()`, never the field directly: a paid service's line
+counts only while its accessorial is ticked.
 
-- **A breakdown of `agreedRate`, not an addition to it.** Carrier pay, the
-  SA, the Dispatch Sheet, the invoice and the BOL are unchanged, and none of
-  them prints these lines — so editing one never holds a sent agreement. The
-  forms show the rest of the rate as the linehaul and warn when the services
-  add up to more than the rate.
-- **Read through `serviceChargeLines()`**, never the field directly. A paid
-  service's line counts only while its accessorial is ticked: Freight and
-  Price and Terms save separately, so unticking in Freight leaves the stored
-  line behind until Price and Terms is next saved.
+- **`agreedRate` is worked out, not typed**: carrier pay + broker fee + the
+  additional services (`agreedRateFrom()` in `PriceAndTermsSection.tsx`).
+  Before 2026-11-04 the rate was typed and carrier pay was worked out from
+  it; every load saved that way already adds up. A BATS import stored all
+  three separately and may not — the edit form says so before a save
+  rewrites the rate. A Freight-only save that ticks or unticks a priced
+  service shifts the rate on file by that cost.
+- **The client sees two kinds of line**, on the SA (signing page and signed
+  PDF) and the invoice: **Freight Transportation** — carrier pay and broker fee,
+  always together, never apart — and each priced additional service, adding
+  up to the total. `clientChargeLines()` is the one definition; it prints
+  Freight Transportation as the rate less the services, so the lines always add
+  up to the printed total. Client links carry them as `charges`.
+- **The breakdown is part of the SA's `rate` fingerprint**, appended only
+  when there is one, so changing a service's cost holds a sent SA. Links
+  sent before it existed fingerprint as they did.
+- **The carrier never sees the costs.** The Dispatch Sheet and the BOL print
+  the names on their own "Additional services" line, apart from the
+  equipment under "Accessorials", so a carrier does not read "Crane" as
+  theirs to bring. On the client's SA that names line lists only services
+  with no price, since the priced ones are in the breakdown. Only printing
+  splits there: the freight fingerprints still hash the accessorial keys.
+- **Who arranges each service is required** on the order form (it refuses
+  to save without it) and is a line on the SA readiness checklist for any
+  load with additional services, since a Freight-only edit can tick one
+  without saying. It prints beside the service on the SA and the Dispatch
+  Sheet — "Crane (arranged by TTL)" — and is part of both fingerprints
+  (`serviceArrangerKeys()`), appended only once one is chosen.
+- **A service the client arranges is always $0**, enforced by
+  `cleanServiceCharges()` whatever was typed, and the SA and invoice print
+  "Arranged by the client" where its price would be.
 - Absent on every load from before it existed.
-- **The names print on their own line, "Services arranged"**, on the SA, the
-  Dispatch Sheet, their signing pages and signed PDFs, and the BOL — apart
-  from the equipment under "Accessorials", so a carrier does not read "Crane"
-  as theirs to bring. Links carry them as `services` beside `accessorials`;
-  one sent before 2026-11-04 has both in `accessorials` and shows them that
-  way. Only the printing splits: the fingerprints still hash the keys, so the
-  split held no link and outdated no BOL.
 
 ### Transport type on an order (2026-10-21)
 

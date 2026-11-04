@@ -347,6 +347,16 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
               <Text style={s.priceVal}>{f.rate}</Text>
             </View>
             <View style={s.panelBody}>
+              {/* The tariff line by line — Freight Transportation and each priced
+                  additional service. Client links with a priced service only. */}
+              {!carrier && f.charges && f.charges.length > 0 ? (
+                <View style={s.field}>
+                  <Text style={s.label}>MADE UP OF</Text>
+                  {f.charges.map((l, i) => (
+                    <View key={`${i}-${l.label}`} style={s.partRow}><Text style={s.line}>{l.label}</Text><Text style={s.line}>{l.amount}</Text></View>
+                  ))}
+                </View>
+              ) : null}
               {!carrier && <Field label="Payment method" value={f.payment?.method || 'As invoiced'} />}
               {!carrier && f.payment?.fee ? <Field label="Payment fee" value={f.payment.fee} /> : null}
               {f.payment?.parts && f.payment.parts.length > 0 ? (
@@ -426,7 +436,7 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
 
         {/* Its own panel, so a carrier does not read "Crane" as theirs to bring. */}
         {f.services && f.services.length > 0 ? (
-          <Panel title="SERVICES ARRANGED" style={{ marginBottom: 10 }}>
+          <Panel title="ADDITIONAL SERVICES" style={{ marginBottom: 10 }}>
             <Text style={s.terms}>{f.services.join('  ·  ')}</Text>
           </Panel>
         ) : null}

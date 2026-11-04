@@ -63,6 +63,8 @@ interface Props {
   accessorials?: string[];
   /** A crane, a tow… as labels, on their own line. See SignFormData.services. */
   services?: string[];
+  /** The client's rate line by line, adding up to `rate`. See SignFormData.charges. */
+  charges?: { label: string; amount: string }[];
   /**
    * The terms this link was sent with: the copy on the token, or the old
    * standard wording for a link sent before that party's terms were a
@@ -203,7 +205,7 @@ function StopList({ title, stops }: { title: string; stops: ConfirmationStop[] }
 
 export default function SignForm({
   token, type, orderNumber, partyName, driverName, commodity, weight, pieces, dimensions,
-  originStr, destinationStr, pickupDate, deliveryDate, rate, notes, instructions, dockWork, accessorials, services,
+  originStr, destinationStr, pickupDate, deliveryDate, rate, notes, instructions, dockWork, accessorials, services, charges,
   terms, stops, freight, equipment, payment, validUntil, sentByName, sentByEmail,
   brokerName, brokerEmail, brokerPhone,
   version, revisedNote, preview,
@@ -329,7 +331,7 @@ export default function SignForm({
           <Card title="Freight">
             {equipment && <DetailRow label="Transport type" value={equipment} />}
             {accessorials && accessorials.length > 0 && <DetailRow label="Accessorials" value={accessorials.join(', ')} />}
-            {services && services.length > 0 && <DetailRow label="Services arranged" value={services.join(', ')} />}
+            {services && services.length > 0 && <DetailRow label="Additional services" value={services.join(', ')} />}
             {freight && freight.length > 0 ? (
               <div className="mt-2 overflow-x-auto">
                 <table className="w-full text-sm">
@@ -369,7 +371,8 @@ export default function SignForm({
           </Card>
 
           <Card title="Rate and Payment">
-            <DetailRow label={rateLabel} value={rate} />
+            {(charges ?? []).map((l, i) => <DetailRow key={`${i}-${l.label}`} label={l.label} value={l.amount} />)}
+            <DetailRow label={charges?.length ? `${rateLabel} (total)` : rateLabel} value={rate} />
             <DetailRow label="Payment method" value={payment?.method || 'As invoiced'} />
             {payment?.fee && <DetailRow label="Payment fee" value={payment.fee} />}
             {payment?.parts && payment.parts.length > 0 && (
@@ -412,7 +415,8 @@ export default function SignForm({
           <DetailRow label="Delivery"  value={deliveryDate} />
           {(dockWork ?? []).map((l) => <DetailRow key={l.label} label={l.label} value={l.value} />)}
           {accessorials && accessorials.length > 0 && <DetailRow label="Accessorials" value={accessorials.join(', ')} />}
-          {services && services.length > 0 && <DetailRow label="Services arranged" value={services.join(', ')} />}
+          {services && services.length > 0 && <DetailRow label="Additional services" value={services.join(', ')} />}
+          {(charges ?? []).map((l, i) => <DetailRow key={`${i}-${l.label}`} label={l.label} value={l.amount} />)}
           <div className="flex justify-between pt-3 mt-1 border-t-2 border-gray-200">
             <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">{rateLabel}</span>
             <span className="text-xl font-bold text-gray-900">{rate}</span>

@@ -560,7 +560,7 @@ function BolDocument({ d }: { d: BolData }) {
 
         {/* Its own card, so nobody reads "Crane" as something the truck brings. */}
         {d.services && d.services.length > 0 ? (
-          <Card n={next()} title="SERVICES ARRANGED" style={{ marginBottom: 6 }}>
+          <Card n={next()} title="ADDITIONAL SERVICES" style={{ marginBottom: 6 }}>
             <Text style={{ fontSize: 8, lineHeight: 1.35 }}>{d.services.join('  ·  ')}</Text>
           </Card>
         ) : null}

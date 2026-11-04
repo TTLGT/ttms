@@ -1,5 +1,6 @@
 import React from 'react';
 import path from 'path';
+import { FREIGHT_TRANSPORTATION_LABEL } from '@/types/order';
 import { Document, Page, Text, View, StyleSheet, Image as PdfImage, renderToBuffer } from '@react-pdf/renderer';
 
 export type InvoiceData = {
@@ -17,6 +18,12 @@ export type InvoiceData = {
   pickupDate: string;
   deliveryDate: string;
   agreedRate: number;
+  /**
+   * The rate line by line — Freight Transportation (carrier pay and broker
+   * fee together), then each priced additional service — adding up to
+   * `agreedRate`. Empty prints one Freight Transportation line for the rate.
+   */
+  charges?: { label: string; amount: number; note?: string }[];
   shipperSignerName: string | null;
   shipperSignedAt: string | null;
   shipperSignerIp: string | null;
@@ -144,10 +151,15 @@ function InvoiceDocument({ d }: { d: InvoiceData }) {
             <Text style={s.thWide}>CHARGE</Text>
             <Text style={s.th}>AMOUNT</Text>
           </View>
-          <View style={s.tRow}>
-            <Text style={s.tdWide}>Freight Transportation</Text>
-            <Text style={s.td}>{fmt(d.agreedRate)}</Text>
-          </View>
+          {/* Carrier pay and our fee are always one line to the client, still
+              called Freight Transportation here; additional services follow. */}
+          {(d.charges && d.charges.length > 0 ? d.charges : [{ label: FREIGHT_TRANSPORTATION_LABEL, amount: d.agreedRate }])
+            .map((l, i) => (
+              <View key={`${i}-${l.label}`} style={i % 2 ? s.tRowAlt : s.tRow}>
+                <Text style={s.tdWide}>{l.label}</Text>
+                <Text style={s.td}>{'note' in l && l.note ? l.note : fmt(l.amount)}</Text>
+              </View>
+            ))}
           <View style={s.tRowTotal}>
             <Text style={s.tdTotalLbl}>TOTAL DUE</Text>
             <Text style={s.tdTotal}>{fmt(d.agreedRate)}</Text>

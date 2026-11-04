@@ -28,6 +28,13 @@ export interface SignFormData {
   deliveryDate: string;
   rate: string;
   /**
+   * The client's rate line by line — Freight Transportation, then each priced
+   * additional service — adding up to `rate`. Client links sent from
+   * 2026-11-04 with a priced service only; absent otherwise, and the rate is
+   * shown as one figure as it always was. Never on a carrier link.
+   */
+  charges?: { label: string; amount: string }[];
+  /**
    * The order's notes as a link sent before 2026-10-14 was shown them, when
    * the one Notes box went on everything. '' on every link since: notes are
    * internal now, and what the signer sees is `instructions`.
@@ -142,6 +149,13 @@ export function signFormData(data: Record<string, any>): SignFormData {
     pickupDate: formatLongDateRange(data.pickupDate, data.pickupDateEnd),
     deliveryDate: formatLongDateRange(data.deliveryDate, data.deliveryDateEnd),
     rate: currency(isClient ? data.agreedRate : data.carrierPay),
+    charges: isClient && Array.isArray(data.charges)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ? data.charges.filter((l: any) => l && typeof l.label === 'string' && typeof l.amount === 'number')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // A service the client arranges carries words, not a price.
+        .map((l: any) => ({ label: l.label, amount: typeof l.note === 'string' && l.note ? l.note : currency(l.amount) }))
+      : undefined,
     notes: data.notes || '',
     instructions: typeof data.specialInstructions === 'string' ? data.specialInstructions : '',
     signerInstructions: typeof data.signerInstructions === 'string' ? data.signerInstructions : '',

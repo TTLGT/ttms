@@ -12,7 +12,7 @@ import type { PartySelection } from '@/components/parties/PartyCombobox';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
 import AccessorialsField from '@/components/orders/AccessorialsField';
 import TransportTypeField from '@/components/orders/TransportTypeField';
-import PriceAndTermsSection, { blankPriceTerms, priceTermsForSave, priceTermsFromOrder, priceTermsProblem } from '@/components/orders/PriceAndTermsSection';
+import PriceAndTermsSection, { agreedRateFrom, blankPriceTerms, priceTermsForSave, priceTermsFromOrder, priceTermsProblem, servicesTotalOf } from '@/components/orders/PriceAndTermsSection';
 import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
@@ -24,7 +24,7 @@ import AddressFields, { BLANK_ADDRESS } from '@/components/orders/AddressFields'
 import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopDraftsFrom, stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
 import type { StopDraft } from '@/components/orders/ExtraStopsFields';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { clientAddedInstructionsOf, commoditySummary, orderAccessorials, hasVehicleDetails, orderCommodityItems, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue, orderDisplayNumber } from '@/types/order';
+import { clientAddedInstructionsOf, commoditySummary, orderAccessorials, serviceChargeLines, serviceChargesTotal, hasVehicleDetails, orderCommodityItems, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue, orderDisplayNumber } from '@/types/order';
 import type { Accessorial, Order, Address, CommodityItem, StopKind } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import { ROLE_LABEL } from '@/types/party';
@@ -106,12 +106,17 @@ export default function EditOrderPage() {
   const [deliveryDate, setDeliveryDate] = useState('');
   const [pickupDateEnd, setPickupDateEnd]     = useState('');
   const [deliveryDateEnd, setDeliveryDateEnd] = useState('');
-  const [agreedRate, setAgreedRate]     = useState('');
+  const [carrierPay, setCarrierPay]     = useState('');
   const [brokerFee, setBrokerFee]       = useState('');
   const [notes, setNotes]               = useState<NotesAndInstructions>(BLANK_NOTES_AND_INSTRUCTIONS);
   const [priceTerms, setPriceTerms]     = useState<PriceTerms>(blankPriceTerms);
 
-  const carrierPay = (parseFloat(agreedRate) || 0) - (parseFloat(brokerFee) || 0);
+  // Worked out, not typed (2026-11-04): carrier pay + broker fee + additional services.
+  const agreedRate = agreedRateFrom(priceTerms, accessorials, brokerFee, carrierPay);
+  const onFileMismatch = !!order && (Number(order.carrierPay) || 0) > 0 && Math.abs(
+    (Number(order.agreedRate) || 0)
+    - ((Number(order.carrierPay) || 0) + (Number(order.brokerFee) || 0) + serviceChargesTotal(serviceChargeLines(order))),
+  ) >= 0.005;
 
   // Narrower than the right to edit the order at all — dispatch and finance can
   // work a load without being able to change what it is credited to.
@@ -187,8 +192,17 @@ export default function EditOrderPage() {
         setDeliveryDate(tsToDateStr(o.deliveryDate));
         setPickupDateEnd(tsToDateStr(o.pickupDateEnd ?? null));
         setDeliveryDateEnd(tsToDateStr(o.deliveryDateEnd ?? null));
-        setAgreedRate(o.agreedRate ? String(o.agreedRate) : '');
         setBrokerFee(o.brokerFee ? String(o.brokerFee) : '');
+        // Carrier pay is what is typed now. A load with a rate but none on
+        // file (a BATS import with the column blank) gets the rest of its
+        // rate, so opening it does not quietly drop the price to the fee.
+        {
+          const onFile = Number(o.carrierPay) || 0;
+          const rest = (Number(o.agreedRate) || 0) - (Number(o.brokerFee) || 0)
+            - serviceChargesTotal(serviceChargeLines(o));
+          const pay = onFile > 0 ? onFile : Math.max(0, Math.round(rest * 100) / 100);
+          setCarrierPay(pay ? String(pay) : '');
+        }
         setNotes({
           notes:               o.notes ?? '',
           carrierInstructions: o.carrierInstructions ?? '',
@@ -248,7 +262,7 @@ export default function EditOrderPage() {
       ? stopsProblem('pickup', extraPickups) || stopsProblem('delivery', extraDeliveries)
       : '';
     if (badStop) { setError(badStop); return; }
-    const badCharge = shows('price') ? priceTermsProblem(priceTerms) : '';
+    const badCharge = shows('price') ? priceTermsProblem(priceTerms, accessorials) : '';
     if (badCharge) { setError(badCharge); return; }
     // Asked for whenever the freight is on screen, so an older load without
     // one gets it the first time somebody edits its freight.
@@ -316,11 +330,23 @@ export default function EditOrderPage() {
           weight:       Math.round(totalWeightLb(commodityItems)),
           accessorials,
           transportType: transportType.trim(),
+          // A ticked or unticked service with a cost moves the Agreed Rate by
+          // that cost, or a Freight-only save would leave the rate counting a
+          // service the load no longer has. Shifted from the rate on file
+          // rather than recomputed, so a figure the client agreed to is not
+          // rewritten by a save that never showed it.
+          ...(() => {
+            const before = serviceChargesTotal(serviceChargeLines(order));
+            const after = servicesTotalOf(priceTerms, accessorials);
+            return before === after ? {} : {
+              agreedRate: Math.max(0, Math.round(((Number(order.agreedRate) || 0) + after - before) * 100) / 100),
+            };
+          })(),
         },
         price: {
-          agreedRate:   parseFloat(agreedRate) || 0,
+          agreedRate,
           brokerFee:    parseFloat(brokerFee)  || 0,
-          carrierPay:   Math.max(0, carrierPay),
+          carrierPay:   parseFloat(carrierPay) || 0,
           // A Price-only save sees the ticks on file, which is what counts.
           ...priceTermsForSave(priceTerms, accessorials),
         },
@@ -460,9 +486,11 @@ export default function EditOrderPage() {
 
           {shows('price') && (<>
           <PriceAndTermsSection
-            agreedRate={agreedRate} onAgreedRate={setAgreedRate}
             brokerFee={brokerFee} onBrokerFee={setBrokerFee}
-            carrierPay={carrierPay}
+            carrierPay={carrierPay} onCarrierPay={setCarrierPay}
+            // Only when the figures on file do not add up (a BATS import kept
+            // all three separately) — not merely because a service was added.
+            storedAgreedRate={onFileMismatch ? order.agreedRate : null}
             laneMiles={distance.laneMiles}
             terms={priceTerms} onTerms={setPriceTerms}
             commodities={commodities}

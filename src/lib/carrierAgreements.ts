@@ -7,7 +7,7 @@ import { diffFields, writeChange, type ChangeActor } from './recordHistory';
 import { archiveRound, bringIntoOrderRoom, newRoundId, requestRef, reviewersWhoSeeEverything } from './saRequestsServer';
 import { confirmationStops } from './loadConfirmationServer';
 import type { AgreementHold } from './clientAgreements';
-import { dimensionsSummary, dockWorkLines, orderAccessorials, orderCommodityItems, orderDisplayNumber, type Order } from '@/types/order';
+import { dimensionsSummary, dockWorkLines, orderAccessorials, serviceArrangerKeys, orderCommodityItems, orderDisplayNumber, type Order } from '@/types/order';
 import { orderTermsOf } from '@/types/agreementTerms';
 import { cleanCcList } from '@/types/saRequest';
 
@@ -84,6 +84,9 @@ export function carrierSectionHashes(order: AnyOrder): Record<CarrierSection, st
       String(order.commodity ?? ''), Number(order.weight) || 0, Number(order.pieces) || 0,
       dimensionsSummary(items), orderAccessorials(order), dockWorkLines(order),
       ...(String(order.transportType ?? '').trim() ? [String(order.transportType).trim()] : []),
+      // Who arranges each additional service — the sheet says so beside it.
+      // Appended only once somebody has been chosen, the same trick again.
+      ...(serviceArrangerKeys(order).length ? [serviceArrangerKeys(order)] : []),
     ]),
     notes:   sha(String(order.carrierInstructions ?? '').trim()),
     terms:   sha(orderTermsOf(order, 'carrier') ?? ''),

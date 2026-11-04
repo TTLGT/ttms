@@ -261,10 +261,11 @@ export const OTHER_CHARGE_SUGGESTIONS = [
 ];
 
 /**
- * One line of what the Agreed Rate pays for, beyond moving the freight
- * (2026-11-04). The amount is **part of** `agreedRate`, not on top of it — a
- * breakdown, so nothing that reads the rate (the SA, the invoice, carrier pay)
- * changes, and none of these lines is printed on any document.
+ * One additional service and what the client pays for it (2026-11-04). The
+ * Agreed Rate is worked out as carrier pay + broker fee + every one of these
+ * (agreedRateFrom() in PriceAndTermsSection), and the client's SA and invoice
+ * list them one by one beside Freight Transportation (clientChargeLines()). The
+ * carrier's Dispatch Sheet and the BOL print the names only, never the costs.
  *
  * `service` is a PAID_SERVICES key, whose line exists only while that
  * accessorial is ticked (`serviceChargeLines()` filters, because Freight and
@@ -276,6 +277,29 @@ export interface ServiceCharge {
   label?: string;
   /** Null for "not priced yet" — never 0 for unknown. */
   amount: number | null;
+  /** Whose job it is to arrange it. Null or absent for "not said yet". */
+  arrangedBy?: ServiceArranger | null;
+}
+
+/**
+ * Who arranges an additional service (2026-11-04): the carrier brings or
+ * books it, the client does, or we do. Printed beside the service on the
+ * client's SA and the carrier's Dispatch Sheet, and part of both
+ * fingerprints, because it is a statement of whose job something is.
+ */
+export type ServiceArranger = 'carrier' | 'client' | 'ttl';
+export const SERVICE_ARRANGERS: ServiceArranger[] = ['carrier', 'client', 'ttl'];
+/** On the form. */
+export const SERVICE_ARRANGER_LABEL: Record<ServiceArranger, string> = {
+  carrier: 'Carrier', client: 'Client', ttl: 'TTL',
+};
+/** On the documents, after "arranged by". */
+const SERVICE_ARRANGER_PRINTED: Record<ServiceArranger, string> = {
+  carrier: 'the carrier', client: 'the client', ttl: 'TTL',
+};
+
+export function isServiceArranger(v: unknown): v is ServiceArranger {
+  return typeof v === 'string' && (SERVICE_ARRANGERS as string[]).includes(v);
 }
 
 /** Most lines one order keeps; far past any real load, it caps a pasted payload. */
@@ -295,13 +319,17 @@ export function cleanServiceCharges(raw: unknown): ServiceCharge[] {
     if (!r || typeof r !== 'object') continue;
     const c = r as Record<string, unknown>;
     const n = typeof c.amount === 'number' ? c.amount : NaN;
-    const amount = Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+    let amount = Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+    const arrangedBy = isServiceArranger(c.arrangedBy) ? c.arrangedBy : null;
+    // The client arranging it means we charge nothing for it — always, so a
+    // figure left in the box from before cannot reach the rate.
+    if (arrangedBy === 'client') amount = 0;
     if (c.service === 'other') {
       const label = typeof c.label === 'string' ? c.label.trim().slice(0, MAX_CHARGE_LABEL) : '';
-      if (label) out.push({ service: 'other', label, amount });
+      if (label) out.push({ service: 'other', label, amount, arrangedBy });
     } else if (isAccessorial(c.service) && isPaidService(c.service) && !seen.has(c.service)) {
       seen.add(c.service);
-      out.push({ service: c.service, amount });
+      out.push({ service: c.service, amount, arrangedBy });
     }
     if (out.length >= MAX_SERVICE_CHARGES) break;
   }
@@ -313,6 +341,7 @@ export interface ServiceChargeLine {
   service: Accessorial | 'other';
   label: string;
   amount: number | null;
+  arrangedBy: ServiceArranger | null;
 }
 
 /**
@@ -326,19 +355,102 @@ export function serviceChargeLines(
   const stored = cleanServiceCharges(o?.serviceCharges);
   const ticked = orderAccessorials(o).filter(isPaidService);
   return [
-    ...ticked.map((s) => ({
-      service: s,
-      label: ACCESSORIAL_LABEL[s],
-      amount: stored.find((c) => c.service === s)?.amount ?? null,
-    })),
+    ...ticked.map((s) => {
+      const c = stored.find((x) => x.service === s);
+      return { service: s, label: ACCESSORIAL_LABEL[s], amount: c?.amount ?? null, arrangedBy: c?.arrangedBy ?? null };
+    }),
     ...stored.filter((c) => c.service === 'other')
-      .map((c) => ({ service: 'other' as const, label: c.label ?? '', amount: c.amount })),
+      .map((c) => ({ service: 'other' as const, label: c.label ?? '', amount: c.amount, arrangedBy: c.arrangedBy ?? null })),
   ];
+}
+
+/** "Crane (arranged by TTL)" — or the bare name while nobody has been chosen. */
+export function serviceWithArranger(l: { label: string; arrangedBy: ServiceArranger | null }): string {
+  return l.arrangedBy ? `${l.label} (arranged by ${SERVICE_ARRANGER_PRINTED[l.arrangedBy]})` : l.label;
+}
+
+/**
+ * Every additional service by name with who arranges it, priced or not and
+ * typed or ticked — what the carrier's Dispatch Sheet prints. Never costs.
+ */
+export function arrangedServiceLabels(
+  o: { accessorials?: unknown; serviceCharges?: unknown } | null | undefined,
+): string[] {
+  return serviceChargeLines(o).map(serviceWithArranger);
+}
+
+/**
+ * Who arranges what, for the SA's and the Dispatch Sheet's fingerprints.
+ * Empty while nobody has been chosen for anything — so a link sent before
+ * arrangers existed fingerprints exactly as it did and is not held.
+ */
+export function serviceArrangerKeys(
+  o: { accessorials?: unknown; serviceCharges?: unknown } | null | undefined,
+): string[] {
+  return serviceChargeLines(o).filter((l) => l.arrangedBy)
+    .map((l) => `${l.service === 'other' ? `other:${l.label}` : l.service}=${l.arrangedBy}`);
 }
 
 /** What the lines add up to, to the cent. 0 when none is priced. */
 export function serviceChargesTotal(lines: readonly { amount: number | null }[]): number {
   return Math.round(lines.reduce((sum, l) => sum + (l.amount ?? 0), 0) * 100) / 100;
+}
+
+/**
+ * Carrier pay and the broker fee, as the client sees them: always one line,
+ * never split, on the SA and the invoice alike. The invoice's name for the
+ * whole rate before additional services existed, kept so a client reads the
+ * same words on both documents.
+ *
+ * It is part of the SA's rate fingerprint (as a label in `charges`), so
+ * rewording it holds every sent SA that has a priced additional service.
+ */
+export const FREIGHT_TRANSPORTATION_LABEL = 'Freight Transportation';
+
+/**
+ * The client's charges as the SA and the invoice print them (2026-11-04):
+ * Freight Transportation, then the additional services in order — a priced
+ * one named with who arranges it, one the client arranges at $0 with
+ * CLIENT_ARRANGES_NOTE where the price would be — adding up to
+ * `agreedRate`. Empty when there is neither — the documents then print the
+ * rate as the one figure they always have.
+ *
+ * Freight Transportation is the rate less the services rather than carrier pay +
+ * broker fee read separately. On any load saved since the Agreed Rate became
+ * their sum those are the same number; on an imported load whose three
+ * stored figures never agreed, this is what keeps the printed lines adding
+ * up to the printed total. The carrier's pay and our fee are never shown to
+ * the client apart — that is the point of the combined line.
+ */
+export function clientChargeLines(
+  o: { agreedRate?: unknown; accessorials?: unknown; serviceCharges?: unknown } | null | undefined,
+): ClientChargeLine[] {
+  const services = serviceChargeLines(o).filter(inClientBreakdown);
+  if (!services.length) return [];
+  const rate = Number(o?.agreedRate) || 0;
+  const logistics = Math.max(0, Math.round((rate - serviceChargesTotal(services)) * 100) / 100);
+  return [
+    { label: FREIGHT_TRANSPORTATION_LABEL, amount: logistics },
+    ...services.map((l): ClientChargeLine => (l.arrangedBy === 'client'
+      // Ours to list, not ours to charge: the words stand where a price would.
+      ? { label: l.label, amount: 0, note: CLIENT_ARRANGES_NOTE }
+      : { label: serviceWithArranger(l), amount: l.amount ?? 0 })),
+  ];
+}
+
+/** One line of the client's breakdown. `note`, when set, is printed instead of the amount. */
+export interface ClientChargeLine { label: string; amount: number; note?: string }
+
+/** Printed in place of a price for a service the client arranges. */
+export const CLIENT_ARRANGES_NOTE = 'Arranged by the client';
+
+/**
+ * Whether a service has a line in the client's breakdown: it has a price, or
+ * the client arranges it (and the line says so). Everything else is named
+ * under Freight instead, so each service appears on the SA exactly once.
+ */
+export function inClientBreakdown(l: ServiceChargeLine): boolean {
+  return l.arrangedBy === 'client' || (l.amount != null && l.amount > 0);
 }
 
 /**
@@ -373,7 +485,7 @@ export function equipmentLabels(o: { accessorials?: unknown } | null | undefined
   return orderAccessorials(o).filter((a) => !isPaidService(a)).map((a) => ACCESSORIAL_LABEL[a]);
 }
 
-/** Paid services — printed as "Services arranged". Names only, never costs. */
+/** Paid services — printed as "Additional services" by name; only the client's SA and invoice price them. */
 export function serviceLabels(o: { accessorials?: unknown } | null | undefined): string[] {
   return orderAccessorials(o).filter(isPaidService).map((a) => ACCESSORIAL_LABEL[a]);
 }
@@ -1037,10 +1149,11 @@ export interface Order {
    */
   accessorials?: Accessorial[];
   /**
-   * What the Agreed Rate pays for besides the move — the crane, the tow, a
-   * lumper — typed in Price and Terms (2026-11-04). Part of `agreedRate`, not
-   * added to it, and printed nowhere. Read through `serviceChargeLines()`,
-   * never directly: a paid service's line counts only while it is ticked.
+   * Additional services — the crane, the tow, a lumper — and what each costs
+   * the client, typed in Price and Terms (2026-11-04). Added into
+   * `agreedRate`, and itemised on the client's SA and invoice. Read through
+   * `serviceChargeLines()`, never directly: a paid service's line counts only
+   * while it is ticked.
    * Absent on every load from before it existed.
    */
   serviceCharges?: ServiceCharge[];

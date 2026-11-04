@@ -5,7 +5,7 @@ import { documentAlert, postOrderAlert } from '@/lib/chatAlerts';
 import { actorForUid, updateWithHistory } from '@/lib/recordHistory';
 import { generateInvoiceBuffer } from '@/lib/invoice-pdf';
 import type { InvoiceData } from '@/lib/invoice-pdf';
-import { orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@/types/order';
+import { clientChargeLines, orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
 
@@ -62,6 +62,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     pickupDate:        formatLongDateRange(order.pickupDate, order.pickupDateEnd),
     deliveryDate:      formatLongDateRange(order.deliveryDate, order.deliveryDateEnd),
     agreedRate:        order.agreedRate           ?? 0,
+    // The same lines the client's SA prints — see clientChargeLines().
+    charges:           clientChargeLines(order),
     shipperSignerName: order.shipperSignerName    ?? null,
     shipperSignedAt:   order.shipperSignedAt ? fmtDate(order.shipperSignedAt) : null,
     shipperSignerIp:   order.shipperSignerIp      ?? null,
