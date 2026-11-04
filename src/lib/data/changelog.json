@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "6c4115f0cfd7b2da803c0486034ea6e8c60622f7",
+      "date": "2026-11-04T10:31:22-06:00",
+      "author": "erwindank",
+      "subject": "Rename a freight line's Line value to Cargo value, with an info icon saying it is the goods' worth for the BOL's declared value, not a price",
+      "body": "The order page's Value / Total value columns and the change log now use the\nsame name."
+    },
+    {
       "hash": "ddb04b7f2f06ad5795f4bb1dc081d021d0135b3f",
       "date": "2026-11-04T10:23:09-06:00",
       "author": "erwindank",

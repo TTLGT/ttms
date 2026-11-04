@@ -61,6 +61,8 @@ interface Props {
   dockWork?: { label: string; value: string }[];
   /** Ramps, a liftgate… as labels. See SignFormData.accessorials. */
   accessorials?: string[];
+  /** A crane, a tow… as labels, on their own line. See SignFormData.services. */
+  services?: string[];
   /**
    * The terms this link was sent with: the copy on the token, or the old
    * standard wording for a link sent before that party's terms were a
@@ -201,7 +203,7 @@ function StopList({ title, stops }: { title: string; stops: ConfirmationStop[] }
 
 export default function SignForm({
   token, type, orderNumber, partyName, driverName, commodity, weight, pieces, dimensions,
-  originStr, destinationStr, pickupDate, deliveryDate, rate, notes, instructions, dockWork, accessorials,
+  originStr, destinationStr, pickupDate, deliveryDate, rate, notes, instructions, dockWork, accessorials, services,
   terms, stops, freight, equipment, payment, validUntil, sentByName, sentByEmail,
   brokerName, brokerEmail, brokerPhone,
   version, revisedNote, preview,
@@ -327,6 +329,7 @@ export default function SignForm({
           <Card title="Freight">
             {equipment && <DetailRow label="Transport type" value={equipment} />}
             {accessorials && accessorials.length > 0 && <DetailRow label="Accessorials" value={accessorials.join(', ')} />}
+            {services && services.length > 0 && <DetailRow label="Services arranged" value={services.join(', ')} />}
             {freight && freight.length > 0 ? (
               <div className="mt-2 overflow-x-auto">
                 <table className="w-full text-sm">
@@ -409,6 +412,7 @@ export default function SignForm({
           <DetailRow label="Delivery"  value={deliveryDate} />
           {(dockWork ?? []).map((l) => <DetailRow key={l.label} label={l.label} value={l.value} />)}
           {accessorials && accessorials.length > 0 && <DetailRow label="Accessorials" value={accessorials.join(', ')} />}
+          {services && services.length > 0 && <DetailRow label="Services arranged" value={services.join(', ')} />}
           <div className="flex justify-between pt-3 mt-1 border-t-2 border-gray-200">
             <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">{rateLabel}</span>
             <span className="text-xl font-bold text-gray-900">{rate}</span>

@@ -110,6 +110,8 @@ export type BolData = {
   carrierInstructions: string;
   /** What the load needs beyond a truck and a driver — ramps, a liftgate — as labels. Empty prints nothing. */
   accessorials: string[];
+  /** Paid services arranged for the load — a crane, a tow — names only, never costs. Empty prints nothing. */
+  services?: string[];
   /** The carrier's e-signature of the Dispatch Sheet, shown as it always was. */
   carrierSignerName: string | null;
   carrierSignedAt: string | null;
@@ -553,6 +555,13 @@ function BolDocument({ d }: { d: BolData }) {
         {d.accessorials.length > 0 ? (
           <Card n={next()} title="ACCESSORIALS" style={{ marginBottom: 6 }}>
             <Text style={{ fontSize: 8, lineHeight: 1.35 }}>{d.accessorials.join('  ·  ')}</Text>
+          </Card>
+        ) : null}
+
+        {/* Its own card, so nobody reads "Crane" as something the truck brings. */}
+        {d.services && d.services.length > 0 ? (
+          <Card n={next()} title="SERVICES ARRANGED" style={{ marginBottom: 6 }}>
+            <Text style={{ fontSize: 8, lineHeight: 1.35 }}>{d.services.join('  ·  ')}</Text>
           </Card>
         ) : null}
 

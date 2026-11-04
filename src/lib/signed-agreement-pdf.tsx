@@ -424,6 +424,13 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
           </Panel>
         ) : null}
 
+        {/* Its own panel, so a carrier does not read "Crane" as theirs to bring. */}
+        {f.services && f.services.length > 0 ? (
+          <Panel title="SERVICES ARRANGED" style={{ marginBottom: 10 }}>
+            <Text style={s.terms}>{f.services.join('  ·  ')}</Text>
+          </Panel>
+        ) : null}
+
         {/* Carrier links only, and only what was answered — see dockWorkLines(). */}
         {f.dockWork && f.dockWork.length > 0 ? (
           <Panel title="LOADING, UNLOADING & COUNT" style={{ marginBottom: 10 }}>

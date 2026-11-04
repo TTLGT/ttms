@@ -52,6 +52,12 @@ export interface SignFormData {
    * order asked for none.
    */
   accessorials?: string[];
+  /**
+   * Paid services arranged for the load (a crane, a tow), as labels — names
+   * only. Split out of `accessorials` on links sent from 2026-11-04; an
+   * older link has none here and carries them in `accessorials`.
+   */
+  services?: string[];
   terms?: string;
   stops?: ConfirmationStop[];
   freight?: ConfirmationFreight[];
@@ -147,6 +153,9 @@ export function signFormData(data: Record<string, any>): SignFormData {
       : undefined,
     accessorials: Array.isArray(data.accessorials)
       ? data.accessorials.filter((a: unknown): a is string => typeof a === 'string' && a.length > 0)
+      : undefined,
+    services: Array.isArray(data.services)
+      ? data.services.filter((a: unknown): a is string => typeof a === 'string' && a.length > 0)
       : undefined,
     // A link sent before its party's terms were a setting has no copy of
     // them, and was sent under the standard wording — which is what it shows.

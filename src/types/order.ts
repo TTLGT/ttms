@@ -351,9 +351,31 @@ export function orderAccessorials(o: { accessorials?: unknown } | null | undefin
   return ACCESSORIALS.filter((a) => raw.includes(a));
 }
 
-/** The labels, for printing. Empty when none. */
+/**
+ * Every label, equipment and services together — for the change log, the
+ * review panel and the BOL fingerprint. Documents print the two halves below
+ * instead.
+ */
 export function accessorialLabels(o: { accessorials?: unknown } | null | undefined): string[] {
   return orderAccessorials(o).map((a) => ACCESSORIAL_LABEL[a]);
+}
+
+/*
+ * The SA, the Dispatch Sheet and the BOL print equipment and paid services
+ * as two lines (2026-11-04): under one "Accessorials" heading, a carrier read
+ * "Crane" as something the truck had to bring. Only the printing splits —
+ * the fingerprints still hash the keys from orderAccessorials(), so the split
+ * held no sent link and outdated no BOL.
+ */
+
+/** Equipment and arrangements the truck brings — printed as "Accessorials". */
+export function equipmentLabels(o: { accessorials?: unknown } | null | undefined): string[] {
+  return orderAccessorials(o).filter((a) => !isPaidService(a)).map((a) => ACCESSORIAL_LABEL[a]);
+}
+
+/** Paid services — printed as "Services arranged". Names only, never costs. */
+export function serviceLabels(o: { accessorials?: unknown } | null | undefined): string[] {
+  return orderAccessorials(o).filter(isPaidService).map((a) => ACCESSORIAL_LABEL[a]);
 }
 
 export type VehicleCondition = 'operable' | 'inoperable';

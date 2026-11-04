@@ -1150,6 +1150,13 @@ most). `amount` is dollars or null for "not priced yet". At most 30 lines;
   Price and Terms save separately, so unticking in Freight leaves the stored
   line behind until Price and Terms is next saved.
 - Absent on every load from before it existed.
+- **The names print on their own line, "Services arranged"**, on the SA, the
+  Dispatch Sheet, their signing pages and signed PDFs, and the BOL — apart
+  from the equipment under "Accessorials", so a carrier does not read "Crane"
+  as theirs to bring. Links carry them as `services` beside `accessorials`;
+  one sent before 2026-11-04 has both in `accessorials` and shows them that
+  way. Only the printing splits: the fingerprints still hash the keys, so the
+  split held no link and outdated no BOL.
 
 ### Transport type on an order (2026-10-21)
 

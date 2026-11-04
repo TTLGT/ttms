@@ -15,7 +15,7 @@ import {
   archiveRound, buildSaReview, freezeReview, requestRef, roundRef, saGateFactsFor, sendEntry,
 } from '@/lib/saRequestsServer';
 import { cleanCcList, outstandingChecks } from '@/types/saRequest';
-import { accessorialLabels, clientSignatureSatisfied, dimensionsSummary, dockWorkLines, orderCommodityItems, orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@/types/order';
+import { equipmentLabels, serviceLabels, clientSignatureSatisfied, dimensionsSummary, dockWorkLines, orderCommodityItems, orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@/types/order';
 import type { Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -199,8 +199,11 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     // Who loads, unloads and counts, as worded lines. Snapshotted like the
     // rest: a carrier who signed for a shipper-loaded trailer signed that.
     dockWork:     dockWorkLines(order as Partial<Order>),
-    // Ramps, a winch, a liftgate… as labels, snapshotted with the rest.
-    accessorials: accessorialLabels(order),
+    // Ramps, a winch, a liftgate… as labels, snapshotted with the rest. Paid
+    // services under their own key, so the sheet does not read "Crane" as
+    // something the truck must bring — see equipmentLabels().
+    accessorials: equipmentLabels(order),
+    services:     serviceLabels(order),
     /*
      * The terms as they stand now — this load's own, or the general ones —
      * copied in full, as the client's link does. A carrier signs what they

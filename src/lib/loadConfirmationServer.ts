@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { formatLongDateRange } from '@/lib/dateFormat';
 import {
-  accessorialLabels, dimensionsSummary, formatDimensions, orderAccessorials, hasVehicleDetails, itemWeightLb, vehicleSummary, orderCommodityItems, orderDeliveries, orderPickups, stopPlaces,
+  equipmentLabels, serviceLabels, dimensionsSummary, formatDimensions, orderAccessorials, hasVehicleDetails, itemWeightLb, vehicleSummary, orderCommodityItems, orderDeliveries, orderPickups, stopPlaces,
   type Order, type OrderStop,
 } from '@/types/order';
 import {
@@ -210,7 +210,10 @@ export function tokenSnapshotFields(order: AnyOrder, c: ConfirmationContent): Re
     freight:         c.freight,
     equipment:       c.equipment,
     // As the client reads them. Absent on links sent before 2026-10-15.
-    accessorials:    accessorialLabels(c),
+    // Split from `services` since 2026-11-04; an older link carries both in
+    // `accessorials` and shows them as one line, as it was sent.
+    accessorials:    equipmentLabels(c),
+    services:        serviceLabels(c),
     payment:         c.payment,
     /*
      * Printed on the PDF's header, as BATS printed them, and deliberately not
