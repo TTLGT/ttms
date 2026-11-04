@@ -1462,7 +1462,7 @@ export default function OrderDetailPage() {
                     <th className="pb-2 pr-4 font-medium">Pieces</th>
                     <th className="pb-2 pr-4 font-medium">Dimensions (L × W × H)</th>
                     <th className="pb-2 pr-4 font-medium">Weight</th>
-                    <th className="pb-2 font-medium text-right">Value</th>
+                    <th className="pb-2 font-medium text-right">Cargo value</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1500,7 +1500,7 @@ export default function OrderDetailPage() {
                 {orderCommodityItems(order).length > 1 && (
                   <tfoot>
                     <tr className="border-t border-gray-200">
-                      <td colSpan={4} className="pt-2 pr-4 text-xs font-medium text-gray-500 uppercase tracking-wide">Total value</td>
+                      <td colSpan={4} className="pt-2 pr-4 text-xs font-medium text-gray-500 uppercase tracking-wide">Total cargo value</td>
                       <td className="pt-2 text-gray-900 font-medium text-right">
                         {totalCommodityValue(orderCommodityItems(order)) != null
                           ? formatCurrency(totalCommodityValue(orderCommodityItems(order)) as number)

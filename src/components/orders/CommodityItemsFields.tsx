@@ -158,12 +158,21 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 />
               </div>
               <div className="col-span-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Line value (USD)</label>
+                {/* Was "Line value", which read as a price for the line. It is
+                    the goods' worth — the BOL's declared value, for liability. */}
+                <label className="flex items-center gap-1 text-xs font-medium text-gray-600 mb-1">
+                  Cargo value (USD)
+                  <FieldHint>
+                    What the goods on this line are worth, all pieces together — not what
+                    we charge to move them. Added up and printed on the BOL as the declared
+                    value, which can limit what is paid out if the freight is lost or damaged.
+                    Leave blank if the client has not said.
+                  </FieldHint>
+                </label>
                 <MoneyInput
                   value={item.value == null ? '' : String(item.value)}
                   onChange={(v) => patch(item.id, { value: money(v) })}
                   placeholder="0.00"
-                  title="What the goods on this line are worth, all pieces together"
                   className={INPUT}
                 />
               </div>
@@ -438,7 +447,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
           {weight ? `${Math.round(weight).toLocaleString()} lbs total` : 'no weight yet'}
           {volume ? ` · ${volume.toFixed(1)} ft³` : ''}
           {declared != null
-            ? ` · $${declared.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} declared`
+            ? ` · $${declared.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} cargo value`
             : ''}
         </p>
       </div>

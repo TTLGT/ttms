@@ -109,7 +109,7 @@ const LABELS: Record<string, string> = {
   brokerName: 'Broker on the SA and Dispatch Sheet',
   parentOrderId: 'Parent order',
   commodities: 'Freight items',
-  commodityValue: 'Freight value',
+  commodityValue: 'Total cargo value',
   clientPayment: 'Client payment terms',
   carrierPayment: 'Carrier payment terms',
   brokerFeeTerms: 'Broker fee terms',
