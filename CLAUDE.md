@@ -1139,6 +1139,14 @@ Types and pure rules in `src/types/task.ts`; server in
   drops anything over three hours late, and posts into a separate
   `notice_tasks_{uid}` room — never the celebration one. It grants and removes
   nothing.
+- **Reminder emails are off company-wide unless an admin turns them on**
+  (2026-11-05): `appSettings/general.reminderEmails`, Settings → Operations →
+  Reminder Emails, `settings.manage`. **Absent means off.** It covers both
+  calendar reminder runs — these and the birthday/anniversary ones —
+  applied over each person's own email tick by `reminderEmailsAllowed()` in
+  `src/lib/reminderEmailsServer.ts`, so nobody's own choice is rewritten. The
+  panels hide the Email tick while it is off (`useReminderEmails()`); the cron
+  check is the gate, the hidden tick is only what is drawn.
 
 - **Planning prompts** (`src/types/planning.ts`, `PlanningPrompt.tsx` in the
   dashboard layout) ask somebody to pick a time for four kinds of planning and,

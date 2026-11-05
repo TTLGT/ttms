@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { auth } from './firebase';
 import { DEFAULT_APP_SETTINGS } from '@/types/appSettings';
 import type { AppSettings, DateFormat, LaneDistanceMode } from '@/types/appSettings';
@@ -86,6 +87,26 @@ export async function saveCelebrations(on: boolean): Promise<void> {
 
 export async function savePresence(on: boolean): Promise<void> {
   await saveSetting({ presence: on });
+}
+
+export async function saveReminderEmails(on: boolean): Promise<void> {
+  await saveSetting({ reminderEmails: on });
+}
+
+/**
+ * Whether the company lets calendar reminders go by email — for the reminder
+ * panels, which hide their Email tickbox when it does not. `null` while
+ * loading, so a panel does not flash the box and then take it away. The crons
+ * check the setting themselves; this only decides what is drawn.
+ */
+export function useReminderEmails(): boolean | null {
+  const [on, setOn] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    getAppSettingsOrDefaults().then((res) => { if (live) setOn(res.settings.reminderEmails); });
+    return () => { live = false; };
+  }, []);
+  return on;
 }
 
 /** Both templates together — they are one edit in one panel. */

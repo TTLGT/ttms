@@ -49,6 +49,9 @@ export async function GET(req: NextRequest) {
       presence: typeof stored?.presence === 'boolean'
         ? stored.presence
         : DEFAULT_APP_SETTINGS.presence,
+      reminderEmails: typeof stored?.reminderEmails === 'boolean'
+        ? stored.reminderEmails
+        : DEFAULT_APP_SETTINGS.reminderEmails,
     },
     // Whether the Google Routes option can actually work, so the Settings page
     // can warn before an admin picks a mode that would silently do nothing.
@@ -81,6 +84,7 @@ const SETTING_OWNERS: { permission: readonly Permission[]; keys: string[] }[] = 
   { permission: ['settings.manage', 'paymentTerms.manage'], keys: ['clientPaymentMethods', 'carrierPaymentMethods', 'brokerFeeTermOptions'] },
   { permission: ['celebrations.manage'],                    keys: ['celebrations', 'celebrationTemplates'] },
   { permission: ['settings.manage', 'presence.manage'],     keys: ['presence'] },
+  { permission: ['settings.manage'],                        keys: ['reminderEmails'] },
 ];
 
 /** Stored wording, with the default substituted for anything unusable. */
@@ -177,6 +181,13 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Online status must be on or off.' }, { status: 400 });
     }
     patch.presence = body.presence;
+  }
+
+  if ('reminderEmails' in body) {
+    if (typeof body.reminderEmails !== 'boolean') {
+      return NextResponse.json({ error: 'Reminder emails must be on or off.' }, { status: 400 });
+    }
+    patch.reminderEmails = body.reminderEmails;
   }
 
   // Each side is saved whole, as one list: the panel edits a list, and a

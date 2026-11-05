@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { usePersonalTasks, useTaskHistory } from '@/lib/personalTasks';
 import { fetchHolidayOverrides } from '@/lib/attendance';
+import { useReminderEmails } from '@/lib/appSettings';
 import TaskCalendar from '@/components/tasks/TaskCalendar';
 import PlanningPanel from '@/components/planning/PlanningPanel';
 import MySharedPlanPanel from '@/components/calendar/MySharedPlanPanel';
@@ -160,7 +161,10 @@ export default function CalendarPage() {
     setEditing(null);
   };
 
-  const noChannel = !settings.email && !settings.chat;
+  // The company can switch reminder emails off (Settings → Operations); then
+  // the Email tick is hidden and does not count as a way of being reminded.
+  const emailsAllowed = useReminderEmails();
+  const noChannel = !(settings.email && emailsAllowed !== false) && !settings.chat;
 
   const chip = (on: boolean, extra: string) =>
     `inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -215,12 +219,14 @@ export default function CalendarPage() {
       </p>
       <p className="mt-3 text-xs font-medium text-gray-700">Send them by</p>
       <div className="mt-2 space-y-1.5">
-        <label className="flex items-center gap-2 text-sm text-gray-700">
-          <input type="checkbox" checked={settings.email}
-            onChange={(e) => saveSettings({ ...settings, email: e.target.checked })}
-            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
-          <Mail size={14} className="text-gray-400" /> Email
-        </label>
+        {emailsAllowed && (
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={settings.email}
+              onChange={(e) => saveSettings({ ...settings, email: e.target.checked })}
+              className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+            <Mail size={14} className="text-gray-400" /> Email
+          </label>
+        )}
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input type="checkbox" checked={settings.chat}
             onChange={(e) => saveSettings({ ...settings, chat: e.target.checked })}

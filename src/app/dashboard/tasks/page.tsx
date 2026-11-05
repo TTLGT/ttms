@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { CalendarDays, Columns3, Gamepad2, ListOrdered, Lock, Plus, Route, Search, StickyNote, Table2, X } from 'lucide-react';
 import { usePersonalTasks } from '@/lib/personalTasks';
+import { useReminderEmails } from '@/lib/appSettings';
 import { useTaskDirectory } from '@/lib/taskContacts';
 import { TaskDirectoryProvider } from '@/components/tasks/TaskContacts';
 import TaskBoard from '@/components/tasks/TaskBoard';
@@ -53,6 +54,8 @@ export default function MyTasksPage() {
     create, update, reschedule, remove, clearDone, move, rankQueue, saveColumns, saveColorLabels, saveGameOptions, dismissNotice,
   } = usePersonalTasks();
   const playing = !!game?.enabled;
+  // Reminder emails can be off company-wide; then email is no way of being reminded.
+  const emailsAllowed = useReminderEmails();
   // The theme is the game's costume, and it dresses the whole page: a room
   // in the theme's colours, light, dim or dark to match the app theme, with
   // the banner on top and its accent on the board. With the game off the page is the plain one. See taskSkins.ts.
@@ -169,7 +172,7 @@ export default function MyTasksPage() {
       copyOf={editing.copyOf?.title}
       columns={columns}
       colorLabels={colorLabels}
-      noChannel={!settings.email && !settings.chat}
+      noChannel={!(settings.email && emailsAllowed !== false) && !settings.chat}
       stepWords={{ one: skin.step, many: skin.steps }}
       playing={playing}
       queuePlace={editing.task ? placeOf(editing.task.id) : null}

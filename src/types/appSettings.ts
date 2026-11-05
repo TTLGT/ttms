@@ -76,6 +76,19 @@ export interface AppSettings {
    * listeners, for everybody, from their next page load.
    */
   presence: boolean;
+  /**
+   * Whether calendar reminders may go out by email at all — the reminders
+   * people set on their own tasks and events, and HR's birthday and
+   * anniversary reminders. Off, the Email tickbox disappears from both
+   * reminder panels and the two crons skip the email whatever a person ticked;
+   * the private chat message is untouched.
+   *
+   * Absent means **off** (turned off 2026-11-05, asked for): a switch that has
+   * to be written before it takes effect would have kept sending until an
+   * admin found the panel. Each person's own email tick is kept as it was, so
+   * turning this back on restores what they had chosen.
+   */
+  reminderEmails: boolean;
 }
 
 /**
@@ -110,6 +123,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   carrierPaymentMethods: [],
   brokerFeeTermOptions: [],
   presence: true,
+  reminderEmails: false,
 };
 
 export const LANE_DISTANCE_MODES: LaneDistanceMode[] = ['off', 'estimate', 'routes'];

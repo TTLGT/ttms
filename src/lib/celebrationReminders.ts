@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { adminDb, FieldValue } from './firebase-admin';
 import { systemLine } from './chatAlerts';
+import { reminderEmailsAllowed } from './reminderEmailsServer';
 import { ALLOWED_USERS_COLLECTION, USERS_COLLECTION, can, isBootstrapAdmin, normalizeEmail, type RoleFlags } from './accessControl';
 import { fullName, isCalendarDate } from '@/types/allowedUser';
 import { completedYears, officeToday } from '@/types/celebration';
@@ -217,17 +218,21 @@ export async function runCelebrationReminders(options: { today?: string } = {}):
   const today = options.today ?? officeToday();
   const run: ReminderRun = { date: today, sent: 0, skipped: 0, failed: 0 };
 
-  const [people, settingsSnap, dueSnap] = await Promise.all([
+  const [people, settingsSnap, dueSnap, emailsAllowed] = await Promise.all([
     loadCalendarPeople(),
     adminDb.collection(SETTINGS_COLLECTION).get(),
     // `<=` rather than `==` so a morning the cron did not run is caught up on
     // the next one, rather than those reminders sitting unsent forever.
     // A single-field range, so no composite index.
     adminDb.collection(REMINDERS_COLLECTION).where('sendOn', '<=', today).get(),
+    reminderEmailsAllowed(),
   ]);
 
   const byEmail = new Map(people.map((p) => [p.email, p]));
-  const settingsOf = new Map(settingsSnap.docs.map((d) => [d.id, toReminderSettings(d.data())]));
+  // The company's Reminder Emails switch wins over each person's own tick,
+  // which stays stored as they left it.
+  const effective = (s: ReminderSettings): ReminderSettings => ({ ...s, email: s.email && emailsAllowed });
+  const settingsOf = new Map(settingsSnap.docs.map((d) => [d.id, effective(toReminderSettings(d.data()))]));
 
   // Worked out once per lead rather than once per person who asked: the
   // answer to "whose day is in a week" is the same for everybody.
@@ -284,7 +289,7 @@ export async function runCelebrationReminders(options: { today?: string } = {}):
     try {
       const outcome = items.length === 0
         ? 'nothing'
-        : await deliver(uid, items, settingsOf.get(uid) ?? toReminderSettings(undefined), today);
+        : await deliver(uid, items, settingsOf.get(uid) ?? effective(toReminderSettings(undefined)), today);
       if (outcome === 'already') { run.skipped += 1; continue; }
       if (outcome === 'sent') run.sent += 1;
       // 'nothing' and 'not-allowed' still spend the one-offs: there is

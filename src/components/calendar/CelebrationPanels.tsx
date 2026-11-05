@@ -6,6 +6,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { UserAvatar } from '@/components/settings/UserAvatar';
+import { useReminderEmails } from '@/lib/appSettings';
 import {
   addOneOffReminder,
   deleteOneOffReminder,
@@ -188,7 +189,10 @@ export function CelebrationReminderPanel({
   onRemove: (id: string) => void;
 }) {
   const { settings, reminders } = data;
-  const noChannel = !settings.email && !settings.chat;
+  // Off company-wide (Settings → Operations → Reminder Emails) hides the
+  // Email tick, and it stops counting as a way of being reminded.
+  const emailsAllowed = useReminderEmails();
+  const noChannel = !(settings.email && emailsAllowed !== false) && !settings.chat;
 
   const toggleLead = (kind: CelebrationKind, leadDays: ReminderLead, on: boolean) => {
     const current = settings.leadDays[kind];
@@ -234,12 +238,14 @@ export function CelebrationReminderPanel({
 
       <p className="mt-4 text-xs font-medium text-gray-700">Send them by</p>
       <div className="mt-2 space-y-1.5">
-        <label className="flex items-center gap-2 text-sm text-gray-700">
-          <input type="checkbox" disabled={busy} checked={settings.email}
-            onChange={(e) => onSettings({ ...settings, email: e.target.checked })}
-            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
-          <Mail size={14} className="text-gray-400" /> Email
-        </label>
+        {emailsAllowed && (
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" disabled={busy} checked={settings.email}
+              onChange={(e) => onSettings({ ...settings, email: e.target.checked })}
+              className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+            <Mail size={14} className="text-gray-400" /> Email
+          </label>
+        )}
         <label className="flex items-center gap-2 text-sm text-gray-700">
           <input type="checkbox" disabled={busy} checked={settings.chat}
             onChange={(e) => onSettings({ ...settings, chat: e.target.checked })}

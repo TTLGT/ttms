@@ -3,6 +3,7 @@ import type { QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { adminDb, FieldValue } from './firebase-admin';
 import { systemLine } from './chatAlerts';
 import { ALLOWED_USERS_COLLECTION, USERS_COLLECTION, isBootstrapAdmin, normalizeEmail } from './accessControl';
+import { reminderEmailsAllowed } from './reminderEmailsServer';
 import { syncReminderQueue, taskItems, taskOwnerDoc, toReminderSettings, toTask } from './personalTasksServer';
 import { officeToday } from '@/types/celebration';
 import { spelledOutDay } from '@/types/celebrationCalendar';
@@ -63,6 +64,9 @@ export async function runTaskReminders(now = Date.now()): Promise<TaskReminderRu
     .get();
 
   const run: TaskReminderRun = { due: snap.size, sent: 0, people: 0, dropped: 0, failed: 0 };
+  // Only asked when something is due — this runs every five minutes, and most
+  // runs have nothing to send.
+  const emailsAllowed = snap.empty ? false : await reminderEmailsAllowed();
   const byPerson = new Map<string, {
     entry: QueryDocumentSnapshot; lead: TaskReminderLead; itemId: string; stale: boolean;
   }[]>();
@@ -121,7 +125,7 @@ export async function runTaskReminders(now = Date.now()): Promise<TaskReminderRu
       const fresh = claimed.filter((c) => !c.stale).length;
       if (due.length === 0) { run.dropped += fresh; continue; }
 
-      const outcome = await deliver(uid, due);
+      const outcome = await deliver(uid, due, emailsAllowed);
       if (outcome === 'sent') { run.sent += due.length; run.people++; }
       else run.dropped += due.length;
     } catch (e) {
@@ -143,7 +147,7 @@ export async function runTaskReminders(now = Date.now()): Promise<TaskReminderRu
  * them. Somebody removed from TTMS or suspended must stop hearing from it the
  * same day, not when their list happens to empty.
  */
-async function deliver(uid: string, due: DueEntry[]): Promise<'sent' | 'not-allowed' | 'nothing'> {
+async function deliver(uid: string, due: DueEntry[], emailsAllowed: boolean): Promise<'sent' | 'not-allowed' | 'nothing'> {
   const [profileSnap, ownerSnap] = await Promise.all([
     adminDb.collection(USERS_COLLECTION).doc(uid).get(),
     taskOwnerDoc(uid).get(),
@@ -158,7 +162,9 @@ async function deliver(uid: string, due: DueEntry[]): Promise<'sent' | 'not-allo
     if (!entry.exists || entry.data()?.suspended === true) return 'not-allowed';
   }
 
-  const settings = toReminderSettings(ownerSnap.data()?.reminderSettings);
+  const own = toReminderSettings(ownerSnap.data()?.reminderSettings);
+  // The company switch wins over the person's own tick, which is kept as it is.
+  const settings = { ...own, email: own.email && emailsAllowed };
   if (!settings.email && !settings.chat) return 'nothing';
 
   const text = reminderText(due);

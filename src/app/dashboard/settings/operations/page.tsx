@@ -9,6 +9,7 @@ import LeadSourcesPanel from '@/components/settings/LeadSourcesPanel';
 import PaymentMethodsPanel from '@/components/settings/PaymentMethodsPanel';
 import PresencePanel from '@/components/settings/PresencePanel';
 import QuoteRatesPanel from '@/components/settings/QuoteRatesPanel';
+import ReminderEmailsPanel from '@/components/settings/ReminderEmailsPanel';
 
 /**
  * Company-wide choices that change how orders behave, rather than who can see
@@ -66,6 +67,11 @@ export default function SettingsOperationsPage() {
           {settings && (
             <div id="date-format" className="scroll-mt-44">
               <DateFormatPanel />
+            </div>
+          )}
+          {settings && (
+            <div id="reminder-emails" className="scroll-mt-44">
+              <ReminderEmailsPanel />
             </div>
           )}
           {paymentTerms && (

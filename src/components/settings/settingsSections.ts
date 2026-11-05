@@ -173,6 +173,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     permissions: ['presence.manage'],
   },
   {
+    id: 'reminder-emails',
+    label: 'Reminder Emails',
+    tab: 'operations',
+    blurb: 'Whether calendar reminders can be sent by email, or only as a chat message.',
+    keywords: 'email reminders calendar tasks events birthday anniversary notifications mail inbox resend',
+    adminOnly: true,
+  },
+  {
     id: 'payment-methods',
     label: 'Payment Terms',
     tab: 'operations',
