@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "e0cfa9a481015ac470319a62d5fc007e43b4065e",
+      "date": "2026-11-05T11:08:32-06:00",
+      "author": "erwindank",
+      "subject": "Replace the sidebar footer's loose switches with an account menu: click your name to get My profile, theme, sidebar layout, Spanish, Learn English and Sign out, each labelled in words",
+      "body": ""
+    },
+    {
       "hash": "4721dd24294fb1d79b48aeff6a7032c09bd28697",
       "date": "2026-11-05T10:07:54-06:00",
       "author": "erwindank",

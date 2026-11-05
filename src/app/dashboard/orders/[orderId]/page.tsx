@@ -53,6 +53,7 @@ import { fetchTripDistance } from '@/lib/routeDistanceClient';
 import { toDate } from '@/lib/dateFormat';
 import type { Timestamp } from 'firebase/firestore';
 import StatusBadge from '@/components/orders/StatusBadge';
+import TimeZoneBadge from '@/components/orders/TimeZoneBadge';
 import DriverLicenseUpload from '@/components/orders/DriverLicenseUpload';
 import QuickAddCarrierModal from '@/components/carriers/QuickAddCarrierModal';
 import CarrierCompliance from '@/components/carriers/CarrierCompliance';
@@ -1558,6 +1559,7 @@ export default function OrderDetailPage() {
                           <p className="text-sm text-gray-900">
                             {[s.address?.street, s.address?.city, s.address?.state, s.address?.zip].filter(Boolean).join(', ') || '—'}
                           </p>
+                          <TimeZoneBadge address={s.address} on={s.date} className="mt-1" />
                         </div>
                         {many && (
                           <div>

@@ -1,6 +1,7 @@
 'use client';
 
 import type { Address } from '@/types/order';
+import TimeZoneBadge from './TimeZoneBadge';
 
 export const BLANK_ADDRESS: Address = { street: '', city: '', state: '', zip: '', country: 'US' };
 
@@ -35,6 +36,9 @@ export default function AddressFields({ label, value, onChange }: {
         <input placeholder="ZIP" value={value.zip} onChange={set('zip')}
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
       </div>
+      {/* The local clock appears as soon as a state is picked, so whoever is
+          typing the stop in sees what time it is there before they call. */}
+      <TimeZoneBadge address={value} className="mt-2" />
     </div>
   );
 }
