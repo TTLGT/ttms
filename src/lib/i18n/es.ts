@@ -45,6 +45,25 @@ const BASE: Record<string, string> = {
   'Change history': 'Historial de cambios',
   'Sign out': 'Cerrar sesión',
 
+  // ── Account menu (src/components/dashboard/AccountMenu.tsx) ─────────────
+  'Your account and settings': 'Tu cuenta y configuración',
+  'Your details, and how to ask for a change': 'Tus datos y cómo pedir un cambio',
+  'The words you saved to study': 'Las palabras que guardaste para estudiar',
+  'Appearance': 'Apariencia',
+  'Theme': 'Tema',
+  'Light': 'Claro',
+  'Dim': 'Atenuado',
+  'Dark': 'Oscuro',
+  'Auto': 'Automático',
+  'Sidebar': 'Barra lateral',
+  'Icons': 'Íconos',
+  'On hover': 'Al pasar el cursor',
+  'Language': 'Idioma',
+  'Spanish': 'Español',
+  'Spanish under the English': 'Español debajo del inglés',
+  'Learn English': 'Aprender inglés',
+  'Meanings of English words in Spanish': 'Significado en español de palabras en inglés',
+
   // ── Order statuses ──────────────────────────────────────────────────────
   'Quote': 'Cotización',
   'Booked': 'Reservada',

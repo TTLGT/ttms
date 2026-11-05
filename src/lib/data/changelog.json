@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "4721dd24294fb1d79b48aeff6a7032c09bd28697",
+      "date": "2026-11-05T10:07:54-06:00",
+      "author": "erwindank",
+      "subject": "Add a Spanish switch: with it on, headings and sentences get a Spanish line underneath in teal italics, and buttons, labels, dropdowns, placeholders and statuses show the Spanish in a bubble on hover; English stays as it is, the Spanish is written by hand, and only people who turn it on download it",
+      "body": ""
+    },
+    {
       "hash": "797b1bed3572ab126afe1af50962591b4276ba62",
       "date": "2026-11-05T08:34:13-06:00",
       "author": "erwindank",

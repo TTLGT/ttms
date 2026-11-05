@@ -12,7 +12,7 @@ import { MAX_STATUS_NOTE, USER_STATUSES, USER_STATUS_LABEL, type UserStatus } fr
  *
  * The clock is the record of hours (see src/types/attendance.ts), so it is
  * somewhere nobody has to go looking for it. Drawn for the sidebar, which is
- * brand-900 in both themes, like ThemeSwitch beside it.
+ * brand-900 in both themes, like the account menu button below it.
  *
  * On the folded rail it shrinks to one icon: Clock in when out (the one
  * action that is safe to put a single click on), and a green clock when in.

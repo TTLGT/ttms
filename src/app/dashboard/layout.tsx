@@ -27,21 +27,18 @@ import {
   LifeBuoy,
   Menu,
   X,
-  LogOut,
   PanelLeftOpen,
   LucideIcon,
 } from 'lucide-react';
 import { useSidebarMode } from '@/lib/sidebarMode';
-import SidebarModeSwitch from '@/components/dashboard/SidebarModeSwitch';
 import { useAuth } from '@/context/AuthContext';
 import type { Permission } from '@/types/permission';
 import { ChatProvider, useChat } from '@/context/ChatContext';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import { ApprovalsProvider, useApprovals } from '@/context/ApprovalsContext';
 import ChatPopup from '@/components/chat/ChatPopup';
-import ThemeSwitch from '@/components/dashboard/ThemeSwitch';
+import AccountMenu from '@/components/dashboard/AccountMenu';
 import PreferenceSync from '@/components/dashboard/PreferenceSync';
-import LearnSwitch from '@/components/dashboard/LearnSwitch';
 import LearnLayer from '@/components/learn/LearnLayer';
 import PlanningPrompt from '@/components/planning/PlanningPrompt';
 import DayPlanSharedNotice from '@/components/planning/DayPlanSharedNotice';
@@ -50,7 +47,6 @@ import BreakReminder from '@/components/attendance/BreakReminder';
 import CelebrationHeadsUp from '@/components/dashboard/CelebrationHeadsUp';
 import { LearnProvider } from '@/context/LearnContext';
 import { SpanishProvider } from '@/context/SpanishContext';
-import SpanishSwitch from '@/components/dashboard/SpanishSwitch';
 import SpanishTips from '@/components/spanish/SpanishTips';
 import { AttendanceProvider, useAttendance } from '@/context/AttendanceContext';
 import ClockWidget from '@/components/attendance/ClockWidget';
@@ -189,7 +185,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
  * rather than opening a second set of listeners to count the same thing.
  */
 function DashboardShell({ children }: { children: React.ReactNode }) {
-  const { user, profile, logout, can } = useAuth();
+  const { user, profile, can } = useAuth();
   const pathname              = usePathname();
   const router                = useRouter();
   const { unreadBadge }                 = useChat();
@@ -269,7 +265,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const { mode: sidebarMode, setMode: setSidebarMode, ready: sidebarReady } = useSidebarMode();
   const [peek, setPeek] = useState(false);
   const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rail = sidebarMode === 'collapsed' || (sidebarMode === 'auto' && !peek);
+  // The account menu holds an `auto` sidebar open while it is up — it sits
+  // outside the sidebar on screen, so reaching it would otherwise fold the
+  // sidebar away under the pointer. See AccountMenu.
+  const [accountOpen, setAccountOpen] = useState(false);
+  const rail = sidebarMode === 'collapsed' || (sidebarMode === 'auto' && !peek && !accountOpen);
 
   // A short delay both ways. Opening at once would fire on every pass to the
   // browser's back button; closing at once would snap shut when the pointer
@@ -528,94 +528,44 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/*
-          Who you are signed in as, and the way into your own record.
+          Who you are signed in as — a button that opens the account menu:
+          your profile, theme, sidebar layout, the language aids, sign out.
+          See AccountMenu for why it replaced the row of bare switches.
 
           The picture and the name come off `users/{uid}` — the photo an admin
           uploaded in Settings → People, mirrored onto the profile — and not
           off the Google account. Those are two different pictures: Google's is
           whatever the person set on their personal account years ago, while
           the one here is the one their colleagues see beside them in the
-          directory and in chat. Showing the wrong one in the one place a
-          person looks at their own name was the most visible way this
-          disagreed with itself.
-
-          Both update without a sign-out, because AuthContext keeps a live
-          watch on that document — see watchOwnProfile there.
-
-          The whole block is the link to /dashboard/profile rather than a
-          separate "My profile" nav item: your own name in the corner is where
-          people already click looking for their own details.
+          directory and in chat. Both update without a sign-out, because
+          AuthContext keeps a live watch on that document.
         */}
-        <div className="flex-shrink-0 px-4 py-4 border-t border-brand-700">
+        <div className="flex-shrink-0 px-4 py-3 border-t border-brand-700">
           <ClockWidget rail={rail} />
-          <Link
-            href="/dashboard/profile"
-            aria-current={isCurrent('/dashboard/profile') ? 'page' : undefined}
-            title="Your details, and how to ask for a change"
-            className={`-mx-2 mb-2 flex items-center gap-3 rounded-lg px-2 py-2 transition ${
-              rail ? 'lg:justify-center' : ''
-            } ${
-              isCurrent('/dashboard/profile') ? 'bg-brand-700' : 'hover:bg-brand-700'
-            }`}
-          >
-            <UserAvatar
-              photoPath={profile?.photoPath}
-              fallback={(profile?.displayName || user?.email || '?').charAt(0).toUpperCase()}
-              size={32}
-            />
-            <div className={`overflow-hidden ${rail ? 'lg:hidden' : ''}`}>
-              <p className="text-sm font-medium text-white truncate">
-                {profile?.displayName || user?.displayName}
-              </p>
-              <p className="text-xs text-blue-300 truncate">{user?.email}</p>
-            </div>
-          </Link>
 
-          {/* The full footer, and the phone drawer's footer always. */}
-          <div className={rail ? 'lg:hidden' : ''}>
-            <SpanishSwitch />
-            <LearnSwitch current={isCurrent('/dashboard/words')} />
-            <SidebarModeSwitch mode={sidebarMode} onChange={setSidebarMode} />
-            <div className="flex items-center justify-between gap-2">
-              <button
-                onClick={logout}
-                data-es="Sign out"
-                className="text-xs text-blue-300 hover:text-white transition text-left whitespace-nowrap"
-              >
-                Sign out →
-              </button>
-              <ThemeSwitch />
-            </div>
-          </div>
-
-          {/* The rail's footer. Sign out stays reachable without opening the
-              menu, and a folded menu needs a way back open that is not "find
-              the switch" — the switch is folded away with everything else.
-              `auto` has no open button: pointing at the rail is the button. */}
-          {rail && (
-            <div className="hidden flex-col items-center gap-1 lg:flex">
-              {sidebarMode === 'collapsed' && (
-                <button
-                  type="button"
-                  onClick={() => setSidebarMode('expanded')}
-                  aria-label="Open the menu"
-                  title="Open the menu"
-                  className="rounded-lg p-1.5 text-blue-300 transition hover:bg-brand-700 hover:text-white"
-                >
-                  <PanelLeftOpen size={16} />
-                </button>
-              )}
+          {/* A folded menu needs a way back open that is not "open the
+              account menu and find the setting". `auto` has no button:
+              pointing at the rail is the button. */}
+          {rail && sidebarMode === 'collapsed' && (
+            <div className="mb-1 hidden justify-center lg:flex">
               <button
                 type="button"
-                onClick={logout}
-                aria-label="Sign out"
-                title="Sign out"
+                onClick={() => setSidebarMode('expanded')}
+                aria-label="Open the menu"
+                title="Open the menu"
                 className="rounded-lg p-1.5 text-blue-300 transition hover:bg-brand-700 hover:text-white"
               >
-                <LogOut size={16} />
+                <PanelLeftOpen size={16} />
               </button>
             </div>
           )}
+
+          <AccountMenu
+            rail={rail}
+            sidebarMode={sidebarMode}
+            onSidebarMode={setSidebarMode}
+            onOpenChange={setAccountOpen}
+          />
         </div>
       </aside>
       </div>
