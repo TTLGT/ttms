@@ -47,6 +47,7 @@ import PlanningPrompt from '@/components/planning/PlanningPrompt';
 import DayPlanSharedNotice from '@/components/planning/DayPlanSharedNotice';
 import ChangeOrderPrompt from '@/components/orders/ChangeOrderPrompt';
 import BreakReminder from '@/components/attendance/BreakReminder';
+import CelebrationHeadsUp from '@/components/dashboard/CelebrationHeadsUp';
 import { LearnProvider } from '@/context/LearnContext';
 import { AttendanceProvider, useAttendance } from '@/context/AttendanceContext';
 import ClockWidget from '@/components/attendance/ClockWidget';
@@ -672,6 +673,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Break, lunch and active-pause reminders — nothing unless clocked in and one is due. */}
       <BreakReminder />
+
+      {/* "Celebrations today" for admin and HR — nothing unless somebody is being congratulated today. */}
+      <CelebrationHeadsUp />
 
       {/* "Submit a change order" — nothing until an order save needs one. */}
       <ChangeOrderPrompt />

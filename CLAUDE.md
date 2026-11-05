@@ -776,6 +776,14 @@ one-offs) go out at 8:05am by email and into a `notice` chat room only TTMS can
 write in. The run re-checks the permission at send time. See
 `celebrationReminders` in the Schema Guide.
 
+**Admin and HR get a heads-up first** (2026-11-05): `CelebrationHeadsUp` in the
+dashboard layout, a card in the middle of the screen on the first page load of
+a day with somebody to congratulate, for `celebrations.manage` only. It shows
+the cron's own preview (who will be named and the exact message), links to the
+wording in Settings, and can be put off to later that day. Dismissing and
+snoozing are per browser (localStorage), like the break reminders; nothing is
+recorded. It reads the preview only while there is something to ask about.
+
 **It is signed by the company, not by TTMS**, and that is a second shape of
 system message rather than a different string. `systemLine()` takes a
 `senderName` and a `systemKind`; `SYSTEM_SENDER_UID` never changes, so the name
