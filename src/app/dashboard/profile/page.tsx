@@ -41,6 +41,7 @@ import CelebrationBanner from '@/components/dashboard/CelebrationBanner';
 import MyAttendanceCard from '@/components/attendance/MyAttendanceCard';
 import RoleBadges from '@/components/people/RoleBadges';
 import { MAX_PHOTO_BYTES, UserAvatar } from '@/components/settings/UserAvatar';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Your own record: what the company holds about you, and how to get it fixed.
@@ -222,11 +223,11 @@ export default function MyProfilePage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">My profile</h1>
+        <h1 className="text-2xl font-bold text-gray-900"><Bi>My profile</Bi></h1>
         <p className="mt-0.5 text-sm text-gray-500">
-          What TTMS holds about you. Your details are kept by HR and administrators,
+          <Bi>What TTMS holds about you. Your details are kept by HR and administrators,
           so anything you want changed is asked for here and shows in their Approvals
-          inbox.
+          inbox.</Bi>
         </p>
       </div>
 
@@ -350,7 +351,7 @@ export default function MyProfilePage() {
 
       <p className="mt-5 text-xs text-gray-400">
         Everything you have asked for, decided or not, is under{' '}
-        <Link href="/dashboard/approvals" className="text-brand-600 hover:underline">
+        <Link data-es href="/dashboard/approvals" className="text-brand-600 hover:underline">
           Approvals → Your requests
         </Link>.
       </p>
@@ -421,12 +422,12 @@ function CelebrationsCard({
   return (
     <section className="mt-5 rounded-xl border border-gray-200 bg-white">
       <header className="border-b border-gray-100 bg-gray-50 px-4 py-2.5">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+        <h2 data-es className="text-xs font-semibold uppercase tracking-wide text-gray-500">
           Celebrations
         </h2>
         <p className="mt-0.5 text-[11px] text-gray-400">
-          What TTMS says about you in the Everyone room. Saved as you change it — this one is
-          not a request.
+          <Bi>What TTMS says about you in the Everyone room. Saved as you change it — this one is
+          not a request.</Bi>
         </p>
       </header>
 
@@ -454,12 +455,12 @@ function CelebrationsCard({
         {error ? (
           <p className="text-xs text-red-600">{error}</p>
         ) : saved ? (
-          <p className="flex items-center gap-1.5 text-xs text-green-700">
+          <p data-es className="flex items-center gap-1.5 text-xs text-green-700">
             <Check className="h-3.5 w-3.5" /> Saved.
           </p>
         ) : (
           <p className="text-xs text-gray-400">
-            Posted at 8am Guatemala time on the day. Nobody is told you changed this.
+            <Bi>Posted at 8am Guatemala time on the day. Nobody is told you changed this.</Bi>
           </p>
         )}
       </div>
@@ -486,7 +487,7 @@ function Banner({ tone, children }: { tone: 'error' | 'ok'; children: React.Reac
  */
 function PendingBadge() {
   return (
-    <span
+    <span data-es
       title="Waiting on HR or an administrator"
       className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700"
     >
@@ -563,12 +564,12 @@ function FieldRow({
         </span>
 
         <span className="min-w-0 flex-1 break-words text-sm text-gray-900">
-          {value || <span className="text-gray-400">Not recorded</span>}
+          {value || <span data-es className="text-gray-400">Not recorded</span>}
         </span>
 
         <span className="flex-shrink-0">
           {pending ? <PendingBadge /> : open ? null : (
-            <button
+            <button data-es
               type="button"
               onClick={onOpen}
               disabled={disabled}
@@ -669,7 +670,7 @@ function FieldEditor({
           <DateField value={value} onChange={setValue} className={field} ariaLabel={meta.label} />
         ) : meta.kind === 'site' || meta.kind === 'team' ? (
           <select value={value} onChange={(e) => setValue(e.target.value)} className={field}>
-            <option value="">Not assigned</option>
+            <option data-es value="">Not assigned</option>
             {(meta.kind === 'site' ? sites : teams).map((option) => (
               <option key={option.id} value={option.id}>{option.name}</option>
             ))}
@@ -705,10 +706,10 @@ function FieldEditor({
 
       {hint && <p className="mt-1 text-xs text-amber-600">{hint}</p>}
       <p className="mt-1 text-[11px] text-gray-400">
-        Leave it empty to ask for this to be cleared.
+        <Bi>Leave it empty to ask for this to be cleared.</Bi>
       </p>
 
-      <label className="mt-3 block text-[11px] font-medium uppercase tracking-wide text-gray-400">
+      <label data-es className="mt-3 block text-[11px] font-medium uppercase tracking-wide text-gray-400">
         Why (optional)
       </label>
       <textarea
@@ -728,7 +729,7 @@ function FieldEditor({
         >
           <Check size={13} /> {busy ? 'Sending…' : 'Send request'}
         </button>
-        <button
+        <button data-es
           type="button"
           onClick={onCancel}
           disabled={busy}

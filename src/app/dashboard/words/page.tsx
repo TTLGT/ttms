@@ -13,6 +13,7 @@ import {
   type GlossaryTerm,
 } from '@/types/glossary';
 import type { WordRecord } from '@/types/vocabulary';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * My words: the Learn English list for the person signed in.
@@ -75,11 +76,11 @@ export default function MyWordsPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">My words</h1>
+        <h1 className="text-2xl font-bold text-gray-900"><Bi>My words</Bi></h1>
         <p className="mt-0.5 text-sm text-gray-500">
-          English words from TTMS and from freight work, with their meaning in Spanish.
+          <Bi>English words from TTMS and from freight work, with their meaning in Spanish.
           Words you look up are saved here so you can practise them. Mark a word
-          &ldquo;I know this&rdquo; and it stops being underlined.
+          &ldquo;I know this&rdquo; and it stops being underlined.</Bi>
         </p>
       </div>
 
@@ -134,7 +135,7 @@ export default function MyWordsPage() {
       </div>
 
       {words === null && !wordsError && tab !== 'all' ? (
-        <p className="py-10 text-center text-sm text-gray-500">Loading your words…</p>
+        <p data-es className="py-10 text-center text-sm text-gray-500">Loading your words…</p>
       ) : shown.length === 0 ? (
         <p className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-10 text-center text-sm text-gray-500">
           {query.trim()

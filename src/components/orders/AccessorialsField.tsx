@@ -2,6 +2,7 @@
 
 import { DollarSign } from 'lucide-react';
 import { ACCESSORIALS, ACCESSORIAL_LABEL, isPaidService, type Accessorial } from '@/types/order';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * What the load needs beyond a truck and a driver, as tick boxes, in the
@@ -34,21 +35,21 @@ export default function AccessorialsField({ value, onChange }: {
   return (
     <div className="border-t border-gray-100 pt-4 space-y-4">
       <div>
-        <p className="text-sm font-medium text-gray-700">Accessorials</p>
+        <p data-es className="text-sm font-medium text-gray-700">Accessorials</p>
         <p className="text-xs text-gray-500 mb-2">
-          What the truck or the stops need for this load. Printed on the BOL, the client&apos;s SA and the carrier&apos;s
-          Dispatch Sheet. Anything not listed goes in the special instructions.
+          <Bi>What the truck or the stops need for this load. Printed on the BOL, the client&apos;s SA and the carrier&apos;s
+          Dispatch Sheet. Anything not listed goes in the special instructions.</Bi>
         </p>
         <div className={grid}>{ACCESSORIALS.filter((a) => !isPaidService(a)).map(box)}</div>
       </div>
       <div>
-        <p className="text-sm font-medium text-gray-700 flex items-center gap-1">
+        <p data-es className="text-sm font-medium text-gray-700 flex items-center gap-1">
           <DollarSign className="w-3.5 h-3.5 text-gray-500" aria-hidden />
           Additional Services
         </p>
         <p className="text-xs text-gray-500 mb-2">
-          Services the client pays for on top of the move. Ticking one opens a line for its cost in Price and
-          Terms, which is added to the Agreed Rate. A service not listed can be added there by hand.
+          <Bi>Services the client pays for on top of the move. Ticking one opens a line for its cost in Price and
+          Terms, which is added to the Agreed Rate. A service not listed can be added there by hand.</Bi>
         </p>
         <div className={grid}>{ACCESSORIALS.filter(isPaidService).map(box)}</div>
       </div>

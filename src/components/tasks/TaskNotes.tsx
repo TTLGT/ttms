@@ -221,7 +221,7 @@ export default function TaskNotes({
         );
       })}
 
-      <button
+      <button data-es
         type="button"
         onClick={onAdd}
         className="flex min-h-[6rem] flex-col items-center justify-center gap-1 rounded-sm border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-gray-400 hover:bg-gray-50"

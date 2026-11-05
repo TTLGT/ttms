@@ -7,6 +7,7 @@ import { phoneRegionOf } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
 import type { Driver } from '@/types/driver';
 import DriverFormModal from './DriverFormModal';
+import { Bi } from '@/components/spanish/Es';
 
 /** What picking a driver fills in on the load. */
 export interface DriverChoice {
@@ -109,7 +110,7 @@ export default function DriverPicker({ carrierId, value, onPick, hint }: Props) 
 
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">Driver</label>
+      <label data-es className="block text-xs font-medium text-gray-600 mb-1">Driver</label>
       <select
         value={value ?? ONE_OFF}
         onChange={choose}
@@ -129,20 +130,20 @@ export default function DriverPicker({ carrierId, value, onPick, hint }: Props) 
         {carrierId && <option value={NEW_DRIVER}>+ Add a driver…</option>}
       </select>
 
-      {loading && <p className="text-xs text-gray-400 mt-1">Loading drivers…</p>}
+      {loading && <p data-es className="text-xs text-gray-400 mt-1">Loading drivers…</p>}
       {error   && <p className="text-xs text-red-500 mt-1">{error}</p>}
 
       {!loading && !error && carrierId && drivers.length === 0 && (
         <p className="text-xs text-gray-500 mt-1">
-          No drivers on file for this carrier yet. Add one and it is saved to their record.
+          <Bi>No drivers on file for this carrier yet. Add one and it is saved to their record.</Bi>
         </p>
       )}
 
       {licence === 'expired' && (
-        <p className="text-xs text-red-600 mt-1">This driver&rsquo;s licence has expired.</p>
+        <p data-es className="text-xs text-red-600 mt-1">This driver&rsquo;s licence has expired.</p>
       )}
       {licence === 'expiring_soon' && (
-        <p className="text-xs text-amber-700 mt-1">This driver&rsquo;s licence expires within 30 days.</p>
+        <p data-es className="text-xs text-amber-700 mt-1">This driver&rsquo;s licence expires within 30 days.</p>
       )}
 
       {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}

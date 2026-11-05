@@ -23,7 +23,7 @@ export default function ContactTitleSelect({
   const known = (CARRIER_CONTACT_TITLES as readonly string[]).includes(value);
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">Contact Title</label>
+      <label data-es className="block text-xs font-medium text-gray-600 mb-1">Contact Title</label>
       <select value={value} onChange={(e) => onChange(e.target.value)} className={className}>
         <option value="">— Not set —</option>
         {!known && value && <option value={value}>{value}</option>}

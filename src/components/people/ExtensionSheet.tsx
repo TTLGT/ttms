@@ -128,13 +128,13 @@ export default function ExtensionSheet({
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr className="border-b border-black text-left">
-                <th className="py-1 pr-3 font-semibold">Name</th>
-                {options.showRole && <th className="py-1 pr-3 font-semibold">Role</th>}
-                {showOffice && <th className="py-1 pr-3 font-semibold">Office</th>}
-                {showTeam   && <th className="py-1 pr-3 font-semibold">Team</th>}
-                <th className="w-16 py-1 pr-3 font-semibold">Ext.</th>
-                <th className="w-44 py-1 pr-3 font-semibold">Work phone</th>
-                {options.showEmail && <th className="py-1 font-semibold">Email</th>}
+                <th data-es className="py-1 pr-3 font-semibold">Name</th>
+                {options.showRole && <th data-es className="py-1 pr-3 font-semibold">Role</th>}
+                {showOffice && <th data-es className="py-1 pr-3 font-semibold">Office</th>}
+                {showTeam   && <th data-es className="py-1 pr-3 font-semibold">Team</th>}
+                <th data-es className="w-16 py-1 pr-3 font-semibold">Ext.</th>
+                <th data-es className="w-44 py-1 pr-3 font-semibold">Work phone</th>
+                {options.showEmail && <th data-es className="py-1 font-semibold">Email</th>}
               </tr>
             </thead>
             <tbody>

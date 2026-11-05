@@ -36,7 +36,7 @@ export default function DayPlanSharedNotice() {
       <Share2 size={16} className="mt-0.5 shrink-0 text-green-600" />
       <p className="flex-1">
         Your plan for {when} is shared with your manager — names and times only.{' '}
-        <Link href="/dashboard/calendar" className="text-brand-700 hover:underline">See what was shared</Link>
+        <Link data-es href="/dashboard/calendar" className="text-brand-700 hover:underline">See what was shared</Link>
       </p>
       <button type="button" onClick={() => setDate(null)} aria-label="Dismiss" className="text-gray-400 hover:text-gray-700">
         <X size={14} />

@@ -5,6 +5,7 @@ import { FileSignature } from 'lucide-react';
 import { getOrderTerms, saveOrderTerms, type OrderTermsResponse } from '@/lib/agreementTerms';
 import TermsEditor from '@/components/settings/TermsEditor';
 import { type TermsParty } from '@/types/agreementTerms';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * This load's terms and conditions, on the order — the general ones, or terms
@@ -56,14 +57,14 @@ export default function OrderTermsCard({ orderId, onChanged }: { orderId: string
 
   return (
     <div id="terms" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
-      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2">
+      <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2">
         <FileSignature className="w-4 h-4" /> Terms and Conditions
       </h3>
       <p className="mt-1 text-xs text-gray-500">
-        Changes here apply to this load only. The terms for every load are in Settings → Operations → Agreement Terms.
+        <Bi>Changes here apply to this load only. The terms for every load are in Settings → Operations → Agreement Terms.</Bi>
       </p>
 
-      {!data && !error && <p className="mt-3 text-sm text-gray-500">Loading…</p>}
+      {!data && !error && <p data-es className="mt-3 text-sm text-gray-500">Loading…</p>}
       {data && (
         <div className="mt-4 space-y-5">
           {PARTS.map(({ party, label, sent }) => {
@@ -79,7 +80,7 @@ export default function OrderTermsCard({ orderId, onChanged }: { orderId: string
                     {own ? 'Own terms for this load' : 'General terms'}
                   </span>
                   {t.pending.length > 0 && editing !== party && (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                    <span data-es className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
                       Change waiting for approval
                     </span>
                   )}
@@ -136,7 +137,7 @@ export default function OrderTermsCard({ orderId, onChanged }: { orderId: string
                   </div>
                 ) : own && (
                   <details className="mt-1 text-xs text-gray-600">
-                    <summary className="cursor-pointer">See this load’s terms</summary>
+                    <summary data-es className="cursor-pointer">See this load’s terms</summary>
                     <pre className="mt-1 max-h-60 overflow-auto whitespace-pre-wrap rounded bg-gray-50 p-2 font-sans">{t.own}</pre>
                   </details>
                 )}

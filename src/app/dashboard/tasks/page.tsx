@@ -19,6 +19,7 @@ import TaskQueue from '@/components/tasks/TaskQueue';
 import TaskFocus from '@/components/tasks/TaskFocus';
 import TaskPath from '@/components/tasks/TaskPath';
 import { StreakCard, UpNextCard } from '@/components/tasks/UpNext';
+import { Bi } from '@/components/spanish/Es';
 import {
   TASK_COLORS, calendarToday, duplicateInput, newBlockInput, nextStepOf, placeInQueue, stepWithDone, taskQueue, upNextTask,
   type PersonalTask, type PersonalTaskInput, type TaskColor,
@@ -245,10 +246,10 @@ export default function MyTasksPage() {
       {skin.themed && <style>{roomCss(skin)}</style>}
       <div className="mb-5 flex flex-wrap items-start gap-3">
         <div className="flex-1">
-          <h1 className={`${skin.pageTitleSize ?? 'text-2xl'} font-bold text-gray-900 ${skin.heading}`}>My tasks</h1>
+          <h1 className={`${skin.pageTitleSize ?? 'text-2xl'} font-bold text-gray-900 ${skin.heading}`}><Bi>My tasks</Bi></h1>
           <p className="mt-0.5 flex items-center gap-1 text-sm text-gray-500">
             <Lock size={12} /> Only you can see this list.
-            <Link
+            <Link data-es
               href="/dashboard/calendar"
               className="ml-2 inline-flex items-center gap-1 text-brand-700 hover:underline"
               style={skin.themed ? { color: 'var(--tt-accent-ink)' } : undefined}

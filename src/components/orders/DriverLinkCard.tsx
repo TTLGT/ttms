@@ -5,6 +5,7 @@ import { Check, Copy, MapPin, Send, Truck } from 'lucide-react';
 import { copyToClipboard } from '@/lib/clipboard';
 import { getDriverLink, revokeDriverLink, sendDriverLink } from '@/lib/driverLinks';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { Bi } from '@/components/spanish/Es';
 import {
   DRIVER_STEPS,
   DRIVER_STEP_LABEL,
@@ -80,12 +81,12 @@ export default function DriverLinkCard({ orderId, progress, location, onChanged 
     <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
       <div className="flex items-center gap-2">
         <Truck className="h-4 w-4 text-gray-500" />
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Driver link</p>
+        <p data-es className="text-xs font-semibold uppercase tracking-wide text-gray-500">Driver link</p>
       </div>
       <p className="mt-1 text-xs text-gray-500">
-        A page for the driver to tap Arrived, Picked up, In transit and Delivered, send pictures and their
+        <Bi>A page for the driver to tap Arrived, Picked up, In transit and Delivered, send pictures and their
         location, and say when they were paid. They type the driver phone on this load to open it.
-        Picked up and Delivered move the status once the carrier has signed.
+        Picked up and Delivered move the status once the carrier has signed.</Bi>
       </p>
 
       {loaded && !live && (
@@ -115,7 +116,7 @@ export default function DriverLinkCard({ orderId, progress, location, onChanged 
               <Send className="h-3.5 w-3.5" /> Email
             </button>
           </div>
-          {copy === 'manual' && <p className="mt-1 text-xs text-gray-500">Press Ctrl+C to copy the selected link.</p>}
+          {copy === 'manual' && <p data-es className="mt-1 text-xs text-gray-500">Press Ctrl+C to copy the selected link.</p>}
           {emailing && (
             <form className="mt-2 flex flex-wrap gap-2"
               onSubmit={(e) => {
@@ -167,7 +168,7 @@ export default function DriverLinkCard({ orderId, progress, location, onChanged 
 
       {(steps.length > 0 || location) && (
         <div className="mt-4 border-t border-gray-200 pt-3">
-          <p className="mb-2 text-xs font-semibold text-gray-700">What the driver reported</p>
+          <p data-es className="mb-2 text-xs font-semibold text-gray-700">What the driver reported</p>
           <ol className="space-y-1">
             {steps.map((s) => {
               const m = progress![s]!;
@@ -177,7 +178,7 @@ export default function DriverLinkCard({ orderId, progress, location, onChanged 
                   <span className="font-medium">{DRIVER_STEP_LABEL[s]}</span>
                   <span className="text-xs text-gray-500">{formatDateTime(new Date(m.at))}</span>
                   {m.point && (
-                    <a href={mapsUrl(m.point)} target="_blank" rel="noopener noreferrer"
+                    <a data-es href={mapsUrl(m.point)} target="_blank" rel="noopener noreferrer"
                       className="text-xs text-brand-600 hover:underline">Map</a>
                   )}
                 </li>

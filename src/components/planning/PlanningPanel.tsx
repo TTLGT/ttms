@@ -5,6 +5,7 @@ import { CalendarCheck, CalendarClock } from 'lucide-react';
 import { getMyPlanning, setMyPlanningPrompt } from '@/lib/planning';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { formatTime, repeatText, type PersonalTask } from '@/types/task';
+import { Bi } from '@/components/spanish/Es';
 import {
   PLANNING_ASK_EVENT,
   PLANNING_CHANGED_EVENT,
@@ -99,11 +100,11 @@ export default function PlanningPanel({ tasks }: { tasks?: PersonalTask[] | null
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+      <h2 data-es className="flex items-center gap-2 text-sm font-semibold text-gray-900">
         <CalendarClock size={15} className="text-brand-600" /> Planning time
       </h2>
       <p className="mt-1 text-xs text-gray-500">
-        Set times to look over today, plan for tomorrow, next week and next month, with a reminder when each comes round.
+        <Bi>Set times to look over today, plan for tomorrow, next week and next month, with a reminder when each comes round.</Bi>
       </p>
       <ul className="mt-3 space-y-2.5">
         {kinds.map((k) => (

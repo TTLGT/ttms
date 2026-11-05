@@ -29,6 +29,7 @@ import CopyLinkButton from '@/components/CopyLinkButton';
 import StatusBadge from '@/components/orders/StatusBadge';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import DateField from '@/components/DateField';
+import { Bi } from '@/components/spanish/Es';
 
 function toDateInput(ts: { toDate?: () => Date } | null | undefined): string {
   if (!ts || typeof ts.toDate !== 'function') return '';
@@ -243,7 +244,7 @@ export default function CarrierDetailPage() {
 
   if (!carrier) return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <p className="text-gray-500">Carrier not found.</p>
+      <p data-es className="text-gray-500">Carrier not found.</p>
       <Link href={back.href} className="text-sm text-brand-600 hover:underline mt-2 block">← {back.label}</Link>
     </div>
   );
@@ -283,7 +284,7 @@ export default function CarrierDetailPage() {
           </div>
         ) : (
           <div className="flex gap-2">
-            <button onClick={cancelEdit}
+            <button data-es onClick={cancelEdit}
               className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
               Cancel
             </button>
@@ -334,7 +335,7 @@ export default function CarrierDetailPage() {
           />
           {/* Company Info */}
           <section className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Company Info</h3>
+            <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Company Info</h3>
             {!editing ? (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 {[
@@ -354,7 +355,7 @@ export default function CarrierDetailPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="col-span-1 sm:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
+                  <label data-es className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
                   <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={inputCls} />
                 </div>
                 <div className="col-span-1 sm:col-span-2">
@@ -368,15 +369,15 @@ export default function CarrierDetailPage() {
                   onChange={(v, r) => { setPhone(v); setPhoneRegion(r); }}
                 />
                 <div className="col-span-1 sm:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                  <label data-es className="block text-xs font-medium text-gray-600 mb-1">Email</label>
                   <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Address (City, State)</label>
+                  <label data-es className="block text-xs font-medium text-gray-600 mb-1">Address (City, State)</label>
                   <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Chicago, IL" className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Fax</label>
+                  <label data-es className="block text-xs font-medium text-gray-600 mb-1">Fax</label>
                   <input type="tel" value={fax} onChange={(e) => setFax(e.target.value)} className={inputCls} />
                 </div>
               </div>
@@ -385,26 +386,26 @@ export default function CarrierDetailPage() {
 
           {/* Authority */}
           <section className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Authority</h3>
+            <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Authority</h3>
             {!editing ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">DOT Number</p>
+                  <p data-es className="text-xs text-gray-500 mb-0.5">DOT Number</p>
                   <p className="text-sm font-mono text-gray-900">{carrier.dot || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">MC / FF Number</p>
+                  <p data-es className="text-xs text-gray-500 mb-0.5">MC / FF Number</p>
                   <p className="text-sm font-mono text-gray-900">{carrier.mc || '—'}</p>
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">DOT Number</label>
+                  <label data-es className="block text-xs font-medium text-gray-600 mb-1">DOT Number</label>
                   <input value={dot} onChange={(e) => setDot(e.target.value)} placeholder="1234567" className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">MC / FF Number</label>
+                  <label data-es className="block text-xs font-medium text-gray-600 mb-1">MC / FF Number</label>
                   <input value={mc} onChange={(e) => setMc(e.target.value)} placeholder="123456" className={inputCls} />
                 </div>
               </div>
@@ -414,7 +415,7 @@ export default function CarrierDetailPage() {
           {/* Dispatcher */}
           {(carrier.dispatcher || carrier.dispatcherPhone || carrier.dispatcherEmail || editing) && (
             <section className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Dispatcher</h3>
+              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Dispatcher</h3>
               {!editing ? (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {[
@@ -440,7 +441,7 @@ export default function CarrierDetailPage() {
                     onChange={(v, r) => { setDispatcherPhone(v); setDispatcherRegion(r); }}
                   />
                   <div className="col-span-1 sm:col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Dispatcher Email</label>
+                    <label data-es className="block text-xs font-medium text-gray-600 mb-1">Dispatcher Email</label>
                     <input type="email" value={dispatcherEmail} onChange={(e) => setDispatcherEmail(e.target.value)} className={inputCls} />
                   </div>
                 </div>
@@ -451,7 +452,7 @@ export default function CarrierDetailPage() {
           {/* Billing Contact */}
           {(carrier.billingContact || carrier.billingPhone || carrier.billingEmail || editing) && (
             <section className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Billing Contact</h3>
+              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Billing Contact</h3>
               {!editing ? (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {[
@@ -477,7 +478,7 @@ export default function CarrierDetailPage() {
                     onChange={(v, r) => { setBillingPhone(v); setBillingRegion(r); }}
                   />
                   <div className="col-span-1 sm:col-span-2">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Billing Email</label>
+                    <label data-es className="block text-xs font-medium text-gray-600 mb-1">Billing Email</label>
                     <input type="email" value={billingEmail} onChange={(e) => setBillingEmail(e.target.value)} className={inputCls} />
                   </div>
                 </div>
@@ -487,19 +488,19 @@ export default function CarrierDetailPage() {
 
           {/* Insurance */}
           <section className="bg-white rounded-xl border border-gray-200 p-6">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Insurance</h3>
+            <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Insurance</h3>
             {!editing ? (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Insurance Company</p>
+                  <p data-es className="text-xs text-gray-500 mb-0.5">Insurance Company</p>
                   <p className="text-sm text-gray-900">{carrier.insuranceProvider || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Policy Number</p>
+                  <p data-es className="text-xs text-gray-500 mb-0.5">Policy Number</p>
                   <p className="text-sm text-gray-900">{carrier.insurancePolicyNumber || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Expiration</p>
+                  <p data-es className="text-xs text-gray-500 mb-0.5">Expiration</p>
                   <div className="flex items-center gap-2">
                     <p className="text-sm text-gray-900">
                       {formatDate(carrier.insuranceExpiration as { toDate: () => Date } | null)}
@@ -508,42 +509,42 @@ export default function CarrierDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Liability Amount</p>
+                  <p data-es className="text-xs text-gray-500 mb-0.5">Liability Amount</p>
                   <p className="text-sm text-gray-900">{formatCoverage(carrier.insuranceCoverage) || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Cargo Amount</p>
+                  <p data-es className="text-xs text-gray-500 mb-0.5">Cargo Amount</p>
                   <p className="text-sm text-gray-900">{formatCoverage(carrier.insuranceCargoCoverage) || '—'}</p>
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Insurance Company</label>
+                  <label data-es className="block text-xs font-medium text-gray-600 mb-1">Insurance Company</label>
                   <input value={insProvider} onChange={(e) => setInsProvider(e.target.value)} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Policy Number</label>
+                  <label data-es className="block text-xs font-medium text-gray-600 mb-1">Policy Number</label>
                   <input value={insPolicyNo} onChange={(e) => setInsPolicyNo(e.target.value)} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Expiration Date</label>
+                  <label data-es className="block text-xs font-medium text-gray-600 mb-1">Expiration Date</label>
                   <DateField value={insExpiry} onChange={setInsExpiry} className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Liability Amount</label>
+                  <label data-es className="block text-xs font-medium text-gray-600 mb-1">Liability Amount</label>
                   <CoverageInput value={insCoverage} onChange={setInsCoverage}
                     placeholder="e.g. 1,000,000" className={inputCls} />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Cargo Amount</label>
+                  <label data-es className="block text-xs font-medium text-gray-600 mb-1">Cargo Amount</label>
                   <CoverageInput value={insCargo} onChange={setInsCargo}
                     placeholder="e.g. 100,000" className={inputCls} />
                 </div>
                 <div className="flex items-end">
                   <label className="flex items-center gap-2 cursor-pointer mb-2">
                     <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="w-4 h-4 rounded" />
-                    <span className="text-sm text-gray-700">Active carrier</span>
+                    <span data-es className="text-sm text-gray-700">Active carrier</span>
                   </label>
                 </div>
               </div>
@@ -552,7 +553,7 @@ export default function CarrierDetailPage() {
             {/* Shown in both modes, and saved on the spot rather than with the
                 rest of the form. */}
             <div className="mt-6 pt-4 border-t border-gray-100">
-              <p className="text-xs text-gray-500 mb-1.5">Certificate of Insurance</p>
+              <p data-es className="text-xs text-gray-500 mb-1.5">Certificate of Insurance</p>
               <InsuranceFileUpload
                 carrierId={carrierId}
                 value={insFile}
@@ -565,7 +566,7 @@ export default function CarrierDetailPage() {
           {/* Notes */}
           {(!editing && carrier.notes) || editing ? (
             <section className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Notes</h3>
+              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Notes</h3>
               {editing ? (
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none" />
@@ -582,8 +583,8 @@ export default function CarrierDetailPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-xs text-gray-500">
-              The people this carrier sends. Picking one on a load copies their name and phone
-              onto it, so paperwork already sent stays as it was.
+              <Bi>The people this carrier sends. Picking one on a load copies their name and phone
+              onto it, so paperwork already sent stays as it was.</Bi>
             </p>
             <button onClick={() => setAddingDriver(true)}
               className="px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition flex-shrink-0 ml-4">
@@ -593,9 +594,9 @@ export default function CarrierDetailPage() {
 
           {drivers.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
-              <p className="text-sm text-gray-400">No drivers on file for this carrier yet.</p>
+              <p data-es className="text-sm text-gray-400">No drivers on file for this carrier yet.</p>
               <p className="text-xs text-gray-400 mt-1">
-                You can also add one while assigning this carrier to a load.
+                <Bi>You can also add one while assigning this carrier to a load.</Bi>
               </p>
             </div>
           ) : (
@@ -625,10 +626,10 @@ export default function CarrierDetailPage() {
                           <span className="flex items-center gap-2">
                             {formatDate(d.licenseExpiration as { toDate: () => Date } | null)}
                             {status === 'expired' && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700">Expired</span>
+                              <span data-es className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700">Expired</span>
                             )}
                             {status === 'expiring_soon' && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">Expiring</span>
+                              <span data-es className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700">Expiring</span>
                             )}
                           </span>
                         </td>
@@ -668,7 +669,7 @@ export default function CarrierDetailPage() {
         <div>
           {orders.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
-              <p className="text-sm text-gray-400">No orders assigned to this carrier yet.</p>
+              <p data-es className="text-sm text-gray-400">No orders assigned to this carrier yet.</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
@@ -692,7 +693,7 @@ export default function CarrierDetailPage() {
                       <td className="px-4 py-3 text-sm text-gray-600">{formatDate(o.pickupDate as { toDate: () => Date } | null)}</td>
                       <td className="px-4 py-3 text-sm text-gray-800">{formatCurrency(o.carrierPay)}</td>
                       <td className="px-4 py-3 text-right">
-                        <Link href={`/dashboard/orders/${o.id}`} className="text-xs text-brand-600 hover:underline font-medium">View →</Link>
+                        <Link data-es href={`/dashboard/orders/${o.id}`} className="text-xs text-brand-600 hover:underline font-medium">View →</Link>
                       </td>
                     </tr>
                   ))}

@@ -209,7 +209,7 @@ export default function CarrierCompliance({
           <input value={value} onChange={(e) => set(e.target.value)} onKeyDown={saveOnEnter}
             placeholder={placeholder} className={inputCls} />
         ) : (
-          <p className={`text-sm text-gray-400 ${wide ? '' : 'py-2'}`}>Not on record</p>
+          <p data-es className={`text-sm text-gray-400 ${wide ? '' : 'py-2'}`}>Not on record</p>
         )}
       </div>
     );
@@ -217,7 +217,7 @@ export default function CarrierCompliance({
 
   const certificate = (
     <div>
-      <p className={fieldLabelCls}>Certificate of Insurance</p>
+      <p data-es className={fieldLabelCls}>Certificate of Insurance</p>
       <InsuranceFileUpload
         carrierId={carrierId}
         value={carrier.insuranceStoragePath ?? null}
@@ -230,22 +230,22 @@ export default function CarrierCompliance({
   const insurance = canEdit ? (
     <>
       <div>
-        <label className={fieldLabelCls}>Insurance Expiration</label>
+        <label data-es className={fieldLabelCls}>Insurance Expiration</label>
         <DateField value={expiry} onChange={setExpiry} className={inputCls} />
         {status === 'expired' && expiry === toDateInput(carrier.insuranceExpiration) && (
-          <p className="text-xs text-red-600 font-medium mt-1">Expired</p>
+          <p data-es className="text-xs text-red-600 font-medium mt-1">Expired</p>
         )}
         {status === 'expiring_soon' && expiry === toDateInput(carrier.insuranceExpiration) && (
-          <p className="text-xs text-amber-700 mt-1">Expires within 30 days</p>
+          <p data-es className="text-xs text-amber-700 mt-1">Expires within 30 days</p>
         )}
       </div>
       <div>
-        <label className={fieldLabelCls}>Liability Amount</label>
+        <label data-es className={fieldLabelCls}>Liability Amount</label>
         <CoverageInput value={coverage} onChange={setCoverage} onKeyDown={saveOnEnter}
           placeholder="e.g. 1,000,000" className={inputCls} />
       </div>
       <div>
-        <label className={fieldLabelCls}>Cargo Amount</label>
+        <label data-es className={fieldLabelCls}>Cargo Amount</label>
         <CoverageInput value={cargo} onChange={setCargo} onKeyDown={saveOnEnter}
           placeholder="e.g. 100,000" className={inputCls} />
       </div>
@@ -253,23 +253,23 @@ export default function CarrierCompliance({
   ) : (
     <>
       <div className="text-sm">
-        <p className={fieldLabelCls}>Insurance Expiration</p>
+        <p data-es className={fieldLabelCls}>Insurance Expiration</p>
         <p className={statusCls}>
           {carrier.insuranceExpiration
             ? <>{formatDate(carrier.insuranceExpiration)}{status === 'expired' && ' — expired'}</>
-            : <span className="text-gray-400">Not on record</span>}
+            : <span data-es className="text-gray-400">Not on record</span>}
         </p>
       </div>
       <div className="text-sm">
-        <p className={fieldLabelCls}>Liability Amount</p>
+        <p data-es className={fieldLabelCls}>Liability Amount</p>
         <p className="text-gray-900">
-          {formatCoverage(carrier.insuranceCoverage) || <span className="text-gray-400">Not on record</span>}
+          {formatCoverage(carrier.insuranceCoverage) || <span data-es className="text-gray-400">Not on record</span>}
         </p>
       </div>
       <div className="text-sm">
-        <p className={fieldLabelCls}>Cargo Amount</p>
+        <p data-es className={fieldLabelCls}>Cargo Amount</p>
         <p className="text-gray-900">
-          {formatCoverage(carrier.insuranceCargoCoverage) || <span className="text-gray-400">Not on record</span>}
+          {formatCoverage(carrier.insuranceCargoCoverage) || <span data-es className="text-gray-400">Not on record</span>}
         </p>
       </div>
     </>
@@ -308,7 +308,7 @@ export default function CarrierCompliance({
           the current one. Edited on the carrier page. */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div>
-          <p className={viewLabelCls}>Main Contact</p>
+          <p data-es className={viewLabelCls}>Main Contact</p>
           {contact?.name ? (
             <p className="text-sm text-gray-900 flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <span>{contact.name}</span>
@@ -321,7 +321,7 @@ export default function CarrierCompliance({
           ) : <p className="text-sm text-gray-900">—</p>}
         </div>
         <div>
-          <p className={viewLabelCls}>Contact Phone</p>
+          <p data-es className={viewLabelCls}>Contact Phone</p>
           <p className="text-sm text-gray-900">
             {contact?.phone
               ? <PhoneValue value={contact.phone} region={contact.phoneRegion} label="carrier contact phone" />
@@ -329,7 +329,7 @@ export default function CarrierCompliance({
           </p>
         </div>
         <div className="min-w-0">
-          <p className={viewLabelCls}>Contact Email</p>
+          <p data-es className={viewLabelCls}>Contact Email</p>
           {contact?.email ? (
             <p className="text-sm text-gray-900 group flex min-w-0">
               <CopyValue value={contact.email} label="email address">

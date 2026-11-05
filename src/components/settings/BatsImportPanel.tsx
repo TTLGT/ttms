@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import type { ImportResult } from '@/lib/batsImport';
 import { useFmcsaSweep } from './useFmcsaSweep';
 import type { SweepState } from './useFmcsaSweep';
+import { Bi } from '@/components/spanish/Es';
 
 const CSV_ACCEPT = { 'text/csv': ['.csv'] };
 
@@ -48,7 +49,7 @@ function SweepReport({ state, onStop }: { state: SweepState; onStop: () => void 
     <div className="px-6 pb-6">
       <div className="border border-gray-100 rounded-lg bg-gray-50 px-4 py-3 text-sm space-y-2">
         <div className="flex items-center justify-between gap-3">
-          <span className="font-medium text-gray-700">FMCSA check</span>
+          <span data-es className="font-medium text-gray-700">FMCSA check</span>
           <span className="text-gray-500">
             {state.running
               ? `Checking… ${state.done} of ${state.total}`
@@ -63,7 +64,7 @@ function SweepReport({ state, onStop }: { state: SweepState; onStop: () => void 
             <div className="h-1.5 flex-1 rounded-full bg-gray-200 overflow-hidden">
               <div className="h-full bg-brand-600 transition-all" style={{ width: `${(state.done / state.total) * 100}%` }} />
             </div>
-            <button type="button" onClick={onStop} className="text-xs text-gray-500 hover:text-gray-800">
+            <button data-es type="button" onClick={onStop} className="text-xs text-gray-500 hover:text-gray-800">
               Stop
             </button>
           </div>
@@ -107,7 +108,7 @@ function SweepReport({ state, onStop }: { state: SweepState; onStop: () => void 
               </p>
             )}
             <p className="text-gray-400">
-              Whether each carrier may haul is shown on its own page and when it is put on a load.
+              <Bi>Whether each carrier may haul is shown on its own page and when it is put on a load.</Bi>
             </p>
           </div>
         )}
@@ -232,10 +233,10 @@ export default function BatsImportPanel() {
   return (
     <section className="bg-white rounded-xl border border-gray-200 mt-6">
       <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="text-sm font-semibold text-gray-900">BATS Data Import</h2>
+        <h2 className="text-sm font-semibold text-gray-900"><Bi>BATS Data Import</Bi></h2>
         <p className="text-xs text-gray-500 mt-0.5">
-          Drop fresh BATS CRM export CSVs here to sync carriers, customers, and orders.
-          Only new or changed rows are written — re-uploading is safe and fast.
+          <Bi>Drop fresh BATS CRM export CSVs here to sync carriers, customers, and orders.
+          Only new or changed rows are written — re-uploading is safe and fast.</Bi>
         </p>
       </div>
 
@@ -298,10 +299,10 @@ export default function BatsImportPanel() {
                     {r.owners.unresolvedNames.length > 0 && (
                       <>
                         <p className="text-xs text-gray-500 mt-1">
-                          No match for these names. Their records keep the name for reference and
+                          <Bi>No match for these names. Their records keep the name for reference and
                           stay visible only to admin, dispatch and finance until someone is
                           assigned. Invite the person, or create a work group with that name, then
-                          re-run the import.
+                          re-run the import.</Bi>
                         </p>
                         <p className="text-xs text-gray-400 mt-1 break-words">
                           {r.owners.unresolvedNames.join(', ')}

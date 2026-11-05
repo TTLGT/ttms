@@ -56,7 +56,7 @@ export default function OrderReadinessCard({ orderId, orderNumber, showQuotePdf,
     <section className="bg-white rounded-xl border border-gray-200 p-5 mb-6 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Paperwork checklist</h2>
+          <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Paperwork checklist</h2>
           <p className="text-xs text-gray-500 mt-0.5">
             {sa?.complete
               ? 'Everything the Shipper Agreement needs is filled in.'
@@ -64,7 +64,7 @@ export default function OrderReadinessCard({ orderId, orderNumber, showQuotePdf,
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href={`/dashboard/orders/${orderId}/edit`}
+          <Link data-es href={`/dashboard/orders/${orderId}/edit`}
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
             Fill in
           </Link>
@@ -79,7 +79,7 @@ export default function OrderReadinessCard({ orderId, orderNumber, showQuotePdf,
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
-      {!items && !error && <p className="flex items-center gap-2 text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" />Checking…</p>}
+      {!items && !error && <p data-es className="flex items-center gap-2 text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" />Checking…</p>}
 
       {items && (
         <div className="grid gap-4 sm:grid-cols-2">

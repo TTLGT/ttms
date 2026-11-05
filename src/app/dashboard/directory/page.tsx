@@ -32,6 +32,7 @@ import ExtensionSheet from '@/components/people/ExtensionSheet';
 import SheetOptionsDialog from '@/components/people/SheetOptionsDialog';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The company phone book.
@@ -372,7 +373,7 @@ function Directory() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px]">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Directory</h1>
+          <h1 className="text-2xl font-bold text-gray-900"><Bi>Directory</Bi></h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {full
               ? 'Everyone at Total Transport Logistics, including anyone set up but not yet signed in.'
@@ -463,12 +464,12 @@ function Directory() {
               onChange={(e) => setParam('site', e.target.value, 'all')}
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
             >
-              <option value="all">Every office</option>
+              <option data-es value="all">Every office</option>
               {sites.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
               {/* Somebody has to be findable before they are assigned to one. */}
-              <option value={UNASSIGNED}>No office set</option>
+              <option data-es value={UNASSIGNED}>No office set</option>
             </select>
           )}
 
@@ -481,11 +482,11 @@ function Directory() {
               onChange={(e) => setParam('team', e.target.value, 'all')}
               className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
             >
-              <option value="all">Every team</option>
+              <option data-es value="all">Every team</option>
               {teams.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
-              <option value={UNASSIGNED}>No team set</option>
+              <option data-es value={UNASSIGNED}>No team set</option>
             </select>
           )}
 
@@ -521,7 +522,7 @@ function Directory() {
           <div className="h-7 w-7 animate-spin rounded-full border-4 border-brand-500 border-t-transparent" />
         </div>
       ) : people.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-gray-200 bg-white py-16 text-center text-sm text-gray-400">
+        <div data-es className="mt-6 rounded-xl border border-gray-200 bg-white py-16 text-center text-sm text-gray-400">
           Nobody to show yet.
         </div>
       ) : (
@@ -546,7 +547,7 @@ function Directory() {
                   <Printer size={14} />
                   Print extension sheet
                 </button>
-                <button
+                <button data-es
                   onClick={handleExport}
                   title={
                     full
@@ -590,7 +591,7 @@ function Directory() {
           )}
 
           {visible.length === 0 ? (
-            <div className="mt-3 rounded-xl border border-gray-200 bg-white py-16 text-center text-sm text-gray-400">
+            <div data-es className="mt-3 rounded-xl border border-gray-200 bg-white py-16 text-center text-sm text-gray-400">
               Nobody matches that.
             </div>
           ) : view === 'org' ? (
@@ -638,7 +639,7 @@ function Directory() {
         {full ? (
           <>
             Names, numbers and offices are edited in{' '}
-            <Link href="/dashboard/settings/people" className="text-brand-700 underline">
+            <Link data-es href="/dashboard/settings/people" className="text-brand-700 underline">
               Settings → People
             </Link>
             . Legal names, personal addresses and dates are shown to admins and HR

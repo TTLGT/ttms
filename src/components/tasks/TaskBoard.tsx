@@ -454,7 +454,7 @@ function MoveMenu({
         <Pencil size={14} className="text-gray-400" /> Open
       </button>
       <div className="my-1 border-t border-gray-200" />
-      <p className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-gray-400">Move to</p>
+      <p data-es className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-gray-400">Move to</p>
       {columns.map((c) => {
         const here = c.id === current;
         return (

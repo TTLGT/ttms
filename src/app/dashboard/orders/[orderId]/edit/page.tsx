@@ -36,6 +36,7 @@ import DateField from '@/components/DateField';
 import DateRangeField, { dateRangeProblem } from '@/components/DateRangeField';
 import { ORDER_SECTION_LABEL, isOrderSection } from '@/components/orders/SectionEditLink';
 import type { OrderSection } from '@/components/orders/SectionEditLink';
+import { Bi } from '@/components/spanish/Es';
 
 function tsToDateStr(ts: Order['pickupDate']): string {
   if (!ts || typeof (ts as { toDate?: unknown }).toDate !== 'function') return '';
@@ -411,7 +412,7 @@ export default function EditOrderPage() {
           {section && (
             <>
               {' · '}
-              <Link href={`/dashboard/orders/${orderId}/edit`} className="text-brand-600 hover:underline">
+              <Link data-es href={`/dashboard/orders/${orderId}/edit`} className="text-brand-600 hover:underline">
                 Edit the whole order
               </Link>
             </>
@@ -424,7 +425,7 @@ export default function EditOrderPage() {
           {shows('general') && (<>
           {/* General */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">General</h2>
+            <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">General</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Shipper and consignee sit in Route, above their addresses —
                   same layout as the new-order form. */}
@@ -433,10 +434,10 @@ export default function EditOrderPage() {
                   value={client}    onChange={setClient}    onPartyCreated={cacheParty} required />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">First Available Pickup</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">First Available Pickup</label>
                 <DateField value={firstAvailable} onChange={setFirstAvailable}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-                <p className="text-xs text-gray-500 mt-1">Earliest the client says the freight can be collected.</p>
+                <p className="text-xs text-gray-500 mt-1"><Bi>Earliest the client says the freight can be collected.</Bi></p>
               </div>
               <div id="field-pickupDate">
                 <DateRangeField label="Pickup Date"
@@ -465,10 +466,10 @@ export default function EditOrderPage() {
           {/* Freight */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Freight</h2>
+              <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Freight</h2>
               <p className="text-xs text-gray-500 mt-1">
-                One line per commodity, each with its own value, weight and dimensions. Pieces, total value and
-                weight are added up for you.
+                <Bi>One line per commodity, each with its own value, weight and dimensions. Pieces, total value and
+                weight are added up for you.</Bi>
               </p>
             </div>
             <div id="field-transportType">
@@ -501,7 +502,7 @@ export default function EditOrderPage() {
           {shows('route') && (<>
           {/* Route */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Route</h2>
+            <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Route</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div id="field-shipper">
@@ -552,7 +553,7 @@ export default function EditOrderPage() {
               className="px-6 py-2.5 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
               {saving ? 'Saving…' : 'Save Changes'}
             </button>
-            <Link href={backHref}
+            <Link data-es href={backHref}
               className="px-6 py-2.5 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
               Cancel
             </Link>

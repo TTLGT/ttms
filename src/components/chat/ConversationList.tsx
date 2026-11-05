@@ -16,6 +16,7 @@ import ChatListDialog from './ChatListDialog';
 import RoomAvatar from './RoomAvatar';
 import NotifyMenu from './NotifyMenu';
 import WallpaperMenu from './WallpaperMenu';
+import { Bi } from '@/components/spanish/Es';
 import {
   chatListIdOf,
   chatListsInOrder,
@@ -274,7 +275,7 @@ export default function ConversationList({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-shrink-0 items-center justify-between px-4 pb-2 pt-3">
-        <h2 className="text-xl font-bold text-gray-900">Chats</h2>
+        <h2 className="text-xl font-bold text-gray-900"><Bi>Chats</Bi></h2>
         <div className="flex items-center gap-1">
           {/* Threads are answers addressed to you, which is a different
               question from which room is busy — so its own way in, rather than
@@ -346,7 +347,7 @@ export default function ConversationList({
             way to search what was said, and a box that had already narrowed
             the list looks finished. */}
         {searchQuery.trim() !== '' && !search && (
-          <p className="px-0.5 pt-1 text-[11px] text-gray-400">
+          <p data-es className="px-0.5 pt-1 text-[11px] text-gray-400">
             Press Enter to search what was said.
           </p>
         )}
@@ -363,7 +364,7 @@ export default function ConversationList({
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {loading && <p className="px-2 py-3 text-sm text-gray-400">Loading…</p>}
+        {loading && <p data-es className="px-2 py-3 text-sm text-gray-400">Loading…</p>}
 
         {!loading && shown.length === 0 && newContacts.length === 0 && (
           <p className="px-2 py-3 text-sm text-gray-400">
@@ -498,7 +499,7 @@ export default function ConversationList({
 
         {newContacts.length > 0 && (
           <>
-            <p className="px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            <p data-es className="px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
               People
             </p>
             {newContacts.map((p) => (

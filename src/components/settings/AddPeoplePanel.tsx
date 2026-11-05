@@ -32,6 +32,7 @@ import type { Team } from '@/types/team';
 import CollapsibleSection from './CollapsibleSection';
 import SpreadsheetImport from './SpreadsheetImport';
 import DateField from '@/components/DateField';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The one place in Settings that adds people, with two ways to do it.
@@ -312,7 +313,7 @@ export default function AddPeoplePanel({
                   onChange={(e) => setSiteId(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-2 text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
                 >
-                  <option value="">No site</option>
+                  <option data-es value="">No site</option>
                   {sites.map((site) => (
                     <option key={site.id} value={site.id}>{site.name}</option>
                   ))}
@@ -326,7 +327,7 @@ export default function AddPeoplePanel({
                   onChange={(e) => setTeamId(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-2 text-sm font-medium text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-400"
                 >
-                  <option value="">No team</option>
+                  <option data-es value="">No team</option>
                   {teams.map((team) => (
                     <option key={team.id} value={team.id}>{team.name}</option>
                   ))}
@@ -377,7 +378,7 @@ export default function AddPeoplePanel({
               single ? 'border-gray-200 bg-gray-50' : 'border-gray-100 bg-gray-50/50'
             }`}
           >
-            <legend className="px-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            <legend data-es className="px-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
               Their details
             </legend>
 
@@ -441,9 +442,9 @@ export default function AddPeoplePanel({
             </div>
 
             <p className="text-[11px] text-gray-400 mt-2">
-              Full legal name, date of birth and personal email are visible to admins and HR only —
+              <Bi>Full legal name, date of birth and personal email are visible to admins and HR only —
               they are not copied onto the profile the rest of the company can read. Leave the
-              legal name blank if it is the same as the first and last name above.
+              legal name blank if it is the same as the first and last name above.</Bi>
             </p>
           </fieldset>
 

@@ -40,14 +40,14 @@ export default function ChangeOrderPrompt() {
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
       <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+        <h2 data-es className="flex items-center gap-2 text-base font-semibold text-gray-900">
           <FilePen className="h-5 w-5 text-brand-600" /> Submit a change order
         </h2>
         <p className="mt-2 text-sm text-gray-600">
           This changes {affectsLabel(open.affects)}, which has already been sent. Nothing on the load changes yet:
           dispatch reviews your change, applies it, and sends the updated paperwork.
         </p>
-        <label className="mt-4 block text-xs font-semibold uppercase tracking-wide text-gray-500" htmlFor="change-order-reason">
+        <label data-es className="mt-4 block text-xs font-semibold uppercase tracking-wide text-gray-500" htmlFor="change-order-reason">
           Why is the load changing?
         </label>
         <textarea

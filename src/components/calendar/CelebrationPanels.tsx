@@ -25,6 +25,7 @@ import {
   type ReminderSettings,
 } from '@/types/celebrationCalendar';
 import { HOLIDAY_COUNTRY_LABEL, type Holiday, type HolidayCountry } from '@/types/holidays';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The birthday and work-anniversary half of the Calendar, for admin and HR.
@@ -207,11 +208,11 @@ export function CelebrationReminderPanel({
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+      <h2 data-es className="flex items-center gap-2 text-sm font-semibold text-gray-900">
         <BellRing size={15} className="text-brand-600" /> Birthday and anniversary reminders
       </h2>
       <p className="mt-1 text-xs text-gray-500">
-        Sent at 8am Guatemala time. Only you get them. Only admins and HR see birthdays and anniversaries.
+        <Bi>Sent at 8am Guatemala time. Only you get them. Only admins and HR see birthdays and anniversaries.</Bi>
       </p>
 
       {(['birthday', 'anniversary'] as const).map((kind) => (
@@ -236,7 +237,7 @@ export function CelebrationReminderPanel({
         </div>
       ))}
 
-      <p className="mt-4 text-xs font-medium text-gray-700">Send them by</p>
+      <p data-es className="mt-4 text-xs font-medium text-gray-700">Send them by</p>
       <div className="mt-2 space-y-1.5">
         {emailsAllowed && (
           <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -255,14 +256,14 @@ export function CelebrationReminderPanel({
       </div>
       {noChannel && (
         <p className="mt-2 text-xs text-amber-700">
-          With both off, nothing is sent — not even the one-off reminders below.
+          <Bi>With both off, nothing is sent — not even the one-off reminders below.</Bi>
         </p>
       )}
 
-      <p className="mt-5 text-xs font-medium text-gray-700">One-off reminders</p>
+      <p data-es className="mt-5 text-xs font-medium text-gray-700">One-off reminders</p>
       {reminders.length === 0 ? (
         <p className="mt-1 text-xs text-gray-500">
-          None yet. Click a name on the calendar to set one.
+          <Bi>None yet. Click a name on the calendar to set one.</Bi>
         </p>
       ) : (
         <ul className="mt-2 divide-y divide-gray-100">
@@ -316,7 +317,7 @@ export function UpcomingCelebrations({
     <section className="rounded-xl border border-gray-200 bg-white p-4">
       <h2 className="mb-3 text-sm font-semibold text-gray-900">Birthdays and anniversaries, next {UPCOMING_DAYS} days</h2>
       {upcoming.length === 0 ? (
-        <p className="text-sm text-gray-500">Nothing coming up.</p>
+        <p data-es className="text-sm text-gray-500">Nothing coming up.</p>
       ) : (
         <OccurrenceList items={upcoming} formatCalendarDate={formatCalendarDate} onPick={onPick} compact />
       )}
@@ -369,13 +370,13 @@ export function PersonBadges({ occurrence }: { occurrence: CalendarOccurrence })
   return (
     <div className="flex flex-shrink-0 gap-1">
       {!occurrence.person.announced[occurrence.kind] && (
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600"
+        <span data-es className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600"
           title="Asked not to be named in the Everyone room">
           Not announced
         </span>
       )}
       {occurrence.person.pending && (
-        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700"
+        <span data-es className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700"
           title="Invited to TTMS but has not signed in yet">
           Not signed in
         </span>
@@ -425,7 +426,7 @@ export function CelebrationDetail({
           className="rounded p-1 text-gray-400 hover:bg-gray-100"><X size={16} /></button>
       </div>
 
-      <p className="mt-4 text-xs font-medium text-gray-700">Remind me about this one</p>
+      <p data-es className="mt-4 text-xs font-medium text-gray-700">Remind me about this one</p>
       <div className="mt-2 flex flex-wrap gap-2">
         {REMINDER_LEADS.map((leadDays) => {
           const existing = mine.find((r) => r.leadDays === leadDays);

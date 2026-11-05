@@ -15,6 +15,7 @@ import { useColumnWidths, type ColumnWidths } from '@/lib/useColumnWidths';
 import { personHref } from '@/lib/directoryProfile';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import ExtraStopsNote from '@/components/orders/ExtraStopsNote';
+import { Bi, Es } from '@/components/spanish/Es';
 
 const FILTER_TABS: { label: string; value: OrderStatus | 'all' }[] = [
   { label: 'All',            value: 'all' },
@@ -237,13 +238,15 @@ function OrdersList() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+          <h1 className="text-2xl font-bold text-gray-900"><Bi>Orders</Bi></h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {totalLabel} {owner ? 'of their orders' : 'total orders'}
+            <Es vars={{ n: totalLabel }}>{owner ? '{n} of their orders' : '{n} total orders'}</Es>
           </p>
         </div>
         <Link
           href="/dashboard/orders/new"
+          data-es="New Order"
           className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition"
         >
           + New Order
@@ -263,9 +266,11 @@ function OrdersList() {
               {owner}
             </Link>
             {' '}— assigned to them, or on a client they own.
+            <Es>Only the loads held by this person — assigned to them, or on a client they own.</Es>
           </span>
           <button
             onClick={() => setParam('owner', '', '')}
+            data-es
             className="font-medium underline hover:no-underline"
           >
             Show all orders
@@ -284,9 +289,11 @@ function OrdersList() {
             {visible.length >= 200 && (viewIsSorted(view)
               ? ' — the most recent 200'
               : ' — 200 of them')}.
+            <Es vars={{ view: orderViewLabel(view) }}>{'Showing {view}'}</Es>
           </span>
           <button
             onClick={() => setParam('view', '', '')}
+            data-es
             className="font-medium underline hover:no-underline"
           >
             Show all orders
@@ -299,6 +306,7 @@ function OrdersList() {
         <input
           type="text"
           placeholder="Search by order number, customer, city, or commodity…"
+          data-es="Search by order number, customer, city, or commodity"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full sm:w-96 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
@@ -317,6 +325,7 @@ function OrdersList() {
           <button
             key={tab.value}
             onClick={() => setParam('status', tab.value, 'all')}
+            data-es={tab.label}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition ${
               filter === tab.value
                 ? 'border-brand-600 text-brand-700'
@@ -338,6 +347,7 @@ function OrdersList() {
             onClick={columnWidths.reset}
             className="ml-auto mb-1 px-2 py-1 text-xs text-gray-400 hover:text-gray-700 transition"
             title="Put every column back to its standard width"
+            data-es
           >
             Reset column widths
           </button>
@@ -357,6 +367,7 @@ function OrdersList() {
             <>
               <p className="text-gray-400 text-sm">
                 No orders match “{applied}”{filter !== 'all' && ' in this tab'}.
+                <Es vars={{ q: applied }}>{'No orders match “{q}”'}</Es>
               </p>
               {/*
                 Worth saying, because the tab is a filter the reader may have
@@ -366,6 +377,7 @@ function OrdersList() {
               {filter !== 'all' && (
                 <button
                   onClick={() => setParam('status', 'all', 'all')}
+                  data-es
                   className="mt-3 text-sm text-brand-600 hover:underline"
                 >
                   Search every status instead →
@@ -381,9 +393,10 @@ function OrdersList() {
                 {owner
                   ? `${owner} holds no loads you can see${filter !== 'all' ? ' in this tab' : ''}.`
                   : 'No orders found.'}
+                <Es>{owner ? 'This person holds no loads you can see.' : 'No orders found.'}</Es>
               </p>
               {!owner && (
-                <Link href="/dashboard/orders/new" className="mt-3 inline-block text-sm text-brand-600 hover:underline">
+                <Link href="/dashboard/orders/new" data-es className="mt-3 inline-block text-sm text-brand-600 hover:underline">
                   Create your first order →
                 </Link>
               )}
@@ -477,6 +490,7 @@ function OrdersList() {
                   <td className="px-4 py-3 text-right">
                     <Link
                       href={`/dashboard/orders/${order.id}`}
+                      data-es
                       className="text-xs text-brand-600 hover:underline font-medium"
                     >
                       View →
@@ -502,6 +516,7 @@ function OrdersList() {
                 className="px-4 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50 rounded-lg transition disabled:opacity-50"
               >
                 {loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} more`}
+                <Es vars={{ n: PAGE_SIZE }}>{loadingMore ? 'Loading' : 'Load {n} more'}</Es>
               </button>
               <p className="text-xs text-gray-400">
                 Showing {visible.length.toLocaleString()}

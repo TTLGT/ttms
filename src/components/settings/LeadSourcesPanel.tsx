@@ -9,6 +9,7 @@ import {
   deleteLeadSource,
 } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Admin management of lead sources — where clients and loads come from.
@@ -143,11 +144,11 @@ export default function LeadSourcesPanel() {
   return (
     <section className="bg-white rounded-xl border border-gray-200">
       <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="text-sm font-semibold text-gray-900">Lead Sources</h2>
+        <h2 className="text-sm font-semibold text-gray-900"><Bi>Lead Sources</Bi></h2>
         <p className="text-xs text-gray-500 mt-0.5">
-          Where clients and loads come from. Brokers pick from this list rather than typing it,
+          <Bi>Where clients and loads come from. Brokers pick from this list rather than typing it,
           so the same source is spelled one way and totals up correctly. Importing from BATS adds
-          any source it finds that is not here yet.
+          any source it finds that is not here yet.</Bi>
         </p>
       </div>
 
@@ -179,10 +180,10 @@ export default function LeadSourcesPanel() {
         )}
 
         {loading ? (
-          <p className="text-sm text-gray-400">Loading…</p>
+          <p data-es className="text-sm text-gray-400">Loading…</p>
         ) : sources.length === 0 ? (
           <p className="text-sm text-gray-400">
-            No lead sources yet. Add one and it becomes selectable on orders and clients.
+            <Bi>No lead sources yet. Add one and it becomes selectable on orders and clients.</Bi>
           </p>
         ) : (
           <>

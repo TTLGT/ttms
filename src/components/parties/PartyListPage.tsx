@@ -10,6 +10,7 @@ import { personHref } from '@/lib/directoryProfile';
 import { partyDisplayName, ROLE_LABEL } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
 import PhoneValue from '@/components/PhoneValue';
+import { Bi, Es } from '@/components/spanish/Es';
 
 interface Props {
   role: PartyRole;
@@ -135,13 +136,15 @@ function PartyList({ role, title, blurb }: Props) {
     <div className="p-8">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+          <h1 className="text-2xl font-bold text-gray-900"><Bi>{title}</Bi></h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {total === null ? '…' : total.toLocaleString()}{owner ? ' owned' : ' total'} · {blurb}
+            <Es>{blurb}</Es>
           </p>
         </div>
         <Link
           href={`/dashboard/parties/new?role=${role}`}
+          data-es={`Add ${ROLE_LABEL[role]}`}
           className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition"
         >
           + Add {ROLE_LABEL[role]}
@@ -160,8 +163,9 @@ function PartyList({ role, title, blurb }: Props) {
               {owner}
             </Link>
             .
+            <Es>{`Only the ${title.toLowerCase()} owned by this person`}</Es>
           </span>
-          <button onClick={clearOwner} className="font-medium underline hover:no-underline">
+          <button onClick={clearOwner} data-es={`Show all ${title.toLowerCase()}`} className="font-medium underline hover:no-underline">
             Show all {title.toLowerCase()}
           </button>
         </div>
@@ -171,6 +175,7 @@ function PartyList({ role, title, blurb }: Props) {
         <input
           type="text"
           placeholder={`Search ${title.toLowerCase()} by name…`}
+          data-es={`Search ${title.toLowerCase()} by name`}
           value={search}
           onChange={(e) => setParam('q', e.target.value, '')}
           className="w-full sm:w-96 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
@@ -180,7 +185,7 @@ function PartyList({ role, title, blurb }: Props) {
             while an owner filter is on: "mine" and "Maria's" are two answers to
             the same question, and ticking both would silently show neither. */}
         {!owner && can(viewAllPermission(role)) && (
-          <label className="flex items-center gap-2 text-sm text-gray-600">
+          <label data-es="Only mine" className="flex items-center gap-2 text-sm text-gray-600">
             <input
               type="checkbox"
               checked={mineOnly}
@@ -205,9 +210,14 @@ function PartyList({ role, title, blurb }: Props) {
               : search
                 ? `No ${title.toLowerCase()} match your search.`
                 : `No ${title.toLowerCase()} yet. They are created automatically the first time you name one on an order.`}
+            <Es>{owner
+              ? `This person owns no ${title.toLowerCase()} you can see`
+              : search
+                ? `No ${title.toLowerCase()} match your search`
+                : `No ${title.toLowerCase()} yet. They are created automatically the first time you name one on an order`}</Es>
           </p>
           {!search && !owner && (
-            <Link href={`/dashboard/parties/new?role=${role}`} className="mt-3 inline-block text-sm text-brand-600 hover:underline">
+            <Link data-es href={`/dashboard/parties/new?role=${role}`} className="mt-3 inline-block text-sm text-brand-600 hover:underline">
               Add one manually →
             </Link>
           )}
@@ -218,7 +228,7 @@ function PartyList({ role, title, blurb }: Props) {
             <thead className="bg-gray-50">
               <tr>
                 {['Name', 'Contact', 'Phone', 'Email', 'City / State', 'Also', ''].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <th key={h} data-es className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
                     {h}
                   </th>
                 ))}
@@ -255,7 +265,7 @@ function PartyList({ role, title, blurb }: Props) {
                       ) : (
                         <span className="flex gap-1">
                           {otherRoles.map((r) => (
-                            <span key={r} className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-medium">
+                            <span key={r} data-es className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-xs font-medium">
                               {ROLE_LABEL[r]}
                             </span>
                           ))}
@@ -263,7 +273,7 @@ function PartyList({ role, title, blurb }: Props) {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link
+                      <Link data-es
                         href={`/dashboard/parties/${p.id}?from=${role}`}
                         className="text-xs text-brand-600 hover:underline font-medium"
                       >

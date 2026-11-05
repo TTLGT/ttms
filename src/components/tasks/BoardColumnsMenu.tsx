@@ -16,6 +16,7 @@ import {
 import { COLUMN_DRAG_TYPE } from './taskStyle';
 import StatusMark from './StatusMark';
 import type { GameTheme } from '@/types/taskGame';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The last slot on the board: a button that opens the person's column list.
@@ -143,13 +144,13 @@ export default function BoardColumnsMenu({
           className="fixed z-30 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-gray-200 bg-white p-3 shadow-lg"
         >
           <div className="mb-1 flex items-center">
-            <h3 className="flex-1 text-sm font-semibold text-gray-900">Columns</h3>
+            <h3 data-es className="flex-1 text-sm font-semibold text-gray-900">Columns</h3>
             <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="text-gray-400 hover:text-gray-600">
               <X size={14} />
             </button>
           </div>
           <p className="mb-3 text-xs text-gray-500">
-            Untick to hide a column. Its tasks move back one column. Drag to change the order.
+            <Bi>Untick to hide a column. Its tasks move back one column. Drag to change the order.</Bi>
           </p>
 
           <ul className="max-h-[55vh] space-y-1 overflow-y-auto">

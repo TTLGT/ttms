@@ -166,11 +166,11 @@ function ContactCard({
       </div>
 
       {people === null ? (
-        <p className="mt-2 text-xs text-gray-400">Looking them up…</p>
+        <p data-es className="mt-2 text-xs text-gray-400">Looking them up…</p>
       ) : !person ? (
         // Left, suspended, or never in this person's view of the directory.
         // The address is still what was saved, so it stays above.
-        <p className="mt-2 text-xs text-amber-700">Not in the directory any more.</p>
+        <p data-es className="mt-2 text-xs text-amber-700">Not in the directory any more.</p>
       ) : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -184,7 +184,7 @@ function ContactCard({
           />
         )}
         {person && (
-          <Link href={personHref(contact.email)} className="text-xs text-brand-700 hover:underline">
+          <Link data-es href={personHref(contact.email)} className="text-xs text-brand-700 hover:underline">
             Open in directory
           </Link>
         )}
@@ -269,7 +269,7 @@ export function TaskContactPicker({
           {focused && people && (
             <ul className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
               {matches.length === 0 ? (
-                <li className="px-3 py-2 text-xs text-gray-500">Nobody matches.</li>
+                <li data-es className="px-3 py-2 text-xs text-gray-500">Nobody matches.</li>
               ) : matches.map((p) => (
                 <li key={p.email}>
                   <button

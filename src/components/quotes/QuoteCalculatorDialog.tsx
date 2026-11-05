@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Calculator, X } from 'lucide-react';
 import QuoteCalculator, { type QuoteApplied, type QuotePrefill } from './QuoteCalculator';
 import { convertLength, itemWeightLb, type CommodityItem } from '@/types/order';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The calculator over an order form — a new quote or an order being edited.
@@ -71,8 +72,8 @@ export default function QuoteCalculatorDialog({ prefill, onApply, label = 'Quote
           <div className="w-full max-w-6xl rounded-xl border border-gray-200 bg-gray-50 shadow-xl my-auto">
             <div className="flex items-center justify-between gap-3 border-b border-gray-200 bg-white rounded-t-xl px-5 py-3">
               <div>
-                <h2 className="text-base font-bold text-gray-900">Quote calculator</h2>
-                <p className="text-xs text-gray-500">Started from this order&apos;s miles and freight. Change anything; nothing is saved here.</p>
+                <h2 className="text-base font-bold text-gray-900"><Bi>Quote calculator</Bi></h2>
+                <p className="text-xs text-gray-500"><Bi>Started from this order&apos;s miles and freight. Change anything; nothing is saved here.</Bi></p>
               </div>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close"
                 className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800">

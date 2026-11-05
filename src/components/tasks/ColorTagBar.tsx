@@ -105,7 +105,7 @@ export default function ColorTagBar({
         </div>
         {free.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-            <span className="inline-flex items-center gap-1"><Plus size={12} /> Add a colour:</span>
+            <span data-es className="inline-flex items-center gap-1"><Plus size={12} /> Add a colour:</span>
             {free.map((c) => (
               <button
                 key={c}
@@ -121,7 +121,7 @@ export default function ColorTagBar({
           </div>
         )}
         <div className="flex flex-wrap gap-2">
-          <button type="submit" className={`${chip} border-transparent bg-brand-600 font-medium text-white hover:bg-brand-700`}>
+          <button data-es type="submit" className={`${chip} border-transparent bg-brand-600 font-medium text-white hover:bg-brand-700`}>
             <Check size={14} /> Save colours
           </button>
           <button type="button" onClick={() => setDraft(null)} className={`${chip} border-transparent text-gray-500 hover:bg-gray-100`}>

@@ -215,7 +215,7 @@ export default function DirectoryCards({
                  Only ever drawn in the admin and HR view — everyone else's
                  directory is built from profiles, which exist only for people
                  who have signed in. */
-              <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-gray-400">
+              <p data-es className="mt-3 inline-flex items-center gap-1.5 text-xs text-gray-400">
                 <MessageSquare size={13} className="opacity-70" />
                 Not on chat yet
               </p>

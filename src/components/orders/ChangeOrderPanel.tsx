@@ -8,6 +8,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { useApprovals } from '@/context/ApprovalsContext';
 import { changeFieldLabel, describeChangeValue } from '@/types/recordHistory';
 import { affectsLabel, CHANGE_ORDER_STATUS_LABEL, type ChangeOrder } from '@/types/changeOrder';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * A change order, as a row: what it changes, from what to what, why, and —
@@ -66,7 +67,7 @@ export function ChangeOrderRow({
           {showLoad ? `Load ${co.orderNumber}${co.clientName ? ` · ${co.clientName}` : ''}` : `Change order from ${co.requestedByName}`}
         </span>
         {showLoad && (
-          <Link href={`/dashboard/orders/${co.orderId}#change-order`} className="text-xs font-semibold text-brand-700 hover:underline">
+          <Link data-es href={`/dashboard/orders/${co.orderId}#change-order`} className="text-xs font-semibold text-brand-700 hover:underline">
             Open the load
           </Link>
         )}
@@ -98,8 +99,8 @@ export function ChangeOrderRow({
 
       {pending && co.stale && (
         <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
-          The load has changed in the same fields since this was asked, so it cannot be approved as it stands.
-          Turn it down and ask for it again from the load as it is now.
+          <Bi>The load has changed in the same fields since this was asked, so it cannot be approved as it stands.
+          Turn it down and ask for it again from the load as it is now.</Bi>
         </p>
       )}
 
@@ -171,7 +172,7 @@ export default function ChangeOrderPanel({
 
   return (
     <section id="change-order" className={`rounded-xl border p-5 mb-6 bg-white ${co.status === 'pending' ? 'border-amber-300' : 'border-gray-200'}`}>
-      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-900">
+      <h2 data-es className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-900">
         <FilePen className="h-4 w-4 text-brand-600" /> Change order
       </h2>
       <ChangeOrderRow co={co} canDecide={state.canDecide} uid={state.uid}

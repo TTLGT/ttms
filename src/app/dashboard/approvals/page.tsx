@@ -21,6 +21,7 @@ import BolRequestsSection from '@/components/orders/BolRequestsSection';
 import TermsRequestsSection from '@/components/orders/TermsRequestsSection';
 import ChangeOrdersSection from '@/components/orders/ChangeOrdersSection';
 import SignedDocumentsSection from '@/components/orders/SignedDocumentsSection';
+import { Bi } from '@/components/spanish/Es';
 
 type Box = 'incoming' | 'outgoing';
 
@@ -183,14 +184,14 @@ export default function ApprovalsPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Approvals</h1>
+        <h1 className="text-2xl font-bold text-gray-900"><Bi>Approvals</Bi></h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Requests to use a client, shipper or consignee that belongs to someone else,
+          <Bi>Requests to use a client, shipper or consignee that belongs to someone else,
           requests to open a load, and changes people have asked for on their own
           record. A party approval covers one order, or hands the record over for good
           if an admin or dispatcher grants it that way; a load approval lasts for as
           long as you grant it, and can be taken back early; a profile change is
-          written straight onto the person&rsquo;s record when you approve it.
+          written straight onto the person&rsquo;s record when you approve it.</Bi>
         </p>
       </div>
 
@@ -399,7 +400,7 @@ export default function ApprovalsPage() {
                               ? <>Access ends {formatWhen(row.req.expiresAt)}</>
                               : <>Access does not expire</>}
                             {' · '}
-                            <a href={`/dashboard/orders/${row.req.orderId}`} className="text-brand-600 hover:underline">
+                            <a data-es href={`/dashboard/orders/${row.req.orderId}`} className="text-brand-600 hover:underline">
                               Open the load
                             </a>
                           </>
@@ -426,8 +427,8 @@ export default function ApprovalsPage() {
                           }))}
                           className="mt-0.5 rounded-lg border border-gray-300 px-2 py-1 text-xs font-normal normal-case text-gray-700 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
                         >
-                          <option value="once">This order only</option>
-                          <option value="ownership">Ownership + its orders</option>
+                          <option data-es value="once">This order only</option>
+                          <option data-es value="ownership">Ownership + its orders</option>
                         </select>
                       </label>
                     )}

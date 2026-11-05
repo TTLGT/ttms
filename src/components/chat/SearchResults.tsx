@@ -7,6 +7,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { chatSearchWords, conversationTitle, type Conversation } from '@/types/conversation';
 import RoomAvatar from './RoomAvatar';
 import type { ChatSearchHit } from '@/lib/chatSearch';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * What a search of the chat history found.
@@ -101,7 +102,7 @@ export default function SearchResults({
 
         {scopeId && !search.query && (
           <p className="px-1 py-3 text-sm text-gray-500">
-            Type a word and press Enter to search this conversation.
+            <Bi>Type a word and press Enter to search this conversation.</Bi>
           </p>
         )}
 
@@ -109,7 +110,7 @@ export default function SearchResults({
 
         {search.query && !search.loading && !search.error && search.hits.length === 0 && (
           <div className="px-1 py-3 text-sm text-gray-500">
-            <p>Nothing was said matching that.</p>
+            <p data-es>Nothing was said matching that.</p>
             {/* The two ways this search misses, said plainly. Both are real
                 limits of how it works rather than accidents, and somebody who
                 knows they said the thing needs to be told why it is not here
@@ -178,7 +179,7 @@ export default function SearchResults({
           // and somebody hunting for something from March needs to know which
           // one they have been given.
           <p className="px-1 py-2 text-center text-[11px] text-gray-400">
-            Showing the most recent matches. Add another word to narrow it.
+            <Bi>Showing the most recent matches. Add another word to narrow it.</Bi>
           </p>
         )}
       </div>
@@ -241,7 +242,7 @@ function resultLine(count: number, truncated: boolean): string {
  */
 function Snippet({ text, query }: { text: string; query: string }) {
   const words = chatSearchWords(query);
-  if (!text) return <span className="block text-xs text-gray-400">No text</span>;
+  if (!text) return <span data-es className="block text-xs text-gray-400">No text</span>;
 
   const lower = text.toLowerCase();
   const first = words

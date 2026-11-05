@@ -399,7 +399,7 @@ function WordCard({ active, onEnter, onLeave, onSpeak, onKnown, onClose }: {
       </div>
 
       <p className="mt-1 text-sm">
-        <span className="text-gray-500">Español: </span>
+        <span data-es className="text-gray-500">Español: </span>
         <span className="font-medium">{term.es}</span>
       </p>
       <p className="mt-2 text-sm text-gray-700">{term.meaning}</p>
@@ -420,7 +420,7 @@ function WordCard({ active, onEnter, onLeave, onSpeak, onKnown, onClose }: {
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-gray-100 pt-3">
-        <button
+        <button data-es
           type="button"
           onClick={onKnown}
           title="Stop underlining this word. You can undo it on the My words page."
@@ -429,7 +429,7 @@ function WordCard({ active, onEnter, onLeave, onSpeak, onKnown, onClose }: {
           <Check size={14} />
           I know this word
         </button>
-        <Link
+        <Link data-es
           href="/dashboard/words"
           onClick={onClose}
           className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:underline"

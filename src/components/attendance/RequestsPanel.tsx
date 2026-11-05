@@ -10,6 +10,7 @@ import {
   requestTimeOff,
 } from '@/lib/attendance';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { Bi } from '@/components/spanish/Es';
 import {
   TIME_OFF_KINDS,
   TIME_OFF_LABEL,
@@ -85,7 +86,7 @@ export default function RequestsPanel({
   return (
     <div className="grid items-start gap-6 xl:grid-cols-2">
       <section className="rounded-xl border border-gray-200 bg-white p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-900">Time off</h2>
+        <h2 data-es className="text-sm font-semibold uppercase tracking-wide text-gray-900">Time off</h2>
         <RecordTimeOff people={people.filter((p) => p.email !== myEmail)} onSaved={() => { void load(); onChanged(); }} />
         <ul className="mt-4 divide-y divide-gray-100">
           {byQueue(timeOff).map((r) => (
@@ -108,15 +109,15 @@ export default function RequestsPanel({
               )}
             </li>
           ))}
-          {timeOff.length === 0 && <li className="py-6 text-center text-sm text-gray-500">No time off in the last year.</li>}
+          {timeOff.length === 0 && <li data-es className="py-6 text-center text-sm text-gray-500">No time off in the last year.</li>}
         </ul>
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white p-5">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-900">Corrections</h2>
+        <h2 data-es className="text-sm font-semibold uppercase tracking-wide text-gray-900">Corrections</h2>
         <p className="mt-1 text-sm text-gray-500">
-          Somebody asking for a clock time, a break or a lunch to be changed. Approving rewrites the day and keeps the
-          original beside it.
+          <Bi>Somebody asking for a clock time, a break or a lunch to be changed. Approving rewrites the day and keeps the
+          original beside it.</Bi>
         </p>
         <ul className="mt-4 divide-y divide-gray-100">
           {byQueue(corrections).map((r) => (
@@ -140,7 +141,7 @@ export default function RequestsPanel({
               )}
             </li>
           ))}
-          {corrections.length === 0 && <li className="py-6 text-center text-sm text-gray-500">No corrections asked for.</li>}
+          {corrections.length === 0 && <li data-es className="py-6 text-center text-sm text-gray-500">No corrections asked for.</li>}
         </ul>
       </section>
 
@@ -201,7 +202,7 @@ function RecordTimeOff({ people, onSaved }: { people: ReportPerson[]; onSaved: (
   return (
     <div className="mt-3 space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
       <select value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-lg border border-gray-300 py-1.5 pl-3 pr-8">
-        <option value="">Who?</option>
+        <option data-es value="">Who?</option>
         {people.map((p) => <option key={p.email} value={p.email}>{p.name}</option>)}
       </select>
       <div className="grid grid-cols-2 gap-2">

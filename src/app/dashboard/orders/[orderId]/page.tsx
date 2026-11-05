@@ -95,6 +95,7 @@ import { trackActivity } from '@/lib/attendance';
 import OrderPhotos from '@/components/photos/OrderPhotos';
 import ChangeHistory from '@/components/history/ChangeHistory';
 import { OrderCoverThumb } from '@/components/photos/PhotoBits';
+import { Bi } from '@/components/spanish/Es';
 
 // Sentinel value for the dropdown's "add a new carrier" row. Not a document id,
 // so it can never collide with a real carrier.
@@ -205,7 +206,7 @@ function itemRoute(order: Order, item: CommodityItem): string {
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">{label}</p>
+      <p data-es className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">{label}</p>
       <p className="text-sm text-gray-900">{value || '—'}</p>
     </div>
   );
@@ -1279,7 +1280,7 @@ export default function OrderDetailPage() {
               in. See DiscussButton. */}
           <DiscussButton recordId={orderId} />
           <CopyLinkButton />
-          <Link href={`/dashboard/orders/${orderId}/edit`}
+          <Link data-es href={`/dashboard/orders/${orderId}/edit`}
             className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
             Edit
           </Link>
@@ -1306,6 +1307,7 @@ export default function OrderDetailPage() {
             const needsCopy = needsSa || needsCa || unpaid.length > 0;
             return (
               <button onClick={handleAdvance} disabled={advancing || needsCopy}
+                data-es={STATUS_LABEL[nextStatus]}
                 title={unpaid.length ? missingSentence(unpaid, isCodLoad(order)) : needsSa
                   ? signedSaWaiting
                     ? 'The signed Shipper Agreement (SA) uploaded to this load is waiting for admin or dispatch to verify it.'
@@ -1340,7 +1342,7 @@ export default function OrderDetailPage() {
                   `}>
                     {done ? '✓' : i + 1}
                   </div>
-                  <span className={`text-xs whitespace-nowrap ${active ? 'font-semibold text-brand-700' : 'text-gray-500'}`}>
+                  <span data-es className={`text-xs whitespace-nowrap ${active ? 'font-semibold text-brand-700' : 'text-gray-500'}`}>
                     {STATUS_LABEL[s]}
                   </span>
                 </div>
@@ -1413,6 +1415,7 @@ export default function OrderDetailPage() {
       <div id="order-tabs" className="flex gap-1 mb-4 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll scroll-mt-4 [&>*]:flex-shrink-0">
         {(['details', 'documents', 'pictures', 'suborders', 'history'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
+            data-es={t === 'suborders' ? 'Suborders' : t === 'pictures' ? 'Pictures' : t.charAt(0).toUpperCase() + t.slice(1)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition ${
               tab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}>
@@ -1431,7 +1434,7 @@ export default function OrderDetailPage() {
           {/* General — pieces and weight live in Freight, per line */}
           <div id="general" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
             <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">General</h3>
+              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">General</h3>
               <SectionEditLink orderId={orderId} section="general" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -1446,24 +1449,24 @@ export default function OrderDetailPage() {
           {/* Freight */}
           <div id="freight" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
             <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Freight</h3>
+              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Freight</h3>
               <SectionEditLink orderId={orderId} section="freight" />
             </div>
             <div className="mb-4">
-              <p className="text-xs font-medium text-gray-500 mb-0.5">Transport type</p>
+              <p data-es className="text-xs font-medium text-gray-500 mb-0.5">Transport type</p>
               {order.transportType?.trim()
                 ? <p className="text-sm text-gray-900">{order.transportType}</p>
-                : <p className="text-sm text-amber-700">Not set — edit the freight to choose one before the paperwork goes out.</p>}
+                : <p className="text-sm text-amber-700"><Bi>Not set — edit the freight to choose one before the paperwork goes out.</Bi></p>}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wide border-b border-gray-200">
-                    <th className="pb-2 pr-4 font-medium">Commodity</th>
-                    <th className="pb-2 pr-4 font-medium">Pieces</th>
-                    <th className="pb-2 pr-4 font-medium">Dimensions (L × W × H)</th>
-                    <th className="pb-2 pr-4 font-medium">Weight</th>
-                    <th className="pb-2 font-medium text-right">Cargo value</th>
+                    <th data-es className="pb-2 pr-4 font-medium">Commodity</th>
+                    <th data-es className="pb-2 pr-4 font-medium">Pieces</th>
+                    <th data-es className="pb-2 pr-4 font-medium">Dimensions (L × W × H)</th>
+                    <th data-es className="pb-2 pr-4 font-medium">Weight</th>
+                    <th data-es className="pb-2 font-medium text-right">Cargo value</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1501,7 +1504,7 @@ export default function OrderDetailPage() {
                 {orderCommodityItems(order).length > 1 && (
                   <tfoot>
                     <tr className="border-t border-gray-200">
-                      <td colSpan={4} className="pt-2 pr-4 text-xs font-medium text-gray-500 uppercase tracking-wide">Total cargo value</td>
+                      <td data-es colSpan={4} className="pt-2 pr-4 text-xs font-medium text-gray-500 uppercase tracking-wide">Total cargo value</td>
                       <td className="pt-2 text-gray-900 font-medium text-right">
                         {totalCommodityValue(orderCommodityItems(order)) != null
                           ? formatCurrency(totalCommodityValue(orderCommodityItems(order)) as number)
@@ -1513,14 +1516,14 @@ export default function OrderDetailPage() {
               </table>
             </div>
             <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-xs font-medium text-gray-500 mb-1.5">Accessorials</p>
+              <p data-es className="text-xs font-medium text-gray-500 mb-1.5">Accessorials</p>
               {accessorialLabels(order).length ? (
                 <div className="flex flex-wrap gap-1.5">
                   {accessorialLabels(order).map((l) => (
                     <span key={l} className="px-2 py-0.5 rounded-md bg-gray-100 text-xs text-gray-700">{l}</span>
                   ))}
                 </div>
-              ) : <p className="text-sm text-gray-400">None</p>}
+              ) : <p data-es className="text-sm text-gray-400">None</p>}
             </div>
           </div>
 
@@ -1530,7 +1533,7 @@ export default function OrderDetailPage() {
           {/* Route */}
           <div id="route" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
             <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Route</h3>
+              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Route</h3>
               <SectionEditLink orderId={orderId} section="route" />
             </div>
             {/* Every pickup on the left and every delivery on the right, in
@@ -1558,7 +1561,7 @@ export default function OrderDetailPage() {
                         </div>
                         {many && (
                           <div>
-                            <p className="text-xs font-medium text-gray-500 mb-1">Date</p>
+                            <p data-es className="text-xs font-medium text-gray-500 mb-1">Date</p>
                             <p className="text-sm text-gray-900">{formatDateRange(s.date, s.dateEnd) || '—'}</p>
                           </div>
                         )}
@@ -1607,7 +1610,7 @@ export default function OrderDetailPage() {
               <div className="mt-4 flex items-center gap-2.5">
                 <Route className="w-4 h-4 text-brand-600 shrink-0" />
                 <div>
-                  <p className="text-xs font-medium text-gray-500">Distance</p>
+                  <p data-es className="text-xs font-medium text-gray-500">Distance</p>
                   <button
                     onClick={handleLookUpMiles}
                     disabled={refreshingMiles}
@@ -1648,7 +1651,7 @@ export default function OrderDetailPage() {
           {clientConfirmationStarted && (
             <div id="client-confirmation" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Client Confirmation</h3>
+                <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Client Confirmation</h3>
                 {/* Who verified what before each SA went out — kept for good. */}
                 <SaVerificationRecord orderId={orderId} />
               </div>
@@ -1751,7 +1754,7 @@ export default function OrderDetailPage() {
           {/* Carrier */}
           <div id="carrier" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Carrier</h3>
+              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Carrier</h3>
               {!assigningCarrier && (
                 <button onClick={openCarrierAssign}
                   className="text-xs text-brand-600 hover:text-brand-700 font-medium">
@@ -1811,7 +1814,7 @@ export default function OrderDetailPage() {
                 Invoice row on the Documents tab. */}
             {!assigningCarrier && (order.carrierId || order.recordImport) && (
               <div className="mb-4">
-                <p className="text-xs font-semibold text-gray-700 mb-1.5">Carrier invoice</p>
+                <p data-es className="text-xs font-semibold text-gray-700 mb-1.5">Carrier invoice</p>
                 <OrderFileSlot orderId={orderId} kind="carrier_invoice" uploadLabel="Upload the carrier’s invoice" />
               </div>
             )}
@@ -1872,8 +1875,8 @@ export default function OrderDetailPage() {
                      the enforcement. */
                   <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
                     <p className="text-sm text-amber-800">
-                      The client has not signed the load confirmation yet. The dispatch sheet
-                      cannot be sent until they do.
+                      <Bi>The client has not signed the load confirmation yet. The dispatch sheet
+                      cannot be sent until they do.</Bi>
                     </p>
                     {can('orders.waiveSignature') && !showWaive && (
                       <button
@@ -1897,9 +1900,9 @@ export default function OrderDetailPage() {
                           className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                         />
                         <p className="text-xs text-amber-700">
-                          This is recorded against the load with your name and posted in its chat
+                          <Bi>This is recorded against the load with your name and posted in its chat
                           room. It is not a signature — the client can still be sent the load
-                          confirmation and sign it afterwards.
+                          confirmation and sign it afterwards.</Bi>
                         </p>
                         <div className="flex gap-2">
                           <button
@@ -1944,7 +1947,7 @@ export default function OrderDetailPage() {
             {assigningCarrier ? (
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Carrier</label>
+                  <label data-es className="block text-xs font-medium text-gray-600 mb-1">Carrier</label>
                   {/* The button sits outside the dropdown because a trailing
                       option is invisible until you scroll a long carrier list —
                       the row inside the list is kept as a second way in, near
@@ -1971,8 +1974,8 @@ export default function OrderDetailPage() {
                         one now selected rather than showing the last one's. */}
                     <CarrierCompliance key={selectedCarrierId} carrierId={selectedCarrierId} />
                     <p className="text-xs text-gray-500 mt-2">
-                      Saved to the carrier, not this load — the certificate as soon as it uploads, the
-                      rest with its own button. Every load with this carrier shows the same.
+                      <Bi>Saved to the carrier, not this load — the certificate as soon as it uploads, the
+                      rest with its own button. Every load with this carrier shows the same.</Bi>
                     </p>
                   </div>
                 )}
@@ -1986,13 +1989,13 @@ export default function OrderDetailPage() {
                   onChange={(v) => { setDriverName(v); setDriverId(null); }} />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Driver Phone</label>
+                    <label data-es className="block text-xs font-medium text-gray-600 mb-1">Driver Phone</label>
                     <input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="(555) 555-5555"
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Driver License</label>
+                  <label data-es className="block text-xs font-medium text-gray-600 mb-1">Driver License</label>
                   <DriverLicenseUpload
                     orderId={orderId}
                     existingPath={driverLicensePath}
@@ -2035,7 +2038,7 @@ export default function OrderDetailPage() {
                   {/* Not a DetailRow: that wraps its value in a <p>, and the
                       upload field renders block elements a <p> cannot hold. */}
                   <div>
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Driver License</p>
+                    <p data-es className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Driver License</p>
                     {order.driverLicenseStoragePath
                       ? <DriverLicenseUpload orderId={orderId} existingPath={order.driverLicenseStoragePath} onUploaded={() => {}} readOnly />
                       : <p className="text-sm text-gray-900">—</p>}
@@ -2068,11 +2071,11 @@ export default function OrderDetailPage() {
           {/* Shared-record approvals */}
           {(order.partyApprovals ?? []).length > 0 && (
             <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">
+              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">
                 Shared Record Approvals
               </h3>
               <p className="text-xs text-gray-500 mb-3">
-                This order uses records belonging to another user. Each was authorized before use.
+                <Bi>This order uses records belonging to another user. Each was authorized before use.</Bi>
               </p>
               <ul className="space-y-3">
                 {(order.partyApprovals ?? []).map((a) => (
@@ -2103,9 +2106,9 @@ export default function OrderDetailPage() {
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bill of Lading</h3>
+                  <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bill of Lading</h3>
                   {order.bolStoragePath && !bolUrl && (
-                    <p className="text-xs text-gray-400 mt-1">Loading download link…</p>
+                    <p data-es className="text-xs text-gray-400 mt-1">Loading download link…</p>
                   )}
                 </div>
                 <div className="flex gap-2">
@@ -2116,7 +2119,7 @@ export default function OrderDetailPage() {
                     </button>
                   )}
                   {bolUrl && (
-                    <a href={bolUrl} target="_blank" rel="noreferrer"
+                    <a data-es href={bolUrl} target="_blank" rel="noreferrer"
                       className="px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition">
                       Download PDF
                     </a>
@@ -2143,7 +2146,7 @@ export default function OrderDetailPage() {
           {/* Always drawn, even empty, so a note can be added from here. */}
           <div id="notes" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4 space-y-5">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes and Instructions</h3>
+              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes and Instructions</h3>
               <SectionEditLink orderId={orderId} section="notes" />
             </div>
             <div>
@@ -2152,7 +2155,7 @@ export default function OrderDetailPage() {
               </p>
               {order.notes
                 ? <p className="text-sm text-gray-700 whitespace-pre-line mt-1">{order.notes}</p>
-                : <p className="text-sm text-gray-400 mt-1">No notes.</p>}
+                : <p data-es className="text-sm text-gray-400 mt-1">No notes.</p>}
             </div>
             <div>
               <p className="text-xs font-semibold text-gray-700">
@@ -2160,7 +2163,7 @@ export default function OrderDetailPage() {
               </p>
               {order.carrierInstructions
                 ? <p className="text-sm text-gray-700 whitespace-pre-line mt-1">{order.carrierInstructions}</p>
-                : <p className="text-sm text-gray-400 mt-1">None.</p>}
+                : <p data-es className="text-sm text-gray-400 mt-1">None.</p>}
             </div>
             <div>
               <p className="text-xs font-semibold text-gray-700">
@@ -2168,7 +2171,7 @@ export default function OrderDetailPage() {
               </p>
               {order.clientInstructions
                 ? <p className="text-sm text-gray-700 whitespace-pre-line mt-1">{order.clientInstructions}</p>
-                : clientAddedInstructionsOf(order).length === 0 && <p className="text-sm text-gray-400 mt-1">None.</p>}
+                : clientAddedInstructionsOf(order).length === 0 && <p data-es className="text-sm text-gray-400 mt-1">None.</p>}
               {/* The client's own, beside ours and never in place of them. */}
               {clientAddedInstructionsOf(order).map((e, i) => (
                 <div key={i} className="mt-2 rounded-lg border border-brand-100 bg-brand-50 px-3 py-2">
@@ -2222,14 +2225,14 @@ export default function OrderDetailPage() {
                   overwrites (see `bol_copy` in src/types/orderFile.ts). */}
               <tr className="hover:bg-gray-50 transition align-top">
                 <td className="px-6 py-4">
-                  <p className="text-sm font-medium text-gray-900">Bill of Lading</p>
+                  <p data-es className="text-sm font-medium text-gray-900">Bill of Lading</p>
                   <p className="text-xs text-gray-400">{order.recordImport ? 'Generated by TTMS, or the copy sent from BATS' : 'Auto-generated PDF'}</p>
                 </td>
                 <td className="px-6 py-4">
                   {order.bolStoragePath
-                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Available</span>
+                    ? <span data-es className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Available</span>
                     : order.recordImport && bolCopies > 0
-                      ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Copy uploaded</span>
+                      ? <span data-es className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Copy uploaded</span>
                       : <span className="text-xs text-gray-400 whitespace-nowrap">{order.recordImport ? 'Not on file' : 'Not generated'}</span>}
                 </td>
                 <td className="px-6 py-4 space-y-2">
@@ -2239,7 +2242,7 @@ export default function OrderDetailPage() {
                         className="text-xs text-brand-600 hover:underline">Preview</button>
                     )}
                     {bolUrl && (
-                      <a href={bolUrl} target="_blank" rel="noreferrer"
+                      <a data-es href={bolUrl} target="_blank" rel="noreferrer"
                         className="text-xs text-brand-600 hover:underline">Download</a>
                     )}
                     {(['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(
@@ -2262,20 +2265,20 @@ export default function OrderDetailPage() {
               {/* Invoice to the client — the same arrangement as the BOL above. */}
               <tr className="hover:bg-gray-50 transition align-top">
                 <td className="px-6 py-4">
-                  <p className="text-sm font-medium text-gray-900">Invoice</p>
+                  <p data-es className="text-sm font-medium text-gray-900">Invoice</p>
                   <p className="text-xs text-gray-400">{order.recordImport ? 'Generated by TTMS, or the copy sent from BATS' : 'Auto-generated PDF'}</p>
                 </td>
                 <td className="px-6 py-4">
                   {invoicePath
-                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Available</span>
+                    ? <span data-es className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Available</span>
                     : order.recordImport && invoiceCopies > 0
-                      ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Copy uploaded</span>
+                      ? <span data-es className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Copy uploaded</span>
                       : <span className="text-xs text-gray-400 whitespace-nowrap">{order.recordImport ? 'Not on file' : 'Not generated'}</span>}
                 </td>
                 <td className="px-6 py-4 space-y-2">
                   <div className="flex items-center gap-3">
                     {invoiceUrl && (
-                      <a href={invoiceUrl} target="_blank" rel="noreferrer"
+                      <a data-es href={invoiceUrl} target="_blank" rel="noreferrer"
                         className="text-xs text-brand-600 hover:underline">View Invoice</a>
                     )}
                     {/* Named `carrier_signed` rather than `shipper_signed`
@@ -2305,13 +2308,13 @@ export default function OrderDetailPage() {
               {(order.carrierId || order.recordImport) && (
                 <tr className="hover:bg-gray-50 transition align-top">
                   <td className="px-6 py-4">
-                    <p className="text-sm font-medium text-gray-900">Carrier Invoice</p>
-                    <p className="text-xs text-gray-400">The carrier’s bill for this load</p>
+                    <p data-es className="text-sm font-medium text-gray-900">Carrier Invoice</p>
+                    <p data-es className="text-xs text-gray-400">The carrier’s bill for this load</p>
                   </td>
                   <td className="px-6 py-4">
                     {carrierInvoices > 0
-                      ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Uploaded</span>
-                      : <span className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>}
+                      ? <span data-es className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Uploaded</span>
+                      : <span data-es className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>}
                   </td>
                   <td className="px-6 py-4">
                     <OrderFileSlot orderId={orderId} kind="carrier_invoice" uploadLabel="Upload the carrier’s invoice" onCount={setCarrierInvoices} />
@@ -2322,13 +2325,13 @@ export default function OrderDetailPage() {
               {/* POD */}
               <tr className="hover:bg-gray-50 transition">
                 <td className="px-6 py-4">
-                  <p className="text-sm font-medium text-gray-900">Proof of Delivery</p>
-                  <p className="text-xs text-gray-400">PDF or image, max 20 MB</p>
+                  <p data-es className="text-sm font-medium text-gray-900">Proof of Delivery</p>
+                  <p data-es className="text-xs text-gray-400">PDF or image, max 20 MB</p>
                 </td>
                 <td className="px-6 py-4">
                   {podPath
-                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Uploaded</span>
-                    : <span className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>}
+                    ? <span data-es className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Uploaded</span>
+                    : <span data-es className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>}
                 </td>
                 <td className="px-6 py-4">
                   <DocumentUpload orderId={orderId} docType="pod" existingPath={podPath} onUploaded={handlePodUploaded} />
@@ -2338,13 +2341,13 @@ export default function OrderDetailPage() {
               {/* Driver License */}
               <tr className="hover:bg-gray-50 transition">
                 <td className="px-6 py-4">
-                  <p className="text-sm font-medium text-gray-900">Driver License</p>
-                  <p className="text-xs text-gray-400">Uploaded during carrier assignment</p>
+                  <p data-es className="text-sm font-medium text-gray-900">Driver License</p>
+                  <p data-es className="text-xs text-gray-400">Uploaded during carrier assignment</p>
                 </td>
                 <td className="px-6 py-4">
                   {order.driverLicenseStoragePath
-                    ? <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Uploaded</span>
-                    : <span className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>}
+                    ? <span data-es className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Uploaded</span>
+                    : <span data-es className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>}
                 </td>
                 <td className="px-6 py-4">
                   {order.driverLicenseStoragePath
@@ -2360,7 +2363,7 @@ export default function OrderDetailPage() {
                   slot as in Client Confirmation. */}
               <tr className="hover:bg-gray-50 transition align-top">
                 <td className="px-6 py-4">
-                  <p className="text-sm font-medium text-gray-900">Signed Shipper Agreement (SA)</p>
+                  <p data-es className="text-sm font-medium text-gray-900">Signed Shipper Agreement (SA)</p>
                   <p className="text-xs text-gray-400">
                     {order.shipperSignedAt ? 'Signed on the link' : 'PDF or picture, when signed on paper or by email'}
                   </p>
@@ -2371,11 +2374,11 @@ export default function OrderDetailPage() {
                       <Check className="w-3 h-3 shrink-0" />Signed {formatDate(order.shipperSignedAt as { toDate: () => Date })}
                     </span>
                   ) : order.clientSignatureRecord || saVerified ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Verified</span>
+                    <span data-es className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Verified</span>
                   ) : saUploads ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 whitespace-nowrap">Waiting for verification</span>
+                    <span data-es className="inline-flex items-center gap-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 whitespace-nowrap">Waiting for verification</span>
                   ) : (
-                    <span className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>
+                    <span data-es className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>
                   )}
                 </td>
                 <td className="px-6 py-4 space-y-2">
@@ -2408,7 +2411,7 @@ export default function OrderDetailPage() {
               {(order.carrierId || order.recordImport) && (
                 <tr className="hover:bg-gray-50 transition align-top">
                   <td className="px-6 py-4">
-                    <p className="text-sm font-medium text-gray-900">Signed Dispatch Sheet</p>
+                    <p data-es className="text-sm font-medium text-gray-900">Signed Dispatch Sheet</p>
                     <p className="text-xs text-gray-400">
                       {order.carrierSignedAt ? 'Signed on the link' : 'PDF or picture, when signed on paper or by email'}
                     </p>
@@ -2419,11 +2422,11 @@ export default function OrderDetailPage() {
                         <Check className="w-3 h-3 shrink-0" />Signed {formatDate(order.carrierSignedAt as { toDate: () => Date })}
                       </span>
                     ) : order.carrierSignatureRecord || caVerified ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Verified</span>
+                      <span data-es className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 whitespace-nowrap"><Check className="w-3 h-3 shrink-0" />Verified</span>
                     ) : caUploads ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 whitespace-nowrap">Waiting for verification</span>
+                      <span data-es className="inline-flex items-center gap-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 whitespace-nowrap">Waiting for verification</span>
                     ) : (
-                      <span className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>
+                      <span data-es className="text-xs text-gray-400 whitespace-nowrap">Not uploaded</span>
                     )}
                   </td>
                   <td className="px-6 py-4 space-y-2">
@@ -2482,7 +2485,7 @@ export default function OrderDetailPage() {
       {tab === 'suborders' && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-gray-600">Split this order into separate loads with different carriers or dates.</p>
+            <p className="text-sm text-gray-600"><Bi>Split this order into separate loads with different carriers or dates.</Bi></p>
             <button onClick={handleCreateSuborder} disabled={splitting}
               className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
               {splitting ? 'Creating…' : '+ Create Suborder'}
@@ -2490,7 +2493,7 @@ export default function OrderDetailPage() {
           </div>
           {suborders.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
-              <p className="text-sm text-gray-400">No suborders yet.</p>
+              <p data-es className="text-sm text-gray-400">No suborders yet.</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
@@ -2511,7 +2514,7 @@ export default function OrderDetailPage() {
                       <td className="px-4 py-3 text-sm text-gray-600">{formatDate(sub.pickupDate as { toDate: () => Date } | null)}</td>
                       <td className="px-4 py-3 text-sm text-gray-800">{formatCurrency(sub.carrierPay)}</td>
                       <td className="px-4 py-3 text-right">
-                        <Link href={`/dashboard/orders/${sub.id}`} className="text-xs text-brand-600 hover:underline font-medium">View →</Link>
+                        <Link data-es href={`/dashboard/orders/${sub.id}`} className="text-xs text-brand-600 hover:underline font-medium">View →</Link>
                       </td>
                     </tr>
                   ))}

@@ -16,6 +16,7 @@ import { phoneRegionOf } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
 import FmcsaLookupBox from '@/components/carriers/FmcsaLookupBox';
 import { runFmcsaCheck } from '@/lib/fmcsaClient';
+import { Bi } from '@/components/spanish/Es';
 
 export default function NewCarrierPage() {
   const router = useRouter();
@@ -93,7 +94,7 @@ export default function NewCarrierPage() {
         <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-gray-700 mb-2 flex items-center gap-1">
           ← Back
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">Add Carrier</h1>
+        <h1 className="text-2xl font-bold text-gray-900"><Bi>Add Carrier</Bi></h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -115,15 +116,15 @@ export default function NewCarrierPage() {
 
         {/* Company Info */}
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Company Info</h2>
+          <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Company Info</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="col-span-1 sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
               <input required value={companyName} onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="e.g. Swift Transport LLC" className={inputCls} />
             </div>
             <div className="col-span-1 sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Address</label>
               <input value={address} onChange={(e) => setAddress(e.target.value)}
                 placeholder="Street, city, state ZIP" className={inputCls} />
             </div>
@@ -138,7 +139,7 @@ export default function NewCarrierPage() {
               onChange={(v, r) => { setPhone(v); setPhoneRegion(r); }}
             />
             <div className="col-span-1 sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="dispatch@carrier.com" className={inputCls} />
             </div>
@@ -147,15 +148,15 @@ export default function NewCarrierPage() {
 
         {/* Authority */}
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Authority</h2>
+          <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Authority</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">DOT Number</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">DOT Number</label>
               <input value={dot} onChange={(e) => setDot(e.target.value)}
                 placeholder="e.g. 1234567" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">MC / FF Number</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">MC / FF Number</label>
               <input value={mc} onChange={(e) => setMc(e.target.value)}
                 placeholder="e.g. 123456" className={inputCls} />
             </div>
@@ -164,50 +165,50 @@ export default function NewCarrierPage() {
 
         {/* Insurance */}
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Insurance</h2>
+          <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Insurance</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Insurance Company</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Insurance Company</label>
               <input value={insuranceProvider} onChange={(e) => setInsProvider(e.target.value)}
                 placeholder="e.g. Progressive Commercial" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Policy Number</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Policy Number</label>
               <input value={insurancePolicyNumber} onChange={(e) => setInsPolicyNo(e.target.value)}
                 placeholder="Policy #" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Expiration Date</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Expiration Date</label>
               <DateField value={insuranceExpiration} onChange={setInsExpiry}
                 className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Liability Amount</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Liability Amount</label>
               <CoverageInput value={insuranceCoverage} onChange={setInsCoverage}
                 placeholder="e.g. 1,000,000" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Cargo Amount</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Cargo Amount</label>
               <CoverageInput value={insuranceCargoCoverage} onChange={setInsCargo}
                 placeholder="e.g. 100,000" className={inputCls} />
             </div>
             <div className="col-span-1 sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Certificate of Insurance</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Certificate of Insurance</label>
               {/* The carrier does not exist yet, so the file is filed under a
                   draft key and its path saved with the record. */}
               <InsuranceFileUpload carrierId={null} value={insuranceStoragePath} onChange={setInsFile} />
-              <p className="text-xs text-gray-500 mt-1">PDF or photo, up to 10 MB.</p>
+              <p data-es className="text-xs text-gray-500 mt-1">PDF or photo, up to 10 MB.</p>
             </div>
           </div>
         </section>
 
         {/* Status & Notes */}
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Status & Notes</h2>
+          <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Status & Notes</h2>
           <label className="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)}
               className="w-4 h-4 rounded" />
-            <span className="text-sm text-gray-700 font-medium">Active carrier</span>
+            <span data-es className="text-sm text-gray-700 font-medium">Active carrier</span>
           </label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
             placeholder="Internal notes about this carrier…"

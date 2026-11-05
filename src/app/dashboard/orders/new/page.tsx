@@ -35,6 +35,7 @@ import type { Party, PartyRole } from '@/types/party';
 import LeadSourceField from '@/components/orders/LeadSourceField';
 import DateField from '@/components/DateField';
 import DateRangeField, { dateRangeProblem } from '@/components/DateRangeField';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Names typed into a party box that never became a record.
@@ -325,15 +326,15 @@ function NewOrderForm() {
         <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-gray-700 mb-2 flex items-center gap-1">
           ← Back
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">New Order</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Saved as a Quote — advance the status after creation.</p>
+        <h1 className="text-2xl font-bold text-gray-900"><Bi>New Order</Bi></h1>
+        <p className="text-sm text-gray-500 mt-0.5"><Bi>Saved as a Quote — advance the status after creation.</Bi></p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_20rem] gap-6 items-start">
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* General */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">General</h2>
+            <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">General</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Shipper and consignee sit in Route, each above the address
                   it fills — picking one prefills that address, so the two
@@ -350,10 +351,10 @@ function NewOrderForm() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">First Available Pickup</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">First Available Pickup</label>
                 <DateField value={firstAvailable} onChange={setFirstAvailable}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-                <p className="text-xs text-gray-500 mt-1">Earliest the client says the freight can be collected.</p>
+                <p className="text-xs text-gray-500 mt-1"><Bi>Earliest the client says the freight can be collected.</Bi></p>
               </div>
               <DateRangeField label="Pickup Date"
                 start={pickupDate} end={pickupDateEnd}
@@ -373,10 +374,10 @@ function NewOrderForm() {
           {/* Freight */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Freight</h2>
+              <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Freight</h2>
               <p className="text-xs text-gray-500 mt-1">
-                One line per commodity, each with its own value, weight and dimensions. Pieces, total value and
-                weight are added up for you.
+                <Bi>One line per commodity, each with its own value, weight and dimensions. Pieces, total value and
+                weight are added up for you.</Bi>
               </p>
             </div>
             <TransportTypeField value={transportType} onChange={setTransportType} required />
@@ -396,7 +397,7 @@ function NewOrderForm() {
 
           {/* Route */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Route</h2>
+            <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Route</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <PartyCombobox
@@ -440,11 +441,11 @@ function NewOrderForm() {
           {/* Carrier */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Carrier</h2>
+              <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Carrier</h2>
               <p className="text-xs text-gray-500 mt-1">
-                Optional. Set it now if the truck is already lined up, or leave it and assign one
+                <Bi>Optional. Set it now if the truck is already lined up, or leave it and assign one
                 from the load afterwards. Choosing a carrier lets you name the driver too; the
-                licence upload and the dispatch sheet are handled on the load itself.
+                licence upload and the dispatch sheet are handled on the load itself.</Bi>
               </p>
             </div>
             <div className="sm:max-w-md">
@@ -458,8 +459,8 @@ function NewOrderForm() {
               <div className="sm:max-w-md">
                 <CarrierCompliance key={carrier.id} carrierId={carrier.id} />
                 <p className="text-xs text-gray-500 mt-2">
-                  Saved to the carrier, not this load — the certificate as soon as it uploads, the
-                  rest with its own button. Every load with this carrier shows the same.
+                  <Bi>Saved to the carrier, not this load — the certificate as soon as it uploads, the
+                  rest with its own button. Every load with this carrier shows the same.</Bi>
                 </p>
               </div>
             )}

@@ -27,6 +27,7 @@ import { UserAvatar } from '@/components/settings/UserAvatar';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
 import type { WorkGroup } from '@/types/workGroup';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * One colleague, at their own address.
@@ -126,7 +127,7 @@ function PersonRow({ person, note }: { person: DirectoryPerson; note?: string })
  */
 function GroupMembers({ others, unnamed }: { others: DirectoryPerson[]; unnamed: number }) {
   if (others.length === 0 && unnamed === 0) {
-    return <span className="text-gray-400">Nobody else is in it.</span>;
+    return <span data-es className="text-gray-400">Nobody else is in it.</span>;
   }
 
   return (
@@ -311,7 +312,7 @@ export default function PersonPage() {
   }, [bookEmail]);
 
   const back = (
-    <Link
+    <Link data-es
       href="/dashboard/directory"
       className="inline-flex items-center gap-1.5 text-sm text-gray-500 transition hover:text-brand-700"
     >
@@ -507,14 +508,14 @@ export default function PersonPage() {
               </>
             ) : (
               <Fact Icon={Building2}>
-                <span className="text-gray-400">No office set</span>
+                <span data-es className="text-gray-400">No office set</span>
               </Fact>
             )}
 
             {/* Prefixed so a team called "Staff" cannot be read as another
                 office sitting next to the real one. */}
             <Fact Icon={UsersRound}>
-              {team ? `Team ${team.name}` : <span className="text-gray-400">No team set</span>}
+              {team ? `Team ${team.name}` : <span data-es className="text-gray-400">No team set</span>}
             </Fact>
 
             {/* Who they answer to, in the words the org chart uses. A team with
@@ -532,7 +533,7 @@ export default function PersonPage() {
                     </Link>
                   </>
                 ) : (
-                  <span className="text-gray-400">No lead named for this team</span>
+                  <span data-es className="text-gray-400">No lead named for this team</span>
                 )}
               </Fact>
             )}
@@ -639,7 +640,7 @@ export default function PersonPage() {
               </ul>
             )}
             <p className="mt-3 px-2 text-xs text-gray-400">
-              <Link href="/dashboard/directory?view=org" className="text-brand-700 underline">
+              <Link data-es href="/dashboard/directory?view=org" className="text-brand-700 underline">
                 See the whole org chart
               </Link>
             </p>
@@ -661,8 +662,8 @@ export default function PersonPage() {
           <Panel title="Work groups — admins and dispatch only">
             {groups.length === 0 ? (
               <p className="px-2 text-xs text-gray-500">
-                Not in any work group. They see only the clients, shippers, consignees
-                and loads assigned to them by name.
+                <Bi>Not in any work group. They see only the clients, shippers, consignees
+                and loads assigned to them by name.</Bi>
               </p>
             ) : (
               <ul className="-mx-2 divide-y divide-gray-50">
@@ -690,7 +691,7 @@ export default function PersonPage() {
                 open anything. */}
             {person.pending && groups.length > 0 && (
               <p className="mt-3 px-2 text-xs text-amber-600">
-                None of this applies until they sign in for the first time.
+                <Bi>None of this applies until they sign in for the first time.</Bi>
               </p>
             )}
 
@@ -761,7 +762,7 @@ export default function PersonPage() {
         {full ? (
           <>
             Everything here is edited in{' '}
-            <Link href="/dashboard/settings/people" className="text-brand-700 underline">
+            <Link data-es href="/dashboard/settings/people" className="text-brand-700 underline">
               Settings → People
             </Link>
             .

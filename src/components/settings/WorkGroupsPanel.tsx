@@ -7,6 +7,7 @@ import { listAllowedUsers } from '@/lib/allowedUsers';
 import { accessStatus } from '@/types/allowedUser';
 import type { WorkGroup } from '@/types/workGroup';
 import type { AllowedUser } from '@/types/allowedUser';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Admin management of work groups.
@@ -157,11 +158,11 @@ export default function WorkGroupsPanel() {
   return (
     <section className="bg-white rounded-xl border border-gray-200">
       <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="text-sm font-semibold text-gray-900">Work Groups</h2>
+        <h2 className="text-sm font-semibold text-gray-900"><Bi>Work Groups</Bi></h2>
         <p className="text-xs text-gray-500 mt-0.5">
-          Assign a client, shipper, consignee or order to a group and everyone in that group can
+          <Bi>Assign a client, shipper, consignee or order to a group and everyone in that group can
           see and use it. People who have not signed in yet can be added now — they will see the
-          group’s records the first time they log in.
+          group’s records the first time they log in.</Bi>
         </p>
       </div>
 
@@ -189,9 +190,9 @@ export default function WorkGroupsPanel() {
         )}
 
         {loading ? (
-          <p className="text-sm text-gray-400">Loading…</p>
+          <p data-es className="text-sm text-gray-400">Loading…</p>
         ) : groups.length === 0 ? (
-          <p className="text-sm text-gray-400">No work groups yet.</p>
+          <p data-es className="text-sm text-gray-400">No work groups yet.</p>
         ) : (
           <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
             {groups.map((g) => (

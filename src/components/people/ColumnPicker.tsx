@@ -109,7 +109,7 @@ export default function ColumnPicker({
           {offCount > 0 && (
             <>
               <div className="my-1 border-t border-gray-100" />
-              <button
+              <button data-es
                 onClick={onShowAll}
                 className="w-full px-3 py-1.5 text-left text-sm text-brand-700 hover:bg-gray-50"
               >

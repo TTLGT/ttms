@@ -9,6 +9,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import { addDays } from '@/types/taskGame';
 import { formatTime } from '@/types/task';
+import { Bi } from '@/components/spanish/Es';
 import {
   formatMinutes, itemLabel, itemSpan, mondayOf, planSummary,
   type DayPlan, type DayPlanItem, type TeamPlanPerson, type TeamPlansReply,
@@ -128,7 +129,7 @@ export default function TeamPlans({ initialDate }: { initialDate: string }) {
     </div>
   );
 
-  const notShared = <span className="text-xs italic text-gray-400">Not shared yet</span>;
+  const notShared = <span data-es className="text-xs italic text-gray-400">Not shared yet</span>;
 
   // ── Agenda ──
   const agenda = (
@@ -149,7 +150,7 @@ export default function TeamPlans({ initialDate }: { initialDate: string }) {
             {!plan ? (
               <p className="mt-3">{notShared}</p>
             ) : plan.items.length === 0 ? (
-              <p className="mt-3 text-xs text-gray-500">Shared an empty plan.</p>
+              <p data-es className="mt-3 text-xs text-gray-500">Shared an empty plan.</p>
             ) : (
               <ol className="mt-3 space-y-1.5">
                 {plan.items.map((item, i) => (
@@ -178,12 +179,12 @@ export default function TeamPlans({ initialDate }: { initialDate: string }) {
       <table className="min-w-full text-sm">
         <thead className="bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
           <tr>
-            <th className="px-3 py-2">Person</th>
-            <th className="px-3 py-2">Shared</th>
-            <th className="px-3 py-2 text-right">Items</th>
-            <th className="px-3 py-2 text-right">Planned</th>
-            <th className="px-3 py-2">From – to</th>
-            <th className="px-3 py-2">What they planned</th>
+            <th data-es className="px-3 py-2">Person</th>
+            <th data-es className="px-3 py-2">Shared</th>
+            <th data-es className="px-3 py-2 text-right">Items</th>
+            <th data-es className="px-3 py-2 text-right">Planned</th>
+            <th data-es className="px-3 py-2">From – to</th>
+            <th data-es className="px-3 py-2">What they planned</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -251,7 +252,7 @@ export default function TeamPlans({ initialDate }: { initialDate: string }) {
     <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
       <div className="min-w-[760px]">
         <div className="flex border-b border-gray-100 text-[11px] text-gray-500">
-          <div className="w-48 shrink-0 px-3 py-2 font-medium uppercase tracking-wide">Person</div>
+          <div data-es className="w-48 shrink-0 px-3 py-2 font-medium uppercase tracking-wide">Person</div>
           <div className="relative flex-1">
             {hours.map((m) => (
               <span key={m} className="absolute top-2 -translate-x-1/2" style={{ left: pct(m) }}>
@@ -311,7 +312,7 @@ export default function TeamPlans({ initialDate }: { initialDate: string }) {
       <table className="min-w-full text-sm">
         <thead className="bg-gray-50 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
           <tr>
-            <th className="px-3 py-2">Person</th>
+            <th data-es className="px-3 py-2">Person</th>
             {weekDays.map((d) => (
               <th key={d} className={`px-3 py-2 ${d === data?.today ? 'text-brand-700' : ''}`}>{formatCalendarDate(d)}</th>
             ))}
@@ -386,7 +387,7 @@ export default function TeamPlans({ initialDate }: { initialDate: string }) {
         {data && data.teams.length > 1 && (
           <select value={team} onChange={(e) => setTeam(e.target.value)}
             className="rounded-lg border-gray-200 py-1.5 text-sm text-gray-700 focus:border-brand-500 focus:ring-brand-500">
-            <option value="">All teams</option>
+            <option data-es value="">All teams</option>
             {data.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         )}
@@ -435,9 +436,9 @@ export default function TeamPlans({ initialDate }: { initialDate: string }) {
       )}
 
       <p className="mt-4 text-xs text-gray-400">
-        Each plan is what the person shared when they finished their planning, as a copy — names and times only.
+        <Bi>Each plan is what the person shared when they finished their planning, as a copy — names and times only.
         It does not change when they tick things off, and it does not say whether they did them.
-        Items they marked Busy show the time without the name.
+        Items they marked Busy show the time without the name.</Bi>
       </p>
     </div>
   );

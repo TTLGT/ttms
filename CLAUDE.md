@@ -1523,6 +1523,41 @@ would send whatever was on screen — rates, client names — to a third party. 
 sentence translation is ever added, it is an admin setting that defaults to
 off, chosen server-side, like lane distances.
 
+### Spanish — the English stays, the Spanish is added
+
+A per-person switch at the foot of the sidebar (`SpanishContext`, saved as
+`preferences.spanish` like the theme). English remains the app's language;
+with the switch on, headings and paragraphs get a Spanish line under them
+(`<Bi>` / `<Es>` in `src/components/spanish/Es.tsx`, one teal-italic style
+everywhere so the Spanish reads as its own layer) and small things — buttons,
+tabs, column headings, badges, dropdowns, placeholders — get a Spanish bubble
+on hover, drawn by `SpanishTips`. No second line on small things: it breaks
+buttons and tables.
+
+The bubble **reads what is on screen** and looks it up, so it needs no tagging
+and covers text built at run time (`{saving ? 'Saving…' : 'Save'}`, a status
+from a stored value). `data-es="…"` is only for when the visible text is not
+the dictionary key. The lookup falls back to lower case, for CSS-uppercased
+headings and stored lowercase statuses.
+
+- **The Spanish is hand-written in `src/lib/i18n/es.ts` (plus `es-more.ts`, the
+  text that lives in code rather than markup — merged in, `es.ts` wins), keyed
+  by the English as shown.** Rewording English drops its Spanish until the entry is reworded
+  too. Never a translation service, for the glossary's reason.
+- **Address the reader as `tú`, never `usted`** — the office's choice
+  (2026-11-05). Buttons stay infinitives ("Guardar").
+- **Only the app's own words.** Names, notes, chat — anything somebody typed —
+  is never translated. Nor are PDFs or emails that leave the company.
+- The dictionary is a dynamic import, downloaded only with the switch on.
+- Covers everything under `src/app/dashboard`, `src/components` and
+  `src/context` as of 2026-11-05. Not the login page, `sign/[token]` or
+  `driver/[token]` — those are outside the switch (the driver page has its own
+  English/Spanish strings). Text built at run time from pieces (`Showing
+  ${n}…`) has no Spanish unless someone added an `<Es>` for it by hand.
+- **New UI text should be wrapped as it is written, with its entry added** —
+  `<Bi>` for a heading or sentence, `data-es` for a button or label. Text
+  left unwrapped simply shows no Spanish.
+
 ### Change history — the IT account's record of every change
 
 `/dashboard/changes` lists every commit to this repo, searchable by word, by

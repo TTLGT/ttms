@@ -11,6 +11,7 @@ import {
 } from '@/types/saRequest';
 import { Facts } from './SaRequestPanel';
 import { ReadinessLine } from './OrderReadinessCard';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The load's verification record, opened from Client Confirmation: every
@@ -35,7 +36,7 @@ export default function SaVerificationRecord({ orderId, party = 'client' }: { or
 
   return (
     <>
-      <button type="button" onClick={show}
+      <button data-es type="button" onClick={show}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition">
         <ClipboardCheck className="w-3.5 h-3.5" /> Verification record
       </button>
@@ -61,7 +62,7 @@ export default function SaVerificationRecord({ orderId, party = 'client' }: { or
             {error ? (
               <p className="text-sm text-red-600">{error}</p>
             ) : rounds === null ? (
-              <p className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="w-4 h-4 animate-spin" />Loading…</p>
+              <p data-es className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="w-4 h-4 animate-spin" />Loading…</p>
             ) : rounds.length === 0 ? (
               <p className="text-sm text-gray-500">No review or {AGREEMENT_LABEL[party]} has been recorded on this load yet.</p>
             ) : (
@@ -150,7 +151,7 @@ function Round({ round: r, latest }: { round: SaRound; latest: boolean }) {
 
       {r.kind === 'review' && (
         <div>
-          <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Double check</p>
+          <p data-es className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Double check</p>
           <ul className="space-y-1">
             {checks.map((c) => {
               const mark = r.checks[c.key];
@@ -185,7 +186,7 @@ function Round({ round: r, latest }: { round: SaRound; latest: boolean }) {
           )}
         </div>
       ) : r.sentAt ? (
-        <p className="text-[11px] text-gray-400">Sent before TTMS kept a copy of the facts at the time of sending.</p>
+        <p className="text-[11px] text-gray-400"><Bi>Sent before TTMS kept a copy of the facts at the time of sending.</Bi></p>
       ) : null}
     </li>
   );

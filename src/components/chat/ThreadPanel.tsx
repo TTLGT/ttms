@@ -23,6 +23,7 @@ import MessageBubble from './MessageBubble';
 import ChatWallpaper from './ChatWallpaper';
 import MessageComposer from './MessageComposer';
 import { can } from '@/lib/accessControl';
+import { Bi } from '@/components/spanish/Es';
 import {
   isRoomAdmin,
   postingBlock,
@@ -335,7 +336,7 @@ export default function ThreadPanel({
     <div className="flex h-full min-h-0 flex-col bg-white">
       <div className="flex flex-shrink-0 items-center gap-2 border-b border-gray-200 px-4 py-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-gray-900">Thread</p>
+          <p data-es className="truncate text-sm font-semibold text-gray-900">Thread</p>
           <p className="truncate text-xs text-gray-500">
             {/* Named so it is obvious the replies are not in the room. The
                 commonest confusion a thread causes is somebody answering here
@@ -360,7 +361,7 @@ export default function ThreadPanel({
         >
           {missing && (
             <p className="text-sm text-gray-400">
-              The message this thread belonged to is no longer there.
+              <Bi>The message this thread belonged to is no longer there.</Bi>
             </p>
           )}
 

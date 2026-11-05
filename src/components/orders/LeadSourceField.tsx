@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { listLeadSources } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The lead-source picker, shared by the order and party forms.
@@ -59,7 +60,7 @@ export default function LeadSourceField({
         disabled={!canEdit}
         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:bg-gray-50 disabled:text-gray-500"
       >
-        <option value="">Not set</option>
+        <option data-es value="">Not set</option>
         {options.map((s) => (
           <option key={s.id} value={s.id}>
             {s.name}{s.isActive ? '' : ' (retired)'}
@@ -71,7 +72,7 @@ export default function LeadSourceField({
         <p className="text-xs text-gray-500 mt-1">{hint}</p>
       ) : (
         <p className="text-xs text-gray-500 mt-1">
-          Only an admin or an owner of this record can change the lead source.
+          <Bi>Only an admin or an owner of this record can change the lead source.</Bi>
         </p>
       )}
 
@@ -85,7 +86,7 @@ export default function LeadSourceField({
       )}
       {orphan && (
         <p className="text-xs text-amber-700 mt-1">
-          This record points at a lead source that no longer exists.
+          <Bi>This record points at a lead source that no longer exists.</Bi>
         </p>
       )}
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}

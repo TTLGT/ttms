@@ -1,6 +1,7 @@
 'use client';
 
 import { TRANSPORT_TYPE_SUGGESTIONS } from '@/types/order';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The truck or trailer a load moves on (`Order.transportType`). Suggestions
@@ -30,7 +31,7 @@ export default function TransportTypeField({ value, onChange, required }: {
         {TRANSPORT_TYPE_SUGGESTIONS.map((t) => <option key={t} value={t} />)}
       </datalist>
       <p className="text-xs text-gray-500 mt-1">
-        The truck or trailer this load moves on. Printed on the SA, the Dispatch Sheet and the BOL.
+        <Bi>The truck or trailer this load moves on. Printed on the SA, the Dispatch Sheet and the BOL.</Bi>
       </p>
     </div>
   );

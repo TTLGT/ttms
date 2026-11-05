@@ -23,6 +23,7 @@ import AlertPanel from '@/components/orders/AlertPanel';
 import CelebrationBanner from '@/components/dashboard/CelebrationBanner';
 import WhosInCard from '@/components/attendance/WhosInCard';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { Bi, Es } from '@/components/spanish/Es';
 
 const PENDING_PICKUP_STATUSES = new Set(['booked', 'carrier_assigned', 'carrier_signed', 'shipper_signed']);
 
@@ -138,7 +139,7 @@ function StatCardGrid({
         const face = (
           <>
             <div className="flex items-start justify-between gap-2">
-              <p className={`font-semibold uppercase tracking-wide opacity-70 ${
+              <p data-es className={`font-semibold uppercase tracking-wide opacity-70 ${
                 compact ? 'text-[10px] leading-tight' : 'text-xs'
               }`}>
                 {card.label}
@@ -190,7 +191,7 @@ function StatCardGrid({
               <div className="absolute left-0 top-full mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden"
                 style={{ zIndex: 50 }}>
                 <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{card.label}</p>
+                  <p data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{card.label}</p>
                   {/* What the card counted, not what this list holds. The list is
                       the newest five; saying "5 items" beneath a card reading 112
                       would look like one of the two numbers was wrong. */}
@@ -202,7 +203,7 @@ function StatCardGrid({
                 </div>
 
                 {items.length === 0 ? (
-                  <p className="px-3 py-3 text-sm text-gray-400 italic">{card.emptyMsg ?? 'Nothing here'}</p>
+                  <p className="px-3 py-3 text-sm text-gray-400 italic"><Bi>{card.emptyMsg ?? 'Nothing here'}</Bi></p>
                 ) : (
                   <div className="overflow-y-auto max-h-64">
                     {items.map((item) => {
@@ -588,8 +589,11 @@ export default function DashboardPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Good to see you, {firstName} 👋</h1>
-        <p className="text-gray-500 mt-1 text-sm">Your loads and clients, at a glance.</p>
+        <h1 className="text-2xl font-bold text-gray-900">
+          Good to see you, {firstName} 👋
+          <Es vars={{ name: firstName }}>{'Good to see you, {name}'}</Es>
+        </h1>
+        <p className="text-gray-500 mt-1 text-sm"><Bi>Your loads and clients, at a glance.</Bi></p>
       </div>
 
       <CelebrationBanner />
@@ -598,9 +602,10 @@ export default function DashboardPage() {
 
       {error && (
         <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-5 py-4">
-          <p className="text-sm font-semibold text-red-800">These figures could not be loaded</p>
+          <p className="text-sm font-semibold text-red-800"><Bi>These figures could not be loaded</Bi></p>
           <p className="text-sm text-red-700 mt-1">
             The numbers below are not zero — they are missing. {error}
+            <Es>The numbers below are not zero — they are missing.</Es>
           </p>
         </div>
       )}
@@ -620,6 +625,7 @@ export default function DashboardPage() {
             return next;
           })}
           aria-expanded={insightsOpen}
+          data-es="Performance & Insights"
           className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400 transition hover:text-gray-600"
         >
           Performance &amp; Insights
@@ -633,8 +639,8 @@ export default function DashboardPage() {
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold text-gray-800">Recent Orders</h2>
-          <Link href="/dashboard/orders" className="text-sm text-brand-500 hover:underline">View all →</Link>
+          <h2 className="font-semibold text-gray-800"><Bi>Recent Orders</Bi></h2>
+          <Link href="/dashboard/orders" data-es className="text-sm text-brand-500 hover:underline">View all →</Link>
         </div>
 
         {loading ? (
@@ -645,12 +651,13 @@ export default function DashboardPage() {
           // Not the same thing as having no orders, and inviting someone to
           // create their first one when the load failed is a lie.
           <div className="px-6 py-12 text-center text-gray-400 text-sm">
-            Recent orders could not be loaded.
+            <Bi>Recent orders could not be loaded.</Bi>
           </div>
         ) : recentOrders.length === 0 ? (
           <div className="px-6 py-12 text-center text-gray-400 text-sm">
             No orders yet —{' '}
             <Link href="/dashboard/orders/new" className="text-brand-600 hover:underline">create your first order</Link>.
+            <Es>No orders yet — create your first order.</Es>
           </div>
         ) : (
           <div className="overflow-auto max-h-[320px]">
@@ -658,7 +665,7 @@ export default function DashboardPage() {
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   {['Order #', 'Shipper', 'Route', 'Status', 'Pickup', 'Rate', ''].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                    <th key={h} data-es className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -676,7 +683,7 @@ export default function DashboardPage() {
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{formatDate(order.pickupDate as TS)}</td>
                     <td className="px-4 py-3 text-sm text-gray-800 font-medium">{formatCurrency(order.agreedRate)}</td>
                     <td className="px-4 py-3 text-right">
-                      <Link href={`/dashboard/orders/${order.id}`} className="text-xs text-brand-600 hover:underline font-medium">View →</Link>
+                      <Link href={`/dashboard/orders/${order.id}`} data-es className="text-xs text-brand-600 hover:underline font-medium">View →</Link>
                     </td>
                   </tr>
                 ))}

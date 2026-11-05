@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { CalendarClock } from 'lucide-react';
 import { useAttendance } from '@/context/AttendanceContext';
 import { fetchToday } from '@/lib/attendance';
+import { Bi } from '@/components/spanish/Es';
 import {
   BREAK_LABEL,
   TIME_OFF_LABEL,
@@ -76,8 +77,8 @@ export default function WhosInCard() {
     <section className="mb-8 rounded-xl border border-gray-200 bg-white shadow-sm">
       <header className="flex items-center gap-2 border-b border-gray-100 px-4 py-3 sm:px-6">
         <CalendarClock size={18} className="text-brand-600" />
-        <h2 className="flex-1 font-semibold text-gray-800">Who&rsquo;s in today</h2>
-        <Link href="/dashboard/attendance" className="text-sm text-brand-500 hover:underline">Attendance →</Link>
+        <h2 className="flex-1 font-semibold text-gray-800"><Bi>Who&rsquo;s in today</Bi></h2>
+        <Link data-es href="/dashboard/attendance" className="text-sm text-brand-500 hover:underline">Attendance →</Link>
       </header>
       <div className="grid gap-4 p-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-6">
         {GROUPS.map((g) => {
@@ -92,7 +93,7 @@ export default function WhosInCard() {
                     {detail(r) && <span className="text-gray-500"> — {detail(r)}</span>}
                   </li>
                 ))}
-                {list.length === 0 && <li className="text-gray-400">Nobody</li>}
+                {list.length === 0 && <li data-es className="text-gray-400">Nobody</li>}
               </ul>
             </div>
           );

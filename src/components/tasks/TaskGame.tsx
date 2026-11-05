@@ -25,6 +25,7 @@ import {
   type MissionSet,
 } from '@/types/taskGame';
 import { TASK_DIFFICULTIES, TASK_DIFFICULTY_LABEL, calendarToday, type PersonalTaskInput } from '@/types/task';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Game mode on My tasks — see src/types/taskGame.ts for the rules.
@@ -179,7 +180,7 @@ function MissionList({ heading, set }: { heading: string; set: MissionSet | null
     <section>
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">{heading}</h3>
       {missions.length === 0 ? (
-        <p className="text-sm text-gray-500">New missions arrive when you next finish or add a task.</p>
+        <p className="text-sm text-gray-500"><Bi>New missions arrive when you next finish or add a task.</Bi></p>
       ) : (
         <ul className="space-y-2">
           {missions.map((m) => {
@@ -265,9 +266,9 @@ function RecentXp({ game }: { game: GameState }) {
   const recent = [...game.log].reverse().slice(0, 8);
   return (
     <section>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Recent XP</h3>
+      <h3 data-es className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Recent XP</h3>
       {recent.length === 0 ? (
-        <p className="text-sm text-gray-500">Finish a task to earn your first XP.</p>
+        <p data-es className="text-sm text-gray-500">Finish a task to earn your first XP.</p>
       ) : (
         <ul className="space-y-1">
           {recent.map((e, i) => (
@@ -296,13 +297,13 @@ function GameOptions({
 }) {
   return (
     <section>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Your theme</h3>
+      <h3 data-es className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Your theme</h3>
       <p className="text-[11px] text-gray-500">
         {GAME_THEMES[game.theme].label}: the look of this page and the name of every level, up to level 30,{' '}
         {levelTitle(GAME_LEVELS.length, game.theme)}. Changing it keeps your XP and level.
       </p>
       <details className="mt-3 text-xs text-gray-500">
-        <summary className="cursor-pointer">How XP works</summary>
+        <summary data-es className="cursor-pointer">How XP works</summary>
         <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
           <li>Finishing a task, by its difficulty: {TASK_DIFFICULTIES.map((d) => `${TASK_DIFFICULTY_LABEL[d]} ${TASK_XP[d]} XP`).join(', ')}. Priority does not change it. Very hard and Epic tasks count as hard for missions.</li>
           <li>Finished late: 75% up to 3 days late, 50% up to a week, then 25%.</li>
@@ -312,7 +313,7 @@ function GameOptions({
           <li>Each weekday a task is overdue costs 5 XP per day late, up to what it is worth. Nothing is charged on a day off.</li>
           <li>Missing a weekday you were working breaks the streak and costs 25 XP per day of it, up to 300.</li>
           <li>Reopening a finished task takes back what it earned. Losing XP can lose you a level.</li>
-          <li>Only you can see any of this.</li>
+          <li data-es>Only you can see any of this.</li>
         </ul>
       </details>
       <button

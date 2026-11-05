@@ -30,7 +30,8 @@ export default function ResizableTh({ columnKey, label, controls, resizable = tr
         align === 'right' ? 'text-right' : 'text-left'
       }`}
     >
-      <span className="block truncate">{label}</span>
+      {/* data-es: the Spanish bubble on hover — every table using this gets it. */}
+      <span data-es className="block truncate">{label}</span>
 
       {resizable && (
         <span

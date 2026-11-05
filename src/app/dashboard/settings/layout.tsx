@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import SettingsSearch from '@/components/settings/SettingsSearch';
 import { SETTINGS_TABS, scrollToAnchor } from '@/components/settings/settingsSections';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The frame around every Settings tab: title, tab bar, search box.
@@ -124,7 +125,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
       <div className="sticky top-0 z-10 -mx-4 -mt-4 bg-gray-50 px-4 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+            <h1 className="text-2xl font-bold text-gray-900"><Bi>Settings</Bi></h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {tabs.length > 1
                 ? 'Access, permissions, sites, teams and how orders are worked out'

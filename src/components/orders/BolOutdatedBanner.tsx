@@ -11,10 +11,10 @@ export default function BolOutdatedBanner({ canRegenerate }: { canRegenerate: bo
     <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
       <AlertTriangle className="w-4 h-4 shrink-0 mt-px" />
       <p>
-        <strong>This BOL is out of date.</strong> The load has changed since it was generated, so the PDF
+        <strong data-es>This BOL is out of date.</strong> The load has changed since it was generated, so the PDF
         no longer matches it.{' '}
         {canRegenerate
-          ? <>Press <strong>Regenerate BOL</strong> to make a new one with the load&apos;s current details before sending it. The current one is kept under Earlier BOLs.</>
+          ? <>Press <strong data-es>Regenerate BOL</strong> to make a new one with the load&apos;s current details before sending it. The current one is kept under Earlier BOLs.</>
           : <>Ask somebody who can generate BOLs to regenerate it before it is sent.</>}
       </p>
     </div>

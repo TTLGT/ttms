@@ -56,12 +56,12 @@ export default function PersonNameFields({
       <p className="block text-xs font-medium text-gray-600 mb-1">{label}</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">First Name</label>
+          <label data-es className="block text-xs text-gray-500 mb-1">First Name</label>
           <input value={first} onChange={(e) => update(e.target.value, last)}
             required={required} autoFocus={autoFocus} placeholder="First" className={inputCls} />
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Last Name</label>
+          <label data-es className="block text-xs text-gray-500 mb-1">Last Name</label>
           <input value={last} onChange={(e) => update(first, e.target.value)}
             required={required} placeholder="Last" className={inputCls} />
         </div>

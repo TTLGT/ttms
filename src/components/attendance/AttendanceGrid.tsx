@@ -121,15 +121,15 @@ export default function AttendanceGrid({
         </label>
         {report.teams.length > 0 && (
           <select value={team} onChange={(e) => setTeam(e.target.value)} className="rounded-lg border border-gray-300 py-1.5 pl-3 pr-8 text-sm">
-            <option value="">Every team</option>
+            <option data-es value="">Every team</option>
             {report.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         )}
         <div className="ml-auto flex gap-2">
-          <button type="button" onClick={exportTotals} className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+          <button data-es type="button" onClick={exportTotals} className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
             <Download size={14} /> Totals CSV
           </button>
-          <button type="button" onClick={exportDays} className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+          <button data-es type="button" onClick={exportDays} className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
             <Download size={14} /> Every day CSV
           </button>
         </div>
@@ -139,7 +139,7 @@ export default function AttendanceGrid({
         <table className="min-w-full border-separate border-spacing-0 text-xs">
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 min-w-[10rem] border-b border-gray-200 bg-white px-3 py-2 text-left font-semibold text-gray-700">Person</th>
+              <th data-es className="sticky left-0 z-10 min-w-[10rem] border-b border-gray-200 bg-white px-3 py-2 text-left font-semibold text-gray-700">Person</th>
               {dates.map((d) => {
                 const wd = weekdayOf(d);
                 return (
@@ -151,10 +151,10 @@ export default function AttendanceGrid({
                   </th>
                 );
               })}
-              <th className="border-b border-l border-gray-200 px-2 py-2 text-right font-semibold text-gray-700" title="Days present">In</th>
-              <th className="border-b border-gray-200 px-2 py-2 text-right font-semibold text-gray-700" title="Days absent">Abs</th>
-              <th className="border-b border-gray-200 px-2 py-2 text-right font-semibold text-gray-700" title="Days late">Late</th>
-              <th className="border-b border-gray-200 px-2 py-2 text-right font-semibold text-gray-700" title="Hours worked">Hours</th>
+              <th data-es className="border-b border-l border-gray-200 px-2 py-2 text-right font-semibold text-gray-700" title="Days present">In</th>
+              <th data-es className="border-b border-gray-200 px-2 py-2 text-right font-semibold text-gray-700" title="Days absent">Abs</th>
+              <th data-es className="border-b border-gray-200 px-2 py-2 text-right font-semibold text-gray-700" title="Days late">Late</th>
+              <th data-es className="border-b border-gray-200 px-2 py-2 text-right font-semibold text-gray-700" title="Hours worked">Hours</th>
             </tr>
           </thead>
           <tbody>
@@ -200,7 +200,7 @@ export default function AttendanceGrid({
               );
             })}
             {people.length === 0 && (
-              <tr><td colSpan={dates.length + 5} className="px-3 py-8 text-center text-sm text-gray-500">Nobody matches.</td></tr>
+              <tr><td data-es colSpan={dates.length + 5} className="px-3 py-8 text-center text-sm text-gray-500">Nobody matches.</td></tr>
             )}
           </tbody>
         </table>

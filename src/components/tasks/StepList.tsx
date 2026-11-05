@@ -291,7 +291,7 @@ export default function StepList({
           )}
           {dating === s.id && (
             <div className="mt-1.5 flex flex-wrap items-center gap-2 pl-7">
-              <span className="text-xs text-gray-500">Due</span>
+              <span data-es className="text-xs text-gray-500">Due</span>
               <DateField
                 value={s.date ?? ''}
                 onChange={(v) => setDate(s.id, v)}
@@ -303,14 +303,14 @@ export default function StepList({
                   Clear
                 </button>
               )}
-              <span className="ml-2 text-xs text-gray-500">Column</span>
+              <span data-es className="ml-2 text-xs text-gray-500">Column</span>
               <select
                 value={s.status === null || placeOf(columns, s.status) === taskColumn ? '' : placeOf(columns, s.status)}
                 onChange={(e) => setColumn(s.id, e.target.value)}
                 aria-label={`Column of ${s.title}`}
                 className="rounded border border-gray-300 bg-white px-1.5 py-0.5 text-sm text-gray-900 focus:border-brand-500 focus:outline-none"
               >
-                <option value="">With the task</option>
+                <option data-es value="">With the task</option>
                 {otherColumns.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
               <button type="button" onClick={() => setDating(null)} className="ml-auto text-xs text-gray-500 hover:text-gray-800">

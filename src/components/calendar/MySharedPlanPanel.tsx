@@ -7,6 +7,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { formatTime } from '@/types/task';
 import { relativeDay } from '@/types/planning';
 import { DAY_PLAN_DISCLOSURE, DAY_PLAN_SHARED_EVENT, type DayPlan } from '@/types/dayPlan';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The Calendar side panel that shows somebody exactly what their manager can
@@ -87,7 +88,7 @@ export default function MySharedPlanPanel() {
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+      <h2 data-es className="flex items-center gap-2 text-sm font-semibold text-gray-900">
         <Share2 size={15} className="text-brand-600" /> My shared plan
       </h2>
       <p className="mt-1 text-xs text-gray-500">{DAY_PLAN_DISCLOSURE}</p>
@@ -97,7 +98,7 @@ export default function MySharedPlanPanel() {
       </div>
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       <p className="mt-2 text-[11px] text-gray-400">
-        Share again after changing your plan — what is shared is a copy, and does not follow your edits.
+        <Bi>Share again after changing your plan — what is shared is a copy, and does not follow your edits.</Bi>
       </p>
     </section>
   );

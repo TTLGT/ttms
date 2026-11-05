@@ -6,6 +6,7 @@ import { FileText } from 'lucide-react';
 import { listBolRequests } from '@/lib/bolRequestsClient';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { BOL_STATUS_LABEL, type BolRequest } from '@/types/bolRequest';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * BOLs to send, on the Approvals screen — admin and dispatch only. The route
@@ -33,7 +34,7 @@ export default function BolRequestsSection() {
         BOLs to send ({todo})
       </h2>
       <p className="text-xs text-gray-500 mt-0.5 mb-3">
-        Loads where the client and the carrier have both signed. TTMS made the BOL; open the load to choose who gets it, send it, and mark it done.
+        <Bi>Loads where the client and the carrier have both signed. TTMS made the BOL; open the load to choose who gets it, send it, and mark it done.</Bi>
       </p>
       <ul className="divide-y divide-gray-100">
         {rows.map((r) => {

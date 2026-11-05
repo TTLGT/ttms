@@ -39,7 +39,7 @@ export default function AgreementPdfPreview({ url, title, onClose, onDownload }:
         <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
           <h2 className="truncate text-sm font-semibold text-gray-900">{title}</h2>
           <div className="flex shrink-0 items-center gap-2">
-            <button type="button" onClick={onDownload}
+            <button data-es type="button" onClick={onDownload}
               className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
               <Download className="h-3.5 w-3.5" /> Download
             </button>

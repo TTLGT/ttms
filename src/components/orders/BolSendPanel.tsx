@@ -5,6 +5,7 @@ import { Send } from 'lucide-react';
 import { getBolRequest, markBolRequestDone, sendBol } from '@/lib/bolRequestsClient';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { BOL_STATUS_LABEL, type BolRecipient, type BolRequest } from '@/types/bolRequest';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Inside the Bill of Lading card on an order: where the BOL request stands,
@@ -90,9 +91,9 @@ export default function BolSendPanel({ orderId, bolVersion }: { orderId: string;
 
       {isSender && (
         <div>
-          <p className="text-xs font-semibold text-gray-700 mb-1.5">Send the BOL to</p>
+          <p data-es className="text-xs font-semibold text-gray-700 mb-1.5">Send the BOL to</p>
           {recipients.length === 0 ? (
-            <p className="text-xs text-gray-400">Nobody on this load has a record to send it to yet.</p>
+            <p className="text-xs text-gray-400"><Bi>Nobody on this load has a record to send it to yet.</Bi></p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {recipients.map((r) => {

@@ -7,6 +7,7 @@ import {
   type SheetGroupBy, type SheetOptions, type SheetOrder,
 } from '@/lib/extensionSheet';
 import type { DirectoryPerson } from '@/lib/directory';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * How the extension sheet should come out, asked before the print dialog.
@@ -113,7 +114,7 @@ export default function SheetOptionsDialog({
       <div className="flex max-h-full w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
         <div className="flex flex-shrink-0 items-start justify-between border-b border-gray-200 px-5 py-4">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">Print extension sheet</h2>
+            <h2 className="text-lg font-bold text-gray-900"><Bi>Print extension sheet</Bi></h2>
             <p className="mt-1 text-xs text-gray-500">
               {people.length} {people.length === 1 ? 'person' : 'people'}, as they are
               filtered on the page behind this.
@@ -126,7 +127,7 @@ export default function SheetOptionsDialog({
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           <fieldset>
-            <legend className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <legend data-es className="text-xs font-semibold uppercase tracking-wide text-gray-400">
               Group them
             </legend>
             <div className="mt-2 space-y-1.5">
@@ -156,7 +157,7 @@ export default function SheetOptionsDialog({
           </fieldset>
 
           <fieldset className="mt-5">
-            <legend className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <legend data-es className="text-xs font-semibold uppercase tracking-wide text-gray-400">
               Order them
             </legend>
             <div className="mt-2 space-y-1.5">
@@ -186,11 +187,11 @@ export default function SheetOptionsDialog({
           </fieldset>
 
           <fieldset className="mt-5">
-            <legend className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <legend data-es className="text-xs font-semibold uppercase tracking-wide text-gray-400">
               Extra columns
             </legend>
             <p className="mt-1 text-xs text-gray-500">
-              The name, the extension and the work number are always on it.
+              <Bi>The name, the extension and the work number are always on it.</Bi>
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {COLUMN_CHOICES.map(({ key, label }) => {
@@ -238,7 +239,7 @@ export default function SheetOptionsDialog({
                 className="mt-0.5 accent-brand-500"
               />
               <span>
-                <span className="block text-sm font-medium text-gray-900">
+                <span data-es className="block text-sm font-medium text-gray-900">
                   Start each group on its own page
                 </span>
                 <span className="block text-xs text-gray-500">
@@ -261,14 +262,14 @@ export default function SheetOptionsDialog({
             about {pages} {pages === 1 ? 'page' : 'pages'}
           </p>
           <div className="flex items-center gap-2">
-            <button
+            <button data-es
               type="button"
               onClick={onCancel}
               className="rounded-lg px-3 py-2 text-sm text-gray-600 transition hover:bg-gray-100"
             >
               Cancel
             </button>
-            <button
+            <button data-es
               type="button"
               onClick={print}
               className="flex items-center gap-1.5 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-600"

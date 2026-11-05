@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { OrderAlert } from '@/lib/alerts';
+import { Bi } from '@/components/spanish/Es';
 
 const CRITICAL = {
   row:   'bg-red-50 border-red-200',
@@ -30,7 +31,7 @@ export default function AlertPanel({ alerts }: { alerts: OrderAlert[] }) {
         <svg className="w-4 h-4 text-red-500 shrink-0" viewBox="0 0 20 20" fill="currentColor">
           <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
         </svg>
-        <h2 className="font-semibold text-gray-800">Needs Attention</h2>
+        <h2 className="font-semibold text-gray-800"><Bi>Needs Attention</Bi></h2>
         <span className="text-xs font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
           {alerts.length}
         </span>
@@ -57,7 +58,7 @@ export default function AlertPanel({ alerts }: { alerts: OrderAlert[] }) {
                   {alert.message}
                 </span>
               </div>
-              <Link
+              <Link data-es
                 href={`/dashboard/orders/${alert.orderId}`}
                 className={`text-xs font-semibold shrink-0 ml-4 ${s.link}`}
               >

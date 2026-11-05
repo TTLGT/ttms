@@ -134,11 +134,11 @@ export default function PhotoLightbox<T extends LoadPhoto>({
           {onSave && (
             <button type="button" className={btn} disabled={busy !== ''}
               onClick={() => { setDraft({ caption: photo.caption, stage: photo.stage, location: photo.location }); setEditing((v) => !v); }}>
-              <Pencil className="w-4 h-4" /><span className="hidden sm:inline">Edit</span>
+              <Pencil className="w-4 h-4" /><span data-es className="hidden sm:inline">Edit</span>
             </button>
           )}
           <a href={photo.url} target="_blank" rel="noreferrer" className={btn}>
-            <Download className="w-4 h-4" /><span className="hidden sm:inline">Full size</span>
+            <Download className="w-4 h-4" /><span data-es className="hidden sm:inline">Full size</span>
           </a>
           {deletable && (
             <button type="button" className={`${btn} hover:!bg-red-500/30`} disabled={busy !== ''}
@@ -213,13 +213,13 @@ export default function PhotoLightbox<T extends LoadPhoto>({
             }}
           >
             <label className="flex-1 min-w-0">
-              <span className="block text-xs text-white/60 mb-0.5">Caption</span>
+              <span data-es className="block text-xs text-white/60 mb-0.5">Caption</span>
               <input value={draft.caption} maxLength={MAX_CAPTION} autoFocus
                 onChange={(e) => setDraft({ ...draft, caption: e.target.value })}
                 className="w-full rounded-md bg-[rgba(255,255,255,0.1)] border border-white/20 px-2 py-1.5 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-brand-400" />
             </label>
             <label>
-              <span className="block text-xs text-white/60 mb-0.5">Type</span>
+              <span data-es className="block text-xs text-white/60 mb-0.5">Type</span>
               <select value={draft.stage} onChange={(e) => setDraft({ ...draft, stage: e.target.value as PhotoStage })}
                 className="rounded-md bg-[rgba(255,255,255,0.1)] border border-white/20 px-2 py-1.5 text-white focus:outline-none">
                 {PHOTO_STAGES.map((s) => <option key={s} value={s} className="text-black">{PHOTO_STAGE_LABEL[s]}</option>)}
@@ -228,17 +228,17 @@ export default function PhotoLightbox<T extends LoadPhoto>({
             {locationsFor ? (
               stopChoices.length > 0 && (
                 <label className="sm:w-56">
-                  <span className="block text-xs text-white/60 mb-0.5">Stop</span>
+                  <span data-es className="block text-xs text-white/60 mb-0.5">Stop</span>
                   <select value={draft.location} onChange={(e) => setDraft({ ...draft, location: e.target.value })}
                     className={darkField}>
-                    <option value="" className="text-black">Not tied to one stop</option>
+                    <option data-es value="" className="text-black">Not tied to one stop</option>
                     {stopChoices.map((l) => <option key={l} value={l} className="text-black">{l}</option>)}
                   </select>
                 </label>
               )
             ) : (
               <label className="sm:w-56">
-                <span className="block text-xs text-white/60 mb-0.5">Stop</span>
+                <span data-es className="block text-xs text-white/60 mb-0.5">Stop</span>
                 <input value={draft.location} maxLength={MAX_PHOTO_LOCATION}
                   onChange={(e) => setDraft({ ...draft, location: e.target.value })} className={darkField} />
               </label>

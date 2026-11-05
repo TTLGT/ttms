@@ -11,6 +11,7 @@ import type { ImportProblem } from '@/lib/userImport';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
 import DateField from '@/components/DateField';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Fix one row of an import without going back to Excel.
@@ -184,8 +185,8 @@ export default function ImportRowEditor({
                   onChange={(e) => onChange(key, e.target.value)}
                   className={`${inputClass} ${borderFor(problem)}`}
                 >
-                  <option value="">Leave unchanged</option>
-                  <option value="None">None — clear it</option>
+                  <option data-es value="">Leave unchanged</option>
+                  <option data-es value="None">None — clear it</option>
                   {options.map((o) => (
                     <option key={o.id} value={o.name}>{o.name}</option>
                   ))}
@@ -236,8 +237,8 @@ export default function ImportRowEditor({
       </div>
 
       <p className="mt-3 text-[11px] text-gray-400">
-        This edits the spreadsheet, not the directory — check the file again to see what your
-        changes would do, then apply.
+        <Bi>This edits the spreadsheet, not the directory — check the file again to see what your
+        changes would do, then apply.</Bi>
       </p>
     </div>
   );

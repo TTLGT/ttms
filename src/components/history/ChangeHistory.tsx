@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, History, RefreshCw } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { Bi } from '@/components/spanish/Es';
 import {
   changeFieldLabel,
   describeChangeValue,
@@ -69,9 +70,9 @@ export default function ChangeHistory({
             ? <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
             : <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />}
           <History className="w-4 h-4 text-gray-500 flex-shrink-0" />
-          <h2 className="text-sm font-semibold text-gray-900">Change log</h2>
+          <h2 className="text-sm font-semibold text-gray-900"><Bi>Change log</Bi></h2>
           {!open && (
-            <span className="text-xs text-gray-400 truncate">Every change, who made it, and when</span>
+            <span data-es className="text-xs text-gray-400 truncate">Every change, who made it, and when</span>
           )}
         </button>
         {open && (
@@ -92,11 +93,11 @@ export default function ChangeHistory({
           {error ? (
             <p className="px-6 py-6 text-sm text-red-600">{error}</p>
           ) : entries === null ? (
-            <p className="px-6 py-6 text-sm text-gray-400">Loading…</p>
+            <p data-es className="px-6 py-6 text-sm text-gray-400">Loading…</p>
           ) : entries.length === 0 ? (
             <p className="px-6 py-6 text-sm text-gray-400">
-              Nothing recorded yet. Changes are recorded from the day this history was added;
-              anything earlier was not tracked.
+              <Bi>Nothing recorded yet. Changes are recorded from the day this history was added;
+              anything earlier was not tracked.</Bi>
             </p>
           ) : (
             <ol className="divide-y divide-gray-100">

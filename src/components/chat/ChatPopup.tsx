@@ -52,7 +52,7 @@ export default function ChatPopup() {
     // an open chat, so the messages themselves keep the width they had.
     <div className="fixed bottom-5 right-5 z-40 flex h-[560px] max-h-[calc(100vh-2.5rem)] w-[436px] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl">
       <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 bg-brand-900 px-3 py-2.5 text-white">
-        <span className="text-sm font-semibold">Chat</span>
+        <span data-es className="text-sm font-semibold">Chat</span>
         <div className="flex items-center gap-1">
           <Link
             href="/dashboard/chat"

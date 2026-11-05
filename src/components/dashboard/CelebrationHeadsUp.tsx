@@ -155,7 +155,7 @@ export default function CelebrationHeadsUp() {
         <div className="flex items-start gap-3">
           <PartyPopper size={22} className="mt-0.5 shrink-0 text-brand-600" />
           <div className="min-w-0 flex-1">
-            <h2 id="celebration-heads-up-title" className="text-base font-semibold text-gray-900">
+            <h2 data-es id="celebration-heads-up-title" className="text-base font-semibold text-gray-900">
               Celebrations today
             </h2>
             <p className="mt-0.5 text-sm text-gray-600">
@@ -202,7 +202,7 @@ export default function CelebrationHeadsUp() {
 
         {laterOpen && (
           <div className="mt-4 rounded-lg border border-gray-200 p-3">
-            <p className="text-xs font-medium text-gray-700">Remind me again</p>
+            <p data-es className="text-xs font-medium text-gray-700">Remind me again</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {LATER.map((o) => (
                 <button key={o.minutes} type="button" onClick={() => snooze(Date.now() + o.minutes * 60_000)}
@@ -213,11 +213,11 @@ export default function CelebrationHeadsUp() {
               ))}
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <label htmlFor="celebration-later-time" className="text-xs text-gray-600">At</label>
+              <label data-es htmlFor="celebration-later-time" className="text-xs text-gray-600">At</label>
               <input id="celebration-later-time" type="time" value={customTime}
                 onChange={(e) => { setCustomTime(e.target.value); setTimeError(''); }}
                 className="rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-brand-500 focus:ring-brand-500" />
-              <button type="button" onClick={pickTime} disabled={!customTime}
+              <button data-es type="button" onClick={pickTime} disabled={!customTime}
                 className="rounded-md bg-brand-600 px-3 py-1 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50">
                 Set
               </button>
@@ -227,7 +227,7 @@ export default function CelebrationHeadsUp() {
         )}
 
         <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
-          <Link href="/dashboard/settings/operations#celebrations" onClick={done}
+          <Link data-es href="/dashboard/settings/operations#celebrations" onClick={done}
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
             Change the wording
           </Link>
@@ -237,7 +237,7 @@ export default function CelebrationHeadsUp() {
               <AlarmClock size={14} /> Remind me later
             </button>
           )}
-          <button type="button" onClick={done}
+          <button data-es type="button" onClick={done}
             className="rounded-md bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700">
             Got it
           </button>

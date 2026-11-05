@@ -46,15 +46,15 @@ export default function PresencePanel() {
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-900">Online Status</h2>
+      <h2 data-es className="text-sm font-semibold uppercase tracking-wide text-gray-900">Online Status</h2>
       <p className="mb-4 mt-1 text-sm text-gray-500">
-        Shows <strong>Online</strong>, <strong>Away</strong> or <strong>Last seen</strong> at the top of a
+        Shows <strong data-es>Online</strong>, <strong data-es>Away</strong> or <strong data-es>Last seen</strong> at the top of a
         one-on-one chat. Each person&rsquo;s browser checks in at most once every five minutes while
         they are using TTMS — or clocked in — so &ldquo;last seen&rdquo; can be up to five minutes behind.
       </p>
 
       {loading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
+        <p data-es className="text-sm text-gray-500">Loading…</p>
       ) : (
         <div className="space-y-2">
           {[true, false].map((value) => (

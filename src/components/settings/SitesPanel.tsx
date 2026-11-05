@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Check, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { listSites, createSite, updateSite, deleteSite } from '@/lib/sites';
 import type { Site } from '@/types/site';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Admin management of sites — the offices and terminals people work out of.
@@ -97,10 +98,10 @@ export default function SitesPanel({ onChange }: { onChange?: (sites: Site[]) =>
   return (
     <section className="bg-white rounded-xl border border-gray-200">
       <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="text-sm font-semibold text-gray-900">Sites</h2>
+        <h2 className="text-sm font-semibold text-gray-900"><Bi>Sites</Bi></h2>
         <p className="text-xs text-gray-500 mt-0.5">
-          The offices and terminals your people work out of. Assigning someone to a site records
-          where they sit — it does not change what they can see.
+          <Bi>The offices and terminals your people work out of. Assigning someone to a site records
+          where they sit — it does not change what they can see.</Bi>
         </p>
       </div>
 
@@ -135,10 +136,10 @@ export default function SitesPanel({ onChange }: { onChange?: (sites: Site[]) =>
         )}
 
         {loading ? (
-          <p className="text-sm text-gray-400">Loading…</p>
+          <p data-es className="text-sm text-gray-400">Loading…</p>
         ) : sites.length === 0 ? (
           <p className="text-sm text-gray-400">
-            No sites yet. Add one and it becomes assignable in the list above.
+            <Bi>No sites yet. Add one and it becomes assignable in the list above.</Bi>
           </p>
         ) : (
           <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">

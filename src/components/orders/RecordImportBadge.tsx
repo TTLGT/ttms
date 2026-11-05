@@ -49,7 +49,7 @@ export default function RecordImportBadge({
 
   return (
     <span className="relative inline-flex items-center">
-      <span title={TITLE}
+      <span title={TITLE} data-es="Record import"
         className={`inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 font-semibold uppercase tracking-wide text-orange-800 ${pill}`}>
         <History className={size === 'md' ? 'h-3.5 w-3.5' : 'h-3 w-3'} />
         Record import
@@ -62,7 +62,7 @@ export default function RecordImportBadge({
       </span>
       {confirming && (
         <span className="absolute left-0 top-full z-30 mt-1.5 w-72 rounded-lg border border-gray-200 bg-white p-3 text-left text-xs normal-case tracking-normal text-gray-700 shadow-lg">
-          <span className="block font-semibold text-gray-900">Remove the Record import label?</span>
+          <span data-es className="block font-semibold text-gray-900">Remove the Record import label?</span>
           <span className="mt-1 block">
             It tells everybody this load came from BATS and its paperwork never went through TTMS.
             Remove it once you have looked the load over. The change log records that you did.

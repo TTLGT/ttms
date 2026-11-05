@@ -5,6 +5,7 @@ import { getAgreementTerms, saveAgreementTerms, type AgreementTermsResponse } fr
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { DEFAULT_TERMS, type TermsParty } from '@/types/agreementTerms';
 import TermsEditor from './TermsEditor';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Settings → Operations → Agreement Terms: the general terms and conditions
@@ -45,11 +46,11 @@ export default function AgreementTermsPanel() {
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-900">Agreement Terms</h2>
+      <h2 data-es className="text-sm font-semibold uppercase tracking-wide text-gray-900">Agreement Terms</h2>
       <p className="mt-1 text-sm text-gray-500">
-        The general terms and conditions for every load. A change applies to agreements sent from now on;
+        <Bi>The general terms and conditions for every load. A change applies to agreements sent from now on;
         links already sent keep the terms they went out with. A single load can be given its own terms
-        from the order.
+        from the order.</Bi>
       </p>
 
       <div className="mt-4 mb-3 flex gap-1 border-b border-gray-200">
@@ -73,7 +74,7 @@ export default function AgreementTermsPanel() {
       </div>
       <p className="mb-3 text-sm text-gray-500">{tab.blurb}</p>
 
-      {!data && !error && <p className="text-sm text-gray-500">Loading…</p>}
+      {!data && !error && <p data-es className="text-sm text-gray-500">Loading…</p>}
       {data && terms && (
         <TermsEditor
           key={party}

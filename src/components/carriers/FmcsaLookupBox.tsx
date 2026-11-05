@@ -7,6 +7,7 @@ import type { FmcsaLookupResult } from '@/lib/fmcsaClient';
 import { fmcsaCarrierFill, fmcsaConcerns, fmcsaLevel } from '@/types/fmcsa';
 import type { FmcsaAnswer, FmcsaCarrierFill } from '@/types/fmcsa';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { Bi } from '@/components/spanish/Es';
 
 export type { FmcsaCarrierFill as FmcsaFill } from '@/types/fmcsa';
 
@@ -86,11 +87,11 @@ export default function FmcsaLookupBox({
   return (
     <div className="rounded-xl border border-brand-100 bg-brand-50 p-4 space-y-3">
       <div>
-        <p className="text-sm font-semibold text-gray-900">Look up on FMCSA</p>
+        <p data-es className="text-sm font-semibold text-gray-900">Look up on FMCSA</p>
         <p className="text-xs text-gray-600">
-          Type the DOT or MC number and the name, numbers, address, phone, email and insurer are
+          <Bi>Type the DOT or MC number and the name, numbers, address, phone, email and insurer are
           filled in from what the carrier registered with FMCSA. Check them before saving — the
-          contact person and the certificate still need adding.
+          contact person and the certificate still need adding.</Bi>
         </p>
       </div>
 
@@ -122,7 +123,7 @@ export default function FmcsaLookupBox({
       {result?.existing && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
           <p className="text-sm text-amber-900">
-            <span className="font-semibold">Already in TTMS</span> as {result.existing.companyName || 'an unnamed carrier'}
+            <span data-es className="font-semibold">Already in TTMS</span> as {result.existing.companyName || 'an unnamed carrier'}
             {!result.existing.isActive && ' (marked inactive)'}. Use that record rather than adding a second one.
           </p>
           {renderExisting(result.existing)}
@@ -146,7 +147,7 @@ export default function FmcsaLookupBox({
             </ul>
           ) : (
             <p className="text-sm text-green-800 pl-5">
-              Authorized to operate, operating authority active and liability insurance on file.
+              <Bi>Authorized to operate, operating authority active and liability insurance on file.</Bi>
             </p>
           )}
         </div>

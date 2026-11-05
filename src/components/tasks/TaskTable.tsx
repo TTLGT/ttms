@@ -122,7 +122,7 @@ export default function TaskTable({
   const select = 'rounded border border-gray-200 bg-white px-1.5 py-1 text-xs text-gray-700';
 
   if (rows.length === 0) {
-    return <p className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-500">No tasks to show.</p>;
+    return <p data-es className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-500">No tasks to show.</p>;
   }
 
   return (
@@ -130,7 +130,7 @@ export default function TaskTable({
       <table className="w-full text-sm">
         <thead className="border-b border-gray-200 bg-gray-50 text-xs text-gray-500">
           <tr>
-            <th className="w-10 px-3 py-2"><span className="sr-only">Done</span></th>
+            <th className="w-10 px-3 py-2"><span data-es className="sr-only">Done</span></th>
             {header('title', 'Task')}
             {header('contact', 'With')}
             {header('status', 'Status')}

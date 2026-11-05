@@ -10,6 +10,7 @@ import { accessStatus, fullName } from '@/types/allowedUser';
 import type { Team } from '@/types/team';
 import type { UserProfile } from '@/types/userProfile';
 import type { AllowedUser } from '@/types/allowedUser';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Admin management of teams — the reporting structure.
@@ -157,7 +158,7 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
   }) {
     return (
       <select value={value} onChange={(e) => onPick(e.target.value)} className={className}>
-        <option value="">No lead yet</option>
+        <option data-es value="">No lead yet</option>
         {pickable.map((p) => {
           const status = accessStatus(p);
           return (
@@ -175,13 +176,13 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
   return (
     <section className="bg-white rounded-xl border border-gray-200">
       <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="text-sm font-semibold text-gray-900">Teams</h2>
+        <h2 className="text-sm font-semibold text-gray-900"><Bi>Teams</Bi></h2>
         <p className="text-xs text-gray-500 mt-0.5">
-          Who reports to whom. Everyone on a team reports to that team&rsquo;s lead. A team often
+          <Bi>Who reports to whom. Everyone on a team reports to that team&rsquo;s lead. A team often
           lines up with one office, but it does not have to — where someone sits is set separately
           under Sites. Putting someone on a team records their place in the org chart; it does not
           change what they can see. Sharing records between people is what Work Groups below are
-          for.
+          for.</Bi>
         </p>
       </div>
 
@@ -215,10 +216,10 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
         )}
 
         {loading ? (
-          <p className="text-sm text-gray-400">Loading…</p>
+          <p data-es className="text-sm text-gray-400">Loading…</p>
         ) : teams.length === 0 ? (
           <p className="text-sm text-gray-400">
-            No teams yet. Add one and it becomes assignable in the list above.
+            <Bi>No teams yet. Add one and it becomes assignable in the list above.</Bi>
           </p>
         ) : (
           <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">

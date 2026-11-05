@@ -13,6 +13,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { DOCUMENT_LABEL, type CarrierCoiRow, type OrderDocumentKind } from '@/types/orderDocument';
 import type { Order } from '@/types/order';
 import { orderDisplayNumber, orderAltNumber } from '@/types/order';
+import { Bi } from '@/components/spanish/Es';
 
 // The kinds the document route serves, so a row can ask for its file by name
 // rather than by a path the browser cannot use anyway. Driver licences are
@@ -144,8 +145,8 @@ export default function DocumentsPage() {
     <div className={`p-4 sm:p-6 lg:p-8 ${showPhotos ? 'max-w-7xl' : 'max-w-5xl'}`}>
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Documents</h1>
-          <p className="text-sm text-gray-500 mt-1">All BOLs, invoices and PODs across orders, the certificates of insurance for the carriers on your loads, and the pictures taken of them.</p>
+          <h1 className="text-2xl font-bold text-gray-900"><Bi>Documents</Bi></h1>
+          <p className="text-sm text-gray-500 mt-1"><Bi>All BOLs, invoices and PODs across orders, the certificates of insurance for the carriers on your loads, and the pictures taken of them.</Bi></p>
         </div>
       </div>
 
@@ -231,9 +232,9 @@ export default function DocumentsPage() {
 
       {!loading && showCois && (
         <section className={showDocs ? 'mt-8' : ''}>
-          <h2 className="text-base font-semibold text-gray-900">Certificates of Insurance</h2>
+          <h2 className="text-base font-semibold text-gray-900"><Bi>Certificates of Insurance</Bi></h2>
           <p className="text-sm text-gray-500 mt-0.5 mb-3">
-            One per carrier, for every carrier on a load you can see. Upload or replace a certificate from the carrier&apos;s page.
+            <Bi>One per carrier, for every carrier on a load you can see. Upload or replace a certificate from the carrier&apos;s page.</Bi>
           </p>
 
           {visibleCois.length === 0 ? (

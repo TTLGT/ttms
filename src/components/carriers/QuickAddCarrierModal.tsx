@@ -15,6 +15,7 @@ import { phoneRegionOf } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
 import FmcsaLookupBox from './FmcsaLookupBox';
 import { runFmcsaCheck } from '@/lib/fmcsaClient';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Quick-add carrier, used from the carrier dropdown on an order.
@@ -122,10 +123,10 @@ export default function QuickAddCarrierModal({
       <div className="bg-white rounded-xl border border-gray-200 shadow-xl w-full max-w-lg max-h-full overflow-y-auto">
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">New Carrier</h2>
+            <h2 className="text-lg font-bold text-gray-900"><Bi>New Carrier</Bi></h2>
             <p className="text-xs text-gray-500 mt-1">
-              Saved to Carriers and assigned to this order. You can fill in billing
-              details on the carrier record afterwards.
+              <Bi>Saved to Carriers and assigned to this order. You can fill in billing
+              details on the carrier record afterwards.</Bi>
             </p>
           </div>
 
@@ -162,12 +163,12 @@ export default function QuickAddCarrierModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="col-span-1 sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Company Name</label>
               <input required autoFocus value={companyName} onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="e.g. Swift Transport LLC" className={inputCls} />
             </div>
             <div className="col-span-1 sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Address</label>
               <input value={address} onChange={(e) => setAddress(e.target.value)}
                 placeholder="Street, city, state ZIP" className={inputCls} />
             </div>
@@ -182,52 +183,52 @@ export default function QuickAddCarrierModal({
               onChange={(v, r) => { setPhone(v); setPhoneRegion(r); }}
             />
             <div className="col-span-1 sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 placeholder="dispatch@carrier.com" className={inputCls} />
-              <p className="text-xs text-gray-500 mt-1">The dispatch sheet is emailed here.</p>
+              <p data-es className="text-xs text-gray-500 mt-1">The dispatch sheet is emailed here.</p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">DOT Number</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">DOT Number</label>
               <input value={dot} onChange={(e) => setDot(e.target.value)}
                 placeholder="e.g. 1234567" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">MC / FF Number</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">MC / FF Number</label>
               <input value={mc} onChange={(e) => setMc(e.target.value)}
                 placeholder="e.g. 123456" className={inputCls} />
             </div>
-            <h3 className="col-span-1 sm:col-span-2 pt-2 border-t border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <h3 data-es className="col-span-1 sm:col-span-2 pt-2 border-t border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
               Insurance
             </h3>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Insurance Company</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Insurance Company</label>
               <input value={insuranceProvider} onChange={(e) => setInsProvider(e.target.value)}
                 placeholder="e.g. Progressive Commercial" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Policy Number</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Policy Number</label>
               <input value={insurancePolicyNumber} onChange={(e) => setInsPolicyNo(e.target.value)}
                 placeholder="e.g. CW6120874-00" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Expiration Date</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Expiration Date</label>
               <DateField value={insuranceExpiration} onChange={setInsExpiry}
                 className={inputCls} />
             </div>
             <div className="hidden sm:block" />
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Liability Amount</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Liability Amount</label>
               <CoverageInput value={insuranceCoverage} onChange={setInsCoverage}
                 placeholder="e.g. 1,000,000" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Cargo Amount</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Cargo Amount</label>
               <CoverageInput value={insuranceCargoCoverage} onChange={setInsCargo}
                 placeholder="e.g. 100,000" className={inputCls} />
             </div>
             <div className="col-span-1 sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Certificate of Insurance</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Certificate of Insurance</label>
               {/* No carrier id yet — the file is filed under a draft key and
                   the path saved with the record below. */}
               <InsuranceFileUpload carrierId={null} value={insuranceStoragePath} onChange={setInsFile} />
@@ -241,7 +242,7 @@ export default function QuickAddCarrierModal({
               className="px-4 py-2 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
               {saving ? 'Saving…' : 'Save Carrier'}
             </button>
-            <button type="button" onClick={onCancel}
+            <button data-es type="button" onClick={onCancel}
               className="px-4 py-2 border border-gray-300 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition">
               Cancel
             </button>

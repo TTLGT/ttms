@@ -13,6 +13,7 @@ import {
 import type { OrderPaymentTerms, PaymentSide } from '@/types/paymentMethod';
 import { CLIENT_ARRANGES_NOTE, SERVICE_ARRANGER_LABEL, serviceChargeLines, serviceChargesTotal } from '@/types/order';
 import type { Order } from '@/types/order';
+import { Bi } from '@/components/spanish/Es';
 
 type Props = Pick<Order, 'agreedRate' | 'brokerFee' | 'carrierPay' | 'laneMiles'
   | 'clientPayment' | 'carrierPayment' | 'brokerFeeTerms' | 'specialTerms' | 'complexTerms'
@@ -72,7 +73,7 @@ export default function PriceAndTermsCard({ order, action }: {
   return (
     <div id="price" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price and Terms</h3>
+        <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price and Terms</h3>
         {action}
       </div>
       <p className="text-xs text-gray-500 mt-1 mb-4">
@@ -89,10 +90,10 @@ export default function PriceAndTermsCard({ order, action }: {
 
       {services.length > 0 && (
         <div className="mt-6 pt-6 border-t border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Additional Services</p>
+          <p data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Additional Services</p>
           <p className="text-xs text-gray-500 mb-3">
-            Included in the Agreed Rate, and listed one by one on the client&apos;s SA and invoice. Carrier pay and the
-            broker fee are shown to the client together, as Freight Transportation.
+            <Bi>Included in the Agreed Rate, and listed one by one on the client&apos;s SA and invoice. Carrier pay and the
+            broker fee are shown to the client together, as Freight Transportation.</Bi>
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
             {services.map((s, i) => (
@@ -131,7 +132,7 @@ export default function PriceAndTermsCard({ order, action }: {
 
       {complex && (
         <div className="mt-6 pt-6 border-t border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Complex Payment Terms</p>
+          <p data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Complex Payment Terms</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
             {COMPLEX_LEGS.map((leg) => (
               <div key={leg} className="flex justify-between gap-4 border-b border-gray-100 py-1">

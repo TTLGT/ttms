@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Calculator } from 'lucide-react';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * A scratchpad beside the order form. Brokers get dimensions quoted in
@@ -94,10 +95,10 @@ export default function DimensionConverter() {
     <aside className="bg-white rounded-xl border border-gray-200 p-5 space-y-6 lg:sticky lg:top-8">
       <div className="flex items-center gap-2">
         <Calculator className="w-4 h-4 text-brand-600" />
-        <h2 className="text-sm font-semibold text-gray-900">Conversion Calculator</h2>
+        <h2 className="text-sm font-semibold text-gray-900"><Bi>Conversion Calculator</Bi></h2>
       </div>
       <p className="-mt-4 text-xs text-gray-500">
-        A scratchpad only — nothing here is saved to the order.
+        <Bi>A scratchpad only — nothing here is saved to the order.</Bi>
       </p>
 
       {/* Length */}

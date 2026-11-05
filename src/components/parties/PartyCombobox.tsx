@@ -9,6 +9,7 @@ import { partyDisplayName, toNameKey, toPhoneKey, looksLikePhone, ROLE_LABEL } f
 import type { Party, PartyRole } from '@/types/party';
 import PartyQuickCreate from './PartyQuickCreate';
 import PartyContact from './PartyContact';
+import { Bi } from '@/components/spanish/Es';
 
 export interface PartySelection {
   id: string;
@@ -337,8 +338,8 @@ export default function PartyCombobox({
             <strong>{unsaved}</strong> is not on file yet.
           </p>
           <p className="text-blue-800 text-xs mt-1">
-            Add it with its contact details — phone, email and address — so agreements and load
-            confirmations have somewhere to go.
+            <Bi>Add it with its contact details — phone, email and address — so agreements and load
+            confirmations have somewhere to go.</Bi>
           </p>
           <button type="button" onClick={() => setAdding(unsaved)}
             className="mt-2 px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition">
@@ -380,7 +381,7 @@ export default function PartyCombobox({
 
           {requestState === 'sent' ? (
             <p className="text-xs text-green-700 mt-2 font-medium">
-              Request sent. You will see it under Approvals once it is decided.
+              <Bi>Request sent. You will see it under Approvals once it is decided.</Bi>
             </p>
           ) : (
             <div className="mt-2 space-y-2">
@@ -417,7 +418,7 @@ export default function PartyCombobox({
       {open && !collision && (rowCount > 0 || checking) && (
         <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-auto py-1">
           {checking && matches.length === 0 && (
-            <li className="px-3 py-2 text-sm text-gray-400">Checking…</li>
+            <li data-es className="px-3 py-2 text-sm text-gray-400">Checking…</li>
           )}
           {matches.map((p, i) => {
             const name = partyDisplayName(p);

@@ -12,6 +12,7 @@ import { readableSize } from '@/lib/chatUploads';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { useStorageUrl } from '@/lib/useStorageUrl';
 import { Lightbox } from './MessageAttachments';
+import { Bi } from '@/components/spanish/Es';
 import {
   conversationTitle,
   type Attachment,
@@ -111,7 +112,7 @@ export default function ChatFilesDialog({
       >
         <div className="flex flex-shrink-0 items-start justify-between gap-3 border-b border-gray-200 px-5 py-4">
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-gray-900">Files and links</h2>
+            <h2 className="text-lg font-bold text-gray-900"><Bi>Files and links</Bi></h2>
             <p className="mt-1 truncate text-xs text-gray-500">
               Everything sent in {conversationTitle(conversation, user?.uid ?? '', nameOf)}, newest first.
             </p>
@@ -150,7 +151,7 @@ export default function ChatFilesDialog({
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          {!error && !current && <p className="text-sm text-gray-400">Loading…</p>}
+          {!error && !current && <p data-es className="text-sm text-gray-400">Loading…</p>}
 
           {!error && current && current.items.length === 0 && (
             <p className="text-sm text-gray-500">{emptyLine(tab)}</p>
@@ -201,8 +202,8 @@ export default function ChatFilesDialog({
               further back than this reaches. */}
           {current?.truncated && (
             <p className="mt-4 border-t border-gray-100 pt-3 text-[11px] text-gray-400">
-              The most recent ones. Anything older is still in the conversation — search
-              for the file name, or scroll the room back to it.
+              <Bi>The most recent ones. Anything older is still in the conversation — search
+              for the file name, or scroll the room back to it.</Bi>
             </p>
           )}
         </div>

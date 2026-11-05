@@ -21,6 +21,7 @@ import {
 } from '@/types/sticker';
 import type { GifRef } from '@/types/gif';
 import StickerLibraryMenu from './StickerLibraryMenu';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Stickers and GIFs, in one picker — the WhatsApp arrangement.
@@ -311,7 +312,7 @@ export default function StickerPicker({
               {error ? (
                 <div className="p-4 text-center text-xs text-gray-500">
                   {error}{' '}
-                  <button
+                  <button data-es
                     type="button"
                     onClick={onGifSource ? gifs.retry : reload}
                     className="font-medium text-brand-700 hover:underline"
@@ -551,7 +552,7 @@ function FolderBar({
             onChange={(e) => setDraft(e.target.value)}
             className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-brand-400"
           />
-          <button type="submit" className="font-medium text-brand-700 hover:underline">Save</button>
+          <button data-es type="submit" className="font-medium text-brand-700 hover:underline">Save</button>
           <button type="button" onClick={() => { setRenaming(false); setDraft(name); }} className="text-gray-500 hover:underline">
             Cancel
           </button>
@@ -648,7 +649,7 @@ function StickerCreator({
         >
           <ArrowLeft size={16} />
         </button>
-        <h3 className="text-sm font-semibold text-gray-800">Make a sticker</h3>
+        <h3 data-es className="text-sm font-semibold text-gray-800">Make a sticker</h3>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
@@ -684,7 +685,7 @@ function StickerCreator({
         </button>
 
         <label className="block">
-          <span className="text-xs font-medium text-gray-600">Name</span>
+          <span data-es className="text-xs font-medium text-gray-600">Name</span>
           <input
             value={name}
             maxLength={MAX_STICKER_NAME}
@@ -696,15 +697,15 @@ function StickerCreator({
         </label>
 
         <p className="text-[11px] leading-relaxed text-gray-500">
-          Everyone at TTL will be able to send it. Pictures are shrunk to sticker size; a GIF is kept
-          as it is so it still moves. You, or an admin, can remove it later.
+          <Bi>Everyone at TTL will be able to send it. Pictures are shrunk to sticker size; a GIF is kept
+          as it is so it still moves. You, or an admin, can remove it later.</Bi>
         </p>
 
         {error && <p className="text-xs text-red-500">{error}</p>}
       </div>
 
       <div className="flex flex-shrink-0 justify-end gap-2 border-t border-gray-100 px-3 py-2">
-        <button
+        <button data-es
           type="button"
           onClick={onBack}
           className="rounded-lg px-3 py-1.5 text-sm text-gray-600 transition hover:bg-gray-100"

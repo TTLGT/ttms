@@ -44,7 +44,7 @@ export default function SaRequestsSection() {
       </p>
 
       {data.requests.length === 0 ? (
-        <p className="text-sm text-gray-400">Nothing waiting.</p>
+        <p data-es className="text-sm text-gray-400">Nothing waiting.</p>
       ) : (
         <ul className="divide-y divide-gray-100">
           {[...todo, ...rest].map((r) => (

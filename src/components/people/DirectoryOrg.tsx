@@ -207,7 +207,7 @@ function OrgTeam({
               /* Not an error. A team is regularly stood up before the person
                  who will run it has been hired, and the fix is in
                  Settings → Teams rather than anywhere on this page. */
-              <p className="flex items-center gap-1.5 text-xs text-gray-400">
+              <p data-es className="flex items-center gap-1.5 text-xs text-gray-400">
                 <UserRound size={13} />
                 No lead named for this team
               </p>

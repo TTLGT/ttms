@@ -332,7 +332,7 @@ export default function ChatPanel({ compact = false }: { compact?: boolean }) {
         ) : (
           <ChatWallpaper>
             <div className="relative flex h-full items-center justify-center">
-              <p className="rounded-full bg-white px-4 py-2 text-sm text-gray-500 shadow-sm">
+              <p data-es className="rounded-full bg-white px-4 py-2 text-sm text-gray-500 shadow-sm">
                 Pick a conversation on the left.
               </p>
             </div>
@@ -543,7 +543,7 @@ function DirectSubtitle({ conversation, myUid }: { conversation: Conversation; m
   const { formatDate }    = useDateFormatters();
 
   if (!enabled || !presence) {
-    return <span className="block truncate text-xs text-gray-500">Just the two of you</span>;
+    return <span data-es className="block truncate text-xs text-gray-500">Just the two of you</span>;
   }
 
   const at = presence.lastActiveAt?.toDate?.() ?? null;

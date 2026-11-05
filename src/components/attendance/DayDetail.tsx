@@ -24,6 +24,7 @@ import {
   type DaySummary,
 } from '@/types/attendance';
 import { dayFlags } from './outcomeStyle';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * One person's day, in full, over the page.
@@ -162,10 +163,10 @@ export default function DayDetail({
           )}
 
           {loading ? (
-            <p className="text-gray-500">Loading…</p>
+            <p data-es className="text-gray-500">Loading…</p>
           ) : day && day.sessions.length > 0 ? (
             <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Clock record</h3>
+              <h3 data-es className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Clock record</h3>
               <ul className="space-y-2">
                 {day.sessions.flatMap((s, i) => [
                   <ClockLine key={`in${i}`} label="In" d={s.in} />,
@@ -187,7 +188,7 @@ export default function DayDetail({
 
           {activity.length > 0 && (
             <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Work</h3>
+              <h3 data-es className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Work</h3>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
                 {activity.map((k) => <Row key={k} label={ACTIVITY_LABEL[k]}>{day!.activity[k]}</Row>)}
               </dl>
@@ -196,7 +197,7 @@ export default function DayDetail({
 
           {(day?.corrections?.length ?? 0) > 0 && (
             <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Changes to this day</h3>
+              <h3 data-es className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Changes to this day</h3>
               <ul className="space-y-2">
                 {day!.corrections!.map((c, i) => (
                   <li key={i} className="rounded-lg bg-gray-50 px-3 py-2 text-gray-700">
@@ -217,7 +218,7 @@ export default function DayDetail({
             <section className="border-t border-gray-100 pt-4">
               <h3 className="text-sm font-semibold text-gray-900">{canEdit ? 'Change the times' : 'Ask for a correction'}</h3>
               <p className="mt-0.5 text-xs text-gray-500">
-                Office time. Leave a box empty to keep that time as it is. A time earlier than the clock-in counts as after midnight.
+                <Bi>Office time. Leave a box empty to keep that time as it is. A time earlier than the clock-in counts as after midnight.</Bi>
               </p>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <label className="text-xs text-gray-600">
@@ -305,7 +306,7 @@ function BreaksEditor({ breaks, onChange }: { breaks: BreakTimes[]; onChange: (b
           </button>
         </div>
       ))}
-      {breaks.length === 0 && <p className="text-xs text-gray-500">No breaks — sending this says none were taken.</p>}
+      {breaks.length === 0 && <p className="text-xs text-gray-500"><Bi>No breaks — sending this says none were taken.</Bi></p>}
       {breaks.length < MAX_CORRECTION_BREAKS && (
         <button type="button" onClick={() => onChange([...breaks, { kind: 'break', start: '', end: '' }])}
           className="flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline">

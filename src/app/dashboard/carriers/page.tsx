@@ -9,6 +9,7 @@ import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
 import PhoneValue from '@/components/PhoneValue';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { Bi } from '@/components/spanish/Es';
 
 /** See the orders list for why fifty. */
 const PAGE_SIZE = 50;
@@ -99,7 +100,7 @@ function CarriersList() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Carriers</h1>
+          <h1 className="text-2xl font-bold text-gray-900"><Bi>Carriers</Bi></h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {counts
               ? `${counts.active.toLocaleString()} active · ${counts.inactive.toLocaleString()} inactive`
@@ -144,7 +145,7 @@ function CarriersList() {
         <div className="text-center py-20">
           <p className="text-gray-400 text-sm">{search ? 'No carriers match your search.' : 'No carriers yet.'}</p>
           {!search && (
-            <Link href="/dashboard/carriers/new" className="mt-3 inline-block text-sm text-brand-600 hover:underline">
+            <Link data-es href="/dashboard/carriers/new" className="mt-3 inline-block text-sm text-brand-600 hover:underline">
               Add your first carrier →
             </Link>
           )}
@@ -190,7 +191,7 @@ function CarriersList() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={`/dashboard/carriers/${c.id}`} className="text-xs text-brand-600 hover:underline font-medium">
+                    <Link data-es href={`/dashboard/carriers/${c.id}`} className="text-xs text-brand-600 hover:underline font-medium">
                       View →
                     </Link>
                   </td>

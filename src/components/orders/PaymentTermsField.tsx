@@ -63,21 +63,21 @@ export default function PaymentTermsField({ side, methods, value, onChange, base
           ))}
         </select>
         {!methods.length && !retired && (
-          <p className="text-xs text-gray-500 mt-1">An admin adds these in Settings → Operations.</p>
+          <p data-es className="text-xs text-gray-500 mt-1">An admin adds these in Settings → Operations.</p>
         )}
       </div>
 
       {value && value.feeType !== 'none' && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Fee</label>
+            <label data-es className="block text-xs font-medium text-gray-600 mb-1">Fee</label>
             <div className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700">
               {usd(fee)}
               {value.feeType === 'percent' && <span className="text-gray-500"> ({value.feeAmount}%)</span>}
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Fee paid by</label>
+            <label data-es className="block text-xs font-medium text-gray-600 mb-1">Fee paid by</label>
             <select
               value={value.feePayer}
               onChange={(e) => onChange({ ...value, feePayer: e.target.value as FeePayer })}

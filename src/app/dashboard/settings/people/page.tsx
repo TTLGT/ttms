@@ -72,6 +72,7 @@ import { personAnchorId } from '@/components/settings/settingsSections';
 import { AvatarUploader, UserAvatar } from '@/components/settings/UserAvatar';
 import DateField from '@/components/DateField';
 import Fact from '@/components/people/Fact';
+import { Bi } from '@/components/spanish/Es';
 
 const NO_ROLES = { isAdmin: false, isDispatcher: false, isFinance: false, isHr: false };
 
@@ -746,10 +747,10 @@ They will be signed out immediately and cannot sign in until you restore them. T
             </div>
           </label>
           <p className="text-[11px] text-gray-400 mt-1">
-            The address they sign in with. Saved on its own, not by Save details.
+            <Bi>The address they sign in with. Saved on its own, not by Save details.
             Their attendance, schedule, team and anything assigned to them move
             with it. Someone already signed in is signed out and signs in again
-            with the new address — rename them in Google Workspace first.
+            with the new address — rename them in Google Workspace first.</Bi>
           </p>
         </div>
       )}
@@ -789,7 +790,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
             onChange={(e) => setDraft((d) => ({ ...d, teamId: e.target.value }))}
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
           >
-            <option value="">No team</option>
+            <option data-es value="">No team</option>
             {teams.map((team) => (
               <option key={team.id} value={team.id}>{team.name}</option>
             ))}
@@ -802,7 +803,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
             onChange={(e) => setDraft((d) => ({ ...d, siteId: e.target.value }))}
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
           >
-            <option value="">No site</option>
+            <option data-es value="">No site</option>
             {sites.map((site) => (
               <option key={site.id} value={site.id}>{site.name}</option>
             ))}
@@ -891,10 +892,10 @@ They will be signed out immediately and cannot sign in until you restore them. T
       {/* Said once, next to the two fields it applies to,
           rather than left for someone to assume either way. */}
       <p className="text-[11px] text-gray-400 mt-2">
-        Full legal name, date of birth and personal email are visible to admins
+        <Bi>Full legal name, date of birth and personal email are visible to admins
         and HR only — they are not copied onto the profile the rest of the
         company can read. Leave the legal name blank when it is the same as the
-        first and last name above.
+        first and last name above.</Bi>
       </p>
 
       <div className="flex items-center gap-2 mt-3">
@@ -995,7 +996,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
         {!loading && !loadFailed && people.length > 0 && (
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col gap-3">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 w-24 flex-shrink-0">
+              <span data-es className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 w-24 flex-shrink-0">
                 Status
               </span>
               <CountTile
@@ -1028,7 +1029,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 w-24 flex-shrink-0">
+              <span data-es className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 w-24 flex-shrink-0">
                 Permissions
               </span>
               <CountTile
@@ -1061,7 +1062,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
                 the list. */}
             {sites.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 w-24 flex-shrink-0">
+                <span data-es className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 w-24 flex-shrink-0">
                   Site
                 </span>
                 <CountTile
@@ -1093,7 +1094,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
 
             {teams.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 w-24 flex-shrink-0">
+                <span data-es className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 w-24 flex-shrink-0">
                   Team
                 </span>
                 <CountTile
@@ -1165,7 +1166,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
 
                 <CardFieldPicker {...cardFields} />
 
-                <button
+                <button data-es
                   onClick={handleExport}
                   disabled={visiblePeople.length === 0}
                   title="Download the list as shown, as a CSV that opens in Excel"
@@ -1175,7 +1176,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
                   Export CSV
                 </button>
                 {filtered && (
-                  <button
+                  <button data-es
                     onClick={clearFilters}
                     className="text-xs font-medium text-brand-700 hover:text-brand-800 underline"
                   >
@@ -1213,8 +1214,8 @@ They will be signed out immediately and cannot sign in until you restore them. T
           </div>
         ) : loadFailed ? (
           <div className="py-16 text-center">
-            <p className="text-sm text-gray-500">Could not load the list.</p>
-            <button
+            <p data-es className="text-sm text-gray-500">Could not load the list.</p>
+            <button data-es
               onClick={load}
               className="mt-3 text-xs font-medium text-brand-700 hover:text-brand-800 underline"
             >
@@ -1222,13 +1223,13 @@ They will be signed out immediately and cannot sign in until you restore them. T
             </button>
           </div>
         ) : people.length === 0 ? (
-          <div className="py-16 text-center text-sm text-gray-400">
+          <div data-es className="py-16 text-center text-sm text-gray-400">
             No one has been granted access yet.
           </div>
         ) : visiblePeople.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-sm text-gray-400">No one matches these filters.</p>
-            <button
+            <p data-es className="text-sm text-gray-400">No one matches these filters.</p>
+            <button data-es
               onClick={clearFilters}
               className="mt-3 text-xs font-medium text-brand-700 hover:text-brand-800 underline"
             >
@@ -1388,7 +1389,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
                               name, the name of the person who reports to them. */}
                           {showLegalName && (
                             <Fact Icon={IdCard}>
-                              <span className="text-gray-400">Legal name</span> {p.legalName}
+                              <span data-es className="text-gray-400">Legal name</span> {p.legalName}
                             </Fact>
                           )}
 
@@ -1494,7 +1495,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
                           <p className="min-w-0 text-[11px] text-gray-400">
                             Added {formatWhen(p.invitedAt)}
                             {p.invitedBy ? ` by ${p.invitedBy}` : ''}
-                            {isProtected && <span className="block">Protected account</span>}
+                            {isProtected && <span data-es className="block">Protected account</span>}
                           </p>
 
                           {canEditPerson(p) && (

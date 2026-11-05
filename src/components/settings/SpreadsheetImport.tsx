@@ -19,6 +19,7 @@ import type { UserImportAction, UserImportReport, UserImportRow } from '@/lib/us
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
 import ImportRowEditor from './ImportRowEditor';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The spreadsheet half of the Add People panel: bulk-import in two steps.
@@ -269,7 +270,7 @@ export default function SpreadsheetImport({
           <span className="font-medium text-gray-600">{PHONE_EXAMPLE.GT}</span>; one that is not
           the right length is left out and listed below.
         </p>
-        <button
+        <button data-es
           type="button"
           onClick={handleTemplate}
           title="Download a CSV with the column headings and one example row"
@@ -355,7 +356,7 @@ export default function SpreadsheetImport({
           )}
 
           {grid && editedLines.size > 0 && (
-            <button
+            <button data-es
               type="button"
               onClick={handleDownloadEdited}
               title="Download the spreadsheet with your corrections in it"
@@ -411,7 +412,7 @@ export default function SpreadsheetImport({
             {(report.counts.rejected > 0 || report.counts.phonesSkipped > 0) && (
               <p className="mt-1 text-[11px] opacity-80">
                 Anything that went wrong can be fixed here — click{' '}
-                <span className="font-medium">Fix</span> on the row.
+                <span data-es className="font-medium">Fix</span> on the row.
               </p>
             )}
             {report.matchedColumns.length > 0 && (
@@ -461,7 +462,7 @@ export default function SpreadsheetImport({
                           )}
                           {stale && (
                             <p className="text-brand-700 mt-0.5 font-medium">
-                              Edited — check the file again to see what this does now.
+                              <Bi>Edited — check the file again to see what this does now.</Bi>
                             </p>
                           )}
                         </div>

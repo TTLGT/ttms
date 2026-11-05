@@ -29,6 +29,7 @@ import {
 } from '@/types/order';
 import type { Accessorial, CommodityItem, Order, ServiceArranger, ServiceCharge } from '@/types/order';
 import { Plus, X } from 'lucide-react';
+import { Bi } from '@/components/spanish/Es';
 
 const INPUT =
   'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
@@ -238,7 +239,7 @@ export default function PriceAndTermsSection({
     <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Price and Terms</h2>
+          <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Price and Terms</h2>
           <p className="text-xs text-gray-500 mt-1">
             Total mileage: {laneMiles ? Math.round(laneMiles).toLocaleString() : '—'}
             {' · '}Total PPM: {ppm !== null ? usd(ppm) : '—'}
@@ -270,17 +271,17 @@ export default function PriceAndTermsSection({
           made of, so the link lands on this row and focuses Carrier Pay. */}
       <div id="field-agreedRate" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Carrier Pay (USD)</label>
+          <label data-es className="block text-xs font-medium text-gray-600 mb-1">Carrier Pay (USD)</label>
           <MoneyInput value={carrierPay} onChange={onCarrierPay}
             placeholder="0.00" className={INPUT} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Broker Fee (USD)</label>
+          <label data-es className="block text-xs font-medium text-gray-600 mb-1">Broker Fee (USD)</label>
           <MoneyInput value={brokerFee} onChange={onBrokerFee}
             placeholder="0.00" className={INPUT} />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Agreed Rate (auto)</label>
+          <label data-es className="block text-xs font-medium text-gray-600 mb-1">Agreed Rate (auto)</label>
           <div className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-900 font-semibold">
             {rate > 0 ? usd(rate) : '—'}
           </div>
@@ -327,14 +328,14 @@ export default function PriceAndTermsSection({
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Special Terms</label>
+        <label data-es className="block text-xs font-medium text-gray-600 mb-1">Special Terms</label>
         <textarea value={terms.specialTerms} onChange={(e) => set({ specialTerms: e.target.value })} rows={2}
           maxLength={2000} placeholder="Anything the dropdowns cannot say — a deposit arrangement, a payment deadline…"
           className={`${INPUT} resize-y`} />
       </div>
 
       <div className="flex items-center gap-3">
-        <span className="text-xs font-medium text-gray-600">Enable Complex Terms</span>
+        <span data-es className="text-xs font-medium text-gray-600">Enable Complex Terms</span>
         <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
           {[false, true].map((on) => (
             <button
@@ -370,10 +371,10 @@ function ComplexTermsFields({ terms, onChange, carrierPay, brokerFee }: {
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50/60 p-4 space-y-4">
       <div>
-        <p className="text-sm font-semibold text-gray-800">Complex Payment Terms</p>
+        <p data-es className="text-sm font-semibold text-gray-800">Complex Payment Terms</p>
         <p className="text-xs text-gray-500 mt-0.5">
-          Who pays whom on this load. These replace the carrier pay terms and broker fee terms.
-          Both remaining figures reach $0.00 once every dollar is accounted for.
+          <Bi>Who pays whom on this load. These replace the carrier pay terms and broker fee terms.
+          Both remaining figures reach $0.00 once every dollar is accounted for.</Bi>
         </p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -424,18 +425,18 @@ function ServiceChargesFields({ accessorials, costs, onCosts, arrangers, onArran
   return (
     <div id="field-serviceCharges" className="rounded-lg border border-gray-200 bg-gray-50/60 p-4 space-y-3">
       <div>
-        <p className="text-sm font-semibold text-gray-800">Additional Services</p>
+        <p data-es className="text-sm font-semibold text-gray-800">Additional Services</p>
         <p className="text-xs text-gray-500 mt-0.5">
-          What each service costs the client. Added to carrier pay and the broker fee to make the Agreed Rate. Tick
+          <Bi>What each service costs the client. Added to carrier pay and the broker fee to make the Agreed Rate. Tick
           a service under Freight → Additional Services and its line appears here; add anything rarer by hand. The
           client&apos;s SA and invoice list each service with its price; the Dispatch Sheet names them without
           prices. Say who arranges each one — the carrier, the client or TTL. One the client arranges costs
-          $0, and the SA says &ldquo;Arranged by the client&rdquo; in place of a price.
+          $0, and the SA says &ldquo;Arranged by the client&rdquo; in place of a price.</Bi>
         </p>
       </div>
 
       {paid.length === 0 && others.length === 0 && (
-        <p className="text-xs text-gray-500 italic">No additional services on this load.</p>
+        <p data-es className="text-xs text-gray-500 italic">No additional services on this load.</p>
       )}
 
       {paid.map((a) => (
@@ -501,7 +502,7 @@ function ArrangerSelect({ value, onChange }: {
     <select value={value ?? ''} aria-label="Arranged by"
       onChange={(e) => onChange(isServiceArranger(e.target.value) ? e.target.value : null)}
       className={`${INPUT} ${value ? '' : 'text-gray-400'}`}>
-      <option value="">Arranged by…</option>
+      <option data-es value="">Arranged by…</option>
       {SERVICE_ARRANGERS.map((a) => <option key={a} value={a}>{SERVICE_ARRANGER_LABEL[a]}</option>)}
     </select>
   );

@@ -10,6 +10,7 @@ import {
   type CelebrationRun,
 } from '@/lib/appSettings';
 import { DEFAULT_APP_SETTINGS } from '@/types/appSettings';
+import { Bi } from '@/components/spanish/Es';
 import {
   DEFAULT_CELEBRATION_TEMPLATES,
   MAX_TEMPLATE_LENGTH,
@@ -139,15 +140,15 @@ export default function CelebrationsPanel() {
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-900">Celebrations</h2>
+      <h2 data-es className="text-sm font-semibold uppercase tracking-wide text-gray-900">Celebrations</h2>
       <p className="mb-4 mt-1 text-sm text-gray-500">
         A message in the Everyone room at 8am Guatemala time, on the day, naming whoever has a
-        birthday or a work anniversary. It is signed <strong>Total Transport Logistics</strong>.
+        birthday or a work anniversary. It is signed <strong data-es>Total Transport Logistics</strong>.
         It never carries a date of birth, a birth year or an age.
       </p>
 
       {loading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
+        <p data-es className="text-sm text-gray-500">Loading…</p>
       ) : (
         <>
           <div className="space-y-2">
@@ -183,10 +184,10 @@ export default function CelebrationsPanel() {
               about this, and an answer they have to go looking for is one
               they assume they cannot change. */}
           <div className="mt-6 border-t border-gray-100 pt-5">
-            <h3 className="text-sm font-semibold text-gray-900">What it says</h3>
+            <h3 data-es className="text-sm font-semibold text-gray-900">What it says</h3>
             <p className="mt-1 text-xs leading-relaxed text-gray-500">
-              Write it however this company would say it. The words in braces are filled in when
-              the message is sent — everything else goes out exactly as typed.
+              <Bi>Write it however this company would say it. The words in braces are filled in when
+              the message is sent — everything else goes out exactly as typed.</Bi>
             </p>
 
             <div className="mt-4 space-y-5">
@@ -244,7 +245,7 @@ export default function CelebrationsPanel() {
           otherwise, and this is a feature nobody watches run. */}
       {run && (
         <div className="mt-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <p data-es className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             Today, in the Everyone room
           </p>
           {run.message ? (
@@ -253,8 +254,8 @@ export default function CelebrationsPanel() {
           <p className="mt-2 text-xs text-gray-500">{OUTCOME_NOTE[run.outcome]}</p>
           {changed && run.message && (
             <p className="mt-2 text-xs text-amber-700">
-              This is the wording that is saved, not what is typed above. Save to see the change
-              here.
+              <Bi>This is the wording that is saved, not what is typed above. Save to see the change
+              here.</Bi>
             </p>
           )}
         </div>
@@ -262,13 +263,13 @@ export default function CelebrationsPanel() {
 
       <div className="mt-4 space-y-2 text-xs leading-relaxed text-gray-500">
         <p>
-          A birthday and a start date are only visible to administrators and HR, so being named
+          <Bi>A birthday and a start date are only visible to administrators and HR, so being named
           here is each person&apos;s own decision: everyone can switch either one off on their own
-          profile page, and nobody is asked or told when they do.
+          profile page, and nobody is asked or told when they do.</Bi>
         </p>
         <p>
-          Somebody with no birthday or start date on file is never named, and neither is anybody
-          suspended or still waiting to sign in for the first time.
+          <Bi>Somebody with no birthday or start date on file is never named, and neither is anybody
+          suspended or still waiting to sign in for the first time.</Bi>
         </p>
       </div>
 

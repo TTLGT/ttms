@@ -5,6 +5,7 @@ import { AlertTriangle, Check } from 'lucide-react';
 import { getAppSettings, saveLaneDistanceMode } from '@/lib/appSettings';
 import { DEFAULT_APP_SETTINGS } from '@/types/appSettings';
 import type { LaneDistanceMode } from '@/types/appSettings';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Admin choice of how orders work out the distance between their two
@@ -76,13 +77,13 @@ export default function LaneDistancePanel() {
 
   return (
     <section className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Lane Distance</h2>
+      <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Lane Distance</h2>
       <p className="text-sm text-gray-500 mt-1 mb-4">
-        How an order works out the distance between its pickup and delivery addresses.
+        <Bi>How an order works out the distance between its pickup and delivery addresses.</Bi>
       </p>
 
       {loading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
+        <p data-es className="text-sm text-gray-500">Loading…</p>
       ) : (
         <div className="space-y-2">
           {OPTIONS.map((option) => {
@@ -110,7 +111,7 @@ export default function LaneDistancePanel() {
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-gray-900">
                     {option.title}
-                    {saving === option.mode && <span className="ml-2 text-xs font-normal text-gray-500">Saving…</span>}
+                    {saving === option.mode && <span data-es className="ml-2 text-xs font-normal text-gray-500">Saving…</span>}
                   </p>
                   <p className="text-xs text-gray-600 mt-1 leading-relaxed">{option.detail}</p>
                   {blocked && (
@@ -130,7 +131,7 @@ export default function LaneDistancePanel() {
       )}
 
       {saved && !error && (
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-green-700">
+        <p data-es className="mt-3 flex items-center gap-1.5 text-xs text-green-700">
           <Check className="w-3.5 h-3.5" /> Saved. New orders use this from now on.
         </p>
       )}

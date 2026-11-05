@@ -12,6 +12,7 @@ import AttendanceGrid from '@/components/attendance/AttendanceGrid';
 import AttendancePolicy from '@/components/attendance/AttendancePolicy';
 import AttendanceSetup from '@/components/attendance/AttendanceSetup';
 import RequestsPanel from '@/components/attendance/RequestsPanel';
+import { Bi, Es } from '@/components/spanish/Es';
 
 /**
  * Attendance for HR, administrators, and a Sales Manager's own team
@@ -63,7 +64,7 @@ export default function AttendancePage() {
   });
 
   // Still asking, or nobody but themselves to see.
-  if (!state) return <div className="p-8 text-sm text-gray-500">Loading…</div>;
+  if (!state) return <div data-es className="p-8 text-sm text-gray-500">Loading…</div>;
   if (!seesOthers) {
     return (
       <div className="mx-auto max-w-xl p-8 text-sm text-gray-600">
@@ -81,9 +82,12 @@ export default function AttendancePage() {
     <div className="mx-auto max-w-[96rem] space-y-5 p-4 sm:p-6 lg:p-8">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">Attendance</h1>
+          <h1 className="text-2xl font-bold text-gray-900"><Bi>Attendance</Bi></h1>
           <p className="mt-1 text-sm text-gray-500">
             {manages ? 'Everybody’s clock times, breaks and days off.' : 'Your team’s clock times, breaks and days off.'} Times are office time (Guatemala).
+            <Es>{manages
+              ? 'Everybody’s clock times, breaks and days off. Times are office time (Guatemala)'
+              : 'Your team’s clock times, breaks and days off. Times are office time (Guatemala)'}</Es>
           </p>
         </div>
         <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
@@ -105,7 +109,7 @@ export default function AttendancePage() {
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           {loading && !report ? (
-            <p className="text-sm text-gray-500">Loading…</p>
+            <p data-es className="text-sm text-gray-500">Loading…</p>
           ) : report ? (
             <AttendanceGrid report={report} myEmail={normalizeEmail(user?.email)} manages={manages} onChanged={() => void load()} />
           ) : null}

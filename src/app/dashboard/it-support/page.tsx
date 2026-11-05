@@ -241,7 +241,7 @@ function ItSupport() {
                     className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900"
                     aria-label="Priority"
                   >
-                    <option value="">Any priority</option>
+                    <option data-es value="">Any priority</option>
                     {IT_TICKET_PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
                   </select>
                   <select
@@ -250,9 +250,9 @@ function ItSupport() {
                     className="flex-1 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900"
                     aria-label="Sort"
                   >
-                    <option value="urgent">Most urgent first</option>
-                    <option value="oldest">Waiting longest first</option>
-                    <option value="newest">Newest activity first</option>
+                    <option data-es value="urgent">Most urgent first</option>
+                    <option data-es value="oldest">Waiting longest first</option>
+                    <option data-es value="newest">Newest activity first</option>
                   </select>
                 </div>
               </>

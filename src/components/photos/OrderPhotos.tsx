@@ -24,6 +24,7 @@ import {
 import type { Order } from '@/types/order';
 import PhotoReel from './PhotoReel';
 import PhotoLightbox from './PhotoLightbox';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * A picture that has been chosen but not saved. It sits in the tray, shrunk
@@ -263,8 +264,8 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
             {photos.length > 0 && <span className="text-xs font-normal text-gray-400">{photos.length}</span>}
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            Choose pictures (or drop them here), tag each one, then save. The star marks the
-            load&apos;s profile picture — open a picture to change it or its tags.
+            <Bi>Choose pictures (or drop them here), tag each one, then save. The star marks the
+            load&apos;s profile picture — open a picture to change it or its tags.</Bi>
           </p>
         </div>
         <div className="flex gap-2">
@@ -292,14 +293,14 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
             <p className="text-sm font-semibold text-gray-900">
               {drafts.length} new picture{drafts.length === 1 ? '' : 's'} — not saved yet
             </p>
-            <p className="text-xs text-gray-500">Pick a type for each one. The rest is optional.</p>
+            <p className="text-xs text-gray-500"><Bi>Pick a type for each one. The rest is optional.</Bi></p>
           </div>
 
           {drafts.length > 1 && (
             <div className="flex flex-wrap items-end gap-2 mb-3 pb-3 border-b border-brand-100">
-              <span className="text-xs font-medium text-gray-600 w-full">Set for all</span>
+              <span data-es className="text-xs font-medium text-gray-600 w-full">Set for all</span>
               <label>
-                <span className={label}>Type</span>
+                <span data-es className={label}>Type</span>
                 <select value={allStage} disabled={saving} className={field}
                   onChange={(e) => {
                     const stage = e.target.value as PhotoStage | '';
@@ -311,10 +312,10 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
               </label>
               {allLocations.length > 1 && (
                 <label>
-                  <span className={label}>Stop</span>
+                  <span data-es className={label}>Stop</span>
                   <select value={same('location')} disabled={saving} className={`${field} max-w-[16rem]`}
                     onChange={(e) => { const v = e.target.value; setDrafts((list) => list.map((d) => ({ ...d, location: v }))); }}>
-                    <option value="">Not tied to one stop</option>
+                    <option data-es value="">Not tied to one stop</option>
                     {allLocations.map((l) => <option key={l} value={l}>{l}</option>)}
                   </select>
                 </label>
@@ -367,23 +368,23 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
                           <select value={d.stage} disabled={locked}
                             onChange={(e) => setDrafts((list) => list.map((x) => (x.key === d.key ? withStage(x, e.target.value as PhotoStage | '') : x)))}
                             className={`${field} w-full ${!d.stage && trayError ? 'border-red-400 ring-1 ring-red-300' : ''}`}>
-                            <option value="">Choose…</option>
+                            <option data-es value="">Choose…</option>
                             {PHOTO_STAGES.map((s) => <option key={s} value={s}>{PHOTO_STAGE_LABEL[s]}</option>)}
                           </select>
                         </label>
                         {locations.length > 0 && (
                           <label>
-                            <span className={label}>Stop</span>
+                            <span data-es className={label}>Stop</span>
                             <select value={d.location} disabled={locked}
                               onChange={(e) => patchDraft(d.key, { location: e.target.value })}
                               className={`${field} w-full`}>
-                              <option value="">Not tied to one stop</option>
+                              <option data-es value="">Not tied to one stop</option>
                               {locations.map((l) => <option key={l} value={l}>{l}</option>)}
                             </select>
                           </label>
                         )}
                         <label className={locations.length > 0 ? '' : 'sm:col-span-2'}>
-                          <span className={label}>Caption</span>
+                          <span data-es className={label}>Caption</span>
                           <input value={d.caption} maxLength={MAX_CAPTION} disabled={locked}
                             onChange={(e) => patchDraft(d.key, { caption: e.target.value })}
                             placeholder="e.g. Strapped and tarped at the dock" className={`${field} w-full`} />
@@ -404,7 +405,7 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
                 {untyped} picture{untyped === 1 ? '' : 's'} still need{untyped === 1 ? 's' : ''} a type.
               </p>
             )}
-            <button type="button" onClick={discardAll} disabled={saving}
+            <button data-es type="button" onClick={discardAll} disabled={saving}
               className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
               Discard
             </button>
@@ -430,10 +431,10 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
           <button type="button" onClick={() => pickRef.current?.click()}
             className="w-full border-2 border-dashed border-gray-200 rounded-xl py-10 text-center hover:border-brand-300 transition">
             <Images className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">No pictures of this load yet.</p>
+            <p data-es className="text-sm text-gray-500">No pictures of this load yet.</p>
             <p className="text-xs text-gray-400 mt-1">
-              Drop them here or click to choose. You tag them before they are saved, and the
-              first one becomes the load&apos;s profile picture.
+              <Bi>Drop them here or click to choose. You tag them before they are saved, and the
+              first one becomes the load&apos;s profile picture.</Bi>
             </p>
           </button>
         )

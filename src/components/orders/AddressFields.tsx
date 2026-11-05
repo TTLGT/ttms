@@ -29,7 +29,7 @@ export default function AddressFields({ label, value, onChange }: {
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
         <select value={value.state} onChange={set('state')}
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
-          <option value="">State</option>
+          <option data-es value="">State</option>
           {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <input placeholder="ZIP" value={value.zip} onChange={set('zip')}

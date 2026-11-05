@@ -205,7 +205,7 @@ export default function SettingsSearch({
                     <span className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-900">{r.title}</span>
                       {r.kind === 'person' && (
-                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                        <span data-es className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                           Person
                         </span>
                       )}

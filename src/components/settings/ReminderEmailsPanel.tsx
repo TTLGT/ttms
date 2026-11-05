@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getAppSettings, saveReminderEmails } from '@/lib/appSettings';
 import { DEFAULT_APP_SETTINGS } from '@/types/appSettings';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Whether calendar reminders may go out by email — one switch for the whole
@@ -46,14 +47,14 @@ export default function ReminderEmailsPanel() {
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-900">Reminder Emails</h2>
+      <h2 data-es className="text-sm font-semibold uppercase tracking-wide text-gray-900">Reminder Emails</h2>
       <p className="mb-4 mt-1 text-sm text-gray-500">
-        Whether calendar reminders can be sent by email — the reminders people set on their own tasks
-        and events, and the birthday and anniversary reminders. The private chat message is sent either way.
+        <Bi>Whether calendar reminders can be sent by email — the reminders people set on their own tasks
+        and events, and the birthday and anniversary reminders. The private chat message is sent either way.</Bi>
       </p>
 
       {loading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
+        <p data-es className="text-sm text-gray-500">Loading…</p>
       ) : (
         <div className="space-y-2">
           {[false, true].map((value) => (

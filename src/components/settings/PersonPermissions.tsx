@@ -10,6 +10,7 @@ import {
   type Permission,
 } from '@/types/permission';
 import type { AllowedUser } from '@/types/allowedUser';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * What one person is allowed to do, beyond what their role already gives them.
@@ -78,7 +79,7 @@ export default function PersonPermissions({
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between gap-2 text-left"
       >
-        <span className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+        <span data-es className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
           Permissions
         </span>
         <span className="flex items-center gap-1.5 text-[11px] text-gray-500">
@@ -96,7 +97,7 @@ export default function PersonPermissions({
         <div className="mt-3 space-y-4">
           {!canEdit && (
             <p className="text-[11px] text-gray-400">
-              Read-only. Ask an admin to change what someone can do.
+              <Bi>Read-only. Ask an admin to change what someone can do.</Bi>
             </p>
           )}
 

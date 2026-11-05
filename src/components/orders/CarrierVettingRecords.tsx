@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, ChevronRight, FileDown, FileText, Globe, Loader2, Save, ShieldCheck, X } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { Bi } from '@/components/spanish/Es';
 import {
   downloadVettingPdf, listCarrierVettings, listVettingPrints, openVettingFile, saveCarrierVetting,
 } from '@/lib/carrierVettingClient';
@@ -71,7 +72,7 @@ export default function CarrierVettingRecords({ orderId, onSaved }: {
 
   return (
     <>
-      <button type="button" onClick={show}
+      <button data-es type="button" onClick={show}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition">
         <ShieldCheck className="w-3.5 h-3.5" /> Vetting records
       </button>
@@ -81,11 +82,11 @@ export default function CarrierVettingRecords({ orderId, onSaved }: {
           <div className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-6 shadow-xl space-y-4 max-h-full overflow-y-auto">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Carrier vetting records</h2>
+                <h2 className="text-lg font-bold text-gray-900"><Bi>Carrier vetting records</Bi></h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  Proof of what we knew about the carrier when we hired it: FMCSA&apos;s answer at that moment, a copy of
+                  <Bi>Proof of what we knew about the carrier when we hired it: FMCSA&apos;s answer at that moment, a copy of
                   the SaferWeb page and the insurance certificate, and who confirmed each check. One is saved every time
-                  the Dispatch Sheet is emailed. They can never be changed or deleted.
+                  the Dispatch Sheet is emailed. They can never be changed or deleted.</Bi>
                 </p>
               </div>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="rounded p-1 text-gray-400 hover:bg-gray-100">
@@ -99,15 +100,15 @@ export default function CarrierVettingRecords({ orderId, onSaved }: {
                 {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 {saving ? 'Asking FMCSA and saving…' : 'Save a record now'}
               </button>
-              <p className="text-xs text-gray-500">For a carrier booked without the emailed Dispatch Sheet, or a second check on pickup day.</p>
+              <p className="text-xs text-gray-500"><Bi>For a carrier booked without the emailed Dispatch Sheet, or a second check on pickup day.</Bi></p>
             </div>
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 
             {records === null && !error ? (
-              <p className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="w-4 h-4 animate-spin" />Loading…</p>
+              <p data-es className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="w-4 h-4 animate-spin" />Loading…</p>
             ) : records && records.length === 0 ? (
-              <p className="text-sm text-gray-500">No vetting record has been saved on this load yet.</p>
+              <p className="text-sm text-gray-500"><Bi>No vetting record has been saved on this load yet.</Bi></p>
             ) : (
               <ol className="space-y-3">
                 {(records ?? []).map((r) => {
@@ -126,8 +127,8 @@ export default function CarrierVettingRecords({ orderId, onSaved }: {
                         {r.carrier.name || 'Carrier'} · DOT {r.carrier.dot || '—'} · MC {r.carrier.mc || '—'}
                         {' · '}
                         {r.fmcsaSource === 'live' ? 'FMCSA asked live'
-                          : r.fmcsaSource === 'stored' ? <span className="text-amber-700">FMCSA unreachable — last stored check kept</span>
-                          : <span className="text-red-700">FMCSA unreachable, never checked</span>}
+                          : r.fmcsaSource === 'stored' ? <span data-es className="text-amber-700">FMCSA unreachable — last stored check kept</span>
+                          : <span data-es className="text-red-700">FMCSA unreachable, never checked</span>}
                         {' · '}
                         {r.review ? `${ticked} of ${r.review.checks.length} review checks confirmed` : 'No review on the load'}
                       </p>
@@ -205,8 +206,8 @@ function PrintHistory({ orderId, vettingId, version }: { orderId: string; vettin
       {open && (
         <div className="mt-1 ml-5 space-y-1">
           {error ? <p className="text-xs text-red-600">{error}</p>
-            : prints === null ? <p className="text-xs text-gray-500">Loading…</p>
-            : prints.length === 0 ? <p className="text-xs text-gray-500">None yet. Each one is kept the moment it is downloaded.</p>
+            : prints === null ? <p data-es className="text-xs text-gray-500">Loading…</p>
+            : prints.length === 0 ? <p className="text-xs text-gray-500"><Bi>None yet. Each one is kept the moment it is downloaded.</Bi></p>
             : (
               <ul className="space-y-1">
                 {prints.map((p) => {
@@ -252,8 +253,8 @@ export function CarrierVettingDocumentsRow({ orderId }: { orderId: string }) {
   return (
     <tr className="hover:bg-gray-50 transition align-top">
       <td className="px-6 py-4">
-        <p className="text-sm font-medium text-gray-900">Carrier vetting records</p>
-        <p className="text-xs text-gray-400">Proof the carrier was checked before it was hired · Carrier Selection File PDF</p>
+        <p data-es className="text-sm font-medium text-gray-900">Carrier vetting records</p>
+        <p className="text-xs text-gray-400"><Bi>Proof the carrier was checked before it was hired · Carrier Selection File PDF</Bi></p>
       </td>
       <td className="px-6 py-4">
         {latest ? (

@@ -54,7 +54,7 @@ export default function NotesAndInstructionsFields({ value, onChange, clientAdde
   const set = (k: keyof NotesAndInstructions) => (v: string) => onChange({ ...value, [k]: v });
   return (
     <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-      <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Notes and Instructions</h2>
+      <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Notes and Instructions</h2>
       <Box label="Internal notes" value={value.notes} onChange={set('notes')}
         hint="For the company only. Never printed on a document or sent to a carrier or client."
         placeholder="Anything colleagues should know about this load…" />

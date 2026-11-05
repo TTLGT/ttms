@@ -27,12 +27,12 @@ export default function SignatureRecordCard({ record, party }: { record: Signatu
         {record.signerTitle && <span className="ml-1.5 text-sm font-normal text-gray-500">{record.signerTitle}</span>}
       </p>
       <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 text-xs text-gray-600">
-        <dt className="text-gray-400">Signed</dt>
+        <dt data-es className="text-gray-400">Signed</dt>
         <dd>{formatCalendarDate(record.date)} · {time12(record.time)} {record.zone}</dd>
-        {record.signerIp && (<><dt className="text-gray-400">From IP</dt><dd className="font-mono">{record.signerIp}</dd></>)}
-        <dt className="text-gray-400">How</dt>
+        {record.signerIp && (<><dt data-es className="text-gray-400">From IP</dt><dd className="font-mono">{record.signerIp}</dd></>)}
+        <dt data-es className="text-gray-400">How</dt>
         <dd>{SIGNATURE_METHOD_LABEL[record.method]}</dd>
-        {record.reference && (<><dt className="text-gray-400">Reference</dt><dd className="truncate font-mono" title={record.reference}>{record.reference}</dd></>)}
+        {record.reference && (<><dt data-es className="text-gray-400">Reference</dt><dd className="truncate font-mono" title={record.reference}>{record.reference}</dd></>)}
       </dl>
       <p className="mt-2 border-t border-green-200 pt-2 text-[11px] text-gray-500">
         {record.source === 'pdf' ? 'Read from the PDF by TTMS' : record.source === 'pdf_edited' ? 'Read from the PDF, corrected' : 'Typed'} by {record.enteredByName}

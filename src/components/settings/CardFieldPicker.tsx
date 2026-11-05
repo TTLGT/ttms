@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, SlidersHorizontal } from 'lucide-react';
+import { Bi } from '@/components/spanish/Es';
 import {
   PEOPLE_CARD_FIELDS,
   type PeopleCardFieldControls,
@@ -72,7 +73,7 @@ export default function CardFieldPicker({
 
       {open && (
         <div className="absolute right-0 z-20 mt-1 w-64 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
-          <p className="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          <p data-es className="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
             Details to show
           </p>
 
@@ -109,12 +110,12 @@ export default function CardFieldPicker({
 
           <div className="mt-1 border-t border-gray-100 px-2 pt-2">
             <p className="text-[11px] text-gray-400">
-              Cards and columns both. Status and roles always show — they are what this page is
+              <Bi>Cards and columns both. Status and roles always show — they are what this page is
               for. Only changes what you see, on this browser: everyone who can open this page
-              can read all of it, and Export CSV always includes every field.
+              can read all of it, and Export CSV always includes every field.</Bi>
             </p>
             {customized && (
-              <button
+              <button data-es
                 type="button"
                 onClick={reset}
                 className="mt-2 text-xs font-medium text-brand-700 underline hover:text-brand-800"

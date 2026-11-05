@@ -148,7 +148,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
 
             <div className="grid grid-cols-6 sm:grid-cols-12 gap-3">
               <div className="col-span-6">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Commodity</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Commodity</label>
                 <input
                   required={idx === 0}
                   value={item.description}
@@ -177,7 +177,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 />
               </div>
               <div className="col-span-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Pieces</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Pieces</label>
                 <input
                   type="number"
                   min="1"
@@ -189,7 +189,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
               </div>
 
               <div className="col-span-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Length</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Length</label>
                 <input
                   type="number"
                   min="0"
@@ -201,7 +201,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 />
               </div>
               <div className="col-span-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Width</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Width</label>
                 <input
                   type="number"
                   min="0"
@@ -213,7 +213,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 />
               </div>
               <div className="col-span-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Height</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Height</label>
                 <input
                   type="number"
                   min="0"
@@ -225,7 +225,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 />
               </div>
               <div className="col-span-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Units</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Units</label>
                 <select
                   value={item.dimensionUnit}
                   onChange={(e) => patch(item.id, { dimensionUnit: e.target.value as DimensionUnit })}
@@ -238,7 +238,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
               </div>
 
               <div className="col-span-6">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Weight (each)</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Weight (each)</label>
                 <input
                   type="number"
                   min="0"
@@ -250,7 +250,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 />
               </div>
               <div className="col-span-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Units</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Units</label>
                 <select
                   value={item.weightUnit}
                   onChange={(e) => patch(item.id, { weightUnit: e.target.value as WeightUnit })}
@@ -262,7 +262,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 </select>
               </div>
               <div className="col-span-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Line total</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Line total</label>
                 <div className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-700">
                   {lineWeight ? `${Math.round(lineWeight).toLocaleString()} lbs` : '—'}
                 </div>
@@ -295,7 +295,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 {/* Was "Unit type", which read as a unit of measure next to
                     the in/lbs boxes. Not "Pallet type" either: drums, rolls
                     and crates are handling units too. Stored field unchanged. */}
-                <label className="block text-xs font-medium text-gray-600 mb-1">Packaging</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Packaging</label>
                 <input
                   maxLength={12}
                   list="handling-unit-suggestions"
@@ -319,11 +319,11 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
 
               {/* Vehicle — asked on every line. Left blank for freight that
                   is not a vehicle; nothing here is required. */}
-              <p className="col-span-6 sm:col-span-12 mt-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <p data-es className="col-span-6 sm:col-span-12 mt-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Vehicle
               </p>
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Year</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Year</label>
                 <input
                   inputMode="numeric"
                   maxLength={4}
@@ -334,7 +334,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 />
               </div>
               <div className="col-span-4 sm:col-span-5">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Make</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Make</label>
                 <input
                   maxLength={60}
                   value={item.make ?? ''}
@@ -344,7 +344,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 />
               </div>
               <div className="col-span-6 sm:col-span-5">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Model</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Model</label>
                 <input
                   maxLength={60}
                   value={item.model ?? ''}
@@ -355,7 +355,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
               </div>
 
               <div className="col-span-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Color</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Color</label>
                 <input
                   maxLength={40}
                   value={item.color ?? ''}
@@ -365,7 +365,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 />
               </div>
               <div className="col-span-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Vehicle type</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Vehicle type</label>
                 <input
                   maxLength={40}
                   list="vehicle-type-suggestions"
@@ -390,7 +390,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
               </div>
 
               <div className="col-span-6 sm:col-span-12">
-                <span className="block text-xs font-medium text-gray-600 mb-1">Vehicle condition</span>
+                <span data-es className="block text-xs font-medium text-gray-600 mb-1">Vehicle condition</span>
                 <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={`Vehicle condition, item ${idx + 1}`}>
                   {VEHICLE_CONDITIONS.map((c) => {
                     const on = item.condition === c;
@@ -434,7 +434,7 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
       })}
 
       <div className="flex items-center justify-between">
-        <button
+        <button data-es
           type="button"
           onClick={add}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700"
@@ -476,7 +476,7 @@ function StopSelect({ kind, label, stops, value, onChange }: {
         className={`${INPUT} ${value == null ? 'text-gray-500' : ''}`}
         aria-label={`${label} (${kind})`}
       >
-        <option value="">Not set</option>
+        <option data-es value="">Not set</option>
         {stops.map((name, i) => <option key={i} value={i}>{name}</option>)}
       </select>
     </div>

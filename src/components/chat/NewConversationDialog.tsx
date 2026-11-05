@@ -7,6 +7,7 @@ import { useChat } from '@/context/ChatContext';
 import { createGroupConversation, openDirectConversation } from '@/lib/chat';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import type { UserProfile } from '@/types/userProfile';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Starting a conversation: a direct thread with one person, or a named room.
@@ -88,9 +89,9 @@ export default function NewConversationDialog({ onClose }: { onClose: () => void
       <div className="flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
         <div className="flex flex-shrink-0 items-start justify-between border-b border-gray-200 px-5 py-4">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">New conversation</h2>
+            <h2 className="text-lg font-bold text-gray-900"><Bi>New conversation</Bi></h2>
             <p className="mt-1 text-xs text-gray-500">
-              Message one person, or set up a room for a few of you.
+              <Bi>Message one person, or set up a room for a few of you.</Bi>
             </p>
           </div>
           <button type="button" onClick={onClose} title="Close" className="text-gray-400 hover:text-gray-700">
@@ -124,7 +125,7 @@ export default function NewConversationDialog({ onClose }: { onClose: () => void
                   className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-gray-300 text-brand-500 focus:ring-brand-400"
                 />
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium text-gray-900">
+                  <span data-es className="block text-sm font-medium text-gray-900">
                     Announcements only
                   </span>
                   <span className="block text-[11px] text-gray-500">

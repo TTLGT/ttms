@@ -133,7 +133,7 @@ export default function PartyQuickCreate({
             className="px-5 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
             {saving ? 'Saving…' : `Save ${label}`}
           </button>
-          <button type="button" onClick={onClose}
+          <button data-es type="button" onClick={onClose}
             className="px-5 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
             Cancel
           </button>

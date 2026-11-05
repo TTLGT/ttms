@@ -21,6 +21,7 @@ import {
   safetyRatingLabel,
 } from '@/types/fmcsa';
 import type { FmcsaCheck, FmcsaLevel } from '@/types/fmcsa';
+import { Bi } from '@/components/spanish/Es';
 
 const LEVEL_STYLE: Record<FmcsaLevel, { box: string; pill: string; label: string; Icon: typeof ShieldCheck }> = {
   ok:   { box: 'border-green-200 bg-green-50',  pill: 'bg-green-100 text-green-700', label: 'Authorized',     Icon: ShieldCheck },
@@ -144,7 +145,7 @@ export default function FmcsaPanel({
     return (
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-gray-600">Not checked with FMCSA yet.</p>
+          <p data-es className="text-sm text-gray-600">Not checked with FMCSA yet.</p>
           {button}
         </div>
         {error && <p className="text-xs text-red-600">{error}</p>}
@@ -216,7 +217,7 @@ export default function FmcsaPanel({
         </ul>
       ) : (
         <p className="text-sm text-green-800">
-          Authorized to operate, operating authority active and liability insurance on file.
+          <Bi>Authorized to operate, operating authority active and liability insurance on file.</Bi>
         </p>
       )}
 
@@ -244,32 +245,32 @@ export default function FmcsaPanel({
       {check.found && open && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1 text-sm">
           <div>
-            <p className={labelCls}>Legal Name</p>
+            <p data-es className={labelCls}>Legal Name</p>
             <p className="text-gray-900">{check.legalName || '—'}</p>
             {check.dbaName && <p className="text-xs text-gray-500">DBA {check.dbaName}</p>}
           </div>
           <div>
-            <p className={labelCls}>DOT / MC at FMCSA</p>
+            <p data-es className={labelCls}>DOT / MC at FMCSA</p>
             <p className="text-gray-900">
               DOT {check.dotNumber || '—'}
               {check.docketNumbers.length > 0 && <> · MC {check.docketNumbers.join(', ')}</>}
             </p>
             {!dot && check.dotNumber && (
-              <p className="text-xs text-gray-500">Our record has no DOT number.</p>
+              <p data-es className="text-xs text-gray-500">Our record has no DOT number.</p>
             )}
           </div>
           <div>
-            <p className={labelCls}>Based In</p>
+            <p data-es className={labelCls}>Based In</p>
             <p className="text-gray-900">{[check.city, check.state].filter(Boolean).join(', ') || '—'}</p>
           </div>
           <div>
-            <p className={labelCls}>Operating Authority</p>
+            <p data-es className={labelCls}>Operating Authority</p>
             <p className="text-gray-900">
               Common {authorityLabel(check.commonAuthority)} · Contract {authorityLabel(check.contractAuthority)}
             </p>
           </div>
           <div>
-            <p className={labelCls}>Insurance on File</p>
+            <p data-es className={labelCls}>Insurance on File</p>
             <p className="text-gray-900">
               Liability {check.liabilityOnFile > 0 ? fmcsaDollars(check.liabilityOnFile) : 'none'}
               {check.liabilityRequired === 'Y' && check.liabilityRequiredAmount > 0 && (
@@ -281,24 +282,24 @@ export default function FmcsaPanel({
             </p>
           </div>
           <div>
-            <p className={labelCls}>Safety Rating</p>
+            <p data-es className={labelCls}>Safety Rating</p>
             <p className="text-gray-900">{safetyRatingLabel(check.safetyRating)}</p>
           </div>
           <div>
-            <p className={labelCls}>Fleet</p>
+            <p data-es className={labelCls}>Fleet</p>
             <p className="text-gray-900">
               {check.powerUnits} truck{check.powerUnits === 1 ? '' : 's'}
               {check.drivers > 0 && <> · {check.drivers} driver{check.drivers === 1 ? '' : 's'}</>}
             </p>
           </div>
           <div>
-            <p className={labelCls}>Crashes (24 months)</p>
+            <p data-es className={labelCls}>Crashes (24 months)</p>
             <p className="text-gray-900">
               {check.crashTotal}{check.fatalCrash > 0 && <span className="text-red-700"> · {check.fatalCrash} fatal</span>}
             </p>
           </div>
           <div>
-            <p className={labelCls}>Out-of-Service Rate</p>
+            <p data-es className={labelCls}>Out-of-Service Rate</p>
             <p className="text-gray-900">
               Vehicle {fmcsaRate(check.vehicleOosRate)} <span className="text-gray-500">(avg {fmcsaRate(check.vehicleOosNational)})</span>
             </p>
@@ -309,22 +310,22 @@ export default function FmcsaPanel({
           {reg && (
             <>
               <div>
-                <p className={labelCls}>Registered Phone</p>
+                <p data-es className={labelCls}>Registered Phone</p>
                 <p className="text-gray-900">{reg.phone || reg.cellPhone || '—'}</p>
                 {reg.phone && reg.cellPhone && <p className="text-xs text-gray-500">Cell {reg.cellPhone}</p>}
               </div>
               <div className="min-w-0">
-                <p className={labelCls}>Registered Email</p>
+                <p data-es className={labelCls}>Registered Email</p>
                 <p className="text-gray-900 truncate">{reg.email || '—'}</p>
               </div>
               <div>
-                <p className={labelCls}>Company Officer</p>
+                <p data-es className={labelCls}>Company Officer</p>
                 <p className="text-gray-900">{reg.officer || '—'}</p>
               </div>
               <div className="sm:col-span-3">
-                <p className={labelCls}>Insurance Filed with FMCSA</p>
+                <p data-es className={labelCls}>Insurance Filed with FMCSA</p>
                 {reg.policies.length === 0 ? (
-                  <p className="text-gray-900">None on file</p>
+                  <p data-es className="text-gray-900">None on file</p>
                 ) : (
                   <ul className="space-y-0.5">
                     {reg.policies.map((p) => (
@@ -341,17 +342,17 @@ export default function FmcsaPanel({
               </div>
               {reg.cargoTypes.length > 0 && (
                 <div className="sm:col-span-3">
-                  <p className={labelCls}>Hauls</p>
+                  <p data-es className={labelCls}>Hauls</p>
                   <p className="text-gray-900">{reg.cargoTypes.join(' · ')}</p>
                 </div>
               )}
               <div>
-                <p className={labelCls}>Registration Updated</p>
+                <p data-es className={labelCls}>Registration Updated</p>
                 <p className="text-gray-900">{reg.mcs150Date ? formatCalendarDate(reg.mcs150Date) : '—'}</p>
               </div>
               {reg.mailingAddress && (
                 <div className="sm:col-span-2">
-                  <p className={labelCls}>Mailing Address</p>
+                  <p data-es className={labelCls}>Mailing Address</p>
                   <p className="text-gray-900">{reg.mailingAddress}</p>
                 </div>
               )}

@@ -10,6 +10,7 @@ import { dismissThread, millis } from '@/lib/chat';
 import { usePinnedDrag } from '@/lib/usePinnedDrag';
 import { whenLabel } from '@/lib/chatFormat';
 import { conversationTitle } from '@/types/conversation';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Every thread you are in, across every room, newest reply first.
@@ -72,7 +73,7 @@ export default function ThreadList({ onBack }: { onBack: () => void }) {
         >
           <ArrowLeft size={16} />
         </button>
-        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+        <span data-es className="text-xs font-semibold uppercase tracking-wide text-gray-500">
           Threads
         </span>
       </div>
@@ -80,7 +81,7 @@ export default function ThreadList({ onBack }: { onBack: () => void }) {
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {ordered.length === 0 && (
           <p className="px-2 py-3 text-sm text-gray-400">
-            No threads yet. Answering under a message puts it here.
+            <Bi>No threads yet. Answering under a message puts it here.</Bi>
           </p>
         )}
 

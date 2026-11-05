@@ -7,6 +7,7 @@ import type { Address, LaneMilesSource } from '@/types/order';
 import { fetchTripDistance } from '@/lib/routeDistanceClient';
 import type { DistanceResult } from '@/lib/routeDistanceClient';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { Bi } from '@/components/spanish/Es';
 
 export interface LaneDistanceValue {
   laneMiles: number | null;
@@ -183,7 +184,7 @@ export default function RouteDistanceField({ stops, value, onChange }: Props) {
             {atNote && <p className="text-xs text-gray-500 mt-0.5">{atNote}</p>}
             {stale && showButton && (
               <p className="text-xs text-amber-700 mt-0.5">
-                The addresses have changed since this distance was worked out.
+                <Bi>The addresses have changed since this distance was worked out.</Bi>
               </p>
             )}
             {message && <p className="text-xs text-amber-700 mt-0.5">{message}</p>}

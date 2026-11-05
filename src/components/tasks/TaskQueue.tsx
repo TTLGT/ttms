@@ -102,7 +102,7 @@ export default function TaskQueue({
 
       {done.length > 0 && (
         <>
-          <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-gray-500">Done</h3>
+          <h3 data-es className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-gray-500">Done</h3>
           <ul className="space-y-1.5">
             {done.map((t) => (
               <li key={t.id} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2">

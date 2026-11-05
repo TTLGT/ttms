@@ -83,14 +83,14 @@ export default function TaskFocus({
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-6 flex items-center gap-3">
-        <button
+        <button data-es
           type="button"
           onClick={onExit}
           className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
         >
           <ArrowLeft size={15} /> Leave focus
         </button>
-        <span
+        <span data-es
           className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.14em] text-brand-700"
           style={accent ? { color: 'var(--tt-accent-ink)' } : undefined}
         >
@@ -138,7 +138,7 @@ export default function TaskFocus({
 
         {finished ? (
           <div className="mt-6 rounded-xl bg-green-50 px-4 py-5 text-center">
-            <p className="text-lg font-semibold text-green-800">Finished. Nice work.</p>
+            <p data-es className="text-lg font-semibold text-green-800">Finished. Nice work.</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               {upNext && (
                 <button
@@ -156,7 +156,7 @@ export default function TaskFocus({
               >
                 <RotateCcw size={14} /> Reopen
               </button>
-              <button
+              <button data-es
                 type="button"
                 onClick={onExit}
                 className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"

@@ -5,6 +5,7 @@ import { listCarriersPage } from '@/lib/carriers';
 import { carrierNameKey, getInsuranceStatus } from '@/types/carrier';
 import type { Carrier } from '@/types/carrier';
 import QuickAddCarrierModal from './QuickAddCarrierModal';
+import { Bi } from '@/components/spanish/Es';
 
 export interface CarrierSelection {
   id: string;
@@ -187,7 +188,7 @@ export default function CarrierCombobox({
               picked?.phone,
             ].filter(Boolean).join(' · ') || 'Saved carrier'}
           </span>
-          <button type="button" onClick={clear} className="text-gray-400 hover:text-gray-600 underline">
+          <button data-es type="button" onClick={clear} className="text-gray-400 hover:text-gray-600 underline">
             Change
           </button>
         </div>
@@ -196,17 +197,17 @@ export default function CarrierCombobox({
       {/* Insurance is surfaced here rather than left to the order page, because
           this is the moment somebody decides who is hauling the freight. */}
       {value.id && insurance === 'expired' && (
-        <p className="mt-1 text-xs text-red-600">This carrier&rsquo;s insurance has expired.</p>
+        <p data-es className="mt-1 text-xs text-red-600">This carrier&rsquo;s insurance has expired.</p>
       )}
       {value.id && insurance === 'expiring_soon' && (
-        <p className="mt-1 text-xs text-amber-700">This carrier&rsquo;s insurance expires within 30 days.</p>
+        <p data-es className="mt-1 text-xs text-amber-700">This carrier&rsquo;s insurance expires within 30 days.</p>
       )}
 
       {unbound && (
         <div className="mt-2 rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm">
           <p className="text-blue-900"><strong>{unbound}</strong> is not on file yet.</p>
           <p className="text-blue-800 text-xs mt-1">
-            Add it with its contact details, so the dispatch sheet has somewhere to go.
+            <Bi>Add it with its contact details, so the dispatch sheet has somewhere to go.</Bi>
           </p>
           <button type="button" onClick={() => setAdding(unbound)}
             className="mt-2 px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition">
@@ -218,7 +219,7 @@ export default function CarrierCombobox({
       {open && (rowCount > 0 || searching) && (
         <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-auto py-1">
           {searching && matches.length === 0 && (
-            <li className="px-3 py-2 text-sm text-gray-400">Searching…</li>
+            <li data-es className="px-3 py-2 text-sm text-gray-400">Searching…</li>
           )}
           {matches.map((c, i) => {
             const status = getInsuranceStatus(c.insuranceExpiration);
@@ -262,7 +263,7 @@ export default function CarrierCombobox({
                 }`}
               >
                 <span className="text-brand-600 font-medium">+ New carrier &ldquo;{trimmed}&rdquo;</span>
-                <span className="block text-xs text-gray-500">
+                <span data-es className="block text-xs text-gray-500">
                   Saved to Carriers and assigned to this load.
                 </span>
               </button>

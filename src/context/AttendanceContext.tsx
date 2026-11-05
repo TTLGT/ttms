@@ -18,6 +18,7 @@ import {
 } from '@/lib/idleDetection';
 import type { BreakKind, ClockState } from '@/types/attendance';
 import type { UserStatus } from '@/types/presence';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The signed-in person's own clock, status and "hide last seen", shared by
@@ -233,39 +234,39 @@ function IdleExplainer({
           <MonitorCheck size={22} className="mt-0.5 flex-shrink-0 text-brand-600" />
           {blocked ? (
             <div>
-              <h2 id="idle-explainer-title" className="text-base font-semibold text-gray-900">
+              <h2 data-es id="idle-explainer-title" className="text-base font-semibold text-gray-900">
                 Activity checking is blocked in this browser
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-gray-600">
-                Please turn it back on. TTMS only checks whether the computer is in use while you&rsquo;re
-                clocked in, never what you&rsquo;re doing. Until then, only your use of TTMS itself is counted.
+                <Bi>Please turn it back on. TTMS only checks whether the computer is in use while you&rsquo;re
+                clocked in, never what you&rsquo;re doing. Until then, only your use of TTMS itself is counted.</Bi>
               </p>
               <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-gray-700">
                 <li>Click the icon at the left end of the address bar, next to the TTMS address.</li>
-                <li>Choose <strong>Site settings</strong>.</li>
-                <li>Find <strong>Your device use</strong> and set it to <strong>Allow</strong>.</li>
-                <li>Come back to TTMS and refresh the page.</li>
+                <li>Choose <strong data-es>Site settings</strong>.</li>
+                <li>Find <strong data-es>Your device use</strong> and set it to <strong data-es>Allow</strong>.</li>
+                <li data-es>Come back to TTMS and refresh the page.</li>
               </ol>
             </div>
           ) : (
             <div>
-              <h2 id="idle-explainer-title" className="text-base font-semibold text-gray-900">
+              <h2 data-es id="idle-explainer-title" className="text-base font-semibold text-gray-900">
                 Your browser is about to ask about activity
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-gray-600">
-                Please click <strong>Allow</strong>. TTMS only checks whether the computer is in use while
+                Please click <strong data-es>Allow</strong>. TTMS only checks whether the computer is in use while
                 you&rsquo;re clocked in, never what you&rsquo;re doing.
               </p>
               <p className="mt-2 text-xs text-gray-500">
-                This will show each time you clock in until it is allowed. Details are on your profile page
-                under &ldquo;What TTMS records about your attendance&rdquo;.
+                <Bi>This will show each time you clock in until it is allowed. Details are on your profile page
+                under &ldquo;What TTMS records about your attendance&rdquo;.</Bi>
               </p>
             </div>
           )}
         </div>
         <div className="mt-5 flex justify-end gap-2">
           {!blocked && (
-            <button type="button" onClick={onSkip}
+            <button data-es type="button" onClick={onSkip}
               className="rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
               Not now
             </button>

@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, BellOff } from 'lucide-react';
 import { useChat } from '@/context/ChatContext';
+import { Bi } from '@/components/spanish/Es';
 import {
   desktopPermission,
   playChime,
@@ -99,22 +100,22 @@ export default function NotifyMenu() {
           style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999 }}
           className="fixed z-[60] w-60 rounded-lg border border-gray-200 bg-white p-3 shadow-xl"
         >
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <p data-es className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
             When a message arrives
           </p>
 
           {permission === 'unsupported' && (
             <p className="mb-2 text-xs text-gray-500">
-              This browser cannot show desktop notifications. The count in the tab
-              title and the sound below still work.
+              <Bi>This browser cannot show desktop notifications. The count in the tab
+              title and the sound below still work.</Bi>
             </p>
           )}
 
           {permission === 'default' && (
             <div className="mb-3 rounded-lg bg-brand-50 p-2.5">
               <p className="mb-2 text-xs text-brand-900">
-                Your browser has not been asked yet. Allow it and TTMS can pop a
-                notification when you are working in another window.
+                <Bi>Your browser has not been asked yet. Allow it and TTMS can pop a
+                notification when you are working in another window.</Bi>
               </p>
               <button
                 type="button"
@@ -128,8 +129,8 @@ export default function NotifyMenu() {
 
           {permission === 'denied' && (
             <p className="mb-3 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">
-              Notifications are blocked for this site. Turn them back on in the
-              padlock menu beside the web address, then reload.
+              <Bi>Notifications are blocked for this site. Turn them back on in the
+              padlock menu beside the web address, then reload.</Bi>
             </p>
           )}
 
@@ -153,8 +154,8 @@ export default function NotifyMenu() {
           />
 
           <p className="mt-3 border-t border-gray-100 pt-2.5 text-[11px] leading-relaxed text-gray-400">
-            All of this needs TTMS open in a tab. Nothing can reach you once you
-            have closed it — that needs TTMS to be properly deployed first.
+            <Bi>All of this needs TTMS open in a tab. Nothing can reach you once you
+            have closed it — that needs TTMS to be properly deployed first.</Bi>
           </p>
         </div>,
         document.body,

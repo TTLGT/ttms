@@ -79,7 +79,7 @@ export default function CarrierLookupLinks({ carrierId, dot, mc }: { carrierId: 
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="text-xs font-medium text-gray-500">Look up on</span>
+        <span data-es className="text-xs font-medium text-gray-500">Look up on</span>
         {lookups(carrierId, dotNo, mcNo).map((l) => (
           <a key={l.label} href={l.href} target="_blank" rel="noopener noreferrer" title={l.title}
             // Not awaited: the link must open in the same click, or the

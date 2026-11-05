@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Bi } from '@/components/spanish/Es';
 import {
   Apple, Car, Clock, Flag, Hand, Hash, Lightbulb, Loader2, PawPrint, Search, Smile, Trophy,
   type LucideIcon,
@@ -224,7 +225,7 @@ export default function EmojiPicker({
         <div ref={scroller} onScroll={trackTab} className="relative min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           {failed ? (
             <p className="p-4 text-center text-xs text-gray-500">
-              The emoji list did not load. Close this and try again.
+              <Bi>The emoji list did not load. Close this and try again.</Bi>
             </p>
           ) : !groups ? (
             <div className="flex h-full items-center justify-center text-gray-400">
@@ -274,7 +275,7 @@ export default function EmojiPicker({
               <span className="min-w-0 flex-1 truncate text-xs capitalize text-gray-600">{hovered.name}</span>
             </>
           ) : (
-            <span className="flex-1 text-xs text-gray-400">Pick an emoji</span>
+            <span data-es className="flex-1 text-xs text-gray-400">Pick an emoji</span>
           )}
           <div className="relative">
             {toneOpen ? (

@@ -18,6 +18,7 @@ import {
 } from '@/types/signatureRecord';
 import RecordImportBadge from './RecordImportBadge';
 import SignedCopyCarrierStep from './SignedCopyCarrierStep';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The one window a signed copy is looked at in — the document on the left,
@@ -201,7 +202,7 @@ export default function SignedCopyReview({
                   <img src={file.url} alt={file.name} className="max-w-full" />
                 </div>
               ) : (
-                <p className="p-6 text-sm text-gray-500">This file cannot be shown here. Open it in a new tab.</p>
+                <p className="p-6 text-sm text-gray-500"><Bi>This file cannot be shown here. Open it in a new tab.</Bi></p>
               )}
             </div>
           </div>
@@ -353,7 +354,7 @@ export default function SignedCopyReview({
                 </>
               ) : pending ? (
                 <>
-                  <button type="button" onClick={onClose} disabled={Boolean(busy)}
+                  <button data-es type="button" onClick={onClose} disabled={Boolean(busy)}
                     className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900">Later</button>
                   <button type="button" onClick={() => void run('save')} disabled={Boolean(busy)}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
@@ -375,15 +376,15 @@ export default function SignedCopyReview({
                       Approve after all
                     </button>
                   )}
-                  <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900">Close</button>
+                  <button data-es type="button" onClick={onClose} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900">Close</button>
                 </>
               ) : (
-                <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900">Close</button>
+                <button data-es type="button" onClick={onClose} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900">Close</button>
               )}
             </div>
             {!verifier && pending && (
               <p className="border-t border-gray-100 bg-gray-50 px-5 pb-3 text-[11px] text-gray-500">
-                Admin and dispatch have been told. It counts on the load once one of them has checked it.
+                <Bi>Admin and dispatch have been told. It counts on the load once one of them has checked it.</Bi>
               </p>
             )}
           </div>
@@ -426,7 +427,7 @@ function ReadingBanner({ file, isPdf }: { file: OrderFile; isPdf: boolean }) {
       <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800">
         <ScanText className="mt-px h-4 w-4 flex-none" />
         <p>
-          <strong>Read from the PDF</strong>
+          <strong data-es>Read from the PDF</strong>
           {file.detected?.format ? <> — {DETECTED_FORMAT_LABEL[file.detected.format]}</> : null}.
           {' '}Check each line against the signature block on the document before saving.
         </p>
@@ -448,13 +449,13 @@ function ReadingBanner({ file, isPdf }: { file: OrderFile; isPdf: boolean }) {
 /** Where a signed copy stands, as one small pill. */
 export function ReviewPill({ file }: { file: Pick<OrderFile, 'review'> }) {
   if (file.review === 'pending') {
-    return <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Waiting for verification</span>;
+    return <span data-es className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Waiting for verification</span>;
   }
   if (file.review === 'rejected') {
-    return <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">Refused</span>;
+    return <span data-es className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">Refused</span>;
   }
   if (file.review === 'approved') {
-    return <span className="rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[11px] font-semibold text-green-700">Verified</span>;
+    return <span data-es className="rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[11px] font-semibold text-green-700">Verified</span>;
   }
   return null;
 }

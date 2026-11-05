@@ -62,7 +62,7 @@ export default function FmcsaPageViewer() {
     <div className="flex flex-col gap-3 h-[calc(100vh-6rem)]">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="space-y-0.5">
-          <Link href={`/dashboard/carriers/${encodeURIComponent(carrierId)}`}
+          <Link data-es href={`/dashboard/carriers/${encodeURIComponent(carrierId)}`}
             className="text-xs text-brand-600 hover:underline">
             Back to carrier
           </Link>

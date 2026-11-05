@@ -8,6 +8,7 @@ import { copyToClipboard } from '@/lib/clipboard';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import type { TextTarget } from '@/lib/signText';
 import SignLinkText from '@/components/orders/SignLinkText';
+import { Bi } from '@/components/spanish/Es';
 
 type LinkState = 'live' | 'held' | 'signed' | 'expired';
 type SignLink = {
@@ -87,7 +88,7 @@ export default function ClientSignLink({ orderId, orderNumber, party = 'client',
   }, [orderId, party, refreshKey]);
 
   const preview = (
-    <Link
+    <Link data-es
       href={`/dashboard/orders/${orderId}/agreement`}
       className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
     >
@@ -146,7 +147,7 @@ export default function ClientSignLink({ orderId, orderNumber, party = 'client',
       <p className={`mt-0.5 text-xs ${held ? 'text-amber-800' : 'text-gray-500'}`}>
         {held && (
           <>
-            <strong>On hold.</strong> The order changed after this was sent, so the client sees &ldquo;being
+            <strong data-es>On hold.</strong> The order changed after this was sent, so the client sees &ldquo;being
             updated&rdquo; and cannot sign. Once dispatch reviews the change and sends it, this same link shows the
             update.
           </>
@@ -217,8 +218,8 @@ export default function ClientSignLink({ orderId, orderNumber, party = 'client',
           targets={textTargets}
         />
       )}
-      {card === 'failed' && <p className="mt-1 text-xs text-red-700">The QR card could not be made. Try again, or copy the link instead.</p>}
-      {copy === 'manual' && <p className="mt-1 text-xs text-amber-700">Copying is blocked here. The link is selected — press Ctrl+C.</p>}
+      {card === 'failed' && <p className="mt-1 text-xs text-red-700"><Bi>The QR card could not be made. Try again, or copy the link instead.</Bi></p>}
+      {copy === 'manual' && <p className="mt-1 text-xs text-amber-700"><Bi>Copying is blocked here. The link is selected — press Ctrl+C.</Bi></p>}
     </div>
   );
 }

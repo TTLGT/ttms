@@ -10,6 +10,7 @@ import FileUploadField from '@/components/FileUploadField';
 import PhoneField from '@/components/PhoneField';
 import { phoneRegionOf } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
+import { Bi } from '@/components/spanish/Es';
 
 interface Props {
   carrierId: string;
@@ -101,8 +102,8 @@ export default function DriverFormModal({
           <div>
             <h2 className="text-lg font-bold text-gray-900">{driver ? 'Edit Driver' : 'New Driver'}</h2>
             <p className="text-xs text-gray-500 mt-1">
-              Saved against this carrier. Picking them on a load copies their name and phone
-              onto it, so paperwork already sent stays as it was.
+              <Bi>Saved against this carrier. Picking them on a load copies their name and phone
+              onto it, so paperwork already sent stays as it was.</Bi>
             </p>
           </div>
 
@@ -117,16 +118,16 @@ export default function DriverFormModal({
               onChange={(v, r) => { setPhone(v); setPhoneRegion(r); }}
             />
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">CDL Number</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">CDL Number</label>
               <input value={licenseNumber} onChange={(e) => setLicenseNo(e.target.value)}
                 placeholder="As printed on the licence" className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Licence Expiration</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Licence Expiration</label>
               <DateField value={licenseExpiration} onChange={setExpiry} className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Driver&rsquo;s Licence</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Driver&rsquo;s Licence</label>
               <FileUploadField
                 storagePrefix="driver-licenses"
                 // Keyed by the driver, not a load, so the file stays with the
@@ -140,7 +141,7 @@ export default function DriverFormModal({
               />
             </div>
             <div className="col-span-1 sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
                 placeholder="Anything worth knowing before dispatching them…"
                 className={`${inputCls} resize-none`} />
@@ -149,11 +150,11 @@ export default function DriverFormModal({
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)}
                   className="w-4 h-4 rounded" />
-                <span className="text-sm text-gray-700">Still driving for this carrier</span>
+                <span data-es className="text-sm text-gray-700">Still driving for this carrier</span>
               </label>
               <p className="text-xs text-gray-500 mt-1">
-                Unticking hides them from the driver picker on new loads. Past loads keep naming
-                them, which is why drivers are retired rather than deleted.
+                <Bi>Unticking hides them from the driver picker on new loads. Past loads keep naming
+                them, which is why drivers are retired rather than deleted.</Bi>
               </p>
             </div>
           </div>
@@ -165,7 +166,7 @@ export default function DriverFormModal({
               className="px-4 py-2 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
               {saving ? 'Saving…' : 'Save Driver'}
             </button>
-            <button type="button" onClick={onCancel}
+            <button data-es type="button" onClick={onCancel}
               className="px-4 py-2 border border-gray-300 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition">
               Cancel
             </button>

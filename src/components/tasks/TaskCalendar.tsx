@@ -492,7 +492,7 @@ export default function TaskCalendar({
             className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100">
             <ChevronRight size={18} />
           </button>
-          <button
+          <button data-es
             type="button"
             onClick={goToday}
             className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
@@ -699,7 +699,7 @@ export default function TaskCalendar({
               targetOf={targetOf}
             />
           ) : (
-            <p className="text-sm text-gray-500">Nothing on this day.</p>
+            <p data-es className="text-sm text-gray-500">Nothing on this day.</p>
           )}
         </section>
 
@@ -719,7 +719,7 @@ export default function TaskCalendar({
               </button>
             </div>
             {thisWeek.length === 0 ? (
-              <p className="text-sm text-gray-500">Nothing this week.</p>
+              <p data-es className="text-sm text-gray-500">Nothing this week.</p>
             ) : (
               <div className="space-y-3">
                 {thisWeek.map((d) => (

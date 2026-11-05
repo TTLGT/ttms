@@ -30,6 +30,7 @@ import MessageComposer from './MessageComposer';
 import PinnedBar from './PinnedBar';
 import SystemMessage from './SystemMessage';
 import { can } from '@/lib/accessControl';
+import { Bi } from '@/components/spanish/Es';
 import {
   isRoomAdmin,
   isThreadUnread,
@@ -713,7 +714,7 @@ export default function MessageThread({ conversation }: { conversation: Conversa
           onScroll={onScroll}
           className="relative h-full overflow-y-auto px-4 py-4 space-y-1.5"
         >
-          {loading && <p className="text-sm text-gray-400">Loading…</p>}
+          {loading && <p data-es className="text-sm text-gray-400">Loading…</p>}
 
           {/* Said rather than left as a jump that appeared to do nothing. The
               room is open at the right place for reading it; it is only the
@@ -726,17 +727,17 @@ export default function MessageThread({ conversation }: { conversation: Conversa
           )}
 
           {!loading && older === 'loading' && (
-            <p className="py-2 text-center text-xs text-gray-400">Loading earlier messages…</p>
+            <p data-es className="py-2 text-center text-xs text-gray-400">Loading earlier messages…</p>
           )}
           {!loading && older === 'end' && messages.length > 0 && (
-            <p className="py-2 text-center text-[11px] text-gray-400">
+            <p data-es className="py-2 text-center text-[11px] text-gray-400">
               This is the beginning of the conversation.
             </p>
           )}
 
           {!loading && messages.length === 0 && (
             <p className="text-sm text-gray-400">
-              No messages yet. Say something to start it off.
+              <Bi>No messages yet. Say something to start it off.</Bi>
             </p>
           )}
 
@@ -758,7 +759,7 @@ export default function MessageThread({ conversation }: { conversation: Conversa
                     the horizontal structure it needs. */}
                 {m.id === firstUnreadId && (
                   <div className="flex justify-center py-2.5">
-                    <span className="rounded-full bg-red-500 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                    <span data-es className="rounded-full bg-red-500 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
                       New messages
                     </span>
                   </div>

@@ -57,6 +57,7 @@ import { EVENT_ICON, NOTE_STYLE } from './taskStyle';
 import StepList from './StepList';
 import { TaskContactPicker } from './TaskContacts';
 import { TaskOrderPicker } from './TaskOrders';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Add or edit one item. The same dialog for every view, so a task means the
@@ -430,7 +431,7 @@ export default function TaskEditor({
 
           {kind === 'event' && (
             <div>
-              <span className={label}>What sort of event</span>
+              <span data-es className={label}>What sort of event</span>
               <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                 {EVENT_TYPES.map((t) => {
                   const Icon = EVENT_ICON[t];
@@ -451,14 +452,14 @@ export default function TaskEditor({
                   );
                 })}
               </div>
-              <p className="mt-1.5 text-xs text-gray-500">Events show on your calendar only, not on the board.</p>
+              <p className="mt-1.5 text-xs text-gray-500"><Bi>Events show on your calendar only, not on the board.</Bi></p>
             </div>
           )}
 
           {/* A block of time to work on one of your tasks, or one step of it. */}
           {kind === 'event' && (
             <div>
-              <label className={`${label} flex items-center gap-1`} htmlFor="task-work-for">
+              <label data-es className={`${label} flex items-center gap-1`} htmlFor="task-work-for">
                 <Target size={12} /> Work block for
               </label>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -468,9 +469,9 @@ export default function TaskEditor({
                   onChange={(e) => pickWork(e.target.value ? { taskId: e.target.value, stepId: null } : null)}
                   className={input}
                 >
-                  <option value="">Not a work block</option>
+                  <option data-es value="">Not a work block</option>
                   {workFor && workFor.taskId !== NEW_TASK_FOR_BLOCK && !workTask && (
-                    <option value={workFor.taskId}>A task no longer on your list</option>
+                    <option data-es value={workFor.taskId}>A task no longer on your list</option>
                   )}
                   {workChoices.map((t) => (
                     <option key={t.id} value={t.id}>{t.title}{t.status === 'done' ? ' (done)' : ''}</option>
@@ -485,7 +486,7 @@ export default function TaskEditor({
                     onChange={(e) => pickWork({ taskId: workTask.id, stepId: e.target.value || null })}
                     className={input}
                   >
-                    <option value="">The whole task</option>
+                    <option data-es value="">The whole task</option>
                     {workTask.steps.map((st) => (
                       <option key={st.id} value={st.id}>{st.done ? '\u2713 ' : ''}{st.title}</option>
                     ))}
@@ -494,7 +495,7 @@ export default function TaskEditor({
               </div>
               {workFor?.taskId === NEW_TASK_FOR_BLOCK ? (
                 <p className="mt-1.5 text-xs text-gray-500">
-                  Adding this also adds a task with the title below to To do, and makes this its first work block.
+                  <Bi>Adding this also adds a task with the title below to To do, and makes this its first work block.</Bi>
                 </p>
               ) : workTask && onOpenItem ? (
                 <button type="button" onClick={() => leaveFor(() => onOpenItem(workTask))}
@@ -503,14 +504,14 @@ export default function TaskEditor({
                 </button>
               ) : !workFor ? (
                 <p className="mt-1.5 text-xs text-gray-500">
-                  Pick one of your tasks to make this time set aside for it. A task can have as many blocks as it needs.
+                  <Bi>Pick one of your tasks to make this time set aside for it. A task can have as many blocks as it needs.</Bi>
                 </p>
               ) : null}
             </div>
           )}
 
           <div>
-            <label className={label} htmlFor="task-title">Title</label>
+            <label data-es className={label} htmlFor="task-title">Title</label>
             <input
               id="task-title"
               ref={titleRef}
@@ -528,7 +529,7 @@ export default function TaskEditor({
               <DateField value={date} onChange={setDate} className={input} ariaLabel={kind === 'event' ? 'Date' : 'Planned date'} />
             </div>
             <div>
-              <label className={label} htmlFor="task-time">Starts</label>
+              <label data-es className={label} htmlFor="task-time">Starts</label>
               <TimeField
                 id="task-time"
                 value={time}
@@ -542,7 +543,7 @@ export default function TaskEditor({
               />
             </div>
             <div>
-              <label className={label} htmlFor="task-end">Ends</label>
+              <label data-es className={label} htmlFor="task-end">Ends</label>
               <TimeField id="task-end" value={endTime} disabled={!time}
                 onChange={setEndTime} className={`${input} disabled:opacity-50`} />
             </div>
@@ -550,11 +551,11 @@ export default function TaskEditor({
           {kind === 'task' && (
             <div className="grid gap-3 sm:grid-cols-3">
               <div>
-                <span className={label}>Due by</span>
+                <span data-es className={label}>Due by</span>
                 <DateField value={dueDate} onChange={setDueDate} className={input} ariaLabel="Due date" />
               </div>
               <div>
-                <label className={label} htmlFor="task-due-time">Due time</label>
+                <label data-es className={label} htmlFor="task-due-time">Due time</label>
                 <TimeField id="task-due-time" value={dueTime} disabled={!dueDate}
                   onChange={setDueTime} className={`${input} disabled:opacity-50`} />
               </div>
@@ -583,7 +584,7 @@ export default function TaskEditor({
           )}
 
           <div>
-            <label className={label} htmlFor="task-notes">Notes</label>
+            <label data-es className={label} htmlFor="task-notes">Notes</label>
             <textarea
               id="task-notes"
               value={notes}
@@ -596,7 +597,7 @@ export default function TaskEditor({
 
           {/* Who it is with, so their number is one click from the task. */}
           <div>
-            <span className={label}>With</span>
+            <span data-es className={label}>With</span>
             <TaskContactPicker value={contacts} onChange={setContacts} inputClass={input} />
             {kind === 'event' && !invitedBy && (
               <label className="mt-2 flex items-start gap-2 text-sm text-gray-700">
@@ -627,7 +628,7 @@ export default function TaskEditor({
 
           {/* The load it is about, so the order is one click from the task. */}
           <div>
-            <span className={label}>Order</span>
+            <span data-es className={label}>Order</span>
             <TaskOrderPicker value={orders} onChange={setOrders} inputClass={input} />
           </div>
 
@@ -653,7 +654,7 @@ export default function TaskEditor({
 
           {kind === 'task' && (task ? myBlocks.length > 0 || (!!onScheduleBlock && !readOnly) : !!onOpenItem || !!addThenSchedule) && (
             <div>
-              <span className={`${label} flex items-center gap-1`}><Target size={12} /> Work blocks</span>
+              <span data-es className={`${label} flex items-center gap-1`}><Target size={12} /> Work blocks</span>
               {myBlocks.length > 0 && (
                 <ul className="mb-1.5 space-y-1">
                   {myBlocks.map((b) => {
@@ -697,7 +698,7 @@ export default function TaskEditor({
 
           {/* ── Reminders ───────────────────────────────────────── */}
           <div>
-            <span className={`${label} flex items-center gap-1`}><Bell size={12} /> Remind me</span>
+            <span data-es className={`${label} flex items-center gap-1`}><Bell size={12} /> Remind me</span>
             {!date ? (
               <p className="text-xs text-gray-500">{kind === 'task' ? 'Give it a planned date to set a reminder.' : 'Give it a date to set a reminder.'}</p>
             ) : (
@@ -725,11 +726,11 @@ export default function TaskEditor({
                   })}
                 </div>
                 {kind === 'task' && status === 'done' && reminders.length > 0 && (
-                  <p className="mt-1.5 text-xs text-gray-500">A finished task sends no reminders.</p>
+                  <p data-es className="mt-1.5 text-xs text-gray-500">A finished task sends no reminders.</p>
                 )}
                 {noChannel && reminders.length > 0 && (
                   <p className="mt-1.5 text-xs text-amber-700">
-                    Email and chat are both off for your reminders, so nothing will be sent. Turn one on beside the calendar.
+                    <Bi>Email and chat are both off for your reminders, so nothing will be sent. Turn one on beside the calendar.</Bi>
                   </p>
                 )}
               </>
@@ -739,7 +740,7 @@ export default function TaskEditor({
           <div className="grid gap-3 sm:grid-cols-2">
             {kind === 'task' && (
               <div>
-                <label className={label} htmlFor="task-status">Status</label>
+                <label data-es className={label} htmlFor="task-status">Status</label>
                 <select
                   id="task-status"
                   value={status === 'done' && outcome && outcome !== 'done' ? `__${outcome}` : status}
@@ -754,11 +755,11 @@ export default function TaskEditor({
                 >
                   {columns.filter((c) => !c.hidden).map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
                   {/* Closed, but not done: kept on the calendar as a record of the day. */}
-                  {task && <option value="__notdone">Not done</option>}
-                  {outcome === 'rescheduled' && <option value="__rescheduled" disabled>Rescheduled</option>}
+                  {task && <option data-es value="__notdone">Not done</option>}
+                  {outcome === 'rescheduled' && <option data-es value="__rescheduled" disabled>Rescheduled</option>}
                 </select>
                 {status === 'done' && outcome === 'notdone' && (
-                  <p className="mt-1 text-xs text-gray-500">Closed and kept on your calendar as not done. In game mode it costs XP.</p>
+                  <p className="mt-1 text-xs text-gray-500"><Bi>Closed and kept on your calendar as not done. In game mode it costs XP.</Bi></p>
                 )}
                 {status === 'done' && outcome === 'rescheduled' && task?.rescheduledTo && (
                   <p className="mt-1 text-xs text-gray-500">Moved to {formatCalendarDate(task.rescheduledTo)}; this one stays on its day as a record.</p>
@@ -766,14 +767,14 @@ export default function TaskEditor({
               </div>
             )}
             <div>
-              <label className={label} htmlFor="task-priority">Priority</label>
+              <label data-es className={label} htmlFor="task-priority">Priority</label>
               <select id="task-priority" value={priority} onChange={(e) => setPriority(e.target.value as typeof priority)} className={input}>
                 {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{TASK_PRIORITY_LABEL[p]}</option>)}
               </select>
             </div>
             {playing && kind === 'task' && (
               <div>
-                <label className={label} htmlFor="task-difficulty">Difficulty</label>
+                <label data-es className={label} htmlFor="task-difficulty">Difficulty</label>
                 <select id="task-difficulty" value={difficulty} onChange={(e) => setDifficulty(e.target.value as typeof difficulty)} className={input}>
                   {TASK_DIFFICULTIES.map((d) => <option key={d} value={d}>{TASK_DIFFICULTY_LABEL[d]} · {TASK_XP[d]} XP</option>)}
                 </select>
@@ -781,7 +782,7 @@ export default function TaskEditor({
             )}
             {kind === 'task' && status !== 'done' && (
               <div>
-                <label className={label} htmlFor="task-place">Priority number (place in queue)</label>
+                <label data-es className={label} htmlFor="task-place">Priority number (place in queue)</label>
                 <input
                   id="task-place"
                   type="number"
@@ -795,7 +796,7 @@ export default function TaskEditor({
               </div>
             )}
             <div className="sm:col-span-2">
-              <label className={label} htmlFor="task-repeat">Repeats</label>
+              <label data-es className={label} htmlFor="task-repeat">Repeats</label>
               <select
                 id="task-repeat"
                 value={repeat}
@@ -839,7 +840,7 @@ export default function TaskEditor({
               )}
               {repeat !== 'none' && (
                 <div className="mt-2">
-                  <span className={label}>Stops repeating after</span>
+                  <span data-es className={label}>Stops repeating after</span>
                   <div className="flex flex-wrap items-center gap-2">
                     <DateField ariaLabel="Stops repeating after" value={repeatUntil} onChange={setRepeatUntil} className={`${input} max-w-[12rem]`} />
                     {date && repeatsTooLong(date, repeatUntil) && (
@@ -856,7 +857,7 @@ export default function TaskEditor({
                     </p>
                   ) : (
                     <p className="mt-1 text-xs text-gray-500">
-                      Nothing repeats for ever. A month is the most we suggest — renew it then if it still matters.
+                      <Bi>Nothing repeats for ever. A month is the most we suggest — renew it then if it still matters.</Bi>
                     </p>
                   )}
                 </div>
@@ -896,11 +897,11 @@ export default function TaskEditor({
               {moveTo ? (
                 <div className="flex flex-wrap items-end gap-2">
                   <div>
-                    <span className={label}>Move to</span>
+                    <span data-es className={label}>Move to</span>
                     <DateField ariaLabel="Move to" value={moveTo.date} onChange={(v) => setMoveTo({ ...moveTo, date: v })} className={input} />
                   </div>
                   <div>
-                    <label className={label} htmlFor="task-move-time">Time</label>
+                    <label data-es className={label} htmlFor="task-move-time">Time</label>
                     <TimeField id="task-move-time" value={moveTo.time}
                       onChange={(v) => setMoveTo({ ...moveTo, time: v })} className={input} />
                   </div>

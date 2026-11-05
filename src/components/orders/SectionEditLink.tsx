@@ -26,7 +26,7 @@ export function isOrderSection(v: string | null): v is OrderSection {
 
 export default function SectionEditLink({ orderId, section }: { orderId: string; section: OrderSection }) {
   return (
-    <Link href={`/dashboard/orders/${orderId}/edit?section=${section}`}
+    <Link data-es href={`/dashboard/orders/${orderId}/edit?section=${section}`}
       title={`Edit ${ORDER_SECTION_LABEL[section]}`}
       className="inline-flex items-center gap-1 px-2 py-1 -my-1 text-xs font-medium text-gray-500 rounded-md hover:text-brand-700 hover:bg-gray-100 transition">
       <Pencil className="w-3.5 h-3.5" /> Edit

@@ -184,7 +184,7 @@ export default function PermissionsPage() {
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 {/* Sticky so a name stays readable while the columns scroll. */}
-                <th className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-medium text-gray-500">
+                <th data-es className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-medium text-gray-500">
                   Person
                 </th>
                 {columns.map(({ key, label, detail }) => (
@@ -266,7 +266,7 @@ export default function PermissionsPage() {
           </table>
 
           {rows.length === 0 && (
-            <p className="py-12 text-center text-sm text-gray-400">Nobody matches that.</p>
+            <p data-es className="py-12 text-center text-sm text-gray-400">Nobody matches that.</p>
           )}
         </div>
       )}

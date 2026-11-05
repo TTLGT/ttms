@@ -9,6 +9,7 @@ import { lookupSignedCopyCarrier } from '@/lib/orderPaperwork';
 import { carrierNameKey, type Carrier } from '@/types/carrier';
 import type { OrderFile } from '@/types/orderFile';
 import type { CarrierLookup } from '@/types/signedDocument';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The first step of verifying a carrier's signed agreement: the load needs
@@ -102,40 +103,40 @@ export default function SignedCopyCarrierStep({
   return (
     <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
       <div>
-        <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-900">
+        <p data-es className="flex items-center gap-1.5 text-sm font-semibold text-amber-900">
           <Truck className="h-4 w-4" /> Step 1 — link the carrier
         </p>
         <p className="mt-0.5 text-xs text-amber-800">
-          This load has no carrier yet. The agreement can be verified once the carrier who signed it is on the load.
+          <Bi>This load has no carrier yet. The agreement can be verified once the carrier who signed it is on the load.</Bi>
         </p>
       </div>
 
       {read ? (
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 rounded-md border border-amber-200 bg-white px-3 py-2 text-xs">
-          <dt className="text-gray-400">Carrier</dt><dd className="font-semibold text-gray-900">{read.name ?? '—'}</dd>
-          {read.contact && (<><dt className="text-gray-400">Contact</dt><dd className="text-gray-700">{read.contact}</dd></>)}
-          {read.phone && (<><dt className="text-gray-400">Phone</dt><dd className="text-gray-700">{read.phone}</dd></>)}
-          {(read.mc || read.dot) && (<><dt className="text-gray-400">Numbers</dt><dd className="font-mono text-gray-700">{[read.mc && `MC ${read.mc}`, read.dot && `DOT ${read.dot}`].filter(Boolean).join(' · ')}</dd></>)}
-          {read.driverName && (<><dt className="text-gray-400">Driver</dt><dd className="text-gray-700">{read.driverName}{read.driverPhone ? ` · ${read.driverPhone}` : ''}</dd></>)}
-          <dd className="col-span-2 mt-1 text-[10px] uppercase tracking-wide text-emerald-700">Read from the dispatch sheet</dd>
+          <dt data-es className="text-gray-400">Carrier</dt><dd className="font-semibold text-gray-900">{read.name ?? '—'}</dd>
+          {read.contact && (<><dt data-es className="text-gray-400">Contact</dt><dd className="text-gray-700">{read.contact}</dd></>)}
+          {read.phone && (<><dt data-es className="text-gray-400">Phone</dt><dd className="text-gray-700">{read.phone}</dd></>)}
+          {(read.mc || read.dot) && (<><dt data-es className="text-gray-400">Numbers</dt><dd className="font-mono text-gray-700">{[read.mc && `MC ${read.mc}`, read.dot && `DOT ${read.dot}`].filter(Boolean).join(' · ')}</dd></>)}
+          {read.driverName && (<><dt data-es className="text-gray-400">Driver</dt><dd className="text-gray-700">{read.driverName}{read.driverPhone ? ` · ${read.driverPhone}` : ''}</dd></>)}
+          <dd data-es className="col-span-2 mt-1 text-[10px] uppercase tracking-wide text-emerald-700">Read from the dispatch sheet</dd>
         </dl>
       ) : (
         <p className="text-xs text-amber-800">
-          No carrier could be read off this file. Assign the carrier in the Carrier section of the load, then verify.
+          <Bi>No carrier could be read off this file. Assign the carrier in the Carrier section of the load, then verify.</Bi>
         </p>
       )}
 
       {!mayLook && read && (
-        <p className="text-xs text-amber-800">Ask dispatch to link the carrier — you cannot look carriers up.</p>
+        <p className="text-xs text-amber-800"><Bi>Ask dispatch to link the carrier — you cannot look carriers up.</Bi></p>
       )}
 
       {mayLook && read && !lookup && !error && (
-        <p className="flex items-center gap-1.5 text-xs text-gray-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Looking for them in TTMS…</p>
+        <p data-es className="flex items-center gap-1.5 text-xs text-gray-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Looking for them in TTMS…</p>
       )}
 
       {lookup && lookup.matches.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Already in TTMS</p>
+          <p data-es className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Already in TTMS</p>
           {lookup.matches.map((c) => (
             <div key={c.id} className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-1.5">
               <Building2 className="h-4 w-4 flex-none text-gray-400" />
@@ -158,11 +159,11 @@ export default function SignedCopyCarrierStep({
 
       {lookup && lookup.matches.length === 0 && (
         <div className="space-y-1.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Not in TTMS yet — found on FMCSA</p>
+          <p data-es className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Not in TTMS yet — found on FMCSA</p>
           {lookup.fmcsaError ? (
             <p className="text-xs text-gray-600">{lookup.fmcsaError}</p>
           ) : lookup.fmcsa.length === 0 ? (
-            <p className="text-xs text-gray-600">FMCSA lists nobody under that name. Add the carrier with their MC or DOT.</p>
+            <p className="text-xs text-gray-600"><Bi>FMCSA lists nobody under that name. Add the carrier with their MC or DOT.</Bi></p>
           ) : lookup.fmcsa.map((m) => (
             <div key={m.dotNumber} className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-2.5 py-1.5">
               <Search className="h-4 w-4 flex-none text-gray-400" />

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The intern's own corner of TTMS: their guide, their onboarding survey and
@@ -45,9 +46,9 @@ export default function InternLayout({ children }: { children: React.ReactNode }
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">My onboarding</h1>
+        <h1 className="text-2xl font-bold text-gray-900"><Bi>My onboarding</Bi></h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Everything you need for your first weeks at Total Transport Logistics.
+          <Bi>Everything you need for your first weeks at Total Transport Logistics.</Bi>
         </p>
       </div>
 

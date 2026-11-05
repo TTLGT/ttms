@@ -263,12 +263,12 @@ export default function LoadPhotoBrowser() {
         </div>
         <select value={commodity} onChange={(e) => setCommodity(e.target.value)} className={`${field} lg:w-56`}
           aria-label="Commodity">
-          <option value="">All commodities</option>
+          <option data-es value="">All commodities</option>
           {commodities.map((c) => <option key={c.key} value={c.key}>{c.label} ({c.count})</option>)}
         </select>
         <select value={transport} onChange={(e) => setTransport(e.target.value)} className={`${field} lg:w-48`}
           aria-label="Transport type">
-          <option value="">All transport types</option>
+          <option data-es value="">All transport types</option>
           {transports.map((t) => <option key={t.key} value={t.key}>{t.label} ({t.count})</option>)}
         </select>
         <select value={sort} onChange={(e) => setSort(e.target.value as SortId)} className={`${field} lg:w-40`}
@@ -347,7 +347,7 @@ export default function LoadPhotoBrowser() {
                   <td className="px-4 py-2">
                     <Link href={`/dashboard/orders/${r.orderId}?tab=pictures&from=documents`}
                       className="text-sm font-mono font-medium text-brand-700 hover:underline">{r.orderNumber}</Link>
-                    {r.isCover && <p className="text-[11px] text-amber-700 mt-0.5">Profile picture</p>}
+                    {r.isCover && <p data-es className="text-[11px] text-amber-700 mt-0.5">Profile picture</p>}
                   </td>
                   <td className="px-4 py-2 text-sm text-gray-700">{r.clientName || r.shipperName || '—'}</td>
                   <td className="px-4 py-2 text-sm text-gray-600">{labelOf(r)}</td>

@@ -67,12 +67,12 @@ export default function SeriesChoice({
         )}
 
         <div className="mt-5 flex flex-wrap justify-end gap-2">
-          <button type="button" onClick={onCancel}
+          <button data-es type="button" onClick={onCancel}
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
             Cancel
           </button>
           {ask.kind === 'resize' && (
-            <button type="button" onClick={onAll}
+            <button data-es type="button" onClick={onAll}
               className="rounded-lg border border-brand-600 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50">
               All events
             </button>

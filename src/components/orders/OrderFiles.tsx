@@ -109,7 +109,7 @@ export default function OrderFiles({ orderId, readOnly = false, onChange }: {
   return (
     <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide flex items-center gap-2">
+        <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide flex items-center gap-2">
           <Paperclip className="w-4 h-4" /> Other files
         </h2>
         <p className="text-xs text-gray-500 mt-1">
@@ -137,7 +137,7 @@ export default function OrderFiles({ orderId, readOnly = false, onChange }: {
             }`}
           >
             <Upload className="w-5 h-5 text-gray-400" />
-            <p className="text-sm text-gray-700"><span className="font-medium text-brand-600">Choose files</span> or drop them here</p>
+            <p className="text-sm text-gray-700"><span data-es className="font-medium text-brand-600">Choose files</span> or drop them here</p>
           </div>
           <input ref={inputRef} type="file" multiple className="hidden"
             onChange={(e) => { if (e.target.files?.length) void send(e.target.files); e.target.value = ''; }} />
@@ -159,8 +159,8 @@ export default function OrderFiles({ orderId, readOnly = false, onChange }: {
       ))}
 
       {loadError && <p className="text-sm text-red-700">{loadError}</p>}
-      {files === null && !loadError && <p className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="w-4 h-4 animate-spin" />Loading…</p>}
-      {others?.length === 0 && <p className="text-sm text-gray-500">No other files on this load yet.</p>}
+      {files === null && !loadError && <p data-es className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="w-4 h-4 animate-spin" />Loading…</p>}
+      {others?.length === 0 && <p data-es className="text-sm text-gray-500">No other files on this load yet.</p>}
 
       {others && others.length > 0 && (
         <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">

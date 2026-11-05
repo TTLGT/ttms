@@ -53,7 +53,7 @@ export default function SignedDocumentsSection() {
       {notice && <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{notice}</p>}
 
       {data.rows.length === 0 ? (
-        <p className="text-sm text-gray-400">Nothing waiting.</p>
+        <p data-es className="text-sm text-gray-400">Nothing waiting.</p>
       ) : (
         <ul className="divide-y divide-gray-100">
           {data.rows.map((r) => {
@@ -81,7 +81,7 @@ export default function SignedDocumentsSection() {
                       : `${r.file.review === 'approved' ? 'Verified' : 'Refused'} by ${r.file.reviewedByName} · ${formatDateTime(new Date(r.file.reviewedAt))}`}
                   </span>
                   {r.file.review === 'pending' && data.isVerifier ? (
-                    <span className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white">
+                    <span data-es className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white">
                       <ShieldCheck className="h-3.5 w-3.5" /> Verify
                     </span>
                   ) : <ReviewPill file={r.file} />}

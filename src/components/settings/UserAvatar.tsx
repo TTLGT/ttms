@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { X } from 'lucide-react';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Profile photos for the access list.
@@ -348,7 +349,7 @@ export function AvatarUploader({
         )}
 
         <p className="text-[11px] text-gray-400 mt-1">
-          JPG or PNG, under 5 MB. Saved as soon as it uploads.
+          <Bi>JPG or PNG, under 5 MB. Saved as soon as it uploads.</Bi>
         </p>
         {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
       </div>

@@ -27,6 +27,7 @@ import { canEditSource } from '@/lib/accessControl';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { Bi } from '@/components/spanish/Es';
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -52,7 +53,7 @@ function AddressFields({ label, value, onChange }: {
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
         <select value={value.state} onChange={set('state')}
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400">
-          <option value="">State</option>
+          <option data-es value="">State</option>
           {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <input placeholder="ZIP" value={value.zip} onChange={set('zip')}
@@ -342,7 +343,7 @@ export default function PartyDetailPage() {
           <h1 className="text-2xl font-bold text-gray-900">{displayName}</h1>
           <div className="flex items-center gap-2 mt-2">
             {roles.length === 0 ? (
-              <span className="text-sm text-gray-400">Not yet used on any order</span>
+              <span data-es className="text-sm text-gray-400">Not yet used on any order</span>
             ) : roles.map((r) => (
               <span key={r} className="px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 text-xs font-semibold">
                 {ROLE_LABEL[r]}
@@ -352,14 +353,14 @@ export default function PartyDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <CopyLinkButton />
-          <Link
+          <Link data-es
             href={`/dashboard/orders/new?clientId=${partyId}`}
             className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-lg hover:bg-gray-50 transition"
           >
             New order
           </Link>
           {!editing && (
-            <button onClick={startEditing}
+            <button data-es onClick={startEditing}
               className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">
               Edit
             </button>
@@ -371,7 +372,7 @@ export default function PartyDetailPage() {
 
       {missing.length > 0 && !editing && (
         <div className="mb-6 flex items-center gap-2 text-sm text-gray-500">
-          <span>Also list as:</span>
+          <span data-es>Also list as:</span>
           {missing.map((r) => (
             <button key={r} onClick={() => handleAddRole(r)}
               className="px-2 py-0.5 rounded border border-gray-300 text-xs font-medium hover:bg-gray-50">
@@ -385,16 +386,16 @@ export default function PartyDetailPage() {
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5 mb-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Company name</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Company name</label>
               <input value={companyName} onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="Leave blank for an individual"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Contact name</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Contact name</label>
               <input value={contactName} onChange={(e) => setContactName(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              <p className="text-xs text-gray-400 mt-1">Used as the display name when there is no company.</p>
+              <p className="text-xs text-gray-400 mt-1"><Bi>Used as the display name when there is no company.</Bi></p>
             </div>
             <PhoneField
               label="Phone"
@@ -403,10 +404,10 @@ export default function PartyDetailPage() {
               onChange={(v, r) => { setPhone(v); setPhoneRegion(r); }}
             />
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              <p className="text-xs text-gray-400 mt-1">Agreements and load confirmations are sent here.</p>
+              <p data-es className="text-xs text-gray-400 mt-1">Agreements and load confirmations are sent here.</p>
             </div>
             <PhoneField
               label="Secondary phone"
@@ -416,7 +417,7 @@ export default function PartyDetailPage() {
               hint="Searchable the same way the main number is."
             />
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Secondary email</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Secondary email</label>
               <input type="email" value={email2} onChange={(e) => setEmail2(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
             </div>
@@ -430,7 +431,7 @@ export default function PartyDetailPage() {
             <div className="space-y-4">
               {profiles.length > 0 && (
                 <div>
-                  <p className="text-sm font-semibold text-gray-700 mb-2">Assigned to people</p>
+                  <p data-es className="text-sm font-semibold text-gray-700 mb-2">Assigned to people</p>
                   <div className="flex flex-wrap gap-3">
                     {profiles.map((p) => (
                       <label key={p.uid} className="flex items-center gap-2 text-sm text-gray-700">
@@ -446,16 +447,16 @@ export default function PartyDetailPage() {
                     ))}
                   </div>
                   <p className="text-xs text-gray-400 mt-1">
-                    More than one person can own the same record.
+                    <Bi>More than one person can own the same record.</Bi>
                   </p>
                 </div>
               )}
 
               <div>
-                <p className="text-sm font-semibold text-gray-700 mb-2">Assigned to work groups</p>
+                <p data-es className="text-sm font-semibold text-gray-700 mb-2">Assigned to work groups</p>
                 {groups.length === 0 ? (
                   <p className="text-sm text-gray-400">
-                    No work groups yet — create them in Settings.
+                    <Bi>No work groups yet — create them in Settings.</Bi>
                   </p>
                 ) : (
                   <div className="flex flex-wrap gap-3">
@@ -474,7 +475,7 @@ export default function PartyDetailPage() {
                   </div>
                 )}
                 <p className="text-xs text-gray-400 mt-1">
-                  Everyone in a selected group can see and use this record.
+                  <Bi>Everyone in a selected group can see and use this record.</Bi>
                 </p>
               </div>
             </div>
@@ -493,7 +494,7 @@ export default function PartyDetailPage() {
           )}
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+            <label data-es className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
           </div>
@@ -527,7 +528,7 @@ export default function PartyDetailPage() {
           </dl>
           {party.notes && (
             <div className="mt-5 pt-5 border-t border-gray-100">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Notes</p>
+              <p data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Notes</p>
               <p className="text-sm text-gray-700 whitespace-pre-line">{party.notes}</p>
             </div>
           )}
@@ -540,8 +541,8 @@ export default function PartyDetailPage() {
         </div>
         {orders.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-sm text-gray-400">No orders for this party yet.</p>
-            <Link href={`/dashboard/orders/new?clientId=${partyId}`}
+            <p data-es className="text-sm text-gray-400">No orders for this party yet.</p>
+            <Link data-es href={`/dashboard/orders/new?clientId=${partyId}`}
               className="mt-2 inline-block text-sm text-brand-600 hover:underline">
               Create one →
             </Link>
@@ -579,7 +580,7 @@ export default function PartyDetailPage() {
                   <td className="px-4 py-3 text-sm text-gray-600">{formatDate(o.pickupDate)}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{formatCurrency(o.agreedRate)}</td>
                   <td className="px-4 py-3 text-right">
-                    <Link href={`/dashboard/orders/${o.id}`} className="text-xs text-brand-600 hover:underline font-medium">
+                    <Link data-es href={`/dashboard/orders/${o.id}`} className="text-xs text-brand-600 hover:underline font-medium">
                       View →
                     </Link>
                   </td>

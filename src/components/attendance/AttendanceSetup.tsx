@@ -18,6 +18,7 @@ import {
   type SchedulesResponse,
 } from '@/lib/attendance';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { Bi } from '@/components/spanish/Es';
 import {
   BACK_ON_TIME_LEAD,
   DEFAULT_SCHEDULE_ID,
@@ -88,21 +89,21 @@ function SchedulesPanel() {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  if (!data) return <section className={card}><h2 className={h2}>Schedules</h2><p className={lede}>{error || 'Loading…'}</p></section>;
+  if (!data) return <section className={card}><h2 className={h2}><Bi>Schedules</Bi></h2><p className={lede}>{error || 'Loading…'}</p></section>;
 
   const own = target === DEFAULT_SCHEDULE_ID ? data.fallback : data.byEmail[target] ?? null;
   const personName = data.people.find((p) => p.email === target)?.name;
 
   return (
     <section className={card}>
-      <h2 className={h2}>Schedules</h2>
+      <h2 className={h2}><Bi>Schedules</Bi></h2>
       <p className={lede}>
-        When each person is expected in, in office time. Anybody without a schedule of their own follows the company
-        one. Nobody is ever marked late or absent without one — until the company schedule is saved, nobody is.
+        <Bi>When each person is expected in, in office time. Anybody without a schedule of their own follows the company
+        one. Nobody is ever marked late or absent without one — until the company schedule is saved, nobody is.</Bi>
       </p>
 
       <select value={target} onChange={(e) => setTarget(e.target.value)} className="mt-4 w-full rounded-lg border border-gray-300 py-1.5 pl-3 pr-8 text-sm">
-        <option value={DEFAULT_SCHEDULE_ID}>Company schedule (everyone without their own)</option>
+        <option data-es value={DEFAULT_SCHEDULE_ID}>Company schedule (everyone without their own)</option>
         {data.people.map((p) => (
           <option key={p.email} value={p.email}>
             {p.name}{data.byEmail[p.email] ? ' — own schedule' : ''}{p.pending ? ' (not signed in yet)' : ''}
@@ -182,7 +183,7 @@ function ScheduleEditor({
                       <input type="time" value={shift.end} onChange={(e) => setS({ ...s, days: { ...s.days, [d]: { ...shift, end: e.target.value } } })}
                         className="rounded-lg border border-gray-300 px-2 py-1" />
                     </span>
-                  ) : <span className="text-gray-400">Day off</span>}
+                  ) : <span data-es className="text-gray-400">Day off</span>}
                 </td>
               </tr>
             );
@@ -241,22 +242,22 @@ function RemindersPanel({ version, onSaved }: { version: number; onSaved: () => 
   }, []);
   useEffect(() => { void load(); }, [load, version]);
 
-  if (!data) return <section className={card}><h2 className={h2}>Break reminders</h2><p className={lede}>{error || 'Loading…'}</p></section>;
+  if (!data) return <section className={card}><h2 className={h2}><Bi>Break reminders</Bi></h2><p className={lede}>{error || 'Loading…'}</p></section>;
 
   const isCompany = target === COMPANY;
 
   return (
     <section className={card}>
-      <h2 className={h2}>Break reminders</h2>
+      <h2 className={h2}><Bi>Break reminders</Bi></h2>
       <p className={lede}>
-        A reminder in the corner of TTMS, and on the desktop where the browser allows it, with a button that clocks in
+        <Bi>A reminder in the corner of TTMS, and on the desktop where the browser allows it, with a button that clocks in
         or starts the break. Clock in is for people who have not clocked in yet that day; the others only for people who
         are clocked in and not already on a break. Only while TTMS is open. Times are office time (Guatemala). Change
-        them for everybody, or for one person.
+        them for everybody, or for one person.</Bi>
       </p>
 
       <select value={target} onChange={(e) => setTarget(e.target.value)} className="mt-4 w-full rounded-lg border border-gray-300 py-1.5 pl-3 pr-8 text-sm">
-        <option value={COMPANY}>Company reminders (everyone without their own)</option>
+        <option data-es value={COMPANY}>Company reminders (everyone without their own)</option>
         {data.people.map((p) => (
           <option key={p.email} value={p.email}>
             {p.name}{data.byEmail[p.email] ? ' — own reminders' : ''}{p.pending ? ' (not signed in yet)' : ''}
@@ -350,17 +351,17 @@ function RemindersEditor({
                     minutes before the shift starts (0 for no warning)
                   </label>
                   <p className="mt-2 text-xs text-gray-500">
-                    Follows each person&rsquo;s work schedule: a warning that many minutes before their shift, then a
+                    <Bi>Follows each person&rsquo;s work schedule: a warning that many minutes before their shift, then a
                     reminder from the start of the shift until they clock in, dismiss it or the shift ends. Never on a
                     day off, a public holiday or a day of time off (pending requests too). With no schedule set, 7:00 to
-                    4:00 on weekdays. Not recorded on anybody&rsquo;s attendance.
+                    4:00 on weekdays. Not recorded on anybody&rsquo;s attendance.</Bi>
                   </p>
                 </>
               )}
               {kind === 'activePause' && (
                 <p className="mt-2 text-xs text-gray-500">
-                  Once a day: three short desk exercises in English and Spanish, different every day. 8:30 sits in the
-                  middle of the longest stretch without a break, 7 to 10. Not recorded on anybody&rsquo;s attendance.
+                  <Bi>Once a day: three short desk exercises in English and Spanish, different every day. 8:30 sits in the
+                  middle of the longest stretch without a break, 7 to 10. Not recorded on anybody&rsquo;s attendance.</Bi>
                 </p>
               )}
               {kind !== 'clockIn' && <DaysField days={r.days} disabled={!editable} onChange={(days) => set(kind, { days })} />}
@@ -458,14 +459,14 @@ function HolidaysPanel() {
   return (
     <section className={card}>
       <div className="flex items-center gap-3">
-        <h2 className={`${h2} flex-1`}>Holidays</h2>
+        <h2 className={`${h2} flex-1`}><Bi>Holidays</Bi></h2>
         <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="rounded-lg border border-gray-300 py-1 pl-2 pr-7 text-sm">
           {[year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
       </div>
       <p className={lede}>
-        Worked out from the law each year. Move one to the day the office actually closes, stop observing it, or add a
-        company day off. The Celebrations calendar follows the same list.
+        <Bi>Worked out from the law each year. Move one to the day the office actually closes, stop observing it, or add a
+        company day off. The Celebrations calendar follows the same list.</Bi>
       </p>
 
       <ul className="mt-3 divide-y divide-gray-100 text-sm">
@@ -580,7 +581,7 @@ function LunchTimesPanel({ version, onSaved }: { version: number; onSaved: () =>
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load lunch times'));
   }, [version]);
 
-  if (!data) return <section className={card}><h2 className={h2}>Lunch times</h2><p className={lede}>{error || 'Loading…'}</p></section>;
+  if (!data) return <section className={card}><h2 className={h2}><Bi>Lunch times</Bi></h2><p className={lede}>{error || 'Loading…'}</p></section>;
 
   const lunchOf = (email: string) => data.byEmail[email]?.lunch ?? null;
   const ownCount = data.people.filter((p) => lunchOf(p.email)).length;
@@ -610,7 +611,7 @@ function LunchTimesPanel({ version, onSaved }: { version: number; onSaved: () =>
 
   return (
     <section className={card}>
-      <h2 className={h2}>Lunch times</h2>
+      <h2 className={h2}><Bi>Lunch times</Bi></h2>
       <p className={lede}>
         Move lunch for everybody, or for several people at once. Lunch ends at the end time even if somebody leaves
         late, and &ldquo;Back on time&rdquo; uses it too. Company lunch now: {clock12(data.company.lunch.at)}–{clock12(data.company.lunch.until)}.
@@ -639,7 +640,7 @@ function LunchTimesPanel({ version, onSaved }: { version: number; onSaved: () =>
           <input type="checkbox" className="mt-0.5" checked={resetOwn} disabled={!ownCount} onChange={(e) => setResetOwn(e.target.checked)} />
           <span>
             Also move the {ownCount} {ownCount === 1 ? 'person' : 'people'} with a lunch time of their own
-            <span className="block text-xs text-gray-500">Otherwise they keep their own time.</span>
+            <span data-es className="block text-xs text-gray-500">Otherwise they keep their own time.</span>
           </span>
         </label>
       ) : (
@@ -667,7 +668,7 @@ function LunchTimesPanel({ version, onSaved }: { version: number; onSaved: () =>
                 </li>
               );
             })}
-            {shown.length === 0 && <li className="px-3 py-3 text-center text-gray-500">Nobody matches.</li>}
+            {shown.length === 0 && <li data-es className="px-3 py-3 text-center text-gray-500">Nobody matches.</li>}
           </ul>
           <p className="mt-1 text-xs text-gray-500">{chosen.size} chosen. Each gets a lunch time of their own; their other reminders stay as they are.</p>
         </div>
@@ -711,20 +712,20 @@ function BackOnTimePanel() {
     }
   }
 
-  if (!value) return <section className={card}><h2 className={h2}>Back on time</h2><p className={lede}>{error || 'Loading…'}</p></section>;
+  if (!value) return <section className={card}><h2 className={h2}><Bi>Back on time</Bi></h2><p className={lede}>{error || 'Loading…'}</p></section>;
 
   const leads = [];
   for (let n = BACK_ON_TIME_LEAD.min; n <= BACK_ON_TIME_LEAD.max; n++) leads.push(n);
 
   return (
     <section className={card}>
-      <h2 className={h2}>Back on time</h2>
+      <h2 className={h2}><Bi>Back on time</Bi></h2>
       <p className={lede}>
-        A few minutes before somebody&rsquo;s break or lunch ends, a reminder asks if they are back. If they are, one
+        <Bi>A few minutes before somebody&rsquo;s break or lunch ends, a reminder asks if they are back. If they are, one
         click ends the break at the time it was due to end, not earlier, so they do not lose minutes or forget to
         clock back in. A break ends its length after it started (from the break reminders above). Lunch ends at the
         end of the person&rsquo;s lunch time — 2:00 if lunch is 1 to 2 — even if they went out late. They can undo it until that
-        time, and the day shows HR when the button was pressed. Only while TTMS is open.
+        time, and the day shows HR when the button was pressed. Only while TTMS is open.</Bi>
       </p>
       <label className="mt-3 flex items-center gap-2 text-sm">
         <input type="checkbox" checked={value.enabled} onChange={(e) => void save({ ...value, enabled: e.target.checked })} />
@@ -771,17 +772,17 @@ function NetworkPanel() {
     }
   }
 
-  if (!config) return <section className={card}><h2 className={h2}>Office network</h2><p className={lede}>{error || 'Loading…'}</p></section>;
+  if (!config) return <section className={card}><h2 className={h2}><Bi>Office network</Bi></h2><p className={lede}>{error || 'Loading…'}</p></section>;
 
   const addNetwork = (address: string, name: string) =>
     void save({ officeNetworks: [...config.officeNetworks, { ip: address.trim(), label: name.trim() }] }).then(() => { setIp(''); setLabel(''); });
 
   return (
     <section className={card}>
-      <h2 className={h2}>Office network and alerts</h2>
+      <h2 className={h2}><Bi>Office network and alerts</Bi></h2>
       <p className={lede}>
-        A clock-in from one of these internet addresses is marked as from the office. This only works if the office
-        has a fixed address — your internet provider can confirm it.
+        <Bi>A clock-in from one of these internet addresses is marked as from the office. This only works if the office
+        has a fixed address — your internet provider can confirm it.</Bi>
       </p>
 
       <ul className="mt-3 divide-y divide-gray-100 text-sm">
@@ -813,8 +814,8 @@ function NetworkPanel() {
       <div className="mt-5 border-t border-gray-100 pt-4 text-sm">
         <h3 className="font-semibold text-gray-900">&ldquo;Not in yet&rdquo; alerts</h3>
         <p className="mt-1 text-gray-500">
-          A message in the Attendance alerts chat room for HR, administrators and the person&rsquo;s team lead, when
-          somebody scheduled has not clocked in or used TTMS. Checked every 15 minutes, 6am to 6pm, Monday to Saturday.
+          <Bi>A message in the Attendance alerts chat room for HR, administrators and the person&rsquo;s team lead, when
+          somebody scheduled has not clocked in or used TTMS. Checked every 15 minutes, 6am to 6pm, Monday to Saturday.</Bi>
         </p>
         <label className="mt-3 flex items-center gap-2">
           <input type="checkbox" checked={config.alerts} onChange={(e) => void save({ alerts: e.target.checked })} />

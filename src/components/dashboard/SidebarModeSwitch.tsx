@@ -23,7 +23,7 @@ export default function SidebarModeSwitch({
 }) {
   return (
     <div className="mb-2 hidden items-center justify-between gap-2 lg:flex">
-      <span className="text-xs text-blue-300">Menu</span>
+      <span data-es className="text-xs text-blue-300">Menu</span>
       <div role="radiogroup" aria-label="How the menu sits" className="flex gap-0.5 rounded-lg bg-brand-700/50 p-0.5">
         {SIDEBAR_MODES.map((value) => {
           const { icon: Icon, label } = OPTIONS[value];

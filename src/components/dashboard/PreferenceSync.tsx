@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { storeTheme, storedTheme } from '@/lib/theme';
 import { storeChatWallpaper, storedChatWallpaper } from '@/lib/chatWallpaper';
 import { storeLearnEnglish, storedLearnEnglish } from '@/context/LearnContext';
+import { storeSpanish, storedSpanish } from '@/context/SpanishContext';
 import { saveToAccount } from '@/lib/preferences';
 import type { UserPreferences } from '@/types/userPreferences';
 
@@ -54,6 +55,10 @@ export default function PreferenceSync() {
         && account.learnEnglish !== storedLearnEnglish()) {
       storeLearnEnglish(account.learnEnglish);
     }
+    if (typeof account.spanish === 'boolean' && account.spanish !== last.spanish
+        && account.spanish !== storedSpanish()) {
+      storeSpanish(account.spanish);
+    }
     seen.current = account;
 
     if (!copiedUp.current) {
@@ -62,9 +67,11 @@ export default function PreferenceSync() {
       const theme = storedTheme();
       const wallpaper = storedChatWallpaper();
       const learn = storedLearnEnglish();
+      const spanish = storedSpanish();
       if (!account.theme && theme) missing.theme = theme;
       if (!account.chatWallpaper && wallpaper) missing.chatWallpaper = wallpaper;
       if (typeof account.learnEnglish !== 'boolean' && learn !== null) missing.learnEnglish = learn;
+      if (typeof account.spanish !== 'boolean' && spanish !== null) missing.spanish = spanish;
       if (Object.keys(missing).length > 0) saveToAccount(missing);
     }
   }, [profile, prefs]);

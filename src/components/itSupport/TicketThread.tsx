@@ -26,6 +26,7 @@ import {
 } from '@/types/itTicket';
 import { AttachButton, AttachmentTray, DropZone, useAttachmentDraft } from './AttachmentTray';
 import { PriorityChip, StatusChip } from './TicketChips';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * One ticket: what was reported, the conversation, and a box to answer in.
@@ -200,11 +201,11 @@ export default function TicketThread({ ticketId, desk, onChanged, onBack }: {
             </button>
             {showDetails && (
               <dl className="mt-1.5 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 rounded-lg bg-gray-50 p-2.5 text-xs">
-                <dt className="text-gray-500">Type</dt>
+                <dt data-es className="text-gray-500">Type</dt>
                 <dd className="text-gray-800">{CATEGORY_LABEL[ticket.category]}</dd>
-                <dt className="text-gray-500">Page</dt>
+                <dt data-es className="text-gray-500">Page</dt>
                 <dd className="break-all text-gray-800">{ticket.page || '—'}</dd>
-                <dt className="text-gray-500">Device</dt>
+                <dt data-es className="text-gray-500">Device</dt>
                 <dd className="break-all text-gray-800">{ticket.device || '—'}</dd>
               </dl>
             )}
@@ -226,7 +227,7 @@ export default function TicketThread({ ticketId, desk, onChanged, onBack }: {
       <div className="flex-shrink-0 border-t border-gray-200 bg-white p-3">
         {!desk && closed ? (
           <p className="text-center text-sm text-gray-500">
-            This ticket is closed. If something is still wrong, report a new issue.
+            <Bi>This ticket is closed. If something is still wrong, report a new issue.</Bi>
           </p>
         ) : (
           <Composer
@@ -245,7 +246,7 @@ export default function TicketThread({ ticketId, desk, onChanged, onBack }: {
 
 function BackButton({ onBack }: { onBack: () => void }) {
   return (
-    <button
+    <button data-es
       type="button"
       onClick={onBack}
       className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-gray-800 lg:hidden"
@@ -277,7 +278,7 @@ function MessageItem({ m, desk, when }: { m: ItTicketMessage; desk: boolean; whe
           <span className="font-semibold text-gray-800">{m.fromIt ? 'IT support' : m.authorName}</span>
           <span className="text-gray-400">{when}</span>
           {m.internal && (
-            <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+            <span data-es className="inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
               <Lock size={10} /> Internal note — only IT sees this
             </span>
           )}
@@ -309,7 +310,7 @@ function Attachments({ list }: { list: ItAttachment[] }) {
                 // eslint-disable-next-line @next/next/no-img-element -- a short-lived signed link, not an optimisable asset
                 <img src={a.url} alt={a.name} className="h-32 max-w-[240px] object-cover" />
               ) : (
-                <span className="flex h-32 w-32 items-center justify-center text-xs text-gray-400">Unavailable</span>
+                <span data-es className="flex h-32 w-32 items-center justify-center text-xs text-gray-400">Unavailable</span>
               )}
             </a>
           ))}
@@ -395,7 +396,7 @@ function Composer({ ticket, desk, onSent, onClose, setError }: {
         </div>
       )}
       {!desk && resolved && (
-        <p className="text-xs text-gray-500">IT marked this resolved. Still not right? Reply and it reopens.</p>
+        <p className="text-xs text-gray-500"><Bi>IT marked this resolved. Still not right? Reply and it reopens.</Bi></p>
       )}
       <textarea
         value={text}

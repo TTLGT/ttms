@@ -1,6 +1,7 @@
 /*
  * The look-and-feel choices that follow a person from one computer to the
- * next: the colour theme, the chat wallpaper, and whether Learn English is on.
+ * next: the colour theme, the chat wallpaper, and whether Learn English and the
+ * Spanish switch are on.
  *
  * They used to live in localStorage alone, on the argument that they are about
  * a screen rather than a person. In practice people found them forgotten the
@@ -36,6 +37,8 @@ export interface UserPreferences {
   theme?: ThemeChoice;
   chatWallpaper?: ChatWallpaperId;
   learnEnglish?: boolean;
+  /** Spanish under the English — see src/context/SpanishContext.tsx. */
+  spanish?: boolean;
 }
 
 /**
@@ -52,5 +55,6 @@ export function cleanPreferences(input: unknown): UserPreferences {
     out.chatWallpaper = body.chatWallpaper as ChatWallpaperId;
   }
   if (typeof body.learnEnglish === 'boolean') out.learnEnglish = body.learnEnglish;
+  if (typeof body.spanish === 'boolean') out.spanish = body.spanish;
   return out;
 }

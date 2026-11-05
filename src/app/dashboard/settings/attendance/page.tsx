@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/context/AuthContext';
 import AttendanceSetup from '@/components/attendance/AttendanceSetup';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Attendance setup under Settings: schedules, holidays, lunch times, break
@@ -18,7 +19,7 @@ export default function SettingsAttendancePage() {
   if (!can('attendance.manage')) {
     return (
       <p className="rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-600">
-        Attendance settings need the &ldquo;Manage attendance&rdquo; permission. Admin and HR have it.
+        <Bi>Attendance settings need the &ldquo;Manage attendance&rdquo; permission. Admin and HR have it.</Bi>
       </p>
     );
   }

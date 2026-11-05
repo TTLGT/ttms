@@ -139,7 +139,7 @@ export default function OrderOwnersCard({ order, onChanged }: {
                 <span key={p.uid} className={chip} title={p.email}>
                   {p.name}
                   {p.uid === owners.brokerUid && owners.people.length > 1 && (
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-brand-700">Broker</span>
+                    <span data-es className="text-[10px] font-semibold uppercase tracking-wide text-brand-700">Broker</span>
                   )}
                   {canAssign && (
                     <button type="button" onClick={() => remove('uid', p.uid, p.name)} disabled={busy}
@@ -152,7 +152,7 @@ export default function OrderOwnersCard({ order, onChanged }: {
               {owners.groups.map((g) => (
                 <span key={g.id} className={chip}>
                   {g.name}
-                  <span className="text-[10px] uppercase tracking-wide text-gray-400">Group</span>
+                  <span data-es className="text-[10px] uppercase tracking-wide text-gray-400">Group</span>
                   {canAssign && (
                     <button type="button" onClick={() => remove('group', g.id, g.name)} disabled={busy}
                       aria-label={`Remove ${g.name}`} className="text-gray-400 hover:text-red-600 disabled:opacity-50">
@@ -164,7 +164,7 @@ export default function OrderOwnersCard({ order, onChanged }: {
               {owners.pending.map((email) => (
                 <span key={email} className={chip}>
                   {email}
-                  <span className="text-[10px] uppercase tracking-wide text-gray-400">Not signed in yet</span>
+                  <span data-es className="text-[10px] uppercase tracking-wide text-gray-400">Not signed in yet</span>
                   {canAssign && (
                     <button type="button" onClick={() => remove('email', email, email)} disabled={busy}
                       aria-label={`Remove ${email}`} className="text-gray-400 hover:text-red-600 disabled:opacity-50">
@@ -176,7 +176,7 @@ export default function OrderOwnersCard({ order, onChanged }: {
             </>
           )}
         {canAssign && !adding && (
-          <button type="button" onClick={openPicker} disabled={busy}
+          <button data-es type="button" onClick={openPicker} disabled={busy}
             className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline disabled:opacity-50">
             <Plus className="w-3.5 h-3.5" /> Add owner
           </button>
@@ -194,13 +194,13 @@ export default function OrderOwnersCard({ order, onChanged }: {
       {canAssign && adding && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {people === null && !error ? (
-            <span className="inline-flex items-center gap-2 text-sm text-gray-500">
+            <span data-es className="inline-flex items-center gap-2 text-sm text-gray-500">
               <Loader2 className="w-4 h-4 animate-spin" /> Loading people…
             </span>
           ) : (
             <select value={pick} onChange={(e) => setPick(e.target.value)} disabled={busy}
               className="min-w-[14rem] rounded-lg border border-gray-300 px-3 py-1.5 text-sm">
-              <option value="">Choose a person or work group…</option>
+              <option data-es value="">Choose a person or work group…</option>
               {choices.people.length > 0 && (
                 <optgroup label="People">
                   {choices.people.map((p) => (
@@ -228,7 +228,7 @@ export default function OrderOwnersCard({ order, onChanged }: {
 
       {owners.people.length > 1 && (
         <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center gap-2">
-          <label className="text-xs text-gray-500" htmlFor="order-broker">
+          <label data-es className="text-xs text-gray-500" htmlFor="order-broker">
             Broker on the SA and Dispatch Sheet
           </label>
           {/* The explanation is a tooltip so the strip stays one line high. */}
@@ -242,7 +242,7 @@ export default function OrderOwnersCard({ order, onChanged }: {
               </option>
             ))}
           </select>
-          <span className="text-xs text-gray-400">Applies to the next send.</span>
+          <span data-es className="text-xs text-gray-400">Applies to the next send.</span>
         </div>
       )}
 

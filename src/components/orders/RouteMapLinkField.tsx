@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { ExternalLink, RefreshCw } from 'lucide-react';
 import { buildTripMapUrl } from '@/types/order';
 import type { Address } from '@/types/order';
+import { Bi } from '@/components/spanish/Es';
 
 interface Props {
   /** Every stop in driving order — every pickup, then every delivery. */
@@ -57,9 +58,9 @@ export default function RouteMapLinkField({ stops, value, onChange }: Props) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <label className="block text-xs font-medium text-gray-600">Google Maps route</label>
+        <label data-es className="block text-xs font-medium text-gray-600">Google Maps route</label>
         <div className="flex items-center gap-3">
-          <button
+          <button data-es
             type="button"
             onClick={regenerate}
             disabled={!auto || value === auto}
@@ -68,7 +69,7 @@ export default function RouteMapLinkField({ stops, value, onChange }: Props) {
             <RefreshCw className="w-3 h-3" /> Rebuild from addresses
           </button>
           {value && (
-            <a
+            <a data-es
               href={value}
               target="_blank"
               rel="noopener noreferrer"
@@ -87,8 +88,8 @@ export default function RouteMapLinkField({ stops, value, onChange }: Props) {
         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
       />
       <p className="mt-1 text-xs text-gray-500">
-        Built from the stops above. Paste your own link to override it — a custom
-        link is never overwritten.
+        <Bi>Built from the stops above. Paste your own link to override it — a custom
+        link is never overwritten.</Bi>
       </p>
     </div>
   );

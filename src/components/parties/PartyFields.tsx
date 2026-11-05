@@ -15,6 +15,7 @@ import PhoneField from '@/components/PhoneField';
 import { DEFAULT_RECORD_REGION } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
 import LeadSourceField from '@/components/orders/LeadSourceField';
+import { Bi } from '@/components/spanish/Es';
 
 const US_STATES = [
   'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
@@ -305,7 +306,7 @@ export default function PartyFields({
       </div>
 
       <div>
-        <p className="text-sm font-semibold text-gray-700 mb-3">Address</p>
+        <p data-es className="text-sm font-semibold text-gray-700 mb-3">Address</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="col-span-1 sm:col-span-2">
             <input placeholder="Street address" value={value.address.street} onChange={setAddress('street')}
@@ -321,7 +322,7 @@ export default function PartyFields({
             <div>
               <select value={value.address.state} onChange={setAddress('state')}
                 className={errors.state ? badCls : inputCls}>
-                <option value="">State</option>
+                <option data-es value="">State</option>
                 {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
               {errors.state && <p className="text-xs text-red-600 mt-1">{errors.state}</p>}
@@ -337,7 +338,7 @@ export default function PartyFields({
 
       {showRoles && (
         <div>
-          <p className="text-sm font-semibold text-gray-700 mb-2">Roles</p>
+          <p data-es className="text-sm font-semibold text-gray-700 mb-2">Roles</p>
           <div className="flex gap-4">
             {PARTY_ROLES.map((r) => (
               <label key={r} className="flex items-center gap-2 text-sm text-gray-700">
@@ -350,7 +351,7 @@ export default function PartyFields({
             ))}
           </div>
           <p className="text-xs text-gray-400 mt-1">
-            One record serves every role — tick more than one if this company both ships and receives.
+            <Bi>One record serves every role — tick more than one if this company both ships and receives.</Bi>
           </p>
         </div>
       )}
@@ -368,16 +369,16 @@ export default function PartyFields({
       {showOwners && (
         <div className="space-y-4 border-t border-gray-100 pt-5">
           <div>
-            <p className="text-sm font-semibold text-gray-700">Owners</p>
+            <p data-es className="text-sm font-semibold text-gray-700">Owners</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              You will own this record. Anyone you add here owns it with you and can see it
-              and its orders — everybody else has to ask.
+              <Bi>You will own this record. Anyone you add here owns it with you and can see it
+              and its orders — everybody else has to ask.</Bi>
             </p>
           </div>
 
           {colleagues.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-gray-600 mb-2">Share with people</p>
+              <p data-es className="text-xs font-medium text-gray-600 mb-2">Share with people</p>
               <div className="flex flex-wrap gap-x-4 gap-y-2 max-h-40 overflow-auto">
                 {colleagues.map((p) => (
                   <label key={p.uid} className="flex items-center gap-2 text-sm text-gray-700">
@@ -391,7 +392,7 @@ export default function PartyFields({
           )}
 
           <div>
-            <p className="text-xs font-medium text-gray-600 mb-2">Share with a work group</p>
+            <p data-es className="text-xs font-medium text-gray-600 mb-2">Share with a work group</p>
             {pickableGroups.length === 0 ? (
               <p className="text-sm text-gray-400">
                 {groups.length === 0
@@ -455,7 +456,7 @@ function PhoneLookupRow({ phone, onUseExisting }: {
 
   return (
     <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm">
-      <p className="text-amber-900 font-medium">That number is already on file.</p>
+      <p data-es className="text-amber-900 font-medium">That number is already on file.</p>
       {found.matches.length > 0 && (
         <ul className="mt-2 space-y-1">
           {found.matches.map((p) => (

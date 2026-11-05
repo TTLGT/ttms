@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { CHAT_LIST_NAME_MAX, MAX_CHAT_LISTS } from '@/types/conversation';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Naming a filter group — making one, or renaming one that exists.
@@ -70,8 +71,8 @@ export default function ChatListDialog({
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
               />
               <p className="mt-2 text-xs text-gray-500">
-                A list is yours alone. Nobody else sees it, and putting a chat in one
-                changes nothing for the people in that chat.
+                <Bi>A list is yours alone. Nobody else sees it, and putting a chat in one
+                changes nothing for the people in that chat.</Bi>
               </p>
             </>
           )}

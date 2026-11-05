@@ -376,7 +376,7 @@ export default function MessageComposer({
           ) : (
             <>
               Only this room’s admins can post here.{' '}
-              <span className="text-gray-500">You can still read everything in it.</span>
+              <span data-es className="text-gray-500">You can still read everything in it.</span>
             </>
           )}
         </p>
@@ -407,7 +407,7 @@ export default function MessageComposer({
     >
       {dragging && (
         <div className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-lg border-2 border-dashed border-brand-400 bg-brand-50/90">
-          <span className="text-sm font-medium text-brand-700">Drop to attach</span>
+          <span data-es className="text-sm font-medium text-brand-700">Drop to attach</span>
         </div>
       )}
 

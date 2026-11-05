@@ -64,7 +64,7 @@ export default function PaymentsCard({ orderId, order, onChanged }: {
     <div className="rounded-xl border border-gray-200 bg-white p-6">
       <div className="mb-1 flex items-center gap-2">
         <CircleDollarSign className="h-4 w-4 text-gray-500" />
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Payments</h3>
+        <h3 data-es className="text-xs font-semibold uppercase tracking-wide text-gray-500">Payments</h3>
         {cod && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">COD</span>}
       </div>
       <p className="mb-4 text-xs text-gray-500">
@@ -85,9 +85,9 @@ export default function PaymentsCard({ orderId, order, onChanged }: {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-medium text-gray-900">{paymentMarkLabel(key, cod)}</p>
                 {mark ? (
-                  <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">Recorded</span>
+                  <span data-es className="rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">Recorded</span>
                 ) : (
-                  <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Not yet</span>
+                  <span data-es className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Not yet</span>
                 )}
               </div>
               {mark && (
@@ -182,7 +182,7 @@ function RecordForm({ orderId, markKey, proofNeeded, onCancel, onDone }: {
           className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
           {busy ? 'Saving…' : 'Save'}
         </button>
-        <button type="button" onClick={onCancel} disabled={busy}
+        <button data-es type="button" onClick={onCancel} disabled={busy}
           className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50">
           Cancel
         </button>

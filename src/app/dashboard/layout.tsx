@@ -49,6 +49,9 @@ import ChangeOrderPrompt from '@/components/orders/ChangeOrderPrompt';
 import BreakReminder from '@/components/attendance/BreakReminder';
 import CelebrationHeadsUp from '@/components/dashboard/CelebrationHeadsUp';
 import { LearnProvider } from '@/context/LearnContext';
+import { SpanishProvider } from '@/context/SpanishContext';
+import SpanishSwitch from '@/components/dashboard/SpanishSwitch';
+import SpanishTips from '@/components/spanish/SpanishTips';
 import { AttendanceProvider, useAttendance } from '@/context/AttendanceContext';
 import ClockWidget from '@/components/attendance/ClockWidget';
 import { canSeeChangelog } from '@/types/changelog';
@@ -160,9 +163,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <ChatProvider>
       <ApprovalsProvider>
         <LearnProvider>
-          {/* Puts the theme, wallpaper and Learn English back from the
-              account on a browser that forgot them. Inside LearnProvider
-              only so the switch it flips is already mounted. */}
+          <SpanishProvider>
+          {/* Puts the theme, wallpaper, Learn English and Spanish back from
+              the account on a browser that forgot them. Inside both
+              providers only so the switches it flips are already mounted. */}
           <PreferenceSync />
           {/* Also runs the heartbeat behind "Online" in chat and the day's
               active minutes — here rather than on the chat page, because
@@ -170,6 +174,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <AttendanceProvider>
             <DashboardShell>{children}</DashboardShell>
           </AttendanceProvider>
+          </SpanishProvider>
         </LearnProvider>
       </ApprovalsProvider>
     </ChatProvider>
@@ -453,7 +458,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               what is left of 240 beside the logo. */}
           <div className={`min-w-0 lg:w-[152px] lg:flex-shrink-0 ${rail ? 'lg:hidden' : ''}`}>
             <p className="font-[family-name:var(--font-rajdhani)] text-3xl font-bold tracking-[0.2em] pl-[0.2em] leading-tight text-white">TTMS</p>
-            <p className="text-[10px] font-medium uppercase tracking-widest text-blue-300 mt-0.5">Total Transportation Management System</p>
+            <p data-es className="text-[10px] font-medium uppercase tracking-widest text-blue-300 mt-0.5">Total Transportation Management System</p>
           </div>
           {/* A way out that is not "tap the sliver of page still showing" —
               on a narrow phone the drawer covers nearly all of it. */}
@@ -484,6 +489,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               // and as a tooltip for everybody else.
               aria-label={rail ? label : undefined}
               title={rail ? label : undefined}
+              data-es={label}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
                 rail ? 'lg:justify-center lg:px-0' : ''
               } ${
@@ -567,11 +573,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
           {/* The full footer, and the phone drawer's footer always. */}
           <div className={rail ? 'lg:hidden' : ''}>
+            <SpanishSwitch />
             <LearnSwitch current={isCurrent('/dashboard/words')} />
             <SidebarModeSwitch mode={sidebarMode} onChange={setSidebarMode} />
             <div className="flex items-center justify-between gap-2">
               <button
                 onClick={logout}
+                data-es="Sign out"
                 className="text-xs text-blue-300 hover:text-white transition text-left whitespace-nowrap"
               >
                 Sign out →
@@ -666,6 +674,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Learn English: nothing at all unless this browser has it turned on. */}
       <LearnLayer />
+
+      {/* The Spanish bubbles on hover — nothing unless the Spanish switch is on. */}
+      <SpanishTips />
 
       {/* "Pick a time for your daily planning" — nothing unless one is due. */}
       <PlanningPrompt />

@@ -71,7 +71,7 @@ export default function SignLinkText({ party, orderNumber, url, expiresAt, targe
           {targets.map((t, i) => (
             <option key={i} value={String(i)}>{t.label}: {t.phone}</option>
           ))}
-          <option value={OTHER}>Another number…</option>
+          <option data-es value={OTHER}>Another number…</option>
         </select>
       </label>
       {!fromFile && (

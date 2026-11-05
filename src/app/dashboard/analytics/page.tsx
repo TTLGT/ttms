@@ -8,6 +8,7 @@ import {
 import { subMonths, format } from 'date-fns';
 import { listOrders } from '@/lib/orders';
 import type { Order } from '@/types/order';
+import { Bi } from '@/components/spanish/Es';
 
 const RANGES = [
   { label: 'Last 3 months',  months: 3  },
@@ -58,7 +59,7 @@ function KpiCard({ label, value, sub, color }: { label: string; value: string; s
 }
 
 function Empty() {
-  return <p className="text-gray-400 text-sm text-center py-10">No data for this period.</p>;
+  return <p data-es className="text-gray-400 text-sm text-center py-10">No data for this period.</p>;
 }
 
 export default function AnalyticsPage() {
@@ -177,8 +178,8 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Revenue & Margin Analytics</h1>
-          <p className="text-gray-500 mt-1 text-sm">Delivered and completed orders only.</p>
+          <h1 className="text-2xl font-bold text-gray-900"><Bi>Revenue & Margin Analytics</Bi></h1>
+          <p data-es className="text-gray-500 mt-1 text-sm">Delivered and completed orders only.</p>
         </div>
         <select
           value={range}
@@ -208,11 +209,11 @@ export default function AnalyticsPage() {
           {/* Monthly Revenue & Margin Chart */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
             <div className="flex items-center gap-6 mb-4">
-              <h2 className="font-semibold text-gray-800">Monthly Revenue & Margin %</h2>
+              <h2 className="font-semibold text-gray-800"><Bi>Monthly Revenue & Margin %</Bi></h2>
               <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm inline-block bg-blue-300" /> Revenue</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm inline-block bg-brand-500" /> Gross Margin</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-1 inline-block bg-green-600 rounded" /> Margin %</span>
+                <span className="flex items-center gap-1.5"><span data-es className="w-3 h-3 rounded-sm inline-block bg-blue-300" /> Revenue</span>
+                <span className="flex items-center gap-1.5"><span data-es className="w-3 h-3 rounded-sm inline-block bg-brand-500" /> Gross Margin</span>
+                <span className="flex items-center gap-1.5"><span data-es className="w-3 h-1 inline-block bg-green-600 rounded" /> Margin %</span>
               </div>
             </div>
             {monthlyData.length === 0 ? <Empty /> : (
@@ -241,7 +242,7 @@ export default function AnalyticsPage() {
           {/* Top Clients + By Transport Type */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-              <h2 className="font-semibold text-gray-800 mb-4">Top Clients by Revenue</h2>
+              <h2 className="font-semibold text-gray-800 mb-4"><Bi>Top Clients by Revenue</Bi></h2>
               {topClients.length === 0 ? <Empty /> : (
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart layout="vertical" data={topClients} margin={{ top: 0, right: 16, left: 8, bottom: 0 }}>
@@ -256,7 +257,7 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-              <h2 className="font-semibold text-gray-800 mb-4">Margin % by Transport Type</h2>
+              <h2 className="font-semibold text-gray-800 mb-4"><Bi>Margin % by Transport Type</Bi></h2>
               {byType.length === 0 ? <Empty /> : (
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={byType} margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
@@ -274,7 +275,7 @@ export default function AnalyticsPage() {
           {/* Monthly Breakdown Table */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="font-semibold text-gray-800">Monthly Breakdown</h2>
+              <h2 className="font-semibold text-gray-800"><Bi>Monthly Breakdown</Bi></h2>
             </div>
             {monthlyData.length === 0 ? <Empty /> : (
               <div className="overflow-x-auto">

@@ -17,7 +17,8 @@ export default function StatusBadge({ status: stored }: { status: OrderStatus })
   // A retired status is shown as the step it now counts as.
   const status = displayStatus(stored);
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${STYLES[status]}`}>
+    // data-es: the Spanish in a bubble on hover, when the Spanish switch is on.
+    <span data-es className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${STYLES[status]}`}>
       {STATUS_LABEL[status]}
     </span>
   );

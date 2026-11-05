@@ -13,6 +13,7 @@ import { fetchLaneDistance, type DistanceResult } from '@/lib/routeDistanceClien
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { DIMENSION_UNITS, type Address, type DimensionUnit } from '@/types/order';
 import { usd } from '@/types/paymentMethod';
+import { Bi } from '@/components/spanish/Es';
 import {
   DEFAULT_QUOTE_RATES,
   DISTANCE_UNITS,
@@ -282,7 +283,7 @@ export default function QuoteCalculator({ prefill, onApply }: Props) {
                 ? 'The saved rates could not be loaded, so these are the built-in starting rates.'
                 : 'Nobody has saved a rate card yet, so these are the built-in starting rates from the old Google Sheet.'}
               {canEditRates && (
-                <> <Link href="/dashboard/settings/operations#quote-rates" className="underline font-medium">Update them in Settings</Link>.</>
+                <> <Link data-es href="/dashboard/settings/operations#quote-rates" className="underline font-medium">Update them in Settings</Link>.</>
               )}
             </span>
           </p>
@@ -303,12 +304,12 @@ export default function QuoteCalculator({ prefill, onApply }: Props) {
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={LABEL}>Pickup ZIP</label>
+                  <label data-es className={LABEL}>Pickup ZIP</label>
                   <input value={originZip} onChange={(e) => setOriginZip(e.target.value.replace(/\D/g, '').slice(0, 5))}
                     inputMode="numeric" placeholder="e.g. 77001" className={INPUT} />
                 </div>
                 <div>
-                  <label className={LABEL}>Delivery ZIP</label>
+                  <label data-es className={LABEL}>Delivery ZIP</label>
                   <input value={destZip} onChange={(e) => setDestZip(e.target.value.replace(/\D/g, '').slice(0, 5))}
                     inputMode="numeric" placeholder="e.g. 30301" className={INPUT} />
                 </div>
@@ -343,7 +344,7 @@ export default function QuoteCalculator({ prefill, onApply }: Props) {
             <NumberBox label="Width" value={width} onChange={setWidth} />
             <NumberBox label="Height" value={height} onChange={setHeight} />
             <div>
-              <label className={LABEL}>Unit</label>
+              <label data-es className={LABEL}>Unit</label>
               <select value={dimUnit} onChange={(e) => setDimUnit(e.target.value as DimensionUnit)} className={`${SELECT} w-full`}>
                 {DIMENSION_UNITS.map((u) => <option key={u} value={u}>{({ in: 'inches', ft: 'feet', cm: 'cm', m: 'meters' } as const)[u]}</option>)}
               </select>
@@ -354,7 +355,7 @@ export default function QuoteCalculator({ prefill, onApply }: Props) {
               <NumberBox label="Weight" value={weight} onChange={setWeight} />
             </div>
             <div>
-              <label className={LABEL}>Unit</label>
+              <label data-es className={LABEL}>Unit</label>
               <select value={weightUnit} onChange={(e) => setWeightUnit(e.target.value as QuoteWeightUnit)} className={`${SELECT} w-full`}>
                 {QUOTE_WEIGHT_UNITS.map((u) => <option key={u} value={u}>{QUOTE_WEIGHT_UNIT_LABEL[u]}</option>)}
               </select>
@@ -403,12 +404,12 @@ export default function QuoteCalculator({ prefill, onApply }: Props) {
             <table className="w-full text-sm min-w-[560px]">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wide text-gray-500 border-b border-gray-200">
-                  <th className="py-2 pr-2 font-medium">Truck</th>
+                  <th data-es className="py-2 pr-2 font-medium">Truck</th>
                   <th className="py-2 px-2 font-medium">Rate ({LOAD_SIZE_SHORT[size]})</th>
-                  <th className="py-2 px-1 font-medium text-center">Length</th>
-                  <th className="py-2 px-1 font-medium text-center">Width</th>
-                  <th className="py-2 px-1 font-medium text-center">Height</th>
-                  <th className="py-2 px-1 font-medium text-center">Weight</th>
+                  <th data-es className="py-2 px-1 font-medium text-center">Length</th>
+                  <th data-es className="py-2 px-1 font-medium text-center">Width</th>
+                  <th data-es className="py-2 px-1 font-medium text-center">Height</th>
+                  <th data-es className="py-2 px-1 font-medium text-center">Weight</th>
                 </tr>
               </thead>
               <tbody>
@@ -466,7 +467,7 @@ export default function QuoteCalculator({ prefill, onApply }: Props) {
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">4 · Price</h2>
 
           {!truck ? (
-            <p className="text-sm text-gray-500">Pick a truck to see an estimate.</p>
+            <p data-es className="text-sm text-gray-500">Pick a truck to see an estimate.</p>
           ) : (
             <>
               {truck.pricing === 'hourly' && (
@@ -502,7 +503,7 @@ export default function QuoteCalculator({ prefill, onApply }: Props) {
                     </div>
                   )}
                   {milesAreEstimate && (
-                    <p className="text-[11px] text-gray-500">The miles are a ZIP-to-ZIP estimate, usually within about 5%.</p>
+                    <p className="text-[11px] text-gray-500"><Bi>The miles are a ZIP-to-ZIP estimate, usually within about 5%.</Bi></p>
                   )}
                 </div>
               )}
@@ -555,7 +556,7 @@ export default function QuoteCalculator({ prefill, onApply }: Props) {
           )}
 
           <div>
-            <label className={LABEL}>Driver pay</label>
+            <label data-es className={LABEL}>Driver pay</label>
             <MoneyInput value={driverTyped} onChange={setDriverTyped} placeholder="0.00" className={INPUT} />
             <div className="flex flex-wrap gap-1.5 mt-1.5">
               {marketPay !== null && (
@@ -739,7 +740,7 @@ function FeeSummary({ fee, margin, target, hasDriver, hasPrice }: {
   return (
     <div className={`rounded-lg border px-3 py-2 ${tone}`}>
       <div className="flex items-baseline justify-between">
-        <span className="text-xs font-medium">Broker fee</span>
+        <span data-es className="text-xs font-medium">Broker fee</span>
         <span className="text-xl font-bold tabular-nums">{usd(fee)}</span>
       </div>
       <p className="text-[11px] mt-0.5">
@@ -794,8 +795,8 @@ function LookupStatus({ result, looking, ready, onManual, onTypeInstead }: {
   onManual: () => void;
   onTypeInstead: () => void;
 }) {
-  if (!ready) return <p className="text-xs text-gray-500">Enter two 5-digit US ZIP codes, or type the distance instead.</p>;
-  if (looking) return <p className="flex items-center gap-1.5 text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" />Working out the distance…</p>;
+  if (!ready) return <p className="text-xs text-gray-500"><Bi>Enter two 5-digit US ZIP codes, or type the distance instead.</Bi></p>;
+  if (looking) return <p data-es className="flex items-center gap-1.5 text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" />Working out the distance…</p>;
   if (!result) return null;
 
   switch (result.status) {
@@ -813,7 +814,7 @@ function LookupStatus({ result, looking, ready, onManual, onTypeInstead }: {
       return (
         <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
           <span>This lane has not been looked up before. Google charges for each new lane.</span>
-          <button type="button" onClick={onManual} className="rounded border border-brand-300 px-2 py-0.5 font-medium text-brand-700 hover:bg-brand-50">
+          <button data-es type="button" onClick={onManual} className="rounded border border-brand-300 px-2 py-0.5 font-medium text-brand-700 hover:bg-brand-50">
             Look up with Google
           </button>
         </div>
@@ -822,7 +823,7 @@ function LookupStatus({ result, looking, ready, onManual, onTypeInstead }: {
       return (
         <p className="text-xs text-gray-600">
           Lane distances are switched off in Settings.{' '}
-          <button type="button" onClick={onTypeInstead} className="text-brand-600 hover:underline">Type the distance</button>.
+          <button data-es type="button" onClick={onTypeInstead} className="text-brand-600 hover:underline">Type the distance</button>.
         </p>
       );
     case 'unknown_zip':

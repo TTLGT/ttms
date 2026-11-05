@@ -6,6 +6,7 @@ import { Lock, Phone, SearchX } from 'lucide-react';
 import MessagePersonButton from '@/components/chat/MessagePersonButton';
 import { telHref } from '@/lib/phone';
 import type { OwnerContact } from '@/types/order';
+import { Bi } from '@/components/spanish/Es';
 
 type RequestState = 'idle' | 'sending' | 'sent' | 'error';
 
@@ -75,7 +76,7 @@ export default function NoAccessPanel({
     return (
       <Shell icon={<SearchX className="w-5 h-5 text-gray-400" />} title={`This ${NOUN[kind]} no longer exists`}>
         <p className="text-sm text-gray-600">
-          It was deleted, or the link points at an id that was never here.
+          <Bi>It was deleted, or the link points at an id that was never here.</Bi>
         </p>
         <Back href={backHref} label={backLabel} />
       </Shell>
@@ -153,7 +154,7 @@ export default function NoAccessPanel({
       {state === 'sent' && (
         <p className="mt-5 pt-5 border-t border-gray-200 text-sm text-green-700">
           Request sent. It is waiting on {ownerName || 'the owner'} — you will find it under
-          {' '}<Link href="/dashboard/approvals" className="underline">Approvals</Link>.
+          {' '}<Link data-es href="/dashboard/approvals" className="underline">Approvals</Link>.
         </p>
       )}
 

@@ -22,6 +22,7 @@ import {
 import { isNewCarrier, MIN_OPERATING_MONTHS, officeDay } from '@/types/fmcsa';
 import { FixButton, ReadinessLine } from './OrderReadinessCard';
 import { CHECK_FIX, FACT_FIX, type FixTarget } from './fixTargets';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * "Request SA" — the step after a quote is accepted.
@@ -135,14 +136,14 @@ export function RequestSaButton({
               </p>
             )}
             {carrier ? null : !sa ? (
-              <p className="flex items-center gap-2 text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" />Checking the order…</p>
+              <p data-es className="flex items-center gap-2 text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" />Checking the order…</p>
             ) : sa.missing.length > 0 ? (
               <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-xs font-semibold text-red-800 mb-1.5">The agreement cannot go out without:</p>
+                <p data-es className="text-xs font-semibold text-red-800 mb-1.5">The agreement cannot go out without:</p>
                 <ul className="space-y-1">{sa.missing.map((i) => <ReadinessLine key={i.key} item={i} />)}</ul>
               </div>
             ) : (
-              <p className="flex items-center gap-1.5 text-xs text-green-700">
+              <p data-es className="flex items-center gap-1.5 text-xs text-green-700">
                 <CheckCircle2 className="w-4 h-4" /> Everything the Shipper Agreement prints is filled in.
               </p>
             )}
@@ -160,7 +161,7 @@ export function RequestSaButton({
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">Their name, work phone and email go on the agreement.</p>
+                <p className="text-xs text-gray-500 mt-1"><Bi>Their name, work phone and email go on the agreement.</Bi></p>
               </div>
             ) : brokers.length === 1 ? (
               <p className="text-xs text-gray-600">
@@ -168,12 +169,12 @@ export function RequestSaButton({
               </p>
             ) : (
               <p className="text-xs text-gray-600">
-                No one person owns this order, so the agreement will name whoever in dispatch sends it.
+                <Bi>No one person owns this order, so the agreement will name whoever in dispatch sends it.</Bi>
               </p>
             ))}
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Note for dispatch (optional)</label>
+              <label data-es className="block text-xs font-medium text-gray-600 mb-1">Note for dispatch (optional)</label>
               <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} maxLength={1000}
                 placeholder="Anything they should know — the client wants it signed today, a second contact to copy…"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
@@ -376,11 +377,11 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
         <div className="grid gap-5 lg:grid-cols-2">
           {/* Facts TTMS can check */}
           <div className="space-y-3">
-            <p className="text-xs font-semibold text-gray-800 uppercase tracking-wide">What TTMS checked</p>
+            <p data-es className="text-xs font-semibold text-gray-800 uppercase tracking-wide">What TTMS checked</p>
             <Facts review={review} formatDate={formatDate} party={party} onFix={onFix} />
             {!carrier && (
               <div>
-                <p className="text-[11px] font-semibold text-gray-600 mb-1">Shipper Agreement fields</p>
+                <p data-es className="text-[11px] font-semibold text-gray-600 mb-1">Shipper Agreement fields</p>
                 <ul className="space-y-1">{readinessOf(review.readiness, 'sa').items.map((i) => <ReadinessLine key={i.key} item={i} onFix={onFix} />)}</ul>
               </div>
             )}
@@ -496,15 +497,15 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
               )}
             </div>
             {left.length > 0 && r.status === 'open' && (
-              <p className="text-[11px] text-gray-500">Sending unlocks when every item is ticked.</p>
+              <p data-es className="text-[11px] text-gray-500">Sending unlocks when every item is ticked.</p>
             )}
             {sendBlocked && r.status === 'open' && (
-              <p className="text-[11px] text-amber-700">The client has not signed the Shipper Agreement (SA) yet. The Dispatch Sheet goes out once they sign or a waiver is recorded.</p>
+              <p className="text-[11px] text-amber-700"><Bi>The client has not signed the Shipper Agreement (SA) yet. The Dispatch Sheet goes out once they sign or a waiver is recorded.</Bi></p>
             )}
 
             {returning && (
               <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                <label className="block text-xs font-medium text-amber-900">What does the broker need to fix?</label>
+                <label data-es className="block text-xs font-medium text-amber-900">What does the broker need to fix?</label>
                 <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} maxLength={1000}
                   className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400" />
                 <div className="flex gap-2">
@@ -599,7 +600,7 @@ function CcEditor({ cc, contacts, signer, disabled, onChange, party, typed, setT
           </div>
           {offered.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-gray-500">From the client:</span>
+              <span data-es className="text-[11px] text-gray-500">From the client:</span>
               {offered.map((c) => (
                 <button key={c.email} type="button" disabled={disabled} onClick={() => add(c.email)}
                   title={c.email}
@@ -614,7 +615,7 @@ function CcEditor({ cc, contacts, signer, disabled, onChange, party, typed, setT
       {full && <p className="text-[11px] text-gray-500">That is the most one agreement can be copied to ({MAX_SA_CC}).</p>}
       {hint && <p className="text-[11px] text-red-600">{hint}</p>}
       {!hint && typed.trim() && (
-        <p className="text-[11px] text-gray-500">Not added yet. Press Add, or it is added when you send.</p>
+        <p className="text-[11px] text-gray-500"><Bi>Not added yet. Press Add, or it is added when you send.</Bi></p>
       )}
     </div>
   );
@@ -682,11 +683,11 @@ export function Facts({ review, formatDate, asOf, party = 'client', onFix }: {
       <Row label="Agreed rate">{usd(review.agreedRate)}</Row>
       <Row label="Carrier pay / our fee">{usd(review.carrierPay)} / {usd(review.brokerFee)}{margin !== null && ` (${margin.toFixed(1)}%)`}</Row>
       {party === 'client' && (
-        <Row label="Client payment terms" fix={!review.hasClientPayment && FACT_FIX.clientPayment}>{review.hasClientPayment ? 'Set' : <span className="text-amber-700">Not set</span>}</Row>
+        <Row label="Client payment terms" fix={!review.hasClientPayment && FACT_FIX.clientPayment}>{review.hasClientPayment ? 'Set' : <span data-es className="text-amber-700">Not set</span>}</Row>
       )}
       {party === 'carrier' && (
         <Row label="Client signature">
-          {review.clientSigned ? 'Signed, or waived' : <span className="text-amber-700">Not yet — the agreement cannot go out</span>}
+          {review.clientSigned ? 'Signed, or waived' : <span data-es className="text-amber-700">Not yet — the agreement cannot go out</span>}
         </Row>
       )}
       {party === 'client' ? null : !c ? (
@@ -695,7 +696,7 @@ export function Facts({ review, formatDate, asOf, party = 'client', onFix }: {
         <>
           <Row label="Carrier">{c.name} · DOT {c.dot || '—'} · MC {c.mc || '—'}</Row>
           <Row label="Insurance certificate" fix={(!c.insuranceOnFile || insuranceOk === false) && FACT_FIX.carrierCard}>
-            {c.insuranceOnFile ? 'On file' : <span className="text-red-600">Not on file</span>}
+            {c.insuranceOnFile ? 'On file' : <span data-es className="text-red-600">Not on file</span>}
             {c.insuranceExpiration && <span className={insuranceOk ? '' : 'text-red-600'}> · expires {formatDate(new Date(c.insuranceExpiration))}{insuranceOk === false && ' — before pickup'}</span>}
           </Row>
           <Row label="FMCSA check" fix={fmcsaStale && FACT_FIX.carrierCard}>
@@ -714,12 +715,12 @@ export function Facts({ review, formatDate, asOf, party = 'client', onFix }: {
             )}
           </Row>
           <Row label="Driver’s license" fix={(!g.licenseOnFile || licenseExpired) && FACT_FIX.driver}>
-            {!g.licenseOnFile ? <span className="text-red-600">Not on file</span>
+            {!g.licenseOnFile ? <span data-es className="text-red-600">Not on file</span>
               : licenseExpired ? <span className="text-red-600">Expired {formatDate(new Date(g.licenseExpiration!))}</span>
               : <>On file{g.licenseExpiration !== null && ` · expires ${formatDate(new Date(g.licenseExpiration))}`}</>}
           </Row>
           <Row label="Truck pictures" fix={g.truckPhotos === 0 && FACT_FIX.pictures}>
-            {g.truckPhotos > 0 ? `${g.truckPhotos} on file` : <span className="text-red-600">None — upload in Pictures as “Truck”</span>}
+            {g.truckPhotos > 0 ? `${g.truckPhotos} on file` : <span data-es className="text-red-600">None — upload in Pictures as “Truck”</span>}
           </Row>
           {phoneDiffers && (
             <p className="flex items-start gap-1.5 text-[11px] text-amber-800">

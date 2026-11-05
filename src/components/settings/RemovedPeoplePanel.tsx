@@ -220,7 +220,7 @@ export default function RemovedPeoplePanel({
       ) : error ? (
         <div className="py-12 text-center">
           <p className="text-sm text-gray-500">{error}</p>
-          <button
+          <button data-es
             onClick={load}
             className="mt-3 text-xs font-medium text-brand-700 hover:text-brand-800 underline"
           >
@@ -228,7 +228,7 @@ export default function RemovedPeoplePanel({
           </button>
         </div>
       ) : !users || users.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-400">
+        <div data-es className="py-12 text-center text-sm text-gray-400">
           Nobody has been removed yet.
         </div>
       ) : (
@@ -242,7 +242,7 @@ export default function RemovedPeoplePanel({
                 </span>
               )}
             </p>
-            <button
+            <button data-es
               onClick={handleExport}
               title="Download the removal log as a CSV that opens in Excel"
               className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"

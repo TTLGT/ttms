@@ -1,6 +1,27 @@
 {
   "changes": [
     {
+      "hash": "797b1bed3572ab126afe1af50962591b4276ba62",
+      "date": "2026-11-05T08:34:13-06:00",
+      "author": "erwindank",
+      "subject": "Show admin and HR a card on days with a birthday or work anniversary: who is being congratulated, the message the Everyone room will get at 8am, a link to change the wording, and a choice to be reminded later that day",
+      "body": ""
+    },
+    {
+      "hash": "a783c559f0653a82b943611ede3d1440d5271c96",
+      "date": "2026-11-05T08:20:56-06:00",
+      "author": "erwindank",
+      "subject": "Turn calendar reminder emails off company-wide, with an admin switch in Settings → Operations → Reminder Emails to turn them back on; reminders still arrive as a chat message",
+      "body": ""
+    },
+    {
+      "hash": "87203f3dca57df498fbe7b9ebb86fce5cc599341",
+      "date": "2026-11-04T22:50:46-06:00",
+      "author": "erwindank",
+      "subject": "Text a signing link from RingCentral or WhatsApp: a Text button on the client's and the carrier's signing link opens the app with the number on file and a short message with instructions filled in",
+      "body": ""
+    },
+    {
       "hash": "2f0c252434b30045d08dd3f4561e0b07210a0f9a",
       "date": "2026-11-04T22:34:58-06:00",
       "author": "erwindank",

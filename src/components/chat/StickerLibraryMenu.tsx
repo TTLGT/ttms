@@ -96,11 +96,11 @@ export default function StickerLibraryMenu({
           {starred ? 'Remove from favorites' : 'Add to favorites'}
         </button>
 
-        <p className="mt-1 border-t border-gray-100 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        <p data-es className="mt-1 border-t border-gray-100 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
           Your folders
         </p>
         {library.folders.length === 0 && !naming && (
-          <p className="px-3 pb-1 text-xs text-gray-400">None yet. Only you see your folders.</p>
+          <p data-es className="px-3 pb-1 text-xs text-gray-400">None yet. Only you see your folders.</p>
         )}
         <div className="max-h-48 overflow-y-auto">
           {library.folders.map((f) => {
@@ -142,7 +142,7 @@ export default function StickerLibraryMenu({
               placeholder="Folder name"
               className="min-w-0 flex-1 rounded border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-400"
             />
-            <button
+            <button data-es
               type="submit"
               disabled={!folderName.trim()}
               className="rounded bg-brand-500 px-2 py-1 text-xs font-medium text-white transition hover:bg-brand-600 disabled:opacity-40"

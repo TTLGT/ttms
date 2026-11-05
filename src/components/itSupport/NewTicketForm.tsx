@@ -14,6 +14,7 @@ import {
   type ItTicketPriority,
 } from '@/types/itTicket';
 import { AttachButton, AttachmentTray, DropZone, useAttachmentDraft } from './AttachmentTray';
+import { Bi } from '@/components/spanish/Es';
 
 /** In the order people read them: least to most stuck. */
 const PRIORITY_CHOICES: ItTicketPriority[] = ['low', 'normal', 'high', 'urgent'];
@@ -70,14 +71,14 @@ export default function NewTicketForm({ onCreated, onCancel }: {
   return (
     <form onSubmit={submit} className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 sm:p-5">
       <div>
-        <h2 className="text-base font-semibold text-gray-900">Report an issue</h2>
+        <h2 className="text-base font-semibold text-gray-900"><Bi>Report an issue</Bi></h2>
         <p className="mt-0.5 text-sm text-gray-500">
-          This goes to IT and nobody else. You will see the answer here and in your chat.
+          <Bi>This goes to IT and nobody else. You will see the answer here and in your chat.</Bi>
         </p>
       </div>
 
       <label className="block">
-        <span className="mb-1 block text-sm font-medium text-gray-700">What is the problem?</span>
+        <span data-es className="mb-1 block text-sm font-medium text-gray-700">What is the problem?</span>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -89,14 +90,14 @@ export default function NewTicketForm({ onCreated, onCancel }: {
       </label>
 
       <label className="block">
-        <span className="mb-1 block text-sm font-medium text-gray-700">What kind of problem is it?</span>
+        <span data-es className="mb-1 block text-sm font-medium text-gray-700">What kind of problem is it?</span>
         <select value={category} onChange={(e) => setCategory(e.target.value as ItTicketCategory)} className={field}>
           {IT_TICKET_CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
         </select>
       </label>
 
       <fieldset>
-        <legend className="mb-1 block text-sm font-medium text-gray-700">How much is it getting in your way?</legend>
+        <legend data-es className="mb-1 block text-sm font-medium text-gray-700">How much is it getting in your way?</legend>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {PRIORITY_CHOICES.map((p) => (
             <label
@@ -121,7 +122,7 @@ export default function NewTicketForm({ onCreated, onCancel }: {
 
       <DropZone draft={draft}>
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-gray-700">What happened?</span>
+          <span data-es className="mb-1 block text-sm font-medium text-gray-700">What happened?</span>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -158,7 +159,7 @@ export default function NewTicketForm({ onCreated, onCancel }: {
 
       <div className="flex items-center justify-end gap-2">
         {onCancel && (
-          <button
+          <button data-es
             type="button"
             onClick={onCancel}
             className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100"

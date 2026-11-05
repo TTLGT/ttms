@@ -193,7 +193,7 @@ export default function PersonCard({
         {!person && (
           // The uid is on the message but no profile came back for it — someone
           // removed from the system since they were named.
-          <p className="flex items-center gap-2 text-xs text-gray-400">
+          <p data-es className="flex items-center gap-2 text-xs text-gray-400">
             <Building2 size={13} className="flex-shrink-0" />
             No longer in TTMS
           </p>

@@ -5,6 +5,7 @@ import { Clock, RotateCcw } from 'lucide-react';
 import { decideTermsRequest, type TermsSaveResult } from '@/lib/agreementTerms';
 import { useAuth } from '@/context/AuthContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { Bi } from '@/components/spanish/Es';
 import {
   MAX_TERMS_LENGTH, MAX_TERMS_REASON, validateTerms, type TermsChangeRequest, type TermsParty,
 } from '@/types/agreementTerms';
@@ -90,7 +91,7 @@ export default function TermsEditor({
     <div>
       {pending.map((r) => (
         <div key={r.id} className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          <p className="flex items-center gap-1.5 font-medium">
+          <p data-es className="flex items-center gap-1.5 font-medium">
             <Clock className="h-4 w-4" /> Waiting for an admin to approve a change
           </p>
           <p className="mt-0.5 text-xs">
@@ -100,7 +101,7 @@ export default function TermsEditor({
           </p>
           {r.text !== null && (
             <details className="mt-1 text-xs">
-              <summary className="cursor-pointer">See the proposed wording</summary>
+              <summary data-es className="cursor-pointer">See the proposed wording</summary>
               <pre className="mt-1 max-h-60 overflow-auto whitespace-pre-wrap rounded bg-white p-2 font-sans text-gray-700">{r.text}</pre>
             </details>
           )}
@@ -171,7 +172,7 @@ export default function TermsEditor({
       </div>
 
       {!canApprove && (
-        <p className="mt-2 text-xs text-gray-500">Changes you make here go to an admin to approve before they apply.</p>
+        <p className="mt-2 text-xs text-gray-500"><Bi>Changes you make here go to an admin to approve before they apply.</Bi></p>
       )}
       {problem && <p className="mt-3 text-sm text-red-600">{problem}</p>}
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}

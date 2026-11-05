@@ -29,7 +29,7 @@ export default function OrderOwnerContact({ owner }: { owner: OwnerContact }) {
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5">
         <span className="text-sm text-gray-600">{name}</span>
-        <span className="text-[10px] font-medium uppercase tracking-wide text-gray-400 border border-gray-200 rounded px-1 py-px">
+        <span data-es className="text-[10px] font-medium uppercase tracking-wide text-gray-400 border border-gray-200 rounded px-1 py-px">
           Owner
         </span>
       </div>

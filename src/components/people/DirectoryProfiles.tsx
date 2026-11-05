@@ -139,7 +139,7 @@ export default function DirectoryProfiles({
                       the name of the person who reports to them. */}
                   {legal && (
                     <Fact Icon={IdCard} copy={legal} copyLabel="legal name">
-                      <span className="text-gray-400">Legal name</span> {legal}
+                      <span data-es className="text-gray-400">Legal name</span> {legal}
                     </Fact>
                   )}
 
@@ -238,13 +238,13 @@ export default function DirectoryProfiles({
                        first sign-in, so there is genuinely nobody to open one
                        with yet. Saying so beats leaving a gap where a button
                        goes, which reads as a missing feature. */
-                    <p className="inline-flex items-center gap-1.5 text-xs text-gray-400">
+                    <p data-es className="inline-flex items-center gap-1.5 text-xs text-gray-400">
                       <MessageSquare size={13} className="opacity-70" />
                       Not on chat yet
                     </p>
                   ) : null}
 
-                  <Link
+                  <Link data-es
                     href={personHref(p.email)}
                     className="inline-flex items-center gap-1.5 text-xs text-brand-700 hover:underline"
                   >

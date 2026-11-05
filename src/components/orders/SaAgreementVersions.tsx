@@ -113,7 +113,7 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
         </button>
         {open && (
           versions === null && !error ? (
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" />Loading…</p>
+            <p data-es className="mt-1 flex items-center gap-1.5 text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" />Loading…</p>
           ) : versions && versions.length === 0 ? (
             <p className="mt-1 text-xs text-gray-500">No {doc} has been sent on this load yet.</p>
           ) : versions ? (
@@ -137,7 +137,7 @@ export default function SaAgreementVersions({ orderId, signed, refreshKey, party
                         Signed by {v.signed.name}{v.signed.title && ` (${v.signed.title})`} · {formatDateTime(new Date(v.signed.at))}
                       </p>
                     ) : (
-                      <p className="text-gray-500">Not signed</p>
+                      <p data-es className="text-gray-500">Not signed</p>
                     )}
                     {v.supersededAt && <p className="text-gray-400">Replaced {formatDateTime(new Date(v.supersededAt))}</p>}
                     {v.revoked && <p className="text-amber-700">Link cancelled — the load moved to another {party === 'carrier' ? 'carrier' : 'client'}</p>}

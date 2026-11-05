@@ -122,7 +122,7 @@ export function DownloadLink(
   }
 
   if (failed) {
-    return <span className="text-xs text-gray-400">Unavailable</span>;
+    return <span data-es className="text-xs text-gray-400">Unavailable</span>;
   }
 
   return (

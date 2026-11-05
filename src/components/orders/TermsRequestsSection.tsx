@@ -7,6 +7,7 @@ import { decideTermsRequest, listTermsRequests } from '@/lib/agreementTerms';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { useApprovals } from '@/context/ApprovalsContext';
 import { termsRequestSummary, type TermsChangeRequest } from '@/types/agreementTerms';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Proposed changes to the agreement terms, on the Approvals screen. An admin
@@ -81,7 +82,7 @@ export default function TermsRequestsSection() {
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="text-sm font-medium text-gray-900">{termsRequestSummary(r)}</span>
               {r.orderId && (
-                <Link href={`/dashboard/orders/${r.orderId}#terms`} className="text-xs font-semibold text-brand-700 hover:underline">
+                <Link data-es href={`/dashboard/orders/${r.orderId}#terms`} className="text-xs font-semibold text-brand-700 hover:underline">
                   Open the load
                 </Link>
               )}
@@ -100,7 +101,7 @@ export default function TermsRequestsSection() {
               <>
                 {r.currentText !== undefined && r.currentText !== r.baseText && (
                   <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                    The terms have changed since this was asked. Approving replaces them with the wording below as a whole.
+                    <Bi>The terms have changed since this was asked. Approving replaces them with the wording below as a whole.</Bi>
                   </p>
                 )}
                 <TermsCompare now={r.currentText ?? r.baseText} proposed={r.text} />
@@ -145,7 +146,7 @@ export default function TermsRequestsSection() {
  */
 function TermsCompare({ now, proposed }: { now: string; proposed: string | null }) {
   if (proposed === null) {
-    return <p className="mt-2 text-xs text-gray-600">Asks for this load to go back to the general terms.</p>;
+    return <p className="mt-2 text-xs text-gray-600"><Bi>Asks for this load to go back to the general terms.</Bi></p>;
   }
   const nowLines = new Set(now.split('\n'));
   const newLines = new Set(proposed.split('\n'));
@@ -158,14 +159,14 @@ function TermsCompare({ now, proposed }: { now: string; proposed: string | null 
   );
   return (
     <details className="mt-2" open>
-      <summary className="cursor-pointer text-xs font-semibold text-gray-600">Compare the wording</summary>
+      <summary data-es className="cursor-pointer text-xs font-semibold text-gray-600">Compare the wording</summary>
       <div className="mt-1 grid gap-2 md:grid-cols-2">
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Now</p>
+          <p data-es className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Now</p>
           {col(now, newLines, 'bg-red-50 text-red-800')}
         </div>
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Proposed</p>
+          <p data-es className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Proposed</p>
           {col(proposed, nowLines, 'bg-green-50 text-green-800')}
         </div>
       </div>

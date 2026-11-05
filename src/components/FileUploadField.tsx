@@ -200,7 +200,7 @@ export function DownloadLink({ storagePath, label }: { storagePath: string; labe
       >
         {loading ? 'Loading…' : label}
       </button>
-      {failed && <span className="text-xs text-red-500">Could not open the file</span>}
+      {failed && <span data-es className="text-xs text-red-500">Could not open the file</span>}
     </>
   );
 }

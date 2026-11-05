@@ -13,6 +13,7 @@ import {
   validatePaymentMethods,
 } from '@/types/paymentMethod';
 import type { FeePayer, FeeType, PaymentMethod, PaymentSide } from '@/types/paymentMethod';
+import { Bi } from '@/components/spanish/Es';
 
 const INPUT =
   'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:bg-gray-50 disabled:text-gray-400';
@@ -48,12 +49,12 @@ export default function PaymentMethodsPanel() {
 
   return (
     <section className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Payment Terms</h2>
+      <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Payment Terms</h2>
       <p className="text-sm text-gray-500 mt-1 mb-4">
-        The dropdowns in every order&apos;s Price and Terms: how the client pays us, how the
+        <Bi>The dropdowns in every order&apos;s Price and Terms: how the client pays us, how the
         carrier is paid, and when our fee is collected. Each option can carry a fee for using it —
         a flat amount, or a percentage of the money it moves — and says who pays that fee unless
-        the broker changes it on the load.
+        the broker changes it on the load.</Bi>
       </p>
 
       {error && (
@@ -61,7 +62,7 @@ export default function PaymentMethodsPanel() {
       )}
 
       {!lists ? (
-        !error && <p className="text-sm text-gray-500">Loading…</p>
+        !error && <p data-es className="text-sm text-gray-500">Loading…</p>
       ) : (
         <div className="space-y-8">
           {LISTS.map((l) => (
@@ -71,9 +72,9 @@ export default function PaymentMethodsPanel() {
       )}
 
       <p className="mt-6 text-xs text-gray-500 leading-relaxed">
-        Changing or removing an option does not touch loads that already use it. Each order keeps
+        <Bi>Changing or removing an option does not touch loads that already use it. Each order keeps
         the option — name, fee and who pays — as it was when it was picked, so the paperwork for a
-        load booked at 3% still says 3% after the fee goes up.
+        load booked at 3% still says 3% after the fee goes up.</Bi>
       </p>
     </section>
   );
@@ -150,7 +151,7 @@ function MethodList({ side, title, percentOf, placeholder, initial }: {
 
       {draft.length === 0 && (
         <p className="text-sm text-gray-500 mb-3">
-          None yet. Until one is added, the order form has nothing to offer here.
+          <Bi>None yet. Until one is added, the order form has nothing to offer here.</Bi>
         </p>
       )}
 
@@ -159,7 +160,7 @@ function MethodList({ side, title, percentOf, placeholder, initial }: {
           <div key={m.id} className="rounded-lg border border-gray-200 bg-gray-50/60 p-4">
             <div className="flex items-end gap-3">
               <div className="flex-1 min-w-0">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Name</label>
                 <input
                   value={m.name}
                   onChange={(e) => patch(m.id, { name: e.target.value })}
@@ -179,7 +180,7 @@ function MethodList({ side, title, percentOf, placeholder, initial }: {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Fee</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Fee</label>
                 <select
                   value={m.feeType}
                   onChange={(e) => patch(m.id, { feeType: e.target.value as FeeType })}
@@ -215,7 +216,7 @@ function MethodList({ side, title, percentOf, placeholder, initial }: {
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Paid by (default)</label>
+                <label data-es className="block text-xs font-medium text-gray-600 mb-1">Paid by (default)</label>
                 <select
                   value={m.feePayer}
                   disabled={m.feeType === 'none'}
@@ -245,7 +246,7 @@ function MethodList({ side, title, percentOf, placeholder, initial }: {
         <div className="flex-1" />
         {dirty && (
           <>
-            <button
+            <button data-es
               type="button"
               onClick={discard}
               disabled={saving}
@@ -264,7 +265,7 @@ function MethodList({ side, title, percentOf, placeholder, initial }: {
           </>
         )}
         {done && !dirty && (
-          <span className="flex items-center gap-1.5 text-xs text-green-700">
+          <span data-es className="flex items-center gap-1.5 text-xs text-green-700">
             <Check className="w-3.5 h-3.5" /> Saved
           </span>
         )}

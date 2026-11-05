@@ -44,7 +44,7 @@ export default function LearnSwitch({ current }: { current: boolean }) {
         </span>
       </button>
       {enabled && (
-        <Link
+        <Link data-es
           href="/dashboard/words"
           aria-current={current ? 'page' : undefined}
           className={`text-xs transition hover:text-white ${current ? 'text-white' : 'text-blue-300'}`}

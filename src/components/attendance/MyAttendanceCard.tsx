@@ -87,7 +87,7 @@ export default function MyAttendanceCard({ email }: { email: string }) {
     <section className="mt-5 space-y-4">
       <div className="rounded-xl border border-gray-200 bg-white">
         <header className="flex items-center gap-2 border-b border-gray-100 bg-gray-50 px-4 py-2.5">
-          <h2 className="flex-1 text-xs font-semibold uppercase tracking-wide text-gray-500">My attendance</h2>
+          <h2 data-es className="flex-1 text-xs font-semibold uppercase tracking-wide text-gray-500">My attendance</h2>
           <button type="button" onClick={() => step(-1)} aria-label="Previous month" className="rounded p-1 text-gray-500 hover:bg-gray-200"><ChevronLeft size={16} /></button>
           <span className="min-w-[7rem] text-center text-sm font-medium text-gray-800">{new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })}</span>
           <button type="button" onClick={() => step(1)} aria-label="Next month" className="rounded p-1 text-gray-500 hover:bg-gray-200"><ChevronRight size={16} /></button>
@@ -127,7 +127,7 @@ export default function MyAttendanceCard({ email }: { email: string }) {
       {corrections.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white">
           <header className="border-b border-gray-100 bg-gray-50 px-4 py-2.5">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-500">My corrections</h2>
+            <h2 data-es className="text-xs font-semibold uppercase tracking-wide text-gray-500">My corrections</h2>
           </header>
           <ul className="divide-y divide-gray-100 px-4 text-sm">
             {corrections.map((c) => (
@@ -150,7 +150,7 @@ export default function MyAttendanceCard({ email }: { email: string }) {
           <input type="checkbox" className="mt-0.5" checked={state.hideLastSeen} disabled={busy}
             onChange={(e) => void setHideLastSeen(e.target.checked)} />
           <span>
-            <span className="font-medium text-gray-900">Hide when I was last seen</span>
+            <span data-es className="font-medium text-gray-900">Hide when I was last seen</span>
             <span className="mt-0.5 block text-gray-500">
               Colleagues will not see Online, Away or Last seen for you in chat — only a status you set yourself. HR still sees your attendance.
             </span>
@@ -210,7 +210,7 @@ function TimeOffBox({
   return (
     <div className="rounded-xl border border-gray-200 bg-white">
       <header className="flex items-center border-b border-gray-100 bg-gray-50 px-4 py-2.5">
-        <h2 className="flex-1 text-xs font-semibold uppercase tracking-wide text-gray-500">My time off</h2>
+        <h2 data-es className="flex-1 text-xs font-semibold uppercase tracking-wide text-gray-500">My time off</h2>
         {!asking && (
           <button type="button" onClick={() => setAsking(true)} className="text-sm font-medium text-brand-600 hover:underline">Ask for time off</button>
         )}
@@ -246,7 +246,7 @@ function TimeOffBox({
             )}
           </li>
         ))}
-        {requests.length === 0 && !asking && <li className="py-4 text-center text-gray-500">None yet.</li>}
+        {requests.length === 0 && !asking && <li data-es className="py-4 text-center text-gray-500">None yet.</li>}
       </ul>
     </div>
   );

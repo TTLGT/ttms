@@ -158,7 +158,7 @@ export default function ClockWidget({ rail }: { rail: boolean }) {
             onChange={(e) => void setStatus((e.target.value || null) as UserStatus | null, note)}
             className="min-w-0 flex-1 rounded-md border-0 bg-brand-700 py-1 pl-2 pr-6 text-[11px] text-blue-100 focus:ring-1 focus:ring-brand-400"
           >
-            <option value="">Available</option>
+            <option data-es value="">Available</option>
             {USER_STATUSES.map((s) => <option key={s} value={s}>{USER_STATUS_LABEL[s]}</option>)}
           </select>
         </div>
@@ -177,7 +177,7 @@ export default function ClockWidget({ rail }: { rail: boolean }) {
 
         {error && (
           <button type="button" onClick={clearError} className="mt-2 block w-full text-left text-[11px] text-red-300">
-            {error} <span className="underline">Dismiss</span>
+            {error} <span data-es className="underline">Dismiss</span>
           </button>
         )}
       </div>

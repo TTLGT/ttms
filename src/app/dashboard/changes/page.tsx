@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import DateField from '@/components/DateField';
 import { listChanges } from '@/lib/changelog';
+import { Bi } from '@/components/spanish/Es';
 import {
   CHANGE_TYPES,
   CHANGE_TYPE_LABEL,
@@ -123,7 +124,7 @@ export default function ChangeHistoryPage() {
     return (
       <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
         <p className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-10 text-center text-sm text-gray-500">
-          The change history is only available to the IT account.
+          <Bi>The change history is only available to the IT account.</Bi>
         </p>
       </div>
     );
@@ -132,14 +133,14 @@ export default function ChangeHistoryPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
       <div className="mb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
+        <h1 data-es className="flex items-center gap-2 text-2xl font-bold text-gray-900">
           <History size={22} className="text-gray-400" />
           Change history
         </h1>
         <p className="mt-0.5 text-sm text-gray-500">
-          Every change made to TTMS, newest first. A new change is added here each
+          <Bi>Every change made to TTMS, newest first. A new change is added here each
           time the site is rebuilt. The type is worked out from the wording of each
-          change, so treat it as a guide.
+          change, so treat it as a guide.</Bi>
         </p>
       </div>
 
@@ -177,7 +178,7 @@ export default function ChangeHistoryPage() {
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <span className="text-xs font-medium text-gray-500">From</span>
+          <span data-es className="text-xs font-medium text-gray-500">From</span>
           <DateField
             value={from}
             onChange={setFrom}
@@ -192,7 +193,7 @@ export default function ChangeHistoryPage() {
             className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900"
           />
           {filtering && (
-            <button
+            <button data-es
               type="button"
               onClick={clear}
               className="inline-flex items-center gap-1 self-start rounded-lg px-2 py-1 text-xs font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-800 sm:ml-auto sm:self-auto"
@@ -209,7 +210,7 @@ export default function ChangeHistoryPage() {
       )}
 
       {changes === null && !error ? (
-        <p className="py-10 text-center text-sm text-gray-500">Loading the change history…</p>
+        <p data-es className="py-10 text-center text-sm text-gray-500">Loading the change history…</p>
       ) : changes !== null && (
         <>
           <p className="mb-3 text-xs text-gray-500">
@@ -219,7 +220,7 @@ export default function ChangeHistoryPage() {
           </p>
 
           {shown.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-10 text-center text-sm text-gray-500">
+            <p data-es className="rounded-xl border border-dashed border-gray-300 bg-white px-4 py-10 text-center text-sm text-gray-500">
               No change matches these filters.
             </p>
           ) : (

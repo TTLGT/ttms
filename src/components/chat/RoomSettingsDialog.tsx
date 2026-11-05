@@ -17,6 +17,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { useStorageUrl } from '@/lib/useStorageUrl';
 import DateField from '@/components/DateField';
 import { UserAvatar } from '@/components/settings/UserAvatar';
+import { Bi } from '@/components/spanish/Es';
 import {
   ROOM_POLICY_SETTINGS,
   isMuted,
@@ -303,7 +304,7 @@ export default function RoomSettingsDialog({
               {/* The picture and the name together: they are the two halves of
                   what a room is recognised by in the list, and a picker parked
                   at the bottom of the dialog reads as an afterthought. */}
-              <p className="mb-1 text-xs font-medium text-gray-600">Picture</p>
+              <p data-es className="mb-1 text-xs font-medium text-gray-600">Picture</p>
               <div className="mb-4 flex items-center gap-3">
                 <span className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 text-brand-700">
                   {photoUrl
@@ -354,7 +355,7 @@ export default function RoomSettingsDialog({
                 />
               </div>
 
-              <label className="mb-1 block text-xs font-medium text-gray-600">Name</label>
+              <label data-es className="mb-1 block text-xs font-medium text-gray-600">Name</label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -416,7 +417,7 @@ export default function RoomSettingsDialog({
                   {search.trim() && (
                     <div className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
                       {candidates.length === 0 ? (
-                        <p className="px-3 py-2.5 text-xs text-gray-400">
+                        <p data-es className="px-3 py-2.5 text-xs text-gray-400">
                           Nobody else matches that.
                         </p>
                       ) : candidates.map((p) => (
@@ -444,7 +445,7 @@ export default function RoomSettingsDialog({
                 </div>
               ) : (
                 <p className="mb-2 text-[11px] text-gray-400">
-                  Only this room’s admins can change who is in it.
+                  <Bi>Only this room’s admins can change who is in it.</Bi>
                 </p>
               )}
 
@@ -452,13 +453,13 @@ export default function RoomSettingsDialog({
                   plainly here because the opposite is a reasonable thing to
                   assume, and finding out afterwards is the wrong time. */}
               <p className="mt-3 text-[11px] text-gray-400">
-                Removing someone stops them seeing the room from now on. What they already
-                wrote stays in it.
+                <Bi>Removing someone stops them seeing the room from now on. What they already
+                wrote stays in it.</Bi>
               </p>
 
               {/* ---------------------------------------------- what it allows */}
 
-              <p className="mb-1 mt-5 border-t border-gray-100 pt-4 text-xs font-medium text-gray-600">
+              <p data-es className="mb-1 mt-5 border-t border-gray-100 pt-4 text-xs font-medium text-gray-600">
                 What the room allows
               </p>
               <p className="mb-2.5 text-[11px] text-gray-400">
@@ -515,8 +516,8 @@ export default function RoomSettingsDialog({
           >
             <Paperclip size={16} className="flex-shrink-0 text-gray-400" />
             <span className="min-w-0 flex-1">
-              <span className="block text-sm text-gray-900">Files and links</span>
-              <span className="block text-[11px] text-gray-500">
+              <span data-es className="block text-sm text-gray-900">Files and links</span>
+              <span data-es className="block text-[11px] text-gray-500">
                 Every photo, document and link sent here.
               </span>
             </span>
@@ -527,18 +528,18 @@ export default function RoomSettingsDialog({
               changed. Anybody in a room can open this, which is the point:
               somebody whose composer stopped working can find out who turned
               it off and when, rather than asking around. */}
-          <p className="mb-2 mt-5 border-t border-gray-100 pt-4 text-xs font-medium text-gray-600">
+          <p data-es className="mb-2 mt-5 border-t border-gray-100 pt-4 text-xs font-medium text-gray-600">
             History
           </p>
 
           {history === null ? (
-            <p className="text-[11px] text-gray-400">Loading…</p>
+            <p data-es className="text-[11px] text-gray-400">Loading…</p>
           ) : history.length === 0 ? (
             // Said rather than left blank: every room that existed before this
             // was recorded shows nothing here, and an empty panel with no
             // explanation reads as a room nobody has ever touched.
             <p className="text-[11px] text-gray-400">
-              Nothing recorded yet. Changes to the room show here from now on.
+              <Bi>Nothing recorded yet. Changes to the room show here from now on.</Bi>
             </p>
           ) : (
             <ul className="space-y-1.5">
@@ -566,12 +567,12 @@ export default function RoomSettingsDialog({
         */}
         {handover ? (
           <div className="flex-shrink-0 border-t border-gray-200 px-5 py-4">
-            <p className="text-sm font-medium text-gray-900">
+            <p data-es className="text-sm font-medium text-gray-900">
               You are the only admin here.
             </p>
             <p className="mb-2.5 mt-0.5 text-[11px] text-gray-500">
-              Somebody has to be able to change this room after you have gone. Choose
-              who takes over, and you will leave at the same time.
+              <Bi>Somebody has to be able to change this room after you have gone. Choose
+              who takes over, and you will leave at the same time.</Bi>
             </p>
             <div className="max-h-40 overflow-y-auto">
               {handover.map((uid) => (
@@ -590,7 +591,7 @@ export default function RoomSettingsDialog({
                   <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
                     {nameOf(uid)}
                   </span>
-                  <span className="flex-shrink-0 text-[11px] font-medium text-brand-600">
+                  <span data-es className="flex-shrink-0 text-[11px] font-medium text-brand-600">
                     Hand over and leave
                   </span>
                 </button>
@@ -677,7 +678,7 @@ function MemberRow({
         </div>
 
         {isAdmin && (
-          <span className="flex flex-shrink-0 items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-700">
+          <span data-es className="flex flex-shrink-0 items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-700">
             <Shield size={10} /> Admin
           </span>
         )}
@@ -801,7 +802,7 @@ function MutePanel({
         >
           Mute
         </button>
-        <button
+        <button data-es
           type="button"
           onClick={onCancel}
           disabled={busy}
@@ -811,7 +812,7 @@ function MutePanel({
         </button>
         {/* Said here because this one button does not wait for Save, unlike
             everything else on this page. */}
-        <span className="ml-auto text-[10px] text-gray-400">Applied straight away</span>
+        <span data-es className="ml-auto text-[10px] text-gray-400">Applied straight away</span>
       </div>
     </div>
   );
@@ -855,7 +856,7 @@ function CompanyPostSwitch({
 
   return (
     <>
-      <p className="mb-2 text-xs font-medium text-gray-600">Who can post here</p>
+      <p data-es className="mb-2 text-xs font-medium text-gray-600">Who can post here</p>
       <label className="flex items-start gap-2.5">
         <input
           type="checkbox"
@@ -865,7 +866,7 @@ function CompanyPostSwitch({
           className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-gray-300 text-brand-500 focus:ring-brand-400 disabled:opacity-50"
         />
         <span className="min-w-0">
-          <span className="block text-sm text-gray-900">Announcements only</span>
+          <span data-es className="block text-sm text-gray-900">Announcements only</span>
           <span className="block text-[11px] text-gray-500">
             {restricted
               ? 'Only admins and HR can write here. Everybody can still read it.'

@@ -29,6 +29,7 @@ import {
   calendarToday, defaultColorFor, duplicateInput, newBlockInput, workTargetOf, type PersonalTask, type PersonalTaskInput,
 } from '@/types/task';
 import { NOTE_STYLE } from '@/components/tasks/taskStyle';
+import { Bi } from '@/components/spanish/Es';
 import {
   HOLIDAY_COUNTRY_LABEL,
   observedHolidaysInYear,
@@ -211,13 +212,13 @@ export default function CalendarPage() {
 
   const deliveryPanel = (
     <section className="rounded-xl border border-gray-200 bg-white p-4">
-      <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+      <h2 data-es className="flex items-center gap-2 text-sm font-semibold text-gray-900">
         <Bell size={15} className="text-brand-600" /> Reminders for my tasks and events
       </h2>
       <p className="mt-1 text-xs text-gray-500">
-        Set them on each task or event. Only you get them.
+        <Bi>Set them on each task or event. Only you get them.</Bi>
       </p>
-      <p className="mt-3 text-xs font-medium text-gray-700">Send them by</p>
+      <p data-es className="mt-3 text-xs font-medium text-gray-700">Send them by</p>
       <div className="mt-2 space-y-1.5">
         {emailsAllowed && (
           <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -235,7 +236,7 @@ export default function CalendarPage() {
         </label>
       </div>
       {noChannel && (
-        <p className="mt-2 text-xs text-amber-700">With both off, none of your reminders are sent.</p>
+        <p className="mt-2 text-xs text-amber-700"><Bi>With both off, none of your reminders are sent.</Bi></p>
       )}
     </section>
   );
@@ -246,7 +247,7 @@ export default function CalendarPage() {
     <div className={`p-4 sm:p-6 lg:p-8 ${zoomed ? '' : 'max-w-7xl'}`}>
       <div className="mb-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
+          <h1 className="text-2xl font-bold text-gray-900"><Bi>Calendar</Bi></h1>
           {seesTeamPlans && (
             <div className="inline-flex rounded-lg border border-gray-200 bg-white p-0.5">
               {([['mine', 'My calendar', User], ['team', 'Team plans', Users]] as const).map(([id, label, Icon]) => (
@@ -268,7 +269,7 @@ export default function CalendarPage() {
         <p className="mt-0.5 flex flex-wrap items-center gap-1 text-sm text-gray-500">
           Your own tasks and events, which only you can see — your manager sees only the plan you share — and public holidays.
           {hr && ' Birthdays and work anniversaries are shown to admins and HR only.'}
-          <Link href="/dashboard/tasks" className="ml-2 inline-flex items-center gap-1 text-brand-700 hover:underline">
+          <Link data-es href="/dashboard/tasks" className="ml-2 inline-flex items-center gap-1 text-brand-700 hover:underline">
             <ListTodo size={13} /> Open my tasks
           </Link>
         </p>

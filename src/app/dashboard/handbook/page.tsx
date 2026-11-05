@@ -11,6 +11,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { BOOTSTRAP_ADMIN_EMAILS, ALLOWED_EMAIL_DOMAIN } from '@/lib/accessControl';
 import { PHONE_EXAMPLE } from '@/lib/phone';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The administration half of the Admin Handbook, in-app so an admin can reach
@@ -55,7 +56,7 @@ function Expect({ children }: { children: ReactNode }) {
   return (
     <p className="flex gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-gray-700">
       <CheckCircle2 size={15} className="mt-0.5 flex-shrink-0 text-green-600" />
-      <span><span className="font-semibold text-green-800">You should see:</span> {children}</span>
+      <span><span data-es className="font-semibold text-green-800">You should see:</span> {children}</span>
     </p>
   );
 }
@@ -169,28 +170,28 @@ const CHAPTERS: Chapter[] = [
           <thead><Row header cells={['What', 'How you sign in', 'What it is for']} /></thead>
           <tbody>
             <Row cells={[
-              <><strong>GitHub</strong> (org <Mono>TTLGT</Mono>)</>,
-              <><strong>Continue with Google</strong> — <Mono>it@</Mono></>,
+              <><strong data-es>GitHub</strong> (org <Mono>TTLGT</Mono>)</>,
+              <><strong data-es>Continue with Google</strong> — <Mono>it@</Mono></>,
               'Where the TTMS code lives',
             ]} />
             <Row cells={[
-              <strong key="fb">Firebase Console</strong>,
+              <strong data-es key="fb">Firebase Console</strong>,
               <>Google — <Mono>it@</Mono></>,
               'The database, uploaded files, sign-in and security rules',
             ]} />
             <Row cells={[
-              <strong key="vc">Vercel</strong>,
+              <strong data-es key="vc">Vercel</strong>,
               <>Google — <Mono>it@</Mono></>,
               'Website hosting. Live on the Pro plan — this is what serves ttms.totaltransportlogistics.us.',
             ]} />
             <Row cells={[
-              <strong key="tt">TTMS itself</strong>,
+              <strong data-es key="tt">TTMS itself</strong>,
               'Google — your own company address',
               'This app. Being on the access list is what grants entry, not the Google login.',
             ]} />
             <Row cells={[
-              <strong key="rs">Resend</strong>,
-              <><strong>Continue with GitHub</strong> — which is Google, <Mono>it@</Mono></>,
+              <strong data-es key="rs">Resend</strong>,
+              <><strong data-es>Continue with GitHub</strong> — which is Google, <Mono>it@</Mono></>,
               'Sends the agreement emails. Owned by the it@ role account. Not usable yet — the sending domain is unverified and no API key exists.',
             ]} />
           </tbody>
@@ -199,13 +200,13 @@ const CHAPTERS: Chapter[] = [
         <Callout tone="critical" title="The lockout escape hatch">
           <p>
             These addresses can always sign in and are always admin, even if the access list is
-            empty or damaged. <strong>They cannot be removed or demoted</strong>, and the system is
+            empty or damaged. <strong data-es>They cannot be removed or demoted</strong>, and the system is
             right to refuse:
           </p>
           <ul className="list-disc space-y-0.5 pl-5 font-mono text-[13px]">
             {BOOTSTRAP_ADMIN_EMAILS.map((e) => <li key={e}>{e}</li>)}
           </ul>
-          <p>If everyone is ever locked out, sign in as one of these.</p>
+          <p><Bi>If everyone is ever locked out, sign in as one of these.</Bi></p>
         </Callout>
 
         <Callout tone="caution" title="There is no company Claude account">
@@ -214,7 +215,7 @@ const CHAPTERS: Chapter[] = [
             account</strong> belonging to Erwin Solorzano. It is not part of the handover. TTL would
             need its own plan for anyone to continue that way.
           </p>
-          <p>Nothing in TTMS depends on it — everything on this page works without it.</p>
+          <p><Bi>Nothing in TTMS depends on it — everything on this page works without it.</Bi></p>
         </Callout>
       </>
     ),
@@ -241,14 +242,14 @@ const CHAPTERS: Chapter[] = [
           </p>
         </Callout>
 
-        <h3 className="text-sm font-semibold text-gray-900">Starting it</h3>
+        <h3 data-es className="text-sm font-semibold text-gray-900">Starting it</h3>
         <ol className="list-decimal space-y-1 pl-5">
-          <li>Double-click <strong>Start TTMS</strong> on the Desktop.</li>
-          <li>A dark window opens. Wait about 10 seconds.</li>
+          <li>Double-click <strong data-es>Start TTMS</strong> on the Desktop.</li>
+          <li data-es>A dark window opens. Wait about 10 seconds.</li>
           <li>The browser opens at TTMS. Sign in if asked.</li>
         </ol>
 
-        <h3 className="pt-2 text-sm font-semibold text-gray-900">Stopping it</h3>
+        <h3 data-es className="pt-2 text-sm font-semibold text-gray-900">Stopping it</h3>
         <p>
           Click the dark window and hold <Mono>Ctrl</Mono> and press <Mono>C</Mono>. Or just close
           the window. Either is fine.
@@ -257,24 +258,24 @@ const CHAPTERS: Chapter[] = [
         <Callout tone="caution" title="Three rules while you are using it">
           <ol className="list-decimal space-y-1 pl-5">
             <li>
-              <strong>Leave the dark window open.</strong> It <em>is</em> TTMS. Close it and the
+              <strong data-es>Leave the dark window open.</strong> It <em>is</em> TTMS. Close it and the
               browser will say &ldquo;This site can&rsquo;t be reached&rdquo;.
             </li>
-            <li><strong>Minimise it, do not close it.</strong></li>
+            <li><strong data-es>Minimise it, do not close it.</strong></li>
             <li>
-              <strong>After restarting the computer, start it again.</strong> It does not come back
+              <strong data-es>After restarting the computer, start it again.</strong> It does not come back
               on its own.
             </li>
           </ol>
         </Callout>
 
-        <h3 className="pt-2 text-sm font-semibold text-gray-900">Getting the latest version</h3>
+        <h3 data-es className="pt-2 text-sm font-semibold text-gray-900">Getting the latest version</h3>
         <p>
           After a developer makes changes, open the <Mono>ttms</Mono> folder, right-click an empty
-          part of the window, choose <strong>Open in Terminal</strong>, and run:
+          part of the window, choose <strong data-es>Open in Terminal</strong>, and run:
         </p>
         <Cmd>{'git pull\nnpm install'}</Cmd>
-        <p>Then close the window and start TTMS normally.</p>
+        <p data-es>Then close the window and start TTMS normally.</p>
       </>
     ),
   },
@@ -289,15 +290,15 @@ const CHAPTERS: Chapter[] = [
           <ol className="list-decimal space-y-1 pl-5">
             <li>Go to <strong>nodejs.org</strong></li>
             <li>
-              Click the green <strong>Download Node.js (LTS)</strong> button. LTS is the stable
+              Click the green <strong data-es>Download Node.js (LTS)</strong> button. LTS is the stable
               version — if offered &ldquo;Current&rdquo; too, <strong>do not pick it</strong>.
             </li>
             <li>
-              Open the downloaded file. Accept the licence, click <strong>Next</strong> on every
-              screen, then <strong>Install</strong>. Change nothing.
+              Open the downloaded file. Accept the licence, click <strong data-es>Next</strong> on every
+              screen, then <strong data-es>Install</strong>. Change nothing.
             </li>
             <li>
-              <strong>Restart the computer.</strong> Windows will not find Node.js until you do.
+              <strong data-es>Restart the computer.</strong> Windows will not find Node.js until you do.
             </li>
           </ol>
         </Step>
@@ -307,7 +308,7 @@ const CHAPTERS: Chapter[] = [
             <li>Go to <strong>git-scm.com/download/win</strong></li>
             <li>
               Open the downloaded file. About ten screens — <strong>click Next on every one</strong>,
-              then <strong>Install</strong>.
+              then <strong data-es>Install</strong>.
             </li>
           </ol>
         </Step>
@@ -316,14 +317,14 @@ const CHAPTERS: Chapter[] = [
           <Callout tone="info" title="GitHub uses the IT Google account">
             <p>
               There is no separate GitHub password. On the sign-in page choose{' '}
-              <strong>Continue with Google</strong> and use <Mono>it@{ALLOWED_EMAIL_DOMAIN}</Mono>.
+              <strong data-es>Continue with Google</strong> and use <Mono>it@{ALLOWED_EMAIL_DOMAIN}</Mono>.
               That account belongs to the <Mono>TTLGT</Mono> organisation, which is what lets you
               download the code.
             </p>
           </Callout>
           <ol className="list-decimal space-y-1 pl-5">
-            <li>Open <strong>File Explorer</strong> and click <strong>Desktop</strong>.</li>
-            <li>Right-click an empty part of the window → <strong>Open in Terminal</strong>.</li>
+            <li>Open <strong data-es>File Explorer</strong> and click <strong data-es>Desktop</strong>.</li>
+            <li>Right-click an empty part of the window → <strong data-es>Open in Terminal</strong>.</li>
             <li>
               Type this and press Enter (right-click inside the window to paste — Ctrl+V often does
               not work):
@@ -337,7 +338,7 @@ const CHAPTERS: Chapter[] = [
           <p>
             TTMS needs a small file of passwords called <Mono>.env.local</Mono>, deliberately not
             included with the code. It is kept in the <strong>IT</strong> folder of the{' '}
-            <strong>IT &amp; Facilities</strong> Google Drive — sign in as{' '}
+            <strong data-es>IT &amp; Facilities</strong> Google Drive — sign in as{' '}
             <Mono>it@totaltransportlogistics.us</Mono>, the same account you use for everything
             else. Download it from there.
           </p>
@@ -360,7 +361,7 @@ const CHAPTERS: Chapter[] = [
             <p>
               Windows hides file endings, so a file that looks like <Mono>.env.local</Mono> may
               really be <Mono>.env.local.txt</Mono> — and TTMS will not find it. In File Explorer:{' '}
-              <strong>View → Show → File name extensions</strong>. If it ends in <Mono>.txt</Mono>,
+              <strong data-es>View → Show → File name extensions</strong>. If it ends in <Mono>.txt</Mono>,
               rename it and delete that part.
             </p>
           </Callout>
@@ -374,10 +375,10 @@ const CHAPTERS: Chapter[] = [
             </li>
             <li>
               If Windows says &ldquo;Windows protected your PC&rdquo;, click{' '}
-              <strong>More info</strong> → <strong>Run anyway</strong>. It is our own file.
+              <strong data-es>More info</strong> → <strong data-es>Run anyway</strong>. It is our own file.
             </li>
             <li>
-              It downloads supporting files. <strong>The first time takes 2–5 minutes.</strong>{' '}
+              It downloads supporting files. <strong data-es>The first time takes 2–5 minutes.</strong>{' '}
               Yellow <Mono>warn</Mono> lines are normal.
             </li>
           </ol>
@@ -387,13 +388,13 @@ const CHAPTERS: Chapter[] = [
         <Step n={6} title="Make a shortcut" time="~1 min">
           <ol className="list-decimal space-y-1 pl-5">
             <li>
-              Right-click <strong>start-ttms.bat</strong> → <strong>Show more options</strong> →{' '}
-              <strong>Send to</strong> → <strong>Desktop (create shortcut)</strong>.
+              Right-click <strong>start-ttms.bat</strong> → <strong data-es>Show more options</strong> →{' '}
+              <strong data-es>Send to</strong> → <strong data-es>Desktop (create shortcut)</strong>.
             </li>
-            <li>Rename it <strong>Start TTMS</strong>.</li>
+            <li>Rename it <strong data-es>Start TTMS</strong>.</li>
             <li>
-              Right-click it → <strong>Properties</strong> → <strong>Change Icon</strong> →{' '}
-              <strong>Browse</strong>, and pick <Mono>ttms\scripts\ttms.ico</Mono>.
+              Right-click it → <strong data-es>Properties</strong> → <strong data-es>Change Icon</strong> →{' '}
+              <strong data-es>Browse</strong>, and pick <Mono>ttms\scripts\ttms.ico</Mono>.
             </li>
           </ol>
           <Expect>
@@ -414,14 +415,14 @@ const CHAPTERS: Chapter[] = [
         <Callout tone="info" title="By design">
           <p>
             Signing in with Google grants nothing on its own. Someone can only get in once their
-            address has been added under <strong>Settings → People → Add People</strong>.
+            address has been added under <strong data-es>Settings → People → Add People</strong>.
           </p>
         </Callout>
         <ol className="list-decimal space-y-1 pl-5">
           <li>
-            Go to <strong>Settings</strong> → the <strong>People</strong> tab →{' '}
-            <strong>Add People</strong>. Leave the mode switch in the top right on{' '}
-            <strong>Type it in</strong>.
+            Go to <strong data-es>Settings</strong> → the <strong data-es>People</strong> tab →{' '}
+            <strong data-es>Add People</strong>. Leave the mode switch in the top right on{' '}
+            <strong data-es>Type it in</strong>.
           </li>
           <li>
             Type their address. It must end in <Mono>@{ALLOWED_EMAIL_DOMAIN}</Mono> — anything
@@ -429,7 +430,7 @@ const CHAPTERS: Chapter[] = [
             <strong>several</strong>, one per line, to add a batch.
           </li>
           <li>
-            Fill in <strong>Their details</strong> — name, personal email, phones, extension,
+            Fill in <strong data-es>Their details</strong> — name, personal email, phones, extension,
             start date, date of birth. As much or as little as you know.
           </li>
           <li>
@@ -437,7 +438,7 @@ const CHAPTERS: Chapter[] = [
             you like and it is saved as <Mono>{PHONE_EXAMPLE.US}</Mono>.
           </li>
           <li>
-            <strong>Other phone</strong> is their number in their home country. Pick the country
+            <strong data-es>Other phone</strong> is their number in their home country. Pick the country
             from the dropdown beside the box — Guatemala saves as{' '}
             <Mono>{PHONE_EXAMPLE.GT}</Mono>, Mexico as <Mono>{PHONE_EXAMPLE.MX}</Mono>. Each
             person has one of these, so pick the country that applies to them.
@@ -450,36 +451,36 @@ const CHAPTERS: Chapter[] = [
             apart on its own: the box you type it in is what says which country it is.
           </li>
           <li>
-            Pick their <strong>Site</strong> and <strong>Roles</strong>, then click{' '}
-            <strong>Add Person</strong>.
+            Pick their <strong data-es>Site</strong> and <strong data-es>Roles</strong>, then click{' '}
+            <strong data-es>Add Person</strong>.
           </li>
         </ol>
         <Callout tone="info" title="Why the details grey out">
           <p>
             A name and a birthday belong to <strong>one person</strong>, so those fields are only
             available when there is a single address in the box. Paste several and they grey out,
-            leaving <strong>Site</strong> and <strong>Roles</strong> — the two things that can
+            leaving <strong data-es>Site</strong> and <strong data-es>Roles</strong> — the two things that can
             honestly apply to everyone in a batch. To give details to several people at once,
-            switch to <strong>Spreadsheet</strong>.
+            switch to <strong data-es>Spreadsheet</strong>.
           </p>
         </Callout>
         <Expect>a short list confirming &ldquo;Added 3 of 3&rdquo;, with a green tick per address.</Expect>
         <p>
-          They appear below as <strong className="text-amber-600">Pending first sign-in</strong>{' '}
-          until they actually log in, then <strong className="text-green-600">Active</strong>.
+          They appear below as <strong data-es className="text-amber-600">Pending first sign-in</strong>{' '}
+          until they actually log in, then <strong data-es className="text-green-600">Active</strong>.
         </p>
 
         <Table>
           <thead><Row header cells={['Role', 'What they can do']} /></thead>
           <tbody>
-            <Row cells={[<strong key="b">Broker</strong>, 'The default. Their own clients and loads, nothing they do not own.']} />
-            <Row cells={[<strong key="a">Admin</strong>, 'Sees every record, and can manage who has access.']} />
-            <Row cells={[<strong key="d">Dispatcher</strong>, 'Can send carrier and shipper agreements.']} />
-            <Row cells={[<strong key="f">Finance</strong>, 'Can generate BOLs and invoices.']} />
+            <Row cells={[<strong data-es key="b">Broker</strong>, 'The default. Their own clients and loads, nothing they do not own.']} />
+            <Row cells={[<strong data-es key="a">Admin</strong>, 'Sees every record, and can manage who has access.']} />
+            <Row cells={[<strong data-es key="d">Dispatcher</strong>, 'Can send carrier and shipper agreements.']} />
+            <Row cells={[<strong data-es key="f">Finance</strong>, 'Can generate BOLs and invoices.']} />
           </tbody>
         </Table>
         <p>
-          Everyone is a Broker unless given something else. Clicking <strong>Broker</strong> takes
+          Everyone is a Broker unless given something else. Clicking <strong data-es>Broker</strong> takes
           the other roles away. Roles picked at invite time apply to everyone in that batch.
         </p>
 
@@ -487,12 +488,12 @@ const CHAPTERS: Chapter[] = [
           <thead><Row header cells={['', 'What it does', 'Use it when']} /></thead>
           <tbody>
             <Row cells={[
-              <strong key="s">Suspend</strong>,
+              <strong data-es key="s">Suspend</strong>,
               'Blocks sign-in but keeps their roles. Reversible.',
               'Someone is on leave, or you need to pause access while you check something.',
             ]} />
             <Row cells={[
-              <strong key="r">Remove</strong>,
+              <strong data-es key="r">Remove</strong>,
               'Deletes their entry, but keeps a full record of it. Can be undone.',
               'Someone has left the company.',
             ]} />
@@ -507,10 +508,10 @@ const CHAPTERS: Chapter[] = [
           </p>
         </Callout>
 
-        <h3 className="pt-2 text-sm font-semibold text-gray-900">The removal log</h3>
+        <h3 data-es className="pt-2 text-sm font-semibold text-gray-900">The removal log</h3>
         <p>
           Removing someone deletes their entry, so they vanish from the list.{' '}
-          <strong>Settings → People → Removed People</strong> is the record that they were ever here —
+          <strong data-es>Settings → People → Removed People</strong> is the record that they were ever here —
           click it open for everyone who has been removed, when, and <strong>which admin did
           it</strong>, with their photo, name, phones, site, roles, start date and personal email
           they had at the time. It exports to CSV like the main list, and nothing in TTMS can edit
@@ -518,21 +519,21 @@ const CHAPTERS: Chapter[] = [
         </p>
         <Callout tone="info" title="Also how you undo a mistake">
           <p>
-            <strong>Put back</strong> on a removal rebuilds their entry exactly as it was — roles,
+            <strong data-es>Put back</strong> on a removal rebuilds their entry exactly as it was — roles,
             extra permissions, details and photo. You confirm first, and the question names the
             roles they are coming back with.
           </p>
           <p>
-            They read as <strong>Pending</strong> until they sign in, which is normal: their access
+            They read as <strong data-es>Pending</strong> until they sign in, which is normal: their access
             is real from the moment you confirm, and everything they owned is theirs again on their
             first sign-in. They are never put back suspended. The removal row stays in the log and
             says they were put back — a log records both.
           </p>
         </Callout>
 
-        <h3 className="pt-2 text-sm font-semibold text-gray-900">The access history</h3>
+        <h3 data-es className="pt-2 text-sm font-semibold text-gray-900">The access history</h3>
         <p>
-          <strong>Settings → People → Access History</strong> is the shorter read: one line every
+          <strong data-es>Settings → People → Access History</strong> is the shorter read: one line every
           time somebody was <strong>added</strong>, <strong>removed</strong> or{' '}
           <strong>put back</strong>, newest first, with the admin who did it and the roles they
           held at the time. Use the removal log to ask who somebody was; use this to ask what has
@@ -541,12 +542,12 @@ const CHAPTERS: Chapter[] = [
         </p>
         <Callout tone="info" title="It starts from 22 September 2026">
           <p>
-            Anyone already on the system has no &ldquo;added&rdquo; line — they appear the first
-            time something happens to their access.
+            <Bi>Anyone already on the system has no &ldquo;added&rdquo; line — they appear the first
+            time something happens to their access.</Bi>
           </p>
         </Callout>
 
-        <h3 className="pt-2 text-sm font-semibold text-gray-900">Changing their details later</h3>
+        <h3 data-es className="pt-2 text-sm font-semibold text-gray-900">Changing their details later</h3>
         <p>
           The <strong>pencil</strong> icon on someone&rsquo;s row edits who they are: name, photo,
           site, work phone, other phone, extension, personal email, start date and date of
@@ -560,16 +561,16 @@ const CHAPTERS: Chapter[] = [
         </p>
         <Callout tone="info" title="Admin-only fields">
           <p>
-            <strong>Full legal name</strong>, <strong>date of birth</strong>,{' '}
+            <strong data-es>Full legal name</strong>, <strong>date of birth</strong>,{' '}
             <strong>personal email</strong> and <strong>start date</strong> are kept on the access
             list, which only Admins and HR can read. They are never copied onto the profile the
             rest of the company can see. Name, phones, extension, site and team are.
           </p>
         </Callout>
 
-        <h3 className="pt-2 text-sm font-semibold text-gray-900">The Directory</h3>
+        <h3 data-es className="pt-2 text-sm font-semibold text-gray-900">The Directory</h3>
         <p>
-          <strong>Directory</strong> in the left-hand menu is the company phone book, and{' '}
+          <strong data-es>Directory</strong> in the left-hand menu is the company phone book, and{' '}
           <strong>everyone</strong> can open it — it is the one people page that is not part of
           Settings. A broker sees each colleague&rsquo;s name, company email, US work phone,
           extension, office and team, and can click the address or the number to write or dial.
@@ -578,7 +579,7 @@ const CHAPTERS: Chapter[] = [
         </p>
         <p>
           Nothing on it can be changed there. It is drawn from the details on{' '}
-          <strong>Settings → People</strong>, so fixing a wrong extension is done on that page and
+          <strong data-es>Settings → People</strong>, so fixing a wrong extension is done on that page and
           shows up in the Directory straight away.
         </p>
       </>
@@ -593,19 +594,19 @@ const CHAPTERS: Chapter[] = [
       <>
         <p>
           Setting TTMS up for the whole company, or matching it to an updated HR list, is a
-          spreadsheet job rather than a typing job. Go to <strong>Settings</strong> → the{' '}
-          <strong>People</strong> tab → <strong>Add People</strong>, and switch it to{' '}
-          <strong>Spreadsheet</strong>.
+          spreadsheet job rather than a typing job. Go to <strong data-es>Settings</strong> → the{' '}
+          <strong data-es>People</strong> tab → <strong data-es>Add People</strong>, and switch it to{' '}
+          <strong data-es>Spreadsheet</strong>.
         </p>
         <ol className="list-decimal space-y-1 pl-5">
           <li>
-            Click <strong>Template</strong> for a CSV with the right headings and an example row —
-            or <strong>Export CSV</strong> above the people list to edit what you already have.
+            Click <strong data-es>Template</strong> for a CSV with the right headings and an example row —
+            or <strong data-es>Export CSV</strong> above the people list to edit what you already have.
             Both files have the same columns, so an export goes straight back in.
           </li>
-          <li>Fill it in in Excel. <strong>Email</strong> is the only required column.</li>
-          <li>Drag the file onto the drop box and click <strong>Check the file</strong>.</li>
-          <li>Read the preview, then click <strong>Apply N changes</strong>.</li>
+          <li>Fill it in in Excel. <strong data-es>Email</strong> is the only required column.</li>
+          <li>Drag the file onto the drop box and click <strong data-es>Check the file</strong>.</li>
+          <li>Read the preview, then click <strong data-es>Apply N changes</strong>.</li>
         </ol>
         <Expect>
           a summary like &ldquo;Ready to save: 4 new, 11 updated&rdquo;, then a line per person
@@ -615,7 +616,7 @@ const CHAPTERS: Chapter[] = [
         <Table>
           <thead><Row header cells={['Column', 'Notes']} /></thead>
           <tbody>
-            <Row cells={[<strong key="e">Email</strong>, <>Required, and what identifies the person. Must end in <Mono>@{ALLOWED_EMAIL_DOMAIN}</Mono>.</>]} />
+            <Row cells={[<strong data-es key="e">Email</strong>, <>Required, and what identifies the person. Must end in <Mono>@{ALLOWED_EMAIL_DOMAIN}</Mono>.</>]} />
             <Row cells={['First name, Last name', 'As you want them shown.']} />
             <Row cells={['Personal email', 'Any address. Admin-only.']} />
             <Row cells={['Work phone (US)', <>Typed however you like — all of <Mono key="a">4699354100</Mono>, <Mono>(469) 935-4100</Mono> and <Mono>+1 469-935-4100</Mono> save as <Mono>{PHONE_EXAMPLE.US}</Mono>. Needs 10 digits.</>]} />
@@ -633,12 +634,12 @@ const CHAPTERS: Chapter[] = [
             on the email address, so uploading a fuller version of the same list fills in the gaps.
           </p>
           <p>
-            <strong>An empty cell changes nothing.</strong> Fill in the two birthdays you know and
+            <strong data-es>An empty cell changes nothing.</strong> Fill in the two birthdays you know and
             leave the rest of the column blank — nobody else is touched. To erase something, clear
             it with the pencil icon on their row; a blank cell will never do it.
           </p>
           <p>
-            <strong>Leaving someone out does nothing to them.</strong> The import only adds and
+            <strong data-es>Leaving someone out does nothing to them.</strong> The import only adds and
             updates — it never suspends and never removes.
           </p>
         </Callout>
@@ -650,8 +651,8 @@ const CHAPTERS: Chapter[] = [
         </p>
         <Callout tone="good" title="Fix it without going back to Excel">
           <p>
-            Every row in the results has a button on the right: <strong>Fix</strong> in amber where
-            something went wrong, <strong>Edit</strong> everywhere else. It opens the whole person
+            Every row in the results has a button on the right: <strong data-es>Fix</strong> in amber where
+            something went wrong, <strong data-es>Edit</strong> everywhere else. It opens the whole person
             — name, legal name, personal email, both phones, extension, site, team, dates and roles
             — with the box that caused the problem outlined in amber and the reason under it. Site,
             team and roles are dropdowns and buttons, so the same mistake cannot happen twice, and
@@ -659,13 +660,13 @@ const CHAPTERS: Chapter[] = [
           </p>
           <p>
             It edits <strong>the spreadsheet, not the directory</strong>. Once you have made a
-            change the Apply button disappears until you press <strong>Check again</strong> —
+            change the Apply button disappears until you press <strong data-es>Check again</strong> —
             nothing is saved against a preview that no longer matches the file.{' '}
-            <strong>Download corrected file</strong> gives you the fixed spreadsheet to keep.
+            <strong data-es>Download corrected file</strong> gives you the fixed spreadsheet to keep.
           </p>
         </Callout>
         <p>
-          <strong>A phone number is the exception.</strong> One with the wrong count of digits does
+          <strong data-es>A phone number is the exception.</strong> One with the wrong count of digits does
           not throw its row away: the rest of that person saves and only the number is left out.
           The summary says how many were dropped and the row names them. Someone who already has a
           number keeps the one they have — a bad cell never overwrites a good number.
@@ -694,22 +695,22 @@ const CHAPTERS: Chapter[] = [
             <Mono>carriers-export-….csv</Mono>, <Mono>customers-export-….csv</Mono> and{' '}
             <Mono>orders-export-….csv</Mono>
           </li>
-          <li>Go to <strong>Settings</strong> → the <strong>Data</strong> tab, which holds <strong>BATS Data Import</strong>.</li>
+          <li>Go to <strong data-es>Settings</strong> → the <strong data-es>Data</strong> tab, which holds <strong data-es>BATS Data Import</strong>.</li>
           <li>Drag each file into its matching box. Several order files at once is fine.</li>
-          <li>Click <strong>Run Import</strong>.</li>
+          <li>Click <strong data-es>Run Import</strong>.</li>
         </ol>
         <Expect>
           a result line per type, like &ldquo;Carriers — 12 written · 480 unchanged · 492 total&rdquo;.
         </Expect>
         <Callout tone="good" title="Re-importing is safe">
           <p>
-            TTMS remembers each row and skips anything unchanged, so a fresh export next week only
-            writes what is genuinely new. You will not create duplicates.
+            <Bi>TTMS remembers each row and skips anything unchanged, so a fresh export next week only
+            writes what is genuinely new. You will not create duplicates.</Bi>
           </p>
         </Callout>
         <p>
-          Also in Settings, on the <strong>Organization</strong> tab: <strong>Sites</strong>{' '}
-          (company locations) and <strong>Work Groups</strong> (teams that share client
+          Also in Settings, on the <strong data-es>Organization</strong> tab: <strong data-es>Sites</strong>{' '}
+          (company locations) and <strong data-es>Work Groups</strong> (teams that share client
           records). Both are simple add-and-name lists.
         </p>
       </>
@@ -727,12 +728,12 @@ const CHAPTERS: Chapter[] = [
           <Row cells={[
             <>&ldquo;This site can&rsquo;t be reached&rdquo;</>,
             'TTMS is not running.',
-            <>Double-click <strong>Start TTMS</strong>, wait 10 seconds.</>,
+            <>Double-click <strong data-es>Start TTMS</strong>, wait 10 seconds.</>,
           ]} />
           <Row cells={[
             'The dark window flashed up and vanished',
             'It hit a problem and closed too fast to read.',
-            <>Right-click <Mono>start-ttms.bat</Mono> → <strong>Open in Terminal</strong>. The message stays on screen.</>,
+            <>Right-click <Mono>start-ttms.bat</Mono> → <strong data-es>Open in Terminal</strong>. The message stays on screen.</>,
           ]} />
           <Row cells={[
             <>&ldquo;Node.js is not installed&rdquo;</>,
@@ -762,12 +763,12 @@ const CHAPTERS: Chapter[] = [
           <Row cells={[
             <>&ldquo;Missing or insufficient permissions&rdquo;</>,
             'A security settings change has not been published to Google.',
-            <><strong>Call for help.</strong> A developer must run the rules deploy.</>,
+            <><strong data-es>Call for help.</strong> A developer must run the rules deploy.</>,
           ]} />
           <Row cells={[
             'Nobody in the company can sign in',
             'Something has gone wrong with the access list.',
-            <><strong>Call for help immediately.</strong> Sign in with a bootstrap admin address.</>,
+            <><strong data-es>Call for help immediately.</strong> Sign in with a bootstrap admin address.</>,
           ]} />
           <Row cells={[
             'Agreement emails are not arriving',
@@ -796,7 +797,7 @@ const CHAPTERS: Chapter[] = [
             or a shared drive. It is the password to all company data.
           </>,
           <>
-            <strong>Never delete or demote the bootstrap admin addresses</strong> in Settings. They
+            <strong data-es>Never delete or demote the bootstrap admin addresses</strong> in Settings. They
             are the emergency way back in.
           </>,
           <><strong>Never delete the <Mono>ttms</Mono> folder</strong> while trying to fix something.</>,
@@ -804,7 +805,7 @@ const CHAPTERS: Chapter[] = [
             <strong>Never run a command a developer has not asked you to run.</strong> Several write
             directly to live company data.
           </>,
-          <><strong>Never assume you are on a test copy.</strong> You are not. There is not one.</>,
+          <><strong data-es>Never assume you are on a test copy.</strong> You are not. There is not one.</>,
         ].map((item, i) => (
           <li key={i} className="flex gap-2.5 rounded-lg bg-red-50 px-4 py-3 text-sm text-gray-700">
             <Ban size={15} className="mt-0.5 flex-shrink-0 text-red-600" />
@@ -1022,12 +1023,12 @@ export default function HandbookPage() {
   return (
     <div className="max-w-4xl p-4 sm:p-6 lg:p-8">
       <div className="mb-6">
-        <h1 className="flex items-center gap-2.5 text-2xl font-bold text-gray-900">
+        <h1 data-es className="flex items-center gap-2.5 text-2xl font-bold text-gray-900">
           <BookOpen size={24} className="text-brand-500" />
           Admin Handbook
         </h1>
         <p className="mt-0.5 text-sm text-gray-500">
-          How to administer and maintain TTMS. Visible to admins only.
+          <Bi>How to administer and maintain TTMS. Visible to admins only.</Bi>
         </p>
       </div>
 
@@ -1147,12 +1148,12 @@ export default function HandbookPage() {
             use it.
           </p>
           <p>
-            <strong>Being able to open it still grants nothing.</strong> Anyone can reach the
+            <strong data-es>Being able to open it still grants nothing.</strong> Anyone can reach the
             sign-in page, and they get no further. Access is given one email address at a time in
             Settings → Team Access.
           </p>
           <p>
-            <strong>The data is real and shared.</strong> The orders, carriers and clients you see
+            <strong data-es>The data is real and shared.</strong> The orders, carriers and clients you see
             are the live company records. Anything you change is changed for good, immediately.
             There is no practice mode and no undo — and that is true from the website and from any
             computer running TTMS locally, because both read and write the same records.
@@ -1203,21 +1204,21 @@ export default function HandbookPage() {
 
       {/* ── For developers ─────────────────────────────────────────────── */}
       <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 px-6 py-5">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+        <h2 data-es className="flex items-center gap-2 text-sm font-semibold text-gray-900">
           <KeyRound size={15} className="text-gray-400" />
           For whoever maintains the code
         </h2>
         <p className="mt-1.5 text-sm text-gray-600">
-          The technical half — architecture, the security rules deploy, the maintenance scripts, the
+          <Bi>The technical half — architecture, the security rules deploy, the maintenance scripts, the
           data model and how the site is deployed — lives with the code, where it stays in
-          step with what it describes.
+          step with what it describes.</Bi>
         </p>
         <ul className="mt-3 space-y-1 text-sm text-gray-600">
           <li><Mono>docs/admin-handbook.md</Mono> — the full handbook, all three parts</li>
           <li><Mono>docs/schema-guide.md</Mono> — the data model</li>
           <li><Mono>CLAUDE.md</Mono> — context for AI-assisted work</li>
         </ul>
-        <a
+        <a data-es
           href={REPO}
           target="_blank"
           rel="noopener noreferrer"

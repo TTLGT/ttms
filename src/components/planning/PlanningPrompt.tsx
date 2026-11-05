@@ -48,6 +48,7 @@ import {
   type PlanningStatus,
 } from '@/types/planning';
 import TimeWheel from './TimeWheel';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The planning card: "When will you plan for tomorrow?", a time wheel, how long,
@@ -517,7 +518,7 @@ export default function PlanningPrompt() {
             </div>
             {kind === 'morning' && (
               <p className="mt-2 text-xs text-gray-500">
-                Planned for today last night? Then this is a quick look over it. If not, this is when you make the plan.
+                <Bi>Planned for today last night? Then this is a quick look over it. If not, this is when you make the plan.</Bi>
               </p>
             )}
 
@@ -542,7 +543,7 @@ export default function PlanningPrompt() {
 
               {!isDailyKind(kind) && (
                 <>
-                  {kind === 'monthly' && <p className="mt-4 text-center text-xs font-semibold text-gray-400">Which one of the month</p>}
+                  {kind === 'monthly' && <p data-es className="mt-4 text-center text-xs font-semibold text-gray-400">Which one of the month</p>}
                   {kind === 'monthly' && (
                     <div className="mt-1.5 flex justify-between gap-1" role="radiogroup" aria-label="Which one of the month">
                       {PLANNING_NTHS.map((n) => (
@@ -566,7 +567,7 @@ export default function PlanningPrompt() {
               )}
 
               <div className="mt-4 rounded-xl border-2 border-brand-300 bg-white px-3 py-2">
-                <p className="text-center text-xs font-semibold text-gray-400">Start time</p>
+                <p data-es className="text-center text-xs font-semibold text-gray-400">Start time</p>
                 <div className="relative mt-1 flex items-center justify-center gap-1">
                   {/* The middle row, marked the way a phone's picker marks it. */}
                   <div className="pointer-events-none absolute inset-x-2 top-1/2 h-10 -translate-y-1/2 border-y border-gray-200" />
@@ -581,7 +582,7 @@ export default function PlanningPrompt() {
                     onChange={(v) => pickTime(toHHMM((h % 12) + (v === 'PM' ? 12 : 0), m))} />
                 </div>
               </div>
-              <p className="mt-2 text-center text-[11px] text-gray-400">Office time (Guatemala)</p>
+              <p data-es className="mt-2 text-center text-[11px] text-gray-400">Office time (Guatemala)</p>
               {/* Today would have been the day but for the clock: say so, or the jump looks like a bug. */}
               {date !== calendarToday() && firstPlanningDate(kind, time, { weekday, nth }, calendarToday(), '00:00') === calendarToday() && (
                 <p className="mt-1 text-center text-xs text-amber-700">
@@ -589,7 +590,7 @@ export default function PlanningPrompt() {
                 </p>
               )}
 
-              <p className="mt-3 text-center text-xs font-semibold text-gray-400">How long</p>
+              <p data-es className="mt-3 text-center text-xs font-semibold text-gray-400">How long</p>
               <div className="mt-1.5 flex justify-between gap-1" role="radiogroup" aria-label="How long">
                 {PLANNING_DURATIONS[kind].map((d) => (
                   <button key={d} type="button" role="radio" aria-checked={!otherLength && minutes === d}
@@ -665,7 +666,7 @@ export default function PlanningPrompt() {
               className="mt-5 w-full rounded-xl bg-brand-600 py-3 text-sm font-bold uppercase tracking-wide text-white hover:bg-brand-700 disabled:opacity-60">
               {busy ? 'Saving…' : 'Add to calendar'}
             </button>
-            <button type="button" onClick={openPicker} disabled={busy}
+            <button data-es type="button" onClick={openPicker} disabled={busy}
               className="mt-2 w-full text-center text-xs font-medium text-brand-600 hover:underline disabled:opacity-50">
               Already on your calendar? Use one you have
             </button>
@@ -710,7 +711,7 @@ function PickExisting({
   const shown = candidates?.filter((t) => !words || t.title.toLowerCase().includes(words)) ?? null;
   return (
     <div className="flex min-h-0 flex-col px-5 pb-5 pt-4">
-      <button type="button" onClick={onBack}
+      <button data-es type="button" onClick={onBack}
         className="flex items-center gap-1 self-start text-xs font-medium text-gray-500 hover:text-gray-700">
         <ArrowLeft size={13} /> Back
       </button>
@@ -718,7 +719,7 @@ function PickExisting({
         Which one is your {label.toLowerCase()}?
       </h2>
       <p className="mt-0.5 text-sm text-gray-600">
-        Pick a task or event you already have. It stays as it is; you just won&rsquo;t be asked to add another.
+        <Bi>Pick a task or event you already have. It stays as it is; you just won&rsquo;t be asked to add another.</Bi>
       </p>
       <label className="mt-3 flex items-center gap-2 rounded-lg border border-gray-300 px-2.5 py-1.5">
         <Search size={14} className="text-gray-400" />
@@ -728,7 +729,7 @@ function PickExisting({
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       <div className="mt-2 min-h-0 flex-1 overflow-y-auto">
         {!shown ? (
-          <p className="py-6 text-center text-xs text-gray-400">Loading your list…</p>
+          <p data-es className="py-6 text-center text-xs text-gray-400">Loading your list…</p>
         ) : shown.length === 0 ? (
           <p className="py-6 text-center text-xs text-gray-400">
             {candidates?.length
@@ -787,7 +788,7 @@ function DayView({
   nextDayLabel: string;
 }) {
   if (!day) {
-    return <p className="mt-4 text-center text-xs text-gray-400">Looking at your day…</p>;
+    return <p data-es className="mt-4 text-center text-xs text-gray-400">Looking at your day…</p>;
   }
   const items = day.items.filter((i) => !i.planning);
   const slotEnd = addMinutes(slot.time, slot.minutes);
@@ -850,7 +851,7 @@ function DayView({
               </span>
               <span className="min-w-0 flex-1 truncate text-gray-800">{row.item.title}</span>
               {row.item.series ? (
-                <span className="flex-shrink-0 text-[10px] text-gray-400" title="Part of a repeating event — change it on the Calendar">
+                <span data-es className="flex-shrink-0 text-[10px] text-gray-400" title="Part of a repeating event — change it on the Calendar">
                   Repeats
                 </span>
               ) : (
@@ -887,7 +888,7 @@ function DayView({
         ))}
       </ul>
       {items.length === 0 && (
-        <p className="mt-1 text-[11px] text-gray-400">Nothing else with a time on this day.</p>
+        <p data-es className="mt-1 text-[11px] text-gray-400">Nothing else with a time on this day.</p>
       )}
     </section>
   );

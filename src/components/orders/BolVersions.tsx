@@ -6,6 +6,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { bolVersionPdf, listBolVersions } from '@/lib/bolRequestsClient';
 import AgreementPdfPreview from './AgreementPdfPreview';
 import type { BolVersion } from '@/types/bolRequest';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * The BOLs this load had before the current one, inside the Bill of Lading
@@ -76,9 +77,9 @@ export default function BolVersions({ orderId, refreshKey }: { orderId: string; 
       </button>
       {open && (
         versions === null && !error ? (
-          <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" />Loading…</p>
+          <p data-es className="mt-1 flex items-center gap-1.5 text-xs text-gray-500"><Loader2 className="w-3.5 h-3.5 animate-spin" />Loading…</p>
         ) : versions && versions.length === 0 ? (
-          <p className="mt-1 text-xs text-gray-500">This is the only BOL this load has had. Earlier ones are kept from now on when it is generated again.</p>
+          <p className="mt-1 text-xs text-gray-500"><Bi>This is the only BOL this load has had. Earlier ones are kept from now on when it is generated again.</Bi></p>
         ) : versions ? (
           <ul className="mt-1 divide-y divide-gray-100 rounded-lg border border-gray-200">
             {versions.map((v, i) => {
@@ -97,7 +98,7 @@ export default function BolVersions({ orderId, refreshKey }: { orderId: string; 
                         Emailed {formatDateTime(new Date(s.at))} by {s.byName} to {s.to.map((t) => `${t.label.toLowerCase()} ${t.email}`).join(', ')}
                       </p>
                     )) : (
-                      <p className="text-gray-500">Not emailed from TTMS</p>
+                      <p data-es className="text-gray-500">Not emailed from TTMS</p>
                     )}
                     <p className="text-gray-400">Replaced {formatDateTime(new Date(v.replacedAt))} by {v.replacedByName}</p>
                   </div>

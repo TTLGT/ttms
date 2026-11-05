@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Image as ImageIcon } from 'lucide-react';
 import { CHAT_WALLPAPERS, useChatWallpaper } from '@/lib/chatWallpaper';
+import { Bi } from '@/components/spanish/Es';
 
 /**
  * Pick the background chat messages sit on. Beside the alerts bell because it
@@ -48,7 +49,7 @@ export default function WallpaperMenu() {
         /* w-60 for the same reason as NotifyMenu's: the conversation column is
            288px and <main> clips anything that spills past its left edge. */
         <div className="absolute right-0 top-full z-30 mt-1 w-60 rounded-lg border border-gray-200 bg-white p-3 shadow-xl">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <p data-es className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
             Chat background
           </p>
 
@@ -88,7 +89,7 @@ export default function WallpaperMenu() {
           </div>
 
           <p className="mt-3 border-t border-gray-100 pt-2.5 text-[11px] leading-relaxed text-gray-400">
-            Only changes this browser. Nobody else sees what you pick.
+            <Bi>Only changes this browser. Nobody else sees what you pick.</Bi>
           </p>
         </div>
       )}

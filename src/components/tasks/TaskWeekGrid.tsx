@@ -314,7 +314,7 @@ export default function TaskWeekGrid({
         ))}
       </div>
       <div className={`${cols} border-b border-gray-200`} style={colStyle}>
-        <div className="px-1 py-1 text-right text-[10px] text-gray-400">All day</div>
+        <div data-es className="px-1 py-1 text-right text-[10px] text-gray-400">All day</div>
         {days.map((date) => (
           <div key={date}
             onClick={() => onSelect(date)}

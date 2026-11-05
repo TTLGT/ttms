@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, Pl
 import DateField from '@/components/DateField';
 import { getQuoteRates, saveQuoteRates } from '@/lib/quoteRates';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import { Bi } from '@/components/spanish/Es';
 import {
   DEFAULT_QUOTE_RATES,
   LOAD_SIZES,
@@ -113,14 +114,14 @@ export default function QuoteRatesPanel() {
 
   return (
     <section className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Quote Rates</h2>
+      <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Quote Rates</h2>
       <p className="text-sm text-gray-500 mt-1 mb-4">
-        What the quote calculator charges the client for each truck, how big a load each one takes, and the
-        market figures it checks a driver&apos;s pay against. Changes reach every broker the next time they open the calculator.
+        <Bi>What the quote calculator charges the client for each truck, how big a load each one takes, and the
+        market figures it checks a driver&apos;s pay against. Changes reach every broker the next time they open the calculator.</Bi>
       </p>
 
       {!draft ? (
-        error ? <p className="text-sm text-red-700">{error}</p> : <p className="text-sm text-gray-500">Loading…</p>
+        error ? <p className="text-sm text-red-700">{error}</p> : <p data-es className="text-sm text-gray-500">Loading…</p>
       ) : (
         <div className="space-y-6">
           {meta.problem && (
@@ -138,11 +139,11 @@ export default function QuoteRatesPanel() {
           {/* Market */}
           <div className="space-y-3">
             <div>
-              <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wide">Market check</h3>
+              <h3 data-es className="text-xs font-semibold text-gray-800 uppercase tracking-wide">Market check</h3>
               <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                National average spot rates per mile, broker to carrier. DAT publishes these three for free in its
+                <Bi>National average spot rates per mile, broker to carrier. DAT publishes these three for free in its
                 weekly truckload market update; there is no free feed TTMS could read them from, so they are copied
-                in by hand. The calculator compares the driver&apos;s pay with them — they never set a price.
+                in by hand. The calculator compares the driver&apos;s pay with them — they never set a price.</Bi>
               </p>
             </div>
             <div className="grid grid-cols-3 gap-3">
@@ -155,12 +156,12 @@ export default function QuoteRatesPanel() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-3">
               <div>
-                <label className={LABEL}>As of</label>
+                <label data-es className={LABEL}>As of</label>
                 <DateField value={draft.market.asOf} onChange={(v) => setDraft({ ...draft, market: { ...draft.market, asOf: v } })}
                   className={INPUT} ariaLabel="Market figures as of" />
               </div>
               <div>
-                <label className={LABEL}>Source</label>
+                <label data-es className={LABEL}>Source</label>
                 <input value={draft.market.source} maxLength={300}
                   onChange={(e) => setDraft({ ...draft, market: { ...draft.market, source: e.target.value } })}
                   className={INPUT} placeholder="e.g. DAT weekly update, week 36" />
@@ -171,23 +172,23 @@ export default function QuoteRatesPanel() {
           {/* Fee targets */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className={LABEL}>Target broker fee ($)</label>
+              <label data-es className={LABEL}>Target broker fee ($)</label>
               <NumInput value={draft.targetBrokerFee} onChange={(v) => setDraft({ ...draft, targetBrokerFee: v ?? 0 })} />
-              <p className="text-[11px] text-gray-500 mt-1">A quote under this is flagged amber. Never refused.</p>
+              <p className="text-[11px] text-gray-500 mt-1"><Bi>A quote under this is flagged amber. Never refused.</Bi></p>
             </div>
             <div>
               <label className={LABEL}>uShip fee (%)</label>
               <NumInput value={draft.ushipFeePercent} onChange={(v) => setDraft({ ...draft, ushipFeePercent: v })} placeholder="Blank = type it each time" />
-              <p className="text-[11px] text-gray-500 mt-1">Pre-fills the uShip column. A broker can still change it per quote.</p>
+              <p className="text-[11px] text-gray-500 mt-1"><Bi>Pre-fills the uShip column. A broker can still change it per quote.</Bi></p>
             </div>
           </div>
 
           {/* Trucks */}
           <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wide">Trucks</h3>
+            <h3 data-es className="text-xs font-semibold text-gray-800 uppercase tracking-wide">Trucks</h3>
             <p className="text-xs text-gray-500">
-              Rates are what the client is charged. A blank load size is one the truck is not offered for. Click a
-              truck to edit it.
+              <Bi>Rates are what the client is charged. A blank load size is one the truck is not offered for. Click a
+              truck to edit it.</Bi>
             </p>
             <div className="divide-y divide-gray-100 rounded-lg border border-gray-200">
               {draft.trucks.map((t, i) => (
@@ -213,7 +214,7 @@ export default function QuoteRatesPanel() {
                 </div>
               ))}
             </div>
-            <button type="button" onClick={addTruck}
+            <button data-es type="button" onClick={addTruck}
               className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700">
               <Plus className="w-3.5 h-3.5" /> Add a truck type
             </button>
@@ -230,7 +231,7 @@ export default function QuoteRatesPanel() {
               className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
               Discard changes
             </button>
-            {justSaved && !dirty && <span className="inline-flex items-center gap-1 text-xs text-green-700"><Check className="w-3.5 h-3.5" />Saved</span>}
+            {justSaved && !dirty && <span data-es className="inline-flex items-center gap-1 text-xs text-green-700"><Check className="w-3.5 h-3.5" />Saved</span>}
             <button type="button"
               onClick={() => { if (confirm('Put every rate back to the starting rates from the old Google Sheet? Nothing is saved until you press Save.')) setDraft(clone(DEFAULT_QUOTE_RATES)); }}
               className="ml-auto inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800">
@@ -262,15 +263,15 @@ function TruckEditor({ truck, onChange }: { truck: TruckType; onChange: (patch: 
     <div className="space-y-4 bg-gray-50 px-4 py-4 border-t border-gray-100">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="col-span-2">
-          <label className={LABEL}>Name</label>
+          <label data-es className={LABEL}>Name</label>
           <input value={truck.name} maxLength={40} onChange={(e) => onChange({ name: e.target.value })} className={INPUT} />
         </div>
         <div>
-          <label className={LABEL}>Code</label>
+          <label data-es className={LABEL}>Code</label>
           <input value={truck.code} maxLength={8} onChange={(e) => onChange({ code: e.target.value.toUpperCase() })} className={INPUT} />
         </div>
         <div>
-          <label className={LABEL}>Priced</label>
+          <label data-es className={LABEL}>Priced</label>
           <select value={truck.pricing} onChange={(e) => setPricing(e.target.value as PricingKind)} className={INPUT}>
             {PRICING_KINDS.map((k) => <option key={k} value={k}>{PRICING_KIND_LABEL[k]}</option>)}
           </select>
@@ -295,7 +296,7 @@ function TruckEditor({ truck, onChange }: { truck: TruckType; onChange: (patch: 
       {truck.pricing === 'towing' && truck.towing && (
         <div className="space-y-3">
           <div className="max-w-[220px]">
-            <label className={LABEL}>Local up to (miles)</label>
+            <label data-es className={LABEL}>Local up to (miles)</label>
             <NumInput value={truck.towing.localUpToMiles}
               onChange={(v) => onChange({ towing: { ...truck.towing!, localUpToMiles: v ?? 0 } })} />
           </div>
@@ -307,7 +308,7 @@ function TruckEditor({ truck, onChange }: { truck: TruckType; onChange: (patch: 
       )}
 
       <div>
-        <p className="text-[11px] font-medium text-gray-600 mb-1">Biggest load it takes — blank is not checked</p>
+        <p className="text-[11px] font-medium text-gray-600 mb-1"><Bi>Biggest load it takes — blank is not checked</Bi></p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {([['lengthFt', 'Length (ft)'], ['widthFt', 'Width (ft)'], ['heightFt', 'Height (ft)'], ['weightLb', 'Weight (lbs)']] as const).map(([key, label]) => (
             <div key={key}>
@@ -320,14 +321,14 @@ function TruckEditor({ truck, onChange }: { truck: TruckType; onChange: (patch: 
 
       <div className="grid grid-cols-1 sm:grid-cols-[200px_1fr] gap-3">
         <div>
-          <label className={LABEL}>Market check against</label>
+          <label data-es className={LABEL}>Market check against</label>
           <select value={truck.market ?? ''} onChange={(e) => onChange({ market: (e.target.value || null) as MarketEquipment | null })} className={INPUT}>
-            <option value="">Nothing</option>
+            <option data-es value="">Nothing</option>
             {MARKET_EQUIPMENT.map((eq) => <option key={eq} value={eq}>{MARKET_EQUIPMENT_LABEL[eq]}</option>)}
           </select>
         </div>
         <div>
-          <label className={LABEL}>Notes for brokers</label>
+          <label data-es className={LABEL}>Notes for brokers</label>
           <input value={truck.notes} maxLength={500} onChange={(e) => onChange({ notes: e.target.value })} className={INPUT}
             placeholder="Upper deck height, axles, pallet count…" />
         </div>
@@ -346,7 +347,7 @@ function TowingTierInput({ label, value, onChange }: { label: string; value: Tow
       <p className="sm:col-span-3 text-xs font-semibold text-gray-800">{label}</p>
       <RangeInput label="Hook-up $" value={value.hookup} onChange={(r) => onChange({ ...value, hookup: r ?? { low: 0, high: 0 } })} />
       <div>
-        <label className={LABEL}>Miles included in hook-up</label>
+        <label data-es className={LABEL}>Miles included in hook-up</label>
         <NumInput value={value.includedMiles} onChange={(v) => onChange({ ...value, includedMiles: v ?? 0 })} />
       </div>
       <RangeInput label="Then $/mi" value={value.perMile} onChange={(r) => onChange({ ...value, perMile: r ?? { low: 0, high: 0 } })} />

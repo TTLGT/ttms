@@ -7,6 +7,7 @@ import { ArrowLeft } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import type { SignFormData } from '@/lib/signFormProps';
 import SignForm from '@/app/sign/[token]/SignForm';
+import { Bi } from '@/components/spanish/Es';
 
 type Preview = { current: SignFormData | null; pending: SignFormData | null; held: boolean };
 
@@ -50,19 +51,19 @@ export default function AgreementPreviewPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <Link href={`/dashboard/orders/${orderId}`} className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900">
+      <Link data-es href={`/dashboard/orders/${orderId}`} className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900">
         <ArrowLeft className="h-4 w-4" /> Back to the order
       </Link>
 
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Client agreement preview</h1>
+        <h1 className="text-xl font-bold text-gray-900"><Bi>Client agreement preview</Bi></h1>
         <p className="mt-1 text-sm text-gray-500">
-          Exactly what the client reads on their signing link. Nothing can be signed from this page.
+          <Bi>Exactly what the client reads on their signing link. Nothing can be signed from this page.</Bi>
         </p>
       </div>
 
       {error && <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">{error}</p>}
-      {!data && !error && <p className="text-sm text-gray-500">Loading…</p>}
+      {!data && !error && <p data-es className="text-sm text-gray-500">Loading…</p>}
 
       {data && (data.current || data.pending) && (
         <>
@@ -86,13 +87,13 @@ export default function AgreementPreviewPage() {
 
           {tab === 'current' && data.held && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              The order changed after this was sent, so the client&rsquo;s link is on hold. They see a &ldquo;being
-              updated&rdquo; message instead of this until dispatch sends the update.
+              <Bi>The order changed after this was sent, so the client&rsquo;s link is on hold. They see a &ldquo;being
+              updated&rdquo; message instead of this until dispatch sends the update.</Bi>
             </p>
           )}
           {tab === 'pending' && !data.current && (
             <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-              Not sent yet. This is what the client will get when the Shipper Agreement (SA) is sent.
+              <Bi>Not sent yet. This is what the client will get when the Shipper Agreement (SA) is sent.</Bi>
             </p>
           )}
 
@@ -104,7 +105,7 @@ export default function AgreementPreviewPage() {
           {shown && (
             <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-8 sm:px-6">
               <div className="mb-6 text-center">
-                <p className="text-xs font-bold tracking-widest text-brand-600 uppercase mb-1">Total Transport Logistics</p>
+                <p data-es className="text-xs font-bold tracking-widest text-brand-600 uppercase mb-1">Total Transport Logistics</p>
                 <h2 className="text-2xl font-bold text-gray-900">
                   {shown.type === 'shipper_agreement' ? 'Client Load Confirmation' : 'Dispatch Sheet'}
                 </h2>

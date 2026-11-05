@@ -157,7 +157,7 @@ export function AttachmentTray({ draft }: { draft: AttachmentDraft }) {
           <span className="min-w-0 flex-1">
             <span className="block truncate font-medium text-gray-800" title={i.file.name}>{i.file.name}</span>
             {i.error ? (
-              <span className="flex items-center gap-1 text-red-600" title={i.error}>
+              <span data-es className="flex items-center gap-1 text-red-600" title={i.error}>
                 <AlertCircle size={11} /> Failed
               </span>
             ) : i.done ? (
