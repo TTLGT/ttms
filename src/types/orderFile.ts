@@ -35,7 +35,8 @@ export const ORDER_FILES_COLLECTION = 'orderFiles';
 /** What the file is. Free text says the rest; this is for scanning a list. */
 export const ORDER_FILE_KINDS = [
   'signed_sa', 'signed_ca', 'carrier_invoice', 'bol_copy', 'client_invoice',
-  'rate_confirmation', 'receipt', 'customs', 'permit', 'insurance', 'correspondence', 'payment_proof', 'other',
+  'rate_confirmation', 'receipt', 'customs', 'permit', 'insurance', 'correspondence', 'payment_proof',
+  'evidence', 'audio', 'screenshot', 'quote', 'other',
 ] as const;
 export type OrderFileKind = (typeof ORDER_FILE_KINDS)[number];
 
@@ -72,6 +73,17 @@ export const ORDER_FILE_KIND_LABEL: Record<OrderFileKind, string> = {
    * arrives from their link, a staff member's from the Payments card.
    */
   payment_proof:     'Payment proof',
+  /** Proof of something that happened on the load — damage, a dispute, a missed appointment. */
+  evidence:          'Evidence',
+  /** A recorded call or voice note. The upload takes any file type, so audio needs nothing else. */
+  audio:             'Audio',
+  screenshot:        'Screenshot',
+  /**
+   * A quote as a file — the client's request, a competing carrier's price, a
+   * quote sent from outside TTMS. Not the order's own quote PDF, which TTMS
+   * draws from the load and does not store here.
+   */
+  quote:             'Quote',
   other:             'Other',
 };
 

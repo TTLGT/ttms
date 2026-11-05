@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "bd5e835a3d14393059a7a05c2efce4024974e41f",
+      "date": "2026-11-04T16:22:56-06:00",
+      "author": "erwindank",
+      "subject": "Let admins change a person's work email from Settings → People: the access entry, attendance, pending assignments, team leads and requests move with it, a signed-in person is signed out to sign in again, and the access history records the old address",
+      "body": ""
+    },
+    {
       "hash": "cdced70560252b6757d0fb48fcd91281e7564a14",
       "date": "2026-11-04T15:36:55-06:00",
       "author": "erwindank",
