@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Check, Copy, Eye, QrCode } from 'lucide-react';
+import { Check, Copy, Eye, MessageSquare, QrCode } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { copyToClipboard } from '@/lib/clipboard';
 import { useDateFormatters } from '@/lib/useDateFormatters';
+import type { TextTarget } from '@/lib/signText';
+import SignLinkText from '@/components/orders/SignLinkText';
 
 type LinkState = 'live' | 'held' | 'signed' | 'expired';
 type SignLink = {
@@ -37,17 +39,22 @@ type SignLink = {
  * (src/lib/signQrCard.ts) — only while the link is live: a held, expired or
  * signed link would send whoever scans it to a page where they cannot sign.
  *
+ * Text opens SignLinkText: the link and short instructions, sent from
+ * RingCentral or WhatsApp by the broker. Only while live, for the QR card's
+ * reason. `textTargets` are the signer's numbers the page already holds.
+ *
  * `onSent` tells the page the SA already went out, so after a reload it
  * offers Resend rather than a first send. Only for a live or expired link: a
  * held one waits on dispatch's review, and sending it is the review's job.
  */
-export default function ClientSignLink({ orderId, orderNumber, party = 'client', refreshKey, onSent }: {
+export default function ClientSignLink({ orderId, orderNumber, party = 'client', refreshKey, onSent, textTargets = [] }: {
   orderId: string;
   /** Printed on the QR card so the signer knows which load it is for. */
   orderNumber?: string;
   party?: 'client' | 'carrier';
   refreshKey?: unknown;
   onSent?: (sentTo: string) => void;
+  textTargets?: TextTarget[];
 }) {
   const carrier = party === 'carrier';
   const who = carrier ? 'carrier' : 'client';
@@ -56,6 +63,7 @@ export default function ClientSignLink({ orderId, orderNumber, party = 'client',
   const [loaded, setLoaded] = useState(false);
   const [copy, setCopy] = useState<'idle' | 'copied' | 'manual'>('idle');
   const [card, setCard] = useState<'idle' | 'working' | 'failed'>('idle');
+  const [texting, setTexting] = useState(false);
   const box = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -188,8 +196,27 @@ export default function ClientSignLink({ orderId, orderNumber, party = 'client',
             <QrCode className="h-3.5 w-3.5" /> {card === 'working' ? 'Making…' : 'QR card'}
           </button>
         )}
+        {link.state === 'live' && (
+          <button
+            type="button"
+            onClick={() => setTexting((v) => !v)}
+            title={`Send the link and short instructions to the ${who} by text or WhatsApp`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <MessageSquare className="h-3.5 w-3.5" /> {texting ? 'Close text' : 'Text'}
+          </button>
+        )}
         {!carrier && preview}
       </div>
+      {texting && link.state === 'live' && (
+        <SignLinkText
+          party={party}
+          orderNumber={orderNumber}
+          url={link.url}
+          expiresAt={link.expiresAt}
+          targets={textTargets}
+        />
+      )}
       {card === 'failed' && <p className="mt-1 text-xs text-red-700">The QR card could not be made. Try again, or copy the link instead.</p>}
       {copy === 'manual' && <p className="mt-1 text-xs text-amber-700">Copying is blocked here. The link is selected — press Ctrl+C.</p>}
     </div>

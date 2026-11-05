@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "2f0c252434b30045d08dd3f4561e0b07210a0f9a",
+      "date": "2026-11-04T22:34:58-06:00",
+      "author": "erwindank",
+      "subject": "Add Evidence, Audio, Screenshot and Quote as kinds of file that can be uploaded to an order",
+      "body": ""
+    },
+    {
       "hash": "bd5e835a3d14393059a7a05c2efce4024974e41f",
       "date": "2026-11-04T16:22:56-06:00",
       "author": "erwindank",

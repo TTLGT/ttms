@@ -81,6 +81,7 @@ import SignedSaUploads from '@/components/orders/SignedSaUploads';
 import OrderFileSlot from '@/components/orders/OrderFileSlot';
 import RecordImportBadge, { RecordImportRemoved } from '@/components/orders/RecordImportBadge';
 import ClientSignLink from '@/components/orders/ClientSignLink';
+import { carrierTextTargets, partyTextTargets } from '@/lib/signText';
 import DriverLinkCard from '@/components/orders/DriverLinkCard';
 import PaymentsCard from '@/components/orders/PaymentsCard';
 import { isCodLoad, missingSentence, paymentsMissing } from '@/types/orderPayment';
@@ -1706,6 +1707,7 @@ export default function OrderDetailPage() {
                 orderNumber={orderDisplayNumber(order)}
                 refreshKey={linkRefresh}
                 onSent={(to) => setShipperAgreementSentTo((prev) => prev || to)}
+                textTargets={partyTextTargets(partyById[order.clientId ?? ''])}
               />
 
               {/* A client who cannot sign on the link: staff upload what they
@@ -1927,6 +1929,7 @@ export default function OrderDetailPage() {
                   party="carrier"
                   refreshKey={caRefresh}
                   onSent={(to) => setAgreementSentTo((prev) => prev || to)}
+                  textTargets={carrierTextTargets(carriers.find((c) => c.id === order.carrierId))}
                 />
               </div>
             )}
