@@ -111,11 +111,11 @@ const NAV_ITEMS: {
   // by this list. See src/types/task.ts and CelebrationPanels.tsx.
   { href: '/dashboard/tasks',     label: 'My tasks',  Icon: ListTodo },
   { href: '/dashboard/calendar',  label: 'Calendar',  Icon: CalendarDays },
-  // An intern's own corner: their guide, their onboarding survey, their tasks.
-  // Sits below Chat because it is theirs rather than the company's. Admins hold
-  // every permission, so they see it too — which is the only way to check what
-  // an intern is actually being shown.
-  { href: '/dashboard/intern',    label: 'My onboarding', Icon: GraduationCap, needs: 'intern.section' },
+  // Everybody's 90-day programme and the Learn library — interns included,
+  // so no permission: each person sees their own. It replaced the intern-only
+  // area on 2026-11-05. Team progress inside it is gated by its own routes.
+  // See src/types/onboarding.ts.
+  { href: '/dashboard/onboarding', label: 'My onboarding', Icon: GraduationCap },
   { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart2,     needs: 'analytics.view' },
   // Also open to HR, who read the people directory there and nothing else —
   // the page itself renders read-only for them — and to dispatch and finance

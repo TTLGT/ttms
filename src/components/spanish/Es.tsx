@@ -56,3 +56,19 @@ export function Bi({ children, vars, className }: EsProps) {
     </>
   );
 }
+
+/**
+ * A Spanish line written beside its English rather than looked up — for long
+ * text that lives as data with both languages already in it, like the guides
+ * in My onboarding (src/lib/onboarding/guides). Same look as `Es`, so the
+ * Spanish reads as one layer everywhere; draws nothing with the switch off.
+ */
+export function EsLine({ children, className = '' }: { children: string; className?: string }) {
+  const { on } = useSpanish();
+  if (!on || !children) return null;
+  return (
+    <span lang="es" data-learn-skip className={`${LINE} ${className}`}>
+      {children}
+    </span>
+  );
+}

@@ -1,15 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { ClipboardCheck } from 'lucide-react';
-import ComingSoon from '@/components/intern/ComingSoon';
-
-/** The onboarding survey. Content to come — see the note in the intern layout. */
-export default function InternSurveyPage() {
-  return (
-    <ComingSoon
-      Icon={ClipboardCheck}
-      title="Your onboarding survey is not ready yet"
-      detail="When it is, this is where you will fill it in — once, in your first week. Nothing is expected of you here today."
-    />
-  );
+/** The intern area became My onboarding, for everybody (2026-11-05). */
+export default function InternRedirect() {
+  redirect('/dashboard/onboarding');
 }

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "d89155384929526b95e88cb03464dfa713ae0481",
+      "date": "2026-11-05T16:25:27-06:00",
+      "author": "erwindank",
+      "subject": "Show each pickup and delivery's local time in a badge, with daylight saving: the order page and the address form show the time there now, the zone and how far it is from the office, and warn when the clocks will have changed by the stop's date",
+      "body": ""
+    },
+    {
       "hash": "e0cfa9a481015ac470319a62d5fc007e43b4065e",
       "date": "2026-11-05T11:08:32-06:00",
       "author": "erwindank",

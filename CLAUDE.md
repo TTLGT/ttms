@@ -1600,6 +1600,48 @@ internal notes. Types in `src/types/itTicket.ts`, server in
   account for new tickets and replies, and a line in the reporter's own
   `notice_it_{uid}` room for IT's answers.
 
+### My onboarding — the 90-day programme and the Learn library
+
+`/dashboard/onboarding`, for everybody, interns included (it replaced the
+intern-only area on 2026-11-05; `/dashboard/intern` redirects, and the
+`intern.section` permission now gates nothing but stays in the catalog
+because it is stored). Four tabs: **My journey** (the person's own 90 days),
+**Learn** (searchable guides), **Surveys**, and **Team progress** for
+`onboarding.manage` and Sales Managers. Types in `src/types/onboarding.ts`,
+server in `src/lib/onboardingServer.ts`, `onboardingPrograms` in the Schema
+Guide.
+
+- **Content is data, kept apart from drawing.** Every word of the guides is in
+  `src/lib/onboarding/guides/*.ts`, the checklist in `checklist.ts`, the
+  surveys in `surveys.ts` — all written in English and Spanish side by side
+  (`{ en, es }`, shown through `T` / `EsLine`, not the `src/lib/i18n`
+  dictionary). The "screenshots" are **drawings** in
+  `src/components/onboarding/screens/`, referred to by id, with numbered
+  markers a step points at (`spot`). Drawings, not screenshots, because a
+  screenshot shows real loads and rates, goes stale and ignores the theme.
+  **When a screen in TTMS changes, update its drawing and the guide text the
+  same day** — the guides are what new hires are trained from. A real image
+  can replace a drawing through `SCREENSHOTS`, made-up data only.
+- **Ids are forever**: checklist step ids, guide ids and survey question ids
+  are the keys ticks, finished guides and answers are stored under.
+- **Tracks**: Broker and Sales Manager are written (`TRACKS_WRITTEN`). Intern,
+  Dispatch, Finance, HR and Admin Assistant exist so people can be put on
+  them; they get the company-wide steps and a note until their steps are
+  added with `tracks: [...]`.
+- **Who ticks**: `mayTick()` — the new hire their own (`owner: 'you'`),
+  `onboarding.manage` anything, a Sales Manager the team-lead and mentor
+  steps for their team. A step with `guide` or `survey` ticks itself when
+  that is done. The route checks again.
+- **Survey answers are HR's.** Only the person and `onboarding.manage` read
+  them; `withoutAnswers()` strips them for a Sales Manager and for every list.
+  The page tells the new hire so before they type. Do not widen that.
+- `onboarding.manage` is admin and HR by default (**this widened HR**,
+  2026-11-05); grant it to the trainer one person at a time.
+- Numbers in the sales guides (calls a day, a ramp) are **starting points for a
+  team lead**, and the text says so. Keep it that way — a new hire reads any
+  number on that page as a rule. The damages guide is general practice for
+  Dispatch to correct to TTL's own procedure.
+
 ## Conventions
 
 - **Comments explain why, not what.** This codebase is unusually well commented on non-obvious decisions, and that is the main reason it is handoverable. Match that density. When you make a non-obvious call, leave the reasoning.

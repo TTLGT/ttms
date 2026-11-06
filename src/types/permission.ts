@@ -312,8 +312,25 @@ export const PERMISSIONS = [
    * list itself — only the copy they shared.
    */
   'plans.viewAll',
-  /** The intern's own area: their guide, their onboarding survey, their tasks. */
+  /**
+   * Retired 2026-11-05: My onboarding is now everybody's, so this gates
+   * nothing. Kept in the catalog because the string sits in live
+   * `grantedPermissions` and `permissions` arrays, and removing a key is a
+   * migration. Not offered on the access screen any more.
+   */
   'intern.section',
+  /**
+   * Run onboarding: see everybody's 90-day programme and progress, tick the
+   * steps HR, the trainer, dispatch and the other departments do, set a
+   * person's track, start date and mentor, and read their survey answers.
+   * See src/types/onboarding.ts.
+   *
+   * Admin and HR by default (added 2026-11-05, widening HR at their next
+   * sign-in): HR coordinates the programme. Grant it one person at a time to
+   * the trainer. A Sales Manager sees their own team's progress without it,
+   * but never their survey answers.
+   */
+  'onboarding.manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -425,7 +442,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'chat.stickers.manage', label: 'Remove any sticker', detail: 'Take a sticker someone else added off the company set. Anyone can already remove their own.' },
       { key: 'celebrations.manage', label: 'Edit the celebrations message', detail: 'The wording of the daily birthday and work-anniversary post, and whether it is sent at all. Admin and HR have this already.' },
       { key: 'presence.manage', label: 'Switch online status on or off', detail: 'Whether chat shows who is online and when they were last seen, for the whole company. Admin and HR have this already.' },
-      { key: 'intern.section', label: 'See the intern area', detail: 'Their guide, their onboarding survey and their task list.' },
+      { key: 'onboarding.manage', label: 'Run onboarding', detail: 'Everybody’s 90-day onboarding: their progress, ticking the steps HR, the trainer and other departments do, setting their track, start date and mentor, and reading their survey answers. Admin and HR have this already.' },
     ],
   },
 ];
@@ -581,6 +598,9 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     ...BASE_PERMISSIONS, 'people.view', 'directory.export', 'profile.decideUpdates',
     'chat.announce', 'celebrations.manage', 'presence.manage',
     'attendance.view', 'attendance.manage',
+    // HR coordinates the onboarding programme from the interview to day 90.
+    // Added 2026-11-05.
+    'onboarding.manage',
   ],
 
   /**

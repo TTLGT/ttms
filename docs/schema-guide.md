@@ -1359,6 +1359,31 @@ could overwrite is not a record. Shown as "Earlier BOLs" in the Bill of Lading
 card. A BOL generated before this existed is kept from its next regenerate on;
 nothing replaced earlier can be recovered.
 
+## Collection: `onboardingPrograms` — My onboarding (2026-11-05)
+
+One document per person, **keyed by the lowercased email** (HR starts a
+programme before the first day, when there is no uid yet — the same reason
+attendance is keyed by email). Moved by `src/lib/emailChange.ts` when an
+address changes. **No rule matches it**, so the browser can neither read nor
+write it; everything goes through `/api/onboarding/*` and
+`src/lib/onboardingServer.ts`. Types in `src/types/onboarding.ts`.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `email` | string | The document id, repeated |
+| `track` | string | `broker`, `salesManager`, `intern`, `dispatch`, `finance`, `hr`, `adminAssistant`. Absent → worked out from the roles (`defaultTrack()`) |
+| `startDate` | `YYYY-MM-DD` \| null | First day of training, office time. Absent → the person's own allowlist `startDate`, shown only to themselves and `onboarding.manage` |
+| `mentorName` | string \| null | The experienced broker they are paired with. Free text |
+| `done` | map stepId → `{ at, byUid, byName, note? }` | Ticked checklist steps. Step ids are in `src/lib/onboarding/checklist.ts` and are forever |
+| `guides` | map guideId → `{ at, score?, total? }` | Finished guides, with the best quick-check score kept |
+| `surveys` | map surveyId → `{ submittedAt, answers }` | Sent once each. **Readable only by `onboarding.manage` and the person** — stripped for a Sales Manager |
+| `setupBy` | `{ uid, name, at }` | Who last changed track, start date or mentor |
+| `createdAt`, `updatedAt` | ISO string | |
+
+Who sees a programme: the person, `onboarding.manage` (admin and HR by
+default), and a Sales Manager for their own team via `managedUids` /
+`managedEmails`. Who ticks a step: `mayTick()`. No composite index.
+
 ## Collection: `agreements`
 
 Tracks the e-sign lifecycle for both Carrier and Shipper agreements.

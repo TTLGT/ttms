@@ -30,6 +30,9 @@
  *   that address, and a request left on the old one would 404 on approval.
  * - One-off celebration reminders (`subjectEmail`), which the run matches
  *   against the allowlist.
+ * - The onboarding programme, `onboardingPrograms/{email}` (moved), which HR
+ *   starts before the first day for the same reason attendance is keyed by
+ *   email. Its `email` field is rewritten with it.
  * - `managedEmails` on every Sales Manager, by re-running the scope sync.
  *
  * Deliberately left alone: the access history and the removal log (they record
@@ -79,6 +82,7 @@ import {
   dayDocId,
 } from '@/types/attendance';
 import { PROFILE_UPDATE_REQUESTS_COLLECTION } from '@/types/profileUpdateRequest';
+import { ONBOARDING_COLLECTION } from '@/types/onboarding';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -217,7 +221,7 @@ async function moveRecords(from: string, to: string): Promise<number> {
   const [
     teams, groups, parties, orders,
     days, timeOff, corrections, requests, reminders,
-    schedule, prefs, devices,
+    schedule, prefs, devices, onboarding,
   ] = await Promise.all([
     db.collection(TEAMS_COLLECTION).where('leadEmail', '==', from).get(),
     db.collection(WORK_GROUPS_COLLECTION).where('memberEmails', 'array-contains', from).get(),
@@ -231,6 +235,7 @@ async function moveRecords(from: string, to: string): Promise<number> {
     db.collection(ATTENDANCE_SCHEDULES_COLLECTION).doc(from).get(),
     db.collection(ATTENDANCE_PREFS_COLLECTION).doc(from).get(),
     db.collection(ATTENDANCE_DEVICES_COLLECTION).doc(from).get(),
+    db.collection(ONBOARDING_COLLECTION).doc(from).get(),
   ]);
 
   const writes: Write[] = [];
@@ -269,6 +274,7 @@ async function moveRecords(from: string, to: string): Promise<number> {
     [schedule, ATTENDANCE_SCHEDULES_COLLECTION],
     [prefs, ATTENDANCE_PREFS_COLLECTION],
     [devices, ATTENDANCE_DEVICES_COLLECTION],
+    [onboarding, ONBOARDING_COLLECTION],
   ] as const) {
     if (!snap.exists) continue;
     const data = snap.data() ?? {};
@@ -298,5 +304,5 @@ async function moveRecords(from: string, to: string): Promise<number> {
 
   return teams.size + groups.size + parties.size + orders.size + days.size
     + timeOff.size + corrections.size + requests.size + reminders.size
-    + [schedule, prefs, devices].filter((s) => s.exists).length;
+    + [schedule, prefs, devices, onboarding].filter((s) => s.exists).length;
 }
