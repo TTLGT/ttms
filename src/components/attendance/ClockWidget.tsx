@@ -22,16 +22,29 @@ import { MAX_STATUS_NOTE, USER_STATUSES, USER_STATUS_LABEL, type UserStatus } fr
 /** Office time, like every attendance screen — see DayDetail. */
 const time = (ms: number) => officeClock(ms);
 
+/** Elapsed time as 12:05, or 1:02:05 past an hour. */
+function stopwatch(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(h ? 2 : 1, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
 export default function ClockWidget({ rail }: { rail: boolean }) {
   const { state, busy, error, clearError, clockIn, clockOut, startBreak, endBreak, undoBackOnTime, setStatus } = useAttendance();
   const [now, setNow] = useState(() => Date.now());
   const [note, setNote] = useState('');
 
-  // Minute hand for the running total. Nothing is read or written.
+  // Minute hand for the running total; a second hand while on a break, whose
+  // counter shows seconds — a 15-minute break is watched closely, a day is
+  // not. Nothing is read or written either way.
+  const onBreak = Boolean(state?.onBreak);
   useEffect(() => {
-    const t = window.setInterval(() => setNow(Date.now()), 30_000);
+    setNow(Date.now());
+    const t = window.setInterval(() => setNow(Date.now()), onBreak ? 1_000 : 30_000);
     return () => window.clearInterval(t);
-  }, []);
+  }, [onBreak]);
   useEffect(() => { setNote(state?.statusNote ?? ''); }, [state?.statusNote]);
 
   if (!state) return null;
@@ -40,7 +53,9 @@ export default function ClockWidget({ rail }: { rail: boolean }) {
     <div className={`${rail ? 'hidden lg:flex' : 'hidden'} justify-center pb-2`}>
       {state.clockedIn ? (
         <span
-          title={state.onBreak ? `On ${BREAK_LABEL[state.onBreak].toLowerCase()}` : `Clocked in since ${time(state.sessionStart!)}`}
+          title={state.onBreak
+            ? `On ${BREAK_LABEL[state.onBreak].toLowerCase()} for ${stopwatch(now - (state.breakStart ?? now))}`
+            : `Clocked in since ${time(state.sessionStart!)}`}
           className={`rounded-lg p-1.5 ${state.onBreak ? 'text-amber-300' : 'text-green-400'}`}
         >
           <Timer size={18} />
@@ -61,6 +76,7 @@ export default function ClockWidget({ rail }: { rail: boolean }) {
   );
 
   const running = state.sessionStart ? formatMinutes((now - state.sessionStart) / 60_000) : '';
+  const onBreakFor = state.onBreak && state.breakStart ? stopwatch(now - state.breakStart) : '';
   // Ended ahead with "Back on time" and not yet at its end: Undo until then,
   // and no new break before it (the server refuses one anyway).
   const returning = state.returning && state.returning.endsAt > now ? state.returning : null;
@@ -87,8 +103,16 @@ export default function ClockWidget({ rail }: { rail: boolean }) {
           </>
         ) : state.onBreak ? (
           <>
-            <p className="text-xs text-amber-200">
+            <p className="flex items-center gap-1.5 text-xs text-amber-200">
+              <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden />
               On {BREAK_LABEL[state.onBreak].toLowerCase()} since {time(state.breakStart!)}
+            </p>
+            <p
+              className="mt-1 text-center font-mono text-2xl font-semibold tabular-nums text-amber-100"
+              aria-label={`On ${BREAK_LABEL[state.onBreak].toLowerCase()} for ${onBreakFor}`}
+              data-learn-skip
+            >
+              {onBreakFor}
             </p>
             <button
               type="button"

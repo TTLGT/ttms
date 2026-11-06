@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "1173d19265297f9eaeef26c5ad504b93f2fac321",
+      "date": "2026-11-06T08:03:39-06:00",
+      "author": "erwindank",
+      "subject": "Ask how far a change reaches when moving one date of something that repeats: dragging, stretching or editing a repeating event offers This event, This and following events, or All events; a repeating task offers Just this one or This and the ones after it, and a one-off move no longer carries on into the weeks after",
+      "body": ""
+    },
+    {
       "hash": "ad09721f1481d63cd24ee3458fba34c6129fc96e",
       "date": "2026-11-05T18:46:13-06:00",
       "author": "erwindank",
