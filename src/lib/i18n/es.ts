@@ -1224,6 +1224,18 @@ const BASE: Record<string, string> = {
   'Write it however this company would say it. The words in braces are filled in when the message is sent — everything else goes out exactly as typed':
     'Escríbelo como lo diría esta empresa. Las palabras entre llaves se llenan al enviar el mensaje; todo lo demás sale exactamente como se escribió.',
   'You should see:': 'Deberías ver:',
+  'Undo': 'Deshacer',
+  'Undo "{label}"?': '¿Deshacer "{label}"?',
+  '{name} recorded this from the driver link. Undoing it removes their record of being paid':
+    '{name} registró esto desde el enlace del conductor. Al deshacerlo se quita su registro de que le pagaron.',
+  '{name} recorded this payment, not you': '{name} registró este pago, no tú.',
+  'The load moves from Completed back to Delivered, and stays there until this payment is recorded again':
+    'La carga regresa de Completed a Delivered y se queda ahí hasta que este pago se registre de nuevo.',
+  'Any proof attached stays on the load, and the change log keeps a record of the undo':
+    'Cualquier comprobante adjunto se queda en la carga, y el registro de cambios guarda constancia de que se deshizo.',
+  'Yes, undo it': 'Sí, deshacerlo',
+  'Undoing': 'Deshaciendo…',
+  'Keep it': 'Dejarlo',
 };
 
 /** Everything, with an entry here winning over one in es-more.ts. */

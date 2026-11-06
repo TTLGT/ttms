@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { CircleDollarSign, Paperclip } from 'lucide-react';
+import { AlertTriangle, CircleDollarSign, Paperclip } from 'lucide-react';
 import { SectionHeading } from './OrderSection';
+import { Bi } from '@/components/spanish/Es';
 import { listOrderFiles, uploadOrderFile } from '@/lib/orderFiles';
 import { recordPayment, undoPayment } from '@/lib/driverLinks';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -15,6 +16,7 @@ import {
   requiredMarks,
   type PaymentMarkKey,
 } from '@/types/orderPayment';
+import type { PaymentMark } from '@/types/orderPayment';
 import type { Order, OrderStatus } from '@/types/order';
 import type { OrderFile } from '@/types/orderFile';
 
@@ -31,7 +33,7 @@ export default function PaymentsCard({ orderId, order, onChanged }: {
   order: Order;
   onChanged: (status: OrderStatus) => void;
 }) {
-  const { can } = useAuth();
+  const { user, can } = useAuth();
   const { formatDateTime } = useDateFormatters();
   const mayRecord = can('orders.payments');
   const cod = isCodLoad(order);
@@ -41,6 +43,9 @@ export default function PaymentsCard({ orderId, order, onChanged }: {
   const [files, setFiles] = useState<OrderFile[]>([]);
   const [open, setOpen] = useState<PaymentMarkKey | null>(null);
   const [error, setError] = useState('');
+  // Which payment is showing its "are you sure?" box. One at a time.
+  const [confirming, setConfirming] = useState<PaymentMarkKey | null>(null);
+  const [undoing, setUndoing] = useState(false);
 
   const proofIds = Object.values(marks).flatMap((m) => m?.fileIds ?? []).join(',');
   useEffect(() => {
@@ -51,13 +56,16 @@ export default function PaymentsCard({ orderId, order, onChanged }: {
   }, [orderId, proofIds]);
 
   async function undo(key: PaymentMarkKey) {
-    if (!confirm(`Undo "${paymentMarkLabel(key, cod)}"? The proof stays on the load.`)) return;
     setError('');
+    setUndoing(true);
     try {
       const { status } = await undoPayment(orderId, key);
+      setConfirming(null);
       onChanged(status);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'That did not work');
+    } finally {
+      setUndoing(false);
     }
   }
 
@@ -106,8 +114,15 @@ export default function PaymentsCard({ orderId, order, onChanged }: {
               )}
               {mayRecord && (
                 <div className="mt-2">
-                  {mark ? (
-                    <button type="button" onClick={() => void undo(key)} className="text-xs text-red-600 hover:underline">Undo</button>
+                  {mark && confirming === key ? (
+                    <UndoConfirm label={paymentMarkLabel(key, cod)} mark={mark}
+                      byMe={!!user && mark.via === 'staff' && mark.byUid === user.uid}
+                      completed={order.status === 'completed'} busy={undoing}
+                      onCancel={() => setConfirming(null)}
+                      onConfirm={() => void undo(key)} />
+                  ) : mark ? (
+                    <button data-es type="button" onClick={() => { setError(''); setConfirming(key); }}
+                      className="text-xs text-red-600 hover:underline">Undo</button>
                   ) : open === key ? (
                     <RecordForm orderId={orderId} markKey={key} proofNeeded={proofRequired(key, 'staff')}
                       onCancel={() => setOpen(null)}
@@ -125,6 +140,58 @@ export default function PaymentsCard({ orderId, order, onChanged }: {
         })}
       </ul>
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * The "are you sure?" for taking a payment back. It used to be the browser's
+ * own confirm(), which people click through without reading, and which said
+ * nothing about what would follow. This one says the two things that matter:
+ * whose record is being taken back (a driver's, or a colleague's), and that a
+ * Completed load drops back to Delivered — every required payment is needed
+ * for Completed, so undoing any one of them always does that
+ * (`settlementStatus()` in src/lib/orderPaymentsServer.ts).
+ */
+function UndoConfirm({ label, mark, byMe, completed, busy, onCancel, onConfirm }: {
+  label: string;
+  mark: PaymentMark;
+  byMe: boolean;
+  completed: boolean;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div role="alertdialog" aria-label={`Undo ${label}`}
+      className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
+      <p className="flex items-center gap-1.5 text-sm font-semibold text-red-800">
+        <AlertTriangle className="h-4 w-4 shrink-0" />
+        <span><Bi vars={{ label }}>{'Undo "{label}"?'}</Bi></span>
+      </p>
+      <ul className="list-disc space-y-1 pl-5 text-xs text-gray-700">
+        {mark.via === 'driver' ? (
+          <li><Bi vars={{ name: mark.byName }}>{'{name} recorded this from the driver link. Undoing it removes their record of being paid.'}</Bi></li>
+        ) : !byMe ? (
+          <li><Bi vars={{ name: mark.byName }}>{'{name} recorded this payment, not you.'}</Bi></li>
+        ) : null}
+        {completed && (
+          <li className="font-medium text-gray-900">
+            <Bi>The load moves from Completed back to Delivered, and stays there until this payment is recorded again.</Bi>
+          </li>
+        )}
+        <li><Bi>Any proof attached stays on the load, and the change log keeps a record of the undo.</Bi></li>
+      </ul>
+      <div className="flex gap-2 pt-1">
+        <button data-es type="button" onClick={onConfirm} disabled={busy}
+          className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+          {busy ? 'Undoing…' : 'Yes, undo it'}
+        </button>
+        <button data-es type="button" onClick={onCancel} disabled={busy}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
+          Keep it
+        </button>
+      </div>
     </div>
   );
 }
