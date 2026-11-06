@@ -43,7 +43,7 @@ import type { ChangeOrderAffects } from '@/types/changeOrder';
 import { NO_SIGNED_CA_PROOF, NO_SIGNED_SA_PROOF, signedSaProof } from './signedSaProof';
 import { openBolRequestIfSigned } from './bolRequests';
 import { isCodLoad, missingSentence, paymentsMissing } from '@/types/orderPayment';
-import { LEGACY_STATUSES, cleanServiceCharges, cleanStops, orderAccessorials, orderDisplayNumber, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
+import { LEGACY_STATUSES, cleanDockHelp, cleanServiceCharges, cleanStops, reconcileDockHelp, orderAccessorials, orderDisplayNumber, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
 
 const COL = 'orders';
 
@@ -120,7 +120,17 @@ function cleanStopFields(record: Record<string, unknown>) {
   // and ticking order must not read as a change to the client's SA.
   if ('accessorials' in record) record.accessorials = orderAccessorials(record);
   if ('serviceCharges' in record) record.serviceCharges = cleanServiceCharges(record.serviceCharges);
+  for (const f of ['loadingHelp', 'unloadingHelp']) if (f in record) record[f] = cleanDockHelp(record[f]);
 }
+
+/**
+ * The fields whose change can make the Loading and Unloading answers and the
+ * additional services disagree — see reconcileDockHelp(). A save touching
+ * none of them cannot, so nothing is worked out for it.
+ */
+const DOCK_RECONCILE_FIELDS = [
+  'trailerLoadedBy', 'trailerUnloadedBy', 'loadingHelp', 'unloadingHelp', 'accessorials', 'serviceCharges',
+] as const;
 
 /**
  * The fields orderSearchTerms reads. A patch touching none of them leaves the
@@ -181,6 +191,9 @@ export async function updateOrderAsCaller(
   const patch: Record<string, unknown> = { ...rawPatch };
   for (const f of IGNORED_FIELDS) delete patch[f];
   cleanStopFields(patch);
+  // Before anything is diffed or checked, so the change log, the agreement
+  // holds and the change-order gate all see what will really be saved.
+  if (DOCK_RECONCILE_FIELDS.some((f) => f in patch)) Object.assign(patch, reconcileDockHelp({ ...before, ...patch }));
 
   if (touched(before, patch, OWNERSHIP_FIELDS).length) {
     throw new AdminAuthError('Owners are changed from the Owners panel, by an admin or dispatcher.', 403);
@@ -619,6 +632,7 @@ export async function createOrderAsCaller(
   Object.assign(record, await clientOwnerMirror(record.clientId));
 
   cleanStopFields(record);
+  Object.assign(record, reconcileDockHelp(record));
   record.stopPartyIds = stopPartyIdsOf(record);
 
   record.orderNumber = orderNumber;

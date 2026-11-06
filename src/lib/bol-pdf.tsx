@@ -104,6 +104,13 @@ export type BolData = {
   freightCountedBy: FreightCountedBy | null;
   trailerUnloadedBy: DockParty | null;
   deliveryCountedBy: DockParty | null;
+  /**
+   * Each end as words — "3rd party: crane, hired by the consignee" — from
+   * dockEndText(), or '' when unanswered. The box above says who; this says
+   * which 3rd party and who hired them, which a box cannot.
+   */
+  loadingText: string;
+  unloadingText: string;
   /** Print every box for all four questions, answered or not — see the card. */
   showDockBoxes: boolean;
   /** Special instructions for the carrier. The order's internal notes are never printed. */
@@ -280,11 +287,11 @@ const COUNT_LABEL: Record<FreightCountedBy, string> = {
 };
 
 /** The answered dock questions as [label, value] — empty when nothing was answered. */
-function dockLinesOf(d: Pick<BolData, 'trailerLoadedBy' | 'freightCountedBy' | 'trailerUnloadedBy' | 'deliveryCountedBy'>): [string, string][] {
+function dockLinesOf(d: Pick<BolData, 'trailerLoadedBy' | 'freightCountedBy' | 'trailerUnloadedBy' | 'deliveryCountedBy' | 'loadingText' | 'unloadingText'>): [string, string][] {
   const out: [string, string][] = [];
-  if (d.trailerLoadedBy)   out.push(['Loaded by', DOCK_LABEL[d.trailerLoadedBy]]);
+  if (d.trailerLoadedBy)   out.push(['Loaded by', d.loadingText || DOCK_LABEL[d.trailerLoadedBy]]);
   if (d.freightCountedBy)  out.push(['Counted at pickup', COUNT_LABEL[d.freightCountedBy]]);
-  if (d.trailerUnloadedBy) out.push(['Unloaded by', DOCK_LABEL[d.trailerUnloadedBy]]);
+  if (d.trailerUnloadedBy) out.push(['Unloaded by', d.unloadingText || DOCK_LABEL[d.trailerUnloadedBy]]);
   if (d.deliveryCountedBy) out.push(['Counted at delivery', DOCK_LABEL[d.deliveryCountedBy]]);
   return out;
 }
@@ -526,6 +533,7 @@ function BolDocument({ d }: { d: BolData }) {
                     that spills over lines up under the others rather than
                     under the label. */}
                 <DockRow label="Loaded by" value={d.trailerLoadedBy} />
+                {d.trailerLoadedBy === 'third_party' && d.loadingText ? <Text style={{ fontSize: 7, marginBottom: 1.5 }}>{d.loadingText}</Text> : null}
                 <View style={{ flexDirection: 'row' }}>
                   <Text style={[s.inlineLabel, { alignSelf: 'flex-start', marginTop: 1 }]}>Counted at pickup</Text>
                   <View style={[s.checkRow, { flex: 1 }]}>
@@ -533,6 +541,7 @@ function BolDocument({ d }: { d: BolData }) {
                   </View>
                 </View>
                 <DockRow label="Unloaded by" value={d.trailerUnloadedBy} />
+                {d.trailerUnloadedBy === 'third_party' && d.unloadingText ? <Text style={{ fontSize: 7, marginBottom: 1.5 }}>{d.unloadingText}</Text> : null}
                 <DockRow label="Counted at delivery" value={d.deliveryCountedBy} />
               </Card>
             </>

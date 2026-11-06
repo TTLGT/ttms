@@ -11,7 +11,7 @@ import {
   usd,
 } from '@/types/paymentMethod';
 import type { OrderPaymentTerms, PaymentSide } from '@/types/paymentMethod';
-import { CLIENT_ARRANGES_NOTE, SERVICE_ARRANGER_LABEL, serviceChargeLines, serviceChargesTotal } from '@/types/order';
+import { SERVICE_ARRANGER_LABEL, arrangerNote, notOurCharge, serviceChargeLines, serviceChargesTotal } from '@/types/order';
 import type { Order } from '@/types/order';
 import { Bi } from '@/components/spanish/Es';
 import { DollarSign } from 'lucide-react';
@@ -103,8 +103,8 @@ export default function PriceAndTermsCard({ order, action }: {
                     {s.arrangedBy ? `Arranged by ${SERVICE_ARRANGER_LABEL[s.arrangedBy]}` : 'Nobody chosen to arrange it'}
                   </span>
                 </span>
-                <span className={s.arrangedBy !== 'client' && s.amount == null ? 'text-gray-400' : 'text-gray-900'}>
-                  {s.arrangedBy === 'client' ? CLIENT_ARRANGES_NOTE : s.amount == null ? 'No cost entered' : usd(s.amount)}
+                <span className={!notOurCharge(s.arrangedBy) && s.amount == null ? 'text-gray-400' : 'text-gray-900'}>
+                  {s.arrangedBy && notOurCharge(s.arrangedBy) ? arrangerNote(s.arrangedBy) : s.amount == null ? 'No cost entered' : usd(s.amount)}
                 </span>
               </div>
             ))}

@@ -441,9 +441,11 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
           </Panel>
         ) : null}
 
-        {/* Carrier links only, and only what was answered — see dockWorkLines(). */}
+        {/* Only what was answered — dockWorkLines() on a carrier's link, with
+            the counts; clientDockLines() on a client's, without them. */}
         {f.dockWork && f.dockWork.length > 0 ? (
-          <Panel title="LOADING, UNLOADING & COUNT" style={{ marginBottom: 10 }}>
+          <Panel title={f.dockWork.some((l) => /count/i.test(l.label)) ? 'LOADING, UNLOADING & COUNT' : 'LOADING & UNLOADING'}
+            style={{ marginBottom: 10 }}>
             {f.dockWork.map((l) => <Field key={l.label} label={l.label} value={l.value} />)}
           </Panel>
         ) : null}

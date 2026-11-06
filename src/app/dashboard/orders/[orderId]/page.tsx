@@ -101,6 +101,7 @@ import ChangeHistory from '@/components/history/ChangeHistory';
 import { OrderCoverThumb } from '@/components/photos/PhotoBits';
 import { Bi } from '@/components/spanish/Es';
 import OrderLoadCard from '@/components/orders/OrderLoadCard';
+import DockWorkCard from '@/components/orders/DockWorkCard';
 import { SectionHeading } from '@/components/orders/OrderSection';
 import OrderSidePanel, { RailItem } from '@/components/orders/OrderSidePanel';
 import { celebrate } from '@/lib/celebrate';
@@ -1583,6 +1584,9 @@ export default function OrderDetailPage() {
               ) : <p data-es className="text-sm text-gray-400">None</p>}
             </div>
           </div>
+
+          {/* Loading and Unloading — its own card so it cannot be missed; see DockWorkCard. */}
+          <DockWorkCard order={order} action={<SectionEditLink orderId={orderId} section="dock" />} />
 
           {/* Price and Terms */}
           <PriceAndTermsCard order={order} action={<SectionEditLink orderId={orderId} section="price" />} />

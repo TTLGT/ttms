@@ -2642,4 +2642,33 @@ export const ES_MORE: Record<string, string> = {
   "The driver taps Delivered on their trip link, with a picture": "El conductor toca Entregado en su enlace del viaje, con una foto.",
   "Record the client’s payment and the driver’s. It moves to Completed by itself once both are recorded": "Registra el pago del cliente y el del conductor. Pasa a Completada por sí sola cuando ambos están registrados.",
   "Delivered, and paid both ways": "Entregada, y pagada en ambos sentidos.",
+
+  // Loading and Unloading (2026-11-06)
+  "Loading and Unloading": 'Carga y descarga',
+  "Loading at pickup": 'Carga en la recogida',
+  "Unloading at delivery": 'Descarga en la entrega',
+  "Who loads the truck?": '¿Quién carga el camión?',
+  "Who unloads the truck?": '¿Quién descarga el camión?',
+  "What is the 3rd party?": '¿Quién es el tercero?',
+  "3rd party": 'Tercero',
+  "Hired by": 'Contratado por',
+  "TTL": 'TTL',
+  "Lumper": 'Lumper (cuadrilla de descarga)',
+  "Rigging crew": 'Cuadrilla de aparejos',
+  "Loaded by:": 'Cargado por:',
+  "Unloaded by:": 'Descargado por:',
+  "Who loads? Not set": '¿Quién carga? Sin definir',
+  "Who unloads? Not set": '¿Quién descarga? Sin definir',
+  "From Loading and Unloading": 'Desde Carga y descarga',
+  "(loading / unloading)": '(carga / descarga)',
+  "Needed before the SA is sent": 'Se necesita antes de enviar el SA.',
+  "Printed on the SA, the Dispatch Sheet and the BOL": 'Se imprime en el SA, la hoja de despacho y el BOL.',
+  "Who loads the truck at pickup and unloads it at delivery. When it is a 3rd party — a lumper, a forklift, a crane — say what it is and who hires them. Printed on the client's SA, the carrier's Dispatch Sheet and the BOL, and needed before the SA is sent":
+    'Quién carga el camión en la recogida y quién lo descarga en la entrega. Si es un tercero (un lumper, un montacargas, una grúa), indica qué es y quién lo contrata. Se imprime en el SA del cliente, en la hoja de despacho del transportista y en el BOL, y se necesita antes de enviar el SA.',
+  "The driver does the work. The Dispatch Sheet tells the carrier before they accept the load":
+    'El conductor hace el trabajo. La hoja de despacho se lo dice al transportista antes de que acepte la carga.',
+  "TTL books and pays them. Put the cost in Price and Terms, where it is added to the Agreed Rate":
+    'TTL lo contrata y lo paga. Pon el costo en Precio y condiciones, donde se suma a la tarifa acordada.',
+  "The carrier or the driver books and pays them. Agree with the carrier how they are paid back":
+    'El transportista o el conductor lo contrata y lo paga. Acuerda con el transportista cómo se le reembolsa.',
 };

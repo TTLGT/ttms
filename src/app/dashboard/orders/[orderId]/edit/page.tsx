@@ -12,7 +12,9 @@ import type { PartySelection } from '@/components/parties/PartyCombobox';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
 import AccessorialsField from '@/components/orders/AccessorialsField';
 import TransportTypeField from '@/components/orders/TransportTypeField';
-import PriceAndTermsSection, { agreedRateFrom, blankPriceTerms, priceTermsForSave, priceTermsFromOrder, priceTermsProblem, servicesTotalOf } from '@/components/orders/PriceAndTermsSection';
+import PriceAndTermsSection, { agreedRateFrom, blankPriceTerms, priceTermsForSave, priceTermsFromOrder, priceTermsProblem, servicesTotalOf, withDockArrangers } from '@/components/orders/PriceAndTermsSection';
+import DockWorkFields, { BLANK_DOCK_WORK, dockWorkForSave, dockWorkFromOrder } from '@/components/orders/DockWorkFields';
+import type { DockWork } from '@/components/orders/DockWorkFields';
 import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
@@ -24,7 +26,7 @@ import AddressFields, { BLANK_ADDRESS } from '@/components/orders/AddressFields'
 import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopDraftsFrom, stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
 import type { StopDraft } from '@/components/orders/ExtraStopsFields';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import { clientAddedInstructionsOf, commoditySummary, orderAccessorials, serviceChargeLines, serviceChargesTotal, hasVehicleDetails, orderCommodityItems, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue, orderDisplayNumber } from '@/types/order';
+import { clientAddedInstructionsOf, commoditySummary, dockLinkedServices, orderAccessorials, withDockServices, serviceChargeLines, serviceChargesTotal, hasVehicleDetails, orderCommodityItems, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue, orderDisplayNumber } from '@/types/order';
 import type { Accessorial, Order, Address, CommodityItem, StopKind } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import { ROLE_LABEL } from '@/types/party';
@@ -110,10 +112,23 @@ export default function EditOrderPage() {
   const [carrierPay, setCarrierPay]     = useState('');
   const [brokerFee, setBrokerFee]       = useState('');
   const [notes, setNotes]               = useState<NotesAndInstructions>(BLANK_NOTES_AND_INSTRUCTIONS);
-  const [priceTerms, setPriceTerms]     = useState<PriceTerms>(blankPriceTerms);
+  const [rawPriceTerms, setPriceTerms] = useState<PriceTerms>(blankPriceTerms);
+  const [dockWork, setDockWork] = useState<DockWork>(BLANK_DOCK_WORK);
+
+  /*
+   * The services and arrangers as they will be saved: what is ticked, plus
+   * whatever the Loading and Unloading answers need (a crane hired by the
+   * consignee is the Crane line, arranged by the consignee). The save does
+   * the same on the server — reconcileDockHelp() — so this is only what the
+   * form shows, and why the rate it shows is the rate saved.
+   */
+  const dockSaved = dockWorkForSave(dockWork);
+  const dockLinked = dockLinkedServices(dockSaved);
+  const effAccessorials = withDockServices(accessorials, dockSaved);
+  const priceTerms = withDockArrangers(rawPriceTerms, dockLinked);
 
   // Worked out, not typed (2026-11-04): carrier pay + broker fee + additional services.
-  const agreedRate = agreedRateFrom(priceTerms, accessorials, brokerFee, carrierPay);
+  const agreedRate = agreedRateFrom(priceTerms, effAccessorials, brokerFee, carrierPay);
   const onFileMismatch = !!order && (Number(order.carrierPay) || 0) > 0 && Math.abs(
     (Number(order.agreedRate) || 0)
     - ((Number(order.carrierPay) || 0) + (Number(order.brokerFee) || 0) + serviceChargesTotal(serviceChargeLines(order))),
@@ -210,6 +225,7 @@ export default function EditOrderPage() {
           clientInstructions:  o.clientInstructions ?? '',
         });
         setPriceTerms(priceTermsFromOrder(o));
+        setDockWork(dockWorkFromOrder(o));
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Failed to load order');
       } finally {
@@ -263,7 +279,7 @@ export default function EditOrderPage() {
       ? stopsProblem('pickup', extraPickups) || stopsProblem('delivery', extraDeliveries)
       : '';
     if (badStop) { setError(badStop); return; }
-    const badCharge = shows('price') ? priceTermsProblem(priceTerms, accessorials) : '';
+    const badCharge = shows('price') ? priceTermsProblem(priceTerms, effAccessorials) : '';
     if (badCharge) { setError(badCharge); return; }
     // Asked for whenever the freight is on screen, so an older load without
     // one gets it the first time somebody edits its freight.
@@ -329,7 +345,7 @@ export default function EditOrderPage() {
           commodityValue: totalCommodityValue(commodityItems),
           pieces:       totalPieces(commodityItems) || 1,
           weight:       Math.round(totalWeightLb(commodityItems)),
-          accessorials,
+          accessorials: effAccessorials,
           transportType: transportType.trim(),
           // A ticked or unticked service with a cost moves the Agreed Rate by
           // that cost, or a Freight-only save would leave the rate counting a
@@ -338,7 +354,7 @@ export default function EditOrderPage() {
           // rewritten by a save that never showed it.
           ...(() => {
             const before = serviceChargesTotal(serviceChargeLines(order));
-            const after = servicesTotalOf(priceTerms, accessorials);
+            const after = servicesTotalOf(priceTerms, effAccessorials);
             return before === after ? {} : {
               agreedRate: Math.max(0, Math.round(((Number(order.agreedRate) || 0) + after - before) * 100) / 100),
             };
@@ -349,8 +365,9 @@ export default function EditOrderPage() {
           brokerFee:    parseFloat(brokerFee)  || 0,
           carrierPay:   parseFloat(carrierPay) || 0,
           // A Price-only save sees the ticks on file, which is what counts.
-          ...priceTermsForSave(priceTerms, accessorials),
+          ...priceTermsForSave(priceTerms, effAccessorials),
         },
+        dock: dockSaved,
         route: {
           shipperId:     shipper.id,
           shipperName:   shipper.name.trim(),
@@ -480,10 +497,13 @@ export default function EditOrderPage() {
                 pickups={pickupChoices} deliveries={deliveryChoices} />
             </div>
             <div id="field-accessorials">
-              <AccessorialsField value={accessorials} onChange={setAccessorials} />
+              <AccessorialsField value={effAccessorials} onChange={setAccessorials}
+                locked={Object.keys(dockLinked) as Accessorial[]} />
             </div>
           </section>
           </>)}
+
+          {shows('dock') && <DockWorkFields value={dockWork} onChange={setDockWork} />}
 
           {shows('price') && (<>
           <PriceAndTermsSection
@@ -495,7 +515,8 @@ export default function EditOrderPage() {
             laneMiles={distance.laneMiles}
             terms={priceTerms} onTerms={setPriceTerms}
             commodities={commodities}
-            accessorials={accessorials}
+            accessorials={effAccessorials}
+            dockLinked={dockLinked}
           />
           </>)}
 

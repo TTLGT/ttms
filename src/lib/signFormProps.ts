@@ -48,9 +48,10 @@ export interface SignFormData {
    */
   signerInstructions: string;
   /**
-   * Who loads, unloads and counts — carrier links only, and only the
-   * questions answered on the order when it was sent (dockWorkLines()).
-   * Absent on links sent before 2026-10-15.
+   * Who loads, unloads and counts — only the questions answered on the
+   * order when it was sent. A carrier link carries dockWorkLines() (since
+   * 2026-10-15); a client link carries clientDockLines(), loading and
+   * unloading only (since 2026-11-06).
    */
   dockWork?: { label: string; value: string }[];
   /**
@@ -159,7 +160,9 @@ export function signFormData(data: Record<string, any>): SignFormData {
     notes: data.notes || '',
     instructions: typeof data.specialInstructions === 'string' ? data.specialInstructions : '',
     signerInstructions: typeof data.signerInstructions === 'string' ? data.signerInstructions : '',
-    dockWork: !isClient && Array.isArray(data.dockWork)
+    // Both kinds of link since 2026-11-06: the client's carries who loads and
+    // unloads, the carrier's the counts as well.
+    dockWork: Array.isArray(data.dockWork)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ? data.dockWork.filter((l: any) => l && typeof l.label === 'string' && typeof l.value === 'string')
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

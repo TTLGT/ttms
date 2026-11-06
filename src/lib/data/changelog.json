@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "e2060b8b77171ef6df146d81d870486bb8cc31cd",
+      "date": "2026-11-06T10:53:12-06:00",
+      "author": "erwindank",
+      "subject": "Redesign the order page: a load card at the top with the route, the money and a step bar that says what each step waits on; the load's details on the left with a coloured heading per section; and a rail on the right with the next step and the open reviews, each opening in a side panel and leaving the rail once it is done",
+      "body": ""
+    },
+    {
       "hash": "eb6ade0afa68f3271fb4831be19dce8f89f5c205",
       "date": "2026-11-06T09:10:25-06:00",
       "author": "erwindank",

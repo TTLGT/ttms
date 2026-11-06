@@ -21,7 +21,7 @@ import { generateQuoteBuffer } from '@/lib/quote-pdf';
 import { buildQuoteData } from '@/lib/quoteData';
 import { brokerSnapshot, paperworkBroker } from '@/lib/orderOwnersServer';
 import { randomBytes } from 'crypto';
-import { orderDisplayNumber } from '@/types/order';
+import { dockEndProblem, orderDisplayNumber } from '@/types/order';
 import type { Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -212,6 +212,20 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       }, { status: 409 });
     }
     kind = 'revision';
+  }
+
+  /*
+   * Who loads and unloads — and who hires a 3rd party — goes on the SA, and
+   * must be answered before it does (2026-11-06). Checked here as well as on
+   * Request SA, because dispatch can send without a request. A resend is the
+   * same link emailed again, with nothing new on it, so it is let through:
+   * refusing it would stop a client being reminded of an SA already out.
+   */
+  if (kind !== 'resend') {
+    const dock = [dockEndProblem(order, 'pickup'), dockEndProblem(order, 'delivery')].filter(Boolean);
+    if (dock.length) {
+      return NextResponse.json({ error: `Fill in Loading and Unloading first: ${dock.join(' ')}` }, { status: 409 });
+    }
   }
 
   const token = kind === 'new' ? randomBytes(32).toString('hex') : pointer!.token;

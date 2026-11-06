@@ -17,7 +17,9 @@ import { DEFAULT_RECORD_REGION } from '@/lib/phone';
 import CommodityItemsFields from '@/components/orders/CommodityItemsFields';
 import AccessorialsField from '@/components/orders/AccessorialsField';
 import TransportTypeField from '@/components/orders/TransportTypeField';
-import PriceAndTermsSection, { agreedRateFrom, blankPriceTerms, priceTermsForSave, priceTermsProblem } from '@/components/orders/PriceAndTermsSection';
+import PriceAndTermsSection, { agreedRateFrom, blankPriceTerms, priceTermsForSave, priceTermsProblem, withDockArrangers } from '@/components/orders/PriceAndTermsSection';
+import DockWorkFields, { BLANK_DOCK_WORK, dockWorkForSave } from '@/components/orders/DockWorkFields';
+import type { DockWork } from '@/components/orders/DockWorkFields';
 import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
@@ -29,7 +31,7 @@ import AddressFields, { BLANK_ADDRESS } from '@/components/orders/AddressFields'
 import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
 import type { StopDraft } from '@/components/orders/ExtraStopsFields';
 import { partyDisplayName, ROLE_LABEL } from '@/types/party';
-import { blankCommodityItem, commoditySummary, hasVehicleDetails, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue } from '@/types/order';
+import { blankCommodityItem, commoditySummary, dockLinkedServices, hasVehicleDetails, withDockServices, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue } from '@/types/order';
 import type { Accessorial, Address, CommodityItem, StopKind } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import LeadSourceField from '@/components/orders/LeadSourceField';
@@ -95,10 +97,18 @@ function NewOrderForm() {
   const [carrierPay, setCarrierPay]     = useState('');
   const [brokerFee, setBrokerFee]       = useState('');
   const [notes, setNotes]               = useState<NotesAndInstructions>(BLANK_NOTES_AND_INSTRUCTIONS);
-  const [priceTerms, setPriceTerms]     = useState<PriceTerms>(blankPriceTerms);
+  const [rawPriceTerms, setPriceTerms] = useState<PriceTerms>(blankPriceTerms);
+  const [dockWork, setDockWork]         = useState<DockWork>(BLANK_DOCK_WORK);
+
+  // The services and arrangers as saved, with what Loading and Unloading
+  // needs added — see the same lines on the edit form.
+  const dockSaved = dockWorkForSave(dockWork);
+  const dockLinked = dockLinkedServices(dockSaved);
+  const effAccessorials = withDockServices(accessorials, dockSaved);
+  const priceTerms = withDockArrangers(rawPriceTerms, dockLinked);
 
   // Worked out, not typed (2026-11-04): carrier pay + broker fee + additional services.
-  const agreedRate = agreedRateFrom(priceTerms, accessorials, brokerFee, carrierPay);
+  const agreedRate = agreedRateFrom(priceTerms, effAccessorials, brokerFee, carrierPay);
 
   // The legacy single-value fields stay on the order, derived from the items,
   // so lists, PDFs and agreement emails keep working unchanged.
@@ -192,7 +202,7 @@ function NewOrderForm() {
     if (badRange) { setError(badRange); return; }
     const badStop = stopsProblem('pickup', extraPickups) || stopsProblem('delivery', extraDeliveries);
     if (badStop) { setError(badStop); return; }
-    const badCharge = priceTermsProblem(priceTerms, accessorials);
+    const badCharge = priceTermsProblem(priceTerms, effAccessorials);
     if (badCharge) { setError(badCharge); return; }
     // The input is `required`, but a value of spaces gets past that.
     if (!transportType.trim()) { setError('Choose the transport type — the truck or trailer this load moves on.'); return; }
@@ -234,7 +244,8 @@ function NewOrderForm() {
         commodityValue: totalCommodityValue(commodityItems),
         pieces:       totalPieces(commodityItems) || 1,
         weight:       Math.round(totalWeightLb(commodityItems)),
-        accessorials,
+        accessorials: effAccessorials,
+        ...dockSaved,
         origin,
         destination,
         routeMapUrl:  routeMapUrl.trim(),
@@ -267,7 +278,7 @@ function NewOrderForm() {
         brokerFee:    parseFloat(brokerFee)  || 0,
         carrierPay:   parseFloat(carrierPay) || 0,
         ...notesAndInstructionsForSave(notes),
-        ...priceTermsForSave(priceTerms, accessorials),
+        ...priceTermsForSave(priceTerms, effAccessorials),
         batsId:             null,
         vehicles:           '',
         transportType:      transportType.trim(),
@@ -383,8 +394,11 @@ function NewOrderForm() {
             <TransportTypeField value={transportType} onChange={setTransportType} required />
             <CommodityItemsFields value={commodities} onChange={setCommodities}
               pickups={pickupChoices} deliveries={deliveryChoices} />
-            <AccessorialsField value={accessorials} onChange={setAccessorials} />
+            <AccessorialsField value={effAccessorials} onChange={setAccessorials}
+              locked={Object.keys(dockLinked) as Accessorial[]} />
           </section>
+
+          <DockWorkFields value={dockWork} onChange={setDockWork} />
 
           <PriceAndTermsSection
             brokerFee={brokerFee} onBrokerFee={setBrokerFee}
@@ -392,7 +406,8 @@ function NewOrderForm() {
             laneMiles={distance.laneMiles}
             terms={priceTerms} onTerms={setPriceTerms}
             commodities={commodities}
-            accessorials={accessorials}
+            accessorials={effAccessorials}
+            dockLinked={dockLinked}
           />
 
           {/* Route */}

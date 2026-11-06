@@ -14,22 +14,34 @@ import { Bi } from '@/components/spanish/Es';
  * paid for (PAID_SERVICES), each of which opens a cost line in Price and
  * Terms. The grouping is display only — both print the same way.
  */
-export default function AccessorialsField({ value, onChange }: {
+export default function AccessorialsField({ value, onChange, locked = [] }: {
   value: Accessorial[];
   onChange: (v: Accessorial[]) => void;
+  /**
+   * Services the Loading and Unloading answers need — dockLinkedServices().
+   * Drawn ticked and cannot be unticked here: the save would tick them again
+   * (reconcileDockHelp()), so a box that let go would only mislead.
+   */
+  locked?: readonly Accessorial[];
 }) {
   const toggle = (a: Accessorial) => {
+    if (locked.includes(a)) return;
     const on = new Set(value);
     if (on.has(a)) on.delete(a); else on.add(a);
     onChange(ACCESSORIALS.filter((x) => on.has(x)));
   };
-  const box = (a: Accessorial) => (
-    <label key={a} className="flex items-center gap-2 text-sm text-gray-700">
-      <input type="checkbox" checked={value.includes(a)} onChange={() => toggle(a)}
-        className="rounded border-gray-300 text-brand-600 focus:ring-brand-400" />
-      {ACCESSORIAL_LABEL[a]}
-    </label>
-  );
+  const box = (a: Accessorial) => {
+    const fixed = locked.includes(a);
+    return (
+      <label key={a} className="flex items-center gap-2 text-sm text-gray-700"
+        title={fixed ? 'Needed for loading or unloading — change it in Loading and Unloading' : undefined}>
+        <input type="checkbox" checked={fixed || value.includes(a)} disabled={fixed} onChange={() => toggle(a)}
+          className="rounded border-gray-300 text-brand-600 focus:ring-brand-400" />
+        {ACCESSORIAL_LABEL[a]}
+        {fixed && <span data-es className="text-[11px] text-gray-500">(loading / unloading)</span>}
+      </label>
+    );
+  };
   const grid = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-1.5';
 
   return (

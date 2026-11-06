@@ -1,10 +1,10 @@
 'use client';
 
-import { Check, Truck } from 'lucide-react';
+import { Check, PackageOpen, Truck } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { usd } from '@/types/paymentMethod';
 import {
-  STATUS_LABEL, displayStatus, formatLaneMiles, laneMilesCaption, orderDeliveries, orderPickups,
+  STATUS_LABEL, dockEndText, displayStatus, formatLaneMiles, laneMilesCaption, orderDeliveries, orderPickups,
 } from '@/types/order';
 import type { Order, OrderStatus } from '@/types/order';
 import { Bi } from '@/components/spanish/Es';
@@ -50,6 +50,24 @@ const STEP_NEEDS: Record<string, string> = {
 
 function place(city?: string, state?: string): string {
   return [city, state].filter(Boolean).join(', ');
+}
+
+/**
+ * Who loads or unloads, under that end of the route — the question a broker,
+ * a dispatcher and a driver each ask, answered where they are already
+ * looking. Amber while unanswered, because the SA cannot go out without it.
+ */
+function DockLine({ order, end, right }: { order: Order; end: 'pickup' | 'delivery'; right?: boolean }) {
+  const text = dockEndText(order, end);
+  const verb = end === 'pickup' ? 'Loaded by' : 'Unloaded by';
+  return (
+    <p className={`mt-1 flex items-start gap-1 text-xs ${right ? 'sm:justify-end' : ''} ${text ? 'text-gray-700' : 'text-amber-700'}`}>
+      <PackageOpen className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span>
+        {text ? <><span data-es className="text-gray-500">{verb}:</span> {text}</> : <Bi>{end === 'pickup' ? 'Who loads? Not set' : 'Who unloads? Not set'}</Bi>}
+      </span>
+    </p>
+  );
 }
 
 export default function OrderLoadCard({ order, thumb, title, sub, actions }: {
@@ -113,6 +131,7 @@ export default function OrderLoadCard({ order, thumb, title, sub, actions }: {
             <div className="min-w-0">
               <p className="truncate font-[family-name:var(--font-rajdhani)] text-xl font-bold leading-tight text-gray-900">{fromPlace || <span className="text-gray-400"><Bi>Pickup not set</Bi></span>}</p>
               <p className="text-xs text-gray-500">{formatDateRange(from?.date ?? null, from?.dateEnd ?? null, '') || <Bi>No pickup date</Bi>}</p>
+              <DockLine order={order} end="pickup" />
             </div>
             <div className="relative h-9" aria-hidden>
               <div className="absolute inset-x-0 top-[15px] h-1 rounded-full bg-gray-200" />
@@ -133,6 +152,7 @@ export default function OrderLoadCard({ order, thumb, title, sub, actions }: {
             <div className="min-w-0 sm:text-right">
               <p className="truncate font-[family-name:var(--font-rajdhani)] text-xl font-bold leading-tight text-gray-900">{toPlace || <span className="text-gray-400"><Bi>Delivery not set</Bi></span>}</p>
               <p className="text-xs text-gray-500">{formatDateRange(to?.date ?? null, to?.dateEnd ?? null, '') || <Bi>No delivery date</Bi>}</p>
+              <DockLine order={order} end="delivery" right />
             </div>
           </div>
 

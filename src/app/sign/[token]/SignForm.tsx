@@ -57,7 +57,7 @@ interface Props {
   instructions: string;
   /** What the client added when signing. Not shown on the form; it is for the signed PDF. */
   signerInstructions?: string;
-  /** Who loads, unloads and counts — carrier links only. See SignFormData.dockWork. */
+  /** Who loads, unloads (and, for a carrier, counts). See SignFormData.dockWork. */
   dockWork?: { label: string; value: string }[];
   /** Ramps, a liftgate… as labels. See SignFormData.accessorials. */
   accessorials?: string[];
@@ -332,6 +332,7 @@ export default function SignForm({
             {equipment && <DetailRow label="Transport type" value={equipment} />}
             {accessorials && accessorials.length > 0 && <DetailRow label="Accessorials" value={accessorials.join(', ')} />}
             {services && services.length > 0 && <DetailRow label="Additional services" value={services.join(', ')} />}
+            {(dockWork ?? []).map((l) => <DetailRow key={l.label} label={l.label} value={l.value} />)}
             {freight && freight.length > 0 ? (
               <div className="mt-2 overflow-x-auto">
                 <table className="w-full text-sm">

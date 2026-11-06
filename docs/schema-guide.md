@@ -1138,8 +1138,12 @@ cost line in Price and Terms. Anything rarer is typed there by hand.
 `serviceCharges` — an array of `{ service, label?, amount, arrangedBy }`.
 `service` is a `PAID_SERVICES` key, or `'other'` with its own `label` (80
 characters at most). `amount` is dollars or null for "not priced yet".
-`arrangedBy` is `carrier`, `client` or `ttl` — whose job it is — or null for
-not said yet. At most 30 lines;
+`arrangedBy` is `ttl`, `client`, `shipper`, `consignee` or `carrier` — whose
+job it is — or null for not said yet (`shipper` and `consignee` added
+2026-11-06). A line arranged by the client, the shipper or the consignee is
+always $0 (`notOurCharge()`). A lumper, forklift, crane or rigging line used
+at a dock takes its `arrangedBy` from who hires that help — see Loading and
+Unloading below. At most 30 lines;
 `cleanServiceCharges()` enforces the shape on every save. Read through
 `serviceChargeLines()`, never the field directly: a paid service's line
 counts only while its accessorial is ticked.
@@ -1202,11 +1206,36 @@ optional; absent on earlier loads, and an unset one prints as an empty box.
 | `truckNumber`, `trailerNumber` | Unit numbers of the truck and trailer. |
 | `freightChargeTerms` | `prepaid`, `collect`, `third_party`, or null. |
 | `thirdPartyBillTo` | Who pays under 3rd-party terms, free text. Cleared when the terms are anything else. |
-| `trailerLoadedBy` | Who loads: `shipper`, `consignee`, `driver` or `third_party` (a lumper). Only `shipper` and `driver` before 2026-10-15. |
-| `trailerUnloadedBy` | Who unloads, same four values (2026-10-15). |
+| `trailerLoadedBy` | Who loads: `shipper`, `consignee`, `driver` or `third_party`. Only `shipper` and `driver` before 2026-10-15. Edited in Loading and Unloading since 2026-11-06 — see below. |
+| `trailerUnloadedBy` | Who unloads, same four values (2026-10-15). Also in Loading and Unloading. |
 | `freightCountedBy` | Who counts at pickup: `shipper`, `driver_pallets`, `driver_pieces`, `consignee` or `third_party`. The last two added 2026-10-15. |
 | `deliveryCountedBy` | Who counts at delivery, the same four values as `trailerUnloadedBy` (2026-10-15). |
 | `bolShowDockBoxes` | `true` prints every loading, unloading and count box on the BOL, answered or not, for a carrier or client who asks. Absent or `false` (the default) prints only the answers, and no section when there are none. |
+
+### Loading and Unloading (2026-11-06)
+
+Its own card on the order and its own section of the forms (`dock`), from
+the quote on. `trailerLoadedBy` / `trailerUnloadedBy` above say who does the
+work; when that is `third_party`, the order also says who:
+
+| Field | Meaning |
+|---|---|
+| `loadingHelp`, `unloadingHelp` | `{ service, label?, hiredBy }` or null. `service` is `lumper`, `forklift`, `crane`, `rigging` or `other` (with a `label`, 60 characters at most); `hiredBy` takes the `arrangedBy` values. Null whenever that end is not `third_party`. |
+
+- **Both ends must be answered before the SA goes out** — and, for a 3rd
+  party, what it is and who hires it. `dockEndProblem()` is the one test,
+  read by `orderReadiness()` (so Request SA refuses) and by
+  `send-shipper-agreement` (which refuses everything but a resend).
+- **One fact, not two.** A lumper, forklift, crane or rigging crew ticks that
+  additional service and sets its `arrangedBy` to `hiredBy`;
+  `reconcileDockHelp()` does it on every create and update, moving
+  `agreedRate` if the services' total changes. The forms show it the same
+  way and lock those boxes. When both ends use the same service with
+  different hirers there is one service line, arranged by TTL if either end
+  is, else by the pickup's hirer; the dock lines still say each end exactly.
+- Printed on the client's SA (`clientDockLines()`, part of the `freight`
+  fingerprint once answered), the Dispatch Sheet and the BOL
+  (`dockEndText()`, e.g. "3rd party: crane, hired by the consignee").
 
 The four loading, unloading and count fields are also copied onto the
 carrier's signing link as `dockWork` when the Dispatch Sheet is sent — worded

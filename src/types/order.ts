@@ -136,9 +136,182 @@ export const FREIGHT_CHARGE_TERMS_LABEL: Record<FreightChargeTerms, string> = {
  */
 export type DockParty = 'shipper' | 'consignee' | 'driver' | 'third_party';
 export const DOCK_PARTIES: DockParty[] = ['shipper', 'consignee', 'driver', 'third_party'];
+/**
+ * "3rd party" covers a lumper, a forklift crew, a crane — whoever is hired —
+ * and the order says which one in `loadingHelp` / `unloadingHelp`. It read
+ * "3rd party (lumper)" until 2026-11-06, which told a carrier the crane was a
+ * lumper. Rewording it holds a sent Dispatch Sheet that answered 3rd party
+ * (dockWorkLines() is in its fingerprint), which is true: it now says more.
+ */
 export const DOCK_PARTY_LABEL: Record<DockParty, string> = {
-  shipper: 'Shipper', consignee: 'Consignee', driver: 'Driver', third_party: '3rd party (lumper)',
+  shipper: 'Shipper', consignee: 'Consignee', driver: 'Driver', third_party: '3rd party',
 };
+
+/**
+ * Who a 3rd party at the dock is, and who hired them (2026-11-06). Asked
+ * only when loading or unloading is done by a 3rd party, and required before
+ * the SA goes out (orderReadiness()), because "who pays the crane" is a
+ * question nobody should first ask at the dock.
+ *
+ * Four of the five are additional services already (ACCESSORIALS), and are
+ * kept as one fact with them: picking one here ticks that service and sets
+ * who arranges it — see reconcileDockHelp(). `other` is a name typed by
+ * hand and touches no service; its cost, if any, is a charge added by hand.
+ */
+export type DockHelpService = 'lumper' | 'forklift' | 'crane' | 'rigging' | 'other';
+export const DOCK_HELP_SERVICES: DockHelpService[] = ['lumper', 'forklift', 'crane', 'rigging', 'other'];
+export const DOCK_HELP_LABEL: Record<DockHelpService, string> = {
+  lumper: 'Lumper', forklift: 'Forklift', crane: 'Crane', rigging: 'Rigging crew', other: 'Other',
+};
+/** As printed, after "3rd party: " — lower case, mid-sentence. */
+const DOCK_HELP_PRINTED: Record<Exclude<DockHelpService, 'other'>, string> = {
+  lumper: 'lumper', forklift: 'forklift', crane: 'crane', rigging: 'rigging crew',
+};
+/** The service each kind of help is, on the order's Additional Services. */
+const DOCK_HELP_ACCESSORIAL: Record<Exclude<DockHelpService, 'other'>, Accessorial> = {
+  lumper: 'lumper', forklift: 'forklift', crane: 'crane', rigging: 'rigging',
+};
+
+export interface DockHelp {
+  service: DockHelpService | null;
+  /** The name, for `other` only. */
+  label?: string;
+  /** Who hires them. Null for "not said yet". */
+  hiredBy: ServiceArranger | null;
+}
+
+const MAX_DOCK_HELP_LABEL = 60;
+
+/** The stored shape from whatever JSON came in, or null when it says nothing. */
+export function cleanDockHelp(raw: unknown): DockHelp | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const service = typeof r.service === 'string' && (DOCK_HELP_SERVICES as string[]).includes(r.service)
+    ? r.service as DockHelpService : null;
+  const hiredBy = isServiceArranger(r.hiredBy) ? r.hiredBy : null;
+  const label = service === 'other' && typeof r.label === 'string' ? r.label.trim().slice(0, MAX_DOCK_HELP_LABEL) : '';
+  if (!service && !hiredBy) return null;
+  return service === 'other' ? { service, label, hiredBy } : { service, hiredBy };
+}
+
+export type DockEnd = 'pickup' | 'delivery';
+type DockFields = Partial<Pick<Order, 'trailerLoadedBy' | 'trailerUnloadedBy' | 'loadingHelp' | 'unloadingHelp'>>;
+
+/** Who works one end of the load, and the help when it is a 3rd party. */
+export function dockEndOf(o: DockFields | null | undefined, end: DockEnd): { by: DockParty | null; help: DockHelp | null } {
+  const by = (end === 'pickup' ? o?.trailerLoadedBy : o?.trailerUnloadedBy) ?? null;
+  const by_ = by && (DOCK_PARTIES as string[]).includes(by) ? by : null;
+  return { by: by_, help: by_ === 'third_party' ? cleanDockHelp(end === 'pickup' ? o?.loadingHelp : o?.unloadingHelp) : null };
+}
+
+/**
+ * What one end still needs before the SA can go out: '' when it is answered,
+ * else a short instruction. The single definition — the form, the readiness
+ * list and the SA's send route all ask this.
+ */
+export function dockEndProblem(o: DockFields | null | undefined, end: DockEnd): string {
+  const { by, help } = dockEndOf(o, end);
+  const where = end === 'pickup' ? 'loads at pickup' : 'unloads at delivery';
+  if (!by) return `Say who ${where}.`;
+  if (by !== 'third_party') return '';
+  if (!help?.service) return `Say what the 3rd party that ${where} is — a lumper, a forklift, a crane, a rigging crew or something else.`;
+  if (help.service === 'other' && !help.label?.trim()) return `Name the 3rd party that ${where}.`;
+  if (!help.hiredBy) return `Say who hires the 3rd party that ${where}.`;
+  return '';
+}
+
+/**
+ * One end as words: "Driver", or "3rd party: crane, hired by the consignee".
+ * What the load card, the SA, the Dispatch Sheet and the BOL all print.
+ */
+export function dockEndText(o: DockFields | null | undefined, end: DockEnd): string {
+  const { by, help } = dockEndOf(o, end);
+  if (!by) return '';
+  if (by !== 'third_party' || !help?.service) return DOCK_PARTY_LABEL[by];
+  const what = help.service === 'other' ? (help.label?.trim() || 'other') : DOCK_HELP_PRINTED[help.service];
+  return `3rd party: ${what}${help.hiredBy ? `, hired by ${SERVICE_ARRANGER_PRINTED[help.hiredBy]}` : ''}`;
+}
+
+/**
+ * The additional services the dock answers stand for, and who arranges each.
+ * When both ends use the same service with different hirers there is still
+ * one service line, so TTL wins (it is the one with a cost on our side), and
+ * otherwise the pickup's answer. The dock lines themselves still say each
+ * end exactly.
+ */
+export function dockLinkedServices(o: DockFields | null | undefined): Partial<Record<Accessorial, ServiceArranger | null>> {
+  const out: Partial<Record<Accessorial, ServiceArranger | null>> = {};
+  for (const end of ['pickup', 'delivery'] as const) {
+    const { help } = dockEndOf(o, end);
+    if (!help?.service || help.service === 'other') continue;
+    const a = DOCK_HELP_ACCESSORIAL[help.service];
+    const was = out[a];
+    if (!(a in out) || (!was && help.hiredBy) || help.hiredBy === 'ttl') out[a] = help.hiredBy;
+  }
+  return out;
+}
+
+/** The ticked accessorials with every dock-linked service added, in catalog order. */
+export function withDockServices(accessorials: readonly Accessorial[], o: DockFields | null | undefined): Accessorial[] {
+  const on = new Set<Accessorial>([...accessorials, ...(Object.keys(dockLinkedServices(o)) as Accessorial[])]);
+  return ACCESSORIALS.filter((a) => on.has(a));
+}
+
+/**
+ * The fields a save must also write so the dock answers and the additional
+ * services say the same thing: help cleared at an end no 3rd party works,
+ * each linked service ticked and arranged by whoever hires the help, and the
+ * Agreed Rate moved by whatever that does to the services' total (a service
+ * now hired by the consignee costs the client nothing from us).
+ *
+ * Run on the order as it will be saved, by both create and update — so a
+ * Freight-only save that unticks the crane the delivery needs gets it back,
+ * and the forms, which show the same thing, are never the only guard.
+ * Returns only the fields to merge into the write.
+ */
+export function reconcileDockHelp(o: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const dock = o as DockFields;
+  for (const end of ['pickup', 'delivery'] as const) {
+    const key = end === 'pickup' ? 'loadingHelp' : 'unloadingHelp';
+    const help = dockEndOf(dock, end).help;
+    if (key in o || help) out[key] = help;
+  }
+  const merged = { ...o, ...out } as DockFields;
+  const linked = dockLinkedServices(merged);
+  const keys = Object.keys(linked) as Accessorial[];
+  if (!keys.length) return out;
+
+  const ticked = orderAccessorials(o);
+  const accessorials = withDockServices(ticked, merged);
+  if (accessorials.length !== ticked.length) out.accessorials = accessorials;
+
+  const charges = cleanServiceCharges(o.serviceCharges);
+  let chargesChanged = false;
+  for (const a of keys) {
+    const by = linked[a] ?? null;
+    if (!by) continue;
+    const c = charges.find((x) => x.service === a);
+    if (c && c.arrangedBy === by) continue;
+    if (c) c.arrangedBy = by; else charges.push({ service: a, amount: null, arrangedBy: by });
+    chargesChanged = true;
+  }
+  if (chargesChanged) {
+    // Catalog order, then the typed ones — the same as priceTermsForSave().
+    const ordered = [
+      ...ACCESSORIALS.flatMap((a) => charges.filter((c) => c.service === a)),
+      ...charges.filter((c) => c.service === 'other'),
+    ];
+    const cleaned = cleanServiceCharges(ordered);
+    const beforeTotal = serviceChargesTotal(serviceChargeLines({ accessorials: ticked, serviceCharges: o.serviceCharges }));
+    const afterTotal = serviceChargesTotal(serviceChargeLines({ accessorials, serviceCharges: cleaned }));
+    out.serviceCharges = cleaned;
+    if (beforeTotal !== afterTotal) {
+      out.agreedRate = Math.max(0, Math.round(((Number(o.agreedRate) || 0) + afterTotal - beforeTotal) * 100) / 100);
+    }
+  }
+  return out;
+}
 
 export type TrailerLoadedBy = DockParty;
 export const TRAILER_LOADED_BY = DOCK_PARTIES;
@@ -168,14 +341,25 @@ export const FREIGHT_COUNTED_BY_LABEL: Record<FreightCountedBy, string> = {
  * four rows of dashes. '' for "not said" is never printed.
  */
 export function dockWorkLines(o: Partial<Pick<Order,
-  'trailerLoadedBy' | 'freightCountedBy' | 'trailerUnloadedBy' | 'deliveryCountedBy'>>): { label: string; value: string }[] {
+  'trailerLoadedBy' | 'freightCountedBy' | 'trailerUnloadedBy' | 'deliveryCountedBy' | 'loadingHelp' | 'unloadingHelp'>>): { label: string; value: string }[] {
   const lines: { label: string; value: string }[] = [];
   const add = (label: string, value: string | undefined) => { if (value) lines.push({ label, value }); };
-  add('Loading',            o.trailerLoadedBy   ? DOCK_PARTY_LABEL[o.trailerLoadedBy] : undefined);
+  add('Loading',            dockEndText(o, 'pickup') || undefined);
   add('Count at pickup',    o.freightCountedBy  ? FREIGHT_COUNTED_BY_LABEL[o.freightCountedBy] : undefined);
-  add('Unloading',          o.trailerUnloadedBy ? DOCK_PARTY_LABEL[o.trailerUnloadedBy] : undefined);
+  add('Unloading',          dockEndText(o, 'delivery') || undefined);
   add('Count at delivery',  o.deliveryCountedBy ? DOCK_PARTY_LABEL[o.deliveryCountedBy] : undefined);
   return lines;
+}
+
+/**
+ * Who loads and unloads, for the client's SA — the counts are the carrier's
+ * and the BOL's business, so only the two answers. Empty when neither is
+ * answered, which keeps every SA sent before this fingerprinting as it did.
+ */
+export function clientDockLines(o: DockFields | null | undefined): { label: string; value: string }[] {
+  return ([['Loading at pickup', 'pickup'], ['Unloading at delivery', 'delivery']] as const)
+    .map(([label, end]) => ({ label, value: dockEndText(o, end) }))
+    .filter((l) => l.value);
 }
 
 /**
@@ -287,19 +471,38 @@ export interface ServiceCharge {
  * client's SA and the carrier's Dispatch Sheet, and part of both
  * fingerprints, because it is a statement of whose job something is.
  */
-export type ServiceArranger = 'carrier' | 'client' | 'ttl';
-export const SERVICE_ARRANGERS: ServiceArranger[] = ['carrier', 'client', 'ttl'];
+/*
+ * The shipper and the consignee were added 2026-11-06, for the crane or the
+ * forklift crew a facility hires itself. Appended, so no stored value moves.
+ */
+export type ServiceArranger = 'carrier' | 'client' | 'ttl' | 'shipper' | 'consignee';
+export const SERVICE_ARRANGERS: ServiceArranger[] = ['ttl', 'client', 'shipper', 'consignee', 'carrier'];
 /** On the form. */
 export const SERVICE_ARRANGER_LABEL: Record<ServiceArranger, string> = {
-  carrier: 'Carrier', client: 'Client', ttl: 'TTL',
+  carrier: 'Carrier', client: 'Client', ttl: 'TTL', shipper: 'Shipper', consignee: 'Consignee',
 };
 /** On the documents, after "arranged by". */
 const SERVICE_ARRANGER_PRINTED: Record<ServiceArranger, string> = {
-  carrier: 'the carrier', client: 'the client', ttl: 'TTL',
+  carrier: 'the carrier', client: 'the client', ttl: 'TTL', shipper: 'the shipper', consignee: 'the consignee',
 };
 
 export function isServiceArranger(v: unknown): v is ServiceArranger {
   return typeof v === 'string' && (SERVICE_ARRANGERS as string[]).includes(v);
+}
+
+/**
+ * Whether a service arranged by this party is one we charge the client
+ * nothing for. The client, the shipper and the consignee pay whoever they
+ * hire themselves; TTL and the carrier are the two whose cost can be on our
+ * bill. The single test — the forms, the save and the SA all ask it.
+ */
+export function notOurCharge(by: ServiceArranger | null | undefined): boolean {
+  return by === 'client' || by === 'shipper' || by === 'consignee';
+}
+
+/** Printed in place of a price for a service somebody else arranges. */
+export function arrangerNote(by: ServiceArranger): string {
+  return by === 'client' ? CLIENT_ARRANGES_NOTE : `Arranged by ${SERVICE_ARRANGER_PRINTED[by]}`;
 }
 
 /** Most lines one order keeps; far past any real load, it caps a pasted payload. */
@@ -321,9 +524,9 @@ export function cleanServiceCharges(raw: unknown): ServiceCharge[] {
     const n = typeof c.amount === 'number' ? c.amount : NaN;
     let amount = Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
     const arrangedBy = isServiceArranger(c.arrangedBy) ? c.arrangedBy : null;
-    // The client arranging it means we charge nothing for it — always, so a
-    // figure left in the box from before cannot reach the rate.
-    if (arrangedBy === 'client') amount = 0;
+    // The client (or a facility) arranging it means we charge nothing for it
+    // — always, so a figure left in the box from before cannot reach the rate.
+    if (notOurCharge(arrangedBy)) amount = 0;
     if (c.service === 'other') {
       const label = typeof c.label === 'string' ? c.label.trim().slice(0, MAX_CHARGE_LABEL) : '';
       if (label) out.push({ service: 'other', label, amount, arrangedBy });
@@ -431,9 +634,9 @@ export function clientChargeLines(
   const logistics = Math.max(0, Math.round((rate - serviceChargesTotal(services)) * 100) / 100);
   return [
     { label: FREIGHT_TRANSPORTATION_LABEL, amount: logistics },
-    ...services.map((l): ClientChargeLine => (l.arrangedBy === 'client'
+    ...services.map((l): ClientChargeLine => (l.arrangedBy && notOurCharge(l.arrangedBy)
       // Ours to list, not ours to charge: the words stand where a price would.
-      ? { label: l.label, amount: 0, note: CLIENT_ARRANGES_NOTE }
+      ? { label: l.label, amount: 0, note: arrangerNote(l.arrangedBy) }
       : { label: serviceWithArranger(l), amount: l.amount ?? 0 })),
   ];
 }
@@ -450,7 +653,7 @@ export const CLIENT_ARRANGES_NOTE = 'Arranged by the client';
  * under Freight instead, so each service appears on the SA exactly once.
  */
 export function inClientBreakdown(l: ServiceChargeLine): boolean {
-  return l.arrangedBy === 'client' || (l.amount != null && l.amount > 0);
+  return notOurCharge(l.arrangedBy) || (l.amount != null && l.amount > 0);
 }
 
 /**
@@ -1408,6 +1611,15 @@ export interface Order {
    */
   trailerUnloadedBy?: DockParty | null;
   deliveryCountedBy?: DockParty | null;
+  /**
+   * The 3rd party at each end — what they are and who hires them — when
+   * `trailerLoadedBy` / `trailerUnloadedBy` is `third_party`; null otherwise
+   * (2026-11-06). See DockHelp, and reconcileDockHelp() for how it keeps the
+   * additional services in step. Printed on the SA, the Dispatch Sheet and
+   * the BOL with the answer it belongs to.
+   */
+  loadingHelp?: DockHelp | null;
+  unloadingHelp?: DockHelp | null;
   /**
    * Print the full grid of loading, unloading and count boxes on the BOL,
    * answered or not, for a carrier or client who asks for boxes to tick by

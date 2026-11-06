@@ -12,9 +12,15 @@ import {
 const INPUT =
   'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
+/*
+ * Who loads and unloads moved out of this card on 2026-11-06, into Loading
+ * and Unloading — wanted from the quote on and required before the SA, which
+ * this card (drawn from Booked) could never be. The counts stay: only the
+ * BOL and the Dispatch Sheet print them.
+ */
 type BolDetails = Pick<Order,
-  'truckNumber' | 'trailerNumber' | 'freightChargeTerms' | 'thirdPartyBillTo' | 'trailerLoadedBy' | 'freightCountedBy'
-  | 'trailerUnloadedBy' | 'deliveryCountedBy' | 'bolShowDockBoxes'>;
+  'truckNumber' | 'trailerNumber' | 'freightChargeTerms' | 'thirdPartyBillTo' | 'freightCountedBy'
+  | 'deliveryCountedBy' | 'bolShowDockBoxes'>;
 
 function detailsOf(o: Partial<Order>): Required<BolDetails> {
   return {
@@ -22,9 +28,7 @@ function detailsOf(o: Partial<Order>): Required<BolDetails> {
     trailerNumber:      o.trailerNumber ?? '',
     freightChargeTerms: o.freightChargeTerms ?? null,
     thirdPartyBillTo:   o.thirdPartyBillTo ?? '',
-    trailerLoadedBy:    o.trailerLoadedBy ?? null,
     freightCountedBy:   o.freightCountedBy ?? null,
-    trailerUnloadedBy:  o.trailerUnloadedBy ?? null,
     deliveryCountedBy:  o.deliveryCountedBy ?? null,
     bolShowDockBoxes:   o.bolShowDockBoxes === true,
   };
@@ -93,9 +97,7 @@ export default function BolDetailsFields({ order, orderId, canEdit, onSaved }: {
         // Only meaningful for 3rd-party terms; cleared otherwise so a stale
         // bill-to does not print under Prepaid.
         thirdPartyBillTo:   draft.freightChargeTerms === 'third_party' ? draft.thirdPartyBillTo.trim() : '',
-        trailerLoadedBy:    draft.trailerLoadedBy,
         freightCountedBy:   draft.freightCountedBy,
-        trailerUnloadedBy:  draft.trailerUnloadedBy,
         deliveryCountedBy:  draft.deliveryCountedBy,
         bolShowDockBoxes:   draft.bolShowDockBoxes,
       };
@@ -139,16 +141,6 @@ export default function BolDetailsFields({ order, orderId, canEdit, onSaved }: {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <p data-es className="text-xs font-medium text-gray-600 mb-1.5">Loaded by</p>
-          <Choice<DockParty> options={DOCK_PARTIES} labels={DOCK_PARTY_LABEL}
-            value={draft.trailerLoadedBy} onChange={(v) => set({ trailerLoadedBy: v })} disabled={off} />
-        </div>
-        <div>
-          <p data-es className="text-xs font-medium text-gray-600 mb-1.5">Unloaded by</p>
-          <Choice<DockParty> options={DOCK_PARTIES} labels={DOCK_PARTY_LABEL}
-            value={draft.trailerUnloadedBy} onChange={(v) => set({ trailerUnloadedBy: v })} disabled={off} />
-        </div>
-        <div>
           <p data-es className="text-xs font-medium text-gray-600 mb-1.5">Counted at pickup by</p>
           <Choice<FreightCountedBy> options={FREIGHT_COUNTED_BY} labels={FREIGHT_COUNTED_BY_LABEL}
             value={draft.freightCountedBy} onChange={(v) => set({ freightCountedBy: v })} disabled={off} />
@@ -180,7 +172,7 @@ export default function BolDetailsFields({ order, orderId, canEdit, onSaved }: {
 
       <p className="text-xs text-gray-400">
         <Bi>Handling units and hazardous material are set on each freight line. Truck, trailer and freight charges left empty print as a blank to fill in by hand.
-        Loading, unloading and counts also go on the carrier&apos;s Dispatch Sheet the next time it is sent. Leave a count empty when nobody counts.</Bi>
+        Who loads and unloads is set in Loading and Unloading. The counts also go on the carrier&apos;s Dispatch Sheet the next time it is sent. Leave a count empty when nobody counts.</Bi>
       </p>
 
       {canEdit && (

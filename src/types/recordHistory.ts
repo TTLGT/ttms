@@ -1,4 +1,4 @@
-import { ACCESSORIAL_LABEL, SERVICE_ARRANGER_LABEL, STATUS_LABEL, accessorialLabels, cleanServiceCharges, type OrderStatus } from './order';
+import { ACCESSORIAL_LABEL, DOCK_HELP_LABEL, DOCK_PARTY_LABEL, SERVICE_ARRANGER_LABEL, STATUS_LABEL, accessorialLabels, cleanDockHelp, cleanServiceCharges, type DockParty, type OrderStatus } from './order';
 import { toDate, type DateLike } from '@/lib/dateFormat';
 
 /**
@@ -126,6 +126,8 @@ const LABELS: Record<string, string> = {
   clientAddedInstructions: 'Instructions added by the client',
   trailerLoadedBy: 'Loaded by',
   trailerUnloadedBy: 'Unloaded by',
+  loadingHelp: '3rd party loading',
+  unloadingHelp: '3rd party unloading',
   freightCountedBy: 'Counted at pickup by',
   deliveryCountedBy: 'Counted at delivery by',
   bolShowDockBoxes: 'Print all loading and count boxes on the BOL',
@@ -278,6 +280,16 @@ export function describeChangeValue(
       const by = c.arrangedBy ? `, arranged by ${SERVICE_ARRANGER_LABEL[c.arrangedBy]}` : '';
       return `${name} ${c.amount == null ? '(no amount)' : usd.format(c.amount)}${by}`;
     }).join('; '));
+  }
+  if ((field === 'trailerLoadedBy' || field === 'trailerUnloadedBy') && typeof value === 'string') {
+    return DOCK_PARTY_LABEL[value as DockParty] ?? value;
+  }
+  // "Crane, hired by Consignee" rather than the stored map.
+  if (field === 'loadingHelp' || field === 'unloadingHelp') {
+    const h = cleanDockHelp(value);
+    if (!h) return 'blank';
+    const what = h.service === 'other' ? h.label || 'Other' : h.service ? DOCK_HELP_LABEL[h.service] : 'Not said';
+    return `${what}${h.hiredBy ? `, hired by ${SERVICE_ARRANGER_LABEL[h.hiredBy]}` : ''}`;
   }
   if (STOP_FIELDS.has(field) && Array.isArray(value)) {
     // A stop is a party, an address and a date. Flattened like any other map

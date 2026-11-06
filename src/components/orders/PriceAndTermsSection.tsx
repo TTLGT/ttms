@@ -23,6 +23,7 @@ import {
   SERVICE_ARRANGERS,
   SERVICE_ARRANGER_LABEL,
   isServiceArranger,
+  notOurCharge,
   cleanServiceCharges,
   isPaidService,
   serviceChargesTotal,
@@ -106,7 +107,7 @@ export function priceTermsForSave(t: PriceTerms, accessorials: readonly Accessor
   const complex = t.complexTerms.enabled;
   // A client-arranged service is always $0, whatever is left in its box.
   const priced = (by: ServiceArranger | null | undefined, amount: number | null | undefined) =>
-    by === 'client' ? 0 : amount ?? null;
+    notOurCharge(by) ? 0 : amount ?? null;
   const serviceCharges: ServiceCharge[] = [
     ...accessorials.filter((a) => isPaidService(a) && (t.serviceCosts[a] != null || t.serviceArrangers[a]))
       .map((a): ServiceCharge => ({
@@ -143,8 +144,22 @@ export function priceTermsProblem(t: PriceTerms, accessorials: readonly Accessor
     ...t.otherCharges.filter((c) => c.label.trim() && !c.arrangedBy).map((c) => c.label.trim()),
   ];
   return unsaid.length
-    ? `Choose who arranges ${unsaid.join(', ')} in Price and Terms → Additional Services — the carrier, the client or TTL.`
+    ? `Choose who arranges ${unsaid.join(', ')} in Price and Terms → Additional Services — TTL, the client, the shipper, the consignee or the carrier.`
     : '';
+}
+
+/**
+ * The terms with each dock-linked service's arranger put in — whoever the
+ * Loading and Unloading answers say hires the crane is who arranges the
+ * Crane line (see reconcileDockHelp(), which the save repeats). The forms
+ * read everything through this, so the rate they show is the rate saved.
+ */
+export function withDockArrangers(
+  t: PriceTerms, linked: Partial<Record<Accessorial, ServiceArranger | null>>,
+): PriceTerms {
+  const set = Object.entries(linked).filter(([, by]) => by) as [Accessorial, ServiceArranger][];
+  if (!set.length) return t;
+  return { ...t, serviceArrangers: { ...t.serviceArrangers, ...Object.fromEntries(set) } };
 }
 
 /** A blank box is "nothing on this leg", kept as null rather than a false 0. */
@@ -193,6 +208,11 @@ interface Props {
   commodities?: readonly CommodityItem[];
   /** What is ticked in Freight — each paid service among them gets a cost line here. */
   accessorials: readonly Accessorial[];
+  /**
+   * Services whose arranger the Loading and Unloading answers decide —
+   * dockLinkedServices(). Shown, not chosen, here.
+   */
+  dockLinked?: Partial<Record<Accessorial, ServiceArranger | null>>;
 }
 
 /**
@@ -205,7 +225,7 @@ interface Props {
  */
 export default function PriceAndTermsSection({
   brokerFee, onBrokerFee, carrierPay, onCarrierPay, storedAgreedRate,
-  laneMiles, terms, onTerms, commodities, accessorials,
+  laneMiles, terms, onTerms, commodities, accessorials, dockLinked = {},
 }: Props) {
   const [methods, setMethods] = useState<Record<PaymentSide, PaymentMethod[]>>({
     client: [], carrier: [], brokerFee: [],
@@ -307,6 +327,7 @@ export default function PriceAndTermsSection({
         onArrangers={(serviceArrangers) => set({ serviceArrangers })}
         others={terms.otherCharges}
         onOthers={(otherCharges) => set({ otherCharges })}
+        dockLinked={dockLinked}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -403,7 +424,7 @@ function ComplexTermsFields({ terms, onChange, carrierPay, brokerFee }: {
  * typed by hand. Their total is one of the three parts the Agreed Rate is
  * added up from — see agreedRateFrom().
  */
-function ServiceChargesFields({ accessorials, costs, onCosts, arrangers, onArrangers, others, onOthers }: {
+function ServiceChargesFields({ accessorials, costs, onCosts, arrangers, onArrangers, others, onOthers, dockLinked }: {
   accessorials: readonly Accessorial[];
   costs: PriceTerms['serviceCosts'];
   onCosts: (c: PriceTerms['serviceCosts']) => void;
@@ -411,11 +432,12 @@ function ServiceChargesFields({ accessorials, costs, onCosts, arrangers, onArran
   onArrangers: (a: PriceTerms['serviceArrangers']) => void;
   others: OtherCharge[];
   onOthers: (o: OtherCharge[]) => void;
+  dockLinked: Partial<Record<Accessorial, ServiceArranger | null>>;
 }) {
   const paid = accessorials.filter(isPaidService);
   const lines = [
-    ...paid.map((a) => ({ amount: arrangers[a] === 'client' ? 0 : costs[a] ?? null })),
-    ...others.filter((o) => o.label.trim()).map((o) => ({ amount: o.arrangedBy === 'client' ? 0 : o.amount })),
+    ...paid.map((a) => ({ amount: notOurCharge(arrangers[a]) ? 0 : costs[a] ?? null })),
+    ...others.filter((o) => o.label.trim()).map((o) => ({ amount: notOurCharge(o.arrangedBy) ? 0 : o.amount })),
   ];
   const total = serviceChargesTotal(lines);
   const setOther = (i: number, patch: Partial<OtherCharge>) =>
@@ -430,8 +452,9 @@ function ServiceChargesFields({ accessorials, costs, onCosts, arrangers, onArran
           <Bi>What each service costs the client. Added to carrier pay and the broker fee to make the Agreed Rate. Tick
           a service under Freight → Additional Services and its line appears here; add anything rarer by hand. The
           client&apos;s SA and invoice list each service with its price; the Dispatch Sheet names them without
-          prices. Say who arranges each one — the carrier, the client or TTL. One the client arranges costs
-          $0, and the SA says &ldquo;Arranged by the client&rdquo; in place of a price.</Bi>
+          prices. Say who arranges each one — TTL, the client, the shipper, the consignee or the carrier. One the
+          client, the shipper or the consignee arranges costs $0, and the SA says who arranges it in place of a
+          price. A service used for loading or unloading is arranged by whoever Loading and Unloading says hires it.</Bi>
         </p>
       </div>
 
@@ -442,7 +465,16 @@ function ServiceChargesFields({ accessorials, costs, onCosts, arrangers, onArran
       {paid.map((a) => (
         <div key={a} className={ROW}>
           <span className="text-sm text-gray-700">{ACCESSORIAL_LABEL[a]}</span>
-          <ArrangerSelect value={arrangers[a] ?? null} onChange={(v) => onArrangers({ ...arrangers, [a]: v })} />
+          {a in dockLinked && dockLinked[a] ? (
+            // Decided by who hires the help at the dock — one fact, one place.
+            <div className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700"
+              title="Set in Loading and Unloading: whoever hires this help arranges the service">
+              {SERVICE_ARRANGER_LABEL[dockLinked[a]!]}
+              <span data-es className="block text-[11px] text-gray-500">From Loading and Unloading</span>
+            </div>
+          ) : (
+            <ArrangerSelect value={arrangers[a] ?? null} onChange={(v) => onArrangers({ ...arrangers, [a]: v })} />
+          )}
           <CostInput arrangedBy={arrangers[a] ?? null}
             value={costs[a] ?? null} onChange={(v) => onCosts({ ...costs, [a]: v })} />
           {/* No remove here: the line belongs to the tick box in Freight. */}
@@ -517,11 +549,12 @@ function CostInput({ arrangedBy, value, onChange }: {
   value: number | null;
   onChange: (v: number | null) => void;
 }) {
-  if (arrangedBy === 'client') {
+  if (arrangedBy && notOurCharge(arrangedBy)) {
+    const who = SERVICE_ARRANGER_LABEL[arrangedBy].toLowerCase();
     return (
       <div className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500"
-        title="The client arranges it, so it costs the client nothing through us">
-        $0.00 · client
+        title={`The ${who} arranges it, so it costs the client nothing through us`}>
+        $0.00 · {who}
       </div>
     );
   }

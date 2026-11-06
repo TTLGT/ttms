@@ -25,7 +25,7 @@
  * /api/orders/{id}/bol-request. See src/lib/bolRequests.ts.
  */
 
-import { accessorialLabels, orderCommodityItems, orderDisplayNumber, type Order } from './order';
+import { accessorialLabels, dockEndOf, orderCommodityItems, orderDisplayNumber, type Order } from './order';
 
 export const BOL_REQUESTS_COLLECTION = 'bolRequests';
 
@@ -72,6 +72,11 @@ export function bolFingerprint(order: Record<string, unknown>): string {
     items:        orderCommodityItems(o),
     accessorials: accessorialLabels(o),
     carrierSignedAt: secs(o.carrierSignedAt),
+    // Who the 3rd party at each dock is (2026-11-06). Undefined, and so left
+    // out of the string, when there is none — a BOL drawn before this does
+    // not read as outdated merely because the key exists now.
+    loadingHelp:   dockEndOf(o, 'pickup').help ?? undefined,
+    unloadingHelp: dockEndOf(o, 'delivery').help ?? undefined,
   };
   const stable = (v: unknown): string => {
     if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`;

@@ -1,4 +1,4 @@
-import { orderCommodityItems, serviceChargeLines, type Address, type Order } from './order';
+import { dockEndProblem, orderCommodityItems, serviceChargeLines, type Address, type Order } from './order';
 
 /**
  * What an order still needs before its paperwork can go out: the Shipper
@@ -69,8 +69,16 @@ export function orderReadiness(order: Partial<Order>, facts: ReadinessFacts = {}
     ...(services.length ? [{
       key: 'serviceArrangers', label: 'Who arranges each additional service',
       ok: services.every((l) => l.arrangedBy),
-      hint: 'Edit Price and Terms and choose the carrier, the client or TTL for each. It prints on the SA and the Dispatch Sheet.',
+      hint: 'Edit Price and Terms and choose who arranges each one. It prints on the SA and the Dispatch Sheet.',
     }] : []),
+    // Who does the work at each dock, and who hires a 3rd party (2026-11-06).
+    // On the SA's list because the client is agreeing to it — "the consignee
+    // provides the forklift" is a term — and because the cost of a crane
+    // nobody booked lands on whoever finds out at the dock.
+    { key: 'loading', label: 'Who loads at pickup (and who hires a 3rd party)',
+      ok: !dockEndProblem(order, 'pickup'), hint: dockEndProblem(order, 'pickup') || undefined },
+    { key: 'unloading', label: 'Who unloads at delivery (and who hires a 3rd party)',
+      ok: !dockEndProblem(order, 'delivery'), hint: dockEndProblem(order, 'delivery') || undefined },
   ];
 
   const bol: Omit<ReadinessItem, 'doc'>[] = [

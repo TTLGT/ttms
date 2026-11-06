@@ -9,12 +9,13 @@ import { Pencil } from 'lucide-react';
  * element id of the card on the order page, and the `#` it returns to after a
  * save — so the reader lands back on the card they started from.
  */
-export const ORDER_SECTIONS = ['general', 'freight', 'price', 'route', 'notes'] as const;
+export const ORDER_SECTIONS = ['general', 'freight', 'dock', 'price', 'route', 'notes'] as const;
 export type OrderSection = (typeof ORDER_SECTIONS)[number];
 
 export const ORDER_SECTION_LABEL: Record<OrderSection, string> = {
   general: 'General',
   freight: 'Freight',
+  dock:    'Loading and Unloading',
   price:   'Price and Terms',
   route:   'Route',
   notes:   'Notes and Instructions',

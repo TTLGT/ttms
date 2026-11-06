@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { formatLongDateRange } from '@/lib/dateFormat';
 import {
-  clientChargeLines, equipmentLabels, inClientBreakdown, serviceArrangerKeys, serviceChargeLines, serviceWithArranger, dimensionsSummary, formatDimensions, orderAccessorials, hasVehicleDetails, itemWeightLb, vehicleSummary, orderCommodityItems, orderDeliveries, orderPickups, stopPlaces,
+  clientChargeLines, clientDockLines, equipmentLabels, inClientBreakdown, serviceArrangerKeys, serviceChargeLines, serviceWithArranger, dimensionsSummary, formatDimensions, orderAccessorials, hasVehicleDetails, itemWeightLb, vehicleSummary, orderCommodityItems, orderDeliveries, orderPickups, stopPlaces,
   type ClientChargeLine, type Order, type OrderStop,
 } from '@/types/order';
 import {
@@ -132,6 +132,12 @@ export interface ConfirmationContent {
   instructions: string;
   /** This order's own client terms, or '' when it follows the general ones. */
   terms: string;
+  /**
+   * Who loads and unloads, and who hires a 3rd party — clientDockLines().
+   * Empty on a load where neither is answered, which is every link sent
+   * before 2026-11-06.
+   */
+  dock: { label: string; value: string }[];
 }
 
 export function confirmationContent(order: AnyOrder): ConfirmationContent {
@@ -151,6 +157,7 @@ export function confirmationContent(order: AnyOrder): ConfirmationContent {
     accessorials: orderAccessorials(order),
     instructions: String(order.clientInstructions ?? '').trim(),
     terms:      orderTermsOf(order, 'client') ?? '',
+    dock:       clientDockLines(order),
   };
 }
 
@@ -178,7 +185,10 @@ export function sectionHashes(c: ConfirmationContent): Record<AgreementSection, 
     // appended the same way, only once somebody has been chosen.
     freight: sha([c.freight, c.equipment, c.commodity, c.weight, c.pieces, c.dimensions,
       ...(c.accessorials.length ? [c.accessorials] : []),
-      ...(c.serviceArrangers.length ? [c.serviceArrangers] : [])]),
+      ...(c.serviceArrangers.length ? [c.serviceArrangers] : []),
+      // Who does the work at the docks is the client's term as much as the
+      // freight is. Appended only once answered, the same trick again.
+      ...(c.dock.length ? [c.dock] : [])]),
     payment: sha(c.payment),
     notes:   sha(c.instructions),
     terms:   c.terms ? sha(c.terms) : '',
@@ -236,6 +246,9 @@ export function tokenSnapshotFields(order: AnyOrder, c: ConfirmationContent): Re
       .filter((l) => l.service !== 'other' && !inClientBreakdown(l)).map(serviceWithArranger),
     // The rate, line by line. Absent on links sent before 2026-11-04.
     charges:         c.charges,
+    // Who loads and unloads. Absent on client links sent before 2026-11-06;
+    // carrier links have carried their own (with the counts) since 2026-10-15.
+    dockWork:        c.dock,
     payment:         c.payment,
     /*
      * Printed on the PDF's header, as BATS printed them, and deliberately not
