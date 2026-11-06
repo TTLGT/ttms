@@ -143,7 +143,7 @@ export default function RemovedPeoplePanel({
 
     const header = [
       'Name', 'Full legal name', 'Email', 'Personal email', PHONE_LABEL.US,
-      PHONE_LABEL.GT, PHONE_LABEL.MX, 'Extension', 'Site', 'Team',
+      PHONE_LABEL.GT, PHONE_LABEL.MX, PHONE_LABEL.GB, 'Extension', 'Site', 'Team',
       'Date of birth', 'Start date',
       'Roles held',
       'Was suspended', 'Added', 'Added by', 'Last sign-in', 'Removed', 'Removed by',
@@ -163,6 +163,7 @@ export default function RemovedPeoplePanel({
         u.phone ?? '',
         other.region === 'GT' ? other.value : '',
         other.region === 'MX' ? other.value : '',
+        other.region === 'GB' ? other.value : '',
         u.extension ?? '',
         siteName(u.siteId) ?? '',
         teamName(u.teamId) ?? '',

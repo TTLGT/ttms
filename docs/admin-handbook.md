@@ -1030,7 +1030,7 @@ typing each person in.
    | **Full legal name** | The payroll name, if it differs. Admin and HR only. Leave blank when it is just their first and last name. |
    | Personal email | Any address. Admin and HR only. |
    | Work phone (US) | Typed however you like — `4699354100`, `(469) 935-4100` and `+1 469-935-4100` all save as `+1 (469) 935-4100`. Needs 10 digits. |
-   | Guatemala phone, Mexico phone | The person's home-country number. A spreadsheet has no dropdown, so there is a column per country and the **heading** is what says which country the digits are. Fill in the one that applies and leave the other blank — a row with something in both is refused, because a person has one of these, not two. Guatemala needs 8 digits, Mexico 10. |
+   | Guatemala phone, Mexico phone, UK phone | The person's home-country number. A spreadsheet has no dropdown, so there is a column per country and the **heading** is what says which country the digits are. Fill in the one that applies and leave the others blank — a row with something in more than one is refused, because a person has one of these, not two. Guatemala needs 8 digits, Mexico 10, the UK 10 (a leading 0, as written at home, is fine). |
    | Extension | Typed however you like. Keep it out of the phone columns — a number with an extension stuck on the end has too many digits and will be left out. |
    | Site | The site's **name**, spelled as it appears under Sites. Write `None` to clear it. |
    | **Team** | The team's **name**, spelled as it appears under Teams. Write `None` to clear it. |

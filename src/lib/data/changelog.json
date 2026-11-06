@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "c4ca2781cad4322336bbc1e7d9e93c9df7b08a6a",
+      "date": "2026-11-06T08:31:18-06:00",
+      "author": "erwindank",
+      "subject": "Show how long somebody has been on break or lunch: the sidebar clock counts up by the second while they are out, and the folded sidebar's clock says it on hover",
+      "body": ""
+    },
+    {
       "hash": "1173d19265297f9eaeef26c5ad504b93f2fac321",
       "date": "2026-11-06T08:03:39-06:00",
       "author": "erwindank",

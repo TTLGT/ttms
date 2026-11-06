@@ -32,7 +32,7 @@ import { Bi } from '@/components/spanish/Es';
 /** The columns, in the order they read on a person rather than in file order. */
 const FIELD_ORDER: ColumnKey[] = [
   'email', 'firstName', 'lastName', 'legalName', 'personalEmail',
-  'phone', 'phoneGt', 'phoneMx', 'extension', 'site', 'team',
+  'phone', 'phoneGt', 'phoneMx', 'phoneGb', 'extension', 'site', 'team',
   'startDate', 'dateOfBirth', 'roles',
 ];
 
@@ -43,6 +43,7 @@ const PHONE_REGION: Partial<Record<ColumnKey, PhoneRegion>> = {
   phone: 'US',
   phoneGt: 'GT',
   phoneMx: 'MX',
+  phoneGb: 'GB',
 };
 
 /**

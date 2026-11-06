@@ -11,7 +11,7 @@ import { headerKey } from './csv';
 
 export type ColumnKey =
   | 'email' | 'firstName' | 'lastName' | 'legalName' | 'personalEmail'
-  | 'phone' | 'phoneGt' | 'phoneMx' | 'extension' | 'site' | 'team'
+  | 'phone' | 'phoneGt' | 'phoneMx' | 'phoneGb' | 'extension' | 'site' | 'team'
   | 'dateOfBirth' | 'startDate' | 'roles';
 
 /**
@@ -39,6 +39,7 @@ export const COLUMNS: { key: ColumnKey; label: string; aliases: string[] }[] = [
   // fills both is refused rather than guessed at.
   { key: 'phoneGt',       label: 'Guatemala phone', aliases: ['gt phone', 'phone gt', 'guatemala', 'phone guatemala'] },
   { key: 'phoneMx',       label: 'Mexico phone',    aliases: ['mx phone', 'phone mx', 'mexico', 'phone mexico', 'mexican phone'] },
+  { key: 'phoneGb',       label: 'UK phone',        aliases: ['gb phone', 'phone gb', 'phone uk', 'uk', 'united kingdom', 'united kingdom phone', 'british phone'] },
   { key: 'extension',     label: 'Extension',       aliases: ['ext', 'desk extension'] },
   { key: 'site',          label: 'Site',            aliases: ['office', 'location'] },
   // Not aliased to "group" — that reads as a work group, which is a different

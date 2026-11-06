@@ -371,7 +371,7 @@ export default function SettingsPeoplePage() {
     // edited in Excel and uploaded again — see COLUMNS in lib/userImportColumns.
     const header = [
       'First name', 'Last name', 'Full legal name', 'Email', 'Personal email',
-      PHONE_LABEL.US, PHONE_LABEL.GT, PHONE_LABEL.MX, 'Extension', 'Site', 'Team',
+      PHONE_LABEL.US, PHONE_LABEL.GT, PHONE_LABEL.MX, PHONE_LABEL.GB, 'Extension', 'Site', 'Team',
       'Date of birth', 'Start date',
       'Roles', 'Status', 'Added', 'Added by', 'Last sign-in',
     ];
@@ -391,6 +391,7 @@ export default function SettingsPeoplePage() {
         p.phone ?? '',
         other.region === 'GT' ? other.value : '',
         other.region === 'MX' ? other.value : '',
+        other.region === 'GB' ? other.value : '',
         p.extension ?? '',
         siteName(p.siteId) ?? '',
         // By name, not id — the importer matches teams by name, so an export

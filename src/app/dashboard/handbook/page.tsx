@@ -620,7 +620,7 @@ const CHAPTERS: Chapter[] = [
             <Row cells={['First name, Last name', 'As you want them shown.']} />
             <Row cells={['Personal email', 'Any address. Admin-only.']} />
             <Row cells={['Work phone (US)', <>Typed however you like — all of <Mono key="a">4699354100</Mono>, <Mono>(469) 935-4100</Mono> and <Mono>+1 469-935-4100</Mono> save as <Mono>{PHONE_EXAMPLE.US}</Mono>. Needs 10 digits.</>]} />
-            <Row cells={['Guatemala phone, Mexico phone', <>Their home-country number. A spreadsheet has no dropdown, so there is a column per country and the <strong key="h">heading</strong> is what says which country the digits are. Fill in the one that applies and leave the other blank — a row with both is refused. Guatemala needs 8 digits, Mexico 10.</>]} />
+            <Row cells={['Guatemala phone, Mexico phone, UK phone', <>Their home-country number. A spreadsheet has no dropdown, so there is a column per country and the <strong key="h">heading</strong> is what says which country the digits are. Fill in the one that applies and leave the others blank — a row with more than one is refused. Guatemala needs 8 digits, Mexico 10, the UK 10 (a leading 0 is fine).</>]} />
             <Row cells={['Extension', <>Typed however you like. Keep it out of the phone columns — a number with an extension on the end has too many digits and is left out.</>]} />
             <Row cells={['Site', <>The site&rsquo;s <strong key="n">name</strong>, as it appears under Sites. Write <Mono>None</Mono> to clear it.</>]} />
             <Row cells={['Date of birth, Start date', <>Best as <Mono>1990-03-04</Mono>. <Mono>3/4/2020</Mono> and <Mono>Mar 4, 2020</Mono> also work.</>]} />

@@ -31,7 +31,7 @@
  * Nothing else needs to know.
  */
 
-export type PhoneRegion = 'US' | 'CA' | 'MX' | 'GT';
+export type PhoneRegion = 'US' | 'CA' | 'MX' | 'GT' | 'GB';
 
 /**
  * The countries a record's phone number can be in — a client, a shipper, a
@@ -58,7 +58,8 @@ export const DEFAULT_RECORD_REGION: PhoneRegion = 'US';
 
 /** Narrow an unknown — a Firestore field, a request body — to a real region. */
 export function isPhoneRegion(value: unknown): value is PhoneRegion {
-  return value === 'US' || value === 'CA' || value === 'MX' || value === 'GT';
+  return value === 'US' || value === 'CA' || value === 'MX' || value === 'GT'
+    || value === 'GB';
 }
 
 /**
@@ -82,10 +83,10 @@ export function phoneRegionOf(value: unknown): PhoneRegion {
  * one field per country: a field per country would grow with every hire from
  * somewhere new, and would leave everyone else with a row of empty boxes.
  */
-export type OtherPhoneRegion = 'GT' | 'MX';
+export type OtherPhoneRegion = 'GT' | 'MX' | 'GB';
 
 /** The order the picker offers them in. */
-export const OTHER_PHONE_REGIONS: OtherPhoneRegion[] = ['GT', 'MX'];
+export const OTHER_PHONE_REGIONS: OtherPhoneRegion[] = ['GT', 'MX', 'GB'];
 
 /**
  * What the picker starts on for someone who has no second number yet.
@@ -106,6 +107,12 @@ const REGIONS: Record<PhoneRegion, {
    * longer do. See the note above `normalizePhone` for why they still arrive.
    */
   legacyPrefixes?: string[];
+  /**
+   * True where the national number can never start with 0, because 0 is the
+   * trunk prefix in front of it. Needed only where a short number plus that
+   * prefix adds up to the full length — see GB.
+   */
+  noLeadingZero?: boolean;
 }> = {
   US: { code: '1',   nationalLength: 10, label: 'a 10-digit US number' },
   // Canada shares the North American plan with the US: same +1, same ten
@@ -123,6 +130,27 @@ const REGIONS: Record<PhoneRegion, {
     // digits after them are the number we want, so they are dropped rather than
     // counted.
     legacyPrefixes: ['1', '044', '045'],
+  },
+  // The UK, for a colleague's home line only — it is in OTHER_PHONE_REGIONS,
+  // not RECORD_PHONE_REGIONS, because no client or carrier is there.
+  //
+  // At home a UK number is written with a leading 0 (`07700 900123`), the
+  // trunk prefix, which is dropped when dialling from abroad — and is just as
+  // often left in as `+44 (0)7700 900123`. Both arrive by copy and paste, so
+  // the 0 is taken off like Mexico's old prefixes rather than counted.
+  //
+  // Ten digits after the 0 is every mobile and almost every landline. A
+  // handful of small rural exchanges have nine, and those are refused — said
+  // out loud under the field, per the rule at the top of this file, rather
+  // than stored half-read.
+  GB: {
+    code: '44', nationalLength: 10, label: 'a 10-digit UK number',
+    legacyPrefixes: ['0'],
+    // A nine-digit number typed with its 0 (`01632 96011`) is ten digits and
+    // would pass the count with the 0 still on the front — stored as a number
+    // that dials nowhere. No UK number starts with 0 once the trunk 0 is off,
+    // so that shape is refused instead.
+    noLeadingZero: true,
   },
 };
 
@@ -189,6 +217,13 @@ function format(national: string, region: PhoneRegion): string {
     }
     case 'GT':
       return `+(502) ${national.slice(0, 4)}-${national.slice(4)}`;
+    case 'GB':
+      // London and the other `2x` cities (Southampton, Coventry, Belfast,
+      // Cardiff) are written `20 7946 0018`; mobiles and everywhere else
+      // `7700 900123`. Presentation only — the digits stored are the same.
+      return national.startsWith('2')
+        ? `+(44) ${national.slice(0, 2)} ${national.slice(2, 6)} ${national.slice(6)}`
+        : `+(44) ${national.slice(0, 4)} ${national.slice(4)}`;
   }
 }
 
@@ -218,7 +253,7 @@ export function normalizePhone(value: unknown, region: PhoneRegion): PhoneResult
   const raw = typeof value === 'string' ? value.trim() : '';
   if (!raw) return { value: '', rejected: false, raw: '' };
 
-  const { code, nationalLength, legacyPrefixes = [] } = REGIONS[region];
+  const { code, nationalLength, legacyPrefixes = [], noLeadingZero } = REGIONS[region];
 
   let digits = raw.replace(/\D/g, '');
   // `00` is how the rest of the world writes `+`, and it turns up on numbers
@@ -244,6 +279,7 @@ export function normalizePhone(value: unknown, region: PhoneRegion): PhoneResult
   }
 
   if (digits.length !== nationalLength) return { value: '', rejected: true, raw };
+  if (noLeadingZero && digits.startsWith('0')) return { value: '', rejected: true, raw };
   return { value: format(digits, region), rejected: false, raw };
 }
 
@@ -253,6 +289,7 @@ export const PHONE_LABEL: Record<PhoneRegion, string> = {
   CA: 'Canada phone',
   GT: 'Guatemala phone',
   MX: 'Mexico phone',
+  GB: 'UK phone',
 };
 
 /**
@@ -269,6 +306,7 @@ export const PHONE_REGION_NAME: Record<PhoneRegion, string> = {
   CA: 'Canada',
   GT: 'Guatemala',
   MX: 'Mexico',
+  GB: 'United Kingdom',
 };
 
 /** An example of the accepted shape, for placeholders and error messages. */
@@ -277,6 +315,7 @@ export const PHONE_EXAMPLE: Record<PhoneRegion, string> = {
   CA: '+1 (416) 555-0142',
   GT: '+(502) 4874-0227',
   MX: '+(52) 55 1234-5678',
+  GB: '+(44) 7700 900123',
 };
 
 /** The country code a region's stored numbers carry, without the `+`. */
@@ -285,6 +324,7 @@ export const PHONE_COUNTRY_CODE: Record<PhoneRegion, string> = {
   CA: '1',
   GT: '502',
   MX: '52',
+  GB: '44',
 };
 
 /** How many digits a region's number has once its country code is off. */
@@ -293,11 +333,12 @@ export const PHONE_NATIONAL_LENGTH: Record<PhoneRegion, number> = {
   CA: 10,
   GT: 8,
   MX: 10,
+  GB: 10,
 };
 
 /** Narrow an unknown — a Firestore field, a request body — to a real region. */
 export function isOtherPhoneRegion(value: unknown): value is OtherPhoneRegion {
-  return value === 'GT' || value === 'MX';
+  return value === 'GT' || value === 'MX' || value === 'GB';
 }
 
 /**

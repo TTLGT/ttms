@@ -16,8 +16,8 @@
 export const ES_MORE: Record<string, string> = {
   "A Dispatch Sheet already sent keeps the terms it went out with. Send it again for the carrier to see a change":
     'Una hoja de despacho ya enviada conserva las condiciones con que salió. Envíala de nuevo para que el transportista vea un cambio.',
-  "A Guatemala or Mexico line, if you have one as well as the US number":
-    'Una línea de Guatemala o México, si tienes una además del número de EE. UU.',
+  "A Guatemala, Mexico or UK line, if you have one as well as the US number":
+    'Una línea de Guatemala, México o el Reino Unido, si tienes una además del número de EE. UU.',
   "A broker, plus everything an admin can do for the team they lead in Settings → Teams":
     'Un bróker, más todo lo que un administrador puede hacer por el equipo que lidera en Configuración → Equipos.',
   "A carrier who gets a load home remembers who found it": 'Un transportista al que le consigues carga de regreso recuerda quién se la dio.',
@@ -995,7 +995,7 @@ export const ES_MORE: Record<string, string> = {
   "Grouped by the day they were added": 'Agrupados por el día en que se agregaron',
   "Grouped by what they show": 'Agrupados por lo que muestran',
   "Guatemala City only": 'Solo Ciudad de Guatemala',
-  "Guatemala phone, Mexico phone": 'Teléfono de Guatemala, teléfono de México',
+  "Guatemala phone, Mexico phone, UK phone": 'Teléfono de Guatemala, teléfono de México, teléfono del Reino Unido',
   "Guide": 'Guía',
   "Gunner": 'Artillero',
   "Half day, from noon": 'Medio día, desde el mediodía',

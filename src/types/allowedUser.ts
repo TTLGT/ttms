@@ -42,7 +42,7 @@ export interface AllowedUser {
    * country, and why the country cannot be inferred from the digits.
    */
   phoneOther?: string;
-  /** 'GT' or 'MX'. Meaningless when `phoneOther` is blank. */
+  /** 'GT', 'MX' or 'GB'. Meaningless when `phoneOther` is blank. */
   phoneOtherRegion?: OtherPhoneRegion;
   /**
    * Where the second number lived when Guatemala was the only option.

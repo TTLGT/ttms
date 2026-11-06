@@ -93,7 +93,7 @@ export const PROFILE_FIELDS: ProfileFieldMeta[] = [
   { key: 'extension',     label: 'Extension',       kind: 'text',
     detail: 'Your desk extension, on the sheet by the phones.' },
   { key: 'phoneOther',    label: 'Other phone',     kind: 'otherPhone',
-    detail: 'A Guatemala or Mexico line, if you have one as well as the US number.' },
+    detail: 'A Guatemala, Mexico or UK line, if you have one as well as the US number.' },
   { key: 'siteId',        label: 'Office',          kind: 'site',
     detail: 'Which office you work out of.' },
   { key: 'teamId',        label: 'Team',            kind: 'team',

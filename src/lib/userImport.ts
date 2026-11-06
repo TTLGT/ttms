@@ -535,16 +535,16 @@ function planRow(
   // there is no honest way to pick a winner — neither is taken, and the row is
   // still applied, exactly as an unreadable number is.
   const otherColumns: [ColumnKey, OtherPhoneRegion][] = [
-    ['phoneGt', 'GT'], ['phoneMx', 'MX'],
+    ['phoneGt', 'GT'], ['phoneMx', 'MX'], ['phoneGb', 'GB'],
   ];
   const filledOther = otherColumns.filter(([column]) => cell(row, column));
 
   if (filledOther.length > 1) {
     phonesSkipped++;
     const message =
-      'This row has a Guatemala number and a Mexico number. A person has one '
-      + 'second number, so neither was saved — leave the column that does not '
-      + 'apply blank.';
+      `This row has a number in more than one of ${filledOther
+        .map(([, r]) => PHONE_LABEL[r]).join(', ')}. A person has one second `
+      + 'number, so none was saved — leave the columns that do not apply blank.';
     notes.push(message);
     for (const [column] of filledOther) problems.push({ column, message });
   } else if (filledOther.length === 1) {
