@@ -1236,6 +1236,15 @@ const BASE: Record<string, string> = {
   'Yes, undo it': 'Sí, deshacerlo',
   'Undoing': 'Deshaciendo…',
   'Keep it': 'Dejarlo',
+  // Who the SA goes to, on the review (2026-11-06).
+  'Send the Shipper Agreement (SA) to': 'Enviar el Shipper Agreement (SA) a',
+  'Chosen for this load': 'Elegido para esta carga',
+  'Chosen for this load only. The client record is unchanged.': 'Elegido solo para esta carga. El registro del cliente no cambia.',
+  'No email on the client': 'El cliente no tiene correo',
+  'Their name (optional)': 'Su nombre (opcional)',
+  'Also make this the client’s main contact': 'Hacerlo también el contacto principal del cliente',
+  'Updates the client record, so later loads go to this address too. Leave it unticked to change this load only.':
+    'Actualiza el registro del cliente, así las próximas cargas también van a este correo. Déjalo sin marcar para cambiar solo esta carga.',
 };
 
 /** Everything, with an entry here winning over one in es-more.ts. */

@@ -1,6 +1,6 @@
 import { formatLongDateRange } from '@/lib/dateFormat';
 import { clientPhotoId, photoDataUrl } from '@/lib/loadPhotosServer';
-import { clientContactOf, readinessFactsFor } from '@/lib/orderReadinessServer';
+import { clientAgreementContact, readinessFactsFor } from '@/lib/orderReadinessServer';
 import type { QuoteData } from '@/lib/quote-pdf';
 import { confirmationFreight } from '@/lib/loadConfirmationServer';
 import {
@@ -23,7 +23,8 @@ export async function buildQuoteData(
   orderId: string,
 ): Promise<QuoteData> {
   const [contact, facts, photo] = await Promise.all([
-    clientContactOf(order.clientId),
+    // The person the SA is sent to — a recipient chosen on the load included.
+    clientAgreementContact(order),
     readinessFactsFor(order),
     // Best-effort: a quote is never refused for want of a picture.
     clientPhotoId(orderId, order.coverPhotoId)

@@ -44,6 +44,12 @@ async function patch(orderId: string, party: AgreementParty, body: Record<string
 }
 
 export const setSaCc = (orderId: string, cc: string[], party: AgreementParty = 'client') => patch(orderId, party, { cc });
+/**
+ * Who this load's SA is emailed to — null for the client's main contact.
+ * `updateClient` changes the main contact on the client record instead.
+ */
+export const setSaRecipient = (orderId: string, sendTo: { email: string; name: string } | null, updateClient = false) =>
+  patch(orderId, 'client', { sendTo, updateClient });
 export const tickSaCheck = (orderId: string, check: string, value: boolean, party: AgreementParty = 'client') =>
   patch(orderId, party, { check, value });
 export const returnSaRequest = (orderId: string, reason: string, party: AgreementParty = 'client') =>

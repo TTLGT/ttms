@@ -1321,6 +1321,16 @@ export function clientAddedInstructionsOf(order: { clientAddedInstructions?: unk
     !!e && typeof e === 'object' && typeof (e as ClientAddedInstruction).text === 'string' && !!(e as ClientAddedInstruction).text.trim());
 }
 
+/** See `Order.saRecipient`. */
+export interface SaRecipient {
+  /** The client it was chosen for. A different client on the load ignores it. */
+  clientId: string;
+  name: string;
+  email: string;
+  setByName: string;
+  setAt: Timestamp;
+}
+
 export interface Order {
   id: string;
   batsId: string | null;
@@ -1688,6 +1698,16 @@ export interface Order {
    */
   clientTerms?: string | null;
   carrierTerms?: string | null;
+  /**
+   * Who the SA is emailed to on **this load**, in place of the client's main
+   * contact — set by admin or dispatch from the SA review (2026-11-06), so a
+   * load whose signer is somebody else at the client does not mean editing
+   * the client record. Absent or null: the main contact. Kept with the
+   * `clientId` it was chosen for and ignored once the load has another
+   * client, whose signer it is not. Written only by the sa-request PATCH; see
+   * `clientAgreementContact()` in src/lib/orderReadinessServer.ts.
+   */
+  saRecipient?: SaRecipient | null;
   deliveredAt: Timestamp | null;
   carrierSignedAt: Timestamp | null;
   carrierSignerName: string | null;

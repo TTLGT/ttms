@@ -1,7 +1,7 @@
 import type { Timestamp } from 'firebase-admin/firestore';
 import { adminDb, FieldValue } from './firebase-admin';
 import { openedAlert, postOrderAlert } from './chatAlerts';
-import { clientContactOf, readinessFactsFor } from './orderReadinessServer';
+import { clientAgreementContact, readinessFactsFor } from './orderReadinessServer';
 import { CONVERSATIONS_COLLECTION, recordConversationId } from '@/types/conversation';
 import { accessorialLabels, dockEndOf, orderDisplayNumber, serviceChargeLines, type Order } from '@/types/order';
 import { PROVIDERS_COLLECTION, PROVIDER_SERVICE_LABEL, type Provider } from '@/types/provider';
@@ -229,7 +229,7 @@ export async function buildSaReview(
 ): Promise<SaReview> {
   const [facts, contact, carrierSnap] = await Promise.all([
     readinessFactsFor(order),
-    clientContactOf(order.clientId),
+    clientAgreementContact(order),
     typeof order.carrierId === 'string' && order.carrierId
       ? adminDb.collection('carriers').doc(order.carrierId).get()
       : Promise.resolve(null),
@@ -246,6 +246,9 @@ export async function buildSaReview(
   return {
     readiness: orderReadiness(order as Partial<Order>, facts),
     sendTo,
+    // Whether that is somebody chosen for this load, and the main contact it
+    // stands in for — the SA only; the carrier's always goes to the carrier.
+    ...(party === 'client' ? { sendToChosen: Boolean(contact?.chosen), mainContact: contact?.main ?? null } : {}),
     carrier: c ? {
       name: String(c.companyName ?? ''),
       dot: String(c.dot ?? ''),

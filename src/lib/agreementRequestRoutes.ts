@@ -7,7 +7,8 @@ import { postOrderAlert } from './chatAlerts';
 import { requireCaller, type Caller } from './partyAccess';
 import { getVisibleOrder } from './orderAccess';
 import { actorOf, diffFields, writeChange } from './recordHistory';
-import { readinessFactsFor } from './orderReadinessServer';
+import { clientContactOf, readinessFactsFor } from './orderReadinessServer';
+import { updatePartyAsCaller } from './partyWrites';
 import {
   archiveRound, bringIntoOrderRoom, buildSaReview, newRoundId, requestRef, reviewersWhoSeeEverything,
   saGateFactsFor, toSaRequest,
@@ -192,6 +193,9 @@ export function requestPOST(party: AgreementParty) {
  * - `{ cc: string[] }` — the addresses the agreement email is copied to, whole list.
  * - `{ check, value }` — tick or untick one review item, as yourself. A tick
  *   the files contradict (see checkBlockedBy) is refused.
+ * - `{ sendTo: { email, name } | null, updateClient? }` — SA only: who it is
+ *   emailed to on this load, or null for the client's main contact. See
+ *   setSaRecipient().
  * - `{ action: 'return', reason }` — send it back to the broker.
  * - `{ action: 'done' }` — close it. Only once the agreement has been sent and
  *   the review list is complete; the person who does it is named to everyone.
@@ -231,6 +235,9 @@ export function requestPATCH(party: AgreementParty) {
           }
           tx.update(reqRef, { ccEmails: cc });
         });
+      } else if (party === 'client' && 'sendTo' in body) {
+        const reply = await setSaRecipient(caller, orderId, order, body.sendTo, body.updateClient === true, reqRef);
+        if (reply) return reply;
       } else if (isReviewCheckKey(party, body.check)) {
         const key = body.check;
         // A yes the files contradict is refused here, not only greyed out.
@@ -306,4 +313,106 @@ export function requestPATCH(party: AgreementParty) {
       return fail(e);
     }
   };
+}
+
+/**
+ * Who the SA is emailed to on this load (2026-11-06).
+ *
+ * The person who signs is often not the client's main contact — another
+ * buyer, the plant manager for this lane — and sending it to them used to
+ * mean leaving the review to edit the client record, changing who every
+ * later load went to as well. Now the reviewer types the address here:
+ *
+ * - by default it is recorded **on the order only** (`saRecipient`), with the
+ *   client it was chosen for, and every send of this load's SA goes there;
+ * - with `updateClient` the client's main contact itself is changed instead —
+ *   the first contact with an email, or the record's own address when it has
+ *   none — through updatePartyAsCaller(), so the party's change log and every
+ *   check it makes apply, and the order's own choice is cleared because the
+ *   main contact now says the same thing;
+ * - `null` goes back to the main contact.
+ *
+ * Reviewers only (checked by the caller), and only while the request is open
+ * or sent, like the CC list: whoever is named here receives the client's rate
+ * and is the one asked to sign. The signing page accepts the address the link
+ * was sent to (src/lib/signAccess.ts), so the chosen person can open it.
+ *
+ * Returns a response to send instead of the request, or null when done.
+ */
+async function setSaRecipient(
+  caller: Caller,
+  orderId: string,
+  order: Record<string, unknown>,
+  raw: unknown,
+  updateClient: boolean,
+  reqRef: FirebaseFirestore.DocumentReference,
+): Promise<NextResponse | null> {
+  const status = (await reqRef.get()).data()?.status;
+  if (status !== 'open' && status !== 'sent') {
+    return NextResponse.json({ error: 'This request is not open.' }, { status: 409 });
+  }
+  const clientId = typeof order.clientId === 'string' ? order.clientId : '';
+  if (!clientId) return NextResponse.json({ error: 'No client on this order.' }, { status: 400 });
+
+  let next: { email: string; name: string } | null = null;
+  if (raw !== null) {
+    const r = (raw ?? {}) as { email?: unknown; name?: unknown };
+    const email = typeof r.email === 'string' ? r.email.trim() : '';
+    if (!isCcEmail(email.toLowerCase())) {
+      return NextResponse.json({ error: `Not an email address: ${email || '(blank)'}` }, { status: 400 });
+    }
+    next = { email, name: (typeof r.name === 'string' ? r.name.trim() : '').slice(0, 120) };
+  }
+
+  const orderRef = adminDb.collection('orders').doc(orderId);
+  const main = await clientContactOf(clientId);
+  const isMain = Boolean(next && main?.email && main.email.toLowerCase() === next.email.toLowerCase());
+
+  if (next && updateClient && !isMain) {
+    const snap = await adminDb.collection('parties').doc(clientId).get();
+    const party = snap.data();
+    if (!party) return NextResponse.json({ error: 'Client not found.' }, { status: 404 });
+    const contacts = Array.isArray(party.contacts) ? [...(party.contacts as Record<string, unknown>[])] : [];
+    // The same "main contact" the send has always used — clientContactOf().
+    const i = contacts.findIndex((c) => typeof c?.email === 'string' && c.email.trim());
+    const patch: Record<string, unknown> = {};
+    if (i >= 0) {
+      contacts[i] = { ...contacts[i], email: next.email, ...(next.name ? { name: next.name } : {}) };
+      patch.contacts = contacts;
+    } else {
+      patch.email = next.email;
+      // The record's own name is left alone when it has one: for a person
+      // trading under their own name it is the client's name, not a contact's.
+      if (next.name && !String(party.contactName ?? '').trim()) patch.contactName = next.name;
+    }
+    // Throws AdminAuthError, which the route answers, when the caller may not edit it.
+    await updatePartyAsCaller(caller, clientId, { patch });
+  }
+
+  // A choice that is the main contact, or that has just become it, is no choice:
+  // the order goes back to following the client record.
+  const store = next && !updateClient && !isMain;
+  const before = (order.saRecipient ?? null) as { email?: string } | null;
+  const madeMain = Boolean(next && updateClient && !isMain);
+  // Nothing on the order to change, and nothing done worth a line on it.
+  if (!store && !before && !madeMain) return null;
+
+  const now = Timestamp.now();
+  const value = store
+    ? { clientId, name: next!.name, email: next!.email, setByName: caller.displayName, setAt: now }
+    : null;
+  const batch = adminDb.batch();
+  if (store || before) batch.update(orderRef, { saRecipient: value, updatedAt: FieldValue.serverTimestamp() });
+  writeChange(batch, orderRef, {
+    action: 'event',
+    summary: store
+      ? `The Shipper Agreement (SA) on this load goes to ${next!.name ? `${next!.name} · ` : ''}${next!.email}, `
+        + `chosen on the review${main?.email ? ` in place of the client's main contact ${main.email}` : ''}. The client record is unchanged.`
+      : madeMain
+        ? `Made ${next!.email} the client's main contact from the Shipper Agreement (SA) review; the SA goes there`
+        : `The Shipper Agreement (SA) on this load goes to the client's main contact${main?.email ? ` (${main.email})` : ''} again`,
+    fields: store || before ? diffFields(order, { saRecipient: value }) : [],
+  }, actorOf(caller), now);
+  await batch.commit();
+  return null;
 }

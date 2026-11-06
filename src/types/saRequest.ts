@@ -514,6 +514,14 @@ function legacyAndroidModel(ua: string): string {
 export interface SaReview {
   readiness: ReadinessItem[];
   sendTo: { name: string; email: string } | null;
+  /**
+   * SA only: `sendTo` is a recipient chosen for this load on the review
+   * (`Order.saRecipient`) rather than the client's main contact, which is
+   * `mainContact`. Absent on carrier reviews and on reviews frozen before
+   * 2026-11-06.
+   */
+  sendToChosen?: boolean;
+  mainContact?: { name: string; email: string } | null;
   carrier: {
     name: string; dot: string; mc: string; phone: string; email: string;
     insuranceExpiration: number | null; insuranceOnFile: boolean;

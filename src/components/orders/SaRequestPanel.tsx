@@ -3,12 +3,13 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  AlertTriangle, CheckCircle2, Clock, HelpCircle, Loader2, Mail, Plus, Send, ShieldCheck, Undo2, X,
+  AlertTriangle, CheckCircle2, Clock, HelpCircle, Loader2, Mail, Pencil, Plus, Send, ShieldCheck, Undo2, X,
 } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { fetchOrderReadiness } from '@/lib/orderPaperwork';
 import {
-  getSaRequest, markSaDone, requestSa, returnSaRequest, sendAgreementFor, setSaCc, tickSaCheck, type SaReview,
+  getSaRequest, markSaDone, requestSa, returnSaRequest, sendAgreementFor, setSaCc, setSaRecipient, tickSaCheck,
+  type SaReview,
 } from '@/lib/saRequests';
 import { trackActivity } from '@/lib/attendance';
 import { updateOrder } from '@/lib/orders';
@@ -476,6 +477,11 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
               })}
             </ul>
 
+            {!carrier && (r.status === 'open' || r.status === 'sent') && (
+              <RecipientEditor review={review} disabled={busy !== ''}
+                onSave={(sendTo, updateClient) => run('recipient', () => setSaRecipient(orderId, sendTo, updateClient))} />
+            )}
+
             {(r.status === 'open' || r.status === 'sent') && (
               <CcEditor cc={r.ccEmails} contacts={review.clientContacts} signer={review.sendTo?.email ?? ''}
                 disabled={busy !== ''} party={party} typed={ccTyped} setTyped={setCcTyped}
@@ -635,6 +641,126 @@ function ServiceProviders({ services, formatCalendarDate, onFix }: {
   );
 }
 
+/**
+ * Who the SA is sent to — the person asked to sign. Changed here, on the
+ * review, rather than by leaving it for the client record: by default the
+ * choice is kept on this order only and the client's main contact is left
+ * alone; a tick makes it the main contact as well. See setSaRecipient() in
+ * src/lib/agreementRequestRoutes.ts.
+ */
+function RecipientEditor({ review, disabled, onSave }: {
+  review: SaReview;
+  disabled: boolean;
+  onSave: (sendTo: { email: string; name: string } | null, updateClient: boolean) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [makeMain, setMakeMain] = useState(false);
+  const [hint, setHint] = useState('');
+  const current = review.sendTo;
+  const main = review.mainContact ?? null;
+  const chosen = Boolean(review.sendToChosen);
+  // The client's other addresses, as one click — the signer is often one of them.
+  const offered = review.clientContacts.filter((c) => c.email !== (current?.email ?? '').toLowerCase());
+
+  function open() {
+    setEmail(current?.email ?? '');
+    setName(current?.name ?? '');
+    setMakeMain(false);
+    setHint('');
+    setEditing(true);
+  }
+
+  function save() {
+    const e = email.trim();
+    if (!isCcEmail(e.toLowerCase())) { setHint('That is not an email address.'); return; }
+    setEditing(false);
+    onSave({ email: e, name: name.trim() }, makeMain);
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 p-3 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p data-es className="text-xs font-semibold text-gray-800">Send the Shipper Agreement (SA) to</p>
+          {current ? (
+            <p className="text-xs text-gray-900 break-all">
+              {current.name && <span className="font-medium">{current.name} · </span>}{current.email}
+            </p>
+          ) : (
+            <p data-es className="text-xs text-red-600">No email on the client</p>
+          )}
+          {chosen && (
+            <p className="text-[11px] text-gray-500">
+              <Bi>Chosen for this load only. The client record is unchanged.</Bi>
+              {main && <> Main contact: {main.name ? `${main.name} · ` : ''}{main.email}</>}
+            </p>
+          )}
+        </div>
+        {!editing && (
+          <button type="button" disabled={disabled} onClick={open}
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            <Pencil className="w-3.5 h-3.5" /> Change
+          </button>
+        )}
+      </div>
+
+      {chosen && !editing && (
+        <button type="button" disabled={disabled} onClick={() => onSave(null, false)}
+          className="text-[11px] font-medium text-brand-700 hover:underline disabled:opacity-50">
+          {main ? `Send to the main contact (${main.email}) instead` : 'Go back to the client’s main contact'}
+        </button>
+      )}
+
+      {editing && (
+        <div className="space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input type="email" value={email} placeholder="name@company.com" disabled={disabled} autoFocus
+              onChange={(e) => { setEmail(e.target.value); setHint(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } }}
+              className="min-w-0 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            <input type="text" value={name} placeholder="Their name (optional)" disabled={disabled} maxLength={120}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } }}
+              className="min-w-0 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-brand-400" />
+          </div>
+          {offered.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span data-es className="text-[11px] text-gray-500">From the client:</span>
+              {offered.map((c) => (
+                <button key={c.email} type="button" disabled={disabled} title={c.email}
+                  onClick={() => { setEmail(c.email); setName(c.name); setHint(''); }}
+                  className="inline-flex items-center gap-1 rounded-full border border-gray-300 px-2 py-0.5 text-[11px] text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                  {c.name ? `${c.name} · ${c.email}` : c.email}
+                </button>
+              ))}
+            </div>
+          )}
+          <label className="flex items-start gap-2 text-[11px] text-gray-700 cursor-pointer">
+            <input type="checkbox" className="mt-0.5 accent-brand-600" checked={makeMain}
+              onChange={(e) => setMakeMain(e.target.checked)} disabled={disabled} />
+            <span>
+              <Bi>Also make this the client’s main contact</Bi>
+              <span className="block text-gray-500">
+                <Bi>Updates the client record, so later loads go to this address too. Leave it unticked to change this load only.</Bi>
+              </span>
+            </span>
+          </label>
+          {hint && <p className="text-[11px] text-red-600">{hint}</p>}
+          <div className="flex gap-2">
+            <button type="button" disabled={disabled || !email.trim()} onClick={save}
+              className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+              Save
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className="text-xs text-gray-600 hover:text-gray-900">Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CcEditor({ cc, contacts, signer, disabled, onChange, party, typed, setTyped }: {
   party: AgreementParty;
   cc: string[];
@@ -778,6 +904,7 @@ export function Facts({ review, formatDate, asOf, party = 'client', onFix }: {
         {review.sendTo
           ? `${review.sendTo.name ? `${review.sendTo.name} · ` : ''}${review.sendTo.email}`
           : <span className="text-red-600">{party === 'carrier' ? 'No email on the carrier' : 'No email on the client'}</span>}
+        {review.sendToChosen && <span data-es className="block text-[11px] text-gray-500">Chosen for this load</span>}
       </Row>
       <Row label="Agreed rate">{usd(review.agreedRate)}</Row>
       <Row label="Carrier pay / our fee">{usd(review.carrierPay)} / {usd(review.brokerFee)}{margin !== null && ` (${margin.toFixed(1)}%)`}</Row>

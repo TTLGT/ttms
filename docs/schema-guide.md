@@ -1351,6 +1351,7 @@ card on the order and nowhere else:
 |---|---|---|
 | `clientTerms` / `carrierTerms` | string \| null | Replaces the general terms on this load only. Null or absent: the load follows the general ones. Server-kept — an ordinary order edit cannot write them, and a new or copied order never carries them. |
 | `clientTermsUpdatedAt` / `carrierTermsUpdatedAt` | Timestamp | When the above was last set. |
+| `saRecipient` | map \| null | Who this load's SA is emailed to instead of the client's main contact: `{ clientId, name, email, setByName, setAt }`. Set by admin or dispatch on the SA review (sa-request PATCH, `sendTo`); server-kept. Ignored once the load has a different client. Absent or null: the main contact. "Also make this the client's main contact" edits the party instead and clears this. |
 
 Every send copies the terms in force onto the signing link as `termsText`
 (plus `termsFromOrder`), and the link keeps them. A load's own **client** terms

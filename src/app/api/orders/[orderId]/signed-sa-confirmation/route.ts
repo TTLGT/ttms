@@ -7,7 +7,7 @@ import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { actorOf, updateWithHistory } from '@/lib/recordHistory';
 import { postOrderAlert } from '@/lib/chatAlerts';
-import { clientContactOf } from '@/lib/orderReadinessServer';
+import { clientAgreementContact } from '@/lib/orderReadinessServer';
 import { requestRef } from '@/lib/saRequestsServer';
 import { signatureTime } from '@/lib/signed-agreement-pdf';
 import { orderDisplayNumber } from '@/types/order';
@@ -99,7 +99,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       companyName = String(c?.companyName ?? order.carrierName ?? '');
       greetName = companyName;
     } else {
-      const contact = await clientContactOf(order.clientId);
+      // The SA's own recipient — a person chosen on this load, else the main contact.
+      const contact = await clientAgreementContact(order as Record<string, unknown>);
       to = contact?.email ?? '';
       companyName = contact?.companyName ?? '';
       greetName = contact?.name || companyName;

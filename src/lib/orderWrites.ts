@@ -97,6 +97,9 @@ const SERVER_KEPT_FIELDS = [
   // the driver link and /payments. A payment a broker could write for
   // themselves would close a load nobody was paid for.
   'driverProgress', 'driverLocation', 'paymentMarks',
+  // Who this load's SA is emailed to — the sa-request PATCH, reviewers only.
+  // Whoever is on it receives the client's rate and is asked to sign.
+  'saRecipient',
 ] as const;
 
 /** Bookkeeping the server sets itself; dropped from a patch rather than refused. */

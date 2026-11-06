@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "1d0bca255c4c3640f4fa849091dc96c64062ca9b",
+      "date": "2026-11-06T16:18:08-06:00",
+      "author": "erwindank",
+      "subject": "Pick who does each additional service from the 3rd Party Providers directory: under each service line in Price and Terms a broker can choose the mechanic, tow, pilot car, crane or other provider, offered first by matching service and not asked when the client or a facility arranges it; the SA review lists every service with its provider's current phone, email and payment history, flags a service TTL books with no provider, and reuses the provider picked under Loading and Unloading for the same help. The provider is shown on screen and in the change log only, never printed, and never holds a sent SA or Dispatch Sheet",
+      "body": ""
+    },
+    {
       "hash": "79a460e2ffaefcfe855d0b9b4edf29c4350a433a",
       "date": "2026-11-06T15:11:43-06:00",
       "author": "erwindank",

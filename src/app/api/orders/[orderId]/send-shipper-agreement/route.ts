@@ -20,6 +20,7 @@ import { qrPng } from '@/lib/qrCode';
 import { generateQuoteBuffer } from '@/lib/quote-pdf';
 import { buildQuoteData } from '@/lib/quoteData';
 import { brokerSnapshot, paperworkBroker } from '@/lib/orderOwnersServer';
+import { clientAgreementContact } from '@/lib/orderReadinessServer';
 import { randomBytes } from 'crypto';
 import { dockEndProblem, orderDisplayNumber } from '@/types/order';
 import type { Order } from '@/types/order';
@@ -93,14 +94,17 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   }
   const client = clientSnap.data()!;
 
-  // Prefer a named contact, but fall back to the address on the party record so
-  // a client created inline from an order can still be sent an agreement.
-  const contacts: { name: string; email: string }[] = client.contacts ?? [];
-  const contact =
-    contacts.find((c) => c.email?.trim()) ??
-    (client.email?.trim()
-      ? { name: client.contactName || client.companyName || '', email: client.email.trim() }
-      : null);
+  /*
+   * Who signs: the recipient admin or dispatch chose for this load on the
+   * review, when there is one, otherwise the client's main contact — a named
+   * contact first, then the address on the party record, so a client created
+   * inline from an order can still be sent an agreement. One definition,
+   * clientAgreementContact(), shared with the review that shows it.
+   */
+  const found = await clientAgreementContact(order);
+  const contact = found?.email
+    ? { name: found.name || (found.chosen ? '' : client.contactName || client.companyName || ''), email: found.email }
+    : null;
   if (!contact) {
     return NextResponse.json({ error: 'Client has no email address on file' }, { status: 400 });
   }
@@ -126,6 +130,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       );
     }
   }
+
+  // Said in the change log, so a send to somebody other than the main contact
+  // reads as the choice it was rather than as the client record having changed.
+  const chosenNote = found?.chosen
+    ? ` (chosen for this load${found.main ? `, in place of the main contact ${found.main.email}` : ''})`
+    : '';
 
   /*
    * Who else the email is copied to — set by dispatch on the review. Read off
@@ -405,9 +415,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   }
 
   const what =
-    kind === 'revision' ? `Emailed the updated load confirmation (version ${version}, changed: ${changed}), with the quote PDF, to the client at ${contact.email}${ccNote}`
-    : kind === 'resend' ? `Emailed the load confirmation again, same link, to the client at ${contact.email}${ccNote}`
-    : `Emailed the load confirmation, with the quote PDF, to the client at ${contact.email}${ccNote}`;
+    kind === 'revision' ? `Emailed the updated load confirmation (version ${version}, changed: ${changed}), with the quote PDF, to the client at ${contact.email}${chosenNote}${ccNote}`
+    : kind === 'resend' ? `Emailed the load confirmation again, same link, to the client at ${contact.email}${chosenNote}${ccNote}`
+    : `Emailed the load confirmation, with the quote PDF, to the client at ${contact.email}${chosenNote}${ccNote}`;
 
   // After the send, never before: an entry saying it went out must mean it
   // did. Best-effort for the same reason as the alert — the email has left,
