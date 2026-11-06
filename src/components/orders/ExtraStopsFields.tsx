@@ -1,10 +1,10 @@
 'use client';
 
 import { Plus, Trash2 } from 'lucide-react';
-import PartyCombobox from '@/components/parties/PartyCombobox';
 import type { PartySelection } from '@/components/parties/PartyCombobox';
+import StopPartyFields, { stopLinkProblem } from './StopPartyFields';
 import DateRangeField, { dateRangeProblem } from '@/components/DateRangeField';
-import AddressFields, { BLANK_ADDRESS } from './AddressFields';
+import { BLANK_ADDRESS } from './AddressFields';
 import { MAX_EXTRA_STOPS } from '@/types/order';
 import type { Address, OrderStop, StopKind } from '@/types/order';
 import type { Party } from '@/types/party';
@@ -16,8 +16,8 @@ import type { DateLike } from '@/lib/dateFormat';
  * the first, which keeps its own boxes above (see OrderStop for why).
  *
  * Each stop is the same three things the first one is: who, where, and when.
- * Picking a party fills the address from its saved default, as the first
- * shipper and consignee boxes do.
+ * Who and where are one block (StopPartyFields): the address is one of the
+ * party's, picked from its record or added to it on save.
  */
 
 /** One stop as the form holds it: dates as `YYYY-MM-DD`, like DateField. */
@@ -90,6 +90,8 @@ export function stopsProblem(kind: StopKind, drafts: readonly StopDraft[]): stri
       return `${name}: "${d.party.name.trim()}" is not on file yet. `
         + 'Pick an existing record from the list, or add it with its full details.';
     }
+    const unlinked = stopLinkProblem(name, kind === 'pickup' ? 'shipper' : 'consignee', d);
+    if (unlinked) return unlinked;
     const range = dateRangeProblem(`${name} date`, d.date, d.dateEnd);
     if (range) return range;
   }
@@ -161,11 +163,6 @@ export default function ExtraStopsFields({ kind, value, onChange, parties, onPar
     onChange(value.map((d) => (d.key === key ? { ...d, ...change } : d)));
   }
 
-  function picked(key: string, party: PartySelection, record: Party | null) {
-    const saved = kind === 'pickup' ? record?.defaultOrigin : record?.defaultDest;
-    update(key, saved ? { party, address: saved } : { party });
-  }
-
   function add() {
     onChange([...value, { key: newKey(), party: { id: '', name: '' }, address: BLANK_ADDRESS, date: '', dateEnd: '' }]);
   }
@@ -181,15 +178,15 @@ export default function ExtraStopsFields({ kind, value, onChange, parties, onPar
               <Trash2 className="w-3.5 h-3.5" /> Remove
             </button>
           </div>
-          <PartyCombobox
+          <StopPartyFields
             role={role}
-            label={kind === 'pickup' ? 'Shipper' : 'Consignee'}
+            partyLabel={kind === 'pickup' ? 'Shipper' : 'Consignee'}
+            addressLabel="Address"
             parties={parties}
-            value={d.party}
-            onChange={(sel, record) => picked(d.key, sel, record)}
+            value={{ party: d.party, address: d.address }}
+            onChange={(v) => update(d.key, v)}
             onPartyCreated={onPartyCreated}
           />
-          <AddressFields label="Address" value={d.address} onChange={(address) => update(d.key, { address })} />
           <DateRangeField label={`${word} date`}
             start={d.date} end={d.dateEnd}
             onStartChange={(date) => update(d.key, { date })}

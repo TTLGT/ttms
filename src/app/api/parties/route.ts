@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cleanPartyLocations, newLocationId, sameAddress } from '@/types/partyAddress';
 import { Timestamp } from 'firebase-admin/firestore';
 import { AdminAuthError } from '@/lib/firebase-admin';
 import { FieldValue, adminDb } from '@/lib/firebase-admin';
@@ -171,6 +172,10 @@ export async function POST(req: NextRequest) {
       phoneKeys:      partyPhoneKeys({ phone, phone2, phoneRegion, phone2Region }),
       address:        body.address ?? { street: '', city: '', state: '', zip: '', country: 'US' },
       roles,
+      // More places this party ships from or receives at — see
+      // src/types/partyAddress.ts. The main one is `address` above.
+      addresses:      cleanPartyLocations(body.addresses, newLocationId)
+        .filter((l) => !sameAddress(l, body.address)),
       defaultOrigin:  null,
       defaultDest:    null,
       assignedToUids: owners.uids,

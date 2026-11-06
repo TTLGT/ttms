@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { getParty, updateParty, tagPartyRole, addPartyOwners, removePartyOwners, requestPartyAccessById, listPartyHistory } from '@/lib/parties';
 import ChangeHistory from '@/components/history/ChangeHistory';
+import PartyAddressesCard from '@/components/parties/PartyAddressesCard';
 import { listOrders } from '@/lib/orders';
 import { listUserProfiles } from '@/lib/userProfiles';
 import { listWorkGroups } from '@/lib/workGroups';
@@ -128,8 +129,6 @@ export default function PartyDetailPage() {
   const [phone2Region, setPhone2Region] = useState<PhoneRegion | undefined>(undefined);
   const [email2, setEmail2]           = useState('');
   const [address, setAddress]         = useState<Address>(BLANK_ADDRESS);
-  const [defaultOrigin, setOrigin]    = useState<Address>(BLANK_ADDRESS);
-  const [defaultDest, setDest]        = useState<Address>(BLANK_ADDRESS);
   const [assignedUids, setAssigned]   = useState<string[]>([]);
   const [assignedGroups, setGroupIds] = useState<string[]>([]);
   const [sourceId, setSourceId]       = useState<string | null>(null);
@@ -197,8 +196,6 @@ export default function PartyDetailPage() {
     setPhone2Region(party.phone2Region);
     setEmail2(party.email2 ?? '');
     setAddress(party.address ?? BLANK_ADDRESS);
-    setOrigin(party.defaultOrigin ?? BLANK_ADDRESS);
-    setDest(party.defaultDest ?? BLANK_ADDRESS);
     setAssigned(party.assignedToUids ?? []);
     setGroupIds(party.assignedToGroupIds ?? []);
     setSourceId(party.sourceId ?? null);
@@ -258,8 +255,6 @@ export default function PartyDetailPage() {
         phone2Region,
         email2,
         address,
-        defaultOrigin: hasAny(defaultOrigin) ? defaultOrigin : null,
-        defaultDest:   hasAny(defaultDest)   ? defaultDest   : null,
         // Only sent when this user may change it. The rules reject any write to
         // the field from someone who is neither an admin nor an owner, even a
         // write of the identical value, and that would fail the whole save.
@@ -423,9 +418,10 @@ export default function PartyDetailPage() {
             </div>
           </div>
 
-          <AddressFields label="Address" value={address} onChange={setAddress} />
-          <AddressFields label="Default pickup (used when this party is the shipper)" value={defaultOrigin} onChange={setOrigin} />
-          <AddressFields label="Default delivery (used when this party is the consignee)" value={defaultDest} onChange={setDest} />
+          <AddressFields label="Main address" value={address} onChange={setAddress} />
+          <p className="text-xs text-gray-500 -mt-2">
+            <Bi>Other pickup and delivery addresses are in the Addresses card below.</Bi>
+          </p>
 
           {canAssign && (
             <div className="space-y-4">
@@ -519,8 +515,6 @@ export default function PartyDetailPage() {
             <Detail label="Secondary phone" value={<PhoneValue value={party.phone2} region={party.phone2Region} label="secondary phone" />} />
             <Detail label="Secondary email" value={party.email2} />
             <Detail label="Address"  value={formatAddress(party.address)} />
-            <Detail label="Default pickup"   value={formatAddress(party.defaultOrigin)} />
-            <Detail label="Default delivery" value={formatAddress(party.defaultDest)} />
             <Detail label="Owned by"         value={ownerSummary(party, profiles, groups)} />
             {isClient && (
               <Detail label="Lead source" value={leadSourceLabel(leadSources, party.sourceId, party.sourceName)} />
@@ -534,6 +528,12 @@ export default function PartyDetailPage() {
           )}
         </section>
       )}
+
+      {/* Shown to whoever can open the record. Edit and remove are refused by
+          the server for somebody using it under an approval, the same as
+          the Edit button above; adding is not — see the addresses route. */}
+      <PartyAddressesCard party={party} canEdit
+        onChange={(addresses) => setParty((prev) => (prev ? { ...prev, addresses, defaultOrigin: null, defaultDest: null } : prev))} />
 
       <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100">
@@ -630,10 +630,6 @@ function ownerSummary(
     return `${party.assignedToName} (no TMS account yet)`;
   }
   return 'Nobody — visible to everyone';
-}
-
-function hasAny(a: Address): boolean {
-  return Boolean(a.street || a.city || a.state || a.zip);
 }
 
 function formatAddress(a: Address | null | undefined): string {

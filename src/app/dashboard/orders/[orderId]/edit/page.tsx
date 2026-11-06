@@ -22,7 +22,8 @@ import NotesAndInstructionsFields, { BLANK_NOTES_AND_INSTRUCTIONS, notesAndInstr
 import type { NotesAndInstructions } from '@/components/orders/NotesAndInstructionsFields';
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
-import AddressFields, { BLANK_ADDRESS } from '@/components/orders/AddressFields';
+import { BLANK_ADDRESS } from '@/components/orders/AddressFields';
+import StopPartyFields, { linkStopAddresses, stopLinkProblem } from '@/components/orders/StopPartyFields';
 import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopDraftsFrom, stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
 import type { StopDraft } from '@/components/orders/ExtraStopsFields';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -276,7 +277,9 @@ export default function EditOrderPage() {
       : '';
     if (badRange) { setError(badRange); return; }
     const badStop = shows('route')
-      ? stopsProblem('pickup', extraPickups) || stopsProblem('delivery', extraDeliveries)
+      ? stopLinkProblem('Pickup', 'shipper', { party: shipper, address: origin })
+        || stopLinkProblem('Delivery', 'consignee', { party: consignee, address: destination })
+        || stopsProblem('pickup', extraPickups) || stopsProblem('delivery', extraDeliveries)
       : '';
     if (badStop) { setError(badStop); return; }
     const badCharge = shows('price') ? priceTermsProblem(priceTerms, effAccessorials) : '';
@@ -291,6 +294,17 @@ export default function EditOrderPage() {
     setError('');
     setSaving(true);
     try {
+      // Every pickup and delivery address belongs to its shipper or
+      // consignee — see the same step on the new order form. An address on an
+      // older load that its party never had is added the first time the
+      // route is saved, which is how those loads become linked.
+      if (shows('route')) {
+        setParties(await linkStopAddresses([
+          { party: shipper, address: origin }, { party: consignee, address: destination },
+          ...extraPickups, ...extraDeliveries,
+        ], parties));
+      }
+
       // Reassigning a party to a role it has not held before must show up in
       // that role's list — the extra stops' parties too, when they are on screen.
       const partyRoles: [PartyRole, string][] = [
@@ -503,7 +517,8 @@ export default function EditOrderPage() {
           </section>
           </>)}
 
-          {shows('dock') && <DockWorkFields value={dockWork} onChange={setDockWork} />}
+          {shows('dock') && <DockWorkFields value={dockWork} onChange={setDockWork}
+            pickupState={origin.state} deliveryState={destination.state} />}
 
           {shows('price') && (<>
           <PriceAndTermsSection
@@ -526,24 +541,18 @@ export default function EditOrderPage() {
             <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Route</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <div id="field-shipper">
-                  <PartyCombobox role="shipper"   label="Shipper (pickup)"     parties={parties}
-                    value={shipper}   onChange={setShipper}   onPartyCreated={cacheParty} />
-                </div>
-                <div id="field-origin">
-                  <AddressFields label="Origin" value={origin} onChange={setOrigin} />
-                </div>
+                <StopPartyFields role="shipper" partyLabel="Shipper (pickup)" addressLabel="Origin"
+                  parties={parties} value={{ party: shipper, address: origin }}
+                  onChange={(v) => { setShipper(v.party); setOrigin(v.address); }}
+                  onPartyCreated={cacheParty} partyFieldId="field-shipper" addressFieldId="field-origin" />
                 <ExtraStopsFields kind="pickup" value={extraPickups} onChange={setExtraPickups}
                   parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('pickup')} />
               </div>
               <div className="space-y-4">
-                <div id="field-consignee">
-                  <PartyCombobox role="consignee" label="Consignee (delivery)" parties={parties}
-                    value={consignee} onChange={setConsignee} onPartyCreated={cacheParty} />
-                </div>
-                <div id="field-destination">
-                  <AddressFields label="Destination" value={destination} onChange={setDest} />
-                </div>
+                <StopPartyFields role="consignee" partyLabel="Consignee (delivery)" addressLabel="Destination"
+                  parties={parties} value={{ party: consignee, address: destination }}
+                  onChange={(v) => { setConsignee(v.party); setDest(v.address); }}
+                  onPartyCreated={cacheParty} partyFieldId="field-consignee" addressFieldId="field-destination" />
                 <ExtraStopsFields kind="delivery" value={extraDeliveries} onChange={setExtraDeliveries}
                   parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('delivery')} />
               </div>

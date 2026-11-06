@@ -25,7 +25,7 @@
  * /api/orders/{id}/bol-request. See src/lib/bolRequests.ts.
  */
 
-import { accessorialLabels, dockEndOf, orderCommodityItems, orderDisplayNumber, type Order } from './order';
+import { accessorialLabels, dockEndOf, orderCommodityItems, orderDisplayNumber, type DockHelp, type Order } from './order';
 
 export const BOL_REQUESTS_COLLECTION = 'bolRequests';
 
@@ -47,6 +47,14 @@ export const BOL_REQUESTS_COLLECTION = 'bolRequests';
  * Keep in step with `bolBuffer()` in src/lib/bolRequests.ts: a field the BOL
  * starts printing belongs here too, or changing it will not raise the banner.
  */
+/** A dock's help as the BOL prints it — without the directory link. */
+function printedHelp(h: DockHelp | null): Omit<DockHelp, 'providerId' | 'providerName'> | undefined {
+  if (!h) return undefined;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { providerId, providerName, ...printed } = h;
+  return printed;
+}
+
 export function bolFingerprint(order: Record<string, unknown>): string {
   const o = order as Partial<Order> & Record<string, unknown>;
   // Whole seconds: the browser gets `{ _seconds, _nanoseconds }` and the
@@ -75,8 +83,10 @@ export function bolFingerprint(order: Record<string, unknown>): string {
     // Who the 3rd party at each dock is (2026-11-06). Undefined, and so left
     // out of the string, when there is none — a BOL drawn before this does
     // not read as outdated merely because the key exists now.
-    loadingHelp:   dockEndOf(o, 'pickup').help ?? undefined,
-    unloadingHelp: dockEndOf(o, 'delivery').help ?? undefined,
+    // The provider picked from the directory is left out: the BOL does not
+    // print it, so choosing one must not raise the regenerate banner.
+    loadingHelp:   printedHelp(dockEndOf(o, 'pickup').help),
+    unloadingHelp: printedHelp(dockEndOf(o, 'delivery').help),
   };
   const stable = (v: unknown): string => {
     if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`;

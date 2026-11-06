@@ -173,6 +173,7 @@ const LABELS: Record<string, string> = {
   phone2: 'Second phone',
   phone2Region: 'Second phone country',
   email2: 'Second email',
+  addresses: 'Addresses',
   defaultOrigin: 'Default pickup',
   defaultDest: 'Default delivery',
   sourceId: 'Lead source',
@@ -289,7 +290,15 @@ export function describeChangeValue(
     const h = cleanDockHelp(value);
     if (!h) return 'blank';
     const what = h.service === 'other' ? h.label || 'Other' : h.service ? DOCK_HELP_LABEL[h.service] : 'Not said';
-    return `${what}${h.hiredBy ? `, hired by ${SERVICE_ARRANGER_LABEL[h.hiredBy]}` : ''}`;
+    return `${what}${h.providerName ? ` (${h.providerName})` : ''}${h.hiredBy ? `, hired by ${SERVICE_ARRANGER_LABEL[h.hiredBy]}` : ''}`;
+  }
+  // A party's other addresses, as "Plant 2: 123 Main St, Dallas, TX 75201; …".
+  if (field === 'addresses' && Array.isArray(value)) {
+    return clip(value.map((l) => {
+      const loc = (l ?? {}) as { label?: string; street?: string; city?: string; state?: string; zip?: string };
+      const line = [loc.street, loc.city, [loc.state, loc.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+      return loc.label ? `${loc.label}: ${line}` : line;
+    }).join('; '));
   }
   if (STOP_FIELDS.has(field) && Array.isArray(value)) {
     // A stop is a party, an address and a date. Flattened like any other map

@@ -26,6 +26,8 @@ import { actorOf, diffFields, sameValue, writeChange } from './recordHistory';
 import type { Caller } from './partyAccess';
 import { PARTY_ROLES, partyPhoneKeys, toNameKey, type PartyRole } from '@/types/party';
 import { phoneRegionOf } from './phone';
+import { cleanPartyLocations, newLocationId, sameAddress } from '@/types/partyAddress';
+import type { Address } from '@/types/order';
 
 const COL = 'parties';
 
@@ -76,6 +78,16 @@ export async function updatePartyAsCaller(
     }
     const roles = (Array.isArray(patch.roles) ? patch.roles : before.roles ?? []) as string[];
     patch.roles = roles.includes(edit.addRole) ? roles : [...roles, edit.addRole];
+  }
+
+  // The address list is checked the way /api/parties/{id}/addresses checks
+  // it, so the generic edit cannot store a malformed one. Saving the list
+  // folds in the two single-address fields it replaced, so they go with it.
+  if ('addresses' in patch) {
+    patch.addresses = cleanPartyLocations(patch.addresses, newLocationId)
+      .filter((l) => !sameAddress(l, ('address' in patch ? patch.address : before.address) as Address));
+    patch.defaultOrigin = null;
+    patch.defaultDest   = null;
   }
 
   // A stored region is checked against the catalog, as POST /api/parties does:

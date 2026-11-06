@@ -178,6 +178,15 @@ export interface DockHelp {
   label?: string;
   /** Who hires them. Null for "not said yet". */
   hiredBy: ServiceArranger | null;
+  /**
+   * Which provider from the 3rd-party directory (src/types/provider.ts), when
+   * one is picked. The name is copied in so the load reads right without a
+   * second read, as `carrierName` is beside `carrierId`. Neither is printed
+   * on the SA, the Dispatch Sheet or the BOL (dockEndText() leaves them out),
+   * so picking one never holds a sent agreement.
+   */
+  providerId?: string;
+  providerName?: string;
 }
 
 const MAX_DOCK_HELP_LABEL = 60;
@@ -190,8 +199,11 @@ export function cleanDockHelp(raw: unknown): DockHelp | null {
     ? r.service as DockHelpService : null;
   const hiredBy = isServiceArranger(r.hiredBy) ? r.hiredBy : null;
   const label = service === 'other' && typeof r.label === 'string' ? r.label.trim().slice(0, MAX_DOCK_HELP_LABEL) : '';
-  if (!service && !hiredBy) return null;
-  return service === 'other' ? { service, label, hiredBy } : { service, hiredBy };
+  const providerId = typeof r.providerId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(r.providerId) ? r.providerId : '';
+  const providerName = providerId && typeof r.providerName === 'string' ? r.providerName.trim().slice(0, 120) : '';
+  if (!service && !hiredBy && !providerId) return null;
+  const provider = providerId ? { providerId, providerName } : {};
+  return service === 'other' ? { service, label, hiredBy, ...provider } : { service, hiredBy, ...provider };
 }
 
 export type DockEnd = 'pickup' | 'delivery';

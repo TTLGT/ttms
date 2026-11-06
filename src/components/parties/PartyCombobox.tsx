@@ -8,6 +8,7 @@ import {
 import { partyDisplayName, toNameKey, toPhoneKey, looksLikePhone, ROLE_LABEL } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
 import PartyQuickCreate from './PartyQuickCreate';
+import { partyLocations } from '@/types/partyAddress';
 import PartyContact from './PartyContact';
 import { Bi } from '@/components/spanish/Es';
 
@@ -177,16 +178,14 @@ export default function PartyCombobox({
    * two facilities under one name can be told apart at a glance. The ZIP is
    * display only: the selection handed to the order keeps the bare name,
    * because that name is what the order stores and prints on its paperwork.
-   * Shipper and consignee fall back to their default pickup / delivery
-   * location when the record's own address has no ZIP.
+   * Shipper and consignee fall back to their first saved address when the
+   * record's own address has no ZIP.
    */
   const linked = value.id
     ? (picked?.id === value.id ? picked : parties.find((p) => p.id === value.id) ?? null)
     : null;
   const linkedZip = linked
-    ? (linked.address?.zip
-        || (role === 'shipper' ? linked.defaultOrigin?.zip : role === 'consignee' ? linked.defaultDest?.zip : '')
-        || '').trim()
+    ? (linked.address?.zip || partyLocations(linked, role)[0]?.address.zip || '').trim()
     : '';
   const shownText = !focused && linkedZip && queryText === value.name
     ? `${queryText} — ${linkedZip}`

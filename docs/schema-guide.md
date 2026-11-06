@@ -42,6 +42,34 @@ shippers/{shipperId}
   country : string   // default "US"
 ```
 
+### A party's addresses — `addresses` (2026-11-06)
+
+`parties/{id}.addresses` is a list of `PartyLocation` — an `Address` plus an
+`id` (stable, unique within the party) and a `label` ("Plant 2", "" for none),
+at most 40 — beside the party's main `address`. Types and every rule about
+them are in `src/types/partyAddress.ts`.
+
+- **A pickup or delivery address always belongs to the shipper or consignee
+  at that stop.** The order forms (`StopPartyFields`) list the party's
+  addresses to pick from, and an address typed on an order that the party
+  does not have is added to it before the order saves
+  (`linkStopAddresses()` → `POST /api/parties/{id}/addresses`). A save with
+  an address and no party is refused. A city with no street — a quote's
+  "Dallas, TX" — is not linked until the street is typed.
+- **The order keeps its own copy** in `origin` / `destination` /
+  `extraPickups` / `extraDeliveries`, like `driverPhone`: correcting a
+  party's address never rewrites paperwork that went out.
+- Adding is open to anybody who may **use** the party (an approval
+  included); changing or removing one (`PUT`) is a party edit and strict.
+  Both write the party's change log.
+- `defaultOrigin` / `defaultDest` are what came before: still read
+  (`savedLocations()` folds them in) and set to null the first time the list
+  is saved. The BATS importers still write them, which is harmless.
+- **An address typed with no party suggests who is there**
+  (`suggestPartiesForAddress()`), matched in the browser over the parties the
+  form already loaded — so it costs no reads, and only suggests records the
+  person may use.
+
 ---
 
 ## Collection: `carriers`
@@ -1242,9 +1270,63 @@ carrier's signing link as `dockWork` when the Dispatch Sheet is sent — worded
 lines, only the ones answered (`dockWorkLines()` in `src/types/order.ts`) —
 and shown on its signing page and signed PDF. A link sent earlier has none.
 
+A 3rd party's `loadingHelp` / `unloadingHelp` may also carry `providerId` and
+`providerName` — the provider picked from the directory (see `providers`
+below). Neither is printed anywhere, and `bolFingerprint()` leaves them out,
+so picking one holds no agreement and raises no BOL banner.
+
 And on each line of `commodities`: `handlingUnits` (number or null),
 `handlingUnitType` (`PLT`, `SKID`…) and `hazmat` (boolean). The BOL's declared
 value is the sum of the lines' `value`.
+
+## Collection: `providers` — 3rd-party providers (2026-11-06)
+
+The company directory of lumpers, forklift and crane outfits, rigging crews,
+pilot cars and the rest. Types and the whole policy in
+`src/types/provider.ts`, server in `src/lib/providersServer.ts`, routes under
+`/api/providers`. Shown at `/dashboard/providers`.
+
+```
+providers/{providerId}
+  companyName, nameKey      : string   // nameKey: lower-case, unique (create refuses a second)
+  services                  : ProviderService[]   // lumper, forklift, crane, rigging, pilot_car, permits, storage, towing, repair, tarping, other
+  serviceNote               : string
+  contactName, email, website, serviceArea, notes : string
+  phone, phone2             : string ; phoneRegion, phone2Region : PhoneRegion
+  address                   : Address
+  rates                     : { id, service, description, amount: number|null, unit }[]   // what they last quoted
+  paymentCount, totalPaid   : number   // kept by the payment routes, in their transactions
+  lastPaidOn                : 'YYYY-MM-DD' | null
+  createdByUid, createdByName, createdAt, updatedAt
+
+providers/{providerId}/payments/{paymentId}
+  amount        : number
+  paidOn        : 'YYYY-MM-DD'
+  method        : comchek | efs | card | ach | zelle | check | cash | wire | other
+  reference, notes : string
+  service       : ProviderService | null
+  orderId       : string | null   // linked only when the recorder can open the load
+  orderNumber   : string          // as typed, or the load's number
+  receipts      : { id, name, contentType, size, uploadedByUid, uploadedByName, uploadedAt }[]
+  recordedByUid, recordedByName, createdAt
+  voidedAt, voidedByUid, voidedByName, voidReason   // null until voided
+providers/{providerId}/changes/{entryId}   // the change log, as for carriers
+```
+
+- **Everybody signed in reads every provider**, interns included — nobody
+  owns a lumper crew. Adding, editing, seeing and recording payments and
+  adding receipts need `orders.view` (everybody but interns). Voiding a
+  payment needs `orders.payments` (admin, finance). No new permission key.
+- **Closed to the browser.** No Firestore rule matches `providers`, and
+  `provider-receipts/` has no storage rule; receipts are uploaded through the
+  payment routes (pictures shrunk to JPEG in the browser first, 4 MB each,
+  10 per payment) and read as signed links. Nothing to deploy.
+- **A payment is never deleted.** A void keeps it, struck through, with who
+  and why, and takes it out of the totals. A payment naming a load the
+  recorder can open also writes a line on that load's change log.
+- The directory is read whole (2,000 at most) and searched in the browser
+  (`providerMatches()`): name, service, city, state, ZIP, street, phone digits,
+  email, service area, notes.
 
 ## Agreement terms — general, per load, and the approval (2026-10-19)
 
@@ -1496,6 +1578,7 @@ documents/{documentId}
 /carrier-vetting/{orderId}/{vettingId}/saferweb.html            SaferWeb copy (Admin SDK only)
 /carrier-vetting/{orderId}/{vettingId}/insurance-certificate.*  certificate copy (Admin SDK only)
 /carrier-vetting/{orderId}/{vettingId}/prints/{printId}.pdf      each Carrier Selection File handed out
+/provider-receipts/{providerId}/{paymentId}/{receiptId}          a 3rd-party payment receipt (Admin SDK only)
 ```
 
 An avatar path is stored on the record, never a download URL — URLs carry a

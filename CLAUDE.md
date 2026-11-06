@@ -1246,6 +1246,45 @@ Types and pure rules in `src/types/task.ts`; server in
   Friday": `repeatWeekday` (0–6) and `repeatNths` (1–4, 5 = last).
   `repeatFields()` is the one place the stored repeat fields are worked out.
 
+### Shipper and consignee addresses — never an address on its own (2026-11-06)
+
+A pickup or delivery address always belongs to the shipper or consignee at
+that stop. A party has its main `address` plus `addresses` (a list, each with
+an id and a label); `src/types/partyAddress.ts` holds the matching and the
+list rules, `StopPartyFields` is the one block every order form uses for
+who-and-where, and `linkStopAddresses()` adds a newly typed address to its
+party before the order saves — a failure stops the save. Typing an address
+with no party picked suggests who is there, from the parties the form already
+loaded. See "A party's addresses" in the Schema Guide.
+
+- **The order still keeps its own copy** of the address, for the driver
+  phone's reason. Never make it read the party's address live.
+- `POST /api/parties/{id}/addresses` (add) is open to anybody who may *use*
+  the party, an approval included — wider than editing it, on purpose, or a
+  broker using someone else's shipper could not save the order. `PUT` (edit,
+  remove) is a strict party edit.
+- `defaultOrigin` / `defaultDest` are folded in by `savedLocations()` and
+  cleared on the list's first save. Do not write new code against them.
+
+### 3rd-party providers — a directory everybody reads (2026-11-06)
+
+`/dashboard/providers`: lumpers, forklifts, cranes, rigging crews, pilot cars
+and the rest — services, location, contacts, prices, and every payment TTL
+makes them with its receipts. `src/types/provider.ts` (the policy),
+`src/lib/providersServer.ts`, `/api/providers`; `providers` in the Schema
+Guide. Picked on an order under Loading and Unloading (`ProviderPicker`,
+stored as `providerId` / `providerName` on `loadingHelp` / `unloadingHelp`).
+
+- **No ownership.** Everybody signed in reads all of them; `orders.view`
+  (everybody but interns) adds, edits and records payments; `orders.payments`
+  voids one. Closed to the browser — no Firestore rule and no storage rule
+  match `providers` or `provider-receipts/`, so nothing needs deploying.
+- **Payments are append-only.** A void keeps the record with who and why.
+  Do not add a delete.
+- **The provider link is never printed** and is left out of
+  `bolFingerprint()`, so choosing one holds no SA and raises no BOL banner.
+  Keep it out of every fingerprint.
+
 ### Quote calculator — a scratch pad, priced from an admin's rate card
 
 `/dashboard/quote-calculator`, and the same component over the order form from

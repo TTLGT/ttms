@@ -12,6 +12,7 @@ import {
   Contact,
   MessageCircle,
   PackageCheck,
+  HardHat,
   ShieldCheck,
   Users,
   Folder,
@@ -90,6 +91,10 @@ const NAV_ITEMS: {
   { href: '/dashboard/clients',   label: 'Clients',   Icon: Users,         needs: 'clients.view' },
   { href: '/dashboard/shippers',  label: 'Shippers',  Icon: Building2,     needs: 'shippers.view' },
   { href: '/dashboard/consignees', label: 'Consignees', Icon: PackageCheck, needs: 'consignees.view' },
+  // Everybody, interns included, so no permission: a company phone book of
+  // lumpers, cranes and the rest, owned by nobody. Adding, editing and
+  // payments are gated in its routes — see src/types/provider.ts.
+  { href: '/dashboard/providers', label: '3rd Party Providers', Icon: HardHat },
   // `directory.view` is in this list so an intern gets it too. They own no
   // records and can decide nothing, but they have their own profile — and the
   // request to correct their own phone number lands in this screen's

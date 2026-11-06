@@ -3,6 +3,8 @@ import { encodeRecordPatch } from './recordWire';
 import type { ChangeEntry } from '@/types/recordHistory';
 import { partyDisplayName, toPhoneKey, BLANK_ADDRESS } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
+import type { PartyLocation } from '@/types/partyAddress';
+import type { Address } from '@/types/order';
 import type { OwnerEvent } from '@/types/ownerEvent';
 import type { AccessRequest } from '@/types/accessRequest';
 
@@ -181,6 +183,25 @@ export async function lookupPartiesByPhone(phone: string): Promise<PhoneLookup> 
     owned:    result.owned ?? [],
     searched: result.searched ?? false,
   };
+}
+
+/**
+ * Adds an address to a shipper or consignee, or finds it already there.
+ * Answers with the location's id and the party's whole saved list. See
+ * POST /api/parties/{id}/addresses for who may.
+ */
+export async function addPartyAddress(
+  partyId: string,
+  address: Address,
+  label = '',
+): Promise<{ locationId: string; addresses: PartyLocation[] }> {
+  return apiPost(`/api/parties/${encodeURIComponent(partyId)}/addresses`, { address, label });
+}
+
+/** Saves a party's whole list of addresses (not its main one). */
+export async function savePartyAddresses(partyId: string, addresses: PartyLocation[]): Promise<PartyLocation[]> {
+  const res = await apiSend<{ addresses: PartyLocation[] }>('PUT', `/api/parties/${encodeURIComponent(partyId)}/addresses`, { addresses });
+  return res.addresses ?? [];
 }
 
 export async function requestPartyAccess(

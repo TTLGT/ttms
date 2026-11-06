@@ -64,6 +64,7 @@ export interface VisibleParty {
   phoneKeys: string[];
   address: unknown;
   roles: string[];
+  addresses: unknown[];
   defaultOrigin: unknown;
   defaultDest: unknown;
   assignedToUids: string[];
@@ -91,6 +92,7 @@ export function toVisibleParty(id: string, d: FirebaseFirestore.DocumentData): V
     phoneKeys:      d.phoneKeys      ?? [],
     address:        d.address        ?? null,
     roles:          d.roles          ?? [],
+    addresses:      Array.isArray(d.addresses) ? d.addresses : [],
     defaultOrigin:  d.defaultOrigin  ?? null,
     defaultDest:    d.defaultDest    ?? null,
     assignedToUids:     d.assignedToUids     ?? [],

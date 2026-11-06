@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { Address } from './order';
+import type { PartyLocation } from './partyAddress';
 import { PHONE_COUNTRY_CODE, PHONE_NATIONAL_LENGTH, RECORD_PHONE_REGIONS, phoneRegionOf } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
 
@@ -60,9 +61,19 @@ export interface Party {
   address: Address;
   /** Roles this party has been used in on at least one order. */
   roles: PartyRole[];
-  /** Prefilled onto new orders when this party is picked as the shipper. */
+  /**
+   * Every other place this party ships from or receives at, beside the main
+   * `address` (2026-11-06). Absent on records written before it; read through
+   * `partyLocations()` / `savedLocations()` in src/types/partyAddress.ts,
+   * which also read the two single-address fields below into the list.
+   */
+  addresses?: PartyLocation[];
+  /**
+   * The one default pickup a party had before `addresses`. Still read — see
+   * savedLocations() — and cleared once the list is first saved.
+   */
   defaultOrigin: Address | null;
-  /** Prefilled onto new orders when this party is picked as the consignee. */
+  /** The one default delivery, before `addresses`. Same contract as `defaultOrigin`. */
   defaultDest: Address | null;
   /**
    * Owners, as user accounts. A party with owners is visible only to them and

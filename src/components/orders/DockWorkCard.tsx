@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { PackageOpen } from 'lucide-react';
 import { Bi } from '@/components/spanish/Es';
 import { DOCK_HELP_LABEL, DOCK_PARTY_LABEL, SERVICE_ARRANGER_LABEL, dockEndOf, dockEndProblem, type DockEnd, type Order } from '@/types/order';
@@ -19,6 +20,14 @@ function End({ order, end }: { order: Order; end: DockEnd }) {
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
           <dt data-es className="text-gray-500">What</dt>
           <dd className="text-gray-900">{what || <span data-es className="text-amber-700">Not set</span>}</dd>
+          {help?.providerId && (<>
+            <dt data-es className="text-gray-500">Provider</dt>
+            <dd>
+              <Link href={`/dashboard/providers/${help.providerId}`} className="font-medium text-brand-700 hover:underline">
+                {help.providerName || 'Open provider'}
+              </Link>
+            </dd>
+          </>)}
           <dt data-es className="text-gray-500">Hired by</dt>
           <dd className="text-gray-900">
             {help?.hiredBy ? <span data-es>{SERVICE_ARRANGER_LABEL[help.hiredBy]}</span> : <span data-es className="text-amber-700">Not set</span>}

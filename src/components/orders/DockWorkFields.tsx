@@ -2,6 +2,8 @@
 
 import { PackageOpen } from 'lucide-react';
 import { Bi } from '@/components/spanish/Es';
+import ProviderPicker from '@/components/providers/ProviderPicker';
+import { providerServiceFor } from '@/types/provider';
 import {
   DOCK_HELP_LABEL, DOCK_HELP_SERVICES, DOCK_PARTIES, DOCK_PARTY_LABEL, SERVICE_ARRANGERS, SERVICE_ARRANGER_LABEL,
   dockEndOf, dockEndProblem,
@@ -63,7 +65,7 @@ function Choice<T extends string>({ options, labels, value, onChange, name }: {
   );
 }
 
-function EndFields({ end, value, onChange }: { end: DockEnd; value: DockWork; onChange: (v: DockWork) => void }) {
+function EndFields({ end, value, onChange, near }: { end: DockEnd; value: DockWork; onChange: (v: DockWork) => void; near?: string }) {
   const byKey = end === 'pickup' ? 'trailerLoadedBy' : 'trailerUnloadedBy';
   const helpKey = end === 'pickup' ? 'loadingHelp' : 'unloadingHelp';
   const by = value[byKey];
@@ -100,6 +102,12 @@ function EndFields({ end, value, onChange }: { end: DockEnd; value: DockWork; on
             )}
           </div>
           <div>
+            <p data-es className="text-xs font-medium text-gray-600 mb-1.5">Which provider</p>
+            <ProviderPicker service={providerServiceFor(help.service)} near={near}
+              value={{ providerId: help.providerId, providerName: help.providerName }}
+              onChange={(p) => setHelp({ providerId: p.providerId, providerName: p.providerName })} />
+          </div>
+          <div>
             <p data-es className="text-xs font-medium text-gray-600 mb-1.5">Hired by</p>
             <Choice<ServiceArranger> name="Hired by" options={SERVICE_ARRANGERS} labels={SERVICE_ARRANGER_LABEL}
               value={help.hiredBy} onChange={(hiredBy) => setHelp({ hiredBy })} />
@@ -132,7 +140,13 @@ function EndFields({ end, value, onChange }: { end: DockEnd; value: DockWork; on
  * sets who arranges it — see reconcileDockHelp(). The counts stay in the
  * Bill of Lading card: they only matter to the BOL.
  */
-export default function DockWorkFields({ value, onChange }: { value: DockWork; onChange: (v: DockWork) => void }) {
+export default function DockWorkFields({ value, onChange, pickupState, deliveryState }: {
+  value: DockWork;
+  onChange: (v: DockWork) => void;
+  /** The states of the two stops, so providers near each come first. */
+  pickupState?: string;
+  deliveryState?: string;
+}) {
   return (
     <section id="field-dockWork" className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
       <div>
@@ -146,8 +160,8 @@ export default function DockWorkFields({ value, onChange }: { value: DockWork; o
         </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <EndFields end="pickup" value={value} onChange={onChange} />
-        <EndFields end="delivery" value={value} onChange={onChange} />
+        <EndFields end="pickup" value={value} onChange={onChange} near={pickupState} />
+        <EndFields end="delivery" value={value} onChange={onChange} near={deliveryState} />
       </div>
     </section>
   );

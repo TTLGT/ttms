@@ -2671,4 +2671,123 @@ export const ES_MORE: Record<string, string> = {
     'TTL lo contrata y lo paga. Pon el costo en Precio y condiciones, donde se suma a la tarifa acordada.',
   "The carrier or the driver books and pays them. Agree with the carrier how they are paid back":
     'El transportista o el conductor lo contrata y lo paga. Acuerda con el transportista cómo se le reembolsa.',
+  // 3rd-party providers and shipper/consignee addresses (2026-11-06).
+  "Other pickup and delivery addresses are in the Addresses card below":
+    "Las otras direcciones de recogida y entrega están en la tarjeta Direcciones, más abajo.",
+  "Addresses":
+    "Direcciones",
+  "Where this record ships from or receives at. The order form offers every one of them under Shipper and Consignee, and an address typed on an order is added here":
+    "Desde dónde envía o dónde recibe este registro. El formulario de la orden ofrece cada una bajo Remitente y Destinatario, y una dirección escrita en una orden se agrega aquí.",
+  "No addresses yet":
+    "Todavía no hay direcciones.",
+  "No address on file yet. Type it in and it is saved to the record with the order":
+    "Todavía no hay dirección registrada. Escríbela y se guarda en el registro junto con la orden.",
+  "On file at this address":
+    "Registrado en esta dirección",
+  "A pickup address must belong to a shipper. Pick the shipper at this address, or add them above":
+    "Una dirección de recogida debe pertenecer a un remitente. Elige el remitente de esta dirección o agrégalo arriba.",
+  "A delivery address must belong to a consignee. Pick the consignee at this address, or add them above":
+    "Una dirección de entrega debe pertenecer a un destinatario. Elige el destinatario de esta dirección o agrégalo arriba.",
+  "A different address":
+    "Otra dirección",
+  "Use this shipper":
+    "Usar este remitente",
+  "Use this consignee":
+    "Usar este destinatario",
+  "Main address":
+    "Dirección principal",
+  "Edited with the details":
+    "Se edita con los datos",
+  "Add address":
+    "Agregar dirección",
+  "3rd Party Providers":
+    "Proveedores externos",
+  "Lumpers, forklifts, cranes, rigging crews, pilot cars and everyone else we hire at a dock or on the road. Everybody in the company can see and search every one":
+    "Lumpers, montacargas, grúas, cuadrillas de maniobra, carros piloto y todos los demás que contratamos en un muelle o en la carretera. Todos en la empresa pueden ver y buscar cada uno.",
+  "No providers yet. Add the first one you hire":
+    "Todavía no hay proveedores. Agrega el primero que contrates.",
+  "No provider matches that search":
+    "Ningún proveedor coincide con esa búsqueda.",
+  "No provider matches":
+    "Ningún proveedor coincide.",
+  "Add a 3rd party provider":
+    "Agregar un proveedor externo",
+  "A name, what they do and a phone or email is enough to start. Everybody in the company will be able to find them":
+    "Un nombre, lo que hacen y un teléfono o correo bastan para empezar. Todos en la empresa podrán encontrarlo.",
+  "No prices yet. Add what they quoted, so the next person knows what to expect":
+    "Todavía no hay precios. Agrega lo que cotizaron, para que la próxima persona sepa qué esperar.",
+  "Payments and receipts":
+    "Pagos y recibos",
+  "Every payment we make to this provider, with its receipt. Name the load when it was for one, and it shows on the load's history too":
+    "Cada pago que hacemos a este proveedor, con su recibo. Indica la carga cuando fue para una, y aparece también en el historial de la carga.",
+  "A photo or a PDF. Photos are shrunk before they are sent":
+    "Una foto o un PDF. Las fotos se reducen antes de enviarse.",
+  "No payments recorded yet":
+    "Todavía no hay pagos registrados.",
+  "Prices":
+    "Precios",
+  "What they last quoted us. A guide for the next booking, not a contract":
+    "Lo último que nos cotizaron. Una guía para la próxima contratación, no un contrato.",
+  "No prices recorded":
+    "No hay precios registrados.",
+  "Prices, a second phone and notes can be added on the provider's own page afterwards":
+    "Los precios, un segundo teléfono y notas se pueden agregar después en la página del proveedor.",
+  "Company or crew name":
+    "Nombre de la empresa o cuadrilla",
+  "Services":
+    "Servicios",
+  "Permits":
+    "Permisos",
+  "Storage / warehouse":
+    "Almacenaje / bodega",
+  "Truck repair":
+    "Reparación de camiones",
+  "Tarping":
+    "Encarpado",
+  "Website":
+    "Sitio web",
+  "Where they work":
+    "Dónde trabajan",
+  "Add a price":
+    "Agregar un precio",
+  "Add provider":
+    "Agregar proveedor",
+  "All services":
+    "Todos los servicios",
+  "All states":
+    "Todos los estados",
+  "All cities":
+    "Todas las ciudades",
+  "Provider":
+    "Proveedor",
+  "Last paid":
+    "Último pago",
+  "Record a payment":
+    "Registrar un pago",
+  "Amount paid":
+    "Monto pagado",
+  "Paid on":
+    "Pagado el",
+  "Check or transaction number":
+    "Número de cheque o de transacción",
+  "Service":
+    "Servicio",
+  "Load number":
+    "Número de carga",
+  "Receipts":
+    "Recibos",
+  "Save payment":
+    "Guardar pago",
+  "Add receipt":
+    "Agregar recibo",
+  "Void":
+    "Anular",
+  "paid in":
+    "pagado en",
+  "Back to 3rd Party Providers":
+    "Volver a Proveedores externos",
+  "Which provider":
+    "Qué proveedor",
+  "Add a provider":
+    "Agregar un proveedor",
 };

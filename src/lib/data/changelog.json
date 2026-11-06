@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "4a948ea890937bedc47d14efcc35eed42bc42d13",
+      "date": "2026-11-06T12:51:21-06:00",
+      "author": "erwindank",
+      "subject": "Show each order owner's profile picture beside their name on the order, with the initial when there is no picture and a click to see it full size",
+      "body": ""
+    },
+    {
       "hash": "2271c549f886b475bcccb7edb5eddca9ad07f5af",
       "date": "2026-11-06T11:39:25-06:00",
       "author": "erwindank",
