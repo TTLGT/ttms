@@ -14,6 +14,7 @@ import MySharedPlanPanel from '@/components/calendar/MySharedPlanPanel';
 import TeamPlans from '@/components/calendar/TeamPlans';
 import { PLANNING_CHANGED_EVENT } from '@/types/planning';
 import TaskEditor from '@/components/tasks/TaskEditor';
+import SeriesChoice, { asksSeries, type SeriesAsk, type SeriesMove } from '@/components/tasks/SeriesChoice';
 import { TaskDirectoryProvider } from '@/components/tasks/TaskContacts';
 import { useTaskDirectory } from '@/lib/taskContacts';
 import { GameFeedback } from '@/components/tasks/TaskGame';
@@ -27,6 +28,7 @@ import {
 } from '@/components/calendar/CelebrationPanels';
 import {
   calendarToday, defaultColorFor, duplicateInput, newBlockInput, workTargetOf, type PersonalTask, type PersonalTaskInput,
+  type SeriesScope,
 } from '@/types/task';
 import { NOTE_STYLE } from '@/components/tasks/taskStyle';
 import { Bi } from '@/components/spanish/Es';
@@ -68,8 +70,13 @@ export default function CalendarPage() {
   const seesTeamPlans = can('plans.viewAll') || profile?.isSalesManager === true;
   const [tab, setTab] = useState<'mine' | 'team'>('mine');
   const { formatCalendarDate } = useDateFormatters();
-  const { tasks, settings, columns, colorLabels, game, notices, dismissNotice, saveSettings, error, setError, create, update, detach, reschedule, remove, reload } = usePersonalTasks();
-  const [editing, setEditing] = useState<{ task: PersonalTask | null; initial?: PersonalTaskInput; copyOf?: PersonalTask } | null>(null);
+  const { tasks, settings, columns, colorLabels, game, notices, dismissNotice, saveSettings, error, setError, create, update, changeSeries, reschedule, remove, reload } = usePersonalTasks();
+  // `on` is the date it was opened from: which date of a series is being edited.
+  const [editing, setEditing] = useState<{ task: PersonalTask | null; on?: string; initial?: PersonalTaskInput; copyOf?: PersonalTask } | null>(null);
+  // The "this one, the ones after, or all?" question, from a drag or from the
+  // editor. `answered` lets the editor's save wait for it: Cancel goes back
+  // to the editor with its changes still there.
+  const [seriesAsk, setSeriesAsk] = useState<{ ask: SeriesAsk; answered?: (saved: boolean) => void } | null>(null);
   const [today, setToday] = useState('');
   const [selected, setSelected] = useState('');
   const [picked, setPicked] = useState<CalendarOccurrence | null>(null);
@@ -157,9 +164,27 @@ export default function CalendarPage() {
   const targetOf = useCallback((t: PersonalTask) => workTargetOf(t, allById), [allById]);
 
   const save = async (input: PersonalTaskInput) => {
-    if (editing?.task) await update(editing.task.id, input);
+    const task = editing?.task;
+    if (task && asksSeries(task) && input.kind === task.kind) {
+      const ask = editAsk(task, editing?.on ?? task.date ?? '', input);
+      if (!ask) { setEditing(null); return; }
+      if (ask !== 'plain') {
+        const saved = await new Promise<boolean>((answered) => setSeriesAsk({ ask, answered }));
+        if (saved) setEditing(null);
+        return;
+      }
+    }
+    if (task) await update(task.id, editedSeriesStart(task, editing?.on, input));
     else await create(input);
     setEditing(null);
+  };
+
+  const answerSeries = async (scope: SeriesScope) => {
+    const asked = seriesAsk;
+    if (!asked) return;
+    setSeriesAsk(null);
+    await changeSeries(asked.ask.task, scope, asked.ask.move, asked.ask.rest);
+    asked.answered?.(true);
   };
 
   // The company can switch reminder emails off (Settings → Operations); then
@@ -299,10 +324,10 @@ export default function CalendarPage() {
           today={today}
           selected={selected}
           onSelect={(d) => { setSelected(d); if (picked && picked.date !== d) setPicked(null); }}
-          onOpen={(task) => setEditing({ task })}
+          onOpen={(task, on) => setEditing({ task, on })}
           onAdd={(initial) => setEditing({ task: null, initial })}
           onUpdate={update}
-          onDetach={detach}
+          onAskSeries={(ask) => setSeriesAsk({ ask })}
           targetOf={targetOf}
           holidaysOn={holidaysOn}
           celebrationsOn={hr && cel ? celebrationsOn : undefined}
@@ -356,7 +381,11 @@ export default function CalendarPage() {
         <TaskEditor
           // A copy opening in the original's place must be a fresh dialog.
           key={editing.task?.id ?? (editing.copyOf ? `copy-${editing.copyOf.id}` : 'new')}
-          task={editing.task}
+          // A date of a series opens on that date, so the editor's date is the
+          // one clicked and a change to it moves that date, not the series' start.
+          task={editing.task && editing.on && editing.task.kind === 'event' && asksSeries(editing.task)
+            ? { ...editing.task, date: editing.on }
+            : editing.task}
           initial={editing.initial}
           copyOf={editing.copyOf?.title}
           columns={columns}
@@ -388,6 +417,58 @@ export default function CalendarPage() {
         />
         </TaskDirectoryProvider>
       )}
+
+      {seriesAsk && (
+        <SeriesChoice
+          ask={seriesAsk.ask}
+          onPick={answerSeries}
+          onCancel={() => { seriesAsk.answered?.(false); setSeriesAsk(null); }}
+        />
+      )}
     </div>
   );
+}
+
+/** What the editor's save changes on a date of a series, and the question to ask about it. */
+const WHEN_KEYS = ['date', 'time', 'endTime'] as const;
+const REPEAT_KEYS = ['repeat', 'repeatWeekday', 'repeatNths', 'repeatUntil'] as const;
+
+/**
+ * The editor saves the whole form; only what differs from the date that was
+ * opened is a change. Null when nothing changed; 'plain' when the save needs
+ * no question (a repeating task saved without moving it); otherwise the
+ * question, with the move and the rest of the changes split apart.
+ */
+function editAsk(task: PersonalTask, on: string, input: PersonalTaskInput): SeriesAsk | 'plain' | null {
+  const opened: Record<string, unknown> = { ...task, date: on };
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const changed = (Object.keys(input) as (keyof PersonalTaskInput)[]).filter((k) => !same(input[k], opened[k]));
+  if (!changed.length) return null;
+  const moves = changed.filter((k) => (WHEN_KEYS as readonly string[]).includes(k));
+  // A task is one copy at a time: only a move reaches beyond it.
+  if (task.kind === 'task' && !moves.length) return 'plain';
+  const move: SeriesMove = { date: on };
+  if (moves.includes('date')) move.newDate = input.date ?? on;
+  if (moves.includes('time')) move.time = input.time ?? null;
+  if (moves.includes('endTime')) move.endTime = input.endTime ?? null;
+  const rest: PersonalTaskInput = {};
+  for (const k of changed) {
+    if (!(WHEN_KEYS as readonly string[]).includes(k)) (rest as Record<string, unknown>)[k] = input[k];
+  }
+  // A change to the repeat itself is a change to the series: there is no
+  // "this one" of a pattern.
+  const repeatChanged = changed.some((k) => (REPEAT_KEYS as readonly string[]).includes(k));
+  const scopes: SeriesScope[] = task.kind === 'task'
+    ? ['this', 'following']
+    : repeatChanged ? ['following', 'all'] : ['this', 'following', 'all'];
+  return { kind: moves.length && changed.length === moves.length ? 'move' : 'edit', task, date: on, move, rest, scopes };
+}
+
+/**
+ * A save that asks nothing — an event turned into a task, say — still must
+ * not make the date it was opened on the series' new start.
+ */
+function editedSeriesStart(task: PersonalTask, on: string | undefined, input: PersonalTaskInput): PersonalTaskInput {
+  if (!on || task.kind !== 'event' || !asksSeries(task) || input.date !== on) return input;
+  return { ...input, date: task.date };
 }

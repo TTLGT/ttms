@@ -125,6 +125,14 @@ export function toTask(snap: DocumentSnapshot): PersonalTask {
       ? (d.skipDates as unknown[]).filter((x): x is string => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x))
       : [],
     detachedFrom: typeof d.detachedFrom === 'string' ? d.detachedFrom : null,
+    // Only a repeating task stands somewhere other than its own date; see onPattern().
+    patternSlot: d.kind !== 'event' && d.patternSlot && typeof d.patternSlot.date === 'string'
+      ? {
+        date: d.patternSlot.date,
+        time: typeof d.patternSlot.time === 'string' ? d.patternSlot.time : null,
+        endTime: typeof d.patternSlot.endTime === 'string' ? d.patternSlot.endTime : null,
+      }
+      : null,
     // Only an event is a work block; see WorkLink.
     workFor:   d.kind === 'event' ? cleanWorkLink(d.workFor) : null,
     outcome: d.kind !== 'event' && d.status === 'done'

@@ -1195,13 +1195,31 @@ Types and pure rules in `src/types/task.ts`; server in
   screen (`occurrencesBetween()`), only the **next** occurrence's reminders are
   queued, and the reminder run re-queues the series each time it claims one —
   stale ones included, or a series would stop after a cron outage. Editing or
-  deleting the event changes them all. **One date can be taken out**: dragging
-  it asks "move just this date?", and stretching it asks "just this one or all
-  events?". Taking one out (`POST /api/me/tasks/{id}/detach`) adds the date to
-  the series' `skipDates` and writes a separate one-off event carrying
-  `detachedFrom`, in one transaction, re-queueing both. That event is in no
-  series, so changing it later asks nothing. Anything that lays out or reminds
-  about a series must honour `skipDates` — `occurrencesBetween()` does.
+  deleting the event changes them all. **Changing one date asks how far it
+  reaches** (2026-11-06), Google style — dragging it, stretching it, or saving
+  it from the editor (which opens on the date clicked): *This event*, *This and
+  following events*, *All events* (`SeriesScope`, `SeriesChoice.tsx`,
+  `changeSeries()` in `src/lib/personalTasks.ts`). *This event* takes it out
+  (`POST /api/me/tasks/{id}/detach`): the date goes on the series'
+  `skipDates` and a separate one-off event carrying `detachedFrom` is
+  written, in one transaction, re-queueing both. *Following* and *all* are
+  `POST /api/me/tasks/{id}/series`: "all" shifts the start, end and
+  `skipDates` by the same days (`shiftedRepeat()`), "following" ends the
+  series the day before and writes a new series from the moved date (also
+  carrying `detachedFrom`, for the record — it is a series, so it asks again).
+  Other edits from the editor are then an ordinary PATCH on whichever item
+  the answer left. A change to the pattern itself offers no "this event". A
+  separate event is in no series, so changing it later asks nothing. Anything
+  that lays out or reminds about a series must honour `skipDates` —
+  `occurrencesBetween()` does.
+- **A repeating task asks too, with two answers**: *Just this one* or *This
+  and the ones after it* — never "all", because its earlier copies are
+  finished tasks, the record of what was done when. "Just this one" is
+  `moveScope: 'this'` on the PATCH, which stores `patternSlot` (where the
+  copy stood before its first such move); the next copy steps from there at
+  that time, through `onPattern()`. **Anything that steps a repeating task on
+  must read it through `onPattern()`** — the PATCH and the planning card's
+  `carryOn()` do — or a one-off move carries on into every week after.
   `syncReminderQueue()` therefore needs the repeat fields as well as the
   others, and so does anything that calls it for an event.
 - **The Calendar's week view is an hour grid on desktop** (`TaskWeekGrid.tsx`),

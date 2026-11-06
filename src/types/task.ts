@@ -890,6 +890,13 @@ export interface PersonalTask {
   skipDates: string[];
   /** The series a separate event was taken out of, for the record. Null on everything else. */
   detachedFrom: string | null;
+  /**
+   * A repeating **task** moved "just this one": where it sat on its pattern
+   * before the move. The next copy steps from here, at this time, so the move
+   * does not carry on into the weeks after. Null when the copy is where its
+   * pattern put it, and on everything else. See `onPattern()`.
+   */
+  patternSlot: PatternSlot | null;
   /** Events only: the task (and step) this is a work block for. See WorkLink. */
   workFor: WorkLink | null;
   /** The copy finishing this one made. Set once, so un-ticking and re-ticking never makes two. */
@@ -1492,7 +1499,9 @@ function stepRepeat(date: string, t: RepeatShape): string {
  * daily task finished three days late makes one task due today, not three
  * overdue ones. Null for a task that does not repeat or has no date.
  */
-export function nextOccurrence(t: RepeatShape, today: string): string | null {
+export function nextOccurrence(t: RepeatShape & { patternSlot?: PatternSlot | null }, today: string): string | null {
+  // A copy moved "just this one" steps on from where its pattern had it.
+  if (t.patternSlot) t = { ...t, date: t.patternSlot.date };
   if (t.repeat === 'none' || !t.date) return null;
   let d = stepRepeat(t.date, t);
   // A daily task years overdue is a few hundred steps; the cap only guards a bug.
@@ -1525,4 +1534,82 @@ export function occurrencesBetween(t: RepeatShape & Pick<PersonalTask, 'kind'>, 
 
 export function occursOn(t: RepeatShape & Pick<PersonalTask, 'kind'>, date: string): boolean {
   return occurrencesBetween(t, date, date).length > 0;
+}
+
+/* --------------------------------------------- changing one date of a series */
+
+/** Where a repeating task's copy sits on its pattern. See `PersonalTask.patternSlot`. */
+export type PatternSlot = { date: string; time: string | null; endTime: string | null };
+
+/**
+ * What a change to one date of a repeating item reaches, Google Calendar
+ * style — asked whenever one is dragged, stretched or edited on the calendar:
+ *
+ * - `this` — that date only. An event's date is taken out of the series as an
+ *   event of its own (the detach route); a task's copy moves and remembers
+ *   its `patternSlot`, so the next copy comes back on the pattern.
+ * - `following` — that date and every one after it. An event's series is cut
+ *   the day before and a new series starts from the changed date (the series
+ *   route); a task's pattern simply moves with it, which is what a repeating
+ *   task always did, since its next copy steps from its own date.
+ * - `all` — every date, past ones included, shifted by the same amount. Events
+ *   only: a repeating task's earlier copies are separate, finished tasks — the
+ *   record of work done on the day it was done — and are never moved.
+ */
+export type SeriesScope = 'this' | 'following' | 'all';
+export const SERIES_SCOPES: readonly SeriesScope[] = ['this', 'following', 'all'];
+
+/**
+ * The item as its pattern sees it: a task moved "just this one" stands, for
+ * its next copy, where it was before the move. Everything that steps a
+ * repeating task on — the PATCH that finishes it, the planning card's
+ * `carryOn()` — reads the item through this.
+ */
+export function onPattern<T extends Pick<PersonalTask, 'date' | 'time' | 'endTime'> & { patternSlot?: PatternSlot | null }>(t: T): T {
+  const slot = t.patternSlot;
+  return slot ? { ...t, date: slot.date, time: slot.time, endTime: slot.endTime } : t;
+}
+
+/**
+ * A series' stored repeat fields, moved by `days` with every date in it: the
+ * start, the end, the dates taken out, and a `monthlyNth` weekday — so
+ * dragging a Tuesday series to Wednesday makes it a Wednesday series. A
+ * `monthly` day follows from the new start (`repeatFields()`); weekly and
+ * weekdays read their day off the start, so they need nothing.
+ *
+ * Used for "all events" (the whole series, shifted) and for the new half of
+ * "this and following" (the dates from the cut on, shifted).
+ */
+export function shiftedRepeat(
+  t: Pick<PersonalTask, 'date' | 'repeat' | 'repeatWeekday' | 'repeatNths' | 'repeatUntil' | 'skipDates'>,
+  days: number,
+): Pick<PersonalTask, 'date' | 'repeatDay' | 'repeatWeekday' | 'repeatNths' | 'repeatUntil' | 'skipDates'> {
+  const date = t.date ? shiftDays(t.date, days) : null;
+  let fields = repeatFields(t.repeat, date, { repeatWeekday: t.repeatWeekday, repeatNths: t.repeatNths });
+  if (t.repeat === 'monthlyNth' && date && days !== 0) {
+    // The pattern takes the new date's weekday, and a single week of the
+    // month follows the new date too ("1st Tue" dragged eight days on is
+    // "2nd Wed"). Several weeks are kept, since there is no telling which of
+    // them the person dragged from.
+    fields = repeatFields(t.repeat, date, {
+      repeatWeekday: weekdayNumberOf(date),
+      repeatNths: t.repeatNths.length > 1 ? t.repeatNths : [nthOf(date)],
+    });
+  }
+  return {
+    date,
+    ...fields,
+    repeatUntil: t.repeatUntil ? shiftDays(t.repeatUntil, days) : null,
+    skipDates: t.skipDates.map((d) => shiftDays(d, days)),
+  };
+}
+
+/** Whole days from one `YYYY-MM-DD` to another, negative when `to` is earlier. */
+export function dayDistance(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
+/** The day before a `YYYY-MM-DD` — where "this and following" ends the old series. */
+export function dayBefore(date: string): string {
+  return shiftDays(date, -1);
 }

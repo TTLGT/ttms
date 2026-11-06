@@ -2990,7 +2990,12 @@ personalTasks/{uid}/items/{itemId}
   repeatUntil : 'YYYY-MM-DD' | null  // the last day it repeats on; every repeat has one
                                    // (a month by default); null when it does not repeat
   skipDates : string[]             // a repeating event's dates taken out of the series
-  detachedFrom : string | null     // on the separate event made from one of them: the series' id
+  detachedFrom : string | null     // on the separate event made from one of them, or on the new
+                                   // series "this and following" split off: the old series' id
+  patternSlot : { date, time, endTime } | null
+                                   // a repeating TASK moved "just this one": where it stood on its
+                                   // pattern before; the next copy steps from here (onPattern()).
+                                   // Null on events and on a copy where its pattern put it
   workFor   : { taskId, stepId } | null
                                    // events only: a WORK BLOCK, time set aside for one
                                    // of the person's own tasks (stepId: one of its

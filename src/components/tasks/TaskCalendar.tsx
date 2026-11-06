@@ -25,7 +25,7 @@ import type { CalendarOccurrence } from '@/types/celebrationCalendar';
 import { HOLIDAY_STYLE, KIND_STYLE, holidayTitle, sameOccurrence, whatItIs } from '@/components/calendar/CelebrationPanels';
 import { EVENT_ICON, NOTE_STYLE, OCCURRENCE_DRAG_TYPE, OUTCOME_ICON, OUTCOME_STYLE, TASK_DRAG_TYPE } from './taskStyle';
 import OutcomeBadge from './OutcomeBadge';
-import SeriesChoice, { type SeriesAsk } from './SeriesChoice';
+import { asksSeries, seriesAsk, type SeriesAsk } from './SeriesChoice';
 import TaskWeekGrid, { MAX_ZOOM, ZOOM_STEPS } from './TaskWeekGrid';
 import MiniMonth from './MiniMonth';
 import { officeNowTime } from '@/types/planning';
@@ -111,7 +111,7 @@ export default function TaskCalendar({
   onOpen,
   onAdd,
   onUpdate,
-  onDetach,
+  onAskSeries,
   onRangeChange,
   holidaysOn,
   celebrationsOn,
@@ -129,14 +129,16 @@ export default function TaskCalendar({
   today: string;
   selected: string;
   onSelect: (date: string) => void;
-  onOpen: (task: PersonalTask) => void;
+  /** `date` is the day it was opened from — which date of a series, for the editor and its question. */
+  onOpen: (task: PersonalTask, date?: string) => void;
   onAdd: (initial: PersonalTaskInput) => void;
   onUpdate: (id: string, input: PersonalTaskInput) => void;
   /**
-   * Take one date out of a repeating event as its own event, with where it
-   * goes. Without it, dates of a series cannot be dragged or stretched.
+   * A drag or a stretch of one date of a repeating item, for the page to ask
+   * about (SeriesChoice) and carry out. Without it, dates of a series cannot
+   * be dragged or stretched.
    */
-  onDetach?: (id: string, input: { date: string; newDate?: string; time?: string | null; endTime?: string | null }) => void;
+  onAskSeries?: (ask: SeriesAsk) => void;
   /** The days on screen, so the page can fetch history when they reach back that far. */
   onRangeChange?: (from: string, to: string) => void;
   holidaysOn: (date: string) => Holiday[];
@@ -164,7 +166,6 @@ export default function TaskCalendar({
   const [gridStart, setGridStart] = useState(() => weekStartOf(selected));
   const [zoom, setZoom] = useState(0);
   const [over, setOver] = useState<string | null>(null);
-  const [seriesAsk, setSeriesAsk] = useState<SeriesAsk | null>(null);
   // The office clock for the week grid's "now" line; read after mount and once a minute.
   const [nowMinutes, setNowMinutes] = useState<number | null>(null);
   useEffect(() => {
@@ -345,10 +346,11 @@ export default function TaskCalendar({
       setOver(null);
       const id = e.dataTransfer.getData(TASK_DRAG_TYPE);
       const item = items.find((t) => t.id === id);
-      // One date of a series: asked before it is taken out of it.
-      if (item && item.kind === 'event' && item.repeat !== 'none') {
+      // One date of a series: asked how far the move reaches.
+      if (item && asksSeries(item)) {
         const from = e.dataTransfer.getData(OCCURRENCE_DRAG_TYPE) || item.date || date;
-        if (from !== date) setSeriesAsk({ kind: 'move', task: item, date: from, to: { newDate: date } });
+        const ask = seriesAsk('move', item, { date: from, newDate: date });
+        if (ask) onAskSeries?.(ask);
         return;
       }
       if (item && item.date !== date) onUpdate(id, { date });
@@ -360,12 +362,12 @@ export default function TaskCalendar({
     // Not done and Rescheduled carry their mark where an event carries its type.
     const EventIcon = t.kind === 'event' ? EVENT_ICON[t.eventType]
       : outcome && outcome !== 'done' ? OUTCOME_ICON[outcome] : null;
-    // One date of a series can be dragged when the page can take it out of
-    // the series — and asks first. Otherwise it is moved by editing the event.
-    const series = t.kind === 'event' && t.repeat !== 'none';
+    // One date of a series can be dragged when the page can ask how far the
+    // move reaches. Otherwise it is moved by editing it.
+    const series = asksSeries(t);
     // History is a record: opened to read, never moved.
     // An invitation moves when its organiser moves it, never from here.
-    const movable = !t.fromHistory && !t.invitedBy && (!series || !!onDetach);
+    const movable = !t.fromHistory && !t.invitedBy && (!series || !!onAskSeries);
     return (
       <button
         key={t.id}
@@ -378,7 +380,7 @@ export default function TaskCalendar({
           e.dataTransfer.setData('text/plain', t.title);
         }}
         onDragEnd={() => setOver(null)}
-        onClick={(e) => { e.stopPropagation(); onOpen(t); }}
+        onClick={(e) => { e.stopPropagation(); onOpen(t, date); }}
         title={`${t.kind === 'event' ? `${EVENT_TYPE_LABEL[t.eventType]}: ${t.title}` : t.title}${series ? ` (${repeatText(t)})` : ''}${forText(t)}`}
         className={`flex w-full ${movable ? 'cursor-grab' : 'cursor-pointer'} rounded text-left font-medium ${
           roomy ? 'flex-col gap-0.5 px-2 py-1.5 text-xs' : 'items-center gap-1 truncate px-1.5 py-0.5 text-[11px]'
@@ -608,7 +610,7 @@ export default function TaskCalendar({
             onOpen={onOpen}
             onUpdate={onUpdate}
             onAdd={onAdd}
-            onAskSeries={onDetach ? setSeriesAsk : undefined}
+            onAskSeries={onAskSeries}
             forText={forText}
             nowMinutes={nowMinutes}
             zoom={zoom}
@@ -688,6 +690,7 @@ export default function TaskCalendar({
 
           {weekHas(selected) ? (
             <DayList
+              date={selected}
               holidays={holidaysOn(selected)}
               occurrences={celebrationsOn?.(selected) ?? []}
               items={byDay.get(selected) ?? []}
@@ -734,6 +737,7 @@ export default function TaskCalendar({
                       {WEEKDAYS[selectedWeek.indexOf(d)]} · {d === today ? 'Today' : formatCalendarDate(d)}
                     </button>
                     <DayList
+                      date={d}
                       holidays={holidaysOn(d)}
                       occurrences={celebrationsOn?.(d) ?? []}
                       items={byDay.get(d) ?? []}
@@ -754,23 +758,6 @@ export default function TaskCalendar({
         {asideBottom}
       </aside>
 
-      {seriesAsk && onDetach && (
-        <SeriesChoice
-          ask={seriesAsk}
-          onCancel={() => setSeriesAsk(null)}
-          onThisOne={() => {
-            const a = seriesAsk;
-            setSeriesAsk(null);
-            if (a.kind === 'move') onDetach(a.task.id, { date: a.date, ...a.to });
-            else onDetach(a.task.id, { date: a.date, endTime: a.endTime });
-          }}
-          onAll={() => {
-            const a = seriesAsk;
-            setSeriesAsk(null);
-            if (a.kind === 'resize') onUpdate(a.task.id, { endTime: a.endTime });
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -789,14 +776,17 @@ function DayList({
   onUpdate,
   onPickOccurrence,
   targetOf,
+  date,
 }: {
+  /** The day listed: which date of a series an item is opened on. */
+  date: string;
   holidays: Holiday[];
   occurrences: CalendarOccurrence[];
   items: PersonalTask[];
   /** Open tasks due this day but planned for another (or none). */
   due: PersonalTask[];
   columns: BoardColumn[];
-  onOpen: (task: PersonalTask) => void;
+  onOpen: (task: PersonalTask, date?: string) => void;
   onUpdate: (id: string, input: PersonalTaskInput) => void;
   onPickOccurrence?: (o: CalendarOccurrence) => void;
   targetOf?: (t: PersonalTask) => WorkTarget | null;
@@ -867,7 +857,7 @@ function DayList({
               </button>
             )}
             <div className="min-w-0 flex-1">
-              <button type="button" onClick={() => onOpen(t)} className="block w-full text-left">
+              <button type="button" onClick={() => onOpen(t, date)} className="block w-full text-left">
                 <span className={`block text-sm text-gray-900 hover:underline ${
                   outcome === 'done' ? 'line-through text-gray-500' : outcome ? 'text-gray-500' : ''
                 }`}>

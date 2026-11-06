@@ -15,6 +15,7 @@ import {
   type TaskColor,
   type PersonalTask,
   type PersonalTaskInput,
+  type SeriesScope,
   type TaskReminderSettings,
 } from '@/types/task';
 import type { GameEvent, GameState, GameTheme } from '@/types/taskGame';
@@ -113,10 +114,12 @@ export async function createMyTask(input: PersonalTaskInput): Promise<{ task: Pe
 export async function updateMyTask(
   id: string,
   input: PersonalTaskInput,
+  /** A repeating task moved on the calendar: how far the move reaches. See SeriesScope. */
+  moveScope?: 'this' | 'following',
 ): Promise<{ task: PersonalTask; next?: PersonalTask | null; blocks?: PersonalTask[]; sharedPlan?: string | null } & GameReply> {
   const reply = await authedFetch<{ task: PersonalTask; next?: PersonalTask | null; blocks?: PersonalTask[]; sharedPlan?: string | null } & GameReply>(
     `/api/me/tasks/${encodeURIComponent(id)}`,
-    { method: 'PATCH', body: JSON.stringify(input) },
+    { method: 'PATCH', body: JSON.stringify(moveScope ? { ...input, moveScope } : input) },
   );
   // Finishing a planning slot shared a day's plan (src/types/dayPlan.ts).
   // Announced here, the one door every tick goes through — board, table,
@@ -135,6 +138,22 @@ export async function detachMyOccurrence(
   return authedFetch(`/api/me/tasks/${encodeURIComponent(id)}/detach`, {
     method: 'POST',
     body: JSON.stringify(input),
+  });
+}
+
+/**
+ * Move one date of a repeating event with the rest of its series — "this and
+ * following" or "all". `event` is the new series a "following" split made;
+ * null when the series itself was shifted. See /api/me/tasks/{id}/series.
+ */
+export async function moveMySeries(
+  id: string,
+  scope: 'following' | 'all',
+  input: { date: string; newDate?: string; time?: string | null; endTime?: string | null },
+): Promise<{ series: PersonalTask; event: PersonalTask | null }> {
+  return authedFetch(`/api/me/tasks/${encodeURIComponent(id)}/series`, {
+    method: 'POST',
+    body: JSON.stringify({ ...input, scope }),
   });
 }
 
@@ -325,6 +344,54 @@ export function usePersonalTasks() {
     }
   }, [fail]);
 
+  /**
+   * Carry out the answer to SeriesChoice: one date of a repeating item moved
+   * (and, from the editor, anything else changed with it) as far as `scope`
+   * reaches. The move goes first, through the route for that answer; the rest
+   * is then an ordinary save on whichever item now stands for that date — the
+   * separate event, the new series, or the series itself — so every check a
+   * save has applies to it.
+   */
+  const changeSeries = useCallback(async (
+    task: PersonalTask,
+    scope: SeriesScope,
+    move: { date: string; newDate?: string; time?: string | null; endTime?: string | null },
+    rest: PersonalTaskInput = {},
+  ) => {
+    setError('');
+    const when: PersonalTaskInput = {
+      ...(move.newDate !== undefined ? { date: move.newDate } : {}),
+      ...(move.time !== undefined ? { time: move.time } : {}),
+      ...(move.endTime !== undefined ? { endTime: move.endTime } : {}),
+    };
+    try {
+      if (task.kind === 'task') {
+        // A task is one copy at a time: an ordinary save that says whether its
+        // pattern goes with it. "All" is never offered for one.
+        const input = { ...rest, ...when };
+        setTasks((list) => (list ?? []).map((t) => (t.id === task.id ? { ...t, ...input } : t)));
+        took(await updateMyTask(task.id, input, scope === 'this' ? 'this' : 'following'));
+        return;
+      }
+      const moves = Object.keys(when).length > 0;
+      let target = task.id;
+      if (scope === 'this') {
+        // Taken out even when only the details changed: a date of a series
+        // cannot have a title of its own while it is still in it.
+        const { series, event } = await detachMyOccurrence(task.id, move);
+        setTasks((list) => [...(list ?? []).map((t) => (t.id === series.id ? series : t)), event]);
+        target = event.id;
+      } else if (moves || (scope === 'following' && move.date !== task.date)) {
+        const { series, event } = await moveMySeries(task.id, scope, move);
+        setTasks((list) => [...(list ?? []).map((t) => (t.id === series.id ? series : t)), ...(event ? [event] : [])]);
+        target = event?.id ?? series.id;
+      }
+      if (Object.keys(rest).length) took(await updateMyTask(target, rest));
+    } catch (e) {
+      fail(e, 'Could not change that');
+    }
+  }, [fail, took]);
+
   const reschedule = useCallback(async (id: string, input: { date: string; time?: string | null }) => {
     setError('');
     try {
@@ -465,6 +532,6 @@ export function usePersonalTasks() {
 
   return {
     tasks, settings, columns, colorLabels, game, streak, notices, error, setError, reload,
-    create, update, detach, reschedule, remove, clearDone, move, rankQueue, saveSettings, saveColumns, saveColorLabels, saveGameOptions, dismissNotice,
+    create, update, detach, changeSeries, reschedule, remove, clearDone, move, rankQueue, saveSettings, saveColumns, saveColorLabels, saveGameOptions, dismissNotice,
   };
 }

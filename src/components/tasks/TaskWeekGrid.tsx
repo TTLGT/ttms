@@ -12,7 +12,7 @@ import {
 } from '@/types/task';
 import { addMinutes, shiftedEnd } from '@/types/planning';
 import { EVENT_ICON, NOTE_STYLE, OCCURRENCE_DRAG_TYPE, OUTCOME_ICON, OUTCOME_STYLE, TASK_DRAG_TYPE } from './taskStyle';
-import type { SeriesAsk } from './SeriesChoice';
+import { asksSeries, seriesAsk, type SeriesAsk } from './SeriesChoice';
 
 /**
  * Days as an hour grid, Google Calendar style: timed items drawn as blocks
@@ -33,9 +33,9 @@ import type { SeriesAsk } from './SeriesChoice';
  *   click on empty grid had nothing else to do but select the day, and it
  *   still does that too.
  *
- * A date of a repeating event can be dragged and pulled too, but the page is
- * asked first (`onAskSeries`, which opens SeriesChoice): moving it takes it out
- * of the series, and stretching it may mean this date or all of them. A task
+ * A date of a repeating event or task can be dragged and pulled too, but the
+ * page is asked first (`onAskSeries`, which opens SeriesChoice): this one, this
+ * and the ones after it, or all of them. A task
  * has a start time but no end, so it is drawn half an hour tall and has no
  * edge to pull.
  *
@@ -131,7 +131,8 @@ export default function TaskWeekGrid({
   extrasOn: (date: string) => ReactNode[];
   untimedChip: (t: PersonalTask, date: string) => ReactNode;
   onSelect: (date: string) => void;
-  onOpen: (t: PersonalTask) => void;
+  /** `date` is the day it was opened on — which date of a series. */
+  onOpen: (t: PersonalTask, date?: string) => void;
   onUpdate: (id: string, input: PersonalTaskInput) => void;
   onAdd: (initial: PersonalTaskInput) => void;
   /** A change to one date of a series, to be confirmed. Absent: series dates cannot be dragged or pulled. */
@@ -182,7 +183,8 @@ export default function TaskWeekGrid({
 
   const endOf = (t: PersonalTask, date: string) =>
     (stretch?.id === t.id && stretch.date === date ? stretch.end : endMinutes(t));
-  const isSeries = (t: PersonalTask) => t.kind === 'event' && t.repeat !== 'none';
+  const isSeries = asksSeries;
+  const ask = (a: SeriesAsk | null) => { if (a) onAskSeries?.(a); };
 
   const accepts = (e: DragEvent) => e.dataTransfer.types.includes(TASK_DRAG_TYPE);
 
@@ -219,7 +221,7 @@ export default function TaskWeekGrid({
     const from = e.dataTransfer.getData(OCCURRENCE_DRAG_TYPE) || t.date || date;
     if (!withTime) {
       if (isSeries(t)) {
-        if (from !== date) onAskSeries?.({ kind: 'move', task: t, date: from, to: { newDate: date } });
+        ask(seriesAsk('move', t, { date: from, newDate: date }));
       } else if (t.date !== date) onUpdate(t.id, { date });
       return;
     }
@@ -230,7 +232,7 @@ export default function TaskWeekGrid({
     // one, so dropping a task with no end does not read as clearing it.
     const endTime = t.time && t.endTime ? shiftedEnd(t.time, t.endTime, time) ?? undefined : undefined;
     if (isSeries(t)) {
-      onAskSeries?.({ kind: 'move', task: t, date: from, to: { newDate: date, time, endTime: endTime ?? null } });
+      ask(seriesAsk('move', t, { date: from, newDate: date, time, ...(endTime !== undefined ? { endTime } : {}) }));
       return;
     }
     onUpdate(t.id, { date, time, ...(endTime !== undefined ? { endTime } : {}) });
@@ -257,7 +259,7 @@ export default function TaskWeekGrid({
       if (end === from) { setStretch(null); return; }
       if (isSeries(t)) {
         // Asked first; whichever answer comes back is what gets drawn.
-        onAskSeries?.({ kind: 'resize', task: t, date, endTime: toHhmm(end) });
+        ask(seriesAsk('resize', t, { date, endTime: toHhmm(end) }));
         setStretch(null);
         return;
       }
@@ -432,8 +434,8 @@ export default function TaskWeekGrid({
                         e.dataTransfer.setData(OCCURRENCE_DRAG_TYPE, date);
                         e.dataTransfer.setData('text/plain', t.title);
                       }}
-                      onClick={(e) => { e.stopPropagation(); onOpen(t); }}
-                      onKeyDown={(e) => { if (e.key === 'Enter') onOpen(t); }}
+                      onClick={(e) => { e.stopPropagation(); onOpen(t, date); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') onOpen(t, date); }}
                       title={`${t.kind === 'event' ? `${EVENT_TYPE_LABEL[t.eventType]}: ` : ''}${t.title}${series ? ` (${repeatText(t)})` : ''}${forText?.(t) ?? ''}`}
                       className={`absolute z-10 overflow-hidden rounded border border-white/60 px-1.5 py-0.5 ${blockText} leading-tight shadow-sm ${
                         NOTE_STYLE[t.color].chip

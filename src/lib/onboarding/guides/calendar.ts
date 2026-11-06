@@ -40,7 +40,7 @@ export const CALENDAR_GUIDE: Guide = {
         { spot: 5, text: b('All day: things with a date and no time.', 'Todo el día: cosas con fecha y sin hora.') },
       ],
       callouts: [
-        { tone: 'tip', text: b('When you drag one date of a repeating event, TTMS asks: move just this date, or all events? Choose "just this one" for a one-off change.', 'Cuando arrastras una fecha de un evento que se repite, TTMS pregunta: ¿mover solo esta fecha o todos? Elige "solo esta" para un cambio de una vez.') },
+        { tone: 'tip', text: b('When you drag, stretch or edit one date of a repeating event, TTMS asks which to change: this event, this and following events, or all events. Choose "This event" for a one-off change. A repeating task asks too: just this one, or this and the ones after it.', 'Cuando arrastras, estiras o editas una fecha de un evento que se repite, TTMS pregunta cuál cambiar: este evento, este y los siguientes, o todos los eventos. Elige "Este evento" para un cambio de una vez. Una tarea que se repite también pregunta: solo esta, o esta y las siguientes.') },
         { tone: 'tip', text: b('On a phone, the week is a list by day instead of a grid.', 'En el teléfono, la semana es una lista por día en lugar de una cuadrícula.') },
         { tone: 'why', text: b('All times are office time — Guatemala. A client in Chicago saying "3pm" may mean a different hour for you; check before you write it down.', 'Todas las horas son hora de la oficina — Guatemala. Un cliente en Chicago que dice "3pm" puede querer decir otra hora para ti; revisa antes de anotarla.') },
       ],

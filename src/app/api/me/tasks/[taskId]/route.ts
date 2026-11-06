@@ -7,8 +7,8 @@ import { gameClock, gameFrom, offDaysFor } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
 import { GameTurn, addDays, daysBetween, type GameEvent, type GameState } from '@/types/taskGame';
 import {
-  blockStillAhead, cleanTaskInput, nextOccurrence, outcomeOf, repeatEnd, repeatFields,
-  type PersonalTask, type TaskOutcome, type TaskStep,
+  blockStillAhead, cleanTaskInput, nextOccurrence, onPattern, outcomeOf, repeatEnd, repeatFields,
+  type PatternSlot, type PersonalTask, type TaskOutcome, type TaskStep,
 } from '@/types/task';
 import { shiftedEnd } from '@/types/planning';
 import { cleanTaskStreak, recordTaskProgress, type TaskStreak } from '@/types/taskStreak';
@@ -41,7 +41,12 @@ export async function PATCH(
     const { taskId } = await params;
     const ref = taskItems(uid).doc(taskId);
     const owner = taskOwnerDoc(uid);
-    const input = cleanTaskInput(await req.json().catch(() => ({})));
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const input = cleanTaskInput(body);
+    // A repeating task moved on the calendar says how far the move reaches —
+    // see SeriesScope. Absent (the board, the table, anything that did not
+    // ask) leaves where the pattern stands as it was.
+    const moveScope = body.moveScope === 'this' || body.moveScope === 'following' ? body.moveScope : null;
     if ('title' in input && !input.title) {
       return NextResponse.json({ error: 'Give it a title.' }, { status: 400 });
     }
@@ -135,10 +140,28 @@ export async function PATCH(
               ? null
               : shiftedEnd(current.time, current.endTime, time);
         }
-        // Worked out again whenever anything it depends on was sent; otherwise kept.
+        // Where a repeating task's pattern stands (PersonalTask.patternSlot).
+        // "Just this one" remembers where the copy was before its first such
+        // move — a second keeps the first, which is still where the pattern
+        // has it; "this and following" lets the pattern go with the copy.
+        // Moved back to exactly that place, it is on its pattern again.
+        const newTime = 'time' in input ? input.time ?? null : current.time;
+        const newEnd = kind === 'task' ? (update.endTime as string | null) : ('endTime' in input ? input.endTime ?? null : current.endTime);
+        const moved = date !== current.date || newTime !== current.time || newEnd !== current.endTime;
+        let slot: PatternSlot | null = current.patternSlot;
+        if (kind !== 'task' || repeat === 'none') slot = null;
+        else if (moved && moveScope === 'this' && !slot && current.date) {
+          slot = { date: current.date, time: current.time, endTime: current.endTime };
+        } else if (moved && moveScope === 'following') slot = null;
+        if (slot && slot.date === date && slot.time === newTime && slot.endTime === newEnd) slot = null;
+        if (JSON.stringify(slot) !== JSON.stringify(current.patternSlot)) update.patternSlot = slot;
+
+        // Worked out again whenever anything it depends on was sent; otherwise
+        // kept. A monthly task's day comes from where its pattern has it, so
+        // moving one copy off the 15th does not make it a 17th-of-the-month task.
         const touched = ['date', 'repeat', 'repeatWeekday', 'repeatNths'].some((k) => k in input);
         const repeating = touched
-          ? repeatFields(repeat, date, {
+          ? repeatFields(repeat, slot?.date ?? date, {
             repeatWeekday: 'repeatWeekday' in input ? input.repeatWeekday : current.repeatWeekday,
             repeatNths: 'repeatNths' in input ? input.repeatNths : current.repeatNths,
           })
@@ -207,7 +230,7 @@ export async function PATCH(
         const mayCopy = kind === 'task' && status === 'done' && current.status !== 'done' && !current.nextId && repeat !== 'none';
         const blocks = removedSteps.size || mayCopy ? (await tx.get(blocksQuery(uid, taskId))).docs : [];
 
-        const merged = { ...current, ...input, kind, date, repeat, ...repeating, repeatUntil, status, steps } as PersonalTask;
+        const merged = { ...current, ...input, kind, date, repeat, ...repeating, repeatUntil, status, steps, patternSlot: slot } as PersonalTask;
 
         // Counted once ever, in both the game and the plain streak, so ticking
         // a box on and off cannot pad either.
@@ -276,16 +299,19 @@ export async function PATCH(
           const nextRef = taskItems(uid).doc();
           nextId = nextRef.id;
           update.nextId = nextId;
-          tx.set(nextRef, nextCopyData({
+          // From where the pattern has it: a copy moved "just this one" does
+          // not hand its odd day and time on to the next.
+          const from = onPattern({
             ...merged,
             repeat,
             ...repeating,
             // The copy keeps the block's length; see the endTime rule above.
             endTime: (update.endTime as string | null | undefined) ?? null,
             planning: current.planning,
-          }, nextDate));
+          });
+          tx.set(nextRef, nextCopyData(from, nextDate));
           syncReminderQueue(tx, uid, {
-            kind: 'task', status: 'todo', date: nextDate, time: merged.time, reminders: merged.reminders,
+            kind: 'task', status: 'todo', date: nextDate, time: from.time, reminders: merged.reminders,
           }, nextId);
           if (current.planning) {
             tx.set(owner, { planning: { [current.planning]: { taskId: nextId } } }, { merge: true });

@@ -3,7 +3,7 @@ import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/f
 import { nextCopyData, syncReminderQueue, taskItems, taskOwnerDoc, toTask } from '@/lib/personalTasksServer';
 import { officeToday } from '@/types/celebration';
 import {
-  MAX_TASKS_PER_PERSON, MAX_TASK_TITLE, isLapsedPlanning, newStepId, nextOccurrence, repeatEnd, repeatFields, type PersonalTask,
+  MAX_TASKS_PER_PERSON, MAX_TASK_TITLE, isLapsedPlanning, newStepId, nextOccurrence, onPattern, repeatEnd, repeatFields, type PersonalTask,
 } from '@/types/task';
 import {
   MORNING_ASK_UNTIL,
@@ -136,7 +136,8 @@ async function carryOn(uid: string, task: PersonalTask, today: string): Promise<
     if (!isLapsedPlanning(fresh, today) || fresh.nextId) return false;
     const nextDate = nextOccurrence(fresh, today);
     if (!nextDate) return false;
-    tx.set(nextRef, nextCopyData(fresh, nextDate));
+    // From where its pattern has it, if it was moved "just this one".
+    tx.set(nextRef, nextCopyData(onPattern(fresh), nextDate));
     tx.update(ref, { nextId: nextRef.id, updatedAt: FieldValue.serverTimestamp() });
     syncReminderQueue(tx, uid, { ...fresh, status: 'todo', date: nextDate }, nextRef.id);
     tx.set(taskOwnerDoc(uid), { planning: { [kind]: { taskId: nextRef.id } } }, { merge: true });
