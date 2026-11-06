@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { FileSignature } from 'lucide-react';
+import { SectionHeading } from './OrderSection';
 import { getOrderTerms, saveOrderTerms, type OrderTermsResponse } from '@/lib/agreementTerms';
 import TermsEditor from '@/components/settings/TermsEditor';
 import { type TermsParty } from '@/types/agreementTerms';
@@ -56,11 +57,9 @@ export default function OrderTermsCard({ orderId, onChanged }: { orderId: string
   }
 
   return (
-    <div id="terms" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
-      <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2">
-        <FileSignature className="w-4 h-4" /> Terms and Conditions
-      </h3>
-      <p className="mt-1 text-xs text-gray-500">
+    <div id="terms" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
+      <SectionHeading icon={FileSignature} tone="gray" title="Terms and Conditions" />
+      <p className="-mt-2 text-xs text-gray-500">
         <Bi>Changes here apply to this load only. The terms for every load are in Settings → Operations → Agreement Terms.</Bi>
       </p>
 

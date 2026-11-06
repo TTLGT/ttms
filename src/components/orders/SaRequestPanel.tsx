@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  AlertTriangle, CheckCircle2, Clock, Loader2, Mail, Plus, Send, ShieldCheck, Undo2, X,
+  AlertTriangle, CheckCircle2, Clock, HelpCircle, Loader2, Mail, Plus, Send, ShieldCheck, Undo2, X,
 } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { fetchOrderReadiness } from '@/lib/orderPaperwork';
@@ -207,8 +207,16 @@ export function RequestSaButton({
  * and names who made it, so the second person sees what the first already
  * did; the panel reloads after every action rather than trusting its own copy.
  */
-export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, onLoaded, onFix, party = 'client', signed = null }: {
+export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, onLoaded, onFix, party = 'client', signed = null, layout = 'card' }: {
   orderId: string;
+  /**
+   * `panel` when drawn inside the order page's side panel (OrderSidePanel):
+   * no card of its own, one column, and each check's explanation folded
+   * behind a help button — people who work these every day know what
+   * "Freight matches the truck" means, and the paragraph under every line was
+   * most of the panel's height.
+   */
+  layout?: 'card' | 'panel';
   /**
    * This party's e-signature on the order, if any. Read once a round has gone
    * out, to say whether what was sent has been signed — the full record stays
@@ -238,6 +246,9 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
   const [reason, setReason] = useState('');
   // The CC box's text, held here so Send and Resend can see it — see pendingCc().
   const [ccTyped, setCcTyped] = useState('');
+  // Which checks have their explanation open, in the panel layout.
+  const [helpOpen, setHelpOpen] = useState<Record<string, boolean>>({});
+  const inPanel = layout === 'panel';
 
   function load() {
     getSaRequest(orderId, party).then((d) => { setData(d); onLoaded?.(d.request); }).catch((e) => setError(e instanceof Error ? e.message : 'Could not load the request'));
@@ -319,7 +330,7 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
   ) : sectionName;
 
   return (
-    <section className={`bg-white rounded-xl border-2 ${tone} p-5 mb-6 space-y-4`}>
+    <section className={inPanel ? 'space-y-4' : `bg-white rounded-xl border-2 ${tone} p-5 mb-6 space-y-4`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide flex items-center gap-2">
@@ -374,7 +385,7 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
       )}
 
       {working && (
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className={inPanel ? 'grid gap-6' : 'grid gap-5 lg:grid-cols-2'}>
           {/* Facts TTMS can check */}
           <div className="space-y-3">
             <p data-es className="text-xs font-semibold text-gray-800 uppercase tracking-wide">What TTMS checked</p>
@@ -409,7 +420,15 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
                         onChange={(e) => void run(`check-${c.key}`, () => tickSaCheck(orderId, c.key, e.target.checked, party))} />
                       <span>
                         <span className="text-gray-900 font-medium">{c.label}</span>
-                        <span className="block text-[11px] text-gray-500">{c.detail}</span>
+                        {/* A button inside the label, which the browser does not treat as a click on the box. */}
+                        {inPanel && (
+                          <button type="button" aria-label="What to check" aria-expanded={Boolean(helpOpen[c.key])}
+                            onClick={(e) => { e.preventDefault(); setHelpOpen((h) => ({ ...h, [c.key]: !h[c.key] })); }}
+                            className="ml-1 inline-flex align-middle rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-brand-600">
+                            <HelpCircle className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {(!inPanel || helpOpen[c.key]) && <span className="block text-[11px] text-gray-500">{c.detail}</span>}
                         {/* What the order lists — the client's item on the SA, the
                             truck's on the Dispatch Sheet. */}
                         {(c.key === 'accessorials' || (party === 'carrier' && c.key === 'equipment')) && review.accessorials && (

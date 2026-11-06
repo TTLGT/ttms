@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "eb6ade0afa68f3271fb4831be19dce8f89f5c205",
+      "date": "2026-11-06T09:10:25-06:00",
+      "author": "erwindank",
+      "subject": "Accept UK numbers as a person's other phone: United Kingdom is in the country picker beside Guatemala and Mexico, a number typed with its leading 0 or +44 (0) is read correctly, and the people export, import template and archive export carry a UK phone column so the number survives a round trip",
+      "body": ""
+    },
+    {
       "hash": "c4ca2781cad4322336bbc1e7d9e93c9df7b08a6a",
       "date": "2026-11-06T08:31:18-06:00",
       "author": "erwindank",

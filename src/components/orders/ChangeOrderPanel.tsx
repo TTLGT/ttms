@@ -143,12 +143,20 @@ const SHOW_DECIDED_DAYS = 14;
  * when the page saves something, since a save may have just filed one.
  */
 export default function ChangeOrderPanel({
-  orderId, refreshKey = 0, onDecided,
+  orderId, refreshKey = 0, onDecided, onLoaded, bare = false,
 }: {
   orderId: string;
   refreshKey?: number;
   /** An approval changed the load; the page re-reads it. */
   onDecided?: () => void;
+  /**
+   * The change order this panel is showing, or null when it shows nothing —
+   * so the order page can put one line for it in its rail and open the
+   * panel from there.
+   */
+  onLoaded?: (co: ChangeOrder | null) => void;
+  /** Drawn inside the order page's side panel: no card of its own. */
+  bare?: boolean;
 }) {
   const [state, setState] = useState<{ co: ChangeOrder | null; canDecide: boolean; uid: string } | null>(null);
 
@@ -165,17 +173,27 @@ export default function ChangeOrderPanel({
   }, [load, orderId]);
 
   const co = state?.co;
-  if (!state || !co) return null;
-  const recent = co.status === 'pending'
-    || Date.parse(co.decidedAt ?? co.requestedAt ?? '') > Date.now() - SHOW_DECIDED_DAYS * 24 * 60 * 60 * 1000;
-  if (!recent) return null;
+  const recent = !!co && (co.status === 'pending'
+    || Date.parse(co.decidedAt ?? co.requestedAt ?? '') > Date.now() - SHOW_DECIDED_DAYS * 24 * 60 * 60 * 1000);
+  const shown = co && recent ? co : null;
+  useEffect(() => { onLoaded?.(shown); }, [shown, onLoaded]);
+  if (!state || !shown) return null;
+
+  if (bare) {
+    return (
+      <div id="change-order">
+        <ChangeOrderRow co={shown} canDecide={state.canDecide} uid={state.uid}
+          onDecided={() => { load(); onDecided?.(); }} />
+      </div>
+    );
+  }
 
   return (
-    <section id="change-order" className={`rounded-xl border p-5 mb-6 bg-white ${co.status === 'pending' ? 'border-amber-300' : 'border-gray-200'}`}>
+    <section id="change-order" className={`rounded-xl border p-5 mb-6 bg-white ${shown.status === 'pending' ? 'border-amber-300' : 'border-gray-200'}`}>
       <h2 data-es className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-900">
         <FilePen className="h-4 w-4 text-brand-600" /> Change order
       </h2>
-      <ChangeOrderRow co={co} canDecide={state.canDecide} uid={state.uid}
+      <ChangeOrderRow co={shown} canDecide={state.canDecide} uid={state.uid}
         onDecided={() => { load(); onDecided?.(); }} />
     </section>
   );

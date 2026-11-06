@@ -23,11 +23,15 @@ import { READINESS_FIX, type FixTarget } from './fixTargets';
  * `refreshKey` is anything that changes when the order does, so the list does
  * not go on claiming a field is missing after somebody has filled it.
  */
-export default function OrderReadinessCard({ orderId, orderNumber, showQuotePdf, refreshKey }: {
+export default function OrderReadinessCard({ orderId, orderNumber, showQuotePdf, refreshKey, onLoaded, bare = false }: {
   orderId: string;
   orderNumber: string;
   showQuotePdf: boolean;
   refreshKey?: unknown;
+  /** The lines as just read, so the order page's rail can say how many are left. */
+  onLoaded?: (items: ReadinessItem[]) => void;
+  /** Drawn inside the order page's side panel: no card of its own. */
+  bare?: boolean;
 }) {
   const [items, setItems] = useState<ReadinessItem[] | null>(null);
   const [error, setError] = useState('');
@@ -35,7 +39,7 @@ export default function OrderReadinessCard({ orderId, orderNumber, showQuotePdf,
 
   useEffect(() => {
     fetchOrderReadiness(orderId)
-      .then((i) => { setItems(i); setError(''); })
+      .then((i) => { setItems(i); setError(''); onLoaded?.(i); })
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not check the order'));
   }, [orderId, refreshKey]);
 
@@ -53,7 +57,7 @@ export default function OrderReadinessCard({ orderId, orderNumber, showQuotePdf,
   const sa = items ? readinessOf(items, 'sa') : null;
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-5 mb-6 space-y-4">
+    <section className={bare ? 'space-y-4' : 'bg-white rounded-xl border border-gray-200 p-5 mb-6 space-y-4'}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Paperwork checklist</h2>

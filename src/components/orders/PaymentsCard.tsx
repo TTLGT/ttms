@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { CircleDollarSign, Paperclip } from 'lucide-react';
+import { SectionHeading } from './OrderSection';
 import { listOrderFiles, uploadOrderFile } from '@/lib/orderFiles';
 import { recordPayment, undoPayment } from '@/lib/driverLinks';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -61,13 +62,10 @@ export default function PaymentsCard({ orderId, order, onChanged }: {
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6">
-      <div className="mb-1 flex items-center gap-2">
-        <CircleDollarSign className="h-4 w-4 text-gray-500" />
-        <h3 data-es className="text-xs font-semibold uppercase tracking-wide text-gray-500">Payments</h3>
-        {cod && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">COD</span>}
-      </div>
-      <p className="mb-4 text-xs text-gray-500">
+    <div id="payments" className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 scroll-mt-4">
+      <SectionHeading icon={CircleDollarSign} tone="emerald" title="Payments"
+        action={cod ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">COD</span> : undefined} />
+      <p className="-mt-2 mb-4 text-xs text-gray-500">
         {cod
           ? 'COD load: the client pays the driver at delivery, and the carrier then pays us our share. '
           : 'The client pays us and we pay the driver. '}

@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { Check, ExternalLink, Map, Plus, RefreshCw, Route } from 'lucide-react';
+import {
+  AlertTriangle, Check, CheckCircle2, ClipboardList, ExternalLink, FilePen, FileSignature, FileText, ListChecks,
+  Map, MapPin, Package, Plus, RefreshCw, Route, ShieldCheck, StickyNote, Truck, Undo2, Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import {
   announceOrderEvent, getOrder, orderDocumentUrl, requestOrderAccess, updateOrderStatus, updateOrder,
@@ -97,18 +100,34 @@ import OrderPhotos from '@/components/photos/OrderPhotos';
 import ChangeHistory from '@/components/history/ChangeHistory';
 import { OrderCoverThumb } from '@/components/photos/PhotoBits';
 import { Bi } from '@/components/spanish/Es';
+import OrderLoadCard from '@/components/orders/OrderLoadCard';
+import { SectionHeading } from '@/components/orders/OrderSection';
+import OrderSidePanel, { RailItem } from '@/components/orders/OrderSidePanel';
+import { celebrate } from '@/lib/celebrate';
+import { reviewChecks, type AgreementParty, type SaRequest } from '@/types/saRequest';
+import { CHANGE_ORDER_STATUS_LABEL, type ChangeOrder } from '@/types/changeOrder';
+import { readinessOf, type ReadinessItem } from '@/types/orderReadiness';
 
 // Sentinel value for the dropdown's "add a new carrier" row. Not a document id,
 // so it can never collide with a real carrier.
 const NEW_CARRIER = '__new__';
 
-// No Carrier Assigned: a carrier is found whenever one is found, before or
-// after the client signs, so it is not a step in the load's order. See the
-// note on `carrier_assigned` in src/types/order.ts.
-const PIPELINE: OrderStatus[] = [
-  'quote', 'booked', 'shipper_signed',
-  'carrier_signed', 'in_transit', 'delivered', 'completed',
-];
+/**
+ * What the rail's "Next step" card says at each status. The words say what
+ * actually moves the load on, which for most steps is somebody outside the
+ * company (the client signing, the driver tapping), not a button here; the
+ * button under them is the same advance the header used to carry.
+ */
+const NEXT_STEP: Partial<Record<OrderStatus, { title: string; text: string }>> = {
+  quote:          { title: 'Turn the quote into a booking', text: 'When the client accepts, ask dispatch for the Shipper Agreement (SA).' },
+  booked:         { title: 'Get the client’s signature', text: 'Dispatch reviews the load and sends the SA. It moves to Client Signed by itself when the client e-signs.' },
+  shipper_signed: { title: 'Get the carrier’s signature', text: 'Send the Dispatch Sheet to the carrier. It moves to Carrier Signed by itself when they e-sign.' },
+  carrier_signed: { title: 'Get the load moving', text: 'Send the driver their trip link. It moves to In Transit when they report the pickup.' },
+  in_transit:     { title: 'Get it delivered', text: 'The driver taps Delivered on their trip link, with a picture.' },
+  delivered:      { title: 'Collect payment', text: 'Record the client’s payment and the driver’s. It moves to Completed by itself once both are recorded.' },
+  completed:      { title: 'Load complete', text: 'Delivered, and paid both ways.' },
+  cancelled:      { title: 'Cancelled', text: 'This load was cancelled.' },
+};
 
 /**
  * Label for the parent-order link.
@@ -207,7 +226,7 @@ function itemRoute(order: Order, item: CommodityItem): string {
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <p data-es className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">{label}</p>
+      <p data-es className="text-xs font-medium text-gray-500 mb-0.5">{label}</p>
       <p className="text-sm text-gray-900">{value || '—'}</p>
     </div>
   );
@@ -291,6 +310,27 @@ export default function OrderDetailPage() {
   // here so "Request Carrier Agreement" is offered only when none is open.
   const [caRefresh, setCaRefresh] = useState(0);
   const [caStatus, setCaStatus] = useState<string | null>(null);
+
+  /*
+   * The rail. Each review reports what it loaded, so the rail can list it as
+   * one line and open it in a side panel (OrderSidePanel) rather than every
+   * review being a full-width card above the load.
+   */
+  const [saReq, setSaReq] = useState<SaRequest | null>(null);
+  const [caReq, setCaReq] = useState<SaRequest | null>(null);
+  const [changeOrder, setChangeOrder] = useState<ChangeOrder | null>(null);
+  const [readiness, setReadiness] = useState<ReadinessItem[] | null>(null);
+  const [panel, setPanel] = useState<null | 'sa' | 'ca' | 'change' | 'readiness'>(null);
+  // Stable, because the side panel refocuses its close button whenever this
+  // changes — a new function every render would steal focus from the CC box.
+  const closePanel = useCallback(() => setPanel(null), []);
+  // The change-order email and the edit screen link to #change-order, which
+  // used to scroll to the card. It is a panel now, so the link opens it.
+  const hashOpened = useRef(false);
+  useEffect(() => {
+    if (hashOpened.current || !changeOrder) return;
+    if (window.location.hash === '#change-order') { hashOpened.current = true; setPanel('change'); }
+  }, [changeOrder]);
 
   /*
    * Whether "→ Client Signed" may be pressed by hand: only with the client's
@@ -456,6 +496,11 @@ export default function OrderDetailPage() {
     document.getElementById(fixScroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setFixScroll(null);
   }, [fixScroll, tab, assigningCarrier]);
+
+  function fixFromPanel(target: FixTarget) {
+    setPanel(null);
+    goFix(target);
+  }
 
   function goFix(target: FixTarget) {
     if (target.kind === 'edit') {
@@ -1058,6 +1103,8 @@ export default function OrderDetailPage() {
     try {
       await updateOrderStatus(orderId, next);
       setOrder({ ...order, status: next });
+      // The two moments worth a moment: only for the person who pressed it.
+      if (next === 'delivered' || next === 'completed') celebrate(next === 'completed' ? 160 : 100);
       // After the write, never before it, and never awaited into the same
       // try: the status is what matters and the announcement is a courtesy.
       void announceOrderEvent(orderId, 'status');
@@ -1216,33 +1263,97 @@ export default function OrderDetailPage() {
   );
 
   const nextStatus  = STATUS_NEXT[order.status];
-  const currentStep = PIPELINE.indexOf(displayStatus(order.status));
   const milesAtNote = laneMilesAtNote(order.laneMilesSource, formatDateTime(order.laneMilesAt, ''));
   const bolIsOutdated = bolOutdated(order as unknown as Record<string, unknown>);
   const canRegenerateBol = can('orders.bol')
     && ['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'].includes(order.status);
 
 
+  // Why the advance button cannot be pressed yet, said on the card rather than
+  // only in a tooltip nobody hovers. Same tests as before: by hand, Client
+  // Signed needs the signed SA uploaded and verified, Carrier Signed the
+  // signed Dispatch Sheet, and Completed both payments.
+  const needsSa = nextStatus === 'shipper_signed' && handSignable && !signedSaCopies;
+  const needsCa = nextStatus === 'carrier_signed' && handCarrierSignable && !carrierSignedCopies;
+  const unpaid = nextStatus === 'completed' ? paymentsMissing(order) : [];
+  const advanceBlocked = needsSa || needsCa || unpaid.length > 0;
+  const blockedReason = unpaid.length ? missingSentence(unpaid, isCodLoad(order)) : needsSa
+    ? signedSaWaiting
+      ? 'The signed Shipper Agreement (SA) uploaded to this load is waiting for admin or dispatch to verify it.'
+      : 'Upload the client’s signed Shipper Agreement (SA) first, in Client Confirmation or under Documents → Signed Shipper Agreement (SA), and have admin or dispatch verify it. It moves on its own when the client e-signs.'
+    : needsCa
+      ? carrierSignedWaiting
+        ? 'The signed Dispatch Sheet uploaded to this load is waiting for admin or dispatch to verify it.'
+        : 'Upload the carrier’s signed Dispatch Sheet first, in the Carrier section or under Documents → Signed Dispatch Sheet, and have admin or dispatch verify it. It moves on its own when the carrier e-signs.'
+      : '';
+  const step = NEXT_STEP[displayStatus(order.status)];
+
+  // The rail's open items. Each review is listed only while somebody still has
+  // something to do on it; once it is done its line goes, and what was checked
+  // stays where it always was — the verification record beside Client
+  // Confirmation and Carrier, and the History tab.
+  const reviewItem = (r: SaRequest | null, party: AgreementParty, key: 'sa' | 'ca') => {
+    if (!r || r.status === 'done') return null;
+    const checks = reviewChecks(party);
+    const ticked = checks.filter((c) => r.checks[c.key]).length;
+    const what = party === 'carrier' ? 'Dispatch Sheet' : 'SA';
+    const title = `${what} ${r.reason === 'changed' ? 'update' : 'review'}`;
+    if (r.status === 'returned') {
+      return (
+        <RailItem key={key} title={title} icon={Undo2} tone="amber" onOpen={() => setPanel(key)}
+          sub={`Sent back by ${r.returnedByName ?? 'dispatch'}`} />
+      );
+    }
+    return (
+      <RailItem key={key} title={title} done={ticked} total={checks.length} onOpen={() => setPanel(key)}
+        sub={r.status === 'sent'
+          ? `Sent to ${r.sentTo ?? (party === 'carrier' ? 'the carrier' : 'the client')} · mark done once checked`
+          : `${ticked} of ${checks.length} checked · ${r.reason === 'changed' ? 'opened after a change' : `asked by ${r.requestedByName}`}`} />
+    );
+  };
+  const showReadiness = order.status === 'quote' || order.status === 'booked';
+  const saReadiness = readiness ? readinessOf(readiness, 'sa') : null;
+  const railItems = [
+    changeOrder && (
+      <RailItem key="change" title="Change order" onOpen={() => setPanel('change')}
+        icon={changeOrder.status === 'pending' ? FilePen : changeOrder.status === 'approved' ? CheckCircle2 : FilePen}
+        tone={changeOrder.status === 'pending' ? 'amber' : changeOrder.status === 'approved' ? 'green' : 'gray'}
+        sub={changeOrder.status === 'pending'
+          ? `Waiting for dispatch · from ${changeOrder.requestedByName}`
+          : `${CHANGE_ORDER_STATUS_LABEL[changeOrder.status]}${changeOrder.decidedByName ? ` by ${changeOrder.decidedByName}` : ''}`} />
+    ),
+    reviewItem(saReq, 'client', 'sa'),
+    reviewItem(caReq, 'carrier', 'ca'),
+    showReadiness && saReadiness && (
+      <RailItem key="readiness" title="Paperwork checklist" onOpen={() => setPanel('readiness')}
+        done={saReadiness.items.filter((i) => i.ok === true).length} total={saReadiness.items.length}
+        sub={saReadiness.complete
+          ? 'Everything the SA needs is filled in'
+          : `${saReadiness.items.length - saReadiness.items.filter((i) => i.ok === true).length} left before the SA can go out`} />
+    ),
+  ].filter(Boolean);
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px]">
       <Link href="/dashboard/orders" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
         ← Orders
       </Link>
 
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
-        <div className="flex items-start gap-4">
-          {/* The load's profile picture, so it can be recognised before its
-              number is read. Opens the pictures; with none yet, it is the
-              prompt to add one. */}
+      <OrderLoadCard
+        order={order}
+        thumb={
+          /* The load's profile picture, so it can be recognised before its
+             number is read. Opens the pictures; with none yet, it is the
+             prompt to add one. */
           <button type="button" onClick={() => setTab('pictures')}
             title={order.coverThumbUrl ? 'Load pictures' : 'Add pictures of this load'}
-            className="rounded-lg hover:ring-2 hover:ring-brand-300 transition flex-shrink-0">
-            <OrderCoverThumb url={order.coverThumbUrl} size={64} className="rounded-lg" alt="Load profile picture" />
+            className="rounded-xl hover:ring-2 hover:ring-brand-300 transition flex-shrink-0">
+            <OrderCoverThumb url={order.coverThumbUrl} size={64} className="rounded-xl" alt="Load profile picture" />
           </button>
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl font-bold text-gray-900 font-mono">{orderDisplayNumber(order)}</h1>
+        }
+        title={
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
+            <h1 className="text-[28px] leading-none font-bold text-gray-900 tracking-wide font-[family-name:var(--font-rajdhani)]">{orderDisplayNumber(order)}</h1>
             <StatusBadge status={order.status} />
             {order.recordImport && (
               <RecordImportBadge size="md" orderId={orderId}
@@ -1254,171 +1365,122 @@ export default function OrderDetailPage() {
               </Link>
             )}
           </div>
-          <p className="text-sm text-gray-500">{order.clientName || order.shipperName} — {order.commodity}</p>
-          {/* The load's other number, under the one it is known by. A BATS
-              load leads with its BATS id and carries its TTMS number here; a
-              TTMS load that predates the sequence carries the random number it
-              used to have. See orderDisplayNumber(). */}
-          {orderAltNumber(order) && (
-            <p className="text-xs text-gray-400 mt-1 font-mono">
-              {order.batsId ? 'TTMS ' : 'previously '}{orderAltNumber(order)}
-            </p>
-          )}
-          {/* Where the label was, for admin and dispatch: an undo for a
-              removal made by mistake. Nobody else is shown anything. */}
-          {order.batsId && order.recordImport === false && (
-            <p className="mt-1">
-              <RecordImportRemoved orderId={orderId} byName={order.recordImportChangedByName}
-                onChange={(on) => setOrder((prev) => (prev ? { ...prev, recordImport: on } : prev))} />
-            </p>
-          )}
-        </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {/* Beside the link button, not buried in a tab: the conversation
-              about a load is part of the load's record, and the whole point of
-              it living here is that nobody has to remember which room it was
-              in. See DiscussButton. */}
-          <DiscussButton recordId={orderId} />
-          <CopyLinkButton />
-          <Link data-es href={`/dashboard/orders/${orderId}/edit`}
-            className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
-            Edit
-          </Link>
-          {/* A quote's next step is a request to dispatch, not a status
-              change — see src/types/saRequest.ts. Every later rung keeps the
-              plain advance button. */}
-          {order.status === 'quote' && (
-            <RequestSaButton orderId={orderId}
-              owners={order.owners}
-              createdBy={order.createdBy}
-              onBrokerChanged={() => void refreshOwners()}
-              onRequested={() => {
-                setOrder((prev) => (prev ? { ...prev, status: 'booked' } : prev));
-                setSaRefresh((n) => n + 1);
-              }} />
-          )}
-          {nextStatus && order.status !== 'cancelled' && order.status !== 'quote' && (() => {
-            // By hand, Client Signed needs the signed SA uploaded first, and
-            // Carrier Signed the signed Carrier Agreement.
-            const needsSa = nextStatus === 'shipper_signed' && handSignable && !signedSaCopies;
-            const needsCa = nextStatus === 'carrier_signed' && handCarrierSignable && !carrierSignedCopies;
-            // Completed waits on the client and the driver being paid.
-            const unpaid = nextStatus === 'completed' ? paymentsMissing(order) : [];
-            const needsCopy = needsSa || needsCa || unpaid.length > 0;
-            return (
-              <button onClick={handleAdvance} disabled={advancing || needsCopy}
-                data-es={STATUS_LABEL[nextStatus]}
-                title={unpaid.length ? missingSentence(unpaid, isCodLoad(order)) : needsSa
-                  ? signedSaWaiting
-                    ? 'The signed Shipper Agreement (SA) uploaded to this load is waiting for admin or dispatch to verify it.'
-                    : 'Upload the client’s signed Shipper Agreement (SA) first, in Client Confirmation or under Documents → Signed Shipper Agreement (SA), and have admin or dispatch verify it. It moves on its own when the client e-signs.'
-                  : needsCa
-                    ? carrierSignedWaiting
-                      ? 'The signed Dispatch Sheet uploaded to this load is waiting for admin or dispatch to verify it.'
-                      : 'Upload the carrier’s signed Dispatch Sheet first, in the Carrier section or under Documents → Signed Dispatch Sheet, and have admin or dispatch verify it. It moves on its own when the carrier e-signs.'
-                    : undefined}
-                className="px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                {advancing ? 'Updating…' : `→ ${STATUS_LABEL[nextStatus]}`}
-              </button>
-            );
-          })()}
-        </div>
-      </div>
+        }
+        sub={
+          <>
+            <p className="text-sm text-gray-600">{order.clientName || order.shipperName} — {order.commodity}</p>
+            {/* The load's other number, under the one it is known by. A BATS
+                load leads with its BATS id and carries its TTMS number here; a
+                TTMS load that predates the sequence carries the random number it
+                used to have. See orderDisplayNumber(). */}
+            {orderAltNumber(order) && (
+              <p className="text-xs text-gray-400 mt-1 font-mono">
+                {order.batsId ? 'TTMS ' : 'previously '}{orderAltNumber(order)}
+              </p>
+            )}
+            {/* Where the label was, for admin and dispatch: an undo for a
+                removal made by mistake. Nobody else is shown anything. */}
+            {order.batsId && order.recordImport === false && (
+              <p className="mt-1">
+                <RecordImportRemoved orderId={orderId} byName={order.recordImportChangedByName}
+                  onChange={(on) => setOrder((prev) => (prev ? { ...prev, recordImport: on } : prev))} />
+              </p>
+            )}
+          </>
+        }
+        actions={
+          <>
+            {/* Beside the link button, not buried in a tab: the conversation
+                about a load is part of the load's record, and the whole point of
+                it living here is that nobody has to remember which room it was
+                in. See DiscussButton. */}
+            <DiscussButton recordId={orderId} />
+            <CopyLinkButton />
+            <Link data-es href={`/dashboard/orders/${orderId}/edit`}
+              className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+              Edit
+            </Link>
+          </>
+        }
+      />
 
-      {/* Status pipeline */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 overflow-x-auto">
-        <div className="flex items-center min-w-max">
-          {PIPELINE.map((s, i) => {
-            const done   = i < currentStep;
-            const active = i === currentStep;
-            const future = i > currentStep;
-            return (
-              <div key={s} className="flex items-center">
-                <div className={`flex flex-col items-center ${future ? 'opacity-40' : ''}`}>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mb-1
-                    ${done   ? 'bg-brand-600 text-white' : ''}
-                    ${active ? 'bg-brand-600 text-white ring-4 ring-brand-100' : ''}
-                    ${future ? 'bg-gray-200 text-gray-400' : ''}
-                  `}>
-                    {done ? '✓' : i + 1}
-                  </div>
-                  <span data-es className={`text-xs whitespace-nowrap ${active ? 'font-semibold text-brand-700' : 'text-gray-500'}`}>
-                    {STATUS_LABEL[s]}
-                  </span>
+      {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600 mt-4">{error}</div>}
+
+      {/*
+        Two columns on a wide screen: the load on the left, and on the right a
+        rail of what needs doing — the next step, the reviews still open, and
+        who owns the load. The rail stays in view while the left side scrolls.
+        On a narrower screen the rail comes first, so the next step is never
+        below the fold.
+      */}
+      <div className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <aside className="space-y-4 xl:sticky xl:top-4 xl:col-start-2 xl:row-start-1 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:pb-1">
+          {step && (
+            <section className="rounded-2xl border border-brand-100 bg-white p-5 shadow-sm">
+              <p data-es className="text-[11px] font-semibold uppercase tracking-wider text-brand-600">Next step</p>
+              <h2 data-es className="mt-1 text-lg font-semibold text-gray-900">{step.title}</h2>
+              <p className="mt-1 text-sm text-gray-600"><Bi>{step.text}</Bi></p>
+
+              {/* A quote's next step is a request to dispatch, not a status
+                  change — see src/types/saRequest.ts. Every later rung keeps the
+                  plain advance button. */}
+              {order.status === 'quote' && (
+                <div className="mt-4">
+                  <RequestSaButton orderId={orderId}
+                    owners={order.owners}
+                    createdBy={order.createdBy}
+                    onBrokerChanged={() => void refreshOwners()}
+                    onRequested={() => {
+                      setOrder((prev) => (prev ? { ...prev, status: 'booked' } : prev));
+                      setSaRefresh((n) => n + 1);
+                    }} />
                 </div>
-                {i < PIPELINE.length - 1 && (
-                  <div className={`w-8 h-0.5 mx-1 mb-5 ${i < currentStep ? 'bg-brand-500' : 'bg-gray-200'}`} />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+              )}
+              {nextStatus && order.status !== 'cancelled' && order.status !== 'quote' && (
+                <>
+                  <button onClick={handleAdvance} disabled={advancing || advanceBlocked}
+                    data-es={STATUS_LABEL[nextStatus]}
+                    className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${advanceBlocked
+                      ? 'cursor-not-allowed border border-gray-200 bg-gray-50 text-gray-400'
+                      : 'bg-brand-600 text-white shadow-sm hover:bg-brand-700 disabled:opacity-60'}`}>
+                    {advancing ? 'Updating…' : `→ ${STATUS_LABEL[nextStatus]}`}
+                  </button>
+                  {blockedReason && (
+                    <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700">
+                      <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+                      <span><Bi>{blockedReason}</Bi></span>
+                    </p>
+                  )}
+                </>
+              )}
+            </section>
+          )}
 
-      {/* Who owns the load, on every tab — the first thing people look for */}
-      <OrderOwnersCard order={order} onChanged={refreshOwners} />
+          <section>
+            <p data-es className="mb-2 px-1 text-xs font-semibold text-gray-500">Open items</p>
+            {railItems.length ? (
+              <div className="space-y-2">{railItems}</div>
+            ) : (
+              <p data-es className="rounded-xl border border-dashed border-gray-200 px-3 py-3 text-xs text-gray-500">
+                Nothing is waiting on anyone.
+              </p>
+            )}
+          </section>
 
-      {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600 mb-4">{error}</div>}
+          {/* Who owns the load, on every tab — the first thing people look for */}
+          <div className="[&>#owners]:mb-0">
+            <OrderOwnersCard order={order} onChanged={refreshOwners} />
+          </div>
+        </aside>
 
-      {/* What the paperwork still needs, while there is still paperwork to
-          come — a quote, or a load waiting on its SA. The quote PDF only while
-          it is a quote: after that the client has the SA, and two documents
-          with a price on them is one too many. */}
-      {/* A broker's change to paperwork already sent, waiting for dispatch.
-          Approving changes the whole load, so the page reads it again and
-          both reviews refetch (each may have just reopened). */}
-      <ChangeOrderPanel
-        orderId={orderId}
-        onDecided={() => {
-          void getOrder(orderId).then((fresh) => { if (fresh.status === 'ok') setOrder(fresh.order); }).catch(() => {});
-          setSaRefresh((n) => n + 1);
-          setCaRefresh((n) => n + 1);
-        }}
-      />
-
-      <SaRequestPanel
-        orderId={orderId}
-        refreshKey={`${saRefresh}-${order.status}`}
-        onStatusChange={(status) => setOrder((prev) => (prev ? { ...prev, status } : prev))}
-        onSent={() => setLinkRefresh((n) => n + 1)}
-        onFix={goFix}
-        // Through toDate(): the order came over the API, so the timestamp is
-        // a plain {_seconds} object with no .toDate() of its own.
-        signed={order.shipperSignedAt && toDate(order.shipperSignedAt)
-          ? { at: toDate(order.shipperSignedAt)!.getTime(), by: order.shipperSignerName || 'the client' }
-          : null}
-      />
-
-      {/* The carrier's review, the same shape as the SA's, once a broker asks. */}
-      <SaRequestPanel
-        party="carrier"
-        orderId={orderId}
-        refreshKey={`${caRefresh}-${order.carrierId ?? ''}`}
-        onLoaded={(r) => setCaStatus(r?.status ?? null)}
-        onSent={() => setCaRefresh((n) => n + 1)}
-        onFix={goFix}
-        signed={order.carrierSignedAt && toDate(order.carrierSignedAt)
-          ? { at: toDate(order.carrierSignedAt)!.getTime(), by: order.carrierSignerName || 'the carrier' }
-          : null}
-      />
-
-      {(order.status === 'quote' || order.status === 'booked') && (
-        <OrderReadinessCard
-          orderId={orderId}
-          orderNumber={orderDisplayNumber(order)}
-          showQuotePdf={order.status === 'quote'}
-          refreshKey={order}
-        />
-      )}
-
+        <div className="min-w-0 xl:col-start-1 xl:row-start-1">
       {/* Tabs */}
-      <div id="order-tabs" className="flex gap-1 mb-4 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll scroll-mt-4 [&>*]:flex-shrink-0">
+      <div id="order-tabs" className="mb-4 flex w-fit max-w-full gap-1 overflow-x-auto whitespace-nowrap rounded-xl border border-gray-200 bg-white p-1 tab-scroll scroll-mt-4 [&>*]:flex-shrink-0">
         {(['details', 'documents', 'pictures', 'suborders', 'history'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             data-es={t === 'suborders' ? 'Suborders' : t === 'pictures' ? 'Pictures' : t.charAt(0).toUpperCase() + t.slice(1)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition ${
-              tab === t ? 'border-brand-600 text-brand-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+            className={`rounded-lg px-4 py-1.5 text-sm font-medium capitalize transition ${
+              tab === t ? 'bg-brand-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
             }`}>
             {t === 'suborders' ? `Suborders (${suborders.length})`
               : t === 'documents' ? 'Documents'
@@ -1433,11 +1495,8 @@ export default function OrderDetailPage() {
       {tab === 'details' && (
         <div className="space-y-4">
           {/* General — pieces and weight live in Freight, per line */}
-          <div id="general" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">General</h3>
-              <SectionEditLink orderId={orderId} section="general" />
-            </div>
+          <div id="general" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
+            <SectionHeading icon={ClipboardList} tone="brand" title="General" action={<SectionEditLink orderId={orderId} section="general" />} />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <DetailRow label="Client"    value={<><PartyLink id={order.clientId}    name={order.clientName} fromOrderId={orderId} /><PartyContact party={partyById[order.clientId ?? '']} /></>} />
               <DetailRow label="Lead Source" value={leadSourceLabel(leadSources, order.sourceId, order.sourceName)} />
@@ -1448,11 +1507,8 @@ export default function OrderDetailPage() {
           </div>
 
           {/* Freight */}
-          <div id="freight" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Freight</h3>
-              <SectionEditLink orderId={orderId} section="freight" />
-            </div>
+          <div id="freight" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
+            <SectionHeading icon={Package} tone="amber" title="Freight" action={<SectionEditLink orderId={orderId} section="freight" />} />
             <div className="mb-4">
               <p data-es className="text-xs font-medium text-gray-500 mb-0.5">Transport type</p>
               {order.transportType?.trim()
@@ -1532,11 +1588,8 @@ export default function OrderDetailPage() {
           <PriceAndTermsCard order={order} action={<SectionEditLink orderId={orderId} section="price" />} />
 
           {/* Route */}
-          <div id="route" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Route</h3>
-              <SectionEditLink orderId={orderId} section="route" />
-            </div>
+          <div id="route" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
+            <SectionHeading icon={MapPin} tone="blue" title="Route" action={<SectionEditLink orderId={orderId} section="route" />} />
             {/* Every pickup on the left and every delivery on the right, in
                 the order they are driven. A load with one of each reads
                 exactly as it always has; the numbering and the per-stop
@@ -1651,12 +1704,9 @@ export default function OrderDetailPage() {
               it is now the first signature of the two, so waiting for the
               carrier would be waiting on the thing it gates. */}
           {clientConfirmationStarted && (
-            <div id="client-confirmation" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Client Confirmation</h3>
-                {/* Who verified what before each SA went out — kept for good. */}
-                <SaVerificationRecord orderId={orderId} />
-              </div>
+            <div id="client-confirmation" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
+              {/* Who verified what before each SA went out — kept for good. */}
+              <SectionHeading icon={FileSignature} tone="indigo" title="Client Confirmation" action={<SaVerificationRecord orderId={orderId} />} />
               {order.shipperSignedAt || order.shipperSignerName ? (
                 <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                   <span>✓</span>
@@ -1754,16 +1804,13 @@ export default function OrderDetailPage() {
           )}
 
           {/* Carrier */}
-          <div id="carrier" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Carrier</h3>
-              {!assigningCarrier && (
-                <button onClick={openCarrierAssign}
-                  className="text-xs text-brand-600 hover:text-brand-700 font-medium">
-                  {order.carrierId ? 'Edit' : '+ Assign Carrier'}
-                </button>
-              )}
-            </div>
+          <div id="carrier" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
+            <SectionHeading icon={Truck} tone="violet" title="Carrier" action={!assigningCarrier && (
+              <button onClick={openCarrierAssign}
+                className="text-xs text-brand-600 hover:text-brand-700 font-medium">
+                {order.carrierId ? 'Edit' : '+ Assign Carrier'}
+              </button>
+            )} />
 
             {/* The carrier's review: asking for it, and its record. */}
             {!assigningCarrier && order.carrierId && (
@@ -2072,10 +2119,8 @@ export default function OrderDetailPage() {
 
           {/* Shared-record approvals */}
           {(order.partyApprovals ?? []).length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">
-                Shared Record Approvals
-              </h3>
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6">
+              <SectionHeading icon={Users} tone="gray" title="Shared Record Approvals" />
               <p className="text-xs text-gray-500 mb-3">
                 <Bi>This order uses records belonging to another user. Each was authorized before use.</Bi>
               </p>
@@ -2105,14 +2150,10 @@ export default function OrderDetailPage() {
           {/* BOL — drawn from Booked on, so the truck and the freight terms
               can be filled in before the second signature generates it. */}
           {order.status !== 'quote' && order.status !== 'cancelled' && (
-            <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Bill of Lading</h3>
-                  {order.bolStoragePath && !bolUrl && (
-                    <p data-es className="text-xs text-gray-400 mt-1">Loading download link…</p>
-                  )}
-                </div>
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6">
+              <SectionHeading icon={FileText} tone="teal" title="Bill of Lading"
+                sub={order.bolStoragePath && !bolUrl ? <span data-es>Loading download link…</span> : undefined}
+                action={
                 <div className="flex gap-2">
                   {bolUrl && (
                     <button type="button" onClick={() => setShowBolPreview(true)}
@@ -2133,7 +2174,7 @@ export default function OrderDetailPage() {
                     </button>
                   )}
                 </div>
-              </div>
+                } />
               {bolIsOutdated && <BolOutdatedBanner canRegenerate={canRegenerateBol} />}
               {/* A BOL on file keeps the old values until somebody presses
                   Regenerate; the banner above is what tells them. */}
@@ -2146,10 +2187,9 @@ export default function OrderDetailPage() {
           )}
 
           {/* Always drawn, even empty, so a note can be added from here. */}
-          <div id="notes" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4 space-y-5">
-            <div className="flex items-center justify-between gap-3">
-              <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notes and Instructions</h3>
-              <SectionEditLink orderId={orderId} section="notes" />
+          <div id="notes" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4 space-y-5">
+            <div className="[&>div]:mb-0">
+              <SectionHeading icon={StickyNote} tone="gray" title="Notes and Instructions" action={<SectionEditLink orderId={orderId} section="notes" />} />
             </div>
             <div>
               <p className="text-xs font-semibold text-gray-700">
@@ -2525,6 +2565,80 @@ export default function OrderDetailPage() {
             </div>
           )}
         </div>
+      )}
+        </div>
+      </div>
+
+      {/*
+        The reviews, each in a panel opened from its line in the rail. Always
+        mounted so each can load itself and report back to the rail — see
+        OrderSidePanel. A "Fix" link inside one closes the panel before taking
+        the reader to the field.
+      */}
+      <OrderSidePanel open={panel === 'change'} onClose={closePanel} title="Change order" icon={FilePen}>
+        {/* A broker's change to paperwork already sent, waiting for dispatch.
+            Approving changes the whole load, so the page reads it again and
+            both reviews refetch (each may have just reopened). */}
+        <ChangeOrderPanel
+          bare
+          orderId={orderId}
+          onLoaded={setChangeOrder}
+          onDecided={() => {
+            void getOrder(orderId).then((fresh) => { if (fresh.status === 'ok') setOrder(fresh.order); }).catch(() => {});
+            setSaRefresh((n) => n + 1);
+            setCaRefresh((n) => n + 1);
+          }}
+        />
+      </OrderSidePanel>
+
+      <OrderSidePanel open={panel === 'sa'} onClose={closePanel} title="Shipper Agreement (SA) review" icon={ShieldCheck}>
+        <SaRequestPanel
+          layout="panel"
+          orderId={orderId}
+          refreshKey={`${saRefresh}-${order.status}`}
+          onLoaded={setSaReq}
+          onStatusChange={(status) => setOrder((prev) => (prev ? { ...prev, status } : prev))}
+          onSent={() => setLinkRefresh((n) => n + 1)}
+          onFix={fixFromPanel}
+          // Through toDate(): the order came over the API, so the timestamp is
+          // a plain {_seconds} object with no .toDate() of its own.
+          signed={order.shipperSignedAt && toDate(order.shipperSignedAt)
+            ? { at: toDate(order.shipperSignedAt)!.getTime(), by: order.shipperSignerName || 'the client' }
+            : null}
+        />
+      </OrderSidePanel>
+
+      {/* The carrier's review, the same shape as the SA's, once a broker asks. */}
+      <OrderSidePanel open={panel === 'ca'} onClose={closePanel} title="Dispatch Sheet review" icon={ShieldCheck}>
+        <SaRequestPanel
+          layout="panel"
+          party="carrier"
+          orderId={orderId}
+          refreshKey={`${caRefresh}-${order.carrierId ?? ''}`}
+          onLoaded={(r) => { setCaStatus(r?.status ?? null); setCaReq(r); }}
+          onSent={() => setCaRefresh((n) => n + 1)}
+          onFix={fixFromPanel}
+          signed={order.carrierSignedAt && toDate(order.carrierSignedAt)
+            ? { at: toDate(order.carrierSignedAt)!.getTime(), by: order.carrierSignerName || 'the carrier' }
+            : null}
+        />
+      </OrderSidePanel>
+
+      {/* What the paperwork still needs, while there is still paperwork to
+          come — a quote, or a load waiting on its SA. The quote PDF only while
+          it is a quote: after that the client has the SA, and two documents
+          with a price on them is one too many. */}
+      {showReadiness && (
+        <OrderSidePanel open={panel === 'readiness'} onClose={closePanel} title="Paperwork checklist" icon={ListChecks}>
+          <OrderReadinessCard
+            bare
+            orderId={orderId}
+            orderNumber={orderDisplayNumber(order)}
+            showQuotePdf={order.status === 'quote'}
+            refreshKey={order}
+            onLoaded={setReadiness}
+          />
+        </OrderSidePanel>
       )}
     </div>
   );

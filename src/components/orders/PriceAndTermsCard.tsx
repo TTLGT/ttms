@@ -14,6 +14,8 @@ import type { OrderPaymentTerms, PaymentSide } from '@/types/paymentMethod';
 import { CLIENT_ARRANGES_NOTE, SERVICE_ARRANGER_LABEL, serviceChargeLines, serviceChargesTotal } from '@/types/order';
 import type { Order } from '@/types/order';
 import { Bi } from '@/components/spanish/Es';
+import { DollarSign } from 'lucide-react';
+import { SectionHeading } from './OrderSection';
 
 type Props = Pick<Order, 'agreedRate' | 'brokerFee' | 'carrierPay' | 'laneMiles'
   | 'clientPayment' | 'carrierPayment' | 'brokerFeeTerms' | 'specialTerms' | 'complexTerms'
@@ -27,7 +29,7 @@ function money(n: number | null | undefined): string {
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">{label}</p>
+      <p className="text-xs font-medium text-gray-500 mb-0.5">{label}</p>
       <div className="text-sm text-gray-900">{children}</div>
     </div>
   );
@@ -71,12 +73,9 @@ export default function PriceAndTermsCard({ order, action }: {
   }
 
   return (
-    <div id="price" className="bg-white rounded-xl border border-gray-200 p-6 scroll-mt-4">
-      <div className="flex items-center justify-between gap-3">
-        <h3 data-es className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price and Terms</h3>
-        {action}
-      </div>
-      <p className="text-xs text-gray-500 mt-1 mb-4">
+    <div id="price" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
+      <SectionHeading icon={DollarSign} tone="emerald" title="Price and Terms" action={action} />
+      <p className="text-xs text-gray-500 -mt-2 mb-4">
         Total mileage: {order.laneMiles ? Math.round(order.laneMiles).toLocaleString() : '—'}
         {' · '}Total PPM: {ppm !== null ? usd(ppm) : '—'}
         {' · '}Carrier pay PPM: {payPpm !== null ? usd(payPpm) : '—'}
