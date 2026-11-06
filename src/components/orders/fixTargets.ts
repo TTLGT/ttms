@@ -59,6 +59,7 @@ export const CHECK_FIX: Record<string, FixTarget> = {
 export const FACT_FIX = {
   clientPayment: { kind: 'edit', section: 'price', field: 'clientPayment' },
   accessorials:  { kind: 'edit', section: 'freight', field: 'accessorials' },
+  services:      { kind: 'edit', section: 'price', field: 'serviceCharges' },
   carrierCard:   { kind: 'carrier' },
   driver:        { kind: 'carrier', editor: true },
   pictures:      { kind: 'pictures' },

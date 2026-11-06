@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import {
   COMPLEX_LEGS,
   COMPLEX_LEG_LABEL,
@@ -102,6 +103,12 @@ export default function PriceAndTermsCard({ order, action }: {
                   <span className={`block text-xs ${s.arrangedBy ? 'text-gray-500' : 'text-amber-700'}`}>
                     {s.arrangedBy ? `Arranged by ${SERVICE_ARRANGER_LABEL[s.arrangedBy]}` : 'Nobody chosen to arrange it'}
                   </span>
+                  {s.providerId && (
+                    <Link href={`/dashboard/providers/${s.providerId}`}
+                      className="block text-xs font-medium text-brand-700 hover:underline">
+                      {s.providerName || 'Provider'}
+                    </Link>
+                  )}
                 </span>
                 <span className={!notOurCharge(s.arrangedBy) && s.amount == null ? 'text-gray-400' : 'text-gray-900'}>
                   {s.arrangedBy && notOurCharge(s.arrangedBy) ? arrangerNote(s.arrangedBy) : s.amount == null ? 'No cost entered' : usd(s.amount)}

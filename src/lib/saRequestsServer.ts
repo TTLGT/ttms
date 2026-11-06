@@ -3,7 +3,9 @@ import { adminDb, FieldValue } from './firebase-admin';
 import { openedAlert, postOrderAlert } from './chatAlerts';
 import { clientContactOf, readinessFactsFor } from './orderReadinessServer';
 import { CONVERSATIONS_COLLECTION, recordConversationId } from '@/types/conversation';
-import { accessorialLabels, orderDisplayNumber, type CommodityItem, type Order } from '@/types/order';
+import { accessorialLabels, dockEndOf, orderDisplayNumber, serviceChargeLines, type Order } from '@/types/order';
+import { PROVIDERS_COLLECTION, PROVIDER_SERVICE_LABEL, type Provider } from '@/types/provider';
+import { phoneRegionOf } from '@/lib/phone';
 import { orderReadiness } from '@/types/orderReadiness';
 import { LOAD_PHOTOS_COLLECTION } from '@/types/loadPhoto';
 import { fmcsaConcerns, operatingSince, type FmcsaRegistry } from '@/types/fmcsa';
@@ -11,7 +13,7 @@ import { clientSignatureSatisfied } from '@/types/order';
 import {
   REQUEST_COLLECTION, SA_ROUNDS_SUBCOLLECTION, accessorialHints, cleanCcList, isCcEmail,
   type AgreementParty, type SaGateFacts, type SaRequest, type SaRequestStatus, type SaReview, type SaRound,
-  type SaSend,
+  type SaSend, type ReviewProvider, type ReviewService,
 } from '@/types/saRequest';
 
 /**
@@ -233,7 +235,8 @@ export async function buildSaReview(
       : Promise.resolve(null),
   ]);
   const c = carrierSnap && carrierSnap.exists ? carrierSnap.data()! : null;
-  const gate = await saGateFactsFor(orderId, order, c);
+  const [gate, services] = await Promise.all([saGateFactsFor(orderId, order, c), reviewServicesFor(order)]);
+  const hints = accessorialHints(order as Parameters<typeof accessorialHints>[0]);
   // Who the agreement is emailed to: the client's contact for the SA, the
   // carrier's own address for the Carrier Agreement — what each send route uses.
   const carrierEmail = typeof c?.email === 'string' ? c.email.trim() : '';
@@ -262,7 +265,9 @@ export async function buildSaReview(
     hasClientPayment: Boolean(order.clientPayment),
     clientSigned: clientSignatureSatisfied(order as Parameters<typeof clientSignatureSatisfied>[0]),
     gate,
-    accessorialHints: accessorialHints(order.commodities as CommodityItem[] | undefined),
+    accessorialHints: hints.missing,
+    accessorialCovered: hints.covered,
+    services,
     accessorials: accessorialLabels(order),
     // The client's other contacts, offered as one-click CCs. Reviewers only:
     // a broker reading where their request stands has no use for the
@@ -271,6 +276,56 @@ export async function buildSaReview(
     // carrier's pay must not reach the client.
     clientContacts: withContacts && party === 'client' ? await clientContactEmails(order.clientId) : [],
   };
+}
+
+/**
+ * Every additional service on the load with the provider doing it, read
+ * fresh from the directory — the name copied onto the order is only what it
+ * was called when picked, and the reviewer needs today's number. A line with
+ * no provider of its own borrows the one picked under Loading and Unloading
+ * for the same help (a crane hired for the delivery is the Crane line).
+ * One read per distinct provider; none at all on a load with no services.
+ */
+async function reviewServicesFor(order: Record<string, unknown>): Promise<ReviewService[]> {
+  const lines = serviceChargeLines(order);
+  if (!lines.length) return [];
+  const dockHelp = (['pickup', 'delivery'] as const)
+    .map((end) => dockEndOf(order as Parameters<typeof dockEndOf>[0], end).help)
+    .filter((h) => h?.providerId);
+  const picked = lines.map((l) => {
+    if (l.providerId) return { id: l.providerId, via: 'service' as const };
+    const help = l.service === 'other' ? undefined : dockHelp.find((h) => h?.service === l.service);
+    return help?.providerId ? { id: help.providerId, via: 'dock' as const } : null;
+  });
+  const ids = [...new Set(picked.flatMap((p) => (p ? [p.id] : [])))];
+  const snaps = ids.length
+    ? await adminDb.getAll(...ids.map((id) => adminDb.collection(PROVIDERS_COLLECTION).doc(id)))
+    : [];
+  const found = new Map<string, ReviewProvider>();
+  for (const snap of snaps) {
+    if (!snap.exists) continue;
+    const p = snap.data() as Partial<Provider>;
+    found.set(snap.id, {
+      id: snap.id,
+      name: String(p.companyName ?? ''),
+      contactName: String(p.contactName ?? ''),
+      phone: String(p.phone ?? ''),
+      phoneRegion: p.phone ? phoneRegionOf(p.phoneRegion) : null,
+      email: String(p.email ?? ''),
+      place: [p.address?.city, p.address?.state].filter(Boolean).join(', '),
+      services: (p.services ?? []).map((x) => PROVIDER_SERVICE_LABEL[x] ?? x),
+      paymentCount: Number(p.paymentCount) || 0,
+      lastPaidOn: typeof p.lastPaidOn === 'string' ? p.lastPaidOn : null,
+    });
+  }
+  return lines.map((l, i) => {
+    const pick = picked[i];
+    const provider = pick ? found.get(pick.id) ?? null : null;
+    return {
+      label: l.label, amount: l.amount, arrangedBy: l.arrangedBy,
+      via: pick?.via ?? null, provider, providerGone: Boolean(pick && !provider),
+    };
+  });
 }
 
 /**

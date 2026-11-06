@@ -38,7 +38,8 @@
  */
 
 import { MIN_OPERATING_MONTHS, isNewCarrier, officeDay, type OperatingSince } from './fmcsa';
-import { hasVehicleDetails, type CommodityItem } from './order';
+import { dockEndProblem, hasVehicleDetails, orderAccessorials, type Accessorial, type CommodityItem, type ServiceArranger } from './order';
+import type { PhoneRegion } from '@/lib/phone';
 import type { FmcsaConcern } from './fmcsa';
 import type { ReadinessItem } from './orderReadiness';
 import { samsungModelName } from './samsungModels';
@@ -281,23 +282,55 @@ export interface SaGateFacts {
   operatingSince: OperatingSince | null;
 }
 
+/** The order fields the accessorials hint reads. */
+type HintOrder = { commodities?: unknown; accessorials?: unknown } & Parameters<typeof dockEndProblem>[0];
+
 /**
- * What the freight lines say the truck will need, beside the accessorials
- * item. A prompt, never a verdict: it reads what the lines carry — whether a
- * line is a vehicle, and whether it runs — beside what the order's own
- * accessorials list asks for (shown separately), which may not have ticked
- * everything the freight needs. Nothing here blocks the tick.
+ * What the freight lines say the truck will need, held against what the
+ * order already says — beside the accessorials item. A prompt, never a
+ * verdict, and nothing here blocks the tick.
+ *
+ * Until 2026-11-06 this read the freight lines alone, so a load with Winch
+ * and Ramps ticked and both ends answered still said "the truck needs a
+ * winch" — the reviewer was told to fix what was already fixed. Now each
+ * need is checked against the ticks and the Loading and Unloading answers,
+ * and only what is still missing is said; what is covered comes back in
+ * `covered`, so the reviewer can see TTMS looked.
+ *
+ *  - An inoperable vehicle cannot drive on: a winch (or a tow) pulls it,
+ *    and each end must say who gets it on and off.
+ *  - A running vehicle drives on: ramps on the truck, or each end saying
+ *    who loads and unloads it (a dock, a forklift, a crane).
  */
-export function accessorialHints(commodities: readonly CommodityItem[] | null | undefined): string[] {
-  const lines = commodities ?? [];
+export function accessorialHints(order: HintOrder | null | undefined): { missing: string[]; covered: string[] } {
+  const lines = Array.isArray(order?.commodities) ? order!.commodities as CommodityItem[] : [];
   const count = (pred: (c: CommodityItem) => boolean) =>
     lines.filter(pred).reduce((n, c) => n + Math.max(1, Number(c.quantity) || 1), 0);
   const inoperable = count((c) => c.condition === 'inoperable');
   const vehicles = count((c) => hasVehicleDetails(c) && c.condition !== 'inoperable');
-  const out: string[] = [];
-  if (inoperable) out.push(`${inoperable} inoperable vehicle${inoperable === 1 ? '' : 's'}: the truck needs a winch, and both ends a way to load it.`);
-  if (vehicles) out.push(`${vehicles} vehicle${vehicles === 1 ? '' : 's'} on board: ramps on the truck, or a dock at both ends.`);
-  return out;
+  const ticked = new Set<Accessorial>(orderAccessorials(order));
+  const endsAnswered = !dockEndProblem(order, 'pickup') && !dockEndProblem(order, 'delivery');
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const missing: string[] = [];
+  const covered: string[] = [];
+
+  if (inoperable) {
+    const what = `${plural(inoperable, 'inoperable vehicle')}`;
+    const pull = ticked.has('winch') ? 'Winch' : ticked.has('towing') ? 'Towing assistance' : '';
+    const needs = [
+      pull ? '' : 'the truck needs a winch — tick Winch (or Towing assistance)',
+      endsAnswered ? '' : 'say who loads it at pickup and unloads it at delivery',
+    ].filter(Boolean);
+    if (needs.length) missing.push(`${what}: ${needs.join('; ')}.`);
+    else covered.push(`${what}: ${pull} ticked, and both ends say who loads and unloads it.`);
+  }
+  if (vehicles) {
+    const what = plural(vehicles, 'vehicle');
+    if (ticked.has('ramps')) covered.push(`${what} on board: Ramps ticked.`);
+    else if (endsAnswered) covered.push(`${what} on board: both ends say who loads and unloads it.`);
+    else missing.push(`${what} on board: tick Ramps, or say who loads and unloads it at both ends.`);
+  }
+  return { missing, covered };
 }
 
 /**
@@ -497,7 +530,16 @@ export interface SaReview {
    */
   clientSigned: boolean;
   gate: SaGateFacts;
+  /** What the freight still needs that the order does not say — see accessorialHints(). */
   accessorialHints: string[];
+  /** What it needs that the order does cover. Absent on reviews frozen before 2026-11-06. */
+  accessorialCovered?: string[];
+  /**
+   * Every additional service with a cost, and the provider doing it as the
+   * directory has them now (frozen with the round, like the carrier's facts).
+   * Absent on reviews frozen before 2026-11-06.
+   */
+  services?: ReviewService[];
   /**
    * What the order asks for (ramps, a liftgate…), as labels, shown under the
    * accessorials item on the SA and the equipment item on the Dispatch Sheet.
@@ -506,6 +548,46 @@ export interface SaReview {
   accessorials?: string[];
   /** The client's own addresses, for the CC picker. Empty for a non-reviewer, and never frozen. */
   clientContacts: { name: string; email: string }[];
+}
+
+/**
+ * One additional service on the review, with who does it. `provider` is read
+ * fresh from the directory, not from the name copied onto the order, so the
+ * reviewer sees the number they would actually ring. `providerGone` is a
+ * provider that was picked and is no longer in the directory.
+ */
+export interface ReviewService {
+  label: string;
+  amount: number | null;
+  arrangedBy: ServiceArranger | null;
+  /** Where the provider came from: the line itself, or the Loading and Unloading answer. */
+  via: 'service' | 'dock' | null;
+  provider: ReviewProvider | null;
+  providerGone: boolean;
+}
+
+export interface ReviewProvider {
+  id: string;
+  name: string;
+  contactName: string;
+  phone: string;
+  phoneRegion: PhoneRegion | null;
+  email: string;
+  /** "Dallas, TX". */
+  place: string;
+  services: string[];
+  /** How often TTL has paid them, and when last — not voided. A track record, not a check. */
+  paymentCount: number;
+  lastPaidOn: string | null;
+}
+
+/**
+ * Whether a service with no provider picked is worth a warning: only when we
+ * are the ones booking it (TTL) or nobody has said who is. The client, the
+ * shipper, the consignee and the carrier find their own.
+ */
+export function serviceNeedsProvider(s: Pick<ReviewService, 'arrangedBy' | 'provider' | 'providerGone'>): boolean {
+  return (s.arrangedBy === 'ttl' || s.arrangedBy === null) && (!s.provider || s.providerGone);
 }
 
 /** One email of the SA: the first, a resend, or a revision. */

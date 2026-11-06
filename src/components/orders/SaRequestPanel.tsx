@@ -17,8 +17,11 @@ import { usd } from '@/types/paymentMethod';
 import { readinessOf, type ReadinessItem } from '@/types/orderReadiness';
 import {
   AGREEMENT_BUTTON, AGREEMENT_LABEL, MAX_SA_CC, SA_STATUS_LABEL, checkBlockedBy, isCcEmail, outstandingChecks,
-  changeSummary, reviewChecks, type AgreementParty, type SaRequest,
+  changeSummary, reviewChecks, serviceNeedsProvider, type AgreementParty, type ReviewService, type SaRequest,
 } from '@/types/saRequest';
+import { SERVICE_ARRANGER_LABEL, notOurCharge } from '@/types/order';
+import Link from 'next/link';
+import PhoneValue from '@/components/PhoneValue';
 import { isNewCarrier, MIN_OPERATING_MONTHS, officeDay } from '@/types/fmcsa';
 import { FixButton, ReadinessLine } from './OrderReadinessCard';
 import { CHECK_FIX, FACT_FIX, type FixTarget } from './fixTargets';
@@ -238,7 +241,7 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
   /** The SA was emailed from here — the signing-link box on the page refreshes. */
   onSent?: () => void;
 }) {
-  const { formatDateTime, formatDate } = useDateFormatters();
+  const { formatDateTime, formatDate, formatCalendarDate } = useDateFormatters();
   const [data, setData] = useState<{ request: SaRequest | null; isReviewer: boolean; review: SaReview } | null>(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -436,6 +439,12 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
                             On the order: {review.accessorials.length ? review.accessorials.join(', ') : 'no accessorials listed'}
                           </span>
                         )}
+                        {c.key === 'accessorials' && review.accessorialCovered?.map((h) => (
+                          <span key={h} className="mt-0.5 flex items-start gap-1 text-[11px] text-green-700">
+                            <CheckCircle2 className="w-3 h-3 shrink-0 mt-px" />
+                            <span>{h}</span>
+                          </span>
+                        ))}
                         {c.key === 'accessorials' && review.accessorialHints.map((h) => (
                           <span key={h} className="mt-0.5 flex items-start gap-1 text-[11px] text-amber-800">
                             <AlertTriangle className="w-3 h-3 shrink-0 mt-px" />
@@ -457,6 +466,11 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
                         {mark && <span className="block text-[11px] text-green-700">✓ {mark.byName} · {formatDateTime(new Date(mark.at))}</span>}
                       </span>
                     </label>
+                    {/* Outside the label, so a click on a provider's details does not tick the box. */}
+                    {c.key === 'accessorials' && review.services && review.services.length > 0 && (
+                      <ServiceProviders services={review.services} formatCalendarDate={formatCalendarDate}
+                        onFix={onFix ? () => onFix(FACT_FIX.services) : undefined} />
+                    )}
                   </li>
                 );
               })}
@@ -555,6 +569,72 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
  * offered as one click; anything else is typed. The signer is left out — they
  * are already who it is sent to.
  */
+/**
+ * Every additional service on the load and who does it, under the
+ * accessorials item: the provider's details as the directory has them now,
+ * so the reviewer can ring the mechanic or the tow before the SA promises
+ * one. A service TTL books with no provider picked is flagged; one the
+ * client, a facility or the carrier arranges says so and asks for nothing.
+ */
+function ServiceProviders({ services, formatCalendarDate, onFix }: {
+  services: ReviewService[];
+  formatCalendarDate: (v: string | null | undefined) => string;
+  onFix?: () => void;
+}) {
+  return (
+    <div className="ml-5 mt-1.5 space-y-1.5">
+      <p data-es className="text-[11px] font-semibold text-gray-600">Who does each service</p>
+      {services.map((s, i) => {
+        const p = s.provider;
+        const price = s.arrangedBy && notOurCharge(s.arrangedBy) ? '' : s.amount == null ? 'no cost entered' : usd(s.amount);
+        return (
+          <div key={`${s.label}-${i}`} className="rounded-md border border-gray-200 bg-gray-50/60 px-2 py-1.5 text-[11px]">
+            <p className="text-gray-800">
+              <span className="font-medium">{s.label}</span>
+              {price && <span className="text-gray-500"> · {price}</span>}
+              <span className="text-gray-500"> · {s.arrangedBy ? `arranged by ${SERVICE_ARRANGER_LABEL[s.arrangedBy]}` : 'nobody chosen to arrange it'}</span>
+            </p>
+            {p ? (
+              <div className="mt-0.5 text-gray-700">
+                <Link href={`/dashboard/providers/${p.id}`} target="_blank" className="font-semibold text-brand-700 hover:underline">
+                  {p.name || 'Provider'}
+                </Link>
+                {s.via === 'dock' && <span data-es className="text-gray-500"> (from Loading and Unloading)</span>}
+                {p.services.length > 0 && <span className="text-gray-500"> · {p.services.join(', ')}</span>}
+                <span className="block">
+                  {[p.contactName, p.place].filter(Boolean).join(' · ')}
+                  {(p.contactName || p.place) && (p.phone || p.email) && ' · '}
+                  {p.phone && <PhoneValue value={p.phone} region={p.phoneRegion ?? undefined} label="provider phone" />}
+                  {p.phone && p.email && ' · '}
+                  {p.email && <a href={`mailto:${p.email}`} className="hover:underline">{p.email}</a>}
+                </span>
+                <span className="block text-gray-500">
+                  {p.paymentCount
+                    ? `Paid by TTL ${p.paymentCount} time${p.paymentCount === 1 ? '' : 's'}${p.lastPaidOn ? `, last on ${formatCalendarDate(p.lastPaidOn)}` : ''}`
+                    : 'No payment from TTL recorded yet — a new provider for us'}
+                </span>
+              </div>
+            ) : serviceNeedsProvider(s) ? (
+              <span className="mt-0.5 flex items-start gap-1 text-amber-800">
+                <AlertTriangle className="w-3 h-3 shrink-0 mt-px" />
+                <span>
+                  {s.providerGone ? 'The provider picked is no longer in the directory.' : 'No provider picked from the 3rd party directory.'}
+                  {' '}Pick who does it in Price and Terms → Additional Services.
+                  {onFix && <FixButton onClick={onFix} />}
+                </span>
+              </span>
+            ) : (
+              <span className="mt-0.5 block text-gray-500">
+                {s.arrangedBy ? `The ${SERVICE_ARRANGER_LABEL[s.arrangedBy].toLowerCase()} finds their own.` : ''}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function CcEditor({ cc, contacts, signer, disabled, onChange, party, typed, setTyped }: {
   party: AgreementParty;
   cc: string[];

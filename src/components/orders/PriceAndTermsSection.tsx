@@ -31,12 +31,19 @@ import {
 import type { Accessorial, CommodityItem, Order, ServiceArranger, ServiceCharge } from '@/types/order';
 import { Plus, X } from 'lucide-react';
 import { Bi } from '@/components/spanish/Es';
+import ProviderPicker, { type ProviderChoice } from '@/components/providers/ProviderPicker';
+import { providerServiceForAccessorial } from '@/types/provider';
 
 const INPUT =
   'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
 /** A charge typed by hand, while it is being edited — the label may still be blank. */
-interface OtherCharge { label: string; amount: number | null; arrangedBy: ServiceArranger | null }
+interface OtherCharge { label: string; amount: number | null; arrangedBy: ServiceArranger | null; provider?: ProviderChoice }
+
+/** The provider fields as stored on a line: both, or neither. */
+function providerFields(p: ProviderChoice | undefined): Pick<ServiceCharge, 'providerId' | 'providerName'> {
+  return p?.providerId ? { providerId: p.providerId, providerName: p.providerName ?? '' } : {};
+}
 
 /** Everything in Price and Terms except the three money boxes the form already had. */
 export interface PriceTerms {
@@ -53,6 +60,8 @@ export interface PriceTerms {
   serviceCosts: Partial<Record<Accessorial, number | null>>;
   /** Who arranges each paid service — kept the same way as the costs. */
   serviceArrangers: Partial<Record<Accessorial, ServiceArranger | null>>;
+  /** Who does the work, from the 3rd-party directory — kept the same way. */
+  serviceProviders: Partial<Record<Accessorial, ProviderChoice>>;
   otherCharges: OtherCharge[];
 }
 
@@ -65,6 +74,7 @@ export function blankPriceTerms(): PriceTerms {
     complexTerms: blankComplexTerms(),
     serviceCosts: {},
     serviceArrangers: {},
+    serviceProviders: {},
     otherCharges: [],
   };
 }
@@ -73,10 +83,12 @@ export function priceTermsFromOrder(o: Partial<Order>): PriceTerms {
   const charges = cleanServiceCharges(o.serviceCharges);
   const serviceCosts: PriceTerms['serviceCosts'] = {};
   const serviceArrangers: PriceTerms['serviceArrangers'] = {};
+  const serviceProviders: PriceTerms['serviceProviders'] = {};
   for (const c of charges) {
     if (c.service === 'other') continue;
     serviceCosts[c.service] = c.amount;
     serviceArrangers[c.service] = c.arrangedBy ?? null;
+    if (c.providerId) serviceProviders[c.service] = { providerId: c.providerId, providerName: c.providerName };
   }
   return {
     clientPayment: o.clientPayment ?? null,
@@ -86,8 +98,12 @@ export function priceTermsFromOrder(o: Partial<Order>): PriceTerms {
     complexTerms: { ...blankComplexTerms(), ...(o.complexTerms ?? {}) },
     serviceCosts,
     serviceArrangers,
+    serviceProviders,
     otherCharges: charges.filter((c) => c.service === 'other')
-      .map((c) => ({ label: c.label ?? '', amount: c.amount, arrangedBy: c.arrangedBy ?? null })),
+      .map((c) => ({
+        label: c.label ?? '', amount: c.amount, arrangedBy: c.arrangedBy ?? null,
+        provider: c.providerId ? { providerId: c.providerId, providerName: c.providerName } : undefined,
+      })),
   };
 }
 
@@ -109,15 +125,18 @@ export function priceTermsForSave(t: PriceTerms, accessorials: readonly Accessor
   const priced = (by: ServiceArranger | null | undefined, amount: number | null | undefined) =>
     notOurCharge(by) ? 0 : amount ?? null;
   const serviceCharges: ServiceCharge[] = [
-    ...accessorials.filter((a) => isPaidService(a) && (t.serviceCosts[a] != null || t.serviceArrangers[a]))
+    ...accessorials.filter((a) => isPaidService(a)
+        && (t.serviceCosts[a] != null || t.serviceArrangers[a] || t.serviceProviders[a]?.providerId))
       .map((a): ServiceCharge => ({
         service: a,
         amount: priced(t.serviceArrangers[a], t.serviceCosts[a]),
         arrangedBy: t.serviceArrangers[a] ?? null,
+        ...providerFields(t.serviceProviders[a]),
       })),
     ...t.otherCharges.filter((c) => c.label.trim())
       .map((c): ServiceCharge => ({
         service: 'other', label: c.label.trim(), amount: priced(c.arrangedBy, c.amount), arrangedBy: c.arrangedBy,
+        ...providerFields(c.provider),
       })),
   ];
   return {
@@ -325,6 +344,8 @@ export default function PriceAndTermsSection({
         onCosts={(serviceCosts) => set({ serviceCosts })}
         arrangers={terms.serviceArrangers}
         onArrangers={(serviceArrangers) => set({ serviceArrangers })}
+        providers={terms.serviceProviders}
+        onProviders={(serviceProviders) => set({ serviceProviders })}
         others={terms.otherCharges}
         onOthers={(otherCharges) => set({ otherCharges })}
         dockLinked={dockLinked}
@@ -424,12 +445,14 @@ function ComplexTermsFields({ terms, onChange, carrierPay, brokerFee }: {
  * typed by hand. Their total is one of the three parts the Agreed Rate is
  * added up from — see agreedRateFrom().
  */
-function ServiceChargesFields({ accessorials, costs, onCosts, arrangers, onArrangers, others, onOthers, dockLinked }: {
+function ServiceChargesFields({ accessorials, costs, onCosts, arrangers, onArrangers, providers, onProviders, others, onOthers, dockLinked }: {
   accessorials: readonly Accessorial[];
   costs: PriceTerms['serviceCosts'];
   onCosts: (c: PriceTerms['serviceCosts']) => void;
   arrangers: PriceTerms['serviceArrangers'];
   onArrangers: (a: PriceTerms['serviceArrangers']) => void;
+  providers: PriceTerms['serviceProviders'];
+  onProviders: (p: PriceTerms['serviceProviders']) => void;
   others: OtherCharge[];
   onOthers: (o: OtherCharge[]) => void;
   dockLinked: Partial<Record<Accessorial, ServiceArranger | null>>;
@@ -479,6 +502,8 @@ function ServiceChargesFields({ accessorials, costs, onCosts, arrangers, onArran
             value={costs[a] ?? null} onChange={(v) => onCosts({ ...costs, [a]: v })} />
           {/* No remove here: the line belongs to the tick box in Freight. */}
           <span />
+          <ProviderRow arrangedBy={arrangers[a] ?? null} service={a}
+            value={providers[a] ?? {}} onChange={(v) => onProviders({ ...providers, [a]: v })} />
         </div>
       ))}
 
@@ -500,6 +525,8 @@ function ServiceChargesFields({ accessorials, costs, onCosts, arrangers, onArran
             className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 transition">
             <X className="w-4 h-4" />
           </button>
+          <ProviderRow arrangedBy={o.arrangedBy} service="other"
+            value={o.provider ?? {}} onChange={(v) => setOther(i, { provider: v })} />
         </div>
       ))}
       <datalist id="other-charge-suggestions">
@@ -524,6 +551,28 @@ function ServiceChargesFields({ accessorials, costs, onCosts, arrangers, onArran
 
 /** Service name · who arranges it · cost · remove, on wide screens; stacked on a phone. */
 const ROW = 'grid grid-cols-2 sm:grid-cols-[minmax(0,1fr)_9rem_9rem_2rem] gap-2 items-center';
+
+/**
+ * Who does the work, under a service line, from the 3rd-party directory —
+ * so the SA review can show the reviewer who we are sending and how to reach
+ * them. Optional, and not offered when the client, the shipper or the
+ * consignee arranges it: they hire and pay their own, and we would only be
+ * guessing. A provider picked earlier stays on the line if that changes,
+ * and is shown, so it is never dropped without anybody seeing it.
+ */
+function ProviderRow({ arrangedBy, service, value, onChange }: {
+  arrangedBy: ServiceArranger | null;
+  service: Accessorial | 'other';
+  value: ProviderChoice;
+  onChange: (v: ProviderChoice) => void;
+}) {
+  if (notOurCharge(arrangedBy) && !value.providerId) return null;
+  return (
+    <div className="col-span-2 sm:col-start-1 sm:col-end-4 -mt-1 mb-1">
+      <ProviderPicker service={providerServiceForAccessorial(service)} value={value} onChange={onChange} />
+    </div>
+  );
+}
 
 /** Who arranges it. Required before the form saves — see priceTermsProblem(). */
 function ArrangerSelect({ value, onChange }: {

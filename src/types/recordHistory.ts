@@ -279,7 +279,8 @@ export function describeChangeValue(
     return clip(cleanServiceCharges(value).map((c) => {
       const name = c.service === 'other' ? c.label : ACCESSORIAL_LABEL[c.service];
       const by = c.arrangedBy ? `, arranged by ${SERVICE_ARRANGER_LABEL[c.arrangedBy]}` : '';
-      return `${name} ${c.amount == null ? '(no amount)' : usd.format(c.amount)}${by}`;
+      const who = c.providerName ? ` (${c.providerName})` : '';
+      return `${name}${who} ${c.amount == null ? '(no amount)' : usd.format(c.amount)}${by}`;
     }).join('; '));
   }
   if ((field === 'trailerLoadedBy' || field === 'trailerUnloadedBy') && typeof value === 'string') {

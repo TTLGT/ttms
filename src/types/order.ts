@@ -475,6 +475,16 @@ export interface ServiceCharge {
   amount: number | null;
   /** Whose job it is to arrange it. Null or absent for "not said yet". */
   arrangedBy?: ServiceArranger | null;
+  /**
+   * Who does the work, from the 3rd-party directory (src/types/provider.ts),
+   * when one is picked (2026-11-06) — the mechanic, the tow, the pilot car.
+   * The name is copied in as `providerName` is on DockHelp, so the load reads
+   * right without a second read. Never printed, and never part of any
+   * fingerprint: every fingerprint maps a line to its label, amount and
+   * arranger, so picking or changing one holds no sent SA or Dispatch Sheet.
+   */
+  providerId?: string;
+  providerName?: string;
 }
 
 /**
@@ -539,12 +549,17 @@ export function cleanServiceCharges(raw: unknown): ServiceCharge[] {
     // The client (or a facility) arranging it means we charge nothing for it
     // — always, so a figure left in the box from before cannot reach the rate.
     if (notOurCharge(arrangedBy)) amount = 0;
+    // Same shape check as cleanDockHelp(): an id is only ever a Firestore id.
+    const providerId = typeof c.providerId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(c.providerId) ? c.providerId : '';
+    const provider = providerId
+      ? { providerId, providerName: typeof c.providerName === 'string' ? c.providerName.trim().slice(0, 120) : '' }
+      : {};
     if (c.service === 'other') {
       const label = typeof c.label === 'string' ? c.label.trim().slice(0, MAX_CHARGE_LABEL) : '';
-      if (label) out.push({ service: 'other', label, amount, arrangedBy });
+      if (label) out.push({ service: 'other', label, amount, arrangedBy, ...provider });
     } else if (isAccessorial(c.service) && isPaidService(c.service) && !seen.has(c.service)) {
       seen.add(c.service);
-      out.push({ service: c.service, amount, arrangedBy });
+      out.push({ service: c.service, amount, arrangedBy, ...provider });
     }
     if (out.length >= MAX_SERVICE_CHARGES) break;
   }
@@ -557,6 +572,9 @@ export interface ServiceChargeLine {
   label: string;
   amount: number | null;
   arrangedBy: ServiceArranger | null;
+  /** The provider picked for it, if any. Shown on screen only — see ServiceCharge. */
+  providerId: string | null;
+  providerName: string | null;
 }
 
 /**
@@ -572,10 +590,16 @@ export function serviceChargeLines(
   return [
     ...ticked.map((s) => {
       const c = stored.find((x) => x.service === s);
-      return { service: s, label: ACCESSORIAL_LABEL[s], amount: c?.amount ?? null, arrangedBy: c?.arrangedBy ?? null };
+      return {
+        service: s, label: ACCESSORIAL_LABEL[s], amount: c?.amount ?? null, arrangedBy: c?.arrangedBy ?? null,
+        providerId: c?.providerId ?? null, providerName: c?.providerName ?? null,
+      };
     }),
     ...stored.filter((c) => c.service === 'other')
-      .map((c) => ({ service: 'other' as const, label: c.label ?? '', amount: c.amount, arrangedBy: c.arrangedBy ?? null })),
+      .map((c) => ({
+        service: 'other' as const, label: c.label ?? '', amount: c.amount, arrangedBy: c.arrangedBy ?? null,
+        providerId: c.providerId ?? null, providerName: c.providerName ?? null,
+      })),
   ];
 }
 

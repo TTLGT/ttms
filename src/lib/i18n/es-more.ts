@@ -2893,4 +2893,6 @@ export const ES_MORE: Record<string, string> = {
     "Cada cambio a este registro, quién lo hizo y cuándo",
   "Every change to this provider, who made it and when":
     "Cada cambio a este proveedor, quién lo hizo y cuándo",
+  "Who does each service": 'Quién hace cada servicio',
+  "(from Loading and Unloading)": '(de Carga y Descarga)',
 };

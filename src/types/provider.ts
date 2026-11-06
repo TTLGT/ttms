@@ -1,5 +1,5 @@
 import type { Address } from './order';
-import type { DockHelpService } from './order';
+import type { Accessorial, DockHelpService } from './order';
 import { phoneRegionOf, type PhoneRegion } from '@/lib/phone';
 import { addressLine, cleanAddress } from './partyAddress';
 
@@ -58,6 +58,20 @@ export const PROVIDER_SERVICE_LABEL: Record<ProviderService, string> = {
 /** Which providers the order form offers for a kind of dock help. */
 export function providerServiceFor(help: DockHelpService | null | undefined): ProviderService | null {
   return help && help !== 'other' ? help : null;
+}
+
+/**
+ * Which providers to offer first for an additional service in Price and
+ * Terms (2026-11-06). Null where the directory has no matching service —
+ * the picker then lists everybody by name. Only a ranking, never a filter:
+ * a towing outfit that also sends a mechanic must still be pickable.
+ */
+const SERVICE_FOR_ACCESSORIAL: Partial<Record<Accessorial, ProviderService>> = {
+  pilot_car: 'pilot_car', oversize_permit: 'permits', towing: 'towing', mechanic: 'repair',
+  forklift: 'forklift', crane: 'crane', rigging: 'rigging', storage: 'storage', lumper: 'lumper',
+};
+export function providerServiceForAccessorial(a: Accessorial | 'other'): ProviderService | null {
+  return a === 'other' ? null : SERVICE_FOR_ACCESSORIAL[a] ?? null;
 }
 
 export type RateUnit = 'flat' | 'hour' | 'pallet' | 'piece' | 'mile' | 'day' | 'load';

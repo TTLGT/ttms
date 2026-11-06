@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "79a460e2ffaefcfe855d0b9b4edf29c4350a433a",
+      "date": "2026-11-06T15:11:43-06:00",
+      "author": "erwindank",
+      "subject": "Redesign the carrier, client, shipper, consignee and 3rd party provider pages like the order page, and let their lists sort and filter by any column: each record opens on a card with its name, badges and its loads, money and last activity; its details sit on the left under coloured headings, with drivers and orders on the same page instead of tabs; a rail on the right lists what needs attention (expired or missing insurance, no certificate, no FMCSA check, expired licences, no email, phone, address, lead source or owner), quick contacts, the owners with their pictures, and the change log in a side panel. Every list heading now sorts A–Z and Z–A, names by the database and other columns among what is loaded, and Filter columns adds a box or dropdown under each heading",
+      "body": ""
+    },
+    {
       "hash": "cc46f9ab93cb932b9f95d903fbbf923afb46378f",
       "date": "2026-11-06T14:40:11-06:00",
       "author": "erwindank",
