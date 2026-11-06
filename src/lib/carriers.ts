@@ -73,6 +73,13 @@ export interface CarrierQuery {
   search?: string;
   /** false includes inactive carriers as well. */
   activeOnly?: boolean;
+  /**
+   * Name order: A–Z (the default) or Z–A. Done by the database rather than by
+   * reversing what is loaded, because the list arrives fifty at a time — a
+   * reversed first page is not the end of the alphabet. Z–A with "show
+   * inactive" off needs its own descending indexes (firestore.indexes.json).
+   */
+  dir?: 'asc' | 'desc';
 }
 
 export interface CarrierPage {
@@ -125,9 +132,9 @@ export async function listCarriersPage(q: CarrierQuery = {}): Promise<CarrierPag
     // rather than the literal character, which not every editor preserves.
     const key = carrierNameKey(search);
     constraints.push(where('nameKey', '>=', key), where('nameKey', '<', key + '\uf8ff'));
-    constraints.push(orderBy('nameKey', 'asc'));
+    constraints.push(orderBy('nameKey', q.dir ?? 'asc'));
   } else {
-    constraints.push(orderBy('companyName', 'asc'));
+    constraints.push(orderBy('companyName', q.dir ?? 'asc'));
   }
 
   if (q.activeOnly) constraints.unshift(where('isActive', '==', true));

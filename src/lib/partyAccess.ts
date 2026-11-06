@@ -124,6 +124,11 @@ export interface PartyQuery {
    * owners are on its own page.
    */
   owner?: OwnerFilter | null;
+  /**
+   * Name order, A–Z by default. The cursor is a nameKey either way; Z–A on
+   * the wholesale path needs the descending `roles` + `nameKey` index.
+   */
+  dir?: 'asc' | 'desc';
 }
 
 export interface PartyPage {
@@ -197,7 +202,7 @@ export async function listVisiblePartiesPage(
       q = q.where('nameKey', '>=', term).where('nameKey', '<', term + '\uf8ff');
     }
 
-    q = q.orderBy('nameKey');
+    q = q.orderBy('nameKey', query.dir === 'desc' ? 'desc' : 'asc');
     if (query.cursor) q = q.startAfter(query.cursor);
     if (query.limit)  q = q.limit(query.limit + 1);
 
@@ -229,6 +234,8 @@ function pagePartiesInMemory(all: VisibleParty[], query: PartyQuery): PartyPage 
     if (term && !(p.nameKey ?? '').startsWith(term)) return false;
     return true;
   });
+  // Z–A is the same order reversed, so the cursor still finds its place.
+  if (query.dir === 'desc') matching.reverse();
 
   const start = query.cursor
     ? matching.findIndex((p) => p.nameKey === query.cursor) + 1

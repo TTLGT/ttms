@@ -1,15 +1,52 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { listCarriersPage, countCarriers } from '@/lib/carriers';
 import type { Carrier } from '@/types/carrier';
+import { getInsuranceStatus } from '@/types/carrier';
 import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import InsuranceBadge from '@/components/carriers/InsuranceBadge';
 import PhoneValue from '@/components/PhoneValue';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { Bi } from '@/components/spanish/Es';
+import { FilterToggle, ListHead, PartialNote, phoneFilterText, useListControls } from '@/components/table/listControls';
+import type { ListColumn } from '@/components/table/listControls';
+
+function millis(ts: unknown): number | null {
+  const t = ts as { toMillis?: () => number } | null | undefined;
+  return typeof t?.toMillis === 'function' ? t.toMillis() : null;
+}
+
+const INSURANCE_LABEL: Record<string, string> = {
+  active: 'Active', expiring_soon: 'Expiring soon', expired: 'Expired', unknown: 'No insurance',
+};
+
+/**
+ * The carrier list's columns. Company is sorted by the database (see
+ * listCarriersPage's `dir`); the rest sort and filter what is loaded — see
+ * components/table/listControls.tsx.
+ */
+const COLUMNS: ListColumn<Carrier>[] = [
+  { key: 'name', label: 'Company', sortValue: (c) => c.companyName, filterText: (c) => c.companyName },
+  { key: 'authority', label: 'DOT / MC', sortValue: (c) => c.dot || c.mc, filterText: (c) => `${c.dot ?? ''} ${c.mc ?? ''}` },
+  { key: 'contact', label: 'Contact', sortValue: (c) => c.contactName, filterText: (c) => c.contactName },
+  { key: 'phone', label: 'Phone', sortValue: (c) => c.phone, filterText: (c) => phoneFilterText(c.phone) },
+  {
+    key: 'insurance', label: 'Insurance',
+    sortValue: (c) => ['expired', 'expiring_soon', 'active', 'unknown'].indexOf(getInsuranceStatus(c.insuranceExpiration)),
+    filterOptions: Object.entries(INSURANCE_LABEL).map(([value, label]) => ({ value, label })),
+    filterValue: (c) => getInsuranceStatus(c.insuranceExpiration),
+  },
+  { key: 'expires', label: 'Exp. Date', sortValue: (c) => millis(c.insuranceExpiration) },
+  {
+    key: 'status', label: 'Status',
+    sortValue: (c) => (c.isActive ? 'Active' : 'Inactive'),
+    filterOptions: [{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }],
+    filterValue: (c) => (c.isActive ? 'active' : 'inactive'),
+  },
+];
 
 /** See the orders list for why fifty. */
 const PAGE_SIZE = 50;
@@ -34,6 +71,8 @@ function CarriersList() {
   const pathname     = usePathname();
   const searchParams = useSearchParams();
 
+  const controls     = useListControls(COLUMNS, { defaultSort: 'name', serverKey: 'name' });
+  const { serverDir } = controls;
   const applied      = (searchParams.get('q') ?? '').trim();
   const showInactive = searchParams.get('inactive') === '1';
 
@@ -73,6 +112,7 @@ function CarriersList() {
         after,
         search:     applied,
         activeOnly: !showInactive,
+        dir:        serverDir,
       });
       if (mine !== requestId.current) return;
       setCarriers((prev) => (after ? [...prev, ...page.carriers] : page.carriers));
@@ -83,7 +123,7 @@ function CarriersList() {
     } finally {
       if (mine === requestId.current) { setLoading(false); setLoadingMore(false); }
     }
-  }, [applied, showInactive]);
+  }, [applied, showInactive, serverDir]);
 
   // Re-runs whenever the search text or the inactive toggle changes, which
   // starts that query over from its first page.
@@ -93,7 +133,7 @@ function CarriersList() {
   const [counts, setCounts] = useState<{ active: number; inactive: number } | null>(null);
   useEffect(() => { countCarriers().then(setCounts).catch(() => setCounts(null)); }, []);
 
-  const filtered = carriers;
+  const filtered = useMemo(() => controls.apply(carriers), [controls, carriers]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -133,7 +173,10 @@ function CarriersList() {
           />
           Show inactive
         </label>
+        <FilterToggle controls={controls} />
       </div>
+
+      {!loading && !error && <PartialNote controls={controls} loaded={carriers.length} more={!!cursor} />}
 
       {loading ? (
         <div className="flex justify-center py-20">
@@ -141,7 +184,7 @@ function CarriersList() {
         </div>
       ) : error ? (
         <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600">{error}</div>
-      ) : filtered.length === 0 ? (
+      ) : carriers.length === 0 ? (
         <div className="text-center py-20">
           <p className="text-gray-400 text-sm">{search ? 'No carriers match your search.' : 'No carriers yet.'}</p>
           {!search && (
@@ -154,15 +197,16 @@ function CarriersList() {
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
-              <tr>
-                {['Company', 'DOT / MC', 'Contact', 'Phone', 'Insurance', 'Exp. Date', 'Status', ''].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    {h}
-                  </th>
-                ))}
-              </tr>
+              <ListHead columns={COLUMNS} controls={controls} trailing={1} />
             </thead>
             <tbody className="divide-y divide-gray-100">
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={COLUMNS.length + 1} className="px-4 py-10 text-center text-sm text-gray-400">
+                    <Bi>No carrier on this list matches those filters.</Bi>
+                  </td>
+                </tr>
+              )}
               {filtered.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50 transition">
                   <td className="px-4 py-3 text-sm font-semibold text-gray-900">
@@ -210,7 +254,7 @@ function CarriersList() {
                 {loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} more`}
               </button>
               <p className="text-xs text-gray-400">
-                Showing {filtered.length.toLocaleString()}
+                Showing {carriers.length.toLocaleString()}
                 {!applied && counts &&
                   ` of ${(showInactive
                     ? counts.active + counts.inactive

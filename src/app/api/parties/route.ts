@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
       role,
       search: p.get('search') ?? undefined,
       owner,
+      dir: p.get('dir') === 'desc' ? 'desc' : 'asc',
     });
     return NextResponse.json(page);
   } catch (e) {

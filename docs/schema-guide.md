@@ -1610,6 +1610,9 @@ page boundary and be served twice or skipped.
 |------------|------------------------------|----------|
 | carriers | `isActive` ASC + `companyName` ASC | Browsing carriers with "show inactive" off |
 | carriers | `isActive` ASC + `nameKey` ASC | Carrier name search with "show inactive" off |
+| carriers | `isActive` ASC + `companyName` DESC | Browsing carriers Z–A with "show inactive" off |
+| carriers | `isActive` ASC + `nameKey` DESC | Carrier name search Z–A with "show inactive" off |
+| parties  | `roles` ARRAY + `nameKey` DESC | The Clients, Shippers and Consignees lists sorted Z–A |
 | drivers  | `carrierId` ASC + `name` ASC | A carrier's drivers, on its Drivers tab and in the picker on a load |
 | orders   | `carrierId` ASC + `createdAt` DESC | A carrier's loads; the driver prefill lookup |
 | orders   | `clientId` ASC + `createdAt` DESC | A party's orders, as client |

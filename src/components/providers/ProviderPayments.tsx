@@ -8,6 +8,7 @@ import { can } from '@/lib/accessControl';
 import DateField from '@/components/DateField';
 import MoneyInput from '@/components/MoneyInput';
 import { Bi } from '@/components/spanish/Es';
+import { SectionHeading } from '@/components/orders/OrderSection';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { addPaymentReceipts, listProviderPayments, recordProviderPayment, voidProviderPayment } from '@/lib/providers';
 import {
@@ -114,23 +115,15 @@ export default function ProviderPayments({ provider, onTotals }: {
   const total = live.reduce((n, p) => n + p.amount, 0);
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-        <div>
-          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-            <Receipt className="w-4 h-4 text-gray-500" aria-hidden /> <Bi>Payments and receipts</Bi>
-          </h2>
-          <p className="text-xs text-gray-500 mt-0.5">
-            <Bi>Every payment we make to this provider, with its receipt. Name the load when it was for one, and it shows on the load&apos;s history too.</Bi>
-          </p>
-        </div>
-        {!open && (
+    <section id="payments" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
+      <SectionHeading icon={Receipt} tone="emerald" title="Payments and receipts"
+        sub={<Bi>Every payment we make to this provider, with its receipt. Name the load when it was for one, and it shows on the load&apos;s history too.</Bi>}
+        action={!open ? (
           <button type="button" onClick={() => setOpen(true)}
             className="inline-flex items-center gap-1 px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700">
             <Plus className="w-3.5 h-3.5" aria-hidden /> <span data-es>Record a payment</span>
           </button>
-        )}
-      </div>
+        ) : undefined} />
 
       {open && (
         <div className="rounded-lg border border-gray-200 p-4 mb-5 space-y-4">

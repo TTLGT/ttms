@@ -2790,4 +2790,107 @@ export const ES_MORE: Record<string, string> = {
     "Qué proveedor",
   "Add a provider":
     "Agregar un proveedor",
+  // Record pages and list columns (2026-11-06).
+  "Needs attention":
+    "Requiere atención",
+  "Quick contact":
+    "Contacto rápido",
+  "Filter columns":
+    "Filtrar columnas",
+  "Filter…":
+    "Filtrar…",
+  "Last pickup":
+    "Última recolección",
+  "Edit details":
+    "Editar datos",
+  "Lead source":
+    "Origen del cliente",
+  "work group":
+    "grupo de trabajo",
+  "Edit provider":
+    "Editar proveedor",
+  "Contact and location":
+    "Contacto y ubicación",
+  "retired":
+    "retirado",
+  "DOT / MC":
+    "DOT / MC",
+  "On the road or booked":
+    "En camino o reservadas",
+  "Carrier pay, all loads":
+    "Pago al transportista, todas las cargas",
+  "Billed as client":
+    "Facturado como cliente",
+  "As shipper":
+    "Como remitente",
+  "As consignee":
+    "Como destinatario",
+  "Paid, all time":
+    "Pagado en total",
+  "Prices on file":
+    "Precios registrados",
+  "that you can see":
+    "que puedes ver",
+  "Main":
+    "Principal",
+  "Billing":
+    "Facturación",
+  "Drivers":
+    "Conductores",
+  "Editing — nothing is saved until you press Save.":
+    "Editando: nada se guarda hasta que presiones Guardar.",
+  "Nothing missing. Insurance, authority and contacts are on file.":
+    "No falta nada. El seguro, la autoridad y los contactos están registrados.",
+  "Nothing missing. Contacts, address and owner are on file.":
+    "No falta nada. Los contactos, la dirección y el responsable están registrados.",
+  "Nothing missing. Contact, location and prices are on file.":
+    "No falta nada. El contacto, la ubicación y los precios están registrados.",
+  "No dispatcher on file.":
+    "No hay despachador registrado.",
+  "No billing contact on file.":
+    "No hay contacto de facturación registrado.",
+  "No carrier on this list matches those filters.":
+    "Ningún transportista de esta lista coincide con esos filtros.",
+  "Nothing on this list matches those filters.":
+    "Nada en esta lista coincide con esos filtros.",
+  "No provider matches that search.":
+    "Ningún proveedor coincide con esa búsqueda.",
+  "Marked inactive":
+    "Marcado como inactivo",
+  "Insurance has expired":
+    "El seguro está vencido",
+  "Insurance expires soon":
+    "El seguro vence pronto",
+  "No insurance expiry on file":
+    "No hay fecha de vencimiento del seguro",
+  "No certificate of insurance":
+    "No hay certificado de seguro",
+  "No DOT or MC number":
+    "No hay número DOT ni MC",
+  "Never checked with FMCSA":
+    "Nunca se verificó con FMCSA",
+  "FMCSA found a problem":
+    "FMCSA encontró un problema",
+  "FMCSA raised a concern":
+    "FMCSA señaló una preocupación",
+  "No dispatcher on file":
+    "No hay despachador registrado",
+  "No billing contact on file":
+    "No hay contacto de facturación registrado",
+  "No phone on file":
+    "No hay teléfono registrado",
+  "No main address":
+    "No hay dirección principal",
+  "No lead source":
+    "No hay origen del cliente",
+  "Nobody owns this record":
+    "Este registro no tiene responsable",
+  "No location or service area":
+    "No hay ubicación ni zona de servicio",
+  "Every change to this carrier, who made it and when":
+    "Cada cambio a este transportista, quién lo hizo y cuándo",
+  "Every change to this record, who made it and when":
+    "Cada cambio a este registro, quién lo hizo y cuándo",
+  "Every change to this provider, who made it and when":
+    "Cada cambio a este proveedor, quién lo hizo y cuándo",
 };

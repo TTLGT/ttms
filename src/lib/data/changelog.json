@@ -1,6 +1,20 @@
 {
   "changes": [
     {
+      "hash": "cc46f9ab93cb932b9f95d903fbbf923afb46378f",
+      "date": "2026-11-06T14:40:11-06:00",
+      "author": "erwindank",
+      "subject": "Ask before undoing a payment with a warning in the Payments card instead of the browser pop-up: it names who recorded the payment when it was the driver or a colleague, says a Completed load moves back to Delivered, and that the proof and the change log entry stay",
+      "body": ""
+    },
+    {
+      "hash": "07b08820af977f2df7f2ddaaf7959052ed05b391",
+      "date": "2026-11-06T13:33:54-06:00",
+      "author": "erwindank",
+      "subject": "Tie every pickup and delivery address to its shipper or consignee, and add a 3rd Party Providers directory: a shipper or consignee keeps any number of labelled addresses, picking one on an order fills its address and lists the others, an address typed on an order is saved to the record with it, an address cannot be saved without a shipper or consignee, and typing one suggests who is there; the new directory lists lumpers, forklifts, cranes, rigging crews, pilot cars and the rest with their services, location, contacts and prices, searchable by everyone, pickable under Loading and Unloading, with every payment we make them recorded with its receipts",
+      "body": ""
+    },
+    {
       "hash": "4a948ea890937bedc47d14efcc35eed42bc42d13",
       "date": "2026-11-06T12:51:21-06:00",
       "author": "erwindank",

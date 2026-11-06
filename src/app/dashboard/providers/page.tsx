@@ -11,8 +11,35 @@ import PhoneValue from '@/components/PhoneValue';
 import { Bi } from '@/components/spanish/Es';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
-  PROVIDER_SERVICES, PROVIDER_SERVICE_LABEL, isProviderService, providerMatches, type Provider,
+  PROVIDER_SERVICES, PROVIDER_SERVICE_LABEL, providerMatches, type Provider,
 } from '@/types/provider';
+import { FilterToggle, ListHead, phoneFilterText, useListControls } from '@/components/table/listControls';
+import type { ListColumn } from '@/components/table/listControls';
+
+/**
+ * The directory's columns. The whole directory is in memory, so every sort and
+ * filter here covers all of it — see components/table/listControls.tsx. The
+ * service filter is the Services column's own dropdown; state and city stay
+ * above the table because the city list follows the state picked.
+ */
+const COLUMNS: ListColumn<Provider>[] = [
+  { key: 'name', label: 'Provider', sortValue: (p) => p.companyName, filterText: (p) => `${p.companyName} ${p.serviceArea ?? ''}` },
+  {
+    key: 'services', label: 'Services',
+    sortValue: (p) => p.services.map((s) => PROVIDER_SERVICE_LABEL[s]).join(', '),
+    filterOptions: PROVIDER_SERVICES.map((s) => ({ value: s, label: PROVIDER_SERVICE_LABEL[s] })),
+    filterValue: (p) => p.services,
+  },
+  {
+    key: 'place', label: 'Location',
+    sortValue: (p) => (p.address?.state || p.address?.city ? `${p.address?.state ?? ''} ${p.address?.city ?? ''}` : ''),
+  },
+  { key: 'contact', label: 'Contact', sortValue: (p) => p.contactName, filterText: (p) => p.contactName },
+  { key: 'phone', label: 'Phone', sortValue: (p) => p.phone, filterText: (p) => phoneFilterText(p.phone, p.phone2) },
+  { key: 'email', label: 'Email', sortValue: (p) => p.email, filterText: (p) => p.email },
+  // Stored as YYYY-MM-DD, so it sorts as text in date order.
+  { key: 'paid', label: 'Last paid', sortValue: (p) => p.lastPaidOn ?? '' },
+];
 
 const INPUT = 'border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
@@ -35,10 +62,10 @@ function ProvidersList() {
   const [error, setError] = useState('');
 
   const q       = params.get('q') ?? '';
-  const service = params.get('service') ?? '';
   const state   = params.get('state') ?? '';
   const city    = params.get('city') ?? '';
   const mayAdd  = can(profile, 'orders.view');
+  const controls = useListControls(COLUMNS, { defaultSort: 'name' });
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(params.toString());
@@ -61,11 +88,10 @@ function ProvidersList() {
     [providers, state],
   );
 
-  const shown = (providers ?? []).filter((p) =>
-    (!service || (isProviderService(service) && p.services.includes(service)))
-    && (!state || p.address?.state?.toUpperCase() === state)
+  const shown = controls.apply((providers ?? []).filter((p) =>
+    (!state || p.address?.state?.toUpperCase() === state)
     && (!city || p.address?.city?.trim().toLowerCase() === city.toLowerCase())
-    && providerMatches(p, q));
+    && providerMatches(p, q)));
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl">
@@ -93,10 +119,6 @@ function ProvidersList() {
             placeholder="Search name, service, city, phone, email, address…" aria-label="Search providers"
             className={`${INPUT} w-full pl-9`} />
         </div>
-        <select value={service} onChange={(e) => setParam('service', e.target.value)} aria-label="Service" className={INPUT}>
-          <option data-es value="">All services</option>
-          {PROVIDER_SERVICES.map((s) => <option key={s} value={s}>{PROVIDER_SERVICE_LABEL[s]}</option>)}
-        </select>
         <select value={state} onChange={(e) => { setParam('state', e.target.value); setParam('city', ''); }} aria-label="State" className={INPUT}>
           <option data-es value="">All states</option>
           {states.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -105,6 +127,7 @@ function ProvidersList() {
           <option data-es value="">All cities</option>
           {cities.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
+        <FilterToggle controls={controls} />
       </div>
 
       {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600 mb-4">{error}</div>}
@@ -114,7 +137,7 @@ function ProvidersList() {
           <div className="flex justify-center py-16">
             <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : shown.length === 0 ? (
+        ) : providers.length === 0 ? (
           <div className="text-center py-14 text-sm text-gray-400">
             {providers.length === 0
               ? <Bi>No providers yet. Add the first one you hire.</Bi>
@@ -124,13 +147,16 @@ function ProvidersList() {
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-100 text-sm">
               <thead className="bg-gray-50">
-                <tr>
-                  {['Provider', 'Services', 'Location', 'Contact', 'Phone', 'Email', 'Last paid'].map((h) => (
-                    <th key={h} data-es className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                  ))}
-                </tr>
+                <ListHead columns={COLUMNS} controls={controls} />
               </thead>
               <tbody className="divide-y divide-gray-100">
+                {shown.length === 0 && (
+                  <tr>
+                    <td colSpan={COLUMNS.length} className="px-4 py-10 text-center text-sm text-gray-400">
+                      <Bi>No provider matches that search.</Bi>
+                    </td>
+                  </tr>
+                )}
                 {shown.map((p) => (
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">

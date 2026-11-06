@@ -105,6 +105,8 @@ export interface PartyQuery {
    * directory links on. Resolved to a uid server-side; see lib/ownerFilter.ts.
    */
   owner?: string;
+  /** Name order, A–Z by default. Sorted by the server — see the carriers list. */
+  dir?: 'asc' | 'desc';
 }
 
 export interface PartyPage {
@@ -125,6 +127,7 @@ export async function listPartiesPage(q: PartyQuery = {}): Promise<PartyPage> {
   if (q.role)   p.set('role', q.role);
   if (q.search) p.set('search', q.search);
   if (q.owner)  p.set('owner', q.owner);
+  if (q.dir === 'desc') p.set('dir', 'desc');
   const page = await apiGet<{ parties: Party[]; cursor: string | null }>(`/api/parties?${p}`);
   return { parties: page.parties ?? [], cursor: page.cursor ?? null };
 }

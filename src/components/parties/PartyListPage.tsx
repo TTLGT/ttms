@@ -7,10 +7,61 @@ import { listPartiesPage, countParties } from '@/lib/parties';
 import { useAuth } from '@/context/AuthContext';
 import { viewAllPermission } from '@/lib/accessControl';
 import { personHref } from '@/lib/directoryProfile';
-import { partyDisplayName, ROLE_LABEL } from '@/types/party';
+import { PARTY_ROLES, partyDisplayName, ROLE_LABEL } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
 import PhoneValue from '@/components/PhoneValue';
 import { Bi, Es } from '@/components/spanish/Es';
+import { FilterToggle, ListHead, PartialNote, phoneFilterText, useListControls } from '@/components/table/listControls';
+import type { ListColumn } from '@/components/table/listControls';
+
+/** The contact shown on the row: the record's own, else its first contact. */
+function rowContact(p: Party) {
+  const primary = p.contacts?.[0];
+  return {
+    name:  p.contactName || primary?.name || '',
+    phone: p.phone || primary?.phone || '',
+    email: p.email || primary?.email || '',
+  };
+}
+
+function cityState(p: Party): string {
+  return p.address?.city && p.address?.state ? `${p.address.city}, ${p.address.state}` : p.address?.city || '';
+}
+
+/**
+ * The list's columns. Name is sorted by the server (nameKey, either way
+ * round); the rest sort and filter what is loaded — see
+ * components/table/listControls.tsx. "Also" depends on which list this is,
+ * so the columns are built per role.
+ */
+function partyColumns(role: PartyRole): ListColumn<Party>[] {
+  const others = PARTY_ROLES.filter((r) => r !== role);
+  return [
+    { key: 'name', label: 'Name', sortValue: (p) => p.nameKey || partyDisplayName(p), filterText: (p) => partyDisplayName(p) },
+    { key: 'contact', label: 'Contact', sortValue: (p) => rowContact(p).name, filterText: (p) => rowContact(p).name },
+    { key: 'phone', label: 'Phone', sortValue: (p) => rowContact(p).phone, filterText: (p) => phoneFilterText(rowContact(p).phone, p.phone2) },
+    { key: 'email', label: 'Email', sortValue: (p) => rowContact(p).email, filterText: (p) => `${rowContact(p).email} ${p.email2 ?? ''}` },
+    {
+      key: 'place', label: 'City / State',
+      // By state, then city: a broker looking down this column is looking for
+      // everything in Texas, not every Springfield.
+      sortValue: (p) => (p.address?.state || p.address?.city ? `${p.address?.state ?? ''} ${p.address?.city ?? ''}` : ''),
+      filterText: (p) => `${cityState(p)} ${p.address?.zip ?? ''}`,
+    },
+    {
+      key: 'also', label: 'Also',
+      sortValue: (p) => (p.roles ?? []).filter((r) => r !== role).map((r) => ROLE_LABEL[r]).join(', '),
+      filterOptions: [
+        ...others.map((r) => ({ value: r, label: ROLE_LABEL[r] })),
+        { value: 'none', label: `Only a ${ROLE_LABEL[role].toLowerCase()}` },
+      ],
+      filterValue: (p) => {
+        const also = (p.roles ?? []).filter((r) => r !== role);
+        return also.length ? also : 'none';
+      },
+    },
+  ];
+}
 
 interface Props {
   role: PartyRole;
@@ -63,6 +114,10 @@ function PartyList({ role, title, blurb }: Props) {
   */
   const owner = (searchParams.get('owner') ?? '').trim();
 
+  const columns  = useMemo(() => partyColumns(role), [role]);
+  const controls = useListControls(columns, { defaultSort: 'name', serverKey: 'name' });
+  const { serverDir } = controls;
+
   const setParam = useCallback((key: string, value: string, fallback: string) => {
     const params = new URLSearchParams(searchParams.toString());
     // A default is written as an absent parameter, so a bare /dashboard/clients
@@ -99,6 +154,7 @@ function PartyList({ role, title, blurb }: Props) {
       const page = await listPartiesPage({
         limit: PAGE_SIZE, cursor: after, role, search: applied || undefined,
         owner: owner || undefined,
+        dir: serverDir,
       });
       if (mine !== requestId.current) return;
       setAll((prev) => (after ? [...prev, ...page.parties] : page.parties));
@@ -109,7 +165,7 @@ function PartyList({ role, title, blurb }: Props) {
     } finally {
       if (mine === requestId.current) { setLoad(false); setLoadingMore(false); }
     }
-  }, [user, role, applied, owner]);
+  }, [user, role, applied, owner, serverDir]);
 
   useEffect(() => { setAll([]); setCursor(null); void loadPage(null); }, [loadPage]);
 
@@ -123,12 +179,14 @@ function PartyList({ role, title, blurb }: Props) {
     on them server-side would need an index per combination for a control only
     admins see. It reads as a filter on what is shown, which is what it is.
   */
-  const visible = useMemo(
+  const mine = useMemo(
     () => (mineOnly && user
       ? all.filter((p) => (p.assignedToUids ?? []).includes(user.uid))
       : all),
     [all, mineOnly, user],
   );
+  const { apply } = controls;
+  const visible = useMemo(() => apply(mine), [apply, mine]);
 
   const clearOwner = () => setParam('owner', '', '');
 
@@ -194,7 +252,10 @@ function PartyList({ role, title, blurb }: Props) {
             Only mine
           </label>
         )}
+        <FilterToggle controls={controls} />
       </div>
+
+      {!loading && !error && <PartialNote controls={controls} loaded={mine.length} more={!!cursor} />}
 
       {loading ? (
         <div className="flex justify-center py-20">
@@ -202,7 +263,7 @@ function PartyList({ role, title, blurb }: Props) {
         </div>
       ) : error ? (
         <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600">{error}</div>
-      ) : visible.length === 0 ? (
+      ) : mine.length === 0 ? (
         <div className="text-center py-20">
           <p className="text-gray-400 text-sm">
             {owner
@@ -226,15 +287,16 @@ function PartyList({ role, title, blurb }: Props) {
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-100">
             <thead className="bg-gray-50">
-              <tr>
-                {['Name', 'Contact', 'Phone', 'Email', 'City / State', 'Also', ''].map((h) => (
-                  <th key={h} data-es className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    {h}
-                  </th>
-                ))}
-              </tr>
+              <ListHead columns={columns} controls={controls} trailing={1} />
             </thead>
             <tbody className="divide-y divide-gray-100">
+              {visible.length === 0 && (
+                <tr>
+                  <td colSpan={columns.length + 1} className="px-4 py-10 text-center text-sm text-gray-400">
+                    <Bi>Nothing on this list matches those filters.</Bi>
+                  </td>
+                </tr>
+              )}
               {visible.map((p) => {
                 const primary    = p.contacts?.[0];
                 const otherRoles = (p.roles ?? []).filter((r) => r !== role);
@@ -296,7 +358,7 @@ function PartyList({ role, title, blurb }: Props) {
                 {loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} more`}
               </button>
               <p className="text-xs text-gray-400">
-                Showing {visible.length.toLocaleString()}
+                Showing {mine.length.toLocaleString()}
                 {!applied && total !== null && ` of ${total.toLocaleString()}`}
               </p>
             </div>
