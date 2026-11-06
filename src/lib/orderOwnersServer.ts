@@ -59,6 +59,9 @@ export async function orderOwnerSummaries(orders: Doc[]): Promise<Map<string, Or
         uid,
         name:  personName(users.get(uid), 'A former user'),
         email: (users.get(uid)?.email as string) || '',
+        // The storage path, as on the profile — the browser resolves it.
+        // Already in the document read above, so the picture costs no read.
+        photoPath: (users.get(uid)?.photoPath as string) || null,
       })),
       groups:  strings(o.assignedToGroupIds).map((g) => ({ id: g, name: groupName(g) })),
       pending: strings(o.assignedToEmails),

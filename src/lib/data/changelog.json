@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "2271c549f886b475bcccb7edb5eddca9ad07f5af",
+      "date": "2026-11-06T11:39:25-06:00",
+      "author": "erwindank",
+      "subject": "Say who loads and unloads every load, and who hires a 3rd party: a Loading and Unloading section on the order forms and its own card on the order, from the quote on, with Shipper, Consignee, Driver or 3rd party at each end, and for a 3rd party whether it is a lumper, forklift, crane, rigging crew or something else and who hires it (TTL, client, shipper, consignee or carrier); the load card says it under each city, the SA, Dispatch Sheet and BOL print it, and the SA cannot be requested or sent until both ends are answered. A lumper, forklift, crane or rigging crew ticks that service and sets who arranges it, and Shipper and Consignee join the Arranged by choices at $0",
+      "body": ""
+    },
+    {
       "hash": "e2060b8b77171ef6df146d81d870486bb8cc31cd",
       "date": "2026-11-06T10:53:12-06:00",
       "author": "erwindank",

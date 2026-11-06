@@ -958,7 +958,7 @@ export interface OrderOwnerSummary {
   /** Who created the load. Null for imported loads, which nobody created in TTMS. */
   createdBy: { uid: string; name: string } | null;
   /** Owners with an account. */
-  people: { uid: string; name: string; email: string }[];
+  people: { uid: string; name: string; email: string; photoPath?: string | null }[];
   /** Owning work groups. */
   groups: { id: string; name: string }[];
   /** Owners invited but not signed in yet — held by email. */

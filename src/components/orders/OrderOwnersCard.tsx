@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { addOrderOwners, removeOrderOwners, updateOrder } from '@/lib/orders';
 import { listUserProfiles } from '@/lib/userProfiles';
 import { listWorkGroups } from '@/lib/workGroups';
+import { UserAvatar } from '@/components/settings/UserAvatar';
 import type { Order } from '@/types/order';
 import type { UserProfile } from '@/types/userProfile';
 import type { WorkGroup } from '@/types/workGroup';
@@ -136,7 +137,9 @@ export default function OrderOwnersCard({ order, onChanged }: {
           ) : (
             <>
               {owners.people.map((p) => (
-                <span key={p.uid} className={chip} title={p.email}>
+                <span key={p.uid} className={`${chip} pl-0.5`} title={p.email}>
+                  <UserAvatar photoPath={p.photoPath} fallback={(p.name || p.email || '?').charAt(0).toUpperCase()}
+                    size={22} expandable name={p.name} />
                   {p.name}
                   {p.uid === owners.brokerUid && owners.people.length > 1 && (
                     <span data-es className="text-[10px] font-semibold uppercase tracking-wide text-brand-700">Broker</span>
