@@ -207,7 +207,25 @@ export function cleanDockHelp(raw: unknown): DockHelp | null {
 }
 
 export type DockEnd = 'pickup' | 'delivery';
-type DockFields = Partial<Pick<Order, 'trailerLoadedBy' | 'trailerUnloadedBy' | 'loadingHelp' | 'unloadingHelp'>>;
+type DockFields = Partial<Pick<Order,
+  'trailerLoadedBy' | 'trailerUnloadedBy' | 'loadingHelp' | 'unloadingHelp' | 'loadingConditions' | 'unloadingConditions'>>;
+
+/**
+ * The conditions at one end, in the broker's words (2026-11-09): "driver
+ * loads with his own straps, dock 4, two-hour window", "lumper paid by the
+ * consignee, driver must stay to count". Required once the end is answered,
+ * because a bare "Driver" or "3rd party" left both sides guessing at who
+ * does what. A stopgap for a structured menu — see the Schema Guide — so it
+ * is one free-text box, stored beside the answer rather than inside
+ * `loadingHelp`, which is cleared whenever the end stops being a 3rd party.
+ */
+export const MAX_DOCK_CONDITIONS = 500;
+export function cleanDockConditions(raw: unknown): string {
+  return typeof raw === 'string' ? raw.trim().slice(0, MAX_DOCK_CONDITIONS) : '';
+}
+export function dockConditionsOf(o: DockFields | null | undefined, end: DockEnd): string {
+  return cleanDockConditions(end === 'pickup' ? o?.loadingConditions : o?.unloadingConditions);
+}
 
 /** Who works one end of the load, and the help when it is a 3rd party. */
 export function dockEndOf(o: DockFields | null | undefined, end: DockEnd): { by: DockParty | null; help: DockHelp | null } {
@@ -225,10 +243,12 @@ export function dockEndProblem(o: DockFields | null | undefined, end: DockEnd): 
   const { by, help } = dockEndOf(o, end);
   const where = end === 'pickup' ? 'loads at pickup' : 'unloads at delivery';
   if (!by) return `Say who ${where}.`;
-  if (by !== 'third_party') return '';
-  if (!help?.service) return `Say what the 3rd party that ${where} is — a lumper, a forklift, a crane, a rigging crew or something else.`;
-  if (help.service === 'other' && !help.label?.trim()) return `Name the 3rd party that ${where}.`;
-  if (!help.hiredBy) return `Say who hires the 3rd party that ${where}.`;
+  if (by === 'third_party') {
+    if (!help?.service) return `Say what the 3rd party that ${where} is — a lumper, a forklift, a crane, a rigging crew or something else.`;
+    if (help.service === 'other' && !help.label?.trim()) return `Name the 3rd party that ${where}.`;
+    if (!help.hiredBy) return `Say who hires the 3rd party that ${where}.`;
+  }
+  if (!dockConditionsOf(o, end)) return `Describe the conditions for whoever ${where}.`;
   return '';
 }
 
@@ -352,25 +372,32 @@ export const FREIGHT_COUNTED_BY_LABEL: Record<FreightCountedBy, string> = {
  * questions somebody answered, so a load with none says nothing rather than
  * four rows of dashes. '' for "not said" is never printed.
  */
-export function dockWorkLines(o: Partial<Pick<Order,
-  'trailerLoadedBy' | 'freightCountedBy' | 'trailerUnloadedBy' | 'deliveryCountedBy' | 'loadingHelp' | 'unloadingHelp'>>): { label: string; value: string }[] {
+export function dockWorkLines(o: DockFields & Partial<Pick<Order, 'freightCountedBy' | 'deliveryCountedBy'>>): { label: string; value: string }[] {
   const lines: { label: string; value: string }[] = [];
   const add = (label: string, value: string | undefined) => { if (value) lines.push({ label, value }); };
-  add('Loading',            dockEndText(o, 'pickup') || undefined);
-  add('Count at pickup',    o.freightCountedBy  ? FREIGHT_COUNTED_BY_LABEL[o.freightCountedBy] : undefined);
-  add('Unloading',          dockEndText(o, 'delivery') || undefined);
-  add('Count at delivery',  o.deliveryCountedBy ? DOCK_PARTY_LABEL[o.deliveryCountedBy] : undefined);
+  // The conditions line sits under the answer it qualifies. Only printed when
+  // written, so every sheet sent before 2026-11-09 fingerprints as it did.
+  add('Loading',             dockEndText(o, 'pickup') || undefined);
+  add('Loading conditions',  dockConditionsOf(o, 'pickup') || undefined);
+  add('Count at pickup',     o.freightCountedBy  ? FREIGHT_COUNTED_BY_LABEL[o.freightCountedBy] : undefined);
+  add('Unloading',           dockEndText(o, 'delivery') || undefined);
+  add('Unloading conditions', dockConditionsOf(o, 'delivery') || undefined);
+  add('Count at delivery',   o.deliveryCountedBy ? DOCK_PARTY_LABEL[o.deliveryCountedBy] : undefined);
   return lines;
 }
 
 /**
  * Who loads and unloads, for the client's SA — the counts are the carrier's
- * and the BOL's business, so only the two answers. Empty when neither is
- * answered, which keeps every SA sent before this fingerprinting as it did.
+ * and the BOL's business, so only the two answers and their conditions.
+ * Empty when nothing is answered, which keeps every SA sent before this
+ * fingerprinting as it did; likewise a conditions line only when written.
  */
 export function clientDockLines(o: DockFields | null | undefined): { label: string; value: string }[] {
-  return ([['Loading at pickup', 'pickup'], ['Unloading at delivery', 'delivery']] as const)
-    .map(([label, end]) => ({ label, value: dockEndText(o, end) }))
+  return ([['Loading at pickup', 'Loading conditions', 'pickup'], ['Unloading at delivery', 'Unloading conditions', 'delivery']] as const)
+    .flatMap(([label, condLabel, end]) => [
+      { label, value: dockEndText(o, end) },
+      { label: condLabel, value: dockConditionsOf(o, end) },
+    ])
     .filter((l) => l.value);
 }
 
@@ -1666,6 +1693,14 @@ export interface Order {
    */
   loadingHelp?: DockHelp | null;
   unloadingHelp?: DockHelp | null;
+  /**
+   * The conditions at each end, free text, required once that end is
+   * answered (2026-11-09) before the SA, the Dispatch Sheet or the BOL goes
+   * out — see dockEndProblem(). Printed under the answer on all three; in
+   * bolFingerprint() too, so changing them raises the regenerate banner.
+   */
+  loadingConditions?: string;
+  unloadingConditions?: string;
   /**
    * Print the full grid of loading, unloading and count boxes on the BOL,
    * answered or not, for a carrier or client who asks for boxes to tick by

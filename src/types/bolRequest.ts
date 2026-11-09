@@ -25,7 +25,7 @@
  * /api/orders/{id}/bol-request. See src/lib/bolRequests.ts.
  */
 
-import { accessorialLabels, dockEndOf, orderCommodityItems, orderDisplayNumber, type DockHelp, type Order } from './order';
+import { accessorialLabels, dockConditionsOf, dockEndOf,orderCommodityItems, orderDisplayNumber, type DockHelp, type Order } from './order';
 
 export const BOL_REQUESTS_COLLECTION = 'bolRequests';
 
@@ -87,6 +87,10 @@ export function bolFingerprint(order: Record<string, unknown>): string {
     // print it, so choosing one must not raise the regenerate banner.
     loadingHelp:   printedHelp(dockEndOf(o, 'pickup').help),
     unloadingHelp: printedHelp(dockEndOf(o, 'delivery').help),
+    // The conditions at each end (2026-11-09), undefined when empty for the
+    // same reason as the help above: an older BOL must not read as outdated.
+    loadingConditions:   dockConditionsOf(o, 'pickup') || undefined,
+    unloadingConditions: dockConditionsOf(o, 'delivery') || undefined,
   };
   const stable = (v: unknown): string => {
     if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`;

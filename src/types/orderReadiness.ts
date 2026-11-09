@@ -75,9 +75,9 @@ export function orderReadiness(order: Partial<Order>, facts: ReadinessFacts = {}
     // On the SA's list because the client is agreeing to it — "the consignee
     // provides the forklift" is a term — and because the cost of a crane
     // nobody booked lands on whoever finds out at the dock.
-    { key: 'loading', label: 'Who loads at pickup (and who hires a 3rd party)',
+    { key: 'loading', label: 'Who loads at pickup, and the conditions',
       ok: !dockEndProblem(order, 'pickup'), hint: dockEndProblem(order, 'pickup') || undefined },
-    { key: 'unloading', label: 'Who unloads at delivery (and who hires a 3rd party)',
+    { key: 'unloading', label: 'Who unloads at delivery, and the conditions',
       ok: !dockEndProblem(order, 'delivery'), hint: dockEndProblem(order, 'delivery') || undefined },
   ];
 
@@ -107,6 +107,9 @@ export function orderReadiness(order: Partial<Order>, facts: ReadinessFacts = {}
  */
 const BOL_ALSO_PRINTS: readonly string[] = [
   'pickupPlace', 'deliveryPlace', 'pickupDate', 'deliveryDate', 'commodity', 'weight', 'transportType',
+  // Who loads and unloads and the conditions at each end (2026-11-09): the
+  // driver carries the BOL to the dock, so it must not go out without them.
+  'loading', 'unloading',
 ];
 
 /**

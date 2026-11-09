@@ -128,6 +128,8 @@ const LABELS: Record<string, string> = {
   trailerUnloadedBy: 'Unloaded by',
   loadingHelp: '3rd party loading',
   unloadingHelp: '3rd party unloading',
+  loadingConditions: 'Loading conditions',
+  unloadingConditions: 'Unloading conditions',
   freightCountedBy: 'Counted at pickup by',
   deliveryCountedBy: 'Counted at delivery by',
   bolShowDockBoxes: 'Print all loading and count boxes on the BOL',

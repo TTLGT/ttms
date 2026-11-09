@@ -43,7 +43,7 @@ import type { ChangeOrderAffects } from '@/types/changeOrder';
 import { NO_SIGNED_CA_PROOF, NO_SIGNED_SA_PROOF, signedSaProof } from './signedSaProof';
 import { openBolRequestIfSigned } from './bolRequests';
 import { isCodLoad, missingSentence, paymentsMissing } from '@/types/orderPayment';
-import { LEGACY_STATUSES, cleanDockHelp, cleanServiceCharges, cleanStops, reconcileDockHelp, orderAccessorials, orderDisplayNumber, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
+import { LEGACY_STATUSES, cleanDockConditions, cleanDockHelp,cleanServiceCharges, cleanStops, reconcileDockHelp, orderAccessorials, orderDisplayNumber, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
 
 const COL = 'orders';
 
@@ -124,6 +124,9 @@ function cleanStopFields(record: Record<string, unknown>) {
   if ('accessorials' in record) record.accessorials = orderAccessorials(record);
   if ('serviceCharges' in record) record.serviceCharges = cleanServiceCharges(record.serviceCharges);
   for (const f of ['loadingHelp', 'unloadingHelp']) if (f in record) record[f] = cleanDockHelp(record[f]);
+  // Printed on both agreements, so capped and trimmed before it is diffed —
+  // trailing spaces must not read as a change that holds a sent SA.
+  for (const f of ['loadingConditions', 'unloadingConditions']) if (f in record) record[f] = cleanDockConditions(record[f]);
 }
 
 /**

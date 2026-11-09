@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "0e496d129a93585196df68c91fa7c8dcbf2b880f",
+      "date": "2026-11-09T15:03:34-06:00",
+      "author": "erwindank",
+      "subject": "Refuse to generate a BOL while anything it prints is missing, and mark the missing fields in red: the Bill of Lading card lists each blank (shipper, consignee, street addresses, dates, freight, weight, pieces, transport type, carrier, DOT or MC, driver name and phone) with a link to it, Generate BOL stays greyed out until the list is empty, and the edit screen outlines every missing field until it is filled in. The server enforces the same list for the button, for sending a BOL never drawn, and for the automatic BOL on the second signature, which still opens the send request and tells the load's room what to fill in",
+      "body": ""
+    },
+    {
       "hash": "9cba623f68fea911f3765450dcbf1b8e96f7e22b",
       "date": "2026-11-06T16:38:22-06:00",
       "author": "erwindank",

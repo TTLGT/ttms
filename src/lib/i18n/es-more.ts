@@ -2662,9 +2662,15 @@ export const ES_MORE: Record<string, string> = {
   "From Loading and Unloading": 'Desde Carga y descarga',
   "(loading / unloading)": '(carga / descarga)',
   "Needed before the SA is sent": 'Se necesita antes de enviar el SA.',
+  "Needed before the SA, the Dispatch Sheet or the BOL goes out": 'Se necesita antes de enviar el SA, la hoja de despacho o el BOL.',
   "Printed on the SA, the Dispatch Sheet and the BOL": 'Se imprime en el SA, la hoja de despacho y el BOL.',
-  "Who loads the truck at pickup and unloads it at delivery. When it is a 3rd party — a lumper, a forklift, a crane — say what it is and who hires them. Printed on the client's SA, the carrier's Dispatch Sheet and the BOL, and needed before the SA is sent":
-    'Quién carga el camión en la recogida y quién lo descarga en la entrega. Si es un tercero (un lumper, un montacargas, una grúa), indica qué es y quién lo contrata. Se imprime en el SA del cliente, en la hoja de despacho del transportista y en el BOL, y se necesita antes de enviar el SA.',
+  "Who loads the truck at pickup and unloads it at delivery, and the conditions at each end. When it is a 3rd party — a lumper, a forklift, a crane — say what it is and who hires them. Printed on the client's SA, the carrier's Dispatch Sheet and the BOL, and needed before any of them goes out":
+    'Quién carga el camión en la recogida y quién lo descarga en la entrega, y las condiciones en cada lugar. Si es un tercero (un lumper, un montacargas, una grúa), indica qué es y quién lo contrata. Se imprime en el SA del cliente, en la hoja de despacho del transportista y en el BOL, y se necesita antes de enviar cualquiera de ellos.',
+  "Conditions": 'Condiciones',
+  "Who does what, what they bring, who pays and anything the driver must do. Printed on the SA, the Dispatch Sheet and the BOL":
+    'Quién hace qué, qué lleva cada uno, quién paga y lo que el conductor debe hacer. Se imprime en el SA, la hoja de despacho y el BOL.',
+  "Who loads at pickup, and the conditions": 'Quién carga en la recogida, y las condiciones',
+  "Who unloads at delivery, and the conditions": 'Quién descarga en la entrega, y las condiciones',
   "The driver does the work. The Dispatch Sheet tells the carrier before they accept the load":
     'El conductor hace el trabajo. La hoja de despacho se lo dice al transportista antes de que acepte la carga.',
   "TTL books and pays them. Put the cost in Price and Terms, where it is added to the Agreed Rate":

@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { PackageOpen } from 'lucide-react';
 import { Bi } from '@/components/spanish/Es';
-import { DOCK_HELP_LABEL, DOCK_PARTY_LABEL, SERVICE_ARRANGER_LABEL, dockEndOf, dockEndProblem, type DockEnd, type Order } from '@/types/order';
+import { DOCK_HELP_LABEL, DOCK_PARTY_LABEL, SERVICE_ARRANGER_LABEL, dockConditionsOf, dockEndOf, dockEndProblem, type DockEnd, type Order } from '@/types/order';
 import { SectionHeading } from './OrderSection';
 
 function End({ order, end }: { order: Order; end: DockEnd }) {
   const { by, help } = dockEndOf(order, end);
   const problem = dockEndProblem(order, end);
+  const conditions = dockConditionsOf(order, end);
   const what = help?.service === 'other' ? help.label?.trim() || 'Other' : help?.service ? DOCK_HELP_LABEL[help.service] : '';
   return (
     <div className={`rounded-xl border p-4 ${problem ? 'border-amber-200 bg-amber-50' : 'border-gray-200'}`}>
@@ -34,7 +35,8 @@ function End({ order, end }: { order: Order; end: DockEnd }) {
           </dd>
         </dl>
       )}
-      {problem && <p className="mt-2 text-xs text-amber-800">{problem} <Bi>Needed before the SA is sent.</Bi></p>}
+      {conditions && <p className="mt-2 text-sm text-gray-800 whitespace-pre-line">{conditions}</p>}
+      {problem &&<p className="mt-2 text-xs text-amber-800">{problem} <Bi>Needed before the SA, the Dispatch Sheet or the BOL goes out.</Bi></p>}
     </div>
   );
 }

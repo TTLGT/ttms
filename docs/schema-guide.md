@@ -1249,9 +1249,13 @@ work; when that is `third_party`, the order also says who:
 | Field | Meaning |
 |---|---|
 | `loadingHelp`, `unloadingHelp` | `{ service, label?, hiredBy }` or null. `service` is `lumper`, `forklift`, `crane`, `rigging` or `other` (with a `label`, 60 characters at most); `hiredBy` takes the `arrangedBy` values. Null whenever that end is not `third_party`. |
+| `loadingConditions`, `unloadingConditions` | Free text, 500 characters at most (2026-11-09): the conditions at that end, whatever the answer — who brings what, who pays, what the driver must do. Kept when the answer changes. Printed under the answer on the SA, the Dispatch Sheet and the BOL, and part of `bolFingerprint()`. A stopgap for a structured menu of roles per end. |
 
-- **Both ends must be answered before the SA goes out** — and, for a 3rd
-  party, what it is and who hires it. `dockEndProblem()` is the one test,
+- **Both ends must be answered before the SA, the Dispatch Sheet or the BOL
+  goes out** — and, for a 3rd party, what it is and who hires it, and since
+  2026-11-09 the conditions at each answered end. The Dispatch Sheet's send
+  route and the BOL's `bolBlockers()` (`loading` / `unloading` in
+  `BOL_ALSO_PRINTS`) ask the same test. `dockEndProblem()` is the one test,
   read by `orderReadiness()` (so Request SA refuses) and by
   `send-shipper-agreement` (which refuses everything but a resend).
 - **One fact, not two.** A lumper, forklift, crane or rigging crew ticks that

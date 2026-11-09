@@ -10,7 +10,7 @@ import { clientContactOf, readinessFactsFor } from './orderReadinessServer';
 import { bolBlockers, orderReadiness } from '@/types/orderReadiness';
 import { signedSaProof } from './signedSaProof';
 import {
-  STATUS_RANK, dockEndText, equipmentLabels, serviceLabels, clientSignatureSatisfied, formatDimensions, totalCommodityValue, itemStop, itemWeightLb, orderCommodityItems,
+  STATUS_RANK, dockConditionsOf, dockEndText,equipmentLabels, serviceLabels, clientSignatureSatisfied, formatDimensions, totalCommodityValue, itemStop, itemWeightLb, orderCommodityItems,
   orderDeliveries, orderDisplayNumber, orderPickups, stopLabel, vehicleSummary,
 } from '@/types/order';
 import type { CommodityItem, Order, OrderStatus, OrderStop, StopKind } from '@/types/order';
@@ -164,6 +164,8 @@ async function bolBuffer(order: FirebaseFirestore.DocumentData): Promise<Buffer>
     deliveryCountedBy:  order.deliveryCountedBy ?? null,
     loadingText:        dockEndText(order, 'pickup'),
     unloadingText:      dockEndText(order, 'delivery'),
+    loadingConditions:   dockConditionsOf(order, 'pickup'),
+    unloadingConditions: dockConditionsOf(order, 'delivery'),
     showDockBoxes:      order.bolShowDockBoxes === true,
     carrierSignerName: order.carrierSignerName ?? null,
     carrierSignedAt:   order.carrierSignedAt ? fmtDate(order.carrierSignedAt) : null,

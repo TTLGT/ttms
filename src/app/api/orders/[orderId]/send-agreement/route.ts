@@ -15,7 +15,7 @@ import {
   archiveRound, buildSaReview, freezeReview, requestRef, roundRef, saGateFactsFor, sendEntry,
 } from '@/lib/saRequestsServer';
 import { cleanCcList, outstandingChecks } from '@/types/saRequest';
-import { arrangedServiceLabels, equipmentLabels, clientSignatureSatisfied, dimensionsSummary, dockWorkLines, orderCommodityItems, orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@/types/order';
+import { arrangedServiceLabels, equipmentLabels, clientSignatureSatisfied, dimensionsSummary, dockEndProblem, dockWorkLines, orderCommodityItems, orderDeliveries, orderDisplayNumber, orderPickups, stopPlaces } from '@/types/order';
 import type { Order } from '@/types/order';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -81,6 +81,18 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   // planCarrierHold), which is what lets the updated sheet go out.
   if (order.carrierSignedAt) {
     return NextResponse.json({ error: 'The carrier has already signed this agreement.' }, { status: 409 });
+  }
+
+  /*
+   * Who loads and unloads, and the conditions at each end, print on the
+   * Dispatch Sheet and must be filled in before it goes (2026-11-09) — the
+   * carrier is agreeing to them. The same test as the SA's send. Unlike the
+   * SA there is no exemption for a resend: every carrier send is a new link
+   * the carrier is asked to sign.
+   */
+  const dock = [dockEndProblem(order, 'pickup'), dockEndProblem(order, 'delivery')].filter(Boolean);
+  if (dock.length) {
+    return NextResponse.json({ error: `Fill in Loading and Unloading first: ${dock.join(' ')}` }, { status: 409 });
   }
 
   const carrierSnap = await adminDb.collection('carriers').doc(order.carrierId).get();

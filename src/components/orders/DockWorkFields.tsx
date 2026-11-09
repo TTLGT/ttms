@@ -6,18 +6,20 @@ import ProviderPicker from '@/components/providers/ProviderPicker';
 import { providerServiceFor } from '@/types/provider';
 import {
   DOCK_HELP_LABEL, DOCK_HELP_SERVICES, DOCK_PARTIES, DOCK_PARTY_LABEL, SERVICE_ARRANGERS, SERVICE_ARRANGER_LABEL,
-  dockEndOf, dockEndProblem,
+  MAX_DOCK_CONDITIONS, dockConditionsOf, dockEndOf, dockEndProblem,
   type DockEnd, type DockHelp, type DockHelpService, type DockParty, type Order, type ServiceArranger,
 } from '@/types/order';
 
 const INPUT =
   'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400';
 
-/** The four fields this block edits. */
-export type DockWork = Required<Pick<Order, 'trailerLoadedBy' | 'trailerUnloadedBy' | 'loadingHelp' | 'unloadingHelp'>>;
+/** The six fields this block edits. */
+export type DockWork = Required<Pick<Order,
+  'trailerLoadedBy' | 'trailerUnloadedBy' | 'loadingHelp' | 'unloadingHelp' | 'loadingConditions' | 'unloadingConditions'>>;
 
 export const BLANK_DOCK_WORK: DockWork = {
   trailerLoadedBy: null, trailerUnloadedBy: null, loadingHelp: null, unloadingHelp: null,
+  loadingConditions: '', unloadingConditions: '',
 };
 
 export function dockWorkFromOrder(o: Partial<Order>): DockWork {
@@ -26,8 +28,22 @@ export function dockWorkFromOrder(o: Partial<Order>): DockWork {
     trailerUnloadedBy: dockEndOf(o, 'delivery').by,
     loadingHelp:       dockEndOf(o, 'pickup').help,
     unloadingHelp:     dockEndOf(o, 'delivery').help,
+    loadingConditions:   dockConditionsOf(o, 'pickup'),
+    unloadingConditions: dockConditionsOf(o, 'delivery'),
   };
 }
+
+/**
+ * An example under the box, for the answer picked. Examples rather than a
+ * template: what matters differs at every dock, and a pre-filled box gets
+ * saved unread.
+ */
+const CONDITIONS_HINT: Record<DockParty, string> = {
+  driver:      'e.g. Driver loads and secures with own straps and load bars. Dock 4, 8am–10am window.',
+  shipper:     'e.g. Shipper loads with forklift; driver stays with the truck and checks the count.',
+  consignee:   'e.g. Consignee unloads with forklift; driver opens the doors and stays to sign.',
+  third_party: 'e.g. Lumper unloads; driver pays at the dock and sends the receipt. Driver stays to count.',
+};
 
 /**
  * As saved: help only where a 3rd party does the work, so a load switched
@@ -41,6 +57,10 @@ export function dockWorkForSave(d: DockWork): DockWork {
     trailerUnloadedBy: d.trailerUnloadedBy,
     loadingHelp:       d.trailerLoadedBy === 'third_party' ? d.loadingHelp : null,
     unloadingHelp:     d.trailerUnloadedBy === 'third_party' ? d.unloadingHelp : null,
+    // Kept when the answer changes: the words usually still apply, and the
+    // box stays on screen beside the new answer for the broker to correct.
+    loadingConditions:   d.loadingConditions.trim(),
+    unloadingConditions: d.unloadingConditions.trim(),
   };
 }
 
@@ -68,6 +88,7 @@ function Choice<T extends string>({ options, labels, value, onChange, name }: {
 function EndFields({ end, value, onChange, near }: { end: DockEnd; value: DockWork; onChange: (v: DockWork) => void; near?: string }) {
   const byKey = end === 'pickup' ? 'trailerLoadedBy' : 'trailerUnloadedBy';
   const helpKey = end === 'pickup' ? 'loadingHelp' : 'unloadingHelp';
+  const condKey = end === 'pickup' ? 'loadingConditions' : 'unloadingConditions';
   const by = value[byKey];
   const help: DockHelp = value[helpKey] ?? { service: null, hiredBy: null };
   const setHelp = (p: Partial<DockHelp>) => onChange({ ...value, [helpKey]: { ...help, ...p } });
@@ -125,7 +146,21 @@ function EndFields({ end, value, onChange, near }: { end: DockEnd; value: DockWo
         </>
       )}
 
-      {problem && <p className="text-xs text-amber-700">{problem} <Bi>Needed before the SA is sent.</Bi></p>}
+      {by && (
+        <div>
+          <label htmlFor={`dock-conditions-${end}`} className="block text-xs font-medium text-gray-600 mb-1.5">
+            <span data-es>Conditions</span> <span className="text-red-600" aria-hidden>*</span>
+          </label>
+          <textarea id={`dock-conditions-${end}`} rows={3} maxLength={MAX_DOCK_CONDITIONS} aria-required
+            value={value[condKey]} onChange={(e) => onChange({ ...value, [condKey]: e.target.value })}
+            placeholder={CONDITIONS_HINT[by]} className={INPUT} />
+          <p className="text-xs text-gray-500 mt-1">
+            <Bi>Who does what, what they bring, who pays and anything the driver must do. Printed on the SA, the Dispatch Sheet and the BOL.</Bi>
+          </p>
+        </div>
+      )}
+
+      {problem &&<p className="text-xs text-amber-700">{problem} <Bi>Needed before the SA, the Dispatch Sheet or the BOL goes out.</Bi></p>}
     </div>
   );
 }
@@ -154,9 +189,9 @@ export default function DockWorkFields({ value, onChange, pickupState, deliveryS
           <PackageOpen className="w-4 h-4 text-gray-500" aria-hidden /> Loading and Unloading
         </h2>
         <p className="text-xs text-gray-500 mt-1">
-          <Bi>Who loads the truck at pickup and unloads it at delivery. When it is a 3rd party — a lumper, a forklift,
-          a crane — say what it is and who hires them. Printed on the client&apos;s SA, the carrier&apos;s Dispatch Sheet
-          and the BOL, and needed before the SA is sent.</Bi>
+          <Bi>Who loads the truck at pickup and unloads it at delivery, and the conditions at each end. When it is a
+          3rd party — a lumper, a forklift, a crane — say what it is and who hires them. Printed on the client&apos;s SA,
+          the carrier&apos;s Dispatch Sheet and the BOL, and needed before any of them goes out.</Bi>
         </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
