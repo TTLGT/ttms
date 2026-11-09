@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "9cba623f68fea911f3765450dcbf1b8e96f7e22b",
+      "date": "2026-11-06T16:38:22-06:00",
+      "author": "erwindank",
+      "subject": "Let admin and dispatch change who the Shipper Agreement (SA) is sent to from the SA review: the address typed there is kept on that order only and the client's main contact is left alone, unless \"Also make this the client's main contact\" is ticked, which updates the client record instead. Every send, resend and update of that load's SA, its quote PDF and the signed-copy confirmation go to the chosen person, the change log says it was chosen for the load, and the choice is dropped if the load moves to another client",
+      "body": ""
+    },
+    {
       "hash": "1d0bca255c4c3640f4fa849091dc96c64062ca9b",
       "date": "2026-11-06T16:18:08-06:00",
       "author": "erwindank",

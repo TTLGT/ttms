@@ -81,6 +81,10 @@ export default function EditOrderPage() {
   const askedSection = search.get('section');
   // Set by a "Fix" link in the SA or Dispatch Sheet review — see fixTargets.ts.
   const askedField = search.get('field');
+  // Set by the BOL's "cannot be generated" list (BolMissingNotice): every
+  // field the BOL would print blank, outlined in red until it is typed in.
+  const missingFields = (search.get('missing') ?? '').split(',').filter((f) => /^[A-Za-z]+$/.test(f));
+  const missingKey = missingFields.join(',');
   const section: OrderSection | null = isOrderSection(askedSection) ? askedSection : null;
   const shows = (s: OrderSection) => !section || section === s;
   // Back to the card the edit started from, not the top of the page.
@@ -244,11 +248,39 @@ export default function EditOrderPage() {
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     el.querySelector<HTMLElement>('input:not([type=hidden]):not([disabled]), select, textarea')?.focus({ preventScroll: true });
+    // Already outlined in red by the BOL list below; the flash would take
+    // that outline's classes away with its own after four seconds.
+    if (missingKey.split(',').includes(askedField)) return;
     const ring = ['ring-2', 'ring-amber-400', 'ring-offset-4', 'rounded-lg'];
     el.classList.add(...ring);
     const t = setTimeout(() => el.classList.remove(...ring), 4000);
     return () => clearTimeout(t);
-  }, [loading, askedField]);
+  }, [loading, askedField, missingKey]);
+
+  // The BOL's missing fields stay outlined — not the four-second flash above —
+  // because there may be several and the person works down them. Each one's
+  // outline comes off at the first thing typed or picked inside it. The
+  // outline is a class on the element, not React state: the boxes are drawn
+  // by several components, and the ids are the one handle they all share.
+  useEffect(() => {
+    if (loading || !missingKey) return;
+    const ring = ['ring-2', 'ring-red-500', 'ring-offset-4', 'rounded-lg'];
+    const cleanups: (() => void)[] = [];
+    for (const f of missingKey.split(',')) {
+      const el = document.getElementById(`field-${f}`);
+      if (!el) continue;
+      el.classList.add(...ring);
+      const clear = () => el.classList.remove(...ring);
+      el.addEventListener('input', clear, { once: true });
+      el.addEventListener('change', clear, { once: true });
+      cleanups.push(() => {
+        clear();
+        el.removeEventListener('input', clear);
+        el.removeEventListener('change', clear);
+      });
+    }
+    return () => cleanups.forEach((c) => c());
+  }, [loading, missingKey]);
 
   function cacheParty(p: Party) {
     setParties((prev) => (prev.some((x) => x.id === p.id) ? prev : [...prev, p]));

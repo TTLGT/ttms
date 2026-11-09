@@ -6,7 +6,8 @@ import { documentAlert, postOrderAlert } from './chatAlerts';
 import { recordEvent, updateWithHistory, type ChangeActor } from './recordHistory';
 import { generateBolBuffer } from './bol-pdf';
 import type { BolData, BolStopLine } from './bol-pdf';
-import { clientContactOf } from './orderReadinessServer';
+import { clientContactOf, readinessFactsFor } from './orderReadinessServer';
+import { bolBlockers, orderReadiness } from '@/types/orderReadiness';
 import { signedSaProof } from './signedSaProof';
 import {
   STATUS_RANK, dockEndText, equipmentLabels, serviceLabels, clientSignatureSatisfied, formatDimensions, totalCommodityValue, itemStop, itemWeightLb, orderCommodityItems,
@@ -218,12 +219,35 @@ async function keepPreviousBol(orderId: string, replacedBy: ChangeActor): Promis
  * Generates the BOL, keeps the last one as a version, and records it on the
  * order. The caller has already decided this person (or TTMS) may.
  */
+/**
+ * Thrown by generateBol() when the load is missing something the BOL prints.
+ * Routes answer it with 409 and the list, so the page can mark those fields.
+ */
+export class BolNotReady extends Error {
+  constructor(public readonly missing: { key: string; label: string }[]) {
+    super(`The BOL cannot be generated until these are filled in: ${missing.map((m) => m.label).join(', ')}.`);
+    this.name = 'BolNotReady';
+  }
+}
+
+/** What is stopping this load's BOL, empty when nothing is. */
+export async function bolMissing(order: FirebaseFirestore.DocumentData): Promise<{ key: string; label: string }[]> {
+  const items = orderReadiness(order as Partial<Order>, await readinessFactsFor(order));
+  return bolBlockers(items).map((i) => ({ key: i.key, label: i.label }));
+}
+
 export async function generateBol(
   orderId: string,
   order: FirebaseFirestore.DocumentData,
   actor: ChangeActor,
   summary?: string,
 ): Promise<string> {
+  // The one gate. Every way a BOL gets drawn — the button, the second
+  // signature, sending one that was never drawn — comes through here, so a
+  // BOL with a blank where the driver or the consignee should be cannot be
+  // made by any of them.
+  const missing = await bolMissing(order);
+  if (missing.length) throw new BolNotReady(missing);
   const buffer = await bolBuffer(order);
   const filePath = bolPath(orderId);
   await keepPreviousBol(orderId, actor);
@@ -312,8 +336,19 @@ export async function openBolRequestIfSigned(orderId: string, because: string): 
   });
   if (!claimed) return;
 
-  await generateBol(orderId, order, TTMS_ACTOR,
-    `Generated the BOL because both sides have signed (${because.charAt(0).toLowerCase()}${because.slice(1)}), and asked admin and dispatch to send it`);
+  // The request stays open either way: it is what puts the load in front of
+  // admin and dispatch. A load with blanks gets no BOL yet, and the room is
+  // told what to fill in; Generate BOL on the order draws it afterwards.
+  try {
+    await generateBol(orderId, order, TTMS_ACTOR,
+      `Generated the BOL because both sides have signed (${because.charAt(0).toLowerCase()}${because.slice(1)}), and asked admin and dispatch to send it`);
+  } catch (e) {
+    if (!(e instanceof BolNotReady)) throw e;
+    await postOrderAlert(orderId,
+      `Both sides have signed, but the BOL was not generated because the load is missing: ${e.missing.map((m) => m.label).join(', ')}. Fill these in, then press Generate BOL on the order.`,
+    ).catch(() => {});
+    return;
+  }
   await postOrderAlert(orderId,
     'Both sides have signed, so TTMS generated the BOL. Admin and dispatch: choose who to send it to from the order.',
   ).catch(() => {});

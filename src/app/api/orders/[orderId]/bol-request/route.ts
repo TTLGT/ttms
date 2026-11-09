@@ -6,7 +6,7 @@ import { requireCaller, type Caller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { actorOf, recordEvent } from '@/lib/recordHistory';
 import { postOrderAlert } from '@/lib/chatAlerts';
-import { bolRecipientsFor, bolRequestRef, emailBol, generateBol, toBolRequest } from '@/lib/bolRequests';
+import { BolNotReady, bolRecipientsFor, bolRequestRef, emailBol, generateBol, toBolRequest } from '@/lib/bolRequests';
 import { MAX_BOL_RECIPIENTS, isBolRecipientKey } from '@/types/bolRequest';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -20,6 +20,9 @@ const isSender = (caller: Caller) => can(caller.profile, 'orders.sendAgreement')
 
 function fail(e: unknown) {
   if (e instanceof AdminAuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+  // Sending a load whose BOL was never drawn draws it first, which refuses
+  // while the load has blanks — see generateBol().
+  if (e instanceof BolNotReady) return NextResponse.json({ error: e.message, missing: e.missing }, { status: 409 });
   throw e;
 }
 

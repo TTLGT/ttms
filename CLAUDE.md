@@ -1440,6 +1440,15 @@ it — see `src/types/bolRequest.ts`. Anything new that records a signature
 calls `openBolRequestIfSigned()` after it, swallowed: a signature must never
 fail because of the BOL.
 
+**A BOL is never drawn with a blank where a required field goes** (2026-11-09).
+`generateBol()` refuses with `BolNotReady` while `bolBlockers()` in
+`src/types/orderReadiness.ts` lists anything — the BOL column plus the SA
+lines the BOL also prints. Every path obeys it: the button (409 with the
+list, shown in red on the BOL card with links that outline the fields on the
+edit screen via `?missing=`), sending a BOL never drawn, and the automatic
+one on the second signature, which still opens the request and tells the
+load's room what to fill in.
+
 **The BOL prints no rates.** It is emailed to every party on the load; the
 rates are on the agreements, each to its own party. (The declared value it
 prints is the goods' worth, summed from the freight lines' `value`.)

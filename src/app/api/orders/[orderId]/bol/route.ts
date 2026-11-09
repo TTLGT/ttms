@@ -4,7 +4,7 @@ import { can } from '@/lib/accessControl';
 import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { actorOf } from '@/lib/recordHistory';
-import { generateBol } from '@/lib/bolRequests';
+import { BolNotReady, generateBol } from '@/lib/bolRequests';
 import { bolFingerprint } from '@/types/bolRequest';
 
 type RouteContext = { params: Promise<{ orderId: string }> };
@@ -37,6 +37,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ url, path: filePath, fingerprint: bolFingerprint(order) });
   } catch (e) {
     if (e instanceof AdminAuthError) return NextResponse.json({ error: e.message }, { status: e.status });
+    // The list goes back so the page can mark exactly those fields.
+    if (e instanceof BolNotReady) return NextResponse.json({ error: e.message, missing: e.missing }, { status: 409 });
     throw e;
   }
 }

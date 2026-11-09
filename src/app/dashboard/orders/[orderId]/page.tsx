@@ -20,7 +20,9 @@ import SectionEditLink from '@/components/orders/SectionEditLink';
 import BolSendPanel from '@/components/orders/BolSendPanel';
 import BolVersions from '@/components/orders/BolVersions';
 import BolOutdatedBanner from '@/components/orders/BolOutdatedBanner';
-import { bolOutdated } from '@/types/bolRequest';
+import { bolFingerprint, bolOutdated } from '@/types/bolRequest';
+import BolMissingNotice from '@/components/orders/BolMissingNotice';
+import { READINESS_FIX } from '@/components/orders/fixTargets';
 import BolDetailsFields from '@/components/orders/BolDetailsFields';
 import AgreementPdfPreview from '@/components/orders/AgreementPdfPreview';
 import type { CommodityItem, Order, OrderStatus, StopKind } from '@/types/order';
@@ -80,7 +82,7 @@ import type { FixTarget } from '@/components/orders/fixTargets';
 import SaVerificationRecord from '@/components/orders/SaVerificationRecord';
 import CarrierVettingRecords, { CarrierVettingDocumentsRow } from '@/components/orders/CarrierVettingRecords';
 import SaAgreementVersions from '@/components/orders/SaAgreementVersions';
-import { fetchSignedSaProof, listAgreementVersions } from '@/lib/orderPaperwork';
+import { fetchOrderReadiness, fetchSignedSaProof, listAgreementVersions } from '@/lib/orderPaperwork';
 import SignedSaUploads from '@/components/orders/SignedSaUploads';
 import OrderFileSlot from '@/components/orders/OrderFileSlot';
 import RecordImportBadge, { RecordImportRemoved } from '@/components/orders/RecordImportBadge';
@@ -107,7 +109,7 @@ import OrderSidePanel, { RailItem } from '@/components/orders/OrderSidePanel';
 import { celebrate } from '@/lib/celebrate';
 import { reviewChecks, type AgreementParty, type SaRequest } from '@/types/saRequest';
 import { CHANGE_ORDER_STATUS_LABEL, type ChangeOrder } from '@/types/changeOrder';
-import { readinessOf, type ReadinessItem } from '@/types/orderReadiness';
+import { bolBlockers, readinessOf, type ReadinessItem } from '@/types/orderReadiness';
 
 // Sentinel value for the dropdown's "add a new carrier" row. Not a document id,
 // so it can never collide with a real carrier.
@@ -465,6 +467,43 @@ export default function OrderDetailPage() {
   const [generatingBol, setGeneratingBol] = useState(false);
   const [bolUrl, setBolUrl]               = useState<string | null>(null);
   const [showBolPreview, setShowBolPreview] = useState(false);
+
+  /*
+   * What stops the BOL being generated — bolBlockers(), the list
+   * generateBol() refuses on. Asked once the BOL card is drawn (Booked on)
+   * and again whenever something it prints changes, so the red list empties
+   * as the fields are filled. The driver's phone and the carrier's own
+   * numbers are not in the fingerprint, so they are added to the key.
+   */
+  const [bolBlocked, setBolBlocked] = useState<ReadinessItem[] | null>(null);
+  const bolCardShown = Boolean(order && order.status !== 'quote' && order.status !== 'cancelled');
+  const bolReadyKey = order && bolCardShown
+    ? `${bolFingerprint(order as unknown as Record<string, unknown>)}|${order.driverPhone ?? ''}|${order.carrierId ?? ''}`
+    : null;
+  useEffect(() => {
+    if (!bolReadyKey) return;
+    let live = true;
+    fetchOrderReadiness(orderId)
+      .then((items) => { if (live) setBolBlocked(bolBlockers(items)); })
+      // Not knowing is not a reason to hide the button; the server still refuses.
+      .catch(() => { if (live) setBolBlocked(null); });
+    return () => { live = false; };
+  }, [orderId, bolReadyKey]);
+  const bolEditFields = [...new Set((bolBlocked ?? [])
+    .map((i) => READINESS_FIX[i.key])
+    .flatMap((t) => (t?.kind === 'edit' ? [t.field] : [])))];
+
+  /**
+   * A link from the BOL's red list. An order field opens the whole edit
+   * screen — no `section`, so every one of them is on it — with each missing
+   * field outlined in red (`?missing=`) and the chosen one scrolled to.
+   * The carrier and driver live on this page and go through goFix().
+   */
+  function fixBolField(target: FixTarget) {
+    if (target.kind !== 'edit') { goFix(target); return; }
+    const missing = bolEditFields.includes(target.field) ? bolEditFields : [target.field, ...bolEditFields];
+    router.push(`/dashboard/orders/${orderId}/edit?field=${target.field}&missing=${missing.join(',')}`);
+  }
 
   // invoice state
   const [generatingInvoice, setGeneratingInvoice] = useState(false);
@@ -1032,6 +1071,13 @@ export default function OrderDetailPage() {
         headers: { Authorization: `Bearer ${idToken}` },
       });
       const body = await res.json();
+      // Refused for blanks: the red list on the card says which, so the
+      // page-wide error would only repeat it.
+      if (res.status === 409 && Array.isArray(body.missing)) {
+        setBolBlocked((body.missing as { key: string; label: string }[])
+          .map((m) => ({ key: m.key, label: m.label, doc: 'bol' as const, ok: false })));
+        return;
+      }
       if (!res.ok) throw new Error(body.error ?? 'Failed to generate BOL');
       setBolUrl(body.url);
       setOrder({ ...base, bolStoragePath: body.path, bolFingerprint: body.fingerprint });
@@ -1268,6 +1314,7 @@ export default function OrderDetailPage() {
   const bolIsOutdated = bolOutdated(order as unknown as Record<string, unknown>);
   const canRegenerateBol = can('orders.bol')
     && ['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'].includes(order.status);
+  const bolIsBlocked = Boolean(bolBlocked?.length);
 
 
   // Why the advance button cannot be pressed yet, said on the card rather than
@@ -2172,13 +2219,18 @@ export default function OrderDetailPage() {
                     </a>
                   )}
                   {can('orders.bol') && (['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed') && (
-                    <button onClick={() => handleGenerateBol()} disabled={generatingBol}
-                      className="px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
+                    <button onClick={() => handleGenerateBol()} disabled={generatingBol || bolIsBlocked}
+                      title={bolIsBlocked ? 'Fill in the fields marked in red first' : undefined}
+                      className="px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                       {generatingBol ? 'Generating…' : order.bolStoragePath ? 'Regenerate BOL' : 'Generate BOL'}
                     </button>
                   )}
                 </div>
                 } />
+              {bolBlocked && (
+                <BolMissingNotice missing={bolBlocked} onFix={fixBolField}
+                  onFillAll={bolEditFields.length ? () => fixBolField({ kind: 'edit', section: 'general', field: bolEditFields[0] }) : undefined} />
+              )}
               {bolIsOutdated && <BolOutdatedBanner canRegenerate={canRegenerateBol} />}
               {/* A BOL on file keeps the old values until somebody presses
                   Regenerate; the banner above is what tells them. */}
@@ -2294,12 +2346,17 @@ export default function OrderDetailPage() {
                     {(['carrier_signed', 'shipper_signed', 'in_transit', 'delivered', 'completed'] as const).includes(
                       order.status as 'carrier_signed' | 'shipper_signed' | 'in_transit' | 'delivered' | 'completed'
                     ) && can('orders.bol') && (
-                      <button onClick={() => handleGenerateBol()} disabled={generatingBol}
-                        className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 bg-brand-50 rounded-lg px-3 py-1.5 font-medium transition hover:bg-brand-100 disabled:opacity-50">
+                      <button onClick={() => handleGenerateBol()} disabled={generatingBol || bolIsBlocked}
+                        title={bolIsBlocked ? 'Fill in the fields marked in red first' : undefined}
+                        className="text-xs text-brand-600 hover:text-brand-700 border border-brand-200 bg-brand-50 rounded-lg px-3 py-1.5 font-medium transition hover:bg-brand-100 disabled:opacity-50 disabled:cursor-not-allowed">
                         {generatingBol ? 'Generating…' : order.bolStoragePath ? 'Regenerate' : 'Generate BOL'}
                       </button>
                     )}
                   </div>
+                  {bolBlocked && bolIsBlocked && can('orders.bol') && (
+                    <BolMissingNotice missing={bolBlocked} onFix={fixBolField}
+                      onFillAll={bolEditFields.length ? () => fixBolField({ kind: 'edit', section: 'general', field: bolEditFields[0] }) : undefined} />
+                  )}
                   {bolIsOutdated && <BolOutdatedBanner canRegenerate={canRegenerateBol} />}
                   {order.recordImport && (
                     <OrderFileSlot orderId={orderId} kind="bol_copy" uploadLabel="Upload the BOL from BATS"

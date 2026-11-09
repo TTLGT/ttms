@@ -100,6 +100,28 @@ export function orderReadiness(order: Partial<Order>, facts: ReadinessFacts = {}
   ];
 }
 
+/**
+ * Lines on the SA's list that the BOL prints too. The BOL column above holds
+ * only what the SA does not already ask for, so on its own it would let a BOL
+ * be drawn with no date, no freight or no weight on it.
+ */
+const BOL_ALSO_PRINTS: readonly string[] = [
+  'pickupPlace', 'deliveryPlace', 'pickupDate', 'deliveryDate', 'commodity', 'weight', 'transportType',
+];
+
+/**
+ * What stops a BOL being generated: every line the BOL prints that is not
+ * known to be filled. `null` ("cannot tell") counts as missing here, unlike
+ * on the checklist — on the server the facts are always read, so a null means
+ * the carrier record itself is gone, and a BOL must not go out guessing.
+ *
+ * Enforced in generateBol() (src/lib/bolRequests.ts), so the button, the
+ * automatic BOL on the second signature and the send route all obey it.
+ */
+export function bolBlockers(items: ReadinessItem[]): ReadinessItem[] {
+  return items.filter((i) => (i.doc === 'bol' || BOL_ALSO_PRINTS.includes(i.key)) && i.ok !== true);
+}
+
 /** Everything one document needs, and whether any of it is missing. */
 export function readinessOf(items: ReadinessItem[], doc: ReadinessDoc) {
   const mine = items.filter((i) => i.doc === doc);
