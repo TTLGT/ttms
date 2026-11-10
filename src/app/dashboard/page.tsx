@@ -21,6 +21,8 @@ import type { OrderViewId } from '@/types/orderView';
 import StatusBadge from '@/components/orders/StatusBadge';
 import AlertPanel from '@/components/orders/AlertPanel';
 import CelebrationBanner from '@/components/dashboard/CelebrationBanner';
+import ClockChangeBanner from '@/components/dashboard/ClockChangeBanner';
+import TimeZonesSection from '@/components/dashboard/TimeZonesSection';
 import WhosInCard from '@/components/attendance/WhosInCard';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { Bi, Es } from '@/components/spanish/Es';
@@ -598,6 +600,8 @@ export default function DashboardPage() {
 
       <CelebrationBanner />
 
+      <ClockChangeBanner />
+
       <WhosInCard />
 
       {error && (
@@ -692,6 +696,9 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* A tool more than a figure, so it sits under the numbers. Headed for the Broker Dashboard. */}
+      <TimeZonesSection />
     </div>
   );
 }

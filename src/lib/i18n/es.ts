@@ -1248,6 +1248,79 @@ const BASE: Record<string, string> = {
   'Also make this the client’s main contact': 'Hacerlo también el contacto principal del cliente',
   'Updates the client record, so later loads go to this address too. Leave it unticked to change this load only.':
     'Actualiza el registro del cliente, así las próximas cargas también van a este correo. Déjalo sin marcar para cambiar solo esta carga.',
+
+  // Clock changes and US time zones (2026-11-10). The titles are whole
+  // sentences per subject, direction and tense — see
+  // src/components/timeZones/changeWords.ts. {date} arrives with a Spanish weekday.
+  'US clocks go back one hour on {date}': 'Los relojes de EE. UU. se atrasan una hora el {date}',
+  'US clocks went back one hour today': 'Hoy los relojes de EE. UU. se atrasaron una hora',
+  'US clocks went back one hour on {date}': 'Los relojes de EE. UU. se atrasaron una hora el {date}',
+  'US clocks go forward one hour on {date}': 'Los relojes de EE. UU. se adelantan una hora el {date}',
+  'US clocks went forward one hour today': 'Hoy los relojes de EE. UU. se adelantaron una hora',
+  'US clocks went forward one hour on {date}': 'Los relojes de EE. UU. se adelantaron una hora el {date}',
+  'Clocks in {place} go back one hour on {date}': 'Los relojes en {place} se atrasan una hora el {date}',
+  'Clocks in {place} went back one hour today': 'Hoy los relojes en {place} se atrasaron una hora',
+  'Clocks in {place} went back one hour on {date}': 'Los relojes en {place} se atrasaron una hora el {date}',
+  'Clocks in {place} go forward one hour on {date}': 'Los relojes en {place} se adelantan una hora el {date}',
+  'Clocks in {place} went forward one hour today': 'Hoy los relojes en {place} se adelantaron una hora',
+  'Clocks in {place} went forward one hour on {date}': 'Los relojes en {place} se adelantaron una hora el {date}',
+  'Clocks in the US and {place} go back one hour on {date}': 'Los relojes en EE. UU. y en {place} se atrasan una hora el {date}',
+  'Clocks in the US and {place} went back one hour today': 'Hoy los relojes en EE. UU. y en {place} se atrasaron una hora',
+  'Clocks in the US and {place} went back one hour on {date}': 'Los relojes en EE. UU. y en {place} se atrasaron una hora el {date}',
+  'Clocks in the US and {place} go forward one hour on {date}': 'Los relojes en EE. UU. y en {place} se adelantan una hora el {date}',
+  'Clocks in the US and {place} went forward one hour today': 'Hoy los relojes en EE. UU. y en {place} se adelantaron una hora',
+  'Clocks in the US and {place} went forward one hour on {date}': 'Los relojes en EE. UU. y en {place} se adelantaron una hora el {date}',
+  'Clocks in {place} do not change, so your time difference with the US will change by one hour':
+    'En {place} no cambia la hora, así que tu diferencia de hora con EE. UU. va a cambiar una hora.',
+  'Clocks in {place} do not change, so your time difference with the US has changed by one hour':
+    'En {place} no cambia la hora, así que tu diferencia de hora con EE. UU. cambió una hora.',
+  'US clocks do not change, so your time difference with the US changes by one hour':
+    'En EE. UU. no cambia la hora, así que tu diferencia de hora con EE. UU. cambia una hora.',
+  'Clocks in {place} already changed on {other}, so this puts your gap with the US back to normal':
+    'En {place} la hora ya cambió el {other}, así que con esto tu diferencia con EE. UU. vuelve a lo normal.',
+  'US clocks already changed on {other}, so this puts your gap with the US back to normal':
+    'En EE. UU. la hora ya cambió el {other}, así que con esto tu diferencia con EE. UU. vuelve a lo normal.',
+  'Clocks in {place} do not change until {other}, so for a while your gap with the US is one hour off':
+    'En {place} la hora no cambia hasta el {other}, así que mientras tanto tu diferencia con EE. UU. está corrida una hora.',
+  'US clocks do not change until {other}, so until then your gap with the US is one hour off':
+    'En EE. UU. la hora no cambia hasta el {other}, así que hasta entonces tu diferencia con EE. UU. está corrida una hora.',
+  'Check pickup and delivery appointments and call times booked for after that day':
+    'Revisa las citas de carga y entrega y las horas de llamada agendadas para después de ese día.',
+  'Check pickup and delivery appointments and call times': 'Revisa las citas de carga y entrega y las horas de llamada.',
+  'Shown because your time zone is {place}': 'Se muestra porque tu zona horaria es {place}.',
+  'Show details': 'Ver detalles',
+  'Remind me tomorrow': 'Recordarme mañana',
+  'US clocks change': 'Cambio de hora en EE. UU.',
+  'US time zones': 'Zonas horarias de EE. UU.',
+  'Change your time zone': 'Cambiar tu zona horaria',
+  'Your time difference with the US': 'Tu diferencia de hora con EE. UU.',
+  'Point at a state to see its time zone. Click it to convert a time':
+    'Pasa el cursor sobre un estado para ver su zona horaria. Haz clic para convertir una hora.',
+  'Striped: your time difference with that zone does not change': 'Con rayas: tu diferencia de hora con esa zona no cambia.',
+  'A few states, such as Texas, Florida and Tennessee, are split between two zones and are coloured by the one covering most of the state':
+    'Algunos estados, como Texas, Florida y Tennessee, están divididos entre dos zonas y se pintan con la que cubre la mayor parte del estado.',
+  'Shown on today’s clocks': 'Con la hora de hoy.',
+  'Showing before and after the change this week': 'Mostrando antes y después del cambio de esta semana.',
+  'Noon': 'Mediodía',
+  'Eastern': 'Este',
+  'Central': 'Centro',
+  'Mountain': 'Montaña',
+  'Pacific': 'Pacífico',
+  'Arizona': 'Arizona',
+  'Alaska': 'Alaska',
+  'Hawaii': 'Hawái',
+  'TTL office': 'Oficina TTL',
+  'Your time zone': 'Tu zona horaria',
+  'Used for the clock change banner and the US time zones on your dashboard. Saved as you change it':
+    'Se usa para el aviso de cambio de hora y las zonas horarias de EE. UU. en tu panel. Se guarda al cambiarlo.',
+  'Automatic': 'Automática',
+  'Pick a city': 'Elegir una ciudad',
+  'For a computer set to the wrong time zone, or one shared between offices. Follows you to any computer':
+    'Para una computadora con la zona horaria equivocada, o una compartida entre oficinas. Te sigue en cualquier computadora.',
+  'Guatemala, the Chiapas towns and the UK come first. Any city in the world is in the list':
+    'Guatemala, los pueblos de Chiapas y el Reino Unido salen primero. Cualquier ciudad del mundo está en la lista.',
+  'Attendance, birthdays and reminders stay on Guatemala time whatever you pick here':
+    'La asistencia, los cumpleaños y los recordatorios siguen en hora de Guatemala, elijas lo que elijas aquí.',
 };
 
 /** Everything, with an entry here winning over one in es-more.ts. */

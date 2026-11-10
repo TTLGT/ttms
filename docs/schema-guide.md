@@ -1924,6 +1924,14 @@ and copies a browser's older choices up to an account that has none. Because
 every signed-in user can read this document, only cosmetic choices belong in
 the map.
 
+`timeZone` and `timeZoneCity` (2026-11-10) are the time zone somebody picked on
+My profile — an IANA name like `Europe/London` and the city they chose it by —
+for the clock change banner and the dashboard's US time zones section. Null or
+absent means Automatic (the computer's own zone). Unlike the others they have
+no localStorage copy and `PreferenceSync` does not touch them: they are read
+straight off the live profile. The server accepts a zone only if `Intl` knows
+it, and clearing one clears both.
+
 `legalName` is the name as it appears on payroll and legal paperwork, for the
 people whose everyday name is not the one on the form. It is one free-text field
 rather than parts, because it exists to be copied verbatim onto a document.

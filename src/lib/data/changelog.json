@@ -1,6 +1,20 @@
 {
   "changes": [
     {
+      "hash": "ca6aa9830b794a48229ea9660522a96c91148741",
+      "date": "2026-11-10T08:45:46-06:00",
+      "author": "erwindank",
+      "subject": "Print the load's commodity picture on the carrier's Dispatch Sheet and on the BOL: the main picture when it is a Commodity one, otherwise the first Commodity picture, never a truck, location or proof picture. The Dispatch Sheet keeps the picture it was sent with, beside Shipment Details as on the SA; the BOL shows it small beside Ship From and Ship To so an ordinary load still fits one page. Nothing prints when the load has no commodity picture",
+      "body": ""
+    },
+    {
+      "hash": "5adaa6f1d4ca3898240aa6a0b6673d86e9c78a4f",
+      "date": "2026-11-09T16:34:55-06:00",
+      "author": "erwindank",
+      "subject": "Require the conditions at each end of Loading and Unloading: once a broker says who loads at pickup or unloads at delivery, a Conditions box asks who does what, what they bring, who pays and what the driver must do. It prints under the answer on the client's SA, the carrier's Dispatch Sheet and the BOL, shows on the order and in the change log, and must be filled in before the SA or Dispatch Sheet is sent or a BOL is generated. Changing it holds a sent SA or Dispatch Sheet and marks a drawn BOL for regenerating",
+      "body": ""
+    },
+    {
       "hash": "0e496d129a93585196df68c91fa7c8dcbf2b880f",
       "date": "2026-11-09T15:03:34-06:00",
       "author": "erwindank",

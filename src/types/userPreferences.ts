@@ -39,6 +39,29 @@ export interface UserPreferences {
   learnEnglish?: boolean;
   /** Spanish under the English — see src/context/SpanishContext.tsx. */
   spanish?: boolean;
+  /**
+   * A time zone the person picked on My profile ("Europe/London"), for the
+   * clock change banner and the US time zones section — see
+   * src/types/clockChange.ts. **Absent or null means Automatic**: the
+   * computer's own zone. Picked rather than detected for a computer set to the
+   * wrong zone, or one shared between offices. Public to staff like the rest
+   * of this map; which city a colleague works from is not a secret here.
+   */
+  timeZone?: string | null;
+  /** The city they chose it by ("Tuxtla Gutiérrez"), so the banner can name it. */
+  timeZoneCity?: string | null;
+}
+
+/** Same test as isTimeZoneName() in clockChange.ts, kept here so the route imports nothing else. */
+function isZoneName(tz: unknown): tz is string {
+  if (typeof tz !== 'string' || tz.length === 0 || tz.length > 64) return false;
+  if (!/^[A-Za-z]+(?:\/[A-Za-z0-9_+\-]+)*$/.test(tz)) return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -56,5 +79,15 @@ export function cleanPreferences(input: unknown): UserPreferences {
   }
   if (typeof body.learnEnglish === 'boolean') out.learnEnglish = body.learnEnglish;
   if (typeof body.spanish === 'boolean') out.spanish = body.spanish;
+  // The zone and its city travel together: null clears both (back to
+  // Automatic), and a city is only kept beside a zone the server recognises.
+  if (body.timeZone === null) {
+    out.timeZone = null;
+    out.timeZoneCity = null;
+  } else if (isZoneName(body.timeZone)) {
+    out.timeZone = body.timeZone;
+    const city = typeof body.timeZoneCity === 'string' ? body.timeZoneCity.replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+    out.timeZoneCity = city || null;
+  }
   return out;
 }

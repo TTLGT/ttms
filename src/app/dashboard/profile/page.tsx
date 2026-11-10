@@ -39,6 +39,7 @@ import type { Team } from '@/types/team';
 import DateField from '@/components/DateField';
 import CelebrationBanner from '@/components/dashboard/CelebrationBanner';
 import MyAttendanceCard from '@/components/attendance/MyAttendanceCard';
+import TimeZoneSetting from '@/components/timeZones/TimeZoneSetting';
 import RoleBadges from '@/components/people/RoleBadges';
 import { MAX_PHOTO_BYTES, UserAvatar } from '@/components/settings/UserAvatar';
 import { Bi } from '@/components/spanish/Es';
@@ -344,6 +345,9 @@ export default function MyProfilePage() {
       </div>
 
       <CelebrationsCard me={me} onChange={(patch) => setMe({ ...me, ...patch })} />
+
+      {/* Linked from the clock change banner as #time-zone. */}
+      <TimeZoneSetting />
 
       {/* Everybody's own, payroll-adjacent like the fields above — see
           src/types/attendance.ts. Nobody needs a permission to see their own. */}

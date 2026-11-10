@@ -411,3 +411,41 @@ html.dark.dim .chat-ground[data-wallpaper='dots'] {
 @media (prefers-reduced-motion: reduce) {
   .tt-flame-lit { animation: none; }
 }
+
+/*
+ * The US time zone map and the turning clock on the clock change banner —
+ * src/components/timeZones/. SVG fills and strokes are not reached by the
+ * Tailwind colour mapping, so these read the variables it writes (--c-*)
+ * directly and follow light, dim and dark with everything else. The picked
+ * zone's blue and the white on it are the same in every theme on purpose.
+ */
+.tz-map .tz-st { stroke: rgb(var(--c-surface)); stroke-width: 0.8; stroke-linejoin: round; cursor: pointer; transition: fill 0.25s; }
+.tz-map .tz-z1 { fill: rgb(var(--c-bg-blue-100)); }
+.tz-map .tz-z2 { fill: rgb(var(--c-bg-blue-200)); }
+.tz-map .tz-sel { fill: #2563eb; }
+.tz-map .tz-st:hover { filter: brightness(0.94); }
+.tz-map .tz-sel:hover { filter: brightness(1.1); }
+.tz-map .tz-pat-bg { fill: rgb(var(--c-bg-gray-100)); }
+.tz-map .tz-pat-ln { stroke: rgb(var(--c-border-gray-300)); stroke-width: 2; }
+.tz-map .tz-label { pointer-events: none; }
+.tz-map .tz-label text { paint-order: stroke; stroke: rgb(var(--c-surface)); stroke-width: 5px; stroke-linejoin: round; text-anchor: middle; }
+.tz-map .tz-label .nm { font-size: 21px; font-weight: 700; fill: rgb(var(--c-text-gray-900)); }
+.tz-map .tz-label .gp { font-size: 17px; font-weight: 600; fill: rgb(var(--c-text-gray-600)); font-variant-numeric: tabular-nums; }
+.tz-map .tz-label.moved .gp { fill: rgb(var(--c-text-amber-700)); }
+.tz-map .tz-label .was { font-size: 14px; fill: rgb(var(--c-text-gray-400)); }
+.tz-map .tz-label.sel text { stroke: #2563eb; fill: #ffffff; }
+
+.tz-clock .face { fill: rgb(var(--c-surface)); stroke: #2563eb; stroke-width: 2.5; }
+.tz-clock .tick { stroke: rgb(var(--c-text-gray-400)); stroke-width: 1.5; stroke-linecap: round; }
+.tz-clock .tick.q { stroke: rgb(var(--c-text-gray-900)); stroke-width: 2.2; }
+.tz-clock .arc { fill: none; stroke: rgb(var(--c-text-amber-600)); stroke-width: 3; stroke-linecap: round; }
+.tz-clock .hand { stroke: rgb(var(--c-text-gray-900)); stroke-linecap: round; transform-box: view-box; transform-origin: 32px 32px; }
+.tz-clock .hour { stroke-width: 3.5; transform: rotate(var(--to)); }
+.tz-clock .min { stroke-width: 2.2; stroke: #2563eb; }
+.tz-clock .hub { fill: #2563eb; }
+@media (prefers-reduced-motion: no-preference) {
+  .tz-clock.play .hour { animation: tz-turn 1.4s cubic-bezier(0.65, 0, 0.35, 1) 0.5s both; }
+  .tz-clock.play .min { animation: tz-spin 1.4s cubic-bezier(0.65, 0, 0.35, 1) 0.5s both; animation-direction: var(--spin-dir, normal); }
+}
+@keyframes tz-turn { from { transform: rotate(var(--from)); } to { transform: rotate(var(--to)); } }
+@keyframes tz-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

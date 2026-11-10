@@ -1568,6 +1568,32 @@ it. Types and the whole flow in `src/types/signatureRecord.ts`.
   (`GET /api/signed-documents`, single-field queries, every row re-checked
   with `canSeeOrder()`), and it counts toward the nav badge.
 
+### Clock changes and US time zones — worked out in the browser (2026-11-10)
+
+A banner on the dashboard for the week before and after a clock change, and a
+permanent, folded "US time zones" section at its foot (meant for the Broker
+Dashboard when it exists): a US map coloured by time zone with each zone's gap
+to the reader, and a time converter. Rules in `src/types/clockChange.ts`,
+pieces in `src/components/timeZones/`, the two dashboard parts in
+`src/components/dashboard/ClockChangeBanner.tsx` and `TimeZonesSection.tsx`.
+
+- **Nothing is hard-coded about when clocks change.** The dates come from the
+  browser's own time zone data (`Intl`), one day at a time. If a country
+  changes its rules, the next browser update carries it. Do not replace this
+  with a table of dates.
+- **Every gap is measured from the reader**, in their zone: a city picked on
+  My profile (`preferences.timeZone`, see `src/lib/useMyTimeZone.ts`), else the
+  computer's. Guatemala and Chiapas (Mexico City time, no DST since 2022) see
+  the US changes only; the UK also sees its own, on different Sundays.
+- **It is a reminder, not a clock.** No cron, no read, no write except the
+  picked zone. Closing, snoozing and folding are per browser (localStorage),
+  like the birthday banner. Attendance, celebrations and task reminders stay
+  on office time whatever anybody picks.
+- The map is `src/lib/data/usStates.json` (US Census shapes via us-atlas,
+  public domain, ~100 KB), fetched only when a map is on screen. How it was
+  made is in the header of `UsTimeZoneMap.tsx`. Split states are coloured by
+  their majority zone, and the map says so.
+
 ### Learn English — underlines that never touch the page
 
 A per-browser switch at the foot of the sidebar (`LearnContext`) that underlines
