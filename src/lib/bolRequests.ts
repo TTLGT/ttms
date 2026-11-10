@@ -5,6 +5,7 @@ import { formatLongDateRange } from './dateFormat';
 import { documentAlert, postOrderAlert } from './chatAlerts';
 import { recordEvent, updateWithHistory, type ChangeActor } from './recordHistory';
 import { generateBolBuffer } from './bol-pdf';
+import { commodityPhotoId, photoDataUrl } from './loadPhotosServer';
 import type { BolData, BolStopLine } from './bol-pdf';
 import { clientContactOf, readinessFactsFor } from './orderReadinessServer';
 import { bolBlockers, orderReadiness } from '@/types/orderReadiness';
@@ -49,7 +50,7 @@ const fmtDate = (ts: { toDate?: () => Date } | null | undefined): string => {
 };
 
 /** The PDF, drawn from the order as it stands now. */
-async function bolBuffer(order: FirebaseFirestore.DocumentData): Promise<Buffer> {
+async function bolBuffer(orderId: string, order: FirebaseFirestore.DocumentData): Promise<Buffer> {
   let carrierDot = '';
   let carrierMc  = '';
   if (order.carrierId) {
@@ -171,6 +172,10 @@ async function bolBuffer(order: FirebaseFirestore.DocumentData): Promise<Buffer>
     carrierSignedAt:   order.carrierSignedAt ? fmtDate(order.carrierSignedAt) : null,
     carrierSignerIp:   order.carrierSignerIp  ?? null,
     generatedAt:       new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    // Best-effort, like the agreements: a BOL without its picture is still the BOL.
+    photo: await commodityPhotoId(orderId, order.coverPhotoId)
+      .then((id) => (id ? photoDataUrl(orderId, id) : null))
+      .catch(() => null),
   };
 
   return generateBolBuffer(data);
@@ -250,7 +255,7 @@ export async function generateBol(
   // made by any of them.
   const missing = await bolMissing(order);
   if (missing.length) throw new BolNotReady(missing);
-  const buffer = await bolBuffer(order);
+  const buffer = await bolBuffer(orderId, order);
   const filePath = bolPath(orderId);
   await keepPreviousBol(orderId, actor);
   // Who drew it rides on the file, so the version record can name them when

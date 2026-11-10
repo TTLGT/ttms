@@ -157,6 +157,24 @@ export async function clientPhotoId(orderId: string, coverPhotoId: unknown): Pro
 }
 
 /**
+ * The picture the carrier's Dispatch Sheet and the BOL show for this load, or
+ * null (2026-11-10). Commodity pictures only — the freight as it is, which is
+ * what the driver checks at the dock — never a truck, a location or proof:
+ * the BOL is emailed to every party on the load, and the carrier has its own
+ * truck. The profile picture when it is a commodity one, otherwise the
+ * earliest commodity picture. One single-field query, as clientPhotoId().
+ */
+export async function commodityPhotoId(orderId: string, coverPhotoId: unknown): Promise<string | null> {
+  const snap = await adminDb.collection(LOAD_PHOTOS_COLLECTION).where('orderId', '==', orderId).get();
+  const commodity = snap.docs
+    .filter((d) => d.data().stage !== 'signed_sa' && normalizeStage(d.data().stage) === 'commodity')
+    .map((d) => ({ id: d.id, at: millis(d.data().createdAt) }));
+  if (typeof coverPhotoId === 'string' && commodity.some((p) => p.id === coverPhotoId)) return coverPhotoId;
+  commodity.sort((a, b) => a.at - b.at);
+  return commodity[0]?.id ?? null;
+}
+
+/**
  * A picture's thumbnail as a JPEG data URL, for drawing into a PDF — or null
  * if the file is gone. The thumbnail (480 px) rather than the full picture:
  * it is drawn about three inches wide, where 480 px is still sharp, and these

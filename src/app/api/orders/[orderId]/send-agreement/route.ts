@@ -11,6 +11,7 @@ import { termsForOrder } from '@/lib/agreementTermsServer';
 import { carrierFingerprint } from '@/lib/carrierAgreements';
 import { takeCarrierVetting } from '@/lib/carrierVetting';
 import { randomBytes } from 'crypto';
+import { commodityPhotoId } from '@/lib/loadPhotosServer';
 import {
   archiveRound, buildSaReview, freezeReview, requestRef, roundRef, saGateFactsFor, sendEntry,
 } from '@/lib/saRequestsServer';
@@ -155,6 +156,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   // Read before anything is written: a link naming terms nobody could read
   // would be worse than a send that fails and is tried again.
   const terms   = await termsForOrder(order, 'carrier');
+  // The commodity picture this version's PDF shows, kept by id like the SA's
+  // so the signed copy keeps it — see commodityPhotoId(). Best-effort: a send
+  // never fails for want of a picture.
+  const photoId = await commodityPhotoId(orderId, order.coverPhotoId).catch(() => null);
 
   const token      = randomBytes(32).toString('hex');
   const now        = Timestamp.now();
@@ -232,6 +237,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     ...carrierFingerprint(order),
     version,
     cc,
+    photoId,
     sentByName:   actor?.name ?? '',
     sentByEmail:  caller.email ?? '',
     ...brokerSnapshot(broker),

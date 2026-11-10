@@ -131,6 +131,12 @@ export type BolData = {
   carrierSignedAt: string | null;
   carrierSignerIp: string | null;
   generatedAt: string;
+  /**
+   * A commodity picture of the load as a JPEG data URL, or null (2026-11-10)
+   * — see commodityPhotoId(). Drawn small beside Ship From and Ship To, so an
+   * ordinary load still fits one page; nothing prints when there is none.
+   */
+  photo?: string | null;
 };
 
 /*
@@ -416,6 +422,17 @@ function BolDocument({ d }: { d: BolData }) {
             <Stop name={d.consigneeName} street={d.destStreet} place={destLine}
               dateLabel="Estimated delivery" date={d.deliveryDate} freightLabel="Unload here" freight={d.destFreight} />
           </Card>
+          {/* The freight as it looks, so the driver knows it on sight. Not
+              numbered: there is nothing to fill in or sign on it. */}
+          {d.photo ? <View style={s.gap} /> : null}
+          {d.photo ? (
+            <View style={[s.card, { width: 130 }]}>
+              <View style={s.cardHead}><Text style={s.cardTitle}>COMMODITY</Text></View>
+              <View style={{ padding: 4, flex: 1 }}>
+                <PdfImage src={d.photo} style={{ width: '100%', height: 62, objectFit: 'cover', borderRadius: 3 }} />
+              </View>
+            </View>
+          ) : null}
         </View>
 
         {/* Carrier + the truck that turns up. */}

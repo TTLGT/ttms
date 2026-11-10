@@ -19,7 +19,8 @@ import type { SignFormData } from './signFormProps';
  * price, shipment, vehicles, a signature certificate with a QR code and a
  * fingerprint, then the terms — in TTL's own navy and red (src/lib/pdfBrand.ts).
  * The client's copy also carries a picture of the load when the link was sent
- * with one (`photoId`, chosen by clientPhotoId()); the carrier's never does.
+ * with one (`photoId`, chosen by clientPhotoId()); the carrier's carries a
+ * picture of the freight (chosen by commodityPhotoId(), since 2026-11-10).
  */
 
 export interface AgreementSignature {
@@ -249,7 +250,9 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
   const kicker = carrier ? 'RATE CONFIRMATION' : 'SHIPPER AGREEMENT (SA)';
   const docTitle = carrier ? 'DISPATCH SHEET' : 'CLIENT LOAD CONFIRMATION';
   const docName = carrier ? 'Dispatch Sheet' : 'Shipper Agreement';
-  const photo = !carrier && d.photo ? d.photo : null;
+  // Which picture each copy gets was decided when it was sent — never a truck
+  // on the client's, only the freight on the carrier's.
+  const photo = d.photo ? d.photo : null;
 
   const status = d.voidNote
     ? { text: 'VOID', color: '#b91c1c' }

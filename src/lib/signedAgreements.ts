@@ -198,7 +198,9 @@ export async function agreementPdf(data: Data, voidNote: string, token?: string)
   const link = token ? signUrl(token) : '';
   // Both best-effort: a copy without its picture or its code is still the agreement.
   const [photo, qr] = await Promise.all([
-    typeof data.photoId === 'string' && data.photoId && typeof data.orderId === 'string' && data.type === 'shipper_agreement'
+    // Both copies now: the client's carries its load picture, the carrier's
+    // its commodity picture (since 2026-11-10) — each chosen when it was sent.
+    typeof data.photoId === 'string' && data.photoId && typeof data.orderId === 'string'
       ? photoDataUrl(data.orderId, data.photoId)
       : Promise.resolve(null),
     signedAt && link ? qrPng(link).then((b) => `data:image/png;base64,${b.toString('base64')}`).catch(() => null) : Promise.resolve(null),
