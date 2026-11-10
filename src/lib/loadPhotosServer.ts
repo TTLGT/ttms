@@ -126,34 +126,16 @@ export async function deletePhotoFiles(orderId: string, photoId: string): Promis
 }
 
 /**
- * Pictures that may go on a document the client receives — the quote and the
- * client's load confirmation. Not:
- *
- * - `truck` — the carrier's truck, and who carries the load is not the
- *   client's business (the agreement says as much);
- * - `proof` (and the old `damage`) — on a document asking somebody to sign it
- *   is the wrong picture to lead with, whatever it shows;
- * - the old `signed_sa` — a photo of the client's own paperwork, not of the
- *   load. Tested on the stored value, since normalizeStage() reads it as Other.
+ * The picture a client document — the quote and the SA — shows for this load,
+ * or null. Commodity pictures only, since 2026-11-10, like the Dispatch Sheet
+ * and the BOL: the client sees their freight, never the carrier's truck (who
+ * carries the load is not the client's business), a proof picture, or a
+ * location or other picture that was made the load's profile picture. Kept as
+ * its own name so the client's documents can part ways with the carrier's
+ * again without touching their callers.
  */
-const CLIENT_PHOTO_STAGES = new Set(['commodity', 'location', 'other']);
-
-/**
- * The picture a client document shows for this load, or null.
- *
- * The profile picture when it is one the client may see — that is the one
- * somebody chose to represent the load — otherwise the first eligible picture,
- * pictures of the freight before the rest. One single-field query, as
- * listOrderPhotos().
- */
-export async function clientPhotoId(orderId: string, coverPhotoId: unknown): Promise<string | null> {
-  const snap = await adminDb.collection(LOAD_PHOTOS_COLLECTION).where('orderId', '==', orderId).get();
-  const eligible = snap.docs
-    .filter((d) => d.data().stage !== 'signed_sa' && CLIENT_PHOTO_STAGES.has(normalizeStage(d.data().stage)))
-    .map((d) => ({ id: d.id, stage: normalizeStage(d.data().stage), at: millis(d.data().createdAt) }));
-  if (typeof coverPhotoId === 'string' && eligible.some((p) => p.id === coverPhotoId)) return coverPhotoId;
-  eligible.sort((a, b) => Number(b.stage === 'commodity') - Number(a.stage === 'commodity') || a.at - b.at);
-  return eligible[0]?.id ?? null;
+export function clientPhotoId(orderId: string, coverPhotoId: unknown): Promise<string | null> {
+  return commodityPhotoId(orderId, coverPhotoId);
 }
 
 /**
