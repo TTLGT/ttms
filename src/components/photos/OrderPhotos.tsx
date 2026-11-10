@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, ImageUp, Images, Loader2, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -16,7 +16,8 @@ import {
   MAX_CAPTION,
   PHOTO_STAGES,
   PHOTO_STAGE_LABEL,
-  locationKindsFor,
+  commodityLineChoices,
+  hasRoute,
   photoLocationChoices,
   type LoadPhoto,
   type PhotoStage,
@@ -43,7 +44,11 @@ interface Draft {
   error?: string;
   /** '' until somebody picks one — the type is the one tag that is required. */
   stage: PhotoStage | '';
-  location: string;
+  /** Commodity only — see hasRoute(). Nothing else is asked for a stop. */
+  pickupAt: string;
+  deliverTo: string;
+  /** The freight line a commodity picture shows, or '' — see commodityLineChoices(). */
+  commodityItemId: string;
   caption: string;
 }
 
@@ -59,7 +64,7 @@ interface Props {
  * picture.
  *
  * Adding is two steps on purpose. Choosing files only puts them in the tray;
- * the type, stop and caption are set there, per picture, and Save sends them.
+ * the type, the stops (commodity only) and caption are set there, per picture, and Save sends them.
  * The type is what the SA review counts (`truck`) and what keeps a picture off
  * the client's documents (`truck`, `proof`) — too much rides on it to take
  * from a dropdown somebody set before choosing the files and forgot about.
@@ -94,10 +99,12 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
   const draftsRef = useRef<Draft[]>([]);
   draftsRef.current = drafts;
 
-  const locationsFor = useCallback(
-    (stage: PhotoStage | '') => photoLocationChoices(order, locationKindsFor(stage)),
-    [order],
-  );
+  // A commodity's two boxes, each listing only its own kind of stop.
+  // The freight lines a commodity picture can be linked to; empty on a load
+  // with one line, where there is nothing to choose.
+  const lines = useMemo(() => commodityLineChoices(order), [order]);
+  const pickupChoices   = useMemo(() => photoLocationChoices(order, ['pickup']),   [order]);
+  const deliveryChoices = useMemo(() => photoLocationChoices(order, ['delivery']), [order]);
 
   useEffect(() => {
     let live = true;
@@ -142,14 +149,22 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
   }
 
   /**
-   * A new type, and the stop that goes with it: kept when it still fits the
-   * type, filled in when the load has only one stop the type could mean, and
-   * otherwise left for the person to choose.
+   * A new type, and the stops that go with it: each kept when it still fits
+   * the type, filled in when the load has only one stop it could mean, and
+   * otherwise left for the person to choose. Only a commodity has stops;
+   * every other type is asked for none.
    */
   function withStage(d: Draft, stage: PhotoStage | ''): Draft {
-    const choices = locationsFor(stage);
-    const location = choices.includes(d.location) ? d.location : choices.length === 1 ? choices[0] : '';
-    return { ...d, stage, location };
+    const pick = (current: string, choices: string[]) =>
+      choices.includes(current) ? current : choices.length === 1 ? choices[0] : '';
+    if (hasRoute(stage)) {
+      return {
+        ...d, stage,
+        pickupAt:  pick(d.pickupAt, pickupChoices),
+        deliverTo: pick(d.deliverTo, deliveryChoices),
+      };
+    }
+    return { ...d, stage, pickupAt: '', deliverTo: '', commodityItemId: '' };
   }
 
   async function runPrepare() {
@@ -181,7 +196,7 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
     const stamp = Date.now();
     const fresh: Draft[] = images.map((f, i) => ({
       key: `${stamp}-${i}-${f.name}`, name: f.name, state: 'preparing', progress: 0,
-      stage: '', location: '', caption: '',
+      stage: '', pickupAt: '', deliverTo: '', commodityItemId: '', caption: '',
     }));
     // Written to the ref as well as the state so the shrinking loop, which
     // checks the ref, sees them before React has rendered.
@@ -222,7 +237,10 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
         patchDraft(d.key, { state: 'uploading', progress: 0, error: undefined });
         const { photo, coverPhotoId } = await uploadLoadPhoto(
           order.id, d.prepared!,
-          { caption: d.caption, stage: d.stage as PhotoStage, commodity: '', location: d.location },
+          {
+            caption: d.caption, stage: d.stage as PhotoStage, commodity: '',
+            location: '', pickupAt: d.pickupAt, deliverTo: d.deliverTo, commodityItemId: d.commodityItemId,
+          },
           (progress) => patchDraft(d.key, { progress }),
         );
         list = [...list, photo];
@@ -242,13 +260,53 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
   const untyped        = drafts.filter((d) => d.prepared && !d.stage).length;
 
   // "Set for all": a value shows only when every picture already agrees on it.
-  const same = <K extends 'stage' | 'location'>(k: K): Draft[K] | '' =>
+  const same = <K extends 'stage' | 'pickupAt' | 'deliverTo' | 'commodityItemId'>(k: K): Draft[K] | '' =>
     drafts.length > 0 && drafts.every((d) => d[k] === drafts[0][k]) ? drafts[0][k] : '';
   const allStage     = same('stage');
-  const allLocations = allStage ? locationsFor(allStage) : [];
+  const allRoute     = hasRoute(allStage);
 
   const field = 'border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:opacity-60';
   const label = 'block text-xs text-gray-500 mb-0.5';
+
+  /** One of a commodity's two stop dropdowns. */
+  const stopSelect = (
+    title: string, empty: string, value: string, choices: string[],
+    onChange: (v: string) => void, disabled: boolean, width: string,
+  ) => (
+    <label>
+      <span data-es className={label}>{title}</span>
+      <select value={value} disabled={disabled} className={`${field} ${width}`}
+        onChange={(e) => onChange(e.target.value)}>
+        <option data-es value="">{empty}</option>
+        {choices.map((l) => <option key={l} value={l}>{l}</option>)}
+      </select>
+    </label>
+  );
+  const setAll = (k: 'pickupAt' | 'deliverTo') => (v: string) =>
+    setDrafts((list) => list.map((d) => ({ ...d, [k]: v })));
+
+  /**
+   * Linking a picture to a freight line takes the line's own stops with it —
+   * what the line says is where that piece goes — and they are then shown,
+   * not chosen: the picture follows the line from then on (toLoadPhoto()).
+   * Unlinking leaves the stops as they are, to change by hand.
+   */
+  const withLine = (d: Draft, id: string): Draft => {
+    const line = lines.find((l) => l.id === id);
+    return line
+      ? { ...d, commodityItemId: id, pickupAt: line.pickupAt, deliverTo: line.deliverTo }
+      : { ...d, commodityItemId: '' };
+  };
+  const lineSelect = (value: string, onChange: (v: string) => void, disabled: boolean, cls: string) => (
+    <label className={cls}>
+      <span data-es className={label}>Which commodity?</span>
+      <select value={value} disabled={disabled} className={`${field} w-full`}
+        onChange={(e) => onChange(e.target.value)}>
+        <option data-es value="">The whole load</option>
+        {lines.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+      </select>
+    </label>
+  );
 
   return (
     <div
@@ -310,22 +368,18 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
                   {PHOTO_STAGES.map((s) => <option key={s} value={s}>{PHOTO_STAGE_LABEL[s]}</option>)}
                 </select>
               </label>
-              {allLocations.length > 1 && (
-                <label>
-                  <span data-es className={label}>Stop</span>
-                  <select value={same('location')} disabled={saving} className={`${field} max-w-[16rem]`}
-                    onChange={(e) => { const v = e.target.value; setDrafts((list) => list.map((d) => ({ ...d, location: v }))); }}>
-                    <option data-es value="">Not tied to one stop</option>
-                    {allLocations.map((l) => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                </label>
-              )}
+              {allRoute && lines.length > 0 && lineSelect(same('commodityItemId'),
+                (v) => setDrafts((list) => list.map((d) => withLine(d, v))), saving, 'max-w-[16rem]')}
+              {allRoute && !same('commodityItemId') && pickupChoices.length > 1 && stopSelect('Picked up at', 'Not set',
+                same('pickupAt'), pickupChoices, setAll('pickupAt'), saving, 'max-w-[16rem]')}
+              {allRoute && !same('commodityItemId') && deliveryChoices.length > 1 && stopSelect('Delivered to', 'Not set',
+                same('deliverTo'), deliveryChoices, setAll('deliverTo'), saving, 'max-w-[16rem]')}
             </div>
           )}
 
           <ul className="space-y-3">
             {drafts.map((d) => {
-              const locations = locationsFor(d.stage);
+              const route  = hasRoute(d.stage);
               const locked = saving || d.state === 'uploading';
               return (
                 <li key={d.key} className="flex flex-col sm:flex-row gap-3 rounded-lg bg-white border border-gray-200 p-3">
@@ -372,18 +426,19 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
                             {PHOTO_STAGES.map((s) => <option key={s} value={s}>{PHOTO_STAGE_LABEL[s]}</option>)}
                           </select>
                         </label>
-                        {locations.length > 0 && (
-                          <label>
-                            <span data-es className={label}>Stop</span>
-                            <select value={d.location} disabled={locked}
-                              onChange={(e) => patchDraft(d.key, { location: e.target.value })}
-                              className={`${field} w-full`}>
-                              <option data-es value="">Not tied to one stop</option>
-                              {locations.map((l) => <option key={l} value={l}>{l}</option>)}
-                            </select>
-                          </label>
-                        )}
-                        <label className={locations.length > 0 ? '' : 'sm:col-span-2'}>
+                        {route ? (
+                          <>
+                            {lines.length > 0 && lineSelect(d.commodityItemId,
+                              (v) => setDrafts((list) => list.map((x) => (x.key === d.key ? withLine(x, v) : x))),
+                              locked, 'sm:col-span-2')}
+                            {stopSelect('Picked up at', 'Not set', d.pickupAt, pickupChoices,
+                              (v) => patchDraft(d.key, { pickupAt: v }), locked || d.commodityItemId !== '', 'w-full')}
+                            {stopSelect('Delivered to', 'Not set', d.deliverTo, deliveryChoices,
+                              (v) => patchDraft(d.key, { deliverTo: v }), locked || d.commodityItemId !== '', 'w-full')}
+                          </>
+                        ) : null}
+                        {/* A commodity's two stops fill the row, so its caption takes the next one. */}
+                        <label className={route ? (lines.length > 0 ? '' : 'sm:col-span-3') : 'sm:col-span-2'}>
                           <span data-es className={label}>Caption</span>
                           <input value={d.caption} maxLength={MAX_CAPTION} disabled={locked}
                             onChange={(e) => patchDraft(d.key, { caption: e.target.value })}
@@ -462,7 +517,8 @@ export default function OrderPhotos({ order, onCoverChange, onCountChange }: Pro
             announceCover(nextCover, rest);
             if (rest.length === 0) setOpen(null);
           }}
-          locationsFor={locationsFor}
+          routeChoices={{ pickup: pickupChoices, delivery: deliveryChoices }}
+          lines={lines}
         />
       )}
     </div>

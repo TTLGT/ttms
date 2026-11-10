@@ -5,8 +5,11 @@ import {
   MAX_THUMB_BYTES,
   loadPhotoPath,
   normalizeStage,
+  itemPhotoRoute,
+  routeOf,
   type LoadPhoto,
 } from '@/types/loadPhoto';
+import { orderCommodityItems, type CommodityItem, type Order } from '@/types/order';
 
 /**
  * Server side of load pictures: reading the records and signing their links.
@@ -79,20 +82,38 @@ function millis(value: unknown): number {
   return typeof v?.toMillis === 'function' ? v.toMillis() : 0;
 }
 
-/** A stored record as the browser receives it, links and all. */
+/**
+ * A stored record as the browser receives it, links and all.
+ *
+ * Given the load, a picture linked to one of its freight lines takes the
+ * line's name, pickup and delivery as they are *now* (2026-11-10): what the
+ * Freight section says is where that commodity goes, and a picture of it
+ * must never say otherwise. Worked out on every read rather than copied onto
+ * the picture, so changing the line's stops in Freight needs nothing else to
+ * run. Every route that answers with pictures passes the load; without it,
+ * or for a picture whose line has since been deleted, what is stored is used.
+ */
 export async function toLoadPhoto(
   id: string,
   d: FirebaseFirestore.DocumentData,
+  order?: FirebaseFirestore.DocumentData,
 ): Promise<LoadPhoto> {
   const orderId = String(d.orderId ?? '');
+  const stage   = normalizeStage(d.stage);
+  const linkId  = stage === 'commodity' ? String(d.commodityItemId ?? '') : '';
+  const line    = order && linkId ? lineOf(order, linkId) : null;
   return {
     id,
     orderId,
     caption:        String(d.caption ?? ''),
-    stage:          normalizeStage(d.stage),
-    commodity:      String(d.commodity ?? ''),
-    location:       String(d.location ?? ''),
-    width:         Number(d.width) || 0,
+    stage,
+    commodity:      line?.description.trim() || String(d.commodity ?? ''),
+    commodityItemId: linkId,
+    // An old commodity picture's single stop is shown in its pickup or
+    // delivery box, so nobody has to re-tag it.
+    ...routeOf(d),
+    ...(line ? itemPhotoRoute(order as Order, line) : {}),
+    width:        Number(d.width) || 0,
     height:         Number(d.height) || 0,
     uploadedByUid:  String(d.uploadedByUid ?? ''),
     uploadedByName: String(d.uploadedByName ?? ''),
@@ -109,12 +130,23 @@ export async function toLoadPhoto(
  * automatic single-field index, while adding an orderBy would need a composite
  * index that has to be deployed by hand. One load's pictures are a handful.
  */
-export async function listOrderPhotos(orderId: string): Promise<LoadPhoto[]> {
+export async function listOrderPhotos(orderId: string, order?: FirebaseFirestore.DocumentData): Promise<LoadPhoto[]> {
   const snap = await adminDb.collection(LOAD_PHOTOS_COLLECTION)
     .where('orderId', '==', orderId)
     .get();
-  const photos = await Promise.all(snap.docs.map((doc) => toLoadPhoto(doc.id, doc.data())));
+  const photos = await Promise.all(snap.docs.map((doc) => toLoadPhoto(doc.id, doc.data(), order)));
   return photos.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/**
+ * The freight line with this id on a stored order, or null — what an upload
+ * or an edit may link a commodity picture to. Checked against the load, never
+ * trusted from the request, so a picture cannot point at a line that is not
+ * there.
+ */
+export function lineOf(order: FirebaseFirestore.DocumentData, id: string): CommodityItem | null {
+  if (!id) return null;
+  return orderCommodityItems(order as Order).find((it) => it.id === id && it.id !== 'legacy') ?? null;
 }
 
 /** Removes a picture's two files. Missing files are not an error. */

@@ -4,7 +4,9 @@ import { requireCaller } from '@/lib/partyAccess';
 import { canSeeOrder } from '@/lib/accessControl';
 import { approvedOrderIds } from '@/lib/orderAccess';
 import { toLoadPhoto } from '@/lib/loadPhotosServer';
-import { orderAltNumber, orderDisplayNumber } from '@/types/order';
+import {
+  orderAltNumber, orderCommodityItems, orderDisplayNumber, vehicleSummary, type Order,
+} from '@/types/order';
 import { LOAD_PHOTOS_COLLECTION, type LoadPhotoRow } from '@/types/loadPhoto';
 
 export const maxDuration = 30;
@@ -30,9 +32,27 @@ const ORDER_FIELDS = [
   'orderNumber', 'batsId', 'previousOrderNumber',
   'clientName', 'shipperName', 'consigneeName', 'commodity', 'transportType',
   'origin', 'destination', 'coverPhotoId',
+  // So a picture linked to a freight line shows that line's stops — see
+  // toLoadPhoto(). The stops' party names and addresses come with them.
+  'commodities', 'extraPickups', 'extraDeliveries',
   'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
   'clientOwnerUids', 'clientOwnerGroupIds',
 ];
+
+/**
+ * What a picture's vehicle is called, for searching by year, make, model or
+ * VIN. A picture linked to a freight line is that vehicle and no other — a
+ * Corolla's picture must not come up for the Civic on the same truck. One not
+ * linked to a line is the load's, so it answers to every vehicle on it.
+ */
+function vehicleText(order: FirebaseFirestore.DocumentData, commodityItemId: string): string {
+  const items = orderCommodityItems(order as Order);
+  const own = commodityItemId ? items.filter((it) => it.id === commodityItemId) : [];
+  return (own.length ? own : items)
+    .map((it) => [vehicleSummary(it), it.vin?.trim()].filter(Boolean).join(' '))
+    .filter(Boolean)
+    .join(' · ');
+}
 
 function place(a: unknown): string {
   const addr = (a ?? {}) as { city?: string; state?: string };
@@ -75,8 +95,8 @@ export async function GET(req: NextRequest) {
       snap.docs
         .filter((d) => visible.has(String(d.data().orderId)))
         .map(async (d) => {
-          const photo = await toLoadPhoto(d.id, d.data());
-          const order = visible.get(photo.orderId)!;
+          const order = visible.get(String(d.data().orderId))!;
+          const photo = await toLoadPhoto(d.id, d.data(), order);
           return {
             ...photo,
             orderNumber:      orderDisplayNumber(order),
@@ -89,6 +109,7 @@ export async function GET(req: NextRequest) {
             originLabel:      place(order.origin),
             destinationLabel: place(order.destination),
             isCover:          order.coverPhotoId === d.id,
+            vehicles:         vehicleText(order, photo.commodityItemId),
           };
         }),
     );

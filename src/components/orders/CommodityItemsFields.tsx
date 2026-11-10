@@ -188,6 +188,21 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 />
               </div>
 
+              {/* Where this line is picked up and delivered — right under its
+                  name, since on a multi-stop load it is the first thing the
+                  driver needs to know about it. Asked only when there is more
+                  than one stop of that kind. */}
+              {askPickup && (
+                <StopSelect kind="pickup" label="Picked up at" stops={pickups}
+                  value={itemStop(item, 'pickup', pickups.length)}
+                  onChange={(pickupStop) => patch(item.id, { pickupStop })} />
+              )}
+              {askDelivery && (
+                <StopSelect kind="delivery" label="Delivered to" stops={deliveries}
+                  value={itemStop(item, 'delivery', deliveries.length)}
+                  onChange={(deliveryStop) => patch(item.id, { deliveryStop })} />
+              )}
+
               <div className="col-span-3">
                 <label data-es className="block text-xs font-medium text-gray-600 mb-1">Length</label>
                 <input
@@ -418,16 +433,6 @@ export default function CommodityItemsFields({ value, onChange, pickups = [], de
                 </div>
               </div>
 
-              {askPickup && (
-                <StopSelect kind="pickup" label="Picked up at" stops={pickups}
-                  value={itemStop(item, 'pickup', pickups.length)}
-                  onChange={(pickupStop) => patch(item.id, { pickupStop })} />
-              )}
-              {askDelivery && (
-                <StopSelect kind="delivery" label="Delivered to" stops={deliveries}
-                  value={itemStop(item, 'delivery', deliveries.length)}
-                  onChange={(deliveryStop) => patch(item.id, { deliveryStop })} />
-              )}
             </div>
           </div>
         );

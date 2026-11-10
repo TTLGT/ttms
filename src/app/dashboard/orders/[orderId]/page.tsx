@@ -25,7 +25,7 @@ import BolMissingNotice from '@/components/orders/BolMissingNotice';
 import { READINESS_FIX } from '@/components/orders/fixTargets';
 import BolDetailsFields from '@/components/orders/BolDetailsFields';
 import AgreementPdfPreview from '@/components/orders/AgreementPdfPreview';
-import type { CommodityItem, Order, OrderStatus, StopKind } from '@/types/order';
+import type { CommodityItem, Order, OrderStatus } from '@/types/order';
 import type { Carrier } from '@/types/carrier';
 import {
   STATUS_LABEL,
@@ -43,8 +43,6 @@ import {
   tripAddresses,
   orderPickups,
   orderDeliveries,
-  itemStop,
-  stopLabel,
   formatLaneMiles,
   isRoutableAddress,
   laneMilesAtNote,
@@ -99,6 +97,13 @@ import type { OwnerContact } from '@/types/order';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { trackActivity } from '@/lib/attendance';
 import OrderPhotos from '@/components/photos/OrderPhotos';
+import PhotoLightbox from '@/components/photos/PhotoLightbox';
+import LinePhotoCell, { useLinePhotos } from '@/components/photos/LinePhotoCell';
+import CommodityThumbs, { commodityFaces } from '@/components/photos/CommodityThumbs';
+import { deleteLoadPhoto, setOrderCover, updateLoadPhoto } from '@/lib/loadPhotos';
+import {
+  commodityLineChoices, itemPhotoRoute, photoLocationChoices, photosForItem, type LoadPhoto,
+} from '@/types/loadPhoto';
 import ChangeHistory from '@/components/history/ChangeHistory';
 import { OrderCoverThumb } from '@/components/photos/PhotoBits';
 import { Bi } from '@/components/spanish/Es';
@@ -210,20 +215,14 @@ async function lastDriverForCarrier(
 }
 
 /**
- * "Pickup 1 → Delivery 2" under a freight line, or '' on a load with one
- * pickup and one delivery, where every line goes the same way.
+ * Where a freight line is picked up and delivered, written out the way its
+ * pictures are tagged ("Pickup 2 — Acme Steel, Dallas, TX") — or null on a
+ * load with one pickup and one delivery, where every line goes the same way.
+ * An empty value is a stop the line has not been given yet.
  */
-function itemRoute(order: Order, item: CommodityItem): string {
-  const counts: Record<StopKind, number> = {
-    pickup: orderPickups(order).length,
-    delivery: orderDeliveries(order).length,
-  };
-  if (counts.pickup <= 1 && counts.delivery <= 1) return '';
-  const side = (kind: StopKind) => {
-    const i = itemStop(item, kind, counts[kind]);
-    return i == null ? `${kind === 'pickup' ? 'Pickup' : 'Delivery'} not set` : stopLabel(kind, i);
-  };
-  return `${side('pickup')} → ${side('delivery')}`;
+function itemRoute(order: Order, item: CommodityItem): { pickupAt: string; deliverTo: string } | null {
+  if (orderPickups(order).length <= 1 && orderDeliveries(order).length <= 1) return null;
+  return itemPhotoRoute(order, item);
 }
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -308,6 +307,23 @@ export default function OrderDetailPage() {
   // Kept apart from `order` so the tab label can count pictures added or
   // removed on this visit without refetching the load.
   const [photoCount, setPhotoCount] = useState<number | null>(null);
+
+  // The pictures of each freight line — beside the line in Freight, and one
+  // per commodity in the header. Read only for a load with several lines (one
+  // line needs no telling apart) that has pictures, and again on every change
+  // of tab, so a picture changed on the Pictures tab shows in both.
+  const manyLines = !!order && orderCommodityItems(order).length > 1;
+  const [linePhotos, setLinePhotos] = useLinePhotos(
+    orderId, manyLines && ((photoCount ?? order?.photoCount ?? 0) > 0), tab,
+  );
+  const [lineView, setLineView] = useState<{ itemId: string; photoId: string } | null>(null);
+  const lineAdded = (photo: LoadPhoto, coverPhotoId: string | null) => {
+    setLinePhotos((list) => [...list, photo]);
+    setPhotoCount((n) => (n ?? order?.photoCount ?? 0) + 1);
+    if (coverPhotoId === photo.id) {
+      setOrder((prev) => (prev ? { ...prev, coverPhotoId, coverThumbUrl: photo.thumbUrl } : prev));
+    }
+  };
 
   // The Carrier Agreement review: reloaded on demand, and its status known
   // here so "Request Carrier Agreement" is offered only when none is open.
@@ -1389,7 +1405,13 @@ export default function OrderDetailPage() {
 
       <OrderLoadCard
         order={order}
-        thumb={
+        thumb={commodityFaces(order, linePhotos).length > 0 ? (
+          /* Several commodities with pictures: one tile each, instead of the
+             one profile picture — see CommodityThumbs. */
+          <CommodityThumbs faces={commodityFaces(order, linePhotos)}
+            onOpen={(itemId, photoId) => setLineView({ itemId, photoId })}
+            onMore={() => setTab('pictures')} />
+        ) : (
           /* The load's profile picture, so it can be recognised before its
              number is read. Opens the pictures; with none yet, it is the
              prompt to add one. */
@@ -1398,7 +1420,7 @@ export default function OrderDetailPage() {
             className="rounded-xl hover:ring-2 hover:ring-brand-300 transition flex-shrink-0">
             <OrderCoverThumb url={order.coverThumbUrl} size={64} className="rounded-xl" alt="Load profile picture" />
           </button>
-        }
+        )}
         title={
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
             <h1 className="text-[28px] leading-none font-bold text-gray-900 tracking-wide font-[family-name:var(--font-rajdhani)]">{orderDisplayNumber(order)}</h1>
@@ -1578,6 +1600,11 @@ export default function OrderDetailPage() {
                   {orderCommodityItems(order).map((item) => (
                     <tr key={item.id} className="border-b border-gray-100 last:border-0">
                       <td className="py-2 pr-4 text-gray-900">
+                        <LinePhotoCell order={order} item={item} photos={linePhotos}
+                          showPicture={orderCommodityItems(order).length > 1}
+                          onOpen={(p) => setLineView({ itemId: item.id, photoId: p.id })}
+                          onAdded={lineAdded}
+                          onLinked={(saved) => setLinePhotos((all) => all.map((x) => (x.id === saved.id ? saved : x)))}>
                         {item.description || '—'}
                         {/* The vehicle under its line rather than in columns of
                             its own: most loads have none, and five empty
@@ -1590,9 +1617,24 @@ export default function OrderDetailPage() {
                         )}
                         {/* Where the line goes on and comes off — only on a
                             load with somewhere to choose between. */}
-                        {itemRoute(order, item) && (
-                          <div className="mt-0.5 text-xs text-gray-500">{itemRoute(order, item)}</div>
-                        )}
+                        {(() => {
+                          const route = itemRoute(order, item);
+                          if (!route) return null;
+                          return (
+                            <div className="mt-1 text-xs space-y-0.5">
+                              {([['Picked up at', route.pickupAt], ['Delivered to', route.deliverTo]] as const).map(([title, where]) => (
+                                <div key={title} className="flex gap-1">
+                                  <span data-es className="text-gray-500 flex-shrink-0">{title}</span>
+                                  {where
+                                    ? <span className="text-gray-700">{where}</span>
+                                    : <Link href={`/dashboard/orders/${orderId}/edit?section=freight`} data-es
+                                        className="text-amber-700 hover:underline">Not set — choose it</Link>}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                        </LinePhotoCell>
                       </td>
                       <td className="py-2 pr-4 text-gray-600">{item.quantity || '—'}</td>
                       <td className="py-2 pr-4 text-gray-600">{formatDimensions(item) || '—'}</td>
@@ -2568,6 +2610,49 @@ export default function OrderDetailPage() {
         <OrderFiles orderId={orderId} onChange={() => setFilesVersion((n) => n + 1)} />
         </div>
       )}
+
+      {/* A freight line's pictures, opened from the picture beside it */}
+      {lineView && (() => {
+        const item = orderCommodityItems(order).find((it) => it.id === lineView.itemId);
+        const list = item ? photosForItem(linePhotos, item) : [];
+        const at = list.findIndex((p) => p.id === lineView.photoId);
+        if (at < 0) return null;
+        return (
+          <PhotoLightbox
+            photos={list}
+            index={at}
+            onIndex={(i) => setLineView({ itemId: lineView.itemId, photoId: list[i].id })}
+            onClose={() => setLineView(null)}
+            isCover={(p) => p.id === order.coverPhotoId}
+            onSetCover={async (p) => {
+              const cover = await setOrderCover(order.id, p.id);
+              setOrder((prev) => (prev
+                ? { ...prev, coverPhotoId: cover, coverThumbUrl: cover === p.id ? p.thumbUrl : prev.coverThumbUrl }
+                : prev));
+            }}
+            onSave={async (p, patch) => {
+              const saved = await updateLoadPhoto(order.id, p.id, patch);
+              setLinePhotos((all) => all.map((x) => (x.id === saved.id ? saved : x)));
+              // Moved to another line or retyped: it is no longer in this set.
+              if (!item || !photosForItem([saved], item).length) setLineView(null);
+            }}
+            canDelete={(p) => p.uploadedByUid === user?.uid || can('orders.viewAll')}
+            onDelete={async (p) => {
+              const cover = await deleteLoadPhoto(order.id, p.id);
+              const rest = linePhotos.filter((x) => x.id !== p.id);
+              setLinePhotos(rest);
+              setPhotoCount((n) => Math.max(0, (n ?? order.photoCount ?? 1) - 1));
+              setOrder((prev) => (prev
+                ? { ...prev, coverPhotoId: cover, coverThumbUrl: cover ? (rest.find((x) => x.id === cover)?.thumbUrl ?? prev.coverThumbUrl) : null }
+                : prev));
+              const next = list.filter((x) => x.id !== p.id);
+              setLineView(next.length ? { itemId: lineView.itemId, photoId: next[Math.min(at, next.length - 1)].id } : null);
+            }}
+            routeChoices={{ pickup: photoLocationChoices(order, ['pickup']), delivery: photoLocationChoices(order, ['delivery']) }}
+            lines={commodityLineChoices(order)}
+          />
+        );
+      })()}
 
       {/* Pictures tab */}
       {tab === 'pictures' && (

@@ -17,6 +17,7 @@ import {
   PHOTO_STAGES,
   PHOTO_STAGE_LABEL,
   commodityKey,
+  photoWhere,
   type LoadPhotoRow,
   type PhotoStage,
 } from '@/types/loadPhoto';
@@ -147,11 +148,15 @@ export default function LoadPhotoBrowser() {
       if (commodity && commodityKey(labelOf(r)) !== commodity) return false;
       if (transport && commodityKey(r.transportType) !== transport) return false;
       if (!q) return true;
-      return [
+      // Every word must appear somewhere, in any order, so "2009 corolla" or
+      // "toyota dallas" finds a picture whose year, model and stop sit in
+      // different fields.
+      const hay = [
         r.orderNumber, r.altNumber ?? '', r.clientName, r.shipperName, r.consigneeName,
-        r.commodity, r.orderCommodity, r.transportType, r.caption, r.location, r.uploadedByName,
-        r.originLabel, r.destinationLabel, PHOTO_STAGE_LABEL[r.stage],
-      ].some((v) => v.toLowerCase().includes(q));
+        r.commodity, r.orderCommodity, r.transportType, r.caption, photoWhere(r), r.uploadedByName,
+        r.originLabel, r.destinationLabel, PHOTO_STAGE_LABEL[r.stage], r.vehicles ?? '',
+      ].join('\n').toLowerCase();
+      return q.split(/\s+/).every((w) => hay.includes(w));
     });
     const cmp: Record<SortId, (a: LoadPhotoRow, b: LoadPhotoRow) => number> = {
       newest:    (a, b) => b.createdAt - a.createdAt,
@@ -258,7 +263,7 @@ export default function LoadPhotoBrowser() {
         <div className="relative flex-1 min-w-0">
           <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input type="search" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by order #, client, commodity, transport type, caption, stop, city…"
+            placeholder="Search by order #, client, commodity, year, make, model, VIN, caption, stop, city…"
             className={`${field} w-full pl-8`} />
         </div>
         <select value={commodity} onChange={(e) => setCommodity(e.target.value)} className={`${field} lg:w-56`}
@@ -353,7 +358,7 @@ export default function LoadPhotoBrowser() {
                   <td className="px-4 py-2 text-sm text-gray-600">{labelOf(r)}</td>
                   <td className="px-4 py-2">
                     <StageBadge stage={r.stage} />
-                    {r.location && <p className="text-xs text-gray-500 mt-1 max-w-[14rem]">{r.location}</p>}
+                    {photoWhere(r) && <p className="text-xs text-gray-500 mt-1 max-w-[14rem]">{photoWhere(r)}</p>}
                   </td>
                   <td className="px-4 py-2 text-sm text-gray-600 max-w-xs">{r.caption || <span className="text-gray-300">—</span>}</td>
                   <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">{lane(r) || '—'}</td>
@@ -413,9 +418,9 @@ export default function LoadPhotoBrowser() {
           onClose={() => setOpenId(null)}
           isCover={(p) => p.isCover}
           context={(p) => (
-            <span className="text-xs text-white/70">
+            <span className="text-xs text-gray-600">
               <Link href={`/dashboard/orders/${p.orderId}?tab=pictures&from=documents`}
-                className="font-mono font-semibold text-white hover:underline">{p.orderNumber}</Link>
+                className="font-mono font-semibold text-brand-700 hover:underline">{p.orderNumber}</Link>
               {[p.clientName || p.shipperName, lane(p)].filter(Boolean).map((t) => <span key={t}> · {t}</span>)}
             </span>
           )}

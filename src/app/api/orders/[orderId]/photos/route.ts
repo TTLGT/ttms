@@ -3,7 +3,7 @@ import { adminDb, AdminAuthError, FieldValue } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { actorOf, writeChange } from '@/lib/recordHistory';
-import { deletePhotoFiles, listOrderPhotos, readPhotoUpload, savePhotoFiles, toLoadPhoto } from '@/lib/loadPhotosServer';
+import { deletePhotoFiles, lineOf, listOrderPhotos, readPhotoUpload, savePhotoFiles, toLoadPhoto } from '@/lib/loadPhotosServer';
 import {
   LOAD_PHOTOS_COLLECTION,
   MAX_CAPTION,
@@ -11,6 +11,7 @@ import {
   MAX_PHOTO_LOCATION,
   MAX_PHOTOS_PER_ORDER,
   commodityKey,
+  hasRoute,
   isPhotoStage,
 } from '@/types/loadPhoto';
 
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   try {
     const caller = await requireCaller(req);
     const order  = await getVisibleOrder(caller, orderId);
-    const photos = await listOrderPhotos(orderId);
+    const photos = await listOrderPhotos(orderId, order);
     return NextResponse.json({
       photos,
       coverPhotoId: typeof order.coverPhotoId === 'string' ? order.coverPhotoId : null,
@@ -78,11 +79,27 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const stageRaw  = form?.get('stage');
     const stage     = isPhotoStage(stageRaw) ? stageRaw : 'other';
     const caption   = String(form?.get('caption') ?? '').trim().slice(0, MAX_CAPTION);
-    const commodity = (String(form?.get('commodity') ?? '').trim()
+    // A commodity picture added from its freight line carries the line's
+    // id. Kept only when it names a line this load really has, and then the
+    // line's own description is the label — never one taken from the form.
+    const line = stage === 'commodity'
+      ? lineOf(order, String(form?.get('commodityItemId') ?? ''))
+      : null;
+    const commodity = (line?.description.trim()
+      || String(form?.get('commodity') ?? '').trim()
       || String(order.commodity ?? '')).slice(0, MAX_PHOTO_COMMODITY);
     // A label, not a link — see `location` on LoadPhoto — so it is trimmed and
     // kept rather than checked against the load's current stops.
-    const location  = String(form?.get('location') ?? '').trim().slice(0, MAX_PHOTO_LOCATION);
+    const label = (key: string) => String(form?.get(key) ?? '').trim().slice(0, MAX_PHOTO_LOCATION);
+    // A commodity says where it is picked up and where it goes; every other
+    // type has the one stop. The other boxes are not stored, so a picture
+    // never carries a tag its type does not show.
+    const route     = hasRoute(stage);
+    const location  = route ? '' : label('location');
+    const pickupAt  = route ? label('pickupAt') : '';
+    const deliverTo = route ? label('deliverTo') : '';
+    // (A picture linked to a freight line is shown with the line's own stops
+    // whatever is stored here — see toLoadPhoto().)
 
     const current = Number(order.photoCount) || 0;
     if (current >= MAX_PHOTOS_PER_ORDER) {
@@ -101,7 +118,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       stage,
       commodity,
       commodityKey:   commodityKey(commodity),
+      commodityItemId: line?.id ?? '',
       location,
+      pickupAt,
+      deliverTo,
       width,
       height,
       uploadedByUid:  caller.uid,
@@ -131,7 +151,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
     const saved = await ref.get();
     return NextResponse.json({
-      photo:        await toLoadPhoto(ref.id, saved.data() ?? record),
+      photo:        await toLoadPhoto(ref.id, saved.data() ?? record, order),
       coverPhotoId: hasCover ? order.coverPhotoId : ref.id,
     });
   } catch (e) {

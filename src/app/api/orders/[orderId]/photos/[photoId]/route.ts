@@ -4,14 +4,17 @@ import { actorOf, writeChange } from '@/lib/recordHistory';
 import { requireCaller } from '@/lib/partyAccess';
 import { getVisibleOrder } from '@/lib/orderAccess';
 import { canSeeAllOrders } from '@/lib/accessControl';
-import { deletePhotoFiles, toLoadPhoto } from '@/lib/loadPhotosServer';
+import { deletePhotoFiles, lineOf, toLoadPhoto } from '@/lib/loadPhotosServer';
 import {
   LOAD_PHOTOS_COLLECTION,
   MAX_CAPTION,
   MAX_PHOTO_COMMODITY,
   MAX_PHOTO_LOCATION,
   commodityKey,
+  hasRoute,
   isPhotoStage,
+  normalizeStage,
+  routeOf,
 } from '@/types/loadPhoto';
 
 type RouteContext = { params: Promise<{ orderId: string; photoId: string }> };
@@ -38,18 +41,20 @@ async function photoOf(orderId: string, photoId: string) {
 }
 
 /**
- * Changes a picture's caption, type (`stage`), commodity or location label.
+ * Changes a picture's caption, type (`stage`), commodity, or where it
+ * belongs (`location`, or `pickupAt` / `deliverTo` on a commodity).
  *
  * Open to anybody who can see the load, the same as editing the order: the
  * label is a note about the load, and the person who notices it is wrong is
- * usually not the one who uploaded it. Only those four keys are read.
+ * usually not the one who uploaded it. Only those seven keys are read
+ * (the seventh, `commodityItemId`, links a commodity picture to a freight line).
  */
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const { orderId, photoId } = await params;
   try {
     const caller = await requireCaller(req);
-    await getVisibleOrder(caller, orderId);
-    const { ref } = await photoOf(orderId, photoId);
+    const order = await getVisibleOrder(caller, orderId);
+    const { ref, data } = await photoOf(orderId, photoId);
 
     const body = await req.json().catch(() => ({})) as Record<string, unknown>;
     const patch: Record<string, unknown> = {};
@@ -60,14 +65,44 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       patch.commodity    = commodity;
       patch.commodityKey = commodityKey(commodity);
     }
-    if (typeof body.location === 'string') patch.location = body.location.trim().slice(0, MAX_PHOTO_LOCATION);
-    if (Object.keys(patch).length === 0) {
+    const label = (v: unknown) => (typeof v === 'string' ? v.trim().slice(0, MAX_PHOTO_LOCATION) : undefined);
+    const touchesWhere = ['location', 'pickupAt', 'deliverTo', 'commodityItemId'].some((k) => typeof body[k] === 'string');
+    if (Object.keys(patch).length === 0 && !touchesWhere) {
       return NextResponse.json({ error: 'Nothing to change' }, { status: 400 });
+    }
+
+    // Where the picture belongs follows its type, as on upload: a commodity
+    // keeps a pickup and a delivery and no single stop; anything else the
+    // reverse. Worked out from the type it will have after this save, and
+    // from routeOf() so an old commodity picture's folded stop is kept when
+    // only its caption was sent.
+    const before = routeOf(data);
+    if (hasRoute(isPhotoStage(body.stage) ? body.stage : normalizeStage(data.stage))) {
+      patch.location  = '';
+      patch.pickupAt  = label(body.pickupAt)  ?? before.pickupAt;
+      patch.deliverTo = label(body.deliverTo) ?? before.deliverTo;
+      // Linking to a freight line relabels the picture with that line's
+      // description; '' unlinks and leaves the label as it was.
+      if (typeof body.commodityItemId === 'string') {
+        const line = lineOf(order, body.commodityItemId);
+        patch.commodityItemId = line?.id ?? '';
+        if (line?.description.trim()) {
+          const commodity = line.description.trim().slice(0, MAX_PHOTO_COMMODITY);
+          patch.commodity    = commodity;
+          patch.commodityKey = commodityKey(commodity);
+        }
+      }
+    } else {
+      patch.pickupAt  = '';
+      patch.deliverTo = '';
+      patch.commodityItemId = '';
+      const location = label(body.location);
+      if (location !== undefined) patch.location = location;
     }
 
     await ref.update(patch);
     const saved = await ref.get();
-    return NextResponse.json({ photo: await toLoadPhoto(photoId, saved.data()!) });
+    return NextResponse.json({ photo: await toLoadPhoto(photoId, saved.data()!, order) });
   } catch (e) {
     return fail(e);
   }

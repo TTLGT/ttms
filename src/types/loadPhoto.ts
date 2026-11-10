@@ -17,7 +17,10 @@
  * would need an index scope this project's service account cannot create.
  */
 
-import { orderDeliveries, orderPickups, stopLabel, type Order, type StopKind } from './order';
+import {
+  itemStop, orderCommodityItems, orderDeliveries, orderPickups, stopLabel,
+  type CommodityItem, type Order, type StopKind,
+} from './order';
 
 export const LOAD_PHOTOS_COLLECTION = 'loadPhotos';
 
@@ -95,11 +98,44 @@ export const MAX_PHOTO_COMMODITY  = 120;
 export const MAX_PHOTO_LOCATION   = 160;
 
 /**
- * Which stops a picture of this type can be tagged with: any of them, except
- * for the truck, which is the carrier's and not about a stop.
+ * Whether a picture of this type says where the freight is picked up *and*
+ * where it is delivered (2026-11-10). Only the commodity: freight travels
+ * from one stop to another, so a single Stop made a broker choose between
+ * the two.
+ *
+ * No other type is asked for a stop at all any more (the office's call,
+ * 2026-11-10). `location` is still kept and shown on pictures that have one —
+ * the driver's link files its Picked up / Delivered proof at that stop, and
+ * older pictures were tagged by hand — but nobody is asked to fill it in.
  */
-export function locationKindsFor(stage: PhotoStage | ''): StopKind[] {
-  return stage === 'truck' ? [] : ['pickup', 'delivery'];
+export function hasRoute(stage: PhotoStage | ''): boolean {
+  return stage === 'commodity';
+}
+
+/**
+ * A commodity picture's two stops, with an old single `location` folded into
+ * whichever one it names. Pictures saved before 2026-11-10 carried one label,
+ * and every label photoLocationChoices() made starts "Pickup" or "Delivery";
+ * a hand-typed one that starts with neither stays in `location`.
+ */
+export function routeOf(d: { stage?: unknown; location?: unknown; pickupAt?: unknown; deliverTo?: unknown }):
+  { location: string; pickupAt: string; deliverTo: string } {
+  const location  = String(d.location ?? '');
+  let   pickupAt  = String(d.pickupAt ?? '');
+  let   deliverTo = String(d.deliverTo ?? '');
+  if (normalizeStage(d.stage) !== 'commodity') return { location, pickupAt: '', deliverTo: '' };
+  if (location && /^pickup\b/i.test(location) && !pickupAt)    return { location: '', pickupAt: location, deliverTo };
+  if (location && /^delivery\b/i.test(location) && !deliverTo) return { location: '', pickupAt, deliverTo: location };
+  return { location, pickupAt, deliverTo };
+}
+
+/** Where a picture belongs, as one line for a caption, a tooltip or a search. */
+export function photoWhere(p: Pick<LoadPhoto, 'stage' | 'location' | 'pickupAt' | 'deliverTo'>): string {
+  return [
+    p.location,
+    p.pickupAt  ? `Picked up at ${p.pickupAt}` : '',
+    p.deliverTo ? `Delivered to ${p.deliverTo}` : '',
+  ].filter(Boolean).join(' · ');
 }
 
 /**
@@ -120,6 +156,55 @@ export function photoLocationChoices(order: Order, kinds: StopKind[]): string[] 
     });
   }
   return out;
+}
+
+/**
+ * A freight line's stops as picture tags — the same labels the Picked up at /
+ * Delivered to boxes offer, so a picture added from the line reads exactly as
+ * one tagged by hand. '' for a side the line has not been given yet.
+ */
+export function itemPhotoRoute(order: Order, item: CommodityItem): { pickupAt: string; deliverTo: string } {
+  const side = (kind: StopKind) => {
+    const choices = photoLocationChoices(order, [kind]);
+    const i = itemStop(item, kind, choices.length);
+    return i == null ? '' : choices[i] ?? '';
+  };
+  return { pickupAt: side('pickup'), deliverTo: side('delivery') };
+}
+
+/** One freight line as something a commodity picture can be linked to. */
+export interface CommodityLineChoice {
+  id: string;
+  label: string;
+  pickupAt: string;
+  deliverTo: string;
+}
+
+/**
+ * The load's freight lines a picture can be linked to — only when there is
+ * more than one, since with one there is nothing to tell apart and the
+ * picture is simply the load's commodity.
+ */
+export function commodityLineChoices(order: Order): CommodityLineChoice[] {
+  const items = orderCommodityItems(order);
+  if (items.length < 2) return [];
+  return items.map((it, i) => ({
+    id: it.id,
+    label: `${i + 1}. ${it.description.trim() || 'Unnamed commodity'}`,
+    ...itemPhotoRoute(order, it),
+  }));
+}
+
+/**
+ * The commodity pictures of one freight line: those linked to it
+ * (`commodityItemId`), plus — for pictures from before the link existed —
+ * unlinked ones whose commodity label is the line's description.
+ */
+export function photosForItem<T extends LoadPhoto>(photos: T[], item: CommodityItem): T[] {
+  const key = commodityKey(item.description);
+  return photos.filter((p) => p.stage === 'commodity' && (
+    p.commodityItemId ? p.commodityItemId === item.id : key !== '' && commodityKey(p.commodity) === key
+  ));
 }
 
 /**
@@ -157,12 +242,28 @@ export interface LoadPhoto {
    */
   commodity: string;
   /**
+   * Commodity pictures only: the freight line (`CommodityItem.id`) the
+   * picture shows, or '' (2026-11-10). Set when it is added from that line in
+   * the Freight section, or picked in "Which commodity?". Line ids are stable
+   * across edits, so unlike a stop this can be a link; a line later deleted
+   * simply leaves the picture unlinked, still labelled by `commodity`.
+   */
+  commodityItemId: string;
+  /**
    * Which stop the picture was taken at — one of photoLocationChoices(), or ''
    * when it is not tied to one. Copied as text for the same reason as
    * `commodity`: stops are positions, and removing one shifts the rest, so an
    * index would quietly move a picture to a different company's dock.
    */
   location: string;
+  /**
+   * Commodity pictures only (hasRoute()): the pickup the freight leaves from
+   * and the delivery it goes to, each one of photoLocationChoices() for that
+   * kind, or ''. Text for `location`'s reason. Always '' on any other type —
+   * the server clears them when the type changes.
+   */
+  pickupAt: string;
+  deliverTo: string;
   width: number;
   height: number;
   uploadedByUid: string;
@@ -193,4 +294,10 @@ export interface LoadPhotoRow extends LoadPhoto {
   destinationLabel: string;
   /** Whether this is the load's profile picture. */
   isCover: boolean;
+  /**
+   * Year, make, model, colour, type and VIN of the vehicle(s) in the picture,
+   * for the search box only: the linked freight line's, or every line on the
+   * load when the picture is not linked to one. '' when nothing is a vehicle.
+   */
+  vehicles: string;
 }

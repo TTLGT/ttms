@@ -1831,6 +1831,7 @@ export const ES_MORE: Record<string, string> = {
   "Search by name start, DOT, or MC": 'Buscar por inicio del nombre, DOT o MC',
   "Search by name, DOT or MC": 'Buscar por nombre, DOT o MC',
   "Search by order #, client, commodity, transport type, caption, stop, city": 'Buscar por n.º de orden, cliente, mercancía, tipo de transporte, leyenda, parada, ciudad',
+  "Search by order #, client, commodity, year, make, model, VIN, caption, stop, city": 'Buscar por n.º de orden, cliente, mercancía, año, marca, modelo, VIN, leyenda, parada, ciudad',
   "Search by order #, shipper or carrier": 'Buscar por n.º de orden, remitente o transportista',
   "Search by word, e.g. chat search, rules, invoice": 'Buscar por palabra, p. ej., chat search, rules, invoice',
   "Search chat": 'Buscar en el chat',
