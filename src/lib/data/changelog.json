@@ -1,6 +1,20 @@
 {
   "changes": [
     {
+      "hash": "7a3971dcaba9775f7a9fa349e8eeabdf153977c1",
+      "date": "2026-11-10T10:49:13-06:00",
+      "author": "erwindank",
+      "subject": "Show only commodity pictures on the quote and the SA, like the Dispatch Sheet and the BOL: a location or other picture made the load's profile picture no longer prints on the client's documents, and a load with no commodity picture prints none",
+      "body": ""
+    },
+    {
+      "hash": "f4f04c3ecf5fd56ee886bcd57cbf2ee36699c98a",
+      "date": "2026-11-10T10:08:59-06:00",
+      "author": "erwindank",
+      "subject": "Warn everyone about US clock changes and add a US time zones tool to the dashboard: for the week before and after each change a banner at the top of the dashboard says which clocks move and when, with a turning clock, a two-week strip, a US map coloured by time zone showing how each zone's gap moves from where you sit, and a time converter; it can be closed until the next change, snoozed until tomorrow or folded. The same map and converter stay at the foot of the dashboard all year as a folded US time zones section. Gaps are measured from each person's own time zone, detected from their computer or picked by city on My profile, so Guatemala and Chiapas see the US changes and the UK also sees its own. Dates come from the browser's time zone data, with no service, cron or database read",
+      "body": ""
+    },
+    {
       "hash": "ca6aa9830b794a48229ea9660522a96c91148741",
       "date": "2026-11-10T08:45:46-06:00",
       "author": "erwindank",
