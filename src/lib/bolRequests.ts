@@ -10,6 +10,7 @@ import type { BolData, BolStopLine } from './bol-pdf';
 import { clientContactOf, readinessFactsFor } from './orderReadinessServer';
 import { bolBlockers, orderReadiness } from '@/types/orderReadiness';
 import { signedSaProof } from './signedSaProof';
+import { saContactIndex } from '@/types/party';
 import {
   STATUS_RANK, dockConditionsOf, dockEndText,equipmentLabels, serviceLabels, clientSignatureSatisfied, formatDimensions, totalCommodityValue, itemStop, itemWeightLb, orderCommodityItems,
   orderDeliveries, orderDisplayNumber, orderPickups, stopLabel, vehicleSummary,
@@ -402,14 +403,14 @@ export function toBolRequest(d: FirebaseFirestore.DocumentData): BolRequest {
   };
 }
 
-/** A party's address: its first contact with an email, else its own. */
+/** A party's address: the contact the SA would go to (saContactIndex()), else its own. */
 async function partyEmail(partyId: string): Promise<{ name: string; email: string } | null> {
   if (!partyId) return null;
   const snap = await adminDb.collection('parties').doc(partyId).get();
   if (!snap.exists) return null;
   const p = snap.data()!;
   const contacts: { name?: string; email?: string }[] = Array.isArray(p.contacts) ? p.contacts : [];
-  const named = contacts.find((c) => c.email?.trim());
+  const named = contacts[saContactIndex(contacts)];
   const name = String(p.companyName || p.contactName || '');
   return { name, email: (named?.email ?? (typeof p.email === 'string' ? p.email : '')).trim() };
 }

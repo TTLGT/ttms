@@ -1,6 +1,6 @@
 'use client';
 
-import { MapPin, Plus } from 'lucide-react';
+import { MapPin, Plus, UserCheck } from 'lucide-react';
 import PartyCombobox from '@/components/parties/PartyCombobox';
 import type { PartySelection } from '@/components/parties/PartyCombobox';
 import AddressFields from './AddressFields';
@@ -44,10 +44,17 @@ interface Props {
   /** Ids for the reviewer's "take me to this field" links on the edit form. */
   partyFieldId?: string;
   addressFieldId?: string;
+  /**
+   * The client picked in General, offered as a one-click answer while this
+   * stop has nobody — see the button below.
+   */
+  client?: PartySelection;
+  /** One plain line under the label saying what this box is for. */
+  hint?: string;
 }
 
 export default function StopPartyFields({
-  role, partyLabel, addressLabel, parties, value, onChange, onPartyCreated, partyFieldId, addressFieldId,
+  role, partyLabel, addressLabel, parties, value, onChange, onPartyCreated, partyFieldId, addressFieldId, client, hint,
 }: Props) {
   const record = value.party.id ? parties.find((p) => p.id === value.party.id) ?? null : null;
   const locations = record ? partyLocations(record, role) : [];
@@ -71,11 +78,32 @@ export default function StopPartyFields({
     onChange({ party: sel, address: value.address });
   }
 
+  /*
+   * "The client is also the shipper" (2026-11-11). The commonest answer to
+   * who loads or unloads is the client themselves — a dealer shipping its own
+   * car, a plant receiving its own machine — and brokers were typing the same
+   * company twice, or leaving the stop blank because they were unsure it was
+   * allowed. Offered only while the stop is empty and only for a client that
+   * is a real record; picking it is exactly a pick from the list, so the
+   * address is filled the same way and the role is tagged on save as usual.
+   */
+  const clientRecord = client?.id ? parties.find((p) => p.id === client.id) ?? null : null;
+  const offerClient = !!client?.id && !value.party.id && !value.party.name.trim();
+
   return (
     <div className="space-y-4">
       <div id={partyFieldId}>
         <PartyCombobox role={role} label={partyLabel} parties={parties}
           value={value.party} onChange={picked} onPartyCreated={onPartyCreated} />
+        {hint && <p className="text-xs text-gray-500 mt-1"><Bi>{hint}</Bi></p>}
+        {offerClient && client && (
+          <button type="button" onClick={() => picked(client, clientRecord)}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 hover:bg-brand-100">
+            <UserCheck className="w-3.5 h-3.5" aria-hidden />
+            {/* Built from the name, so it has no dictionary entry. */}
+            The client is the {word}: use {client.name}
+          </button>
+        )}
       </div>
 
       <div id={addressFieldId} className="space-y-3">

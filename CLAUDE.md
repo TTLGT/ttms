@@ -1266,6 +1266,35 @@ loaded. See "A party's addresses" in the Schema Guide.
 - `defaultOrigin` / `defaultDest` are folded in by `savedLocations()` and
   cleared on the list's first save. Do not write new code against them.
 
+### Client contacts, billing and client type (2026-11-11)
+
+Every party has `contacts` beyond its main contact — title, email, phone,
+the addresses they work at, and four ticks: decision maker, **signs the SA**,
+billing, load updates (`Contact` in `src/types/party.ts`, edited in
+`PartyContactsCard`). A client also has `paymentTerms`, `creditClient`,
+`billingNotes` and `updatePrefs`. The server cleans all of them in
+`updatePartyAsCaller()`.
+
+- **Who gets the SA is `saContactIndex()`** — the contact ticked "Signs the
+  SA", else the first *imported* contact (no `id`) with an email, else the
+  main email. `clientContactOf()`, the review's "update the client" path and
+  the BOL's party address all read it. Contacts added from the card always
+  carry an `id`, so adding a Finance person never moves the SA by accident.
+  Do not go back to "first contact with an email".
+- **`creditClient` is admin and finance only** (`orders.payments`), checked
+  on the server.
+- **Client type is worked out when read, never stored**
+  (`src/types/clientSnapshot.ts`, `GET /api/parties/{id}/snapshot`): prospect,
+  new, potentially recurrent, recurrent, occasional, dormant, with the
+  thresholds as named constants. The route reads one document per order of
+  that client (an equality query, so it needs no index). It counts loads the
+  caller cannot open, but returns only totals, never a load.
+- `toVisibleParty()` lists every field the browser receives. **A new party
+  field must be added there** or no screen will see it — `contacts` and the
+  phone regions were missing until this change.
+- On the order: `loadType`, `quoteDate`, `clientBudget` (General). The
+  budget is never printed on anything that leaves the company.
+
 ### 3rd-party providers — a directory everybody reads (2026-11-06)
 
 `/dashboard/providers`: lumpers, forklifts, cranes, rigging crews, pilot cars

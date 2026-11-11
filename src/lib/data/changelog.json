@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "6055411196d0ebbe5268156fd1368b49c438089d",
+      "date": "2026-11-11T11:25:41-06:00",
+      "author": "erwindank",
+      "subject": "Redesign six cards on the order page so each says what it means at a glance: Price and Terms shows the money's path from client to TTL to carrier with a split bar and each service as a sentence; Route lists the stops as a timeline, with a switch beside Edit to see them as an itinerary table, remembered on each person's account; Loading and Unloading says each end as a sentence with tags and its own dock instructions box; Carrier opens with four health checks, the full FMCSA verdict, contact, driver and insurance boxes, a list of things to fix, then the Dispatch Sheet and the driver link with its five steps; the Bill of Lading asks plain questions with the meaning of every answer; Notes shows who reads each note. Also adds how to start TTMS from VS Code, and what to do when the local site will not open, to the Admin Handbook and the in-app Handbook",
+      "body": ""
+    },
+    {
       "hash": "93f6235b716b3ab5decf5a7ca46bb7d875ed6521",
       "date": "2026-11-11T09:38:13-06:00",
       "author": "erwindank",

@@ -1160,6 +1160,24 @@ export function buildTripMapUrl(stops: readonly (Address | null | undefined)[]):
     + '&travelmode=driving';
 }
 
+// ── Load type ────────────────────────────────────────────────────────────────
+
+/** How the freight moves — Order.loadType. Stored as the key. */
+export const LOAD_TYPES = ['ftl', 'partial', 'ltl', 'expedited', 'team', 'power_only', 'drayage'] as const;
+export type LoadType = (typeof LOAD_TYPES)[number];
+export const LOAD_TYPE_LABEL: Record<LoadType, string> = {
+  ftl:        'Full truckload (FTL)',
+  partial:    'Partial',
+  ltl:        'Less than truckload (LTL)',
+  expedited:  'Expedited / hot shot',
+  team:       'Team drivers',
+  power_only: 'Power only',
+  drayage:    'Drayage (port or rail)',
+};
+export function isLoadType(v: unknown): v is LoadType {
+  return (LOAD_TYPES as readonly unknown[]).includes(v);
+}
+
 // ── Stops ────────────────────────────────────────────────────────────────────
 
 /**
@@ -1185,6 +1203,14 @@ export interface OrderStop {
   /** Appointment day (or first day of a window), and its last day. */
   date: Timestamp | null;
   dateEnd: Timestamp | null;
+  /**
+   * Pickups only: the earliest the freight at this stop is ready, as the
+   * client told us (2026-11-11). The first pickup's is the order's own
+   * `firstAvailablePickup`, for the same no-migration reason as the rest of
+   * the first stop. Optional because every stop saved before this has none,
+   * and a delivery never has one.
+   */
+  firstAvailable?: Timestamp | null;
 }
 
 export type StopKind = 'pickup' | 'delivery';
@@ -1197,7 +1223,7 @@ export type StopKind = 'pickup' | 'delivery';
 export const MAX_EXTRA_STOPS = 4;
 
 type StopFields = Partial<Pick<Order,
-  'shipperId' | 'shipperName' | 'origin' | 'pickupDate' | 'pickupDateEnd'
+  'shipperId' | 'shipperName' | 'origin' | 'pickupDate' | 'pickupDateEnd' | 'firstAvailablePickup'
   | 'consigneeId' | 'consigneeName' | 'destination' | 'deliveryDate' | 'deliveryDateEnd'
   | 'extraPickups' | 'extraDeliveries'>>;
 
@@ -1210,6 +1236,7 @@ export function orderPickups(order: StopFields): OrderStop[] {
       address:   order.origin ?? { street: '', city: '', state: '', zip: '', country: 'US' },
       date:      order.pickupDate ?? null,
       dateEnd:   order.pickupDateEnd ?? null,
+      firstAvailable: order.firstAvailablePickup ?? null,
     },
     ...(order.extraPickups ?? []),
   ];
@@ -1275,6 +1302,9 @@ export function cleanStops(value: unknown): OrderStop[] {
       },
       date:    (s.date ?? null) as Timestamp | null,
       dateEnd: (s.dateEnd ?? null) as Timestamp | null,
+      // Only written when there is one, so a delivery (and every stop saved
+      // before the field existed) keeps exactly the shape it had.
+      ...(s.firstAvailable ? { firstAvailable: s.firstAvailable as Timestamp } : {}),
     };
   });
 }
@@ -1502,6 +1532,20 @@ export interface Order {
    * whose distance came from a cached lane with no date recorded.
    */
   laneMilesAt: Timestamp | null;
+  /**
+   * The General card's load facts (2026-11-11). All optional: every order
+   * from before has none and reads as "not said".
+   *
+   * `loadType` — how the freight moves (LOAD_TYPES). `quoteDate` — the day the
+   * client was quoted, defaulting to the day the order was made; kept apart
+   * from `createdAt` because a quote is often given by phone before anybody
+   * types it in. `clientBudget` — what the client said they want to spend,
+   * for the broker's own negotiating; never printed on anything that leaves
+   * the company.
+   */
+  loadType?: LoadType | '';
+  quoteDate?: Timestamp | null;
+  clientBudget?: number | null;
   /**
    * Earliest date the freight can be collected, as the client stated it.
    *

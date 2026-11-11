@@ -3,7 +3,8 @@
 import { Plus, Trash2 } from 'lucide-react';
 import type { PartySelection } from '@/components/parties/PartyCombobox';
 import StopPartyFields, { stopLinkProblem } from './StopPartyFields';
-import DateRangeField, { dateRangeProblem } from '@/components/DateRangeField';
+import { dateRangeProblem } from '@/components/DateRangeField';
+import StopDatesFields from './StopDatesFields';
 import { BLANK_ADDRESS } from './AddressFields';
 import { MAX_EXTRA_STOPS } from '@/types/order';
 import type { Address, OrderStop, StopKind } from '@/types/order';
@@ -28,6 +29,8 @@ export interface StopDraft {
   address: Address;
   date: string;
   dateEnd: string;
+  /** Pickups only — see OrderStop.firstAvailable. */
+  firstAvailable: string;
 }
 
 const KIND_WORD: Record<StopKind, string> = { pickup: 'Pickup', delivery: 'Delivery' };
@@ -49,13 +52,14 @@ export function stopDraftsFrom(stops: readonly OrderStop[] | undefined): StopDra
     address: { ...BLANK_ADDRESS, ...(s.address ?? {}) },
     date: dayOf(s.date),
     dateEnd: dayOf(s.dateEnd),
+    firstAvailable: dayOf(s.firstAvailable),
   }));
 }
 
 function isBlank(d: StopDraft): boolean {
   return !d.party.id && !d.party.name.trim()
     && !d.address.street.trim() && !d.address.city.trim() && !d.address.state && !d.address.zip.trim()
-    && !d.date && !d.dateEnd;
+    && !d.date && !d.dateEnd && !d.firstAvailable;
 }
 
 /**
@@ -74,6 +78,8 @@ export function stopsForSave(drafts: readonly StopDraft[]): OrderStop[] {
     // encodeRecordPatch(), which turns either into the server's Timestamp.
     date:      at(d.date) as unknown as OrderStop['date'],
     dateEnd:   at(d.dateEnd) as unknown as OrderStop['dateEnd'],
+    // Left off a stop with none, so a delivery never carries the key.
+    ...(d.firstAvailable ? { firstAvailable: at(d.firstAvailable) as unknown as OrderStop['firstAvailable'] } : {}),
   }));
 }
 
@@ -153,9 +159,11 @@ interface Props {
    * at it and at the stops after it can be renumbered — see `afterRemoving`.
    */
   onRemove?: (index: number) => void;
+  /** The client picked in General, offered as a one-click shipper or consignee. */
+  client?: PartySelection;
 }
 
-export default function ExtraStopsFields({ kind, value, onChange, parties, onPartyCreated, onRemove }: Props) {
+export default function ExtraStopsFields({ kind, value, onChange, parties, onPartyCreated, onRemove, client }: Props) {
   const word = KIND_WORD[kind];
   const role = kind === 'pickup' ? 'shipper' : 'consignee';
 
@@ -164,7 +172,7 @@ export default function ExtraStopsFields({ kind, value, onChange, parties, onPar
   }
 
   function add() {
-    onChange([...value, { key: newKey(), party: { id: '', name: '' }, address: BLANK_ADDRESS, date: '', dateEnd: '' }]);
+    onChange([...value, { key: newKey(), party: { id: '', name: '' }, address: BLANK_ADDRESS, date: '', dateEnd: '', firstAvailable: '' }]);
   }
 
   return (
@@ -186,12 +194,9 @@ export default function ExtraStopsFields({ kind, value, onChange, parties, onPar
             value={{ party: d.party, address: d.address }}
             onChange={(v) => update(d.key, v)}
             onPartyCreated={onPartyCreated}
+            client={client}
           />
-          <DateRangeField label={`${word} date`}
-            start={d.date} end={d.dateEnd}
-            onStartChange={(date) => update(d.key, { date })}
-            onEndChange={(dateEnd) => update(d.key, { dateEnd })}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+          <StopDatesFields kind={kind} value={d} onChange={(change) => update(d.key, change)} />
         </div>
       ))}
       {value.length < MAX_EXTRA_STOPS ? (

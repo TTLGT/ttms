@@ -28,6 +28,51 @@ import type { WorkGroup } from '@/types/workGroup';
  * `onChanged` re-reads the order, so the names, the broker default and the
  * history all come back as the server now has them.
  */
+/**
+ * Who owns the load, in one line under the order number (2026-11-11). The
+ * card below sits in the side rail, which on a laptop is beside the fold and
+ * on a narrower screen below the next step — and "whose load is this" is the
+ * first thing people want on opening one. This line answers it at a glance;
+ * the card is still where owners are changed, and the line links to it.
+ */
+export function OrderOwnersInline({ order }: { order: Order }) {
+  const owners = order.owners;
+  if (!owners) return null;
+  const people = owners.people;
+  const others = owners.groups.length + owners.pending.length;
+  const nobody = !people.length && !others;
+  return (
+    <a href="#owners" className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full border border-gray-200 bg-white py-1 pl-1 pr-3 text-sm hover:border-brand-300 hover:bg-brand-50 transition">
+      {nobody ? (
+        <span className="pl-2 text-amber-700">
+          {owners.batsName ? `Owner in BATS: ${owners.batsName}` : 'No owner — only admin, dispatch and finance see it'}
+        </span>
+      ) : (
+        <>
+          <span className="flex -space-x-1.5">
+            {people.slice(0, 4).map((p) => (
+              <span key={p.uid} className="rounded-full ring-2 ring-white">
+                <UserAvatar photoPath={p.photoPath} fallback={(p.name || p.email || '?').charAt(0).toUpperCase()} size={24} />
+              </span>
+            ))}
+            {!people.length && (
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-gray-500"><UserRound className="h-3.5 w-3.5" /></span>
+            )}
+          </span>
+          <span className="text-gray-500">{people.length + others > 1 ? 'Owners' : 'Owner'}:</span>
+          <span className="font-medium text-gray-900">
+            {[
+              ...people.map((p) => p.name + (p.uid === owners.brokerUid && people.length > 1 ? ' (broker)' : '')),
+              ...owners.groups.map((g) => g.name),
+              ...owners.pending,
+            ].join(', ')}
+          </span>
+        </>
+      )}
+    </a>
+  );
+}
+
 export default function OrderOwnersCard({ order, onChanged }: {
   order: Order;
   onChanged: () => Promise<void> | void;

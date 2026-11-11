@@ -68,6 +68,7 @@ import type { PhoneRegion } from '@/lib/phone';
 import type { DriverChoice } from '@/components/carriers/DriverPicker';
 import PartyLink from '@/components/parties/PartyLink';
 import PartyContact from '@/components/parties/PartyContact';
+import OrderClientInfo from '@/components/orders/OrderClientInfo';
 import { getParty } from '@/lib/parties';
 import type { Party } from '@/types/party';
 import PersonNameFields from '@/components/PersonNameFields';
@@ -92,7 +93,7 @@ import { PartHeading, Pill, Tile, type HealthCheck } from '@/components/orders/D
 import { DRIVER_STEPS, DRIVER_STEP_LABEL } from '@/types/driverLink';
 import PaymentsCard from '@/components/orders/PaymentsCard';
 import { isCodLoad, missingSentence, paymentsMissing } from '@/types/orderPayment';
-import OrderOwnersCard from '@/components/orders/OrderOwnersCard';
+import OrderOwnersCard, { OrderOwnersInline } from '@/components/orders/OrderOwnersCard';
 import { useAuth } from '@/context/AuthContext';
 import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
@@ -1487,6 +1488,12 @@ export default function OrderDetailPage() {
         sub={
           <>
             <p className="text-sm text-gray-600">{order.clientName || order.shipperName} — {order.commodity}</p>
+            {/* The same line as at the foot of Details, up here because it was
+                only ever found by scrolling past every card (2026-11-11). */}
+            <p className="text-xs text-gray-400 mt-0.5">
+              Created {formatDate(order.createdAt as { toDate: () => Date } | null)} · Last updated {formatDate(order.updatedAt as { toDate: () => Date } | null)}
+            </p>
+            <OrderOwnersInline order={order} />
             {/* The load's other number, under the one it is known by. A BATS
                 load leads with its BATS id and carries its TTMS number here; a
                 TTMS load that predates the sequence carries the random number it
@@ -1624,6 +1631,13 @@ export default function OrderDetailPage() {
             </section>
           )}
 
+          {/* Who owns the load, on every tab — the first thing people look
+              for. Above the open items since 2026-11-11, so it is on screen
+              without scrolling the rail; the header line says it too. */}
+          <div className="[&>#owners]:mb-0">
+            <OrderOwnersCard order={order} onChanged={refreshOwners} />
+          </div>
+
           <section>
             <p data-es className="mb-2 px-1 text-xs font-semibold text-gray-500">Open items</p>
             {railItems.length ? (
@@ -1635,10 +1649,6 @@ export default function OrderDetailPage() {
             )}
           </section>
 
-          {/* Who owns the load, on every tab — the first thing people look for */}
-          <div className="[&>#owners]:mb-0">
-            <OrderOwnersCard order={order} onChanged={refreshOwners} />
-          </div>
         </aside>
 
         <div className="min-w-0 xl:col-start-1 xl:row-start-1">
@@ -1665,13 +1675,11 @@ export default function OrderDetailPage() {
           {/* General — pieces and weight live in Freight, per line */}
           <div id="general" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
             <SectionHeading icon={ClipboardList} tone="brand" title="General" action={<SectionEditLink orderId={orderId} section="general" />} />
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <DetailRow label="Client"    value={<><PartyLink id={order.clientId}    name={order.clientName} fromOrderId={orderId} /><PartyContact party={partyById[order.clientId ?? '']} /></>} />
-              <DetailRow label="Lead Source" value={leadSourceLabel(leadSources, order.sourceId, order.sourceName)} />
-              <DetailRow label="First Available" value={formatDate(order.firstAvailablePickup as { toDate: () => Date } | null)} />
-              <DetailRow label="Pickup Date" value={formatDateRange(order.pickupDate, order.pickupDateEnd)} />
-              <DetailRow label="Delivery Date" value={formatDateRange(order.deliveryDate, order.deliveryDateEnd)} />
-            </div>
+            {/* The dates moved to each stop in Route (2026-11-11): on a
+                two-pickup load one Pickup Date here read as the whole trip's. */}
+            <OrderClientInfo order={order} orderId={orderId} party={partyById[order.clientId ?? '']}
+              leadSource={String(leadSourceLabel(leadSources, order.sourceId, order.sourceName) ?? '')} />
+
           </div>
 
           {/* Freight */}

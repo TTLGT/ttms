@@ -7,6 +7,7 @@ import type { PartyLocation } from '@/types/partyAddress';
 import type { Address } from '@/types/order';
 import type { OwnerEvent } from '@/types/ownerEvent';
 import type { AccessRequest } from '@/types/accessRequest';
+import type { ClientSnapshot } from '@/types/clientSnapshot';
 
 /**
  * Extra owners to put on a record at the moment it is created.
@@ -79,6 +80,18 @@ export async function getParty(partyId: string): Promise<PartyAccess> {
 
   const { party } = await unwrap<{ party: Party }>(res);
   return { status: 'ok', party };
+}
+
+/**
+ * A client's type and history with us — see src/types/clientSnapshot.ts.
+ * Null when this person may not open the client: the card then simply does
+ * not draw, rather than showing an error about a record they cannot see.
+ */
+export async function getClientSnapshot(partyId: string): Promise<ClientSnapshot | null> {
+  const res = await fetch(`/api/parties/${partyId}/snapshot`, { headers: await authHeaders() });
+  if (res.status === 403 || res.status === 404) return null;
+  const { snapshot } = await unwrap<{ snapshot: ClientSnapshot }>(res);
+  return snapshot;
 }
 
 /**

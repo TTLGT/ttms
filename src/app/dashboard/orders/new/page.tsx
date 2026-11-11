@@ -37,8 +37,12 @@ import { blankCommodityItem, commoditySummary, dockLinkedServices, hasVehicleDet
 import type { Accessorial, Address, CommodityItem, StopKind } from '@/types/order';
 import type { Party, PartyRole } from '@/types/party';
 import LeadSourceField from '@/components/orders/LeadSourceField';
-import DateField from '@/components/DateField';
-import DateRangeField, { dateRangeProblem } from '@/components/DateRangeField';
+import { dateRangeProblem } from '@/components/DateRangeField';
+import StopDatesFields from '@/components/orders/StopDatesFields';
+import type { StopDates } from '@/components/orders/StopDatesFields';
+import PartyRolesGuide from '@/components/orders/PartyRolesGuide';
+import LoadFactsFields, { loadFactsForSave, todayIso } from '@/components/orders/LoadFactsFields';
+import type { LoadFacts } from '@/components/orders/LoadFactsFields';
 import { Bi } from '@/components/spanish/Es';
 
 /**
@@ -101,6 +105,13 @@ function NewOrderForm() {
   const [notes, setNotes]               = useState<NotesAndInstructions>(BLANK_NOTES_AND_INSTRUCTIONS);
   const [rawPriceTerms, setPriceTerms] = useState<PriceTerms>(blankPriceTerms);
   const [dockWork, setDockWork]         = useState<DockWork>(BLANK_DOCK_WORK);
+  const [facts, setFacts] = useState<LoadFacts>({ loadType: '', quoteDate: '', clientBudget: '' });
+
+  // Today, filled in once the page is in the browser: this page is
+  // prerendered, and a date worked out at build time would be the build's.
+  useEffect(() => {
+    setFacts((f) => (f.quoteDate ? f : { ...f, quoteDate: todayIso() }));
+  }, []);
 
   // The services and arrangers as saved, with what Loading and Unloading
   // needs added — see the same lines on the edit form.
@@ -135,6 +146,18 @@ function NewOrderForm() {
   // leaves the lines that pointed at it unsaid.
   const removeStop = (kind: StopKind) => (index: number) =>
     setCommodities((items) => remapItemStops(items, kind, afterRemoving(index)));
+
+  // The first pickup's and first delivery's dates, drawn inside their stop in
+  // Route by the same block the extra stops use — see StopDatesFields.
+  function setFirstPickupDates(c: Partial<StopDates>) {
+    if (c.date !== undefined) setPickupDate(c.date);
+    if (c.dateEnd !== undefined) setPickupDateEnd(c.dateEnd);
+    if (c.firstAvailable !== undefined) setFirstAvailable(c.firstAvailable);
+  }
+  function setFirstDeliveryDates(c: Partial<StopDates>) {
+    if (c.date !== undefined) setDeliveryDate(c.date);
+    if (c.dateEnd !== undefined) setDeliveryDateEnd(c.dateEnd);
+  }
 
   useEffect(() => {
     listParties().then(setParties).catch(() => {});
@@ -190,8 +213,8 @@ function NewOrderForm() {
         + 'or add it with its details.');
       return;
     }
-    const badRange = dateRangeProblem('Pickup Date', pickupDate, pickupDateEnd)
-      || dateRangeProblem('Delivery Date', deliveryDate, deliveryDateEnd);
+    const badRange = dateRangeProblem(extraPickups.length ? 'Pickup 1 date' : 'Pickup date', pickupDate, pickupDateEnd)
+      || dateRangeProblem(extraDeliveries.length ? 'Delivery 1 date' : 'Delivery date', deliveryDate, deliveryDateEnd);
     if (badRange) { setError(badRange); return; }
     const badStop = stopLinkProblem('Pickup', 'shipper', { party: shipper, address: origin })
       || stopLinkProblem('Delivery', 'consignee', { party: consignee, address: destination })
@@ -282,6 +305,7 @@ function NewOrderForm() {
         carrierPay:   parseFloat(carrierPay) || 0,
         ...notesAndInstructionsForSave(notes),
         ...priceTermsForSave(priceTerms, effAccessorials),
+        ...loadFactsForSave(facts),
         batsId:             null,
         vehicles:           '',
         transportType:      transportType.trim(),
@@ -349,14 +373,16 @@ function NewOrderForm() {
           {/* General */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">General</h2>
+            <PartyRolesGuide />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Shipper and consignee sit in Route, each above the address
                   it fills — picking one prefills that address, so the two
-                  belong side by side. */}
+                  belong side by side. The dates moved there too
+                  (2026-11-11): each stop carries its own. */}
               <div className="col-span-1 sm:col-span-2 sm:max-w-md">
                 <PartyCombobox
                   role="client"
-                  label="Client (signs the contract)"
+                  label="Client (pays us and signs the SA)"
                   parties={parties}
                   value={client}
                   onChange={setClient}
@@ -364,20 +390,7 @@ function NewOrderForm() {
                   required
                 />
               </div>
-              <div>
-                <label data-es className="block text-xs font-medium text-gray-600 mb-1">First Available Pickup</label>
-                <DateField value={firstAvailable} onChange={setFirstAvailable}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-                <p className="text-xs text-gray-500 mt-1"><Bi>Earliest the client says the freight can be collected.</Bi></p>
-              </div>
-              <DateRangeField label="Pickup Date"
-                start={pickupDate} end={pickupDateEnd}
-                onStartChange={setPickupDate} onEndChange={setPickupDateEnd}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              <DateRangeField label="Delivery Date"
-                start={deliveryDate} end={deliveryDateEnd}
-                onStartChange={setDeliveryDate} onEndChange={setDeliveryDateEnd}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+              <LoadFactsFields value={facts} onChange={setFacts} />
               {/* Whoever writes an order is put on it as an owner, so the
                   creator can always set the source on their own new load. */}
               <LeadSourceField value={sourceId} onChange={setSourceId} canEdit
@@ -419,20 +432,36 @@ function NewOrderForm() {
             <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Route</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <StopPartyFields role="shipper" partyLabel="Shipper (pickup)" addressLabel="Origin"
-                  parties={parties} value={{ party: shipper, address: origin }}
-                  onChange={(v) => { setShipper(v.party); setOrigin(v.address); }}
-                  onPartyCreated={cacheParty} />
+                {/* The first stop in the same box as the extra ones, so a
+                    two-pickup load reads as Pickup 1, Pickup 2. */}
+                <div className="rounded-lg border border-gray-200 p-4 space-y-4">
+                  <p className="text-sm font-semibold text-gray-900">{extraPickups.length ? 'Pickup 1' : 'Pickup'}</p>
+                  <StopPartyFields role="shipper" partyLabel="Shipper" addressLabel="Address"
+                    hint="Where the truck loads — the company at the pickup dock."
+                    parties={parties} value={{ party: shipper, address: origin }}
+                    onChange={(v) => { setShipper(v.party); setOrigin(v.address); }}
+                    onPartyCreated={cacheParty} client={client} />
+                  <StopDatesFields kind="pickup"
+                    value={{ date: pickupDate, dateEnd: pickupDateEnd, firstAvailable }}
+                    onChange={setFirstPickupDates} />
+                </div>
                 <ExtraStopsFields kind="pickup" value={extraPickups} onChange={setExtraPickups}
-                  parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('pickup')} />
+                  parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('pickup')} client={client} />
               </div>
               <div className="space-y-4">
-                <StopPartyFields role="consignee" partyLabel="Consignee (delivery)" addressLabel="Destination"
-                  parties={parties} value={{ party: consignee, address: destination }}
-                  onChange={(v) => { setConsignee(v.party); setDest(v.address); }}
-                  onPartyCreated={cacheParty} />
+                <div className="rounded-lg border border-gray-200 p-4 space-y-4">
+                  <p className="text-sm font-semibold text-gray-900">{extraDeliveries.length ? 'Delivery 1' : 'Delivery'}</p>
+                  <StopPartyFields role="consignee" partyLabel="Consignee" addressLabel="Address"
+                    hint="Where the truck unloads — who receives the freight."
+                    parties={parties} value={{ party: consignee, address: destination }}
+                    onChange={(v) => { setConsignee(v.party); setDest(v.address); }}
+                    onPartyCreated={cacheParty} client={client} />
+                  <StopDatesFields kind="delivery"
+                    value={{ date: deliveryDate, dateEnd: deliveryDateEnd, firstAvailable: '' }}
+                    onChange={setFirstDeliveryDates} />
+                </div>
                 <ExtraStopsFields kind="delivery" value={extraDeliveries} onChange={setExtraDeliveries}
-                  parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('delivery')} />
+                  parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('delivery')} client={client} />
               </div>
             </div>
             <RouteDistanceField

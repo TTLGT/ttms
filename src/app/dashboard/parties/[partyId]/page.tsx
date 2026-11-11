@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { getParty, updateParty, tagPartyRole, addPartyOwners, removePartyOwners, requestPartyAccessById, listPartyHistory } from '@/lib/parties';
 import ChangeHistory from '@/components/history/ChangeHistory';
 import PartyAddressesCard from '@/components/parties/PartyAddressesCard';
+import PartyContactsCard from '@/components/parties/PartyContactsCard';
+import { PartyBillingCard, PartyUpdatesCard } from '@/components/parties/PartyAccountCards';
+import ClientSnapshotView, { useClientSnapshot } from '@/components/parties/ClientSnapshotView';
 import { listOrders } from '@/lib/orders';
 import { listUserProfiles } from '@/lib/userProfiles';
 import { listWorkGroups } from '@/lib/workGroups';
@@ -30,7 +33,7 @@ import { leadSourceLabel, listLeadSources } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { Bi } from '@/components/spanish/Es';
-import { Building2, Contact, History, Package, PencilLine, StickyNote, UsersRound, Warehouse } from 'lucide-react';
+import { BarChart3, Building2, Contact, History, Package, PencilLine, StickyNote, UsersRound, Warehouse } from 'lucide-react';
 import OrderSection from '@/components/orders/OrderSection';
 import OrderSidePanel, { RailItem } from '@/components/orders/OrderSidePanel';
 import RecordHero, { AttentionCard, EditBar, HeroBadge, RailCard, RecordColumns } from '@/components/records/RecordHero';
@@ -151,6 +154,9 @@ export default function PartyDetailPage() {
   // details without being able to change who gets credited for winning it.
   const canEditThisSource = !!user && !!party && canEditSource(party, user.uid, profile);
   const isClient = (party?.roles ?? []).includes('client');
+  // Asked for only once the record has opened as a client — a shipper has no
+  // client history, and a denied record has nothing to ask about.
+  const snapshot = useClientSnapshot(party && isClient ? partyId : null);
 
   useEffect(() => {
     (async () => {
@@ -634,6 +640,26 @@ export default function PartyDetailPage() {
         )}
 
         {editing && <EditBar saving={saving} onSave={handleSave} onCancel={() => setEditing(false)} label="Save" />}
+
+        {/* The 2026-11-11 client cards. Each saves on its own through the
+            ordinary party save, so the big Edit form above is untouched.
+            Contacts are on every party; the rest only mean something on a
+            client. */}
+        {isClient && snapshot && (
+          <OrderSection id="snapshot" icon={BarChart3} tone="violet" title="Client snapshot">
+            <ClientSnapshotView snap={snapshot} />
+          </OrderSection>
+        )}
+        <PartyContactsCard party={party} canEdit={!editing}
+          onChange={(contacts) => setParty((prev) => (prev ? { ...prev, contacts } : prev))} />
+        {isClient && (
+          <>
+            <PartyBillingCard party={party} canEdit={!editing}
+              onChange={(patch) => setParty((prev) => (prev ? { ...prev, ...patch } : prev))} />
+            <PartyUpdatesCard party={party} canEdit={!editing}
+              onChange={(patch) => setParty((prev) => (prev ? { ...prev, ...patch } : prev))} />
+          </>
+        )}
 
         {/* Shown to whoever can open the record. Edit and remove are refused by
             the server for somebody using it under an approval, the same as

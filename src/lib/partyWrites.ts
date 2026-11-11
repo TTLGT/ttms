@@ -21,10 +21,12 @@
 
 import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb, AdminAuthError } from './firebase-admin';
-import { canEditSource, canSeeParty } from './accessControl';
+import { can, canEditSource, canSeeParty } from './accessControl';
 import { actorOf, diffFields, sameValue, writeChange } from './recordHistory';
 import type { Caller } from './partyAccess';
-import { PARTY_ROLES, partyPhoneKeys, toNameKey, type PartyRole } from '@/types/party';
+import {
+  PARTY_ROLES, cleanContacts, cleanUpdatePrefs, isPaymentTerms, partyPhoneKeys, toNameKey, type PartyRole,
+} from '@/types/party';
 import { phoneRegionOf } from './phone';
 import { cleanPartyLocations, newLocationId, sameAddress } from '@/types/partyAddress';
 import type { Address } from '@/types/order';
@@ -89,6 +91,24 @@ export async function updatePartyAsCaller(
     patch.defaultOrigin = null;
     patch.defaultDest   = null;
   }
+
+  // Credit with our factoring company is a finance decision, not a detail a
+  // broker keeps up to date — so marking or unmarking a credit client is
+  // admin and finance only (orders.payments), whoever else may edit the record.
+  if ('creditClient' in patch) {
+    patch.creditClient = patch.creditClient === true;
+    if (!sameValue(before.creditClient === true, patch.creditClient) && !can(caller.profile, 'orders.payments')) {
+      throw new AdminAuthError('Only admin and finance can mark a credit client.', 403);
+    }
+  }
+
+  // The 2026-11-11 client fields, stored only in their own shapes. The
+  // contacts list in particular decides who gets the SA (saContactIndex()),
+  // so it is never stored as whatever JSON the browser sent.
+  if ('contacts' in patch) patch.contacts = cleanContacts(patch.contacts, newLocationId);
+  if ('paymentTerms' in patch) patch.paymentTerms = isPaymentTerms(patch.paymentTerms) ? patch.paymentTerms : null;
+  if ('updatePrefs' in patch) patch.updatePrefs = patch.updatePrefs === null ? null : cleanUpdatePrefs(patch.updatePrefs);
+  if ('billingNotes' in patch) patch.billingNotes = typeof patch.billingNotes === 'string' ? patch.billingNotes.trim().slice(0, 1000) : '';
 
   // A stored region is checked against the catalog, as POST /api/parties does:
   // an unknown string would key the number as though it were American.

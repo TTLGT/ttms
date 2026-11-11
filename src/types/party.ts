@@ -20,11 +20,170 @@ export const ROLE_LABEL: Record<PartyRole, string> = {
   consignee: 'Consignee',
 };
 
+/**
+ * One more person at a client, shipper or consignee, beside the record's own
+ * main contact (`contactName` / `email` / `phone`).
+ *
+ * Grown on 2026-11-11 from the four strings BATS imported into a card people
+ * edit on the party page (PartyContactsCard). Every new key is optional, so a
+ * BATS contact reads exactly as it did. The list is cleaned on the server by
+ * cleanContacts() below before it is stored.
+ */
 export interface Contact {
+  /**
+   * Set on every contact added from the card. Absent on BATS imports, and that
+   * absence is meaningful — see saContactIndex(): an imported contact keeps
+   * the SA it has always received, a new one never takes it by accident.
+   */
+  id?: string;
   name: string;
   email: string;
   phone: string;
+  /** Which country `phone` is in — the same contract as Party.phoneRegion. */
+  phoneRegion?: PhoneRegion;
+  /** Title or position: "Finance", "Warehouse manager". Free text with suggestions. */
   role: string;
+  /**
+   * Which of the party's addresses this person is at — location ids from
+   * partyLocations() (MAIN_LOCATION_ID for the main one). Empty means all of
+   * them, or not said.
+   */
+  addressIds?: string[];
+  /** Can say yes to a rate or a new lane. A label for the broker; it grants nothing. */
+  decisionMaker?: boolean;
+  /**
+   * The SA goes to this person instead of the main contact. At most one per
+   * party — cleanContacts() keeps the first.
+   */
+  saSigner?: boolean;
+  /** Invoices and payment questions go to this person. Any number may be ticked. */
+  billing?: boolean;
+  /** Wants the load updates — see UpdatePrefs. */
+  updates?: boolean;
+}
+
+/** Positions offered as suggestions in the contact card. Free text is still allowed. */
+export const CONTACT_POSITIONS = [
+  'Owner', 'CEO', 'President', 'General manager', 'Operations manager', 'Logistics manager',
+  'Logistics coordinator', 'Traffic manager', 'Shipping clerk', 'Receiving clerk',
+  'Warehouse manager', 'Dock supervisor', 'Supervisor', 'Plant manager', 'Purchasing / buyer',
+  'Procurement manager', 'Sales representative', 'Customer service', 'Finance', 'Billing',
+  'Accounts payable', 'Controller', 'Office manager', 'Dispatcher', 'Security / gate', 'IT',
+] as const;
+
+export const MAX_CONTACTS = 25;
+
+/**
+ * Who on a party receives its SA (and its BOL copy): the index into
+ * `contacts`, or -1 for the record's own main email.
+ *
+ * 1. A contact ticked "Signs the SA", with an email.
+ * 2. Otherwise the first *imported* contact (no `id`) with an email — the
+ *    rule clientContactOf() always used, kept so no live client's SA changes
+ *    recipient because this card shipped.
+ * 3. Otherwise -1, the main contact.
+ *
+ * A contact added from the card is never picked by rule 2. Before, the first
+ * contact with an email took the SA, so adding a Finance person to a client
+ * would have quietly sent the next SA to Finance.
+ *
+ * The one definition — clientContactOf(), the review's "update the client"
+ * path and the BOL's party address all read it.
+ */
+export function saContactIndex(contacts: readonly Partial<Contact>[] | null | undefined): number {
+  const list = Array.isArray(contacts) ? contacts : [];
+  const hasEmail = (c: Partial<Contact>) => typeof c?.email === 'string' && !!c.email.trim();
+  const ticked = list.findIndex((c) => c?.saSigner === true && hasEmail(c));
+  if (ticked >= 0) return ticked;
+  return list.findIndex((c) => !c?.id && hasEmail(c));
+}
+
+/**
+ * A contact list as it arrived in a save, made safe to store: at most
+ * MAX_CONTACTS, every field its expected type, blank rows dropped, one SA
+ * signer at most. A row added from the card arrives with `isNew` and gets an
+ * id from `newId`; imported rows keep having none — see Contact.id.
+ */
+export function cleanContacts(value: unknown, newId: () => string): Contact[] {
+  if (!Array.isArray(value)) return [];
+  const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  let signer = false;
+  const out: Contact[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== 'object') continue;
+    const c = raw as Record<string, unknown>;
+    const row: Contact = {
+      name:  text(c.name, 120),
+      email: text(c.email, 200),
+      phone: text(c.phone, 40),
+      role:  text(c.role, 80),
+    };
+    if (!row.name && !row.email && !row.phone) continue;
+    const id = text(c.id, 40) || (c.isNew === true ? newId() : '');
+    if (id) row.id = id;
+    if (c.phoneRegion) row.phoneRegion = phoneRegionOf(c.phoneRegion);
+    const ids = Array.isArray(c.addressIds) ? c.addressIds.filter((x): x is string => typeof x === 'string').slice(0, 20) : [];
+    if (ids.length) row.addressIds = ids;
+    if (c.decisionMaker === true) row.decisionMaker = true;
+    if (c.billing === true) row.billing = true;
+    if (c.updates === true) row.updates = true;
+    if (c.saSigner === true && !signer && row.email) { row.saSigner = true; signer = true; }
+    out.push(row);
+    if (out.length >= MAX_CONTACTS) break;
+  }
+  return out;
+}
+
+/**
+ * How the client pays us (2026-11-11). Set on the client record and shown on
+ * every load of theirs; the order does not copy it, because terms are agreed
+ * with the client, not per load.
+ */
+export const PAYMENT_TERMS = ['prepaid', 'cod', 'quick_pay', 'net_7', 'net_15', 'net_30', 'net_45', 'net_60'] as const;
+export type PaymentTerms = (typeof PAYMENT_TERMS)[number];
+export const PAYMENT_TERMS_LABEL: Record<PaymentTerms, string> = {
+  prepaid:   'Prepaid — pays before pickup',
+  cod:       'COD — pays on delivery',
+  quick_pay: 'Quick pay — within 2 days of delivery',
+  net_7:     'Net 7',
+  net_15:    'Net 15',
+  net_30:    'Net 30',
+  net_45:    'Net 45',
+  net_60:    'Net 60',
+};
+export function isPaymentTerms(v: unknown): v is PaymentTerms {
+  return (PAYMENT_TERMS as readonly unknown[]).includes(v);
+}
+
+/** How and how often a client wants to hear about their loads. */
+export const UPDATE_CHANNELS = ['email', 'text', 'call', 'whatsapp', 'portal'] as const;
+export type UpdateChannel = (typeof UPDATE_CHANNELS)[number];
+export const UPDATE_CHANNEL_LABEL: Record<UpdateChannel, string> = {
+  email: 'Email', text: 'Text message', call: 'Phone call', whatsapp: 'WhatsApp', portal: 'Their own portal',
+};
+export const UPDATE_FREQUENCIES = ['every_step', 'pickup_delivery', 'daily', 'delays_only', 'on_request'] as const;
+export type UpdateFrequency = (typeof UPDATE_FREQUENCIES)[number];
+export const UPDATE_FREQUENCY_LABEL: Record<UpdateFrequency, string> = {
+  every_step:      'At every step',
+  pickup_delivery: 'At pickup and delivery',
+  daily:           'Once a day while moving',
+  delays_only:     'Only when something goes wrong',
+  on_request:      'Only when they ask',
+};
+export interface UpdatePrefs {
+  channels: UpdateChannel[];
+  frequency: UpdateFrequency | null;
+  /** Anything else: "call before 10am Central", "cc their customer". */
+  note: string;
+}
+
+/** Stored shape, whatever arrived. */
+export function cleanUpdatePrefs(value: unknown): UpdatePrefs {
+  const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  const asked = Array.isArray(v.channels) ? (v.channels as unknown[]) : [];
+  const channels = UPDATE_CHANNELS.filter((c) => asked.includes(c));
+  const frequency = (UPDATE_FREQUENCIES as readonly unknown[]).includes(v.frequency) ? v.frequency as UpdateFrequency : null;
+  return { channels, frequency, note: typeof v.note === 'string' ? v.note.trim().slice(0, 500) : '' };
 }
 
 export interface Party {
@@ -120,6 +279,18 @@ export interface Party {
    */
   sourceName: string;
   notes: string;
+  /** How the client pays us. Absent = not said. See PAYMENT_TERMS. */
+  paymentTerms?: PaymentTerms | null;
+  /**
+   * Approved for our Credit services with our factoring company — a credit
+   * client. Set only by `orders.payments` (admin, finance): it is a finance
+   * decision, enforced in updatePartyAsCaller().
+   */
+  creditClient?: boolean;
+  /** Invoice instructions: a portal to upload to, a PO that must be quoted. */
+  billingNotes?: string;
+  /** How and how often they want load updates. Absent = not said. */
+  updatePrefs?: UpdatePrefs | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

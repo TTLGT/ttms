@@ -147,7 +147,7 @@ export function orderNextSteps(order: Partial<Order>, facts: NextStepFacts = {})
     out.push({
       key: 'pastDates', level: 'bad', title: 'Dates are in the past',
       text: `The ${list} date${lateStops.length > 1 ? 's have' : ' has'} passed and the load has not moved. Put in the new dates — the SA and Dispatch Sheet will need sending again.`,
-      fix: { kind: 'edit', section: 'general', field: 'pickupDate' },
+      fix: { kind: 'edit', section: 'route', field: 'pickupDate' },
     });
   }
 

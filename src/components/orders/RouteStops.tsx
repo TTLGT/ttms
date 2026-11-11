@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, CalendarDays, GitCommitVertical, Table2 } from 'lucide-react';
+import { ArrowRight, CalendarDays, GitCommitVertical, PackageCheck, Table2 } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { useRouteView, type RouteView } from '@/lib/routeView';
 import { orderDeliveries, orderPickups, type Order, type OrderStop, type StopKind } from '@/types/order';
@@ -69,16 +69,18 @@ export function RouteViewSwitch() {
  *    one-pickup, one-delivery loads most of the book is;
  *  - an itinerary table, one row a stop, for scanning many-stop loads.
  *
- * Each stop's date is shown even on a one-pickup, one-delivery load: the
- * General card has them too, but a stop read without its day is half an
- * appointment.
+ * Each stop's date is shown here and only here since 2026-11-11 — the
+ * General card used to repeat the first stop's, which on a many-stop load
+ * read as the whole trip's. A pickup also shows the first day its freight is
+ * ready, when the client gave one.
  */
 export default function RouteStops({ order, orderId, partyById }: {
   order: Order;
   orderId: string;
   partyById: Record<string, Party | undefined>;
 }) {
-  const { formatDateRange } = useDateFormatters();
+  const { formatDate, formatDateRange } = useDateFormatters();
+  const readyFrom = (r: Row) => (r.kind === 'pickup' ? formatDate(r.stop.firstAvailable ?? null, '') : '');
   const { view } = useRouteView();
   const pickups = orderPickups(order);
   const deliveries = orderDeliveries(order);
@@ -129,7 +131,10 @@ export default function RouteStops({ order, orderId, partyById }: {
                       {street || city ? (<>{street && <div>{street}</div>}{city && <div className={street ? 'text-gray-500' : ''}>{city}</div>}</>)
                         : <span data-es className="text-amber-700">No address</span>}
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-gray-700">{formatDateRange(r.stop.date, r.stop.dateEnd)}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap tabular-nums text-gray-700">
+                      {formatDateRange(r.stop.date, r.stop.dateEnd)}
+                      {readyFrom(r) && <div className="text-xs text-gray-500">Ready from {readyFrom(r)}</div>}
+                    </td>
                     <td className="px-3 py-2.5"><TimeZoneBadge address={r.stop.address} on={r.stop.date} /></td>
                   </tr>
                 );
@@ -180,7 +185,15 @@ export default function RouteStops({ order, orderId, partyById }: {
                       </>
                     ) : <p data-es className="text-amber-700">No address</p>}
                   </div>
-                  <TimeZoneBadge address={r.stop.address} on={r.stop.date} className="mt-1.5" />
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    <TimeZoneBadge address={r.stop.address} on={r.stop.date} />
+                    {readyFrom(r) && (
+                      <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                        <PackageCheck className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+                        Ready from {readyFrom(r)}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </li>
             );

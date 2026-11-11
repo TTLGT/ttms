@@ -1,5 +1,6 @@
 import { adminDb } from './firebase-admin';
 import type { ReadinessFacts } from '@/types/orderReadiness';
+import { saContactIndex } from '@/types/party';
 
 /**
  * The facts `orderReadiness()` needs from other records, read with the Admin
@@ -16,7 +17,8 @@ export async function clientContactOf(clientId: unknown): Promise<{ name: string
   if (!snap.exists) return null;
   const client = snap.data()!;
   const contacts: { name?: string; email?: string }[] = Array.isArray(client.contacts) ? client.contacts : [];
-  const named = contacts.find((c) => c.email?.trim());
+  // The contact ticked "Signs the SA", else an imported one — see saContactIndex().
+  const named = contacts[saContactIndex(contacts)];
   const companyName = String(client.companyName || client.contactName || '');
   if (named) return { name: named.name ?? '', email: named.email!.trim(), companyName };
   if (typeof client.email === 'string' && client.email.trim()) {

@@ -35,8 +35,12 @@ import LeadSourceField from '@/components/orders/LeadSourceField';
 import { canEditSource } from '@/lib/accessControl';
 import { toDate } from '@/lib/dateFormat';
 import { useAuth } from '@/context/AuthContext';
-import DateField from '@/components/DateField';
-import DateRangeField, { dateRangeProblem } from '@/components/DateRangeField';
+import { dateRangeProblem } from '@/components/DateRangeField';
+import StopDatesFields from '@/components/orders/StopDatesFields';
+import type { StopDates } from '@/components/orders/StopDatesFields';
+import PartyRolesGuide from '@/components/orders/PartyRolesGuide';
+import LoadFactsFields, { loadFactsForSave, loadFactsFromOrder } from '@/components/orders/LoadFactsFields';
+import type { LoadFacts } from '@/components/orders/LoadFactsFields';
 import { ORDER_SECTION_LABEL, isOrderSection } from '@/components/orders/SectionEditLink';
 import type { OrderSection } from '@/components/orders/SectionEditLink';
 import { Bi } from '@/components/spanish/Es';
@@ -119,6 +123,7 @@ export default function EditOrderPage() {
   const [notes, setNotes]               = useState<NotesAndInstructions>(BLANK_NOTES_AND_INSTRUCTIONS);
   const [rawPriceTerms, setPriceTerms] = useState<PriceTerms>(blankPriceTerms);
   const [dockWork, setDockWork] = useState<DockWork>(BLANK_DOCK_WORK);
+  const [facts, setFacts] = useState<LoadFacts>({ loadType: '', quoteDate: '', clientBudget: '' });
 
   /*
    * The services and arrangers as they will be saved: what is ticked, plus
@@ -166,6 +171,18 @@ export default function EditOrderPage() {
   // leaves the lines that pointed at it unsaid.
   const removeStop = (kind: StopKind) => (index: number) =>
     setCommodities((items) => remapItemStops(items, kind, afterRemoving(index)));
+
+  // The first pickup's and first delivery's dates, drawn inside their stop in
+  // Route by the same block the extra stops use — see StopDatesFields.
+  function setFirstPickupDates(c: Partial<StopDates>) {
+    if (c.date !== undefined) setPickupDate(c.date);
+    if (c.dateEnd !== undefined) setPickupDateEnd(c.dateEnd);
+    if (c.firstAvailable !== undefined) setFirstAvailable(c.firstAvailable);
+  }
+  function setFirstDeliveryDates(c: Partial<StopDates>) {
+    if (c.date !== undefined) setDeliveryDate(c.date);
+    if (c.dateEnd !== undefined) setDeliveryDateEnd(c.dateEnd);
+  }
 
   useEffect(() => {
     async function load() {
@@ -231,6 +248,7 @@ export default function EditOrderPage() {
         });
         setPriceTerms(priceTermsFromOrder(o));
         setDockWork(dockWorkFromOrder(o));
+        setFacts(loadFactsFromOrder(o, (v) => tsToDateStr(v as Order['pickupDate'])));
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : 'Failed to load order');
       } finally {
@@ -303,9 +321,10 @@ export default function EditOrderPage() {
     ] as const).filter(([role]) => shows(role === 'client' ? 'general' : 'route'));
     const unbound = unboundParties(partyBoxes);
     if (unbound.length) { setError(unboundMessage(unbound)); return; }
-    const badRange = shows('general')
-      ? dateRangeProblem('Pickup Date', pickupDate, pickupDateEnd)
-        || dateRangeProblem('Delivery Date', deliveryDate, deliveryDateEnd)
+    // The first stop's dates are part of Route since 2026-11-11.
+    const badRange = shows('route')
+      ? dateRangeProblem(extraPickups.length ? 'Pickup 1 date' : 'Pickup date', pickupDate, pickupDateEnd)
+        || dateRangeProblem(extraDeliveries.length ? 'Delivery 1 date' : 'Delivery date', deliveryDate, deliveryDateEnd)
       : '';
     if (badRange) { setError(badRange); return; }
     const badStop = shows('route')
@@ -379,11 +398,7 @@ export default function EditOrderPage() {
           // any touch of it from someone who is neither an admin nor an owner —
           // which would fail the whole save, not just this field.
           ...(canEditThisSource ? { sourceId } : {}),
-          firstAvailablePickup: ts(firstAvailable),
-          pickupDate:      ts(pickupDate),
-          deliveryDate:    ts(deliveryDate),
-          pickupDateEnd:   ts(pickupDateEnd),
-          deliveryDateEnd: ts(deliveryDateEnd),
+          ...loadFactsForSave(facts),
         },
         freight: {
           commodity:    commoditySummary(commodityItems),
@@ -423,6 +438,13 @@ export default function EditOrderPage() {
           extraDeliveries: stopsForSave(extraDeliveries),
           origin,
           destination,
+          // The first stop's dates, drawn inside that stop since 2026-11-11 —
+          // saved with Route, the card they are now edited from.
+          firstAvailablePickup: ts(firstAvailable),
+          pickupDate:      ts(pickupDate),
+          deliveryDate:    ts(deliveryDate),
+          pickupDateEnd:   ts(pickupDateEnd),
+          deliveryDateEnd: ts(deliveryDateEnd),
           routeMapUrl:  routeMapUrl.trim(),
           laneMiles:       distance.laneMiles,
           laneMilesSource: distance.laneMilesSource,
@@ -489,31 +511,16 @@ export default function EditOrderPage() {
           {/* General */}
           <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">General</h2>
+            <PartyRolesGuide />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Shipper and consignee sit in Route, above their addresses —
-                  same layout as the new-order form. */}
+                  same layout as the new-order form. So do the dates, inside
+                  each stop (2026-11-11). */}
               <div id="field-client" className="col-span-1 sm:col-span-2 sm:max-w-md">
-                <PartyCombobox role="client"    label="Client (signs the contract)" parties={parties}
+                <PartyCombobox role="client"    label="Client (pays us and signs the SA)" parties={parties}
                   value={client}    onChange={setClient}    onPartyCreated={cacheParty} required />
               </div>
-              <div>
-                <label data-es className="block text-xs font-medium text-gray-600 mb-1">First Available Pickup</label>
-                <DateField value={firstAvailable} onChange={setFirstAvailable}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-                <p className="text-xs text-gray-500 mt-1"><Bi>Earliest the client says the freight can be collected.</Bi></p>
-              </div>
-              <div id="field-pickupDate">
-                <DateRangeField label="Pickup Date"
-                  start={pickupDate} end={pickupDateEnd}
-                  onStartChange={setPickupDate} onEndChange={setPickupDateEnd}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              </div>
-              <div id="field-deliveryDate">
-                <DateRangeField label="Delivery Date"
-                  start={deliveryDate} end={deliveryDateEnd}
-                  onStartChange={setDeliveryDate} onEndChange={setDeliveryDateEnd}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
-              </div>
+              <LoadFactsFields value={facts} onChange={setFacts} />
               <LeadSourceField
                 value={sourceId}
                 onChange={setSourceId}
@@ -573,20 +580,40 @@ export default function EditOrderPage() {
             <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Route</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-4">
-                <StopPartyFields role="shipper" partyLabel="Shipper (pickup)" addressLabel="Origin"
-                  parties={parties} value={{ party: shipper, address: origin }}
-                  onChange={(v) => { setShipper(v.party); setOrigin(v.address); }}
-                  onPartyCreated={cacheParty} partyFieldId="field-shipper" addressFieldId="field-origin" />
+                {/* The first stop in the same box as the extra ones, so a
+                    two-pickup load reads as Pickup 1, Pickup 2. */}
+                <div className="rounded-lg border border-gray-200 p-4 space-y-4">
+                  <p className="text-sm font-semibold text-gray-900">{extraPickups.length ? 'Pickup 1' : 'Pickup'}</p>
+                  <StopPartyFields role="shipper" partyLabel="Shipper" addressLabel="Address"
+                    hint="Where the truck loads — the company at the pickup dock."
+                    parties={parties} value={{ party: shipper, address: origin }}
+                    onChange={(v) => { setShipper(v.party); setOrigin(v.address); }}
+                    onPartyCreated={cacheParty} partyFieldId="field-shipper" addressFieldId="field-origin"
+                    client={client} />
+                  <StopDatesFields kind="pickup"
+                    value={{ date: pickupDate, dateEnd: pickupDateEnd, firstAvailable }}
+                    onChange={setFirstPickupDates}
+                    dateFieldId="field-pickupDate" firstAvailableFieldId="field-firstAvailable" />
+                </div>
                 <ExtraStopsFields kind="pickup" value={extraPickups} onChange={setExtraPickups}
-                  parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('pickup')} />
+                  parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('pickup')} client={client} />
               </div>
               <div className="space-y-4">
-                <StopPartyFields role="consignee" partyLabel="Consignee (delivery)" addressLabel="Destination"
-                  parties={parties} value={{ party: consignee, address: destination }}
-                  onChange={(v) => { setConsignee(v.party); setDest(v.address); }}
-                  onPartyCreated={cacheParty} partyFieldId="field-consignee" addressFieldId="field-destination" />
+                <div className="rounded-lg border border-gray-200 p-4 space-y-4">
+                  <p className="text-sm font-semibold text-gray-900">{extraDeliveries.length ? 'Delivery 1' : 'Delivery'}</p>
+                  <StopPartyFields role="consignee" partyLabel="Consignee" addressLabel="Address"
+                    hint="Where the truck unloads — who receives the freight."
+                    parties={parties} value={{ party: consignee, address: destination }}
+                    onChange={(v) => { setConsignee(v.party); setDest(v.address); }}
+                    onPartyCreated={cacheParty} partyFieldId="field-consignee" addressFieldId="field-destination"
+                    client={client} />
+                  <StopDatesFields kind="delivery"
+                    value={{ date: deliveryDate, dateEnd: deliveryDateEnd, firstAvailable: '' }}
+                    onChange={setFirstDeliveryDates}
+                    dateFieldId="field-deliveryDate" />
+                </div>
                 <ExtraStopsFields kind="delivery" value={extraDeliveries} onChange={setExtraDeliveries}
-                  parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('delivery')} />
+                  parties={parties} onPartyCreated={cacheParty} onRemove={removeStop('delivery')} client={client} />
               </div>
             </div>
             <RouteDistanceField

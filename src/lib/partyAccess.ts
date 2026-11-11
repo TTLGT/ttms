@@ -74,6 +74,13 @@ export interface VisibleParty {
   sourceId: string | null;
   sourceName: string;
   notes: string;
+  phoneRegion?: unknown;
+  phone2Region?: unknown;
+  contacts: unknown[];
+  paymentTerms: string | null;
+  creditClient: boolean;
+  billingNotes: string;
+  updatePrefs: unknown;
 }
 
 export function toVisibleParty(id: string, d: FirebaseFirestore.DocumentData): VisibleParty {
@@ -102,6 +109,16 @@ export function toVisibleParty(id: string, d: FirebaseFirestore.DocumentData): V
     sourceId:           d.sourceId           ?? null,
     sourceName:         d.sourceName         ?? '',
     notes:              d.notes              ?? '',
+    // Added 2026-11-11. The two regions were never sent, so every number read
+    // as American on screen whatever country it was typed under; the contacts
+    // were never sent either, so the order page had nobody but the main one.
+    phoneRegion:        d.phoneRegion,
+    phone2Region:       d.phone2Region,
+    contacts:           Array.isArray(d.contacts) ? d.contacts : [],
+    paymentTerms:       typeof d.paymentTerms === 'string' ? d.paymentTerms : null,
+    creditClient:       d.creditClient === true,
+    billingNotes:       d.billingNotes       ?? '',
+    updatePrefs:        d.updatePrefs        ?? null,
   };
 }
 

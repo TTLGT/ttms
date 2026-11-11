@@ -9,6 +9,7 @@ import { getVisibleOrder } from './orderAccess';
 import { actorOf, diffFields, writeChange } from './recordHistory';
 import { clientContactOf, readinessFactsFor } from './orderReadinessServer';
 import { updatePartyAsCaller } from './partyWrites';
+import { saContactIndex } from '@/types/party';
 import {
   archiveRound, bringIntoOrderRoom, buildSaReview, newRoundId, requestRef, reviewersWhoSeeEverything,
   saGateFactsFor, toSaRequest,
@@ -384,7 +385,7 @@ async function setSaRecipient(
     if (!party) return NextResponse.json({ error: 'Client not found.' }, { status: 404 });
     const contacts = Array.isArray(party.contacts) ? [...(party.contacts as Record<string, unknown>[])] : [];
     // The same "main contact" the send has always used — clientContactOf().
-    const i = contacts.findIndex((c) => typeof c?.email === 'string' && c.email.trim());
+    const i = saContactIndex(contacts);
     const patch: Record<string, unknown> = {};
     if (i >= 0) {
       contacts[i] = { ...contacts[i], email: next.email, ...(next.name ? { name: next.name } : {}) };

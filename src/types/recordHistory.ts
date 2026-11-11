@@ -180,6 +180,14 @@ const LABELS: Record<string, string> = {
   defaultDest: 'Default delivery',
   sourceId: 'Lead source',
   sourceName: 'Lead source (BATS)',
+  contacts: 'Contacts',
+  paymentTerms: 'Payment terms',
+  creditClient: 'Credit client',
+  billingNotes: 'Billing instructions',
+  updatePrefs: 'Load update preferences',
+  loadType: 'Load type',
+  quoteDate: 'Quote date',
+  clientBudget: 'Client budget',
   // Carriers
   dot: 'DOT number',
   mc: 'MC number',
@@ -209,7 +217,7 @@ export function changeFieldLabel(field: string): string {
 }
 
 const MONEY_FIELDS = new Set([
-  'agreedRate', 'brokerFee', 'carrierPay', 'commodityValue',
+  'agreedRate', 'brokerFee', 'carrierPay', 'commodityValue', 'clientBudget',
   'insuranceCoverage', 'insuranceCargoCoverage',
 ]);
 
@@ -229,7 +237,7 @@ const OPAQUE_FIELDS = new Set([
 const STOP_FIELDS = new Set(['extraPickups', 'extraDeliveries']);
 
 const DATE_FIELDS = new Set([
-  'firstAvailablePickup', 'pickupDate', 'deliveryDate', 'pickupDateEnd',
+  'firstAvailablePickup', 'quoteDate', 'pickupDate', 'deliveryDate', 'pickupDateEnd',
   'deliveryDateEnd', 'dispatchedAt', 'pickedUpAt', 'deliveredAt',
   'insuranceExpiration', 'carrierSignedAt', 'shipperSignedAt', 'signatureWaivedAt',
 ]);
