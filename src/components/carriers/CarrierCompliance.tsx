@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Timestamp } from 'firebase/firestore';
+import { Contact, Landmark, Mail, Phone, ShieldCheck, User } from 'lucide-react';
+import { fmcsaConcerns, fmcsaLevel } from '@/types/fmcsa';
+import { FixList, HealthChecks, showPart, type FixItem, type HealthCheck } from '@/components/orders/DetailBits';
 import { getCarrier, updateCarrier } from '@/lib/carriers';
 import { carrierMainContact, carrierNumber, formatCoverage, getInsuranceStatus, parseCoverageInput } from '@/types/carrier';
 import type { Carrier } from '@/types/carrier';
@@ -61,6 +64,7 @@ export default function CarrierCompliance({
   carrierId,
   nameCell,
   driverRow,
+  paperChecks,
   onCarrier,
 }: {
   carrierId: string;
@@ -68,6 +72,12 @@ export default function CarrierCompliance({
   nameCell?: React.ReactNode;
   /** The load's driver, drawn between the carrier's contact and its insurance. */
   driverRow?: React.ReactNode;
+  /**
+   * The load's own checks — the Dispatch Sheet and the driver link — drawn
+   * after this card's FMCSA and insurance ones, in the row of four along
+   * the top. The order page owns those facts, so it hands them in.
+   */
+  paperChecks?: HealthCheck[];
   /**
    * The carrier as this card currently holds it — on load, and again after
    * every FMCSA check or save. The order's Next step card reads FMCSA from
@@ -92,6 +102,11 @@ export default function CarrierCompliance({
   const [coverage, setCoverage] = useState('');
   const [cargo, setCargo]       = useState('');
   const [saving, setSaving]     = useState(false);
+  // Where each "things to fix" button takes you. Declared up here, before
+  // the early return below, as hooks must be.
+  const fmcsaRef = useRef<HTMLDivElement>(null);
+  const insuranceRef = useRef<HTMLDivElement>(null);
+  const numbersRef = useRef<HTMLDivElement>(null);
 
   const canEdit = can('carriers.edit');
 
@@ -288,10 +303,174 @@ export default function CarrierCompliance({
     </>
   );
 
+  const fmcsaPanel = (
+    <FmcsaPanel
+      carrierId={carrierId}
+      check={carrier.fmcsa}
+      dot={dotOnFile}
+      mc={mcOnFile}
+      autoCheck
+      compact
+      onChecked={(fmcsa) => setCarrier((prev) => (prev ? { ...prev, fmcsa } : prev))}
+      carrier={dirty ? undefined : carrier}
+      onFilled={(updates) => {
+        const next = { ...carrier, ...updates };
+        setCarrier(next);
+        resetFrom(next);
+      }}
+    />
+  );
+
+  const saveBar = (
+    <>
+      {dirty && (
+        <div className="flex flex-wrap items-center gap-2">
+          {wide && <span data-es className="text-xs font-medium text-amber-700">Unsaved changes to the carrier</span>}
+          <button type="button" onClick={handleSave} disabled={saving}
+            className="px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition">
+            {saving ? 'Saving…' : 'Save to carrier'}
+          </button>
+          <button type="button" disabled={saving}
+            onClick={() => { resetFrom(carrier); setError(''); }}
+            className="px-3 py-1.5 border border-gray-300 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition">
+            Undo
+          </button>
+        </div>
+      )}
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </>
+  );
+
+  // The order page (2026-11-11): the carrier's name large with its numbers
+  // beside it, FMCSA's verdict straight under that, then the contact, the
+  // driver and the insurance each in a titled tile of its own — where they
+  // used to be three unlabelled rows of three that read as one grid.
+  if (wide) {
+    const insuranceTone = status === 'expired' ? 'red' : status === 'expiring_soon' ? 'amber' : carrier.insuranceExpiration ? 'green' : 'gray';
+    const insuranceWord = status === 'expired' ? 'Expired' : status === 'expiring_soon' ? 'Expires soon' : carrier.insuranceExpiration ? 'In date' : 'Not on record';
+    const pill = {
+      red: 'bg-red-50 text-red-700 border-red-200', amber: 'bg-amber-50 text-amber-800 border-amber-200',
+      green: 'bg-green-50 text-green-700 border-green-200', gray: 'bg-gray-100 text-gray-600 border-gray-200',
+    }[insuranceTone];
+    const tileCls = 'rounded-xl border border-gray-200 bg-gray-50 p-4';
+    const tileTitle = (Icon: typeof User, title: string, aside?: React.ReactNode) => (
+      <div className="mb-3 flex items-center gap-2">
+        <Icon className="h-4 w-4 shrink-0 text-gray-400" />
+        <p data-es className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-gray-500">{title}</p>
+        {aside}
+      </div>
+    );
+    // FMCSA's verdict, by the same rules as the panel below it.
+    const concerns = carrier.fmcsa ? fmcsaConcerns(carrier.fmcsa, mcOnFile) : [];
+    const level = carrier.fmcsa ? fmcsaLevel(concerns) : null;
+    const bad = concerns.filter((c) => c.level === 'bad');
+    const checks: HealthCheck[] = [
+      {
+        key: 'fmcsa', label: 'FMCSA', icon: Landmark,
+        ...(level === 'bad' ? { status: 'Problem found', tone: 'red' as const }
+          : level === 'warn' ? { status: 'Look first', tone: 'amber' as const }
+          : level === 'ok' ? { status: 'All clear', tone: 'green' as const }
+          : { status: 'Not checked', tone: 'gray' as const }),
+      },
+      { key: 'insurance', label: 'Insurance', icon: ShieldCheck, status: insuranceWord, tone: insuranceTone === 'gray' ? 'gray' : insuranceTone },
+    ];
+
+    // What stands between this carrier and the load. Each button takes the
+    // reader to where that thing is already fixed on this card.
+    const expiry = carrier.insuranceExpiration ? formatDate(carrier.insuranceExpiration) : '';
+    const fixes: FixItem[] = [];
+    if (bad.length) {
+      fixes.push({
+        key: 'fmcsa',
+        text: bad.length === 1 ? `FMCSA: ${bad[0].text}` : `FMCSA found ${bad.length} problems. ${bad[0].text}`,
+        action: 'Show me', onAct: () => showPart(fmcsaRef.current),
+      });
+    }
+    if (status === 'expired') {
+      fixes.push({ key: 'ins', text: `Insurance expired on ${expiry}.`, action: 'Update insurance', onAct: () => showPart(insuranceRef.current) });
+    } else if (status === 'expiring_soon') {
+      fixes.push({ key: 'ins', text: `Insurance expires on ${expiry}, within 30 days.`, action: 'Update insurance', onAct: () => showPart(insuranceRef.current) });
+    } else if (!carrier.insuranceExpiration) {
+      fixes.push({ key: 'ins', text: 'No insurance expiry date on record.', action: 'Add it', onAct: () => showPart(insuranceRef.current) });
+    }
+    if (!carrier.insuranceStoragePath) {
+      fixes.push({ key: 'coi', text: 'No certificate of insurance uploaded.', action: 'Upload it', onAct: () => showPart(insuranceRef.current) });
+    }
+    if (!mcOnFile || !dotOnFile) {
+      const which = !mcOnFile && !dotOnFile ? 'The MC and DOT numbers are' : !mcOnFile ? 'The MC number is' : 'The DOT number is';
+      fixes.push({ key: 'numbers', text: `${which} missing.`, action: 'Add it', onAct: () => showPart(numbersRef.current) });
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+          <div className="min-w-0 flex-1 basis-56">{nameCell}</div>
+          <div ref={numbersRef} className="flex gap-x-6 gap-y-3">
+            <div className="w-36">{numberField('MC', mcOnFile, mc, setMc, 'e.g. 123456')}</div>
+            <div className="w-36">{numberField('DOT', dotOnFile, dot, setDot, 'e.g. 1234567')}</div>
+          </div>
+        </div>
+
+        <HealthChecks checks={[...checks, ...(paperChecks ?? [])]} />
+
+        <div ref={fmcsaRef}>{fmcsaPanel}</div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {/* Read off the carrier record rather than copied onto the load,
+              for the same reason as PartyContact: a phone number is only
+              useful if it is the current one. Edited on the carrier page. */}
+          <div className={tileCls}>
+            {tileTitle(Contact, 'Main Contact')}
+            {contact?.name || contact?.phone || contact?.email ? (
+              <div className="space-y-1.5 text-sm text-gray-900">
+                {contact?.name && (
+                  <p className="flex flex-wrap items-center gap-2 font-semibold">
+                    {contact.name}
+                    {contact.title && (
+                      <span className="inline-flex px-1.5 py-0.5 rounded bg-gray-200 text-gray-700 text-[11px] font-medium">{contact.title}</span>
+                    )}
+                  </p>
+                )}
+                {contact?.phone && (
+                  <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                    <PhoneValue value={contact.phone} region={contact.phoneRegion} label="carrier contact phone" /></p>
+                )}
+                {contact?.email && (
+                  <p className="group flex min-w-0 items-center gap-2"><Mail className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                    <CopyValue value={contact.email} label="email address">
+                      <a href={`mailto:${contact.email}`} className="truncate text-brand-600 hover:underline">{contact.email}</a>
+                    </CopyValue>
+                  </p>
+                )}
+              </div>
+            ) : <p data-es className="text-sm text-gray-400">No contact on the carrier record</p>}
+          </div>
+
+          <div className={tileCls}>
+            {tileTitle(User, 'Driver')}
+            {driverRow}
+          </div>
+        </div>
+
+        <div ref={insuranceRef} className={tileCls}>
+          {tileTitle(ShieldCheck, 'Insurance',
+            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${pill}`}>{insuranceWord}</span>)}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {certificate}
+            {insurance}
+          </div>
+        </div>
+
+        {saveBar}
+
+        <FixList items={fixes} title={fixes.length === 1 ? '1 thing to fix before this carrier runs' : `${fixes.length} things to fix before this carrier runs`} />
+      </div>
+    );
+  }
+
   return (
-    <div className={wide ? 'space-y-6' : 'space-y-4'}>
+    <div className="space-y-4">
       <div className={rowCls}>
-        {wide && nameCell}
         {numberField('MC', mcOnFile, mc, setMc, 'Not on record — e.g. 123456')}
         {numberField('DOT', dotOnFile, dot, setDot, 'Not on record — e.g. 1234567')}
       </div>

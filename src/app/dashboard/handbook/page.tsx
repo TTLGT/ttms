@@ -269,6 +269,47 @@ const CHAPTERS: Chapter[] = [
           </ol>
         </Callout>
 
+        {/* Kept in step with "Starting it from VS Code instead" in docs/admin-handbook.md. */}
+        <h3 data-es className="pt-2 text-sm font-semibold text-gray-900">Starting it from VS Code instead</h3>
+        <p>
+          If you work on TTMS in VS Code, you can start it from there instead of the Desktop shortcut.
+          Either way gives you the same thing.
+        </p>
+        <Callout tone="info" title="The Live Server extension does not work for TTMS">
+          <p>
+            Live Server can only show plain web pages that are already finished files. TTMS builds its
+            pages while you use it, and has to sign you in and talk to the database, so it must be
+            started with its own command.
+          </p>
+        </Callout>
+        <p><strong data-es>From the terminal</strong></p>
+        <ol className="list-decimal space-y-1 pl-5">
+          <li>Open the <Mono>ttms</Mono> folder in VS Code.</li>
+          <li>Press <Mono>Ctrl</Mono> and <Mono>`</Mono> (the key left of <Mono>1</Mono>) to open the terminal.</li>
+          <li>Type <Mono>npm run dev</Mono> and press <Mono>Enter</Mono>.</li>
+          <li>Wait for the line <strong>Ready</strong>, then open <Mono>http://localhost:3000</Mono>.</li>
+          <li>To stop it, click in that terminal and press <Mono>Ctrl</Mono> + <Mono>C</Mono>.</li>
+        </ol>
+        <p><strong data-es>From the sidebar, without typing</strong></p>
+        <ol className="list-decimal space-y-1 pl-5">
+          <li>
+            In the Explorer panel, find <strong>NPM Scripts</strong> near the bottom. If it is not there,
+            right-click the word <strong>Explorer</strong> at the top of the panel and tick <strong>NPM Scripts</strong>.
+          </li>
+          <li>Click the play button next to <strong>dev</strong>.</li>
+          <li>Open <Mono>http://localhost:3000</Mono> once it says <strong>Ready</strong>.</li>
+        </ol>
+        <p>
+          The same rules apply as for the dark window: the terminal <em>is</em> TTMS, and closing VS Code
+          stops it.
+        </p>
+        <Callout tone="caution" title="Only one copy can run at a time">
+          <p>
+            If you see &ldquo;Another next dev server is already running&rdquo; or &ldquo;port 3000 is in
+            use&rdquo;, TTMS is already on somewhere. Just open <Mono>http://localhost:3000</Mono>.
+          </p>
+        </Callout>
+
         <h3 data-es className="pt-2 text-sm font-semibold text-gray-900">Getting the latest version</h3>
         <p>
           After a developer makes changes, open the <Mono>ttms</Mono> folder, right-click an empty
@@ -746,9 +787,19 @@ const CHAPTERS: Chapter[] = [
             'Redo setup step 4. Check the .txt trap.',
           ]} />
           <Row cells={[
-            <>&ldquo;port 3000 is in use&rdquo;</>,
+            <>&ldquo;port 3000 is in use&rdquo; or &ldquo;Another next dev server is already running&rdquo;</>,
             'TTMS is already running in another window.',
-            'Find the other dark window on the taskbar and use that one.',
+            <>Nothing is wrong: open <Mono>http://localhost:3000</Mono> and use that copy. To restart it instead, the message names a <strong>PID</strong> number; run <Mono>taskkill /PID</Mono> with that number and <Mono>/F</Mono>, then start TTMS again.</>,
+          ]} />
+          <Row cells={[
+            <>A red error page mentioning <Mono>ENOENT</Mono> or <Mono>.next</Mono></>,
+            <>Somebody ran <Mono>npm run build</Mono> while TTMS was running, and it replaced the files the running copy used. Not a fault in TTMS.</>,
+            'Stop TTMS and start it again.',
+          ]} />
+          <Row cells={[
+            'Live Server opens a blank page or a list of files',
+            'Live Server cannot run TTMS.',
+            <>Start it with <Mono>npm run dev</Mono> or the Desktop shortcut instead.</>,
           ]} />
           <Row cells={[
             <>&ldquo;The Google sign-in window was blocked&rdquo; on the login page</>,

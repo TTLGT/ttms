@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "93f6235b716b3ab5decf5a7ca46bb7d875ed6521",
+      "date": "2026-11-11T09:38:13-06:00",
+      "author": "erwindank",
+      "subject": "Redesign the load updates in Discussion rooms: each update TTMS posts is now drawn with a short headline, who did it, tags, the reason or note, and buttons instead of a long sentence and a raw link, coloured by what it means (green done, amber somebody has to act, red something stopped working, blue news, violet the driver). Everybody picks how they look from the chat appearance menu: Tickets (the default), Cards or Timeline, saved to their account. Older updates in the rooms change too, and links written against localhost or the old Vercel address now open the live site",
+      "body": ""
+    },
+    {
       "hash": "04e2f88c5899461df091b2b83d992f57aef838ce",
       "date": "2026-11-11T08:08:40-06:00",
       "author": "erwindank",

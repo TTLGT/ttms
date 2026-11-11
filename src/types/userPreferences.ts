@@ -41,11 +41,21 @@ export type ChatAlertStyle = 'tickets' | 'cards' | 'timeline';
 
 export const CHAT_ALERT_STYLES: ChatAlertStyle[] = ['tickets', 'cards', 'timeline'];
 
+/**
+ * How the order page's Route card lists the stops for this person — a
+ * timeline down the card (the default) or an itinerary table. See
+ * src/lib/routeView.ts. The stops are the same either way.
+ */
+export type RouteView = 'timeline' | 'table';
+
+export const ROUTE_VIEWS: RouteView[] = ['timeline', 'table'];
+
 /** Every key optional: absent means "never chosen", and the browser's own value (or the default) stands. */
 export interface UserPreferences {
   theme?: ThemeChoice;
   chatWallpaper?: ChatWallpaperId;
   chatAlertStyle?: ChatAlertStyle;
+  routeView?: RouteView;
   learnEnglish?: boolean;
   /** Spanish under the English — see src/context/SpanishContext.tsx. */
   spanish?: boolean;
@@ -90,6 +100,7 @@ export function cleanPreferences(input: unknown): UserPreferences {
   if (CHAT_ALERT_STYLES.includes(body.chatAlertStyle as ChatAlertStyle)) {
     out.chatAlertStyle = body.chatAlertStyle as ChatAlertStyle;
   }
+  if (ROUTE_VIEWS.includes(body.routeView as RouteView)) out.routeView = body.routeView as RouteView;
   if (typeof body.learnEnglish === 'boolean') out.learnEnglish = body.learnEnglish;
   if (typeof body.spanish === 'boolean') out.spanish = body.spanish;
   // The zone and its city travel together: null clears both (back to

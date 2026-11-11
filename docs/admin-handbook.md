@@ -222,6 +222,40 @@ dark window. Either is fine.
 3. **After restarting your computer, start it again.** It does not come back on
    its own.
 
+### Starting it from VS Code instead
+
+If you work on TTMS in VS Code, you can start it from there rather than with
+the Desktop shortcut. Either way gives you the same thing.
+
+> **The Live Server extension does not work for TTMS.** Live Server can only
+> show plain web pages that are already finished files. TTMS builds its pages
+> while you use it, and has to sign you in and talk to the database, so it must
+> be started with its own command. Use one of the two ways below.
+
+**From the terminal**
+
+1. Open the `ttms` folder in VS Code.
+2. Press **Ctrl** and **`** (the key left of **1**) to open the terminal at the bottom.
+3. Type `npm run dev` and press **Enter**.
+4. Wait for the line **Ready**, then open **http://localhost:3000** in your browser.
+5. To stop it, click in that terminal and press **Ctrl** + **C**.
+
+**From the sidebar, without typing**
+
+1. In the Explorer panel on the left, find the **NPM Scripts** section near the
+   bottom. If it is not there, right-click the word **Explorer** at the top of
+   the panel and tick **NPM Scripts**.
+2. Click the ▶ (play) button next to **dev**. A terminal opens and starts TTMS.
+3. Open **http://localhost:3000** once it says **Ready**.
+
+The same rules apply as for the dark window: the terminal *is* TTMS, so it only
+works while that terminal stays open, and closing VS Code stops it.
+
+> **Only one copy can run at a time.** If you see *"Another next dev server is
+> already running"* or *"port 3000 is in use"*, TTMS is already on — in another
+> terminal, another VS Code window, or a dark window on the taskbar. Just open
+> http://localhost:3000. You do not need to start it again.
+
 ### Getting the latest version after a developer makes changes
 
 1. Open the **`ttms`** folder on your Desktop.
@@ -1158,7 +1192,9 @@ escalate rather than experiment — because the data is live.
 | The dark window flashed up and vanished | It hit a problem and closed too fast to read. | Open the `scripts` folder, right-click `start-ttms.bat`, **Open in Terminal**. Now the message stays on screen. |
 | **"Node.js is not installed"** | Setup Step 1 didn't finish, or you skipped the restart. | Redo [Step 1](#step-1--install-nodejs-about-5-minutes), including restarting the computer. |
 | **"the settings file is missing"** | `.env.local` isn't there, or is misnamed. | Redo [Step 4](#step-4--put-the-settings-file-in-place-about-2-minutes). Check the `.txt` trap. |
-| **"port 3000 is in use"** / **EADDRINUSE** | TTMS is already running in another window. | Look on your taskbar for another dark window and use that one. |
+| **"port 3000 is in use"** / **EADDRINUSE** / **"Another next dev server is already running"** | TTMS is already running in another window. | Nothing is wrong. Open http://localhost:3000 and use the copy that is already on. If you cannot find which window it is in and want to restart it, the message names a **PID** number: open a terminal and type `taskkill /PID` followed by that number and `/F`, then start TTMS again. |
+| Red error page mentioning **ENOENT** or a file in `.next` while TTMS is running | Somebody ran `npm run build` while TTMS was running. The build replaces the files the running copy was using. It is not a fault in TTMS. | Stop TTMS (**Ctrl** + **C**, or close its window) and start it again. |
+| **Live Server** opens a blank page or a file list | Live Server cannot run TTMS (see [Starting it from VS Code instead](#starting-it-from-vs-code-instead)). | Start it with `npm run dev` or the Desktop shortcut instead. |
 | **"The Google sign-in window was blocked"** on the login page | The browser, or an ad-blocking extension such as AdGuard, stopped the Google window from opening. | Allow pop-ups for the TTMS site (icon at the right end of the address bar). If they are already allowed, add `ttms.totaltransportlogistics.us` to the ad blocker's allow list. If it works in an Incognito window, it is an extension. |
 | **You sign in and are instantly signed back out** | Your email isn't on the access list. | Ask an Admin to add you under [Add People](#6-giving-someone-access). |
 | **"Missing or insufficient permissions"** | A technical settings change hasn't been published to Google. | **Call for help.** A developer must run the rules deploy — [Part 2, section 07](#security-rules--the-trap-that-already-cost-five-weeks). |

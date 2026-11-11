@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, MapPin, Send, Truck } from 'lucide-react';
+import { Check, Copy, MapPin, Send, Smartphone, Truck } from 'lucide-react';
+import { Hint } from './DetailBits';
 import { copyToClipboard } from '@/lib/clipboard';
 import { getDriverLink, revokeDriverLink, sendDriverLink } from '@/lib/driverLinks';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -23,12 +24,20 @@ import {
  *
  * The steps come from the order (`driverProgress`), so they are as fresh as
  * the page; the room gets a line the moment the driver taps one.
+ *
+ * Drawn (2026-11-11) as a box with its button in the heading and the five
+ * steps as a row that fills in as the driver taps them, so where the load is
+ * reads at a glance. `onState` tells the Carrier card's health checks whether
+ * a link exists and has been opened — only this card reads the link.
  */
-export default function DriverLinkCard({ orderId, progress, location, onChanged }: {
+export type DriverLinkState = 'loading' | 'none' | 'unavailable' | 'expired' | 'sent' | 'opened';
+
+export default function DriverLinkCard({ orderId, progress, location, onChanged, onState }: {
   orderId: string;
   progress: DriverProgress | null | undefined;
   location: DriverLocation | null | undefined;
   onChanged?: () => void;
+  onState?: (state: DriverLinkState) => void;
 }) {
   const { formatDate, formatDateTime } = useDateFormatters();
   const [link, setLink] = useState<DriverLinkInfo | null>(null);
@@ -77,29 +86,51 @@ export default function DriverLinkCard({ orderId, progress, location, onChanged 
   const steps = DRIVER_STEPS.filter((s) => progress?.[s]);
   const live = link && !link.expired ? link : null;
 
-  return (
-    <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-      <div className="flex items-center gap-2">
-        <Truck className="h-4 w-4 text-gray-500" />
-        <p data-es className="text-xs font-semibold uppercase tracking-wide text-gray-500">Driver link</p>
-      </div>
-      <p className="mt-1 text-xs text-gray-500">
-        <Bi>A page for the driver to tap Arrived, Picked up, In transit and Delivered, send pictures and their
-        location, and say when they were paid. They type the driver phone on this load to open it.
-        Picked up and Delivered move the status once the carrier has signed.</Bi>
-      </p>
+  const state: DriverLinkState = !loaded ? 'loading'
+    : live ? (live.opened ? 'opened' : 'sent')
+    : link?.expired ? 'expired'
+    : cannotMake ? 'unavailable' : 'none';
+  // Through a ref so a parent passing an inline function does not re-fire it.
+  const onStateRef = useRef(onState);
+  onStateRef.current = onState;
+  useEffect(() => { onStateRef.current?.(state); }, [state]);
 
-      {loaded && !live && (
-        cannotMake ? (
-          <p className="mt-3 text-xs text-amber-800">{cannotMake}</p>
-        ) : (
+  return (
+    <div className="rounded-xl border border-gray-200 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Smartphone className="h-4 w-4 shrink-0 text-gray-400" />
+        <p data-es className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Driver link</p>
+        {loaded && !live && !cannotMake && (
           <button type="button" disabled={busy}
             onClick={() => void act(async () => setLink(await sendDriverLink(orderId, { create: true })))}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
             <Truck className="h-3.5 w-3.5" /> {link?.expired ? 'Make a new driver link' : 'Make driver link'}
           </button>
-        )
-      )}
+        )}
+      </div>
+
+      {/* The five steps, filling in as the driver taps them. */}
+      <ol className="mt-4 grid grid-cols-5 gap-1">
+        {DRIVER_STEPS.map((s, i) => {
+          const m = progress?.[s];
+          return (
+            <li key={s} className="relative flex flex-col items-center text-center">
+              {i > 0 && (
+                <span aria-hidden className={`absolute right-1/2 top-3 h-0.5 w-full -translate-y-1/2 ${m ? 'bg-green-500' : 'bg-gray-200'}`} />
+              )}
+              <span className={`relative z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 ${
+                m ? 'border-green-500 bg-green-500 text-white' : 'border-gray-300 bg-white'}`}>
+                {m && <Check className="h-3.5 w-3.5" />}
+              </span>
+              <span data-es className={`mt-1 hidden text-[11px] leading-tight sm:block ${m ? 'font-medium text-gray-900' : 'text-gray-500'}`}>
+                {DRIVER_STEP_LABEL[s]}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+
+      {loaded && !live && cannotMake && <p className="mt-3 text-xs text-amber-800">{cannotMake}</p>}
 
       {live && (
         <div className="mt-3">
@@ -165,6 +196,12 @@ export default function DriverLinkCard({ orderId, progress, location, onChanged 
       )}
 
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+
+      <Hint className="mt-3">
+        <Bi>A page for the driver to tap Arrived, Picked up, In transit and Delivered, send pictures and their
+        location, and say when they were paid. They type the driver phone on this load to open it.
+        Picked up and Delivered move the status once the carrier has signed.</Bi>
+      </Hint>
 
       {(steps.length > 0 || location) && (
         <div className="mt-4 border-t border-gray-200 pt-3">

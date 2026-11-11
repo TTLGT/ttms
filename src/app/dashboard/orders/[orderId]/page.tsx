@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import {
-  AlertTriangle, Check, CheckCircle2, ClipboardList, ExternalLink, FilePen, FileSignature, FileText, ListChecks,
-  Map, MapPin, Package, Plus, RefreshCw, Route, ShieldCheck, StickyNote, Truck, Undo2, Users,
+  AlertTriangle, Check, CheckCircle2, ClipboardList, ExternalLink, FilePen, FileSignature, FileText, IdCard, ListChecks,
+  Lock, Mail, Map, MapPin, Package, Phone, Plus, RefreshCw, Route, ShieldCheck, Smartphone, StickyNote, Truck, Undo2, User, UserRound, Users,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -57,6 +57,7 @@ import { toDate } from '@/lib/dateFormat';
 import type { Timestamp } from 'firebase/firestore';
 import StatusBadge from '@/components/orders/StatusBadge';
 import TimeZoneBadge from '@/components/orders/TimeZoneBadge';
+import RouteStops, { RouteViewSwitch } from '@/components/orders/RouteStops';
 import DriverLicenseUpload from '@/components/orders/DriverLicenseUpload';
 import QuickAddCarrierModal from '@/components/carriers/QuickAddCarrierModal';
 import CarrierCompliance from '@/components/carriers/CarrierCompliance';
@@ -86,7 +87,9 @@ import OrderFileSlot from '@/components/orders/OrderFileSlot';
 import RecordImportBadge, { RecordImportRemoved } from '@/components/orders/RecordImportBadge';
 import ClientSignLink from '@/components/orders/ClientSignLink';
 import { carrierTextTargets, partyTextTargets } from '@/lib/signText';
-import DriverLinkCard from '@/components/orders/DriverLinkCard';
+import DriverLinkCard, { type DriverLinkState } from '@/components/orders/DriverLinkCard';
+import { PartHeading, Pill, Tile, type HealthCheck } from '@/components/orders/DetailBits';
+import { DRIVER_STEPS, DRIVER_STEP_LABEL } from '@/types/driverLink';
 import PaymentsCard from '@/components/orders/PaymentsCard';
 import { isCodLoad, missingSentence, paymentsMissing } from '@/types/orderPayment';
 import OrderOwnersCard from '@/components/orders/OrderOwnersCard';
@@ -503,6 +506,8 @@ export default function OrderDetailPage() {
   // fresher than the page's carrier list, which is read once on open and
   // holds active carriers only. See CarrierCompliance's onCarrier.
   const [cardCarrier, setCardCarrier] = useState<Carrier | null>(null);
+  // Whether the driver link exists and was opened, for the Carrier card's health checks.
+  const [driverLinkState, setDriverLinkState] = useState<DriverLinkState>('loading');
   const bolCardShown = Boolean(order && order.status !== 'quote' && order.status !== 'cancelled');
   const bolReadyKey = order && bolCardShown
     ? `${bolFingerprint(order as unknown as Record<string, unknown>)}|${order.driverPhone ?? ''}|${order.carrierId ?? ''}`
@@ -1775,46 +1780,20 @@ export default function OrderDetailPage() {
 
           {/* Route */}
           <div id="route" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
-            <SectionHeading icon={MapPin} tone="blue" title="Route" action={<SectionEditLink orderId={orderId} section="route" />} />
-            {/* Every pickup on the left and every delivery on the right, in
-                the order they are driven. A load with one of each reads
-                exactly as it always has; the numbering and the per-stop
-                dates only appear once there is more than one. */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {([['pickup', orderPickups(order)], ['delivery', orderDeliveries(order)]] as const).map(([kind, stops]) => (
-                <div key={kind} className="space-y-4">
-                  {stops.map((s, i) => {
-                    const many = stops.length > 1;
-                    const label = kind === 'pickup'
-                      ? (many ? `Pickup ${i + 1} — Shipper` : 'Shipper (Pick-Up Location)')
-                      : (many ? `Delivery ${i + 1} — Consignee` : 'Consignee (Delivery Location)');
-                    return (
-                      <div key={i} className={`space-y-3 ${i > 0 ? 'pt-4 border-t border-gray-100' : ''}`}>
-                        <DetailRow label={label} value={<><PartyLink id={s.partyId} name={s.partyName} fromOrderId={orderId} /><PartyContact party={partyById[s.partyId ?? '']} /></>} />
-                        <div>
-                          <p className="text-xs font-medium text-gray-500 mb-1">
-                            {many ? 'Address' : kind === 'pickup' ? 'Origin' : 'Destination'}
-                          </p>
-                          <p className="text-sm text-gray-900">
-                            {[s.address?.street, s.address?.city, s.address?.state, s.address?.zip].filter(Boolean).join(', ') || '—'}
-                          </p>
-                          <TimeZoneBadge address={s.address} on={s.date} className="mt-1" />
-                        </div>
-                        {many && (
-                          <div>
-                            <p data-es className="text-xs font-medium text-gray-500 mb-1">Date</p>
-                            <p className="text-sm text-gray-900">{formatDateRange(s.date, s.dateEnd) || '—'}</p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
+            <SectionHeading icon={MapPin} tone="blue" title="Route" action={
+              <div className="flex items-center gap-3">
+                <RouteViewSwitch />
+                <SectionEditLink orderId={orderId} section="route" />
+              </div>
+            } />
+            {/* Every stop down one line, in the order they are driven. */}
+            <RouteStops order={order} orderId={orderId} partyById={partyById} />
+            {/* Distance and the map link share one footer strip, so the
+                stops above are not interrupted by them. */}
+            <div className="mt-5 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
             {order.laneMiles !== null && order.laneMiles !== undefined ? (
-              <div className="mt-4 flex items-center gap-2.5">
-                <Route className="w-4 h-4 text-brand-600 shrink-0" />
+              <div className="flex items-start gap-2.5">
+                <Route className="mt-0.5 w-4 h-4 text-brand-600 shrink-0" />
                 <div>
                   <p className="text-xs font-medium text-gray-500">{laneMilesLabel(order.laneMilesSource)}</p>
                   <p className="text-sm font-semibold text-gray-900">
@@ -1848,8 +1827,8 @@ export default function OrderDetailPage() {
                 </div>
               </div>
             ) : milesNeedLookup ? (
-              <div className="mt-4 flex items-center gap-2.5">
-                <Route className="w-4 h-4 text-brand-600 shrink-0" />
+              <div className="flex items-start gap-2.5">
+                <Route className="mt-0.5 w-4 h-4 text-brand-600 shrink-0" />
                 <div>
                   <p data-es className="text-xs font-medium text-gray-500">Distance</p>
                   <button
@@ -1867,7 +1846,9 @@ export default function OrderDetailPage() {
                   </p>
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <p data-es className="text-sm text-gray-400">No distance yet</p>
+            )}
             {/* Falls back to a link built on the fly, so orders saved before
                 the field existed still get a usable route. */}
             {(() => {
@@ -1875,13 +1856,14 @@ export default function OrderDetailPage() {
               if (!mapUrl) return null;
               return (
                 <a href={mapUrl} target="_blank" rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700">
-                  <Map className="w-4 h-4" />
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                  <Map className="w-4 h-4 text-brand-600" />
                   View route in Google Maps
-                  <ExternalLink className="w-3 h-3" />
+                  <ExternalLink className="w-3 h-3 text-gray-400" />
                 </a>
               );
             })()}
+            </div>
           </div>
 
           {/* Client Confirmation — the load confirmation, which the client
@@ -1999,180 +1981,6 @@ export default function OrderDetailPage() {
               </button>
             )} />
 
-            {/* The carrier's review: asking for it, and its record. */}
-            {!assigningCarrier && order.carrierId && (
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                {!order.carrierSignedAt && can('orders.create') && caStatus !== 'open' && caStatus !== 'sent'
-                  && order.status !== 'quote' && order.status !== 'cancelled' && order.status !== 'completed' && (
-                  <RequestSaButton
-                    party="carrier"
-                    orderId={orderId}
-                    carrierName={order.carrierName}
-                    clientSigned={clientSignatureSatisfied(order)}
-                    owners={order.owners}
-                    createdBy={order.createdBy}
-                    onBrokerChanged={() => void refreshOwners()}
-                    onRequested={() => setCaRefresh((n) => n + 1)}
-                  />
-                )}
-                <SaVerificationRecord orderId={orderId} party="carrier" />
-                <CarrierVettingRecords orderId={orderId} />
-              </div>
-            )}
-            {/* The signed Carrier Agreement as a PDF, and every one sent. */}
-            {!assigningCarrier && order.carrierId && (
-              <div className="mb-3">
-                <SaAgreementVersions orderId={orderId} party="carrier" signed={Boolean(order.carrierSignedAt)} refreshKey={caRefresh} />
-              </div>
-            )}
-            {/* A carrier who cannot sign on the link: upload what they signed,
-                mark the load Carrier Signed on it, and email them that it is
-                registered. Gone once they e-sign. */}
-            {/* Also on a BATS load with no carrier linked — the import linked
-                none, and its signed dispatch sheet still needs a home. */}
-            {!assigningCarrier && (order.carrierId || order.recordImport) && (
-              <div className="mb-4">
-                <SignedSaUploads
-                  order={order}
-                  party="carrier"
-                  orderId={orderId}
-                  eSigned={Boolean(order.carrierSignedAt)}
-                  confirmation={order.paperCaConfirmedAt && order.paperCaConfirmedTo
-                    ? { at: order.paperCaConfirmedAt, to: order.paperCaConfirmedTo, byName: order.paperCaConfirmedByName ?? '' }
-                    : null}
-                  canMarkSigned={handCarrierSignable}
-                  onMarkSigned={() => void handleAdvance()}
-                  onChange={signedCopyChanged}
-                />
-              </div>
-            )}
-            {/* The carrier's bill for the load. Same files as the Carrier
-                Invoice row on the Documents tab. */}
-            {!assigningCarrier && (order.carrierId || order.recordImport) && (
-              <div className="mb-4">
-                <p data-es className="text-xs font-semibold text-gray-700 mb-1.5">Carrier invoice</p>
-                <OrderFileSlot orderId={orderId} kind="carrier_invoice" uploadLabel="Upload the carrier’s invoice" />
-              </div>
-            )}
-
-            {/* Send for Signature / e-sign status */}
-            {!assigningCarrier && order.carrierId && (
-              <div className="mb-4">
-                {order.carrierSignedAt ? (
-                  <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                    <span>✓</span>
-                    <span>
-                      Signed by <strong>{order.carrierSignerName || 'carrier'}</strong>
-                      {order.carrierSignedAt && (
-                        <> on {formatDate(order.carrierSignedAt as { toDate: () => Date })}</>
-                      )}
-                      {order.carrierSignerIp && (
-                        <span className="text-green-600 font-mono text-xs ml-1">({order.carrierSignerIp})</span>
-                      )}
-                      {order.carrierSignerDevice && (
-                        <span className="text-green-600 text-xs ml-1">· {order.carrierSignerDevice}</span>
-                      )}
-                    </span>
-                  </div>
-                ) : agreementSentTo ? (
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                    <span>✉ Agreement sent to <strong>{agreementSentTo}</strong> — awaiting signature</span>
-                    {can('orders.sendAgreement') && (
-                      <button
-                        onClick={resendAgreement}
-                        disabled={sendingAgreement}
-                        className="px-3 py-1 bg-white text-brand-700 border border-brand-200 text-xs font-semibold rounded-lg hover:bg-brand-50 disabled:opacity-50 transition"
-                      >
-                        {sendingAgreement ? 'Sending…' : 'Resend'}
-                      </button>
-                    )}
-                  </div>
-                ) : !awaitingCarrierSignature ? null : clientSignatureSatisfied(order) ? (
-                  <>
-                    <button
-                      onClick={handleSendAgreement}
-                      disabled={sendingAgreement}
-                      className="px-3 py-1.5 bg-brand-50 text-brand-700 border border-brand-200 text-xs font-semibold rounded-lg hover:bg-brand-100 disabled:opacity-50 transition"
-                    >
-                      {sendingAgreement ? 'Sending…' : '✉ Send for Signature'}
-                    </button>
-                    {order.signatureWaivedAt && !order.shipperSignedAt && (
-                      <p className="text-xs text-amber-700 mt-2">
-                        Going out without the client&rsquo;s signature
-                        {order.signatureWaivedByName && <> — {order.signatureWaivedByName}</>}
-                        {order.signatureWaivedReason && <> · {order.signatureWaivedReason}</>}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  /* The gate. The rate confirmation commits us to paying the
-                     carrier, so it waits on the client agreeing to pay us. The
-                     same test runs in the route — this is the explanation, not
-                     the enforcement. */
-                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-                    <p className="text-sm text-amber-800">
-                      <Bi>The client has not signed the load confirmation yet. The dispatch sheet
-                      cannot be sent until they do.</Bi>
-                    </p>
-                    {can('orders.waiveSignature') && !showWaive && (
-                      <button
-                        onClick={() => setShowWaive(true)}
-                        className="mt-2 px-3 py-1.5 border border-amber-300 bg-white text-amber-800 text-xs font-semibold rounded-lg hover:bg-amber-100 transition"
-                      >
-                        Dispatch without a signature
-                      </button>
-                    )}
-                    {can('orders.waiveSignature') && showWaive && (
-                      <div className="mt-3 space-y-2">
-                        <label className="block text-xs font-medium text-amber-900">
-                          Why is this going out unsigned? <span className="font-normal">(optional)</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={waiveReason}
-                          onChange={(e) => setWaiveReason(e.target.value)}
-                          maxLength={500}
-                          placeholder="Client confirmed by phone, signing in the morning"
-                          className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
-                        />
-                        <p className="text-xs text-amber-700">
-                          <Bi>This is recorded against the load with your name and posted in its chat
-                          room. It is not a signature — the client can still be sent the load
-                          confirmation and sign it afterwards.</Bi>
-                        </p>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={handleWaiveSignature}
-                            disabled={waiving}
-                            className="px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50 transition"
-                          >
-                            {waiving ? 'Recording…' : 'Dispatch without a signature'}
-                          </button>
-                          <button
-                            onClick={() => { setShowWaive(false); setWaiveReason(''); }}
-                            className="px-3 py-1.5 border border-amber-300 text-amber-800 text-xs font-medium rounded-lg hover:bg-amber-100 transition"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {/* The carrier's link, to copy and send another way — the
-                    same box as Client Confirmation's. Shows nothing until a
-                    Carrier Agreement has gone to this carrier. */}
-                <ClientSignLink
-                  orderId={orderId}
-                  orderNumber={orderDisplayNumber(order)}
-                  party="carrier"
-                  refreshKey={caRefresh}
-                  onSent={(to) => setAgreementSentTo((prev) => prev || to)}
-                  textTargets={carrierTextTargets(carriers.find((c) => c.id === order.carrierId))}
-                />
-              </div>
-            )}
-
             {addingCarrier && (
               <QuickAddCarrierModal
                 onCreated={handleCarrierCreated}
@@ -2256,43 +2064,264 @@ export default function OrderDetailPage() {
                 </div>
               </div>
             ) : (() => {
-              // Three rows of three: the carrier and its MC/DOT, the carrier's
-              // main contact, then this load's driver. The first two come off
-              // the carrier record, which CarrierCompliance already reads, so
-              // the rows it does not own are handed to it to place.
+              // Laid out (2026-11-11, chosen by the office from a set of
+              // drafts): the carrier's name large with MC and DOT, four health
+              // checks, FMCSA's full verdict, the contact / driver / insurance
+              // boxes and what to fix — all in CarrierCompliance, which reads
+              // the carrier record — then this load's Dispatch Sheet and its
+              // driver link below. The name and driver belong to the load, so
+              // they are handed in for it to place.
               const carrierCell = (
-                <DetailRow label="Carrier" value={
-                  order.carrierId
-                    ? <Link href={`/dashboard/carriers/${order.carrierId}?fromOrder=${encodeURIComponent(orderId)}`} className="text-brand-600 hover:underline">{order.carrierName}</Link>
-                    : null
-                } />
+                <div>
+                  <p data-es className="text-xs text-gray-500">Carrier</p>
+                  {order.carrierId
+                    ? <Link href={`/dashboard/carriers/${order.carrierId}?fromOrder=${encodeURIComponent(orderId)}`}
+                        className="text-lg font-semibold text-brand-600 hover:underline">{order.carrierName}</Link>
+                    : <p data-es className="text-sm text-gray-400">No carrier assigned yet</p>}
+                </div>
               );
               const driverRow = (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                  <DetailRow label="Driver" value={order.driverName} />
-                  <DetailRow label="Driver Phone" value={<PhoneValue value={order.driverPhone} region={order.driverPhoneRegion} label="driver phone" />} />
-                  {/* Not a DetailRow: that wraps its value in a <p>, and the
-                      upload field renders block elements a <p> cannot hold. */}
-                  <div>
-                    <p data-es className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Driver License</p>
+                <div className="space-y-1.5 text-sm text-gray-900">
+                  {order.driverName
+                    ? <p className="font-semibold">{order.driverName}</p>
+                    : <p data-es className="text-gray-400">No driver yet</p>}
+                  {order.driverPhone && (
+                    <p className="flex items-center gap-2">
+                      <Phone className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                      <PhoneValue value={order.driverPhone} region={order.driverPhoneRegion} label="driver phone" />
+                    </p>
+                  )}
+                  {/* A div, not a <p>: the upload field renders block elements a <p> cannot hold. */}
+                  <div className="flex items-center gap-2">
+                    <IdCard className="h-3.5 w-3.5 shrink-0 text-gray-400" />
                     {order.driverLicenseStoragePath
                       ? <DriverLicenseUpload orderId={orderId} existingPath={order.driverLicenseStoragePath} onUploaded={() => {}} readOnly />
-                      : <p className="text-sm text-gray-900">—</p>}
+                      : <span data-es className="text-gray-400">No licence on file</span>}
                   </div>
                 </div>
               );
+
+              // The load's half of the health checks. The carrier's half
+              // (FMCSA, insurance) is worked out inside CarrierCompliance.
+              const lastStep = [...DRIVER_STEPS].reverse().find((s) => order.driverProgress?.[s]);
+              const paperChecks: HealthCheck[] = [
+                {
+                  key: 'sheet', label: 'Dispatch Sheet', icon: FileSignature,
+                  ...(order.carrierSignedAt ? { status: 'Signed', tone: 'green' as const }
+                    : agreementSentTo ? { status: 'Sent, not signed', tone: 'blue' as const }
+                    : !clientSignatureSatisfied(order) ? { status: 'Waiting on client', tone: 'amber' as const }
+                    : { status: 'Not sent yet', tone: 'gray' as const }),
+                },
+                {
+                  key: 'driver', label: 'Driver link', icon: Smartphone,
+                  ...(lastStep ? { status: DRIVER_STEP_LABEL[lastStep], tone: 'green' as const }
+                    : driverLinkState === 'opened' ? { status: 'Opened by driver', tone: 'green' as const }
+                    : driverLinkState === 'sent' ? { status: 'Not opened yet', tone: 'blue' as const }
+                    : driverLinkState === 'expired' ? { status: 'Expired', tone: 'amber' as const }
+                    : driverLinkState === 'loading' ? { status: 'Loading…', tone: 'gray' as const }
+                    : { status: 'Not made', tone: 'gray' as const }),
+                },
+              ];
+
               return order.carrierId ? (
                 <CarrierCompliance key={order.carrierId} carrierId={order.carrierId} onCarrier={setCardCarrier}
-                  nameCell={carrierCell} driverRow={driverRow} />
+                  nameCell={carrierCell} driverRow={driverRow} paperChecks={paperChecks} />
               ) : (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">{carrierCell}</div>
-                  {driverRow}
+                <div className="space-y-4">
+                  {carrierCell}
+                  {(order.driverName || order.driverPhone) && <Tile icon={User} title="Driver">{driverRow}</Tile>}
                 </div>
               );
             })()}
+
+            {/* The Dispatch Sheet: where it stands, its link, its records and
+                every copy. Also drawn on a BATS load with no carrier linked —
+                the import linked none, and its signed dispatch sheet still
+                needs a home. */}
+            {!assigningCarrier && (order.carrierId || order.recordImport) && (
+              <div className="mt-4 space-y-3 rounded-xl border border-gray-200 p-4">
+                <PartHeading icon={FileSignature} title="Dispatch Sheet" aside={
+                  order.carrierSignedAt ? <Pill tone="green">Signed</Pill>
+                    : !order.carrierId ? null
+                    : agreementSentTo ? <Pill tone="blue">Sent, not signed</Pill>
+                    : !clientSignatureSatisfied(order) ? <Pill tone="amber">Waiting on client</Pill>
+                    : <Pill tone="gray">Not sent yet</Pill>
+                } />
+
+                {order.carrierId && (order.carrierSignedAt ? (
+                  <div className="flex items-start gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      Signed by <strong>{order.carrierSignerName || 'carrier'}</strong>
+                      {order.carrierSignedAt && (
+                        <> on {formatDate(order.carrierSignedAt as { toDate: () => Date })}</>
+                      )}
+                      {order.carrierSignerIp && (
+                        <span className="text-green-600 font-mono text-xs ml-1">({order.carrierSignerIp})</span>
+                      )}
+                      {order.carrierSignerDevice && (
+                        <span className="text-green-600 text-xs ml-1">· {order.carrierSignerDevice}</span>
+                      )}
+                    </span>
+                  </div>
+                ) : agreementSentTo ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                    <span className="inline-flex items-center gap-2"><Mail className="h-4 w-4 shrink-0" />
+                      <span>Sent to <strong>{agreementSentTo}</strong>, waiting for the signature</span></span>
+                    {can('orders.sendAgreement') && (
+                      <button
+                        onClick={resendAgreement}
+                        disabled={sendingAgreement}
+                        className="px-3 py-1 bg-white text-brand-700 border border-brand-200 text-xs font-semibold rounded-lg hover:bg-brand-50 disabled:opacity-50 transition"
+                      >
+                        {sendingAgreement ? 'Sending…' : 'Resend'}
+                      </button>
+                    )}
+                  </div>
+                ) : !awaitingCarrierSignature ? null : clientSignatureSatisfied(order) ? (
+                  <div>
+                    <button
+                      onClick={handleSendAgreement}
+                      disabled={sendingAgreement}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition"
+                    >
+                      <Mail className="h-3.5 w-3.5" />
+                      {sendingAgreement ? 'Sending…' : 'Send for Signature'}
+                    </button>
+                    {order.signatureWaivedAt && !order.shipperSignedAt && (
+                      <p className="text-xs text-amber-700 mt-2">
+                        Going out without the client&rsquo;s signature
+                        {order.signatureWaivedByName && <> — {order.signatureWaivedByName}</>}
+                        {order.signatureWaivedReason && <> · {order.signatureWaivedReason}</>}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  /* The gate. The rate confirmation commits us to paying the
+                     carrier, so it waits on the client agreeing to pay us. The
+                     same test runs in the route — this is the explanation, not
+                     the enforcement. */
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                    <p className="text-sm text-amber-800">
+                      <Bi>The client has not signed the load confirmation yet. The dispatch sheet
+                      cannot be sent until they do.</Bi>
+                    </p>
+                    {can('orders.waiveSignature') && !showWaive && (
+                      <button
+                        onClick={() => setShowWaive(true)}
+                        className="mt-2 px-3 py-1.5 border border-amber-300 bg-white text-amber-800 text-xs font-semibold rounded-lg hover:bg-amber-100 transition"
+                      >
+                        Dispatch without a signature
+                      </button>
+                    )}
+                    {can('orders.waiveSignature') && showWaive && (
+                      <div className="mt-3 space-y-2">
+                        <label className="block text-xs font-medium text-amber-900">
+                          Why is this going out unsigned? <span className="font-normal">(optional)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={waiveReason}
+                          onChange={(e) => setWaiveReason(e.target.value)}
+                          maxLength={500}
+                          placeholder="Client confirmed by phone, signing in the morning"
+                          className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        />
+                        <p className="text-xs text-amber-700">
+                          <Bi>This is recorded against the load with your name and posted in its chat
+                          room. It is not a signature — the client can still be sent the load
+                          confirmation and sign it afterwards.</Bi>
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleWaiveSignature}
+                            disabled={waiving}
+                            className="px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50 transition"
+                          >
+                            {waiving ? 'Recording…' : 'Dispatch without a signature'}
+                          </button>
+                          <button
+                            onClick={() => { setShowWaive(false); setWaiveReason(''); }}
+                            className="px-3 py-1.5 border border-amber-300 text-amber-800 text-xs font-medium rounded-lg hover:bg-amber-100 transition"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* The carrier's link, to copy and send another way — the
+                    same box as Client Confirmation's. Shows nothing until a
+                    Carrier Agreement has gone to this carrier. */}
+                {order.carrierId && (
+                  <ClientSignLink
+                    orderId={orderId}
+                    orderNumber={orderDisplayNumber(order)}
+                    party="carrier"
+                    refreshKey={caRefresh}
+                    onSent={(to) => setAgreementSentTo((prev) => prev || to)}
+                    textTargets={carrierTextTargets(carriers.find((c) => c.id === order.carrierId))}
+                  />
+                )}
+
+                {/* The carrier's review: asking for it, and its record. */}
+                {order.carrierId && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!order.carrierSignedAt && can('orders.create') && caStatus !== 'open' && caStatus !== 'sent'
+                      && order.status !== 'quote' && order.status !== 'cancelled' && order.status !== 'completed' && (
+                      <RequestSaButton
+                        party="carrier"
+                        orderId={orderId}
+                        carrierName={order.carrierName}
+                        clientSigned={clientSignatureSatisfied(order)}
+                        owners={order.owners}
+                        createdBy={order.createdBy}
+                        onBrokerChanged={() => void refreshOwners()}
+                        onRequested={() => setCaRefresh((n) => n + 1)}
+                      />
+                    )}
+                    <SaVerificationRecord orderId={orderId} party="carrier" />
+                    <CarrierVettingRecords orderId={orderId} />
+                  </div>
+                )}
+
+                {/* The signed Carrier Agreement as a PDF, and every one sent. */}
+                {order.carrierId && (
+                  <SaAgreementVersions orderId={orderId} party="carrier" signed={Boolean(order.carrierSignedAt)} refreshKey={caRefresh} />
+                )}
+
+                {/* A carrier who cannot sign on the link: upload what they
+                    signed, mark the load Carrier Signed on it, and email them
+                    that it is registered. Gone once they e-sign. */}
+                <SignedSaUploads
+                  order={order}
+                  party="carrier"
+                  orderId={orderId}
+                  eSigned={Boolean(order.carrierSignedAt)}
+                  confirmation={order.paperCaConfirmedAt && order.paperCaConfirmedTo
+                    ? { at: order.paperCaConfirmedAt, to: order.paperCaConfirmedTo, byName: order.paperCaConfirmedByName ?? '' }
+                    : null}
+                  canMarkSigned={handCarrierSignable}
+                  onMarkSigned={() => void handleAdvance()}
+                  onChange={signedCopyChanged}
+                />
+
+                {/* The carrier's bill for the load. Same files as the Carrier
+                    Invoice row on the Documents tab. */}
+                <div className="border-t border-gray-100 pt-3">
+                  <p data-es className="text-xs font-semibold text-gray-700 mb-1.5">Carrier invoice</p>
+                  <OrderFileSlot orderId={orderId} kind="carrier_invoice" uploadLabel="Upload the carrier’s invoice" />
+                </div>
+              </div>
+            )}
+
             {!assigningCarrier && order.carrierId && (
-              <DriverLinkCard orderId={orderId} progress={order.driverProgress} location={order.driverLocation} />
+              <div className="mt-4">
+                <DriverLinkCard orderId={orderId} progress={order.driverProgress} location={order.driverLocation}
+                  onState={setDriverLinkState} />
+              </div>
             )}
           </div>
 
@@ -2378,43 +2407,50 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* Always drawn, even empty, so a note can be added from here. */}
-          <div id="notes" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4 space-y-5">
-            <div className="[&>div]:mb-0">
-              <SectionHeading icon={StickyNote} tone="gray" title="Notes and Instructions" action={<SectionEditLink orderId={orderId} section="notes" />} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-700">
-                Internal notes <span className="font-normal text-gray-400">· staff only, never printed or sent</span>
-              </p>
-              {order.notes
-                ? <p className="text-sm text-gray-700 whitespace-pre-line mt-1">{order.notes}</p>
-                : <p data-es className="text-sm text-gray-400 mt-1">No notes.</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-700">
-                Special instructions for the carrier <span className="font-normal text-gray-400">· on the dispatch sheet and the BOL</span>
-              </p>
-              {order.carrierInstructions
-                ? <p className="text-sm text-gray-700 whitespace-pre-line mt-1">{order.carrierInstructions}</p>
-                : <p data-es className="text-sm text-gray-400 mt-1">None.</p>}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-gray-700">
-                Special instructions for the client <span className="font-normal text-gray-400">· on the quote and the load confirmation</span>
-              </p>
-              {order.clientInstructions
-                ? <p className="text-sm text-gray-700 whitespace-pre-line mt-1">{order.clientInstructions}</p>
-                : clientAddedInstructionsOf(order).length === 0 && <p data-es className="text-sm text-gray-400 mt-1">None.</p>}
-              {/* The client's own, beside ours and never in place of them. */}
-              {clientAddedInstructionsOf(order).map((e, i) => (
-                <div key={i} className="mt-2 rounded-lg border border-brand-100 bg-brand-50 px-3 py-2">
-                  <p className="text-xs text-gray-500">
-                    Added by the client · {e.signerName || 'signer'} when signing{e.version ? ` version ${e.version}` : ''}, {formatDateTime(e.at as unknown as { toDate: () => Date })}
-                  </p>
-                  <p className="text-sm text-gray-800 whitespace-pre-line mt-0.5">{e.text}</p>
-                </div>
-              ))}
+          {/* Always drawn, even empty, so a note can be added from here. One
+              row per audience (2026-11-11), each saying who reads it — staff,
+              the carrier or the client — since that is the thing to get
+              right before typing. Empty rows fade back. */}
+          <div id="notes" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
+            <SectionHeading icon={StickyNote} tone="gray" title="Notes and Instructions" action={<SectionEditLink orderId={orderId} section="notes" />} />
+            <div className="space-y-3">
+              {([
+                { key: 'internal', title: 'Internal notes', who: 'Staff only · never printed or sent', tone: 'gray' as const,
+                  Icon: Lock, iconCls: 'bg-gray-100 text-gray-600', text: order.notes, empty: 'No notes.' },
+                { key: 'carrier', title: 'For the carrier', who: 'Dispatch Sheet · BOL', tone: 'violet' as const,
+                  Icon: Truck, iconCls: 'bg-violet-50 text-violet-600', text: order.carrierInstructions, empty: 'None.' },
+                { key: 'client', title: 'For the client', who: 'Quote · Load confirmation', tone: 'indigo' as const,
+                  Icon: UserRound, iconCls: 'bg-indigo-50 text-indigo-600', text: order.clientInstructions, empty: 'None.' },
+              ]).map(({ key, title, who, tone, Icon, iconCls, text, empty }) => {
+                const added = key === 'client' ? clientAddedInstructionsOf(order) : [];
+                const filled = Boolean(text) || added.length > 0;
+                return (
+                  <div key={key} className={`flex gap-3 rounded-xl border px-4 py-3.5 ${
+                    filled ? 'border-gray-200 bg-gray-50' : 'border-gray-200 opacity-60'}`}>
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconCls}`}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p data-es className="text-sm font-semibold text-gray-900">{title}</p>
+                        <Pill tone={tone}>{who}</Pill>
+                      </div>
+                      {text
+                        ? <p className="mt-1.5 text-sm text-gray-800 whitespace-pre-line">{text}</p>
+                        : added.length === 0 && <p data-es className="mt-1.5 text-sm text-gray-400">{empty}</p>}
+                      {/* The client's own, beside ours and never in place of them. */}
+                      {added.map((e, i) => (
+                        <div key={i} className="mt-2 rounded-lg border border-brand-100 bg-brand-50 px-3 py-2">
+                          <p className="text-xs text-gray-500">
+                            Added by the client · {e.signerName || 'signer'} when signing{e.version ? ` version ${e.version}` : ''}, {formatDateTime(e.at as unknown as { toDate: () => Date })}
+                          </p>
+                          <p className="text-sm text-gray-800 whitespace-pre-line mt-0.5">{e.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
