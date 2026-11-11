@@ -1,6 +1,6 @@
 /*
  * The look-and-feel choices that follow a person from one computer to the
- * next: the colour theme, the chat wallpaper, and whether Learn English and the
+ * next: the colour theme, the chat wallpaper and load-update style, and whether Learn English and the
  * Spanish switch are on.
  *
  * They used to live in localStorage alone, on the argument that they are about
@@ -32,10 +32,20 @@ export type ChatWallpaperId = 'freight' | 'highway' | 'harbour' | 'warehouse' | 
 
 export const CHAT_WALLPAPER_IDS: ChatWallpaperId[] = ['freight', 'highway', 'harbour', 'warehouse', 'dots', 'plain'];
 
+/**
+ * How the load updates TTMS posts in a room are drawn for this person — see
+ * src/components/chat/SystemMessage.tsx. Three drawings of the same parsed
+ * update (src/lib/chatAlertCards.ts); the room itself is the same for all.
+ */
+export type ChatAlertStyle = 'tickets' | 'cards' | 'timeline';
+
+export const CHAT_ALERT_STYLES: ChatAlertStyle[] = ['tickets', 'cards', 'timeline'];
+
 /** Every key optional: absent means "never chosen", and the browser's own value (or the default) stands. */
 export interface UserPreferences {
   theme?: ThemeChoice;
   chatWallpaper?: ChatWallpaperId;
+  chatAlertStyle?: ChatAlertStyle;
   learnEnglish?: boolean;
   /** Spanish under the English — see src/context/SpanishContext.tsx. */
   spanish?: boolean;
@@ -76,6 +86,9 @@ export function cleanPreferences(input: unknown): UserPreferences {
   if (THEME_CHOICES.includes(body.theme as ThemeChoice)) out.theme = body.theme as ThemeChoice;
   if (CHAT_WALLPAPER_IDS.includes(body.chatWallpaper as ChatWallpaperId)) {
     out.chatWallpaper = body.chatWallpaper as ChatWallpaperId;
+  }
+  if (CHAT_ALERT_STYLES.includes(body.chatAlertStyle as ChatAlertStyle)) {
+    out.chatAlertStyle = body.chatAlertStyle as ChatAlertStyle;
   }
   if (typeof body.learnEnglish === 'boolean') out.learnEnglish = body.learnEnglish;
   if (typeof body.spanish === 'boolean') out.spanish = body.spanish;

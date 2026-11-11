@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "04e2f88c5899461df091b2b83d992f57aef838ce",
+      "date": "2026-11-11T08:08:40-06:00",
+      "author": "erwindank",
+      "subject": "Show the stop time badge's \"that day\" clock note only on stops still ahead: on a pickup or delivery already past it warned about a clock change nobody could act on any more",
+      "body": ""
+    },
+    {
       "hash": "233a3c280e5e3b75b1aa06eeed22bbfa5c14f797",
       "date": "2026-11-10T22:52:42-06:00",
       "author": "erwindank",

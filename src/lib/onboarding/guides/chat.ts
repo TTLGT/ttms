@@ -163,6 +163,7 @@ export const CHAT_GUIDE: Guide = {
       points: [
         b('Every order has a Discuss button. Pressing it opens (or starts) that load’s own room, with the people working it.', 'Cada orden tiene un botón Discutir. Al presionarlo se abre (o se crea) la sala propia de esa carga, con las personas que la trabajan.'),
         b('TTMS posts updates there by itself: when an agreement is sent or signed, when the driver taps a step, when a request is answered.', 'TTMS publica avisos ahí solo: cuando se envía o firma un acuerdo, cuando el conductor marca un paso, cuando se responde una solicitud.'),
+        b('Each update has a colour: green when something is done, amber when somebody has to act, red when something stopped working, blue for news. Buttons on it open the load or the signing page.', 'Cada aviso tiene un color: verde cuando algo está hecho, ámbar cuando alguien tiene que actuar, rojo cuando algo dejó de funcionar, azul para novedades. Sus botones abren la carga o la página de firma.'),
         b('The Loads filter shows only load rooms. The button in a load room’s header opens the order.', 'El filtro Cargas muestra solo las salas de carga. El botón del encabezado de una sala de carga abre la orden.'),
         b('When a load is finished, choose Leave this room from its menu. Pressing Discuss on the order brings it back.', 'Cuando termines una carga, elige Salir de esta sala en su menú. Presionar Discutir en la orden la regresa.'),
       ],
@@ -182,7 +183,7 @@ export const CHAT_GUIDE: Guide = {
       id: 'personal',
       title: b('Make it yours', 'Hazlo tuyo'),
       points: [
-        b('Chat background: pick a wallpaper from the picture button at the top of the conversation list. It only changes this browser, and nobody else sees it.', 'Fondo del chat: elige un fondo con el botón de imagen arriba de la lista de conversaciones. Solo cambia este navegador, y nadie más lo ve.'),
+        b('Chat appearance: the picture button at the top of the conversation list picks a wallpaper and how load updates look (Tickets, Cards or Timeline). It is saved to your account, and nobody else sees it.', 'Apariencia del chat: el botón de imagen arriba de la lista de conversaciones elige un fondo y cómo se ven los avisos de las cargas (Tarjetas con franja, Tarjetas o Línea de tiempo). Se guarda en tu cuenta, y nadie más lo ve.'),
         b('Online status: a green dot means someone is in TTMS now. You can hide when you were last seen from your profile page.', 'Estado en línea: un punto verde significa que alguien está en TTMS ahora. Puedes ocultar cuándo te vieron por última vez desde tu perfil.'),
       ],
     },

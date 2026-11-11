@@ -1917,7 +1917,9 @@ that document is readable by every signed-in user under `firestore.rules`, while
 check before extending it.
 
 **Look-and-feel choices.** `users/{uid}.preferences` is a map of `theme`
-(`light` / `dim` / `dark` / `system`), `chatWallpaper` and `learnEnglish`, each
+(`light` / `dim` / `dark` / `system`), `chatWallpaper`, `chatAlertStyle`
+(`tickets` / `cards` / `timeline` — how load updates are drawn in chat; absent
+reads as `tickets`) and `learnEnglish`, each
 optional — absent means never chosen. It is written only by
 `PATCH /api/me/preferences`, which takes the uid off the ID token and accepts
 only the keys `cleanPreferences()` in `src/types/userPreferences.ts` knows. The

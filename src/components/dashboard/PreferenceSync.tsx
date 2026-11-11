@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { storeTheme, storedTheme } from '@/lib/theme';
 import { storeChatWallpaper, storedChatWallpaper } from '@/lib/chatWallpaper';
+import { storeChatAlertStyle, storedChatAlertStyle } from '@/lib/chatAlertStyle';
 import { storeLearnEnglish, storedLearnEnglish } from '@/context/LearnContext';
 import { storeSpanish, storedSpanish } from '@/context/SpanishContext';
 import { saveToAccount } from '@/lib/preferences';
@@ -51,6 +52,10 @@ export default function PreferenceSync() {
         && account.chatWallpaper !== storedChatWallpaper()) {
       storeChatWallpaper(account.chatWallpaper);
     }
+    if (account.chatAlertStyle && account.chatAlertStyle !== last.chatAlertStyle
+        && account.chatAlertStyle !== storedChatAlertStyle()) {
+      storeChatAlertStyle(account.chatAlertStyle);
+    }
     if (typeof account.learnEnglish === 'boolean' && account.learnEnglish !== last.learnEnglish
         && account.learnEnglish !== storedLearnEnglish()) {
       storeLearnEnglish(account.learnEnglish);
@@ -66,10 +71,12 @@ export default function PreferenceSync() {
       const missing: UserPreferences = {};
       const theme = storedTheme();
       const wallpaper = storedChatWallpaper();
+      const alertStyle = storedChatAlertStyle();
       const learn = storedLearnEnglish();
       const spanish = storedSpanish();
       if (!account.theme && theme) missing.theme = theme;
       if (!account.chatWallpaper && wallpaper) missing.chatWallpaper = wallpaper;
+      if (!account.chatAlertStyle && alertStyle) missing.chatAlertStyle = alertStyle;
       if (typeof account.learnEnglish !== 'boolean' && learn !== null) missing.learnEnglish = learn;
       if (typeof account.spanish !== 'boolean' && spanish !== null) missing.spanish = spanish;
       if (Object.keys(missing).length > 0) saveToAccount(missing);

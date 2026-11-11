@@ -28,7 +28,7 @@ import MessageBubble from './MessageBubble';
 import ChatWallpaper from './ChatWallpaper';
 import MessageComposer from './MessageComposer';
 import PinnedBar from './PinnedBar';
-import SystemMessage from './SystemMessage';
+import SystemMessage, { isLoadUpdate } from './SystemMessage';
 import { can } from '@/lib/accessControl';
 import { Bi } from '@/components/spanish/Es';
 import {
@@ -211,6 +211,13 @@ export default function MessageThread({ conversation }: { conversation: Conversa
     );
     return first?.id ?? null;
   }, [messages, dividerAt, myUid]);
+
+  // Which messages draw as load-update cards, worked out once per change to
+  // the list rather than twice per message per render.
+  const loadUpdateIds = useMemo(
+    () => new Set(messages.filter(isLoadUpdate).map((m) => m.id)),
+    [messages],
+  );
 
   /* ------------------------------------------------------------ scrolling */
 
@@ -743,6 +750,7 @@ export default function MessageThread({ conversation }: { conversation: Conversa
 
           {messages.map((m, i) => {
             const previous = messages[i - 1];
+            const following = messages[i + 1];
             // A date line whenever the day changes, so a thread read in the
             // morning does not present yesterday's argument as if it were new.
             const newDay = !previous || dayOf(previous) !== dayOf(m);
@@ -775,7 +783,18 @@ export default function MessageThread({ conversation }: { conversation: Conversa
 
                 {/* A line from TTMS rather than from a person: no bubble, no
                     menu, nothing to react to. See SystemMessage. */}
-                {m.system ? <SystemMessage message={m} /> : (
+                {m.system ? (
+                  <SystemMessage
+                    message={m}
+                    // A run of load updates draws as one: joined on the
+                    // Timeline style's line, closer together in the others.
+                    // A new day or the unread line breaks the run, as they
+                    // break a run of bubbles.
+                    joinAbove={!newDay && m.id !== firstUnreadId && loadUpdateIds.has(m.id) && !!previous && loadUpdateIds.has(previous.id)}
+                    joinBelow={!!following && loadUpdateIds.has(m.id) && loadUpdateIds.has(following.id)
+                      && dayOf(following) === dayOf(m) && following.id !== firstUnreadId}
+                  />
+                ) : (
                 <MessageBubble
                   message={m}
                   grouped={grouped}
