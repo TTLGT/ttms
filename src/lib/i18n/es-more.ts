@@ -2902,4 +2902,14 @@ export const ES_MORE: Record<string, string> = {
     "Cada cambio a este proveedor, quién lo hizo y cuándo",
   "Who does each service": 'Quién hace cada servicio',
   "(from Loading and Unloading)": '(de Carga y Descarga)',
+  // The Next step card's list of what is in the way (orderNextSteps).
+  "The load has drifted from its paperwork. Work through these, top first, before moving it on.":
+    "La carga ya no coincide con sus documentos. Resuelve esto, empezando por arriba, antes de avanzarla.",
+  "Fix it": "Corregir",
+  "Check the carrier with FMCSA": "Verifica al transportista con FMCSA",
+  "The carrier is not valid with FMCSA": "El transportista no es válido según FMCSA",
+  "Pick who TTL hires": "Elige a quién contrata TTL",
+  "Dates are in the past": "Las fechas ya pasaron",
+  "Send the SA again": "Envía el SA de nuevo",
+  "Send the Dispatch Sheet again": "Envía la Dispatch Sheet de nuevo",
 };

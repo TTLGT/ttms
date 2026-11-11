@@ -115,6 +115,7 @@ import { celebrate } from '@/lib/celebrate';
 import { reviewChecks, type AgreementParty, type SaRequest } from '@/types/saRequest';
 import { CHANGE_ORDER_STATUS_LABEL, type ChangeOrder } from '@/types/changeOrder';
 import { bolBlockers, readinessOf, type ReadinessItem } from '@/types/orderReadiness';
+import { orderNextSteps } from '@/components/orders/orderNextSteps';
 
 // Sentinel value for the dropdown's "add a new carrier" row. Not a document id,
 // so it can never collide with a real carrier.
@@ -492,6 +493,13 @@ export default function OrderDetailPage() {
    * numbers are not in the fingerprint, so they are added to the key.
    */
   const [bolBlocked, setBolBlocked] = useState<ReadinessItem[] | null>(null);
+  // The whole list from the same read, for the Next step card — see
+  // orderNextSteps(). No second request.
+  const [fullReadiness, setFullReadiness] = useState<ReadinessItem[] | null>(null);
+  // The load's carrier as the Carrier card holds it, FMCSA result included —
+  // fresher than the page's carrier list, which is read once on open and
+  // holds active carriers only. See CarrierCompliance's onCarrier.
+  const [cardCarrier, setCardCarrier] = useState<Carrier | null>(null);
   const bolCardShown = Boolean(order && order.status !== 'quote' && order.status !== 'cancelled');
   const bolReadyKey = order && bolCardShown
     ? `${bolFingerprint(order as unknown as Record<string, unknown>)}|${order.driverPhone ?? ''}|${order.carrierId ?? ''}`
@@ -500,7 +508,7 @@ export default function OrderDetailPage() {
     if (!bolReadyKey) return;
     let live = true;
     fetchOrderReadiness(orderId)
-      .then((items) => { if (live) setBolBlocked(bolBlockers(items)); })
+      .then((items) => { if (live) { setBolBlocked(bolBlockers(items)); setFullReadiness(items); } })
       // Not knowing is not a reason to hide the button; the server still refuses.
       .catch(() => { if (live) setBolBlocked(null); });
     return () => { live = false; };
@@ -1351,6 +1359,20 @@ export default function OrderDetailPage() {
         : 'Upload the carrier’s signed Dispatch Sheet first, in the Carrier section or under Documents → Signed Dispatch Sheet, and have admin or dispatch verify it. It moves on its own when the carrier e-signs.'
       : '';
   const step = NEXT_STEP[displayStatus(order.status)];
+  // What is actually in the way, worst first (orderNextSteps). When there is
+  // anything, the card leads with it and the status sentence waits: telling
+  // somebody to send the driver's link on a load whose dates have gone by and
+  // whose carrier FMCSA has pulled was the card being confidently wrong.
+  const assignedCarrier = !order.carrierId ? null
+    : cardCarrier?.id === order.carrierId ? cardCarrier
+    : carriers.find((c) => c.id === order.carrierId) ?? null;
+  const issues = orderNextSteps(order, {
+    readiness: fullReadiness ?? readiness,
+    carrier: assignedCarrier ? { fmcsa: assignedCarrier.fmcsa, mc: assignedCarrier.mc } : null,
+    saReq,
+    caReq,
+  });
+  const lead = issues[0];
 
   // The rail's open items. Each review is listed only while somebody still has
   // something to do on it; once it is done its line goes, and what was checked
@@ -1488,8 +1510,53 @@ export default function OrderDetailPage() {
           {step && (
             <section className="rounded-2xl border border-brand-100 bg-white p-5 shadow-sm">
               <p data-es className="text-[11px] font-semibold uppercase tracking-wider text-brand-600">Next step</p>
-              <h2 data-es className="mt-1 text-lg font-semibold text-gray-900">{step.title}</h2>
-              <p className="mt-1 text-sm text-gray-600"><Bi>{step.text}</Bi></p>
+              {lead ? (
+                <>
+                  <h2 data-es className="mt-1 text-lg font-semibold text-gray-900">
+                    {issues.length > 1 ? `Sort out ${issues.length} things first` : lead.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    <Bi>{issues.length > 1
+                      ? 'The load has drifted from its paperwork. Work through these, top first, before moving it on.'
+                      : lead.text}</Bi>
+                  </p>
+                  {issues.length > 1 && (
+                    <ol className="mt-3 space-y-1.5">
+                      {issues.map((i) => {
+                        const open = i.panel ? () => setPanel(i.panel!) : i.fix ? () => goFix(i.fix!) : undefined;
+                        return (
+                          <li key={i.key}>
+                            <button type="button" onClick={open} disabled={!open}
+                              className="flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-gray-50 disabled:cursor-default disabled:hover:bg-transparent">
+                              <AlertTriangle className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${i.level === 'bad' ? 'text-red-600' : 'text-amber-600'}`} />
+                              <span className="min-w-0">
+                                <span data-es className="block text-sm font-medium text-gray-900">{i.title}</span>
+                                <span className="block text-xs text-gray-500">{i.text}</span>
+                              </span>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  )}
+                  {issues.length === 1 && (lead.panel || lead.fix) && (
+                    <button type="button" data-es="Fix it"
+                      onClick={() => (lead.panel ? setPanel(lead.panel) : goFix(lead.fix!))}
+                      className="mt-3 text-sm font-semibold text-brand-600 hover:underline">
+                      Fix it →
+                    </button>
+                  )}
+                  <div className="mt-3 border-t border-gray-100 pt-3 text-xs text-gray-500">
+                    <p data-es className="font-semibold text-gray-600">Then: {step.title}</p>
+                    <p><Bi>{step.text}</Bi></p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2 data-es className="mt-1 text-lg font-semibold text-gray-900">{step.title}</h2>
+                  <p className="mt-1 text-sm text-gray-600"><Bi>{step.text}</Bi></p>
+                </>
+              )}
 
               {/* A quote's next step is a request to dispatch, not a status
                   change — see src/types/saRequest.ts. Every later rung keeps the
@@ -1510,9 +1577,14 @@ export default function OrderDetailPage() {
                 <>
                   <button onClick={handleAdvance} disabled={advancing || advanceBlocked}
                     data-es={STATUS_LABEL[nextStatus]}
+                    // Still pressable with issues open — nothing here is a
+                    // guard, the routes are — but no longer the obvious thing
+                    // to press while the card is listing what is wrong.
                     className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${advanceBlocked
                       ? 'cursor-not-allowed border border-gray-200 bg-gray-50 text-gray-400'
-                      : 'bg-brand-600 text-white shadow-sm hover:bg-brand-700 disabled:opacity-60'}`}>
+                      : lead
+                        ? 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60'
+                        : 'bg-brand-600 text-white shadow-sm hover:bg-brand-700 disabled:opacity-60'}`}>
                     {advancing ? 'Updating…' : `→ ${STATUS_LABEL[nextStatus]}`}
                   </button>
                   {blockedReason && (
@@ -2188,7 +2260,7 @@ export default function OrderDetailPage() {
                 </div>
               );
               return order.carrierId ? (
-                <CarrierCompliance key={order.carrierId} carrierId={order.carrierId}
+                <CarrierCompliance key={order.carrierId} carrierId={order.carrierId} onCarrier={setCardCarrier}
                   nameCell={carrierCell} driverRow={driverRow} />
               ) : (
                 <div className="space-y-6">

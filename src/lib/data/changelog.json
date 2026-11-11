@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "e756e7b3344daf77a04530adbb63f60be81d64c7",
+      "date": "2026-11-10T16:20:00-06:00",
+      "author": "erwindank",
+      "subject": "Give each commodity its own pictures, pickup and delivery: commodity pictures take a separate Picked up at and Delivered to (other picture types no longer ask for a stop), and the picture viewer is redesigned as a friendly editor with plain choices, a save bar and a warning before leaving unsaved changes. On loads with more than one commodity, Freight shows each line's pickup and delivery and its picture, with Add picture to upload one already tagged to that line and Link a picture to attach pictures already on the load; a linked picture always follows its line's stops in Freight. The order header shows one picture per commodity. The Documents picture search now finds pictures by year, make, model and VIN, matching every word typed, and the viewer's details panel is no longer cut off on loads with many pictures",
+      "body": ""
+    },
+    {
       "hash": "aa02869967bc2066207b3bbcf7eeac20fdeb9076",
       "date": "2026-11-10T11:01:17-06:00",
       "author": "erwindank",

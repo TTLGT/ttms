@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import { getCarrier, updateCarrier } from '@/lib/carriers';
 import { carrierMainContact, carrierNumber, formatCoverage, getInsuranceStatus, parseCoverageInput } from '@/types/carrier';
@@ -61,16 +61,29 @@ export default function CarrierCompliance({
   carrierId,
   nameCell,
   driverRow,
+  onCarrier,
 }: {
   carrierId: string;
   /** The carrier's name, drawn first on the top row beside MC and DOT. */
   nameCell?: React.ReactNode;
   /** The load's driver, drawn between the carrier's contact and its insurance. */
   driverRow?: React.ReactNode;
+  /**
+   * The carrier as this card currently holds it — on load, and again after
+   * every FMCSA check or save. The order's Next step card reads FMCSA from
+   * here (orderNextSteps), because the check this card runs by itself on a
+   * newly assigned carrier lands after the page's own carrier list was read,
+   * and that list leaves out inactive carriers anyway.
+   */
+  onCarrier?: (carrier: Carrier | null) => void;
 }) {
   const { can } = useAuth();
   const { formatDate } = useDateFormatters();
   const [carrier, setCarrier] = useState<Carrier | null>(null);
+  // Through a ref so a parent passing an inline function does not re-fire it.
+  const onCarrierRef = useRef(onCarrier);
+  onCarrierRef.current = onCarrier;
+  useEffect(() => { onCarrierRef.current?.(carrier); }, [carrier]);
   const [loaded, setLoaded]   = useState(false);
   const [error, setError]     = useState('');
   const [mc, setMc]             = useState('');

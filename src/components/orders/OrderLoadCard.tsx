@@ -133,16 +133,20 @@ export default function OrderLoadCard({ order, thumb, title, sub, actions }: {
               <p className="text-xs text-gray-500">{formatDateRange(from?.date ?? null, from?.dateEnd ?? null, '') || <Bi>No pickup date</Bi>}</p>
               <DockLine order={order} end="pickup" />
             </div>
-            <div className="relative h-9" aria-hidden>
-              <div className="absolute inset-x-0 top-[15px] h-1 rounded-full bg-gray-200" />
-              <div className="absolute left-0 top-[15px] h-1 rounded-full bg-blue-500 transition-[width] duration-1000 ease-out motion-reduce:transition-none"
-                style={{ width: `${truckAt}%` }} />
-              <div className={`absolute top-0 flex h-[34px] w-[34px] -translate-x-1/2 items-center justify-center rounded-full text-white shadow ring-4 transition-[left] duration-1000 ease-out motion-reduce:transition-none ${cancelled ? 'bg-gray-400 ring-gray-100' : 'bg-blue-600 ring-blue-100'}`}
-                style={{ left: `clamp(17px, ${truckAt}%, calc(100% - 17px))` }}>
-                <Truck className="h-4 w-4" />
+            <div className="min-w-0">
+              <div className="relative h-[34px]" aria-hidden>
+                <div className="absolute inset-x-0 top-[15px] h-1 rounded-full bg-gray-200" />
+                <div className="absolute left-0 top-[15px] h-1 rounded-full bg-blue-500 transition-[width] duration-1000 ease-out motion-reduce:transition-none"
+                  style={{ width: `${truckAt}%` }} />
+                <div className={`absolute top-0 flex h-[34px] w-[34px] -translate-x-1/2 items-center justify-center rounded-full text-white shadow ring-4 transition-[left] duration-1000 ease-out motion-reduce:transition-none ${cancelled ? 'bg-gray-400 ring-gray-100' : 'bg-blue-600 ring-blue-100'}`}
+                  style={{ left: `clamp(17px, ${truckAt}%, calc(100% - 17px))` }}>
+                  <Truck className="h-4 w-4" />
+                </div>
               </div>
+              {/* In the flow below the track, not laid over it: the truck moves
+                  along the line, so any caption on the line ends up under it. */}
               {(order.laneMiles || stopsBetween > 0) && (
-                <p className="absolute left-1/2 top-[22px] -translate-x-1/2 whitespace-nowrap text-[11px] text-gray-500">
+                <p className="mt-2 text-center text-[11px] leading-snug text-gray-500">
                   {order.laneMiles ? `${formatLaneMiles(order.laneMiles, order.laneMilesSource)} · ${laneMilesCaption(order.laneMilesSource)}` : ''}
                   {order.laneMiles && stopsBetween > 0 ? ' · ' : ''}
                   {stopsBetween > 0 ? `${stopsBetween} more stop${stopsBetween > 1 ? 's' : ''}` : ''}
