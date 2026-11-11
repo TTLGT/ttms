@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "59cd15a60f0ead707d72f7e24b1b953f1bd6d63e",
+      "date": "2026-11-10T22:34:04-06:00",
+      "author": "erwindank",
+      "subject": "Make the order's Next step card say what is actually in the way: before the usual step for the status, it now lists, worst first, a carrier FMCSA does not let operate or has never checked, empty fields the SA or BOL prints (loading and unloading conditions, who arranges each added service, driver and more), a service TTL arranges with no provider picked, pickup and delivery dates that have passed while the load has not moved, and an SA or Dispatch Sheet held by a change and waiting to be sent again. Each line opens where to fix it, and the advance button steps back while anything is listed. The FMCSA result comes from the Carrier card, so a newly assigned carrier's automatic check shows straight away. The lane distance under the route line no longer sits under the moving truck",
+      "body": ""
+    },
+    {
       "hash": "e756e7b3344daf77a04530adbb63f60be81d64c7",
       "date": "2026-11-10T16:20:00-06:00",
       "author": "erwindank",
