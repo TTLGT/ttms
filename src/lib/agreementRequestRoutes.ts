@@ -95,8 +95,18 @@ export function requestPOST(party: AgreementParty) {
       const note = (typeof body.note === 'string' ? body.note.trim() : '').slice(0, 1000);
 
       if (party === 'client') {
-        if (order.status !== 'quote' && order.status !== 'booked') {
-          return NextResponse.json({ error: 'A Shipper Agreement (SA) can only be requested for a quote.' }, { status: 409 });
+        /*
+         * Past Booked too, since 2026-11-10: a load that changed after the
+         * client signed needs the SA sent again, and the broker has to be able
+         * to ask. Two cases had no way to: an update review dispatch sent back
+         * ("fix it, then use Request SA again" — with no button and this route
+         * refusing), and a load whose signature came from an uploaded copy,
+         * where no link exists for a change to hold, so no review opens at all.
+         * The status only moves from a quote (below); the send route still
+         * refuses to re-send an SA the client has signed unchanged.
+         */
+        if (order.status === 'cancelled' || order.status === 'completed') {
+          return NextResponse.json({ error: `A Shipper Agreement (SA) cannot be requested for a ${order.status} load.` }, { status: 409 });
         }
         const sa = readinessOf(orderReadiness(order as Partial<Order>, await readinessFactsFor(order)), 'sa');
         if (sa.missing.length > 0) {

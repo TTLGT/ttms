@@ -1322,6 +1322,10 @@ Every reviewer sees every tick and who closed it; Approvals lists them.
   guard and the review all read it. Add a line to either PDF, add it there.
 - **The review gate is in the send route**, not only the button: an open
   request with unticked items makes `send-shipper-agreement` answer 409.
+- **Request SA again** (2026-11-10): past the quote, a broker can ask again
+  when no review is open — after dispatch sent an update back, or on a load
+  that never had one (a signature from an uploaded copy has no link for a
+  change to hold). It moves no status; only cancelled and completed refuse.
 - **The signing link is posted in the load's room** on purpose (asked for);
   a signature records IP and device, so a staff member signing from it would
   not pass for the client.

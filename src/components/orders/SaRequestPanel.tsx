@@ -37,9 +37,14 @@ import { Bi } from '@/components/spanish/Es';
  * src/types/saRequest.ts.
  */
 export function RequestSaButton({
-  orderId, onRequested, party = 'client', carrierName = '', clientSigned = true, owners, createdBy, onBrokerChanged,
+  orderId, onRequested, party = 'client', carrierName = '', clientSigned = true, owners, createdBy, onBrokerChanged, again = false,
 }: {
   orderId: string;
+  /**
+   * The SA asked for again on a load past Booked — after a change, or after
+   * dispatch sent an update back. Same request; it says so, and moves no status.
+   */
+  again?: boolean;
   onRequested: () => void;
   /**
    * The load's owners and current broker (`order.owners`), so the dialog can
@@ -109,9 +114,13 @@ export function RequestSaButton({
         </button>
       ) : (
         <button type="button" onClick={() => setOpen(true)}
-          title="The client accepted the quote: ask dispatch to check the load and send the Shipper Agreement"
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition">
-          <Send className="w-4 h-4" /> Request {AGREEMENT_BUTTON.client}
+          title={again
+            ? 'The load changed: ask dispatch to check it and send the client the updated Shipper Agreement'
+            : 'The client accepted the quote: ask dispatch to check the load and send the Shipper Agreement'}
+          className={again
+            ? 'inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition'
+            : 'inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition'}>
+          <Send className={again ? 'w-3.5 h-3.5' : 'w-4 h-4'} /> Request {AGREEMENT_BUTTON.client}{again ? ' again' : ''}
         </button>
       )}
       {open && createPortal(
@@ -124,7 +133,9 @@ export function RequestSaButton({
                 <p className="text-xs text-gray-500 mt-1">
                   {carrier
                     ? <>Admin and dispatch are told in this load&apos;s discussion, check {carrierName || 'the carrier'} — authority, insurance, driver, truck — and email them the agreement to sign.</>
-                    : <>For when the client has accepted the quote. Admin and dispatch are told in this load&apos;s discussion, check the order, and email the client the agreement to sign. The order moves to Booked.</>}
+                    : again
+                      ? <>For when the load changed after the SA went out or was signed. Admin and dispatch are told in this load&apos;s discussion, check the order, and email the client the updated agreement to sign again.</>
+                      : <>For when the client has accepted the quote. Admin and dispatch are told in this load&apos;s discussion, check the order, and email the client the agreement to sign. The order moves to Booked.</>}
                 </p>
               </div>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="rounded p-1 text-gray-400 hover:bg-gray-100">
@@ -191,7 +202,7 @@ export function RequestSaButton({
                 className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
               <button type="button" onClick={() => void submit()} disabled={busy || !sa || sa.missing.length > 0}
                 className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
-                {busy ? 'Sending…' : `Request ${AGREEMENT_BUTTON[party]}`}
+                {busy ? 'Sending…' : `Request ${AGREEMENT_BUTTON[party]}${again ? ' again' : ''}`}
               </button>
             </div>
           </div>
@@ -211,8 +222,14 @@ export function RequestSaButton({
  * and names who made it, so the second person sees what the first already
  * did; the panel reloads after every action rather than trusting its own copy.
  */
-export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, onLoaded, onFix, party = 'client', signed = null, layout = 'card' }: {
+export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, onLoaded, onFix, party = 'client', signed = null, layout = 'card', askAgain }: {
   orderId: string;
+  /**
+   * The page's Request button, drawn under "Sent back" so the broker can ask
+   * again from where they read that they should. The page decides whether it
+   * applies (who may ask, the load's status).
+   */
+  askAgain?: React.ReactNode;
   /**
    * `panel` when drawn inside the order page's side panel (OrderSidePanel):
    * no card of its own, one column, and each check's explanation folded
@@ -382,6 +399,7 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
           <p className="font-semibold">Sent back by {r.returnedByName}{r.returnedAt ? ` · ${formatDateTime(new Date(r.returnedAt))}` : ''}</p>
           {r.returnReason && <p className="mt-0.5">{r.returnReason}</p>}
           <p className="mt-1 text-amber-800">Fix it, then use Request {AGREEMENT_BUTTON[party]} again.</p>
+          {askAgain && <div className="mt-2">{askAgain}</div>}
         </div>
       )}
       {!isReviewer && r.status === 'open' && (

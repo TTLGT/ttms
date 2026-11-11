@@ -337,6 +337,9 @@ export default function OrderDetailPage() {
    * review being a full-width card above the load.
    */
   const [saReq, setSaReq] = useState<SaRequest | null>(null);
+  // Whether the SA review has been read yet — so "Request SA again" is not
+  // drawn for the moment before an open review arrives to say it is not needed.
+  const [saReqLoaded, setSaReqLoaded] = useState(false);
   const [caReq, setCaReq] = useState<SaRequest | null>(null);
   const [changeOrder, setChangeOrder] = useState<ChangeOrder | null>(null);
   const [readiness, setReadiness] = useState<ReadinessItem[] | null>(null);
@@ -1301,6 +1304,24 @@ export default function OrderDetailPage() {
    */
   const clientConfirmationStarted =
     !!order && !['quote', 'cancelled'].includes(order.status);
+
+  /*
+   * "Request SA again" — a load past the quote whose SA has to go out again
+   * and nobody is reviewing it: dispatch sent the update back, or the load has
+   * never had a review (a signature from an uploaded copy has no link for a
+   * change to hold, so nothing opens on its own). While a review is open or
+   * sent, dispatch already has it; once one is done, a later change opens a
+   * fresh one by itself. The route checks the status again.
+   */
+  const requestSaAgain = order && saReqLoaded && can('orders.create')
+    && !['quote', 'cancelled', 'completed'].includes(order.status)
+    && (!saReq || saReq.status === 'returned') ? (
+      <RequestSaButton again orderId={orderId}
+        owners={order.owners}
+        createdBy={order.createdBy}
+        onBrokerChanged={() => void refreshOwners()}
+        onRequested={() => setSaRefresh((n) => n + 1)} />
+    ) : null;
   const awaitingCarrierSignature =
     !!order && !['quote', 'booked', 'cancelled'].includes(order.status) && !order.carrierSignedAt;
 
@@ -1872,6 +1893,7 @@ export default function OrderDetailPage() {
             <div id="client-confirmation" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
               {/* Who verified what before each SA went out — kept for good. */}
               <SectionHeading icon={FileSignature} tone="indigo" title="Client Confirmation" action={<SaVerificationRecord orderId={orderId} />} />
+              {requestSaAgain && <div className="mb-3">{requestSaAgain}</div>}
               {order.shipperSignedAt || order.shipperSignerName ? (
                 <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                   <span>✓</span>
@@ -2814,7 +2836,8 @@ export default function OrderDetailPage() {
           layout="panel"
           orderId={orderId}
           refreshKey={`${saRefresh}-${order.status}`}
-          onLoaded={setSaReq}
+          onLoaded={(r) => { setSaReq(r); setSaReqLoaded(true); }}
+          askAgain={requestSaAgain}
           onStatusChange={(status) => setOrder((prev) => (prev ? { ...prev, status } : prev))}
           onSent={() => setLinkRefresh((n) => n + 1)}
           onFix={fixFromPanel}
