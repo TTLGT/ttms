@@ -1,6 +1,20 @@
 {
   "changes": [
     {
+      "hash": "233a3c280e5e3b75b1aa06eeed22bbfa5c14f797",
+      "date": "2026-11-10T22:52:42-06:00",
+      "author": "erwindank",
+      "subject": "Add the latest commits to the change history",
+      "body": ""
+    },
+    {
+      "hash": "904a5fcb13edd3a007138a699440a00d9f6dfd96",
+      "date": "2026-11-10T22:51:14-06:00",
+      "author": "erwindank",
+      "subject": "Let a broker ask dispatch to send the SA again after a load changes: a Request SA again button in Client Confirmation and in a sent-back SA update, for any load past the quote that is not cancelled or completed and has no review open, including loads whose client signature came from an uploaded signed copy and so never open a review on their own",
+      "body": ""
+    },
+    {
       "hash": "59cd15a60f0ead707d72f7e24b1b953f1bd6d63e",
       "date": "2026-11-10T22:34:04-06:00",
       "author": "erwindank",

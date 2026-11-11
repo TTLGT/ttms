@@ -44,7 +44,13 @@ export default function TimeZoneBadge({ address, on, className = '' }: {
   const day = toDate(on ?? null);
   const onDay = day ? new Date(day.getFullYear(), day.getMonth(), day.getDate(), 12) : null;
   const abbrThen = onDay ? zoneAbbreviation(zone, onDay) : abbr;
-  const changes = abbrThen !== abbr;
+  // Only a stop still ahead gets the note. It exists to warn that a time
+  // agreed today will be on a different clock when the truck gets there; on a
+  // stop already past there is nothing left to arrange, and the note only
+  // read as a warning about a day that had gone.
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
+  const ahead = onDay !== null && onDay >= today;
+  const changes = ahead && abbrThen !== abbr;
 
   const title = [
     `${zoneName(zone)} — ${footing} (${abbr}) now`,
