@@ -3095,4 +3095,17 @@ export const ES_MORE: Record<string, string> = {
   "Expedited / hot shot": 'Urgente / hot shot',
   "Drayage (port or rail)": 'Acarreo (puerto o tren)',
   "No billing contact — invoices go to the main contact": 'Sin contacto de facturación: las facturas van al contacto principal.',
+  // Addresses abroad (2026-11-12) — src/types/addressCountry.ts.
+  "Canada": 'Canadá',
+  "Mexico": 'México',
+  "Province": 'Provincia',
+  "Department": 'Departamento',
+  "Postal code": 'Código postal',
+  "Postal code (if any)": 'Código postal (si tiene)',
+  "The free distance estimate covers US addresses only. An admin can switch Lane Distance to Google Routes, which works across borders":
+    'El cálculo gratuito de distancia solo cubre direcciones de EE. UU. Un administrador puede cambiar la distancia de ruta a Google Routes, que funciona entre países.',
+  "The free estimate covers US addresses only": 'El cálculo gratuito solo cubre direcciones de EE. UU.',
+  "Postal code is required": 'Se requiere el código postal.',
+  "Province is required": 'Se requiere la provincia.',
+  "Department is required": 'Se requiere el departamento.',
 };

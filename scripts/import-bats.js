@@ -951,14 +951,26 @@ function addressIsBlank(a) {
   return !a || ![a.street, a.city, a.state, a.zip].some((v) => String(v == null ? '' : v).trim());
 }
 
+// KEEP IN SYNC with countryCode() / regionIsCode() in src/types/addressCountry.ts.
+function countryCode(raw) {
+  const c = String(raw == null ? '' : raw).trim().toUpperCase();
+  if (!c || c === 'USA') return 'US';
+  if (c === 'CAN') return 'CA';
+  if (c === 'MEX') return 'MX';
+  return c.slice(0, 4);
+}
+
 function cleanAddress(raw) {
   const r = raw && typeof raw === 'object' ? raw : {};
   const s = (k) => (typeof r[k] === 'string' ? r[k].trim() : '').slice(0, ADDRESS_FIELD_MAX[k]);
-  return { street: s('street'), city: s('city'), state: s('state').toUpperCase(), zip: s('zip'), country: s('country') || 'US' };
+  const country = countryCode(s('country'));
+  const state = country === 'US' || country === 'CA' ? s('state').toUpperCase() : s('state');
+  return { street: s('street'), city: s('city'), state, zip: s('zip'), country };
 }
 
 function sameAddress(a, b) {
   if (addressIsBlank(a) || addressIsBlank(b)) return false;
+  if (countryCode(a.country) !== countryCode(b.country)) return false;
   if (streetKey(a.street) !== streetKey(b.street)) return false;
   const za = zip5(a.zip), zb = zip5(b.zip);
   if (za && zb) return za === zb;

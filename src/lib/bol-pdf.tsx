@@ -73,10 +73,13 @@ export type BolData = {
   originCity: string;
   originState: string;
   originZip: string;
+  /** '' for the US; the country's name for a stop abroad — see countrySuffix(). */
+  originCountry?: string;
   destStreet: string;
   destCity: string;
   destState: string;
   destZip: string;
+  destCountry?: string;
   pickupDate: string;
   deliveryDate: string;
   /** Every stop after the first pickup and the first delivery; usually none. */
@@ -364,8 +367,8 @@ function BolDocument({ d }: { d: BolData }) {
   // Numbered once there is more than one of a kind, matching the stop table.
   const multiPickup  = d.extraStops.some((st) => st.label.startsWith('PICKUP'));
   const multiDeliver = d.extraStops.some((st) => st.label.startsWith('DELIVERY'));
-  const originLine = [[d.originCity, d.originState].filter(Boolean).join(', '), d.originZip].filter(Boolean).join(' ');
-  const destLine   = [[d.destCity,   d.destState  ].filter(Boolean).join(', '), d.destZip  ].filter(Boolean).join(' ');
+  const originLine = [[[d.originCity, d.originState].filter(Boolean).join(', '), d.originZip].filter(Boolean).join(' '), d.originCountry].filter(Boolean).join(', ');
+  const destLine   = [[[d.destCity,   d.destState  ].filter(Boolean).join(', '), d.destZip  ].filter(Boolean).join(' '), d.destCountry].filter(Boolean).join(', ');
 
   // Sections are numbered in reading order, and the optional ones (extra
   // stops, instructions) only take a number when they print.

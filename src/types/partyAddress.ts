@@ -1,5 +1,6 @@
 import type { Address } from './order';
 import type { Party, PartyRole } from './party';
+import { countryCode, countryOf, regionIsCode, withCountry } from './addressCountry';
 
 /**
  * The places a shipper or consignee ships from or receives at (2026-11-06).
@@ -62,20 +63,48 @@ export function addressIsBlank(a: Partial<Address> | null | undefined): boolean 
   return !a || ![a.street, a.city, a.state, a.zip].some((v) => String(v ?? '').trim());
 }
 
-/** An Address from whatever JSON came in, every field a trimmed string. */
+/**
+ * The parts of an address still empty, in the words the form uses — [] when
+ * it is complete. A blank address answers every part; callers that treat
+ * "nothing typed" differently check addressIsBlank() first.
+ */
+export function missingAddressParts(a: Partial<Address> | null | undefined): string[] {
+  // Named the way that country's form names them, and the postal code only
+  // where an address is written with one — see postalRequired.
+  const country = countryOf(a);
+  const parts: [keyof Address, string][] = [
+    ['street', 'street'], ['city', 'city'], ['state', country.regionWord.toLowerCase()],
+    ...(country.postalRequired ? [['zip', country.postalWord === 'ZIP' ? 'ZIP' : 'postal code'] as [keyof Address, string]] : []),
+  ];
+  return parts.filter(([k]) => !String(a?.[k] ?? '').trim()).map(([, word]) => word);
+}
+
+/**
+ * An Address from whatever JSON came in, every field a trimmed string.
+ * KEEP IN SYNC with cleanAddress() in scripts/import-bats.js.
+ */
 export function cleanAddress(raw: unknown): Address {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const s = (k: keyof typeof FIELD_MAX) =>
     (typeof r[k] === 'string' ? (r[k] as string).trim() : '').slice(0, FIELD_MAX[k]);
-  return { street: s('street'), city: s('city'), state: s('state').toUpperCase(), zip: s('zip'), country: s('country') || 'US' };
+  const country = countryCode(s('country'));
+  // A US state or Canadian province is a code; anywhere else it is a name,
+  // kept as typed — see regionIsCode().
+  const state = regionIsCode(country) ? s('state').toUpperCase() : s('state');
+  return { street: s('street'), city: s('city'), state, zip: s('zip'), country };
 }
 
-/** "123 Main St, Dallas, TX 75201". */
+/**
+ * "123 Main St, Dallas, TX 75201" — and "6a Avenida 5-55, Antigua Guatemala,
+ * Sacatepéquez, Guatemala" for a stop abroad: the country is written only
+ * when it is not the US, so a US address reads as it always has.
+ */
 export function addressLine(a: Partial<Address> | null | undefined): string {
   if (!a) return '';
   const cityState = [a.city, a.state].map((v) => String(v ?? '').trim()).filter(Boolean).join(', ');
-  return [String(a.street ?? '').trim(), [cityState, String(a.zip ?? '').trim()].filter(Boolean).join(' ')]
+  const line = [String(a.street ?? '').trim(), [cityState, String(a.zip ?? '').trim()].filter(Boolean).join(' ')]
     .filter(Boolean).join(', ');
+  return withCountry(line, a);
 }
 
 // ─── Matching ───────────────────────────────────────────────────────────────
@@ -117,6 +146,9 @@ function cityKey(a: Partial<Address>): string {
  */
 export function sameAddress(a: Partial<Address> | null | undefined, b: Partial<Address> | null | undefined): boolean {
   if (addressIsBlank(a) || addressIsBlank(b)) return false;
+  // Two countries are two places, whatever the street is called: both have a
+  // San José, and a ZIP compared by its digits can coincide across a border.
+  if (countryCode(a!.country) !== countryCode(b!.country)) return false;
   if (streetKey(a!.street) !== streetKey(b!.street)) return false;
   const za = zip5(a!.zip), zb = zip5(b!.zip);
   if (za && zb) return za === zb;
@@ -136,6 +168,7 @@ export function sameAddress(a: Partial<Address> | null | undefined, b: Partial<A
  */
 export function addressMatchScore(typed: Partial<Address>, saved: Partial<Address>): number {
   if (addressIsBlank(typed) || addressIsBlank(saved)) return 0;
+  if (countryCode(typed.country) !== countryCode(saved.country)) return 0;
   const zt = zip5(typed.zip), zs = zip5(saved.zip);
   const sameZip  = zt.length === 5 && zt === zs;
   const sameCity = !!String(typed.city ?? '').trim() && cityKey(typed) === cityKey(saved);
@@ -294,7 +327,7 @@ export function partyLocations(p: PartyAddressFields | null | undefined, role?: 
   const saved = savedLocations(p).map((l, i): LocationChoice => ({
     id: l.id,
     label: l.label || `Address ${i + 2}`,
-    address: { street: l.street, city: l.city, state: l.state, zip: l.zip, country: l.country || 'US' },
+    address: { street: l.street, city: l.city, state: l.state, zip: l.zip, country: countryCode(l.country) },
     source: 'saved',
   }));
   const preferred = role === 'shipper' ? p.defaultOrigin : role === 'consignee' ? p.defaultDest : null;

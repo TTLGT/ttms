@@ -1,5 +1,6 @@
 import { ACCESSORIAL_LABEL, DOCK_HELP_LABEL, DOCK_PARTY_LABEL, SERVICE_ARRANGER_LABEL, STATUS_LABEL, accessorialLabels, cleanDockHelp, cleanServiceCharges, type DockParty, type OrderStatus } from './order';
 import { toDate, type DateLike } from '@/lib/dateFormat';
+import { withCountry } from './addressCountry';
 
 /**
  * The change history of an order, a party (client, shipper, consignee) or a
@@ -306,8 +307,8 @@ export function describeChangeValue(
   // A party's other addresses, as "Plant 2: 123 Main St, Dallas, TX 75201; …".
   if (field === 'addresses' && Array.isArray(value)) {
     return clip(value.map((l) => {
-      const loc = (l ?? {}) as { label?: string; street?: string; city?: string; state?: string; zip?: string };
-      const line = [loc.street, loc.city, [loc.state, loc.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+      const loc = (l ?? {}) as { label?: string; street?: string; city?: string; state?: string; zip?: string; country?: string };
+      const line = withCountry([loc.street, loc.city, [loc.state, loc.zip].filter(Boolean).join(' ')].filter(Boolean).join(', '), loc);
       return loc.label ? `${loc.label}: ${line}` : line;
     }).join('; '));
   }

@@ -9,10 +9,11 @@ import PartyLink from '@/components/parties/PartyLink';
 import PartyContact from '@/components/parties/PartyContact';
 import TimeZoneBadge from './TimeZoneBadge';
 import { Pill } from './DetailBits';
+import { withCountry } from '@/types/addressCountry';
 
 function cityLine(s: OrderStop): string {
   const a = s.address;
-  return [a?.city, [a?.state, a?.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  return withCountry([a?.city, [a?.state, a?.zip].filter(Boolean).join(' ')].filter(Boolean).join(', '), a);
 }
 
 function shortPlace(s: OrderStop | undefined): string {

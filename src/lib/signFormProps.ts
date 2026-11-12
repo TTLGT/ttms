@@ -1,6 +1,7 @@
 import { formatLongDateRange } from '@/lib/dateFormat';
 import { phoneRegionOf, PHONE_COUNTRY_CODE } from '@/lib/phone';
 import { DEFAULT_TERMS } from '@/types/agreementTerms';
+import { withCountry } from '@/types/addressCountry';
 import type { ConfirmationFreight, ConfirmationPayment, ConfirmationStop } from '@/types/loadConfirmation';
 
 /**
@@ -109,7 +110,7 @@ function paperPhone(raw: unknown, region: unknown): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function addressLines(a: any): string[] {
   if (!a || typeof a !== 'object') return [];
-  const place = [[a.city, a.state].filter(Boolean).join(', '), a.zip].filter(Boolean).join(' ');
+  const place = withCountry([[a.city, a.state].filter(Boolean).join(', '), a.zip].filter(Boolean).join(' '), a);
   return [String(a.street ?? '').trim(), place.trim()].filter(Boolean);
 }
 

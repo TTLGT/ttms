@@ -105,6 +105,15 @@ export function stopsProblem(kind: StopKind, drafts: readonly StopDraft[]): stri
 }
 
 /**
+ * The extra stops of a kind that are saved, named as the form names them,
+ * for incompleteAddressWarning(). Blank stops are dropped on save, so they
+ * are not warned about.
+ */
+export function stopsForAddressCheck(kind: StopKind, drafts: readonly StopDraft[]): { name: string; address: Address }[] {
+  return drafts.flatMap((d, i) => (isBlank(d) ? [] : [{ name: `${KIND_WORD[kind]} ${i + 2}`, address: d.address }]));
+}
+
+/**
  * Where each stop of a kind ends up once blank ones are dropped on save, as a
  * position among all the stops of that kind (0 is the first, which is never
  * dropped). A commodity line pointing at a blank stop points at nothing.

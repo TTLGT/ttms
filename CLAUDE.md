@@ -331,6 +331,7 @@ scripts cannot import TypeScript either:
 | `src/types/partyAddress.ts` | mirrored in |
 |---|---|
 | `streetKey()`, `sameAddress()`, `cleanAddress()`, `savedLocations()`, `importedLocationId()`, `mergeImportedLocations()` | `scripts/import-bats.js` — the ids must come out identical, or the two importers add one address twice |
+| `countryCode()` / `regionIsCode()` in `src/types/addressCountry.ts` | `countryCode()` and the state rule in `cleanAddress()` in `scripts/import-bats.js` |
 
 | `src/types/conversation.ts` | mirrored in |
 |---|---|
@@ -1269,6 +1270,23 @@ loaded. See "A party's addresses" in the Schema Guide.
   remove) is a strict party edit.
 - `defaultOrigin` / `defaultDest` are folded in by `savedLocations()` and
   cleared on the list's first save. Do not write new code against them.
+- **Addresses can be abroad** (2026-11-12): US, Canada, Mexico, Guatemala,
+  El Salvador, Honduras, Costa Rica, Nicaragua, Panamá —
+  `src/types/addressCountry.ts` is the one list. No country, or `USA`, reads
+  as the US, so nothing needed a backfill. `state` is a code for US/Canada and
+  the name elsewhere (`regionIsCode()`). The country is written after an
+  address only when it is not the US (`withCountry()`), so US paperwork and the
+  Google lane cache keys are unchanged. Two places are different addresses in
+  different countries (`sameAddress()`). The free mileage estimate refuses a
+  foreign leg (`outside_us`) instead of reading its postal code as a US ZIP;
+  Google Routes handles them. Central America's postal code is optional
+  (`postalRequired`), including in `orderReadiness()`. The time zone badge
+  places a Mexican stop by state, then by city in the border municipalities
+  that kept US daylight saving and in Bahía de Banderas (`MX_CITY_ZONE` in
+  `src/lib/timeZones.ts`).
+- **An incomplete address is a warning, never a refusal**
+  (`incompleteAddressWarning()`, 2026-11-12): the order forms ask with
+  `confirm()` and save on OK.
 
 ### Client contacts, billing and client type (2026-11-11)
 

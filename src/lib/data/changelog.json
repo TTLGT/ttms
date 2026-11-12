@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "4d6ee713449858c633883d2cd83e28deb923102b",
+      "date": "2026-11-12T10:44:25-06:00",
+      "author": "erwindank",
+      "subject": "Make the BATS import add every address a company was seen at to its profile, once each: a company at a second warehouse gets a second address instead of losing it. The main address, phone and email are filled from BATS only while blank, so a re-import never undoes a correction made in TTMS, and an address somebody removed is not brought back. The in-app import now also writes the phone search keys, so its parties can be found by phone number",
+      "body": ""
+    },
+    {
       "hash": "c796d0614117a4936c8b16ad28f4350549f39923",
       "date": "2026-11-11T15:10:14-06:00",
       "author": "erwindank",

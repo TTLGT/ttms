@@ -34,6 +34,8 @@ export type DistanceResult =
   /** One or both addresses have no usable ZIP yet. */
   | { status: 'need_zip'; degraded?: string }
   | { status: 'unknown_zip'; zip: string; degraded?: string }
+  /** The free estimate covers the US only, and a leg leaves it. */
+  | { status: 'outside_us'; degraded?: string }
   | { status: 'error'; message: string };
 
 /**
@@ -93,7 +95,7 @@ export async function fetchTripDistance(
   );
   if (legs.length === 1) return legs[0];
 
-  for (const status of ['disabled', 'error', 'unknown_zip', 'need_zip', 'needs_lookup'] as const) {
+  for (const status of ['disabled', 'error', 'outside_us', 'unknown_zip', 'need_zip', 'needs_lookup'] as const) {
     const hit = legs.find((l) => l.status === status);
     if (hit) return hit;
   }

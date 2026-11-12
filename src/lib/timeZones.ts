@@ -23,6 +23,7 @@
  */
 
 import type { Address } from '@/types/order';
+import { countryCode } from '@/types/addressCountry';
 import { OFFICE_UTC_OFFSET_MINUTES } from '@/types/attendance';
 
 const ET = 'America/New_York';
@@ -113,13 +114,117 @@ const SPLITS: Record<string, { prefixes?: Record<string, string>; zips?: Record<
   },
 };
 
+// ── Mexico ───────────────────────────────────────────────────────────────────
+//
+// Mexico stopped daylight saving in October 2022 everywhere except a strip
+// along the US border, which still moves with the US so that twin cities —
+// Juárez and El Paso, Matamoros and Brownsville — keep one clock. So a
+// Mexican stop is placed by its state and then, in the border states, by its
+// city. States are stored by name (see addressCountry.ts), which is what
+// makes this possible: the old two-letter codes clashed with Canada's.
+//
+// Like the US splits, this is right for the towns freight goes to. Border
+// towns are matched on the city as typed, so a ranch outside Reynosa typed as
+// its ejido reads as the rest of Tamaulipas. The badge names the zone it
+// used, so a wrong guess shows.
+
+const MX_CENTRO = 'America/Mexico_City';      // UTC−6 all year — most of the country
+const MX_PACIFICO = 'America/Mazatlan';       // UTC−7 all year
+const MX_SONORA = 'America/Hermosillo';       // UTC−7 all year (never had DST)
+const MX_SURESTE = 'America/Cancun';          // UTC−5 all year
+const MX_NOROESTE = 'America/Tijuana';        // US Pacific time, with US DST
+const MX_BORDER_CT = 'America/Matamoros';     // US Central time, with US DST
+const MX_BORDER_MT = 'America/Ciudad_Juarez'; // US Mountain time, with US DST
+const MX_OJINAGA = 'America/Ojinaga';         // US Central time, with US DST
+
+/** Keyed by the state's name as stored, accents and case folded (placeKey()). */
+const MX_STATE_ZONE: Record<string, string> = {
+  'aguascalientes': MX_CENTRO, 'baja california': MX_NOROESTE, 'baja california sur': MX_PACIFICO,
+  'campeche': MX_CENTRO, 'chiapas': MX_CENTRO, 'chihuahua': 'America/Chihuahua',
+  'ciudad de mexico': MX_CENTRO, 'coahuila': MX_CENTRO, 'colima': MX_CENTRO, 'durango': MX_CENTRO,
+  'estado de mexico': MX_CENTRO, 'guanajuato': MX_CENTRO, 'guerrero': MX_CENTRO, 'hidalgo': MX_CENTRO,
+  'jalisco': MX_CENTRO, 'michoacan': MX_CENTRO, 'morelos': MX_CENTRO, 'nayarit': MX_PACIFICO,
+  'nuevo leon': MX_CENTRO, 'oaxaca': MX_CENTRO, 'puebla': MX_CENTRO, 'queretaro': MX_CENTRO,
+  'quintana roo': MX_SURESTE, 'san luis potosi': MX_CENTRO, 'sinaloa': MX_PACIFICO,
+  'sonora': MX_SONORA, 'tabasco': MX_CENTRO, 'tamaulipas': MX_CENTRO, 'tlaxcala': MX_CENTRO,
+  'veracruz': MX_CENTRO, 'yucatan': MX_CENTRO, 'zacatecas': MX_CENTRO,
+};
+
+const each = (cities: string[], zone: string) => Object.fromEntries(cities.map((c) => [c, zone]));
+
+/**
+ * Cities on the other side of their state's line, by state. The border lists
+ * are the municipalities the 2022 law kept on US daylight saving, each under
+ * its seat and the names it is commonly typed as.
+ */
+const MX_CITY_ZONE: Record<string, Record<string, string>> = {
+  'chihuahua': {
+    ...each(['ciudad juarez', 'juarez', 'cd juarez', 'ascension', 'janos', 'guadalupe',
+      'praxedis g guerrero', 'praxedis guerrero', 'el porvenir'], MX_BORDER_MT),
+    ...each(['ojinaga', 'manuel benavides', 'coyame', 'coyame del sotol'], MX_OJINAGA),
+  },
+  'coahuila': each(['piedras negras', 'ciudad acuna', 'acuna', 'cd acuna', 'jimenez', 'guerrero',
+    'hidalgo', 'ocampo', 'zaragoza', 'nava', 'allende', 'morelos', 'villa union'], MX_BORDER_CT),
+  'nuevo leon': each(['anahuac', 'colombia'], MX_BORDER_CT),
+  'tamaulipas': each(['matamoros', 'reynosa', 'nuevo laredo', 'rio bravo', 'valle hermoso',
+    'miguel aleman', 'ciudad miguel aleman', 'camargo', 'ciudad camargo', 'gustavo diaz ordaz',
+    'ciudad gustavo diaz ordaz', 'diaz ordaz', 'mier', 'nueva ciudad guerrero', 'guerrero'], MX_BORDER_CT),
+  // Bahía de Banderas, the Nayarit side of Puerto Vallarta, keeps Vallarta's
+  // clock rather than the rest of Nayarit's.
+  'nayarit': each(['bahia de banderas', 'nuevo vallarta', 'bucerias', 'valle de banderas',
+    'san jose del valle', 'la cruz de huanacaxtle', 'punta de mita', 'punta mita', 'sayulita',
+    'mezcales', 'jarretaderas', 'las jarretaderas'], MX_CENTRO),
+};
+
+/** "Ciudad Juárez" → "ciudad juarez": accents, case, dots and spare spaces folded. */
+function placeKey(text: string | null | undefined): string {
+  return String(text ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function mexicoZone(address: Partial<Address>): string | null {
+  const state = placeKey(address.state);
+  return MX_CITY_ZONE[state]?.[placeKey(address.city)] ?? MX_STATE_ZONE[state] ?? null;
+}
+
+/**
+ * Zones new enough (2022) that an out-of-date browser may not know them, each
+ * with an older zone on the same clock. Intl throws on a zone it has never
+ * heard of, which would take the whole badge down with it.
+ */
+const ZONE_FALLBACK: Record<string, string> = {
+  [MX_BORDER_MT]: 'America/Denver',
+  [MX_OJINAGA]: 'America/Chicago',
+};
+
+function usableZone(zone: string): string {
+  const fallback = ZONE_FALLBACK[zone];
+  if (!fallback) return zone;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+    return zone;
+  } catch {
+    return fallback;
+  }
+}
+
+const COUNTRY_ZONE: Record<string, string> = {
+  GT: 'America/Guatemala', SV: 'America/El_Salvador', HN: 'America/Tegucigalpa',
+  CR: 'America/Costa_Rica', NI: 'America/Managua', PA: 'America/Panama',
+};
+
 /** The IANA zone a stop is in, or null when the address does not say enough. */
 export function timeZoneForAddress(address: Partial<Address> | null | undefined): string | null {
   if (!address) return null;
-  const country = (address.country ?? 'US').trim().toUpperCase();
-  // Mexico's state abbreviations are not standard and "BC" would read as
-  // British Columbia, so a Mexican stop gets no badge rather than a wrong one.
-  if (country && !['US', 'USA', 'CA', 'CAN', ''].includes(country)) return null;
+  const country = countryCode(address.country);
+  // Central America is one zone per country, none of them with daylight
+  // saving, so the country alone answers it.
+  if (COUNTRY_ZONE[country]) return COUNTRY_ZONE[country];
+  if (country === 'MX') {
+    const zone = mexicoZone(address);
+    return zone ? usableZone(zone) : null;
+  }
+  if (country !== 'US' && country !== 'CA') return null;
 
   const state = (address.state ?? '').trim().toUpperCase();
   const zip = (address.zip ?? '').trim().slice(0, 5);
@@ -173,6 +278,18 @@ export function zoneAbbreviation(zone: string, at: Date): string {
 }
 
 const ZONE_NAMES: Record<string, string> = {
+  // Named for the country rather than the city the zone is filed under, so
+  // a Honduran stop does not read "Tegucigalpa" when it is in San Pedro Sula.
+  'America/Guatemala': 'Guatemala time', 'America/El_Salvador': 'El Salvador time',
+  'America/Tegucigalpa': 'Honduras time', 'America/Costa_Rica': 'Costa Rica time',
+  'America/Managua': 'Nicaragua time', 'America/Panama': 'Panamá time',
+  // Mexico by the names its own zones go by (Zona Centro and so on), and the
+  // border strip by the US clock it follows.
+  'America/Mexico_City': 'Mexico Central time', 'America/Chihuahua': 'Mexico Central time',
+  'America/Mazatlan': 'Mexico Pacific time', 'America/Hermosillo': 'Mexico Pacific time (Sonora)',
+  'America/Cancun': 'Mexico Southeast time', 'America/Tijuana': 'Pacific Time (Baja California)',
+  'America/Matamoros': 'Central Time (Mexican border)', 'America/Ojinaga': 'Central Time (Mexican border)',
+  'America/Ciudad_Juarez': 'Mountain Time (Mexican border)',
   'America/New_York': 'Eastern Time', 'America/Detroit': 'Eastern Time',
   'America/Indiana/Indianapolis': 'Eastern Time', 'America/Toronto': 'Eastern Time',
   'America/Iqaluit': 'Eastern Time',

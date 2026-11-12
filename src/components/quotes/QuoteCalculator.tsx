@@ -830,6 +830,15 @@ function LookupStatus({ result, looking, ready, onManual, onTypeInstead }: {
       return <p className="flex items-center gap-1.5 text-xs text-red-700"><X className="w-3.5 h-3.5" />ZIP {result.zip} was not recognised.</p>;
     case 'need_zip':
       return null;
+    // The calculator only takes US ZIPs (zipOf()), so this cannot come back
+    // today; handled so a foreign lane added later is not answered by silence.
+    case 'outside_us':
+      return (
+        <p className="text-xs text-gray-600">
+          The free estimate covers US addresses only.{' '}
+          <button data-es type="button" onClick={onTypeInstead} className="text-brand-600 hover:underline">Type the distance</button>.
+        </p>
+      );
     case 'error':
       return <p className="flex items-center gap-1.5 text-xs text-red-700"><X className="w-3.5 h-3.5" />{result.message}</p>;
   }

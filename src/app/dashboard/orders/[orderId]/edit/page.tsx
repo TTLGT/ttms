@@ -23,8 +23,8 @@ import type { NotesAndInstructions } from '@/components/orders/NotesAndInstructi
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
 import { BLANK_ADDRESS } from '@/components/orders/AddressFields';
-import StopPartyFields, { linkStopAddresses, stopLinkProblem } from '@/components/orders/StopPartyFields';
-import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopDraftsFrom, stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
+import StopPartyFields, { incompleteAddressWarning, linkStopAddresses, stopLinkProblem } from '@/components/orders/StopPartyFields';
+import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopDraftsFrom, stopPartyIdsIn, stopsForAddressCheck, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
 import type { StopDraft } from '@/components/orders/ExtraStopsFields';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { clientAddedInstructionsOf, commoditySummary, dockLinkedServices, orderAccessorials, withDockServices, serviceChargeLines, serviceChargesTotal, hasVehicleDetails, orderCommodityItems, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue, orderDisplayNumber } from '@/types/order';
@@ -341,6 +341,17 @@ export default function EditOrderPage() {
       setError('Choose the transport type — the truck or trailer this load moves on.');
       return;
     }
+
+    // An incomplete address is a warning, not a refusal — see
+    // incompleteAddressWarning(). Only asked while Route is on screen.
+    const gaps = shows('route') ? incompleteAddressWarning([
+      { name: extraPickups.length ? 'Pickup 1' : 'Pickup', address: origin },
+      ...stopsForAddressCheck('pickup', extraPickups),
+      { name: extraDeliveries.length ? 'Delivery 1' : 'Delivery', address: destination },
+      ...stopsForAddressCheck('delivery', extraDeliveries),
+    ]) : '';
+    // Last, after every hard check, so nobody says yes and is then refused.
+    if (gaps && !window.confirm(gaps)) return;
 
     setError('');
     setSaving(true);

@@ -28,9 +28,9 @@ import type { NotesAndInstructions } from '@/components/orders/NotesAndInstructi
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
 import { BLANK_ADDRESS } from '@/components/orders/AddressFields';
-import StopPartyFields, { linkStopAddresses, stopLinkProblem } from '@/components/orders/StopPartyFields';
+import StopPartyFields, { incompleteAddressWarning, linkStopAddresses, stopLinkProblem } from '@/components/orders/StopPartyFields';
 import { partyLocations } from '@/types/partyAddress';
-import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopPartyIdsIn, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
+import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopPartyIdsIn, stopsForAddressCheck, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
 import type { StopDraft } from '@/components/orders/ExtraStopsFields';
 import { partyDisplayName, ROLE_LABEL } from '@/types/party';
 import { blankCommodityItem, commoditySummary, dockLinkedServices, hasVehicleDetails, withDockServices, remapItemStops, totalPieces, totalWeightLb, totalCommodityValue } from '@/types/order';
@@ -224,6 +224,17 @@ function NewOrderForm() {
     if (badCharge) { setError(badCharge); return; }
     // The input is `required`, but a value of spaces gets past that.
     if (!transportType.trim()) { setError('Choose the transport type — the truck or trailer this load moves on.'); return; }
+
+    // An incomplete address is a warning, not a refusal: the broker may know
+    // only the city yet. See incompleteAddressWarning().
+    const gaps = incompleteAddressWarning([
+      { name: extraPickups.length ? 'Pickup 1' : 'Pickup', address: origin },
+      ...stopsForAddressCheck('pickup', extraPickups),
+      { name: extraDeliveries.length ? 'Delivery 1' : 'Delivery', address: destination },
+      ...stopsForAddressCheck('delivery', extraDeliveries),
+    ]);
+    // Last, after every hard check, so nobody says yes and is then refused.
+    if (gaps && !window.confirm(gaps)) return;
 
     setError('');
     setSaving(true);

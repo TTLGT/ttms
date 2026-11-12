@@ -10,6 +10,7 @@ import type { BolData, BolStopLine } from './bol-pdf';
 import { clientContactOf, readinessFactsFor } from './orderReadinessServer';
 import { bolBlockers, orderReadiness } from '@/types/orderReadiness';
 import { signedSaProof } from './signedSaProof';
+import { countrySuffix, withCountry } from '@/types/addressCountry';
 import { saContactIndex } from '@/types/party';
 import {
   STATUS_RANK, dockConditionsOf, dockEndText,equipmentLabels, serviceLabels, clientSignatureSatisfied, formatDimensions, totalCommodityValue, itemStop, itemWeightLb, orderCommodityItems,
@@ -97,7 +98,7 @@ async function bolBuffer(orderId: string, order: FirebaseFirestore.DocumentData)
     label:   stopLabel(kind, i + 1).toUpperCase(),
     company: s.partyName ?? '',
     street:  s.address?.street ?? '',
-    place:   [s.address?.city, s.address?.state, s.address?.zip].filter(Boolean).join(', '),
+    place:   withCountry([s.address?.city, s.address?.state, s.address?.zip].filter(Boolean).join(', '), s.address),
     date:    formatLongDateRange(s.date, s.dateEnd, ''),
     freight: freightAt(kind, i + 1),
   });
@@ -139,10 +140,12 @@ async function bolBuffer(orderId: string, order: FirebaseFirestore.DocumentData)
     originCity:       order.origin?.city       ?? '',
     originState:      order.origin?.state      ?? '',
     originZip:        order.origin?.zip        ?? '',
+    originCountry:    countrySuffix(order.origin),
     destStreet:       order.destination?.street ?? '',
     destCity:         order.destination?.city  ?? '',
     destState:        order.destination?.state ?? '',
     destZip:          order.destination?.zip   ?? '',
+    destCountry:      countrySuffix(order.destination),
     pickupDate:       formatLongDateRange(order.pickupDate, order.pickupDateEnd),
     deliveryDate:     formatLongDateRange(order.deliveryDate, order.deliveryDateEnd),
     extraStops,

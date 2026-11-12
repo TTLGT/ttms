@@ -302,7 +302,9 @@ const BASE: Record<string, string> = {
   'Signed Dispatch Sheet': 'Hoja de despacho firmada',
   'Signed Shipper Agreement (SA)': 'Shipper Agreement (SA) firmado',
   'Special Terms': 'Condiciones especiales',
-  'State': 'Estado (EE. UU.)',
+  // Was "Estado (EE. UU.)" while the box listed only US states; Mexico's are
+  // states too since 2026-11-12.
+  'State': 'Estado',
   'Step 1 — link the carrier': 'Paso 1: vincular el transportista',
   'Submit a change order': 'Enviar una orden de cambio',
   'Terms and Conditions': 'Términos y condiciones',

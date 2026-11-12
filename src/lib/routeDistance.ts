@@ -1,4 +1,5 @@
 import zipCentroids from './data/zipCentroids.json';
+import { isUsAddress } from '@/types/addressCountry';
 import type { Address } from '@/types/order';
 
 /**
@@ -54,7 +55,13 @@ export type RouteEstimateResult =
   /** One or both addresses have no usable ZIP. */
   | { status: 'need_zip' }
   /** A ZIP was given but is not in the table — a PO-box-only or brand-new ZIP. */
-  | { status: 'unknown_zip'; zip: string };
+  | { status: 'unknown_zip'; zip: string }
+  /**
+   * A stop is outside the US. The table is US ZIPs only, and a foreign postal
+   * code read as one lands somewhere wrong — Guatemala City's 01001 is a US
+   * ZIP in Massachusetts — so the estimate declines instead of guessing.
+   */
+  | { status: 'outside_us' };
 
 /** First five digits, so "30301-1234" and " 30301 " both resolve. */
 function normalizeZip(raw: string | undefined | null): string {
@@ -108,6 +115,7 @@ function haversineMiles(a: [number, number], b: [number, number]): number {
 }
 
 export function estimateRouteMiles(origin: Address, destination: Address): RouteEstimateResult {
+  if (!isUsAddress(origin) || !isUsAddress(destination)) return { status: 'outside_us' };
   const fromZip = normalizeZip(origin?.zip);
   const toZip = normalizeZip(destination?.zip);
   if (!fromZip || !toZip) return { status: 'need_zip' };

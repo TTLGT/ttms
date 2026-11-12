@@ -61,7 +61,7 @@ export default function RouteDistanceField({ stops, value, onChange }: Props) {
   // Google routes off the full address; the estimate only reads the ZIP. Key
   // on the whole thing so a corrected street address re-runs under Routes.
   const lane = stops
-    .map((a) => `${a?.street ?? ''}|${a?.city ?? ''}|${a?.state ?? ''}|${a?.zip ?? ''}`)
+    .map((a) => `${a?.street ?? ''}|${a?.city ?? ''}|${a?.state ?? ''}|${a?.zip ?? ''}|${a?.country ?? ''}`)
     .join('>');
 
   // Held in a ref so the effect below does not depend on it — the parent hands
@@ -130,6 +130,10 @@ export default function RouteDistanceField({ stops, value, onChange }: Props) {
         : 'Add a ZIP to both addresses to work out the distance');
     }
     if (result.status === 'unknown_zip') setMessage(`ZIP ${result.zip} was not recognised`);
+    // An admin's choice, not the broker's — so say who can change it.
+    if (result.status === 'outside_us') {
+      setMessage('The free distance estimate covers US addresses only. An admin can switch Lane Distance to Google Routes, which works across borders.');
+    }
     if (result.status === 'error') setMessage(result.message);
   }, []);
 

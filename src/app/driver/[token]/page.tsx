@@ -6,6 +6,7 @@ import { addressToQuery, orderDeliveries, orderDisplayNumber, orderPickups, type
 import { codAmount, isCodLoad } from '@/types/orderPayment';
 import { usd } from '@/types/paymentMethod';
 import { STRINGS } from './strings';
+import { withCountry } from '@/types/addressCountry';
 import DriverVerify from './DriverVerify';
 import DriverPanel, { type DriverPageData, type DriverStopView } from './DriverPanel';
 
@@ -42,7 +43,7 @@ function millisOf(v: unknown): number | null {
 /** A stop as the driver needs it: who, where, when, and a map. No rates, no contacts beyond the stop. */
 function stopView(s: OrderStop): DriverStopView {
   const a = s.address ?? { street: '', city: '', state: '', zip: '', country: '' };
-  const place = [a.city, [a.state, a.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  const place = withCountry([a.city, [a.state, a.zip].filter(Boolean).join(' ')].filter(Boolean).join(', '), a);
   const query = addressToQuery(a);
   return {
     name: s.partyName ?? '',

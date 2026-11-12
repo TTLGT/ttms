@@ -39,7 +39,8 @@ shippers/{shipperId}
   city    : string
   state   : string   // 2-letter abbreviation
   zip     : string
-  country : string   // default "US"
+  country : string   // ISO code: US (default; blank and "USA" read as US), CA, MX, GT, SV, HN, CR, NI, PA
+                      // state is a code for US/CA and the written name elsewhere — see src/types/addressCountry.ts
 ```
 
 ### A party's addresses — `addresses` (2026-11-06)

@@ -16,13 +16,7 @@ import { DEFAULT_RECORD_REGION } from '@/lib/phone';
 import type { PhoneRegion } from '@/lib/phone';
 import LeadSourceField from '@/components/orders/LeadSourceField';
 import { Bi } from '@/components/spanish/Es';
-
-const US_STATES = [
-  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
-  'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
-  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT',
-  'VA','WA','WV','WI','WY',
-];
+import { ADDRESS_COUNTRIES, countryCode, countryOf } from '@/types/addressCountry';
 
 /**
  * Everything a new client, shipper or consignee is made of.
@@ -152,8 +146,11 @@ export function validatePartyDraft(draft: PartyDraft): Partial<Record<PartyField
 
   if (!has(draft.address.street)) errors.street = 'Street is required.';
   if (!has(draft.address.city))   errors.city   = 'City is required.';
-  if (!has(draft.address.state))  errors.state  = 'State is required.';
-  if (!has(draft.address.zip))    errors.zip    = 'ZIP is required.';
+  // Worded for the address's country, and the postal code only where one is
+  // written — see postalRequired in src/types/addressCountry.ts.
+  const country = countryOf(draft.address);
+  if (!has(draft.address.state))  errors.state  = `${country.regionWord} is required.`;
+  if (country.postalRequired && !has(draft.address.zip)) errors.zip = `${country.postalWord} is required.`;
 
   if (draft.roles.includes('client') && !draft.sourceId) {
     errors.sourceId = 'A lead source is required on a client.';
@@ -218,6 +215,7 @@ export default function PartyFields({
   const set = <K extends keyof PartyDraft>(key: K, v: PartyDraft[K]) =>
     onChange({ ...value, [key]: v });
 
+  const addrCountry = countryOf(value.address);
   const setAddress = (k: keyof Address) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       onChange({ ...value, address: { ...value.address, [k]: e.target.value } });
@@ -309,6 +307,17 @@ export default function PartyFields({
         <p data-es className="text-sm font-semibold text-gray-700 mb-3">Address</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="col-span-1 sm:col-span-2">
+            {/* Changing the country empties the region and postal code, which
+                belonged to the old one — the same as the order form. */}
+            <select value={countryCode(value.address.country)} aria-label="Country" className={inputCls}
+              onChange={(e) => {
+                if (e.target.value === countryCode(value.address.country)) return;
+                onChange({ ...value, address: { ...value.address, country: e.target.value, state: '', zip: '' } });
+              }}>
+              {ADDRESS_COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+            </select>
+          </div>
+          <div className="col-span-1 sm:col-span-2">
             <input placeholder="Street address" value={value.address.street} onChange={setAddress('street')}
               className={errors.street ? badCls : inputCls} />
             {errors.street && <p className="text-xs text-red-600 mt-1">{errors.street}</p>}
@@ -322,13 +331,16 @@ export default function PartyFields({
             <div>
               <select value={value.address.state} onChange={setAddress('state')}
                 className={errors.state ? badCls : inputCls}>
-                <option data-es value="">State</option>
-                {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                <option data-es value="">{addrCountry.regionWord}</option>
+                {value.address.state && !addrCountry.regions.some(([v]) => v === value.address.state) && (
+                  <option value={value.address.state}>{value.address.state}</option>
+                )}
+                {addrCountry.regions.map(([v, name]) => <option key={v} value={v}>{name}</option>)}
               </select>
               {errors.state && <p className="text-xs text-red-600 mt-1">{errors.state}</p>}
             </div>
             <div>
-              <input placeholder="ZIP" value={value.address.zip} onChange={setAddress('zip')}
+              <input placeholder={addrCountry.postalRequired ? addrCountry.postalWord : `${addrCountry.postalWord} (if any)`} value={value.address.zip} onChange={setAddress('zip')}
                 className={errors.zip ? badCls : inputCls} />
               {errors.zip && <p className="text-xs text-red-600 mt-1">{errors.zip}</p>}
             </div>

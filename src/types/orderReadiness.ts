@@ -1,3 +1,4 @@
+import { countryOf } from './addressCountry';
 import { dockEndProblem, orderCommodityItems, serviceChargeLines, type Address, type Order } from './order';
 
 /**
@@ -41,7 +42,11 @@ export interface ReadinessFacts {
 }
 
 const filled = (v: unknown) => typeof v === 'string' ? v.trim() !== '' : v != null && v !== false;
-const place = (a: Address | null | undefined) => Boolean(a?.city?.trim() && a?.state?.trim() && a?.zip?.trim());
+// The postal code only where an address is written with one: a Central
+// American dock rarely has one, and a BOL must not wait on a box nobody there
+// can fill in — see postalRequired in addressCountry.ts.
+const place = (a: Address | null | undefined) => Boolean(a?.city?.trim() && a?.state?.trim()
+  && (a?.zip?.trim() || !countryOf(a).postalRequired));
 const street = (a: Address | null | undefined) => Boolean(a?.street?.trim());
 
 export function orderReadiness(order: Partial<Order>, facts: ReadinessFacts = {}): ReadinessItem[] {

@@ -1,5 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { PhoneRegion } from '@/lib/phone';
+import { isUsAddress, withCountry } from './addressCountry';
 import type { OrderPartyApproval } from './accessRequest';
 import type { ComplexTerms, OrderPaymentTerms } from './paymentMethod';
 import type { SignatureRecord } from './signatureRecord';
@@ -1068,7 +1069,11 @@ export interface OwnerContact {
 
 export function addressToQuery(a: Address | null | undefined): string {
   if (!a) return '';
-  return [a.street, a.city, a.state, a.zip].map((v) => (v ?? '').trim()).filter(Boolean).join(', ');
+  // The country only for a stop abroad: Google needs it to tell San José,
+  // Costa Rica from San José, California, and leaving it off US addresses
+  // keeps every lane already in the Google cache keyed exactly as it was.
+  return withCountry(
+    [a.street, a.city, a.state, a.zip].map((v) => (v ?? '').trim()).filter(Boolean).join(', '), a);
 }
 
 /**
@@ -1127,6 +1132,9 @@ export function laneMilesAtNote(
  * works off ZIP centroids, so a ZIP is the one part it cannot do without.
  */
 export function isRoutableAddress(a: Address | null | undefined): boolean {
+  // Abroad there is no ZIP table and often no postal code at all, so a city
+  // and region are what Google is given to find it.
+  if (a && !isUsAddress(a)) return Boolean(a.city?.trim() && a.state?.trim());
   return Boolean((a?.zip ?? '').trim());
 }
 

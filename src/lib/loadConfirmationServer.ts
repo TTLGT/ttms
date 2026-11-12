@@ -9,6 +9,7 @@ import {
   type ConfirmationFreight, type ConfirmationPayment, type ConfirmationStop,
 } from '@/types/loadConfirmation';
 import { orderTermsOf } from '@/types/agreementTerms';
+import { withCountry } from '@/types/addressCountry';
 
 /**
  * What the client agrees to when they sign the load confirmation, worked out
@@ -70,7 +71,7 @@ export function confirmationStops(order: AnyOrder): ConfirmationStop[] {
     kind,
     name:   st.partyName || '',
     street: st.address?.street || '',
-    place:  [[st.address?.city, st.address?.state].filter(Boolean).join(', '), st.address?.zip].filter(Boolean).join(' '),
+    place:  withCountry([[st.address?.city, st.address?.state].filter(Boolean).join(', '), st.address?.zip].filter(Boolean).join(' '), st.address),
     dates:  formatLongDateRange(st.date, st.dateEnd, ''),
   });
   return [

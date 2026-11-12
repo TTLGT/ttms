@@ -1,4 +1,5 @@
 import { formatLongDateRange } from '@/lib/dateFormat';
+import { withCountry } from '@/types/addressCountry';
 import { clientPhotoId, photoDataUrl } from '@/lib/loadPhotosServer';
 import { clientAgreementContact, readinessFactsFor } from '@/lib/orderReadinessServer';
 import type { QuoteData } from '@/lib/quote-pdf';
@@ -34,7 +35,7 @@ export async function buildQuoteData(
   const sa = readinessOf(orderReadiness(order, facts), 'sa');
 
   const stop = (st: OrderStop) => ({
-    place: [st.address?.city, st.address?.state, st.address?.zip].filter(Boolean).join(', '),
+    place: withCountry([st.address?.city, st.address?.state, st.address?.zip].filter(Boolean).join(', '), st.address),
     date: formatLongDateRange(st.date, st.dateEnd, ''),
   });
   const weight = Number(order.weight) || 0;

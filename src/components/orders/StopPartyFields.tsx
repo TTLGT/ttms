@@ -10,7 +10,7 @@ import { partyDisplayName, ROLE_LABEL } from '@/types/party';
 import type { Party } from '@/types/party';
 import type { Address } from '@/types/order';
 import {
-  addressIsBlank, addressLine, blankAddress, locationAt, partyLocations, suggestPartiesForAddress,
+  addressIsBlank, addressLine, blankAddress, locationAt, missingAddressParts, partyLocations, suggestPartiesForAddress,
 } from '@/types/partyAddress';
 
 /**
@@ -200,6 +200,26 @@ export function stopLinkProblem(name: string, role: StopRole, v: StopValue): str
 }
 
 /**
+ * The warning shown on save when a stop's address is missing a part, or ''
+ * when every one is complete. A warning, never a refusal (2026-11-12): a
+ * quote is often priced on a city before anybody knows the dock, and the
+ * broker is the one who knows whether that is fine yet — so the forms ask
+ * with confirm() and save on OK. `stops` are the stops to check, each with
+ * the name the form calls it; leave out the ones the form drops as blank.
+ */
+export function incompleteAddressWarning(stops: readonly { name: string; address: Address }[]): string {
+  const lines = stops.flatMap(({ name, address }) => {
+    if (addressIsBlank(address)) return [`• ${name}: no address`];
+    const missing = missingAddressParts(address);
+    return missing.length ? [`• ${name}: missing ${missing.join(', ')}`] : [];
+  });
+  if (!lines.length) return '';
+  return `Some addresses are incomplete:\n\n${lines.join('\n')}\n\n`
+    + 'Save anyway? The load keeps what was typed. An address without a street, city and state is not '
+    + 'added to its shipper or consignee until it is filled in.';
+}
+
+/**
  * Adds every stop's address its party does not hold yet to that party, so
  * the order never carries an address that belongs to nobody. Called just
  * before the order is saved; a failure stops the save, because "it has to be
@@ -221,9 +241,11 @@ export async function linkStopAddresses(stops: readonly StopValue[], parties: Pa
     // dock — is not an address yet, and saving it would fill the record with
     // "Dallas, TX". It is linked the first time the street is typed in.
     if (!s.address.street.trim()) continue;
-    if (!s.address.city.trim() || !s.address.state.trim()) {
-      throw new Error(`The address for ${s.party.name || 'a stop'} needs a city and a state before it can be saved to the record.`);
-    }
+    // Same for a street with no city or state. This used to refuse the whole
+    // save; since 2026-11-12 an incomplete address is a warning the broker
+    // may wave through (incompleteAddressWarning()), so the load keeps it and
+    // the record waits — the server would refuse it without both anyway.
+    if (!s.address.city.trim() || !s.address.state.trim()) continue;
     try {
       const { addresses } = await addPartyAddress(s.party.id, s.address);
       next = next.map((p) => (p.id === record.id
