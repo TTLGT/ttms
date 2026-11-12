@@ -307,7 +307,7 @@ function QuoteDocument({ d }: { d: QuoteData }) {
         <Text style={s.terms}>
           This is a quote, not a booking. The load is confirmed once you sign the load confirmation we send for
           electronic signature. The price assumes the freight, dates and addresses shown; changes to any of them,
-          and accessorial charges such as detention, layover or lumper fees, may change it.
+          and accessorial charges, additional services or fees, may change it.
         </Text>
 
         <View style={s.footer} fixed>

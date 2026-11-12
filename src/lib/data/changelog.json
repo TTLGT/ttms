@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "fb96645d2ed9926b5e26d7326d8fd767e42dcacf",
+      "date": "2026-11-12T13:07:35-06:00",
+      "author": "erwindank",
+      "subject": "Show the incomplete-address warning on the order forms as a TTMS dialog instead of the browser's pop-up: it lists what each pickup and delivery is missing, follows the app's theme and Spanish, and offers Go back and fix or Save anyway",
+      "body": ""
+    },
+    {
       "hash": "1ff16249ee81518ce2fea95b5f8d09c8b45a763a",
       "date": "2026-11-12T11:44:31-06:00",
       "author": "erwindank",
