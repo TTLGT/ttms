@@ -1,6 +1,7 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { PhoneRegion } from '@/lib/phone';
 import type { FmcsaCheck } from './fmcsa';
+import type { WebLink } from './webLinks';
 
 export interface Carrier {
   id: string;
@@ -80,6 +81,11 @@ export interface Carrier {
   fmcsa?: FmcsaCheck | null;
   isActive: boolean;
   notes: string;
+  /**
+   * Website and social media pages (2026-11-12). Absent on every carrier
+   * written before; read through webLinksOf() in src/types/webLinks.ts.
+   */
+  webLinks?: WebLink[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

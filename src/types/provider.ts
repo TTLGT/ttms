@@ -2,6 +2,7 @@ import type { Address } from './order';
 import type { Accessorial, DockHelpService } from './order';
 import { phoneRegionOf, type PhoneRegion } from '@/lib/phone';
 import { addressLine, cleanAddress } from './partyAddress';
+import { webLinksOf, websiteOf, type WebLink } from './webLinks';
 
 /**
  * 3rd-party providers (2026-11-06): the lumpers, forklift and crane outfits,
@@ -104,7 +105,13 @@ export interface Provider {
   phone2: string;
   phone2Region?: PhoneRegion;
   email: string;
+  /**
+   * The first website in `webLinks`, kept so the directory search and older
+   * readers still find it. Written by cleanProviderFields(), never on its own.
+   */
   website: string;
+  /** Website and social media pages (2026-11-12). Read through webLinksOf(). */
+  webLinks: WebLink[];
   address: Address;
   /** Where else they work: "DFW and 100 miles around", "All of Georgia". */
   serviceArea: string;
@@ -213,6 +220,7 @@ export function cleanProviderFields(raw: unknown, newId: () => string): Omit<Pro
       unit:    (RATE_UNITS as string[]).includes(String(o.unit)) ? o.unit as RateUnit : 'flat',
     }];
   });
+  const webLinks = webLinksOf({ webLinks: r.webLinks, website: r.website });
   return {
     companyName:  str(r.companyName, LIMITS.companyName),
     services,
@@ -223,7 +231,9 @@ export function cleanProviderFields(raw: unknown, newId: () => string): Omit<Pro
     phone2:       str(r.phone2, LIMITS.phone),
     phone2Region: phoneRegionOf(r.phone2Region),
     email:        str(r.email, LIMITS.email).toLowerCase(),
-    website:      str(r.website, LIMITS.website),
+    // A form from before the list sends only `website`; it becomes the first link.
+    webLinks,
+    website:      websiteOf(webLinks).slice(0, LIMITS.website),
     address:      cleanAddress(r.address),
     serviceArea:  str(r.serviceArea, LIMITS.serviceArea),
     rates,
@@ -256,7 +266,7 @@ export function providerMatches(p: Provider, query: string): boolean {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return true;
   const hay = [
-    p.companyName, p.contactName, p.email, p.website, p.serviceArea, p.serviceNote, p.notes,
+    p.companyName, p.contactName, p.email, ...p.webLinks.map((l) => l.url), p.serviceArea, p.serviceNote, p.notes,
     addressLine(p.address), p.address?.state, p.address?.city,
     ...p.services.map((s) => PROVIDER_SERVICE_LABEL[s]),
     ...p.rates.map((r) => r.description),

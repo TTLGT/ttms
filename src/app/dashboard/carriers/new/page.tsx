@@ -17,6 +17,8 @@ import type { PhoneRegion } from '@/lib/phone';
 import FmcsaLookupBox from '@/components/carriers/FmcsaLookupBox';
 import { runFmcsaCheck } from '@/lib/fmcsaClient';
 import { Bi } from '@/components/spanish/Es';
+import WebLinksField from '@/components/WebLinksField';
+import { cleanWebLinks, type WebLink } from '@/types/webLinks';
 
 export default function NewCarrierPage() {
   const router = useRouter();
@@ -40,6 +42,7 @@ export default function NewCarrierPage() {
   const [insuranceCargoCoverage, setInsCargo]   = useState('');
   const [isActive, setIsActive]                 = useState(true);
   const [notes, setNotes]                       = useState('');
+  const [webLinks, setWebLinks]                 = useState<WebLink[]>([]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -74,6 +77,7 @@ export default function NewCarrierPage() {
         insuranceCargoCoverage: parseCoverageInput(insuranceCargoCoverage),
         isActive,
         notes: notes.trim(),
+        webLinks: cleanWebLinks(webLinks),
       });
       // File FMCSA's answer against the new record, so it opens with the check
       // already on it. Awaited but never fatal: the carrier is saved either way,
@@ -213,6 +217,7 @@ export default function NewCarrierPage() {
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
             placeholder="Internal notes about this carrier…"
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400 resize-none" />
+          <WebLinksField value={webLinks} onChange={setWebLinks} />
         </section>
 
         {error && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-600">{error}</div>}

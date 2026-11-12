@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Contact, Globe, HardHat, History, PencilLine, StickyNote, Tag } from 'lucide-react';
+import WebLinksList from '@/components/WebLinksList';
+import { webLinksOf } from '@/types/webLinks';
+import { Contact, HardHat, History, PencilLine, StickyNote, Tag } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { can } from '@/lib/accessControl';
 import { getProvider, listProviderHistory } from '@/lib/providers';
@@ -30,10 +32,6 @@ function Detail({ label, value }: { label: string; value: React.ReactNode }) {
       <dd className="text-sm text-gray-900">{value || <span className="text-gray-300">—</span>}</dd>
     </div>
   );
-}
-
-function websiteHref(site: string): string {
-  return /^https?:\/\//i.test(site) ? site : `https://${site}`;
 }
 
 /**
@@ -130,12 +128,7 @@ export default function ProviderPage() {
             <PhoneValue value={p.phone} region={p.phoneRegion} />
             {p.phone2 && <PhoneValue value={p.phone2} region={p.phone2Region} label="second phone" />}
             {p.email && <a href={`mailto:${p.email}`} className="block truncate text-brand-700 hover:underline">{p.email}</a>}
-            {p.website && (
-              <a href={websiteHref(p.website)} target="_blank" rel="noreferrer"
-                className="flex items-center gap-1.5 truncate text-brand-700 hover:underline">
-                <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden /> {p.website}
-              </a>
-            )}
+            <WebLinksList links={webLinksOf(p)} compact empty={null} />
           </div>
         </RailCard>
 
@@ -157,10 +150,7 @@ export default function ProviderPage() {
                 <Detail label="Phone" value={p.phone && <PhoneValue value={p.phone} region={p.phoneRegion} />} />
                 <Detail label="Second phone" value={p.phone2 && <PhoneValue value={p.phone2} region={p.phone2Region} label="second phone" />} />
                 <Detail label="Email" value={p.email && <a href={`mailto:${p.email}`} className="text-brand-700 hover:underline">{p.email}</a>} />
-                <Detail label="Website" value={p.website && (
-                  <a href={websiteHref(p.website)} target="_blank" rel="noreferrer"
-                    className="text-brand-700 hover:underline break-all">{p.website}</a>
-                )} />
+                <Detail label="Website and social media" value={webLinksOf(p).length > 0 && <WebLinksList links={webLinksOf(p)} />} />
                 <Detail label="Address" value={addressLine(p.address)} />
                 <Detail label="Where they work" value={p.serviceArea} />
                 <Detail label="Added by" value={p.createdByName} />

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "7cf5b6e2fab15d8b022f31033e0e2800cbacbed1",
+      "date": "2026-11-12T11:24:17-06:00",
+      "author": "erwindank",
+      "subject": "Let addresses be in Canada, Mexico, Guatemala, El Salvador, Honduras, Costa Rica, Nicaragua and Panamá as well as the US: every address form gets a Country box, and the state box lists that country's states, provinces or departments. Foreign addresses print their country on the SA, BOL, quote and driver pages, the postal code is optional in Central America, the free mileage estimate says it covers the US only instead of guessing, and the local-time badge now covers Central America and every Mexican state, including the border towns that still follow US daylight saving. Saving an order with an incomplete pickup or delivery address now shows a warning listing what is missing, and saves anyway if you say OK",
+      "body": ""
+    },
+    {
       "hash": "4d6ee713449858c633883d2cd83e28deb923102b",
       "date": "2026-11-12T10:44:25-06:00",
       "author": "erwindank",

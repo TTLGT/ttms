@@ -36,6 +36,9 @@ import { Building2, Headset, History, Package, Receipt, Shield, ShieldCheck, Sti
 import OrderSection from '@/components/orders/OrderSection';
 import OrderSidePanel, { RailItem } from '@/components/orders/OrderSidePanel';
 import RecordHero, { AttentionCard, EditBar, HeroBadge, RailCard, RecordColumns } from '@/components/records/RecordHero';
+import WebLinksField from '@/components/WebLinksField';
+import WebLinksList from '@/components/WebLinksList';
+import { cleanWebLinks, webLinksOf, type WebLink } from '@/types/webLinks';
 import type { Attention } from '@/components/records/RecordHero';
 
 /** A load counted as "on the road or booked" in the header: after the quote, before delivery. */
@@ -121,6 +124,7 @@ export default function CarrierDetailPage() {
   const [insFileError, setInsFileError]         = useState('');
   const [isActive, setIsActive]                 = useState(true);
   const [notes, setNotes]                       = useState('');
+  const [webLinks, setWebLinks]                 = useState<WebLink[]>([]);
 
   function syncFields(c: Carrier) {
     setCompanyName(c.companyName);
@@ -149,6 +153,7 @@ export default function CarrierDetailPage() {
     setInsFile(c.insuranceStoragePath ?? null);
     setIsActive(c.isActive ?? true);
     setNotes(c.notes ?? '');
+    setWebLinks(webLinksOf(c));
   }
 
   useEffect(() => {
@@ -238,6 +243,8 @@ export default function CarrierDetailPage() {
         insuranceCargoCoverage: parseCoverageInput(insCargo),
         isActive,
         notes:                notes.trim(),
+        // Cleaned here as well as on the server so the page shows what was stored.
+        webLinks:             cleanWebLinks(webLinks),
       };
       await updateCarrier(carrierId, updates);
       setCarrier((prev) => prev ? { ...prev, ...updates } as Carrier : prev);
@@ -390,6 +397,7 @@ export default function CarrierDetailPage() {
                 phone={<PhoneValue value={carrier.billingPhone} region={carrier.billingPhoneRegion} label="billing phone" />}
                 email={carrier.billingEmail} />
             )}
+            <WebLinksList links={webLinksOf(carrier)} compact empty={null} />
           </dl>
         </RailCard>
 
@@ -432,6 +440,10 @@ export default function CarrierDetailPage() {
                   <p className="text-sm text-gray-900">{val || '—'}</p>
                 </div>
               ))}
+              <div className="sm:col-span-3">
+                <p data-es className="text-xs text-gray-500 mb-0.5">Website and social media</p>
+                <div className="text-sm text-gray-900"><WebLinksList links={webLinksOf(carrier)} /></div>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -460,6 +472,9 @@ export default function CarrierDetailPage() {
               <div>
                 <label data-es className="block text-xs font-medium text-gray-600 mb-1">Fax</label>
                 <input type="tel" value={fax} onChange={(e) => setFax(e.target.value)} className={inputCls} />
+              </div>
+              <div className="col-span-1 sm:col-span-2">
+                <WebLinksField value={webLinks} onChange={setWebLinks} />
               </div>
               <div className="col-span-1 sm:col-span-2">
                 <label className="flex items-center gap-2 cursor-pointer">

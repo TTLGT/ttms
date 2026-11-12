@@ -43,6 +43,19 @@ shippers/{shipperId}
                       // state is a code for US/CA and the written name elsewhere — see src/types/addressCountry.ts
 ```
 
+### Website and social links — `webLinks` (2026-11-12)
+
+On `parties`, `carriers` and `providers` alike: a list of
+`{ kind, url }`, at most ten. `kind` is `website`, `linkedin`, `facebook`,
+`instagram`, `x`, `youtube`, `tiktok`, `google` or `other` — a label for the
+link and nothing more. `url` is always a full `http(s)://` address:
+`cleanWebLinks()` in `src/types/webLinks.ts` drops anything else on save
+(a `javascript:` link would run in whoever clicked it), and the page checks
+again before drawing one. Absent on records from before, which read as no
+links — no backfill. A provider's older single `website` is folded in as its
+first link, and `website` is still written (the first website in the list)
+for the directory search.
+
 ### A party's addresses — `addresses` (2026-11-06)
 
 `parties/{id}.addresses` is a list of `PartyLocation` — an `Address` plus an
@@ -1309,7 +1322,8 @@ providers/{providerId}
   companyName, nameKey      : string   // nameKey: lower-case, unique (create refuses a second)
   services                  : ProviderService[]   // lumper, forklift, crane, rigging, pilot_car, permits, storage, towing, repair, tarping, other
   serviceNote               : string
-  contactName, email, website, serviceArea, notes : string
+  contactName, email, website, serviceArea, notes : string   // website: first website in webLinks
+  webLinks                  : { kind, url }[]   // see "Website and social links" above
   phone, phone2             : string ; phoneRegion, phone2Region : PhoneRegion
   address                   : Address
   rates                     : { id, service, description, amount: number|null, unit }[]   // what they last quoted

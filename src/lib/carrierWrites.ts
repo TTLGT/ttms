@@ -18,6 +18,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb, AdminAuthError } from './firebase-admin';
 import { diffFields, writeChange, type ChangeActor } from './recordHistory';
 import { carrierNameKey, carrierNumber } from '@/types/carrier';
+import { cleanWebLinks } from '@/types/webLinks';
 
 const COL = 'carriers';
 
@@ -33,6 +34,8 @@ function clean(raw: Record<string, unknown>): Record<string, unknown> {
   // when sent: normalising an absent key would blank it.
   if ('mc' in patch)  patch.mc  = carrierNumber(String(patch.mc ?? ''));
   if ('dot' in patch) patch.dot = carrierNumber(String(patch.dot ?? ''));
+  // Drawn as a clickable href for everybody, so only http(s) is ever stored.
+  if ('webLinks' in patch) patch.webLinks = cleanWebLinks(patch.webLinks);
   return patch;
 }
 

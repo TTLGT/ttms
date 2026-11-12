@@ -10,6 +10,7 @@ import {
 } from './accessControl';
 import { inChunks } from './teamScope';
 import type { OwnerFilter } from './ownerFilter';
+import { cleanWebLinks } from '@/types/webLinks';
 
 export interface Caller {
   uid: string;
@@ -81,6 +82,7 @@ export interface VisibleParty {
   creditClient: boolean;
   billingNotes: string;
   updatePrefs: unknown;
+  webLinks: unknown[];
 }
 
 export function toVisibleParty(id: string, d: FirebaseFirestore.DocumentData): VisibleParty {
@@ -119,6 +121,9 @@ export function toVisibleParty(id: string, d: FirebaseFirestore.DocumentData): V
     creditClient:       d.creditClient === true,
     billingNotes:       d.billingNotes       ?? '',
     updatePrefs:        d.updatePrefs        ?? null,
+    // Website and social links (2026-11-12). Cleaned again on the way out:
+    // a hand-edited document never went through updatePartyAsCaller().
+    webLinks:           cleanWebLinks(d.webLinks),
   };
 }
 

@@ -1,3 +1,4 @@
+import type { WebLink } from './webLinks';
 import type { Timestamp } from 'firebase/firestore';
 import type { Address } from './order';
 import type { PartyLocation } from './partyAddress';
@@ -298,6 +299,11 @@ export interface Party {
   billingNotes?: string;
   /** How and how often they want load updates. Absent = not said. */
   updatePrefs?: UpdatePrefs | null;
+  /**
+   * Website and social media pages (2026-11-12). Absent on every record
+   * written before; read through webLinksOf() in src/types/webLinks.ts.
+   */
+  webLinks?: WebLink[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

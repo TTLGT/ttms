@@ -11,6 +11,7 @@ import { actorOf, diffFields, writeChange } from './recordHistory';
 import { readOrderByNumber } from './orderAccess';
 import type { Caller } from './partyAccess';
 import { orderDisplayNumber } from '@/types/order';
+import { webLinksOf } from '@/types/webLinks';
 import {
   MAX_RECEIPTS_PER_PAYMENT, MAX_RECEIPT_BYTES, PAYMENT_METHODS, PROVIDERS_COLLECTION,
   PROVIDER_PAYMENTS_SUBCOLLECTION, RECEIPT_TYPES, cleanProviderFields, isProviderService,
@@ -48,6 +49,7 @@ export function toProvider(id: string, d: FirebaseFirestore.DocumentData): Provi
     phone2Region: d.phone2Region,
     email:        d.email ?? '',
     website:      d.website ?? '',
+    webLinks:     webLinksOf(d),
     address:      d.address ?? { street: '', city: '', state: '', zip: '', country: 'US' },
     serviceArea:  d.serviceArea ?? '',
     rates:        Array.isArray(d.rates) ? d.rates : [],

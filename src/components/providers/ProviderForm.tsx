@@ -6,6 +6,8 @@ import AddressFields from '@/components/orders/AddressFields';
 import PhoneField from '@/components/PhoneField';
 import MoneyInput from '@/components/MoneyInput';
 import { Bi } from '@/components/spanish/Es';
+import WebLinksField from '@/components/WebLinksField';
+import { webLinksOf } from '@/types/webLinks';
 import { createProvider, updateProvider, ProviderExistsError, type ProviderInput } from '@/lib/providers';
 import { blankAddress } from '@/types/partyAddress';
 import {
@@ -20,7 +22,7 @@ export function blankProvider(services: ProviderService[] = []): ProviderInput {
   return {
     companyName: '', services, serviceNote: '', contactName: '',
     phone: '', phoneRegion: undefined, phone2: '', phone2Region: undefined,
-    email: '', website: '', address: blankAddress(), serviceArea: '', rates: [], notes: '',
+    email: '', website: '', webLinks: [], address: blankAddress(), serviceArea: '', rates: [], notes: '',
   };
 }
 
@@ -28,7 +30,7 @@ export function providerInputOf(p: Provider): ProviderInput {
   return {
     companyName: p.companyName, services: p.services, serviceNote: p.serviceNote, contactName: p.contactName,
     phone: p.phone, phoneRegion: p.phoneRegion, phone2: p.phone2, phone2Region: p.phone2Region,
-    email: p.email, website: p.website, address: { ...blankAddress(), ...p.address }, serviceArea: p.serviceArea,
+    email: p.email, website: p.website, webLinks: webLinksOf(p), address: { ...blankAddress(), ...p.address }, serviceArea: p.serviceArea,
     rates: p.rates, notes: p.notes,
   };
 }
@@ -132,8 +134,7 @@ export default function ProviderForm({ initial, providerId, onSaved, onCancel, o
         )}
         {!compact && (
           <div className="sm:col-span-2">
-            <label data-es className={LABEL}>Website</label>
-            <input value={v.website} maxLength={200} onChange={(e) => set('website', e.target.value)} className={INPUT} />
+            <WebLinksField value={v.webLinks} onChange={(webLinks) => set('webLinks', webLinks)} />
           </div>
         )}
       </div>

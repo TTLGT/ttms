@@ -30,6 +30,7 @@ import {
 import { phoneRegionOf } from './phone';
 import { cleanPartyLocations, newLocationId, sameAddress } from '@/types/partyAddress';
 import type { Address } from '@/types/order';
+import { cleanWebLinks } from '@/types/webLinks';
 
 const COL = 'parties';
 
@@ -108,6 +109,9 @@ export async function updatePartyAsCaller(
   if ('contacts' in patch) patch.contacts = cleanContacts(patch.contacts, newLocationId);
   if ('paymentTerms' in patch) patch.paymentTerms = isPaymentTerms(patch.paymentTerms) ? patch.paymentTerms : null;
   if ('updatePrefs' in patch) patch.updatePrefs = patch.updatePrefs === null ? null : cleanUpdatePrefs(patch.updatePrefs);
+  // Drawn as a clickable href for everybody who opens the record, so only
+  // http(s) addresses are ever stored — see safeWebUrl().
+  if ('webLinks' in patch) patch.webLinks = cleanWebLinks(patch.webLinks);
   if ('billingNotes' in patch) patch.billingNotes = typeof patch.billingNotes === 'string' ? patch.billingNotes.trim().slice(0, 1000) : '';
 
   // A stored region is checked against the catalog, as POST /api/parties does:

@@ -42,6 +42,9 @@ import type { Attention } from '@/components/records/RecordHero';
 import AddressFields from '@/components/orders/AddressFields';
 import { withCountry } from '@/types/addressCountry';
 import { UserAvatar } from '@/components/settings/UserAvatar';
+import WebLinksField from '@/components/WebLinksField';
+import WebLinksList from '@/components/WebLinksList';
+import { cleanWebLinks, webLinksOf, type WebLink } from '@/types/webLinks';
 
 /** A load counted as "on the road or booked" in the header: after the quote, before delivery. */
 const ACTIVE_STEPS: OrderStatus[] = ['booked', 'shipper_signed', 'carrier_signed', 'in_transit'];
@@ -117,6 +120,7 @@ export default function PartyDetailPage() {
   const [assignedGroups, setGroupIds] = useState<string[]>([]);
   const [sourceId, setSourceId]       = useState<string | null>(null);
   const [notes, setNotes]             = useState('');
+  const [webLinks, setWebLinks]       = useState<WebLink[]>([]);
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
 
   // Narrower than the right to edit the party: dispatch can maintain a client's
@@ -194,6 +198,7 @@ export default function PartyDetailPage() {
     setGroupIds(party.assignedToGroupIds ?? []);
     setSourceId(party.sourceId ?? null);
     setNotes(party.notes ?? '');
+    setWebLinks(webLinksOf(party));
     setEditing(true);
   }
 
@@ -254,6 +259,9 @@ export default function PartyDetailPage() {
         // write of the identical value, and that would fail the whole save.
         ...(canEditThisSource ? { sourceId } : {}),
         notes,
+        // Cleaned here as well as on the server so the page shows what was
+        // stored, not a row the server dropped.
+        webLinks: cleanWebLinks(webLinks),
       };
       await updateParty(partyId, patch);
 
@@ -461,6 +469,7 @@ export default function PartyDetailPage() {
             {[party.email, party.email2].filter(Boolean).map((e) => (
               <a key={e} href={`mailto:${e}`} className="block truncate text-brand-700 hover:underline">{e}</a>
             ))}
+            <WebLinksList links={webLinksOf(party)} compact empty={null} />
           </div>
         </RailCard>
 
@@ -508,6 +517,8 @@ export default function PartyDetailPage() {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
                 </div>
               </div>
+
+              <WebLinksField value={webLinks} onChange={setWebLinks} />
 
               <AddressFields label="Main address" value={address} onChange={setAddress} />
               <p className="text-xs text-gray-500 -mt-2">
@@ -597,6 +608,7 @@ export default function PartyDetailPage() {
                 <Detail label="Secondary phone" value={<PhoneValue value={party.phone2} region={party.phone2Region} label="secondary phone" />} />
                 <Detail label="Secondary email" value={party.email2} />
                 <Detail label="Main address"  value={formatAddress(party.address)} />
+                <Detail label="Website and social media" value={<WebLinksList links={webLinksOf(party)} />} />
               </dl>
             </OrderSection>
 

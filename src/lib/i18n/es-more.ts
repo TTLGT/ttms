@@ -3108,4 +3108,12 @@ export const ES_MORE: Record<string, string> = {
   "Postal code is required": 'Se requiere el código postal.',
   "Province is required": 'Se requiere la provincia.',
   "Department is required": 'Se requiere el departamento.',
+  // Website and social links (2026-11-12).
+  "Website and social media": 'Sitio web y redes sociales',
+  "Add a link": 'Agregar un enlace',
+  "Other link": 'Otro enlace',
+  "Google Business": 'Perfil de Google',
+  "Kind of link": 'Tipo de enlace',
+  "None yet. Paste the company’s website, LinkedIn, Facebook or any other page": 'Todavía ninguno. Pega el sitio web de la empresa, su LinkedIn, Facebook o cualquier otra página.',
+  "That is not a web address, so it will not be saved. Type it like acme.com": 'Eso no es una dirección web, así que no se guardará. Escríbela como acme.com.',
 };
