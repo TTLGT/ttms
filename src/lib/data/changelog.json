@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "f81aabcb7746d15887c275c828084b9d160db00c",
+      "date": "2026-11-12T14:08:15-06:00",
+      "author": "erwindank",
+      "subject": "Make every pickup and delivery date a range by default: the form shows a From and a To box for each stop, and leaving To empty saves it as that exact day, as before",
+      "body": ""
+    },
+    {
       "hash": "2d46b59c95af5f397a6bd36cc4893e9721cbfdc2",
       "date": "2026-11-12T13:47:06-06:00",
       "author": "erwindank",

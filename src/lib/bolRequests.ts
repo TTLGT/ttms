@@ -13,7 +13,7 @@ import { signedSaProof } from './signedSaProof';
 import { countrySuffix, withCountry } from '@/types/addressCountry';
 import { saContactIndex } from '@/types/party';
 import {
-  STATUS_RANK, dockConditionsOf, dockEndText,equipmentLabels, serviceLabels, clientSignatureSatisfied, formatDimensions, totalCommodityValue, itemStop, itemWeightLb, orderCommodityItems,
+  STATUS_RANK, dockConditionsOf, dockEndOf, dockEndText,equipmentLabels, serviceLabels, clientSignatureSatisfied, formatDimensions, totalCommodityValue, itemStop, itemWeightLb, orderCommodityItems,
   orderDeliveries, orderDisplayNumber, orderPickups, stopLabel, vehicleSummary,
 } from '@/types/order';
 import type { CommodityItem, Order, OrderStatus, OrderStop, StopKind } from '@/types/order';
@@ -163,9 +163,9 @@ async function bolBuffer(orderId: string, order: FirebaseFirestore.DocumentData)
     })(),
     freightChargeTerms: order.freightChargeTerms ?? null,
     thirdPartyBillTo:   order.thirdPartyBillTo ?? '',
-    trailerLoadedBy:    order.trailerLoadedBy ?? null,
+    trailerLoadedBy:    dockEndOf(order, 'pickup').by,
     freightCountedBy:   order.freightCountedBy ?? null,
-    trailerUnloadedBy:  order.trailerUnloadedBy ?? null,
+    trailerUnloadedBy:  dockEndOf(order, 'delivery').by,
     deliveryCountedBy:  order.deliveryCountedBy ?? null,
     loadingText:        dockEndText(order, 'pickup'),
     unloadingText:      dockEndText(order, 'delivery'),

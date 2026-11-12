@@ -209,7 +209,71 @@ export function cleanDockHelp(raw: unknown): DockHelp | null {
 
 export type DockEnd = 'pickup' | 'delivery';
 type DockFields = Partial<Pick<Order,
-  'trailerLoadedBy' | 'trailerUnloadedBy' | 'loadingHelp' | 'unloadingHelp' | 'loadingConditions' | 'unloadingConditions'>>;
+  'trailerLoadedBy' | 'trailerUnloadedBy' | 'loadingHelp' | 'unloadingHelp' | 'loadingConditions' | 'unloadingConditions'
+  | 'loadingRoles' | 'unloadingRoles'>>;
+
+/**
+ * What each party does at a dock several of them share (2026-11-12): one
+ * "what will they do" (required) and "what will they bring" (optional) per
+ * party picked, plus a box for anything else about the dock.
+ *
+ * These are the form's answers, not what is printed. The conditions text is
+ * built from them by composeDockConditions() and saved beside them, so the
+ * SA, the Dispatch Sheet, the BOL and their fingerprints read only
+ * `loadingConditions` / `unloadingConditions`, exactly as before. Stored only
+ * while two or more parties share the end; null otherwise.
+ */
+export interface DockRole { does: string; brings: string }
+export interface DockRoles { parties: Partial<Record<DockParty, DockRole>>; notes: string }
+export const MAX_DOCK_ROLE_DOES = 200;
+export const MAX_DOCK_ROLE_BRINGS = 120;
+export const MAX_DOCK_ROLE_NOTES = 200;
+
+export function cleanDockRoles(raw: unknown): DockRoles | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as { parties?: unknown; notes?: unknown };
+  const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  const parties: Partial<Record<DockParty, DockRole>> = {};
+  const given = r.parties && typeof r.parties === 'object' ? r.parties as Record<string, unknown> : {};
+  for (const p of DOCK_PARTIES) {
+    const v = given[p] as { does?: unknown; brings?: unknown } | undefined;
+    if (!v || typeof v !== 'object') continue;
+    const does = str(v.does, MAX_DOCK_ROLE_DOES);
+    const brings = str(v.brings, MAX_DOCK_ROLE_BRINGS);
+    if (does || brings) parties[p] = { does, brings };
+  }
+  const notes = str(r.notes, MAX_DOCK_ROLE_NOTES);
+  return Object.keys(parties).length || notes ? { parties, notes } : null;
+}
+
+export function dockRolesOf(o: DockFields | null | undefined, end: DockEnd): DockRoles | null {
+  return cleanDockRoles(end === 'pickup' ? o?.loadingRoles : o?.unloadingRoles);
+}
+
+/** A party as named in its own line: the 3rd party by what it is — "Forklift", "Crane". */
+export function dockPartyName(p: DockParty, help: DockHelp | null | undefined): string {
+  if (p !== 'third_party' || !help?.service) return DOCK_PARTY_LABEL[p];
+  return help.service === 'other' ? (help.label?.trim() || DOCK_PARTY_LABEL[p]) : DOCK_HELP_LABEL[help.service];
+}
+
+/**
+ * The printed conditions for a shared dock, one line per party in catalog
+ * order, then anything else:
+ *   Shipper: drives the fire truck onto the trailer. Brings: their own operator.
+ *   Driver: guides it on and chains it down. Brings: chains and binders.
+ * The single definition — the form shows it and the save stores it.
+ */
+export function composeDockConditions(by: readonly DockParty[], roles: DockRoles | null, help: DockHelp | null): string {
+  const sentence = (s: string) => (/[.!?]$/.test(s) ? s : `${s}.`);
+  const lines = by.flatMap((p) => {
+    const r = roles?.parties[p];
+    if (!r?.does && !r?.brings) return [];
+    const parts = [r.does ? sentence(r.does) : '', r.brings ? `Brings: ${sentence(r.brings)}` : ''].filter(Boolean);
+    return [`${dockPartyName(p, help)}: ${parts.join(' ')}`];
+  });
+  if (roles?.notes) lines.push(roles.notes);
+  return cleanDockConditions(lines.join('\n'));
+}
 
 /**
  * The conditions at one end, in the broker's words (2026-11-09): "driver
@@ -220,7 +284,9 @@ type DockFields = Partial<Pick<Order,
  * is one free-text box, stored beside the answer rather than inside
  * `loadingHelp`, which is cleared whenever the end stops being a 3rd party.
  */
-export const MAX_DOCK_CONDITIONS = 500;
+// 1,000 since 2026-11-12 (was 500): a shared dock's text is a line per
+// party, built from boxes capped well under this, plus a note.
+export const MAX_DOCK_CONDITIONS = 1000;
 export function cleanDockConditions(raw: unknown): string {
   return typeof raw === 'string' ? raw.trim().slice(0, MAX_DOCK_CONDITIONS) : '';
 }
@@ -228,11 +294,42 @@ export function dockConditionsOf(o: DockFields | null | undefined, end: DockEnd)
   return cleanDockConditions(end === 'pickup' ? o?.loadingConditions : o?.unloadingConditions);
 }
 
-/** Who works one end of the load, and the help when it is a 3rd party. */
-export function dockEndOf(o: DockFields | null | undefined, end: DockEnd): { by: DockParty | null; help: DockHelp | null } {
-  const by = (end === 'pickup' ? o?.trailerLoadedBy : o?.trailerUnloadedBy) ?? null;
-  const by_ = by && (DOCK_PARTIES as string[]).includes(by) ? by : null;
-  return { by: by_, help: by_ === 'third_party' ? cleanDockHelp(end === 'pickup' ? o?.loadingHelp : o?.unloadingHelp) : null };
+/**
+ * Who loads or unloads, as stored: more than one may share the work
+ * (2026-11-12) — the shipper's forklift and the driver's straps, a lumper
+ * and the consignee. One answer is still stored as the bare string it always
+ * was, and only two or more as an array: every load answered before this,
+ * and every one answered with one party since, keeps the exact value its
+ * sent SA, Dispatch Sheet and BOL were fingerprinted with, so nothing reads
+ * as changed. Never read the field directly — dockEndOf() reads both shapes.
+ */
+export type DockAnswer = DockParty | DockParty[] | null;
+
+/** Both stored shapes, and anything unknown, as a clean list in catalog order. */
+export function dockPartiesOf(raw: unknown): DockParty[] {
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  return DOCK_PARTIES.filter((p) => list.includes(p));
+}
+
+/** The list as it is stored: null, one string, or an array of two or more. */
+export function dockAnswerForSave(raw: unknown): DockAnswer {
+  const list = dockPartiesOf(raw);
+  return list.length === 0 ? null : list.length === 1 ? list[0] : list;
+}
+
+/**
+ * Shipper and consignee together at one dock is allowed but unusual — they
+ * are normally at different ends of the load — so the form asks the broker
+ * to make sure. A warning, never a refusal.
+ */
+export function dockPartiesOdd(parties: readonly DockParty[]): boolean {
+  return parties.includes('shipper') && parties.includes('consignee');
+}
+
+/** Who works one end of the load, and the help when a 3rd party is among them. */
+export function dockEndOf(o: DockFields | null | undefined, end: DockEnd): { by: DockParty[]; help: DockHelp | null } {
+  const by = dockPartiesOf(end === 'pickup' ? o?.trailerLoadedBy : o?.trailerUnloadedBy);
+  return { by, help: by.includes('third_party') ? cleanDockHelp(end === 'pickup' ? o?.loadingHelp : o?.unloadingHelp) : null };
 }
 
 /**
@@ -243,26 +340,40 @@ export function dockEndOf(o: DockFields | null | undefined, end: DockEnd): { by:
 export function dockEndProblem(o: DockFields | null | undefined, end: DockEnd): string {
   const { by, help } = dockEndOf(o, end);
   const where = end === 'pickup' ? 'loads at pickup' : 'unloads at delivery';
-  if (!by) return `Say who ${where}.`;
-  if (by === 'third_party') {
+  if (!by.length) return `Say who ${where}.`;
+  if (by.includes('third_party')) {
     if (!help?.service) return `Say what the 3rd party that ${where} is — a lumper, a forklift, a crane, a rigging crew or something else.`;
     if (help.service === 'other' && !help.label?.trim()) return `Name the 3rd party that ${where}.`;
     if (!help.hiredBy) return `Say who hires the 3rd party that ${where}.`;
+  }
+  // A shared dock answered through the per-party boxes needs each party's
+  // job. One answered before those boxes existed has no roles and falls
+  // through to the conditions text, as a single party does.
+  if (by.length > 1) {
+    const roles = dockRolesOf(o, end);
+    const missing = roles
+      ? by.find((p) => !roles.parties[p]?.does)
+      : dockConditionsOf(o, end) ? undefined : by[0];
+    if (missing) return `Say what the ${dockPartyName(missing, help).toLowerCase()} will do at ${end === 'pickup' ? 'pickup' : 'delivery'}.`;
   }
   if (!dockConditionsOf(o, end)) return `Describe the conditions for whoever ${where}.`;
   return '';
 }
 
 /**
- * One end as words: "Driver", or "3rd party: crane, hired by the consignee".
- * What the load card, the SA, the Dispatch Sheet and the BOL all print.
+ * One end as words: "Driver", "3rd party: crane, hired by the consignee", or
+ * several joined — "Shipper + Driver", "Consignee + 3rd party: lumper, hired
+ * by TTL". What the load card, the SA, the Dispatch Sheet and the BOL all
+ * print. One answer reads exactly as it did before several were allowed, so
+ * no sent agreement's fingerprint moves.
  */
 export function dockEndText(o: DockFields | null | undefined, end: DockEnd): string {
   const { by, help } = dockEndOf(o, end);
-  if (!by) return '';
-  if (by !== 'third_party' || !help?.service) return DOCK_PARTY_LABEL[by];
-  const what = help.service === 'other' ? (help.label?.trim() || 'other') : DOCK_HELP_PRINTED[help.service];
-  return `3rd party: ${what}${help.hiredBy ? `, hired by ${SERVICE_ARRANGER_PRINTED[help.hiredBy]}` : ''}`;
+  return by.map((p) => {
+    if (p !== 'third_party' || !help?.service) return DOCK_PARTY_LABEL[p];
+    const what = help.service === 'other' ? (help.label?.trim() || 'other') : DOCK_HELP_PRINTED[help.service];
+    return `3rd party: ${what}${help.hiredBy ? `, hired by ${SERVICE_ARRANGER_PRINTED[help.hiredBy]}` : ''}`;
+  }).join(' + ');
 }
 
 /**
@@ -346,7 +457,7 @@ export function reconcileDockHelp(o: Record<string, unknown>): Record<string, un
   return out;
 }
 
-export type TrailerLoadedBy = DockParty;
+export type TrailerLoadedBy = DockAnswer;
 export const TRAILER_LOADED_BY = DOCK_PARTIES;
 export const TRAILER_LOADED_BY_LABEL = DOCK_PARTY_LABEL;
 
@@ -1726,7 +1837,11 @@ export interface Order {
   freightChargeTerms?: FreightChargeTerms | null;
   /** Who pays the freight when the terms are 3rd party — name and address, free text. */
   thirdPartyBillTo?: string;
-  trailerLoadedBy?: TrailerLoadedBy | null;
+  /**
+   * One answer stored as the bare string, as it always was; two or more as
+   * an array (2026-11-12) — see DockAnswer. Read through dockEndOf().
+   */
+  trailerLoadedBy?: DockAnswer;
   freightCountedBy?: FreightCountedBy | null;
   /**
    * The delivery end of the same two questions (2026-10-15). Printed on the
@@ -1734,7 +1849,7 @@ export interface Order {
    * driver who unloads, or pays a lumper, expects to be told before they
    * accept the load. Not on the client's confirmation, so none holds an SA.
    */
-  trailerUnloadedBy?: DockParty | null;
+  trailerUnloadedBy?: DockAnswer;
   deliveryCountedBy?: DockParty | null;
   /**
    * The 3rd party at each end — what they are and who hires them — when
@@ -1753,6 +1868,12 @@ export interface Order {
    */
   loadingConditions?: string;
   unloadingConditions?: string;
+  /**
+   * Each party's job when several share an end (2026-11-12) — see DockRoles.
+   * The conditions above are built from these on save and are what prints.
+   */
+  loadingRoles?: DockRoles | null;
+  unloadingRoles?: DockRoles | null;
   /**
    * Print the full grid of loading, unloading and count boxes on the BOL,
    * answered or not, for a carrier or client who asks for boxes to tick by

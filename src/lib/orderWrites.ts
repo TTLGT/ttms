@@ -43,7 +43,7 @@ import type { ChangeOrderAffects } from '@/types/changeOrder';
 import { NO_SIGNED_CA_PROOF, NO_SIGNED_SA_PROOF, signedSaProof } from './signedSaProof';
 import { openBolRequestIfSigned } from './bolRequests';
 import { isCodLoad, missingSentence, paymentsMissing } from '@/types/orderPayment';
-import { LEGACY_STATUSES, cleanDockConditions, cleanDockHelp,cleanServiceCharges, cleanStops, isLoadType, reconcileDockHelp, orderAccessorials, orderDisplayNumber, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
+import { LEGACY_STATUSES, cleanDockConditions, cleanDockHelp, cleanDockRoles, composeDockConditions, dockAnswerForSave, dockPartiesOf, cleanServiceCharges, cleanStops, isLoadType, reconcileDockHelp, orderAccessorials, orderDisplayNumber, orderSearchTerms, stopPartyIdsOf, type OrderStatus } from '@/types/order';
 
 const COL = 'orders';
 
@@ -124,9 +124,29 @@ function cleanStopFields(record: Record<string, unknown>) {
   if ('accessorials' in record) record.accessorials = orderAccessorials(record);
   if ('serviceCharges' in record) record.serviceCharges = cleanServiceCharges(record.serviceCharges);
   for (const f of ['loadingHelp', 'unloadingHelp']) if (f in record) record[f] = cleanDockHelp(record[f]);
+  // One party stays a bare string and only several become a list, so a save
+  // that sends ['driver'] cannot read as a change from 'driver' — see DockAnswer.
+  for (const f of ['trailerLoadedBy', 'trailerUnloadedBy']) if (f in record) record[f] = dockAnswerForSave(record[f]);
   // Printed on both agreements, so capped and trimmed before it is diffed —
   // trailing spaces must not read as a change that holds a sent SA.
   for (const f of ['loadingConditions', 'unloadingConditions']) if (f in record) record[f] = cleanDockConditions(record[f]);
+  // A shared dock's printed conditions are built from each party's answers
+  // (DockRoles). Rebuilt here rather than trusted from the request, so what
+  // prints can never disagree with the boxes it was typed into; roles are
+  // dropped wherever fewer than two parties share the end.
+  for (const end of ['pickup', 'delivery'] as const) {
+    const [byKey, rolesKey, condKey, helpKey] = end === 'pickup'
+      ? ['trailerLoadedBy', 'loadingRoles', 'loadingConditions', 'loadingHelp']
+      : ['trailerUnloadedBy', 'unloadingRoles', 'unloadingConditions', 'unloadingHelp'];
+    if (!(rolesKey in record)) continue;
+    const by = dockPartiesOf(record[byKey]);
+    const roles = by.length > 1 ? cleanDockRoles(record[rolesKey]) : null;
+    record[rolesKey] = roles;
+    if (roles) {
+      const help = by.includes('third_party') ? cleanDockHelp(record[helpKey]) : null;
+      record[condKey] = composeDockConditions(by, roles, help);
+    }
+  }
   // The General card's load facts (2026-11-11): a known key or nothing, and a
   // budget that is a positive number or nothing.
   if ('loadType' in record) record.loadType = isLoadType(record.loadType) ? record.loadType : '';

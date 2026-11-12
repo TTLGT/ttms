@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Bi } from '@/components/spanish/Es';
 import {
   DOCK_HELP_LABEL, DOCK_PARTY_LABEL, SERVICE_ARRANGER_LABEL,
-  dockConditionsOf, dockEndOf, dockEndProblem,
+  dockConditionsOf, dockEndOf, dockEndProblem, dockPartiesOdd,
   type DockEnd, type DockParty, type Order, type ServiceArranger,
 } from '@/types/order';
 import { SectionHeading } from './OrderSection';
@@ -46,19 +46,33 @@ function End({ order, end }: { order: Order; end: DockEnd }) {
 
   // The answer said as a sentence. Built from pieces at run time, so it has
   // no Spanish line; the tags under it carry the same facts as words that do.
+  // Several parties (2026-11-12) are joined: "The shipper and a forklift from
+  // Acme load it. TTL hires them."
+  const third = by.includes('third_party');
+  const named = by.filter((p) => p !== 'third_party');
   let sentence: React.ReactNode;
-  if (!by) {
+  if (!by.length) {
     sentence = <span className="text-amber-800">Nobody is set to do this yet.</span>;
-  } else if (by !== 'third_party') {
-    sentence = <>The <strong className="font-semibold">{DOCK_PARTY_LABEL[by].toLowerCase()}</strong> {verb}.</>;
   } else {
-    // "A mechanic from Test Mechanic LLC loads it. TTL hires them."
-    const [article, ...noun] = (what ? withArticle(what) : 'a 3rd party').split(' ');
+    const parts: React.ReactNode[] = named.map((p, i) => (
+      <span key={p}>{i === 0 ? 'The' : 'the'} <strong className="font-semibold">{DOCK_PARTY_LABEL[p].toLowerCase()}</strong></span>
+    ));
+    if (third) {
+      // "A mechanic from Test Mechanic LLC loads it. TTL hires them."
+      const [article, ...noun] = (what ? withArticle(what) : 'a 3rd party').split(' ');
+      parts.push(
+        <span key="third_party">
+          {parts.length ? article : capitalise(article)} <strong className="font-semibold">{noun.join(' ')}</strong>
+          {provider && <> from {provider}</>}
+        </span>,
+      );
+    }
+    const joined = parts.flatMap((p, i) => (i === 0 ? [p] : [i === parts.length - 1 ? ' and ' : ', ', p]));
+    const plural = parts.length > 1 ? (end === 'pickup' ? 'load it' : 'unload it') : verb;
     sentence = (
       <>
-        {capitalise(article)} <strong className="font-semibold">{noun.join(' ')}</strong>
-        {provider && <> from {provider}</>} {verb}.
-        {help?.hiredBy && <> {hirer(help.hiredBy)}</>}
+        {joined} {plural}.
+        {third && help?.hiredBy && <> {hirer(help.hiredBy)}</>}
       </>
     );
   }
@@ -72,16 +86,23 @@ function End({ order, end }: { order: Order; end: DockEnd }) {
 
       <p className="mt-2 text-[15px] leading-relaxed text-gray-900">{sentence}</p>
 
-      {by && (
+      {by.length > 0 && (
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-          <Pill tone="violet" icon={PARTY_ICON[by]}>{DOCK_PARTY_LABEL[by]}</Pill>
-          {by === 'third_party' && (what
+          {by.map((p) => <Pill key={p} tone="violet" icon={PARTY_ICON[p]}>{DOCK_PARTY_LABEL[p]}</Pill>)}
+          {third && (what
             ? <Pill tone="violet">{what}</Pill>
             : <Pill tone="amber">Service not set</Pill>)}
-          {by === 'third_party' && (help?.hiredBy
+          {third && (help?.hiredBy
             ? <Pill tone="gray">Hired by {SERVICE_ARRANGER_LABEL[help.hiredBy]}</Pill>
             : <Pill tone="amber">Who hires them is not set</Pill>)}
         </div>
+      )}
+
+      {dockPartiesOdd(by) && (
+        <p className="mt-2 flex gap-1.5 text-xs text-amber-800">
+          <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0" />
+          <Bi>Both the shipper and the consignee are set to work this dock. That is unusual — check it is right.</Bi>
+        </p>
       )}
 
       {conditions && (

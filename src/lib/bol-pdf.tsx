@@ -103,9 +103,10 @@ export type BolData = {
   /** null prints all three boxes empty, for a pen. */
   freightChargeTerms: 'prepaid' | 'collect' | 'third_party' | null;
   thirdPartyBillTo: string;
-  trailerLoadedBy: DockParty | null;
+  /** Everybody who loads / unloads — several boxes may be ticked (2026-11-12). */
+  trailerLoadedBy: DockParty[];
   freightCountedBy: FreightCountedBy | null;
-  trailerUnloadedBy: DockParty | null;
+  trailerUnloadedBy: DockParty[];
   deliveryCountedBy: DockParty | null;
   /**
    * Each end as words — "3rd party: crane, hired by the consignee" — from
@@ -305,22 +306,23 @@ const COUNT_LABEL: Record<FreightCountedBy, string> = {
 /** The answered dock questions as [label, value] — empty when nothing was answered. */
 function dockLinesOf(d: Pick<BolData, 'trailerLoadedBy' | 'freightCountedBy' | 'trailerUnloadedBy' | 'deliveryCountedBy' | 'loadingText' | 'unloadingText' | 'loadingConditions' | 'unloadingConditions'>): [string, string][] {
   const out: [string, string][] = [];
-  if (d.trailerLoadedBy)   out.push(['Loaded by', d.loadingText || DOCK_LABEL[d.trailerLoadedBy]]);
+  if (d.trailerLoadedBy.length) out.push(['Loaded by', d.loadingText || d.trailerLoadedBy.map((p) => DOCK_LABEL[p]).join(' + ')]);
   if (d.loadingConditions) out.push(['Loading conditions', d.loadingConditions]);
   if (d.freightCountedBy)  out.push(['Counted at pickup', COUNT_LABEL[d.freightCountedBy]]);
-  if (d.trailerUnloadedBy) out.push(['Unloaded by', d.unloadingText || DOCK_LABEL[d.trailerUnloadedBy]]);
+  if (d.trailerUnloadedBy.length) out.push(['Unloaded by', d.unloadingText || d.trailerUnloadedBy.map((p) => DOCK_LABEL[p]).join(' + ')]);
   if (d.unloadingConditions) out.push(['Unloading conditions', d.unloadingConditions]);
   if (d.deliveryCountedBy) out.push(['Counted at delivery', DOCK_LABEL[d.deliveryCountedBy]]);
   return out;
 }
 
-/** A labelled row of the four dock parties, the chosen one ticked. */
-function DockRow({ label, value }: { label: string; value: DockParty | null }) {
+/** A labelled row of the four dock parties, every chosen one ticked. */
+function DockRow({ label, value }: { label: string; value: DockParty | readonly DockParty[] | null }) {
+  const on = (p: DockParty) => (Array.isArray(value) ? value.includes(p) : value === p);
   return (
     <View style={{ flexDirection: 'row' }}>
       <Text style={[s.inlineLabel, { alignSelf: 'flex-start', marginTop: 1 }]}>{label}</Text>
       <View style={[s.checkRow, { flex: 1 }]}>
-        {(Object.keys(DOCK_LABEL) as DockParty[]).map((p) => <Check key={p} on={value === p} label={DOCK_LABEL[p]} />)}
+        {(Object.keys(DOCK_LABEL) as DockParty[]).map((p) => <Check key={p} on={on(p)} label={DOCK_LABEL[p]} />)}
       </View>
     </View>
   );
@@ -562,7 +564,7 @@ function BolDocument({ d }: { d: BolData }) {
                     that spills over lines up under the others rather than
                     under the label. */}
                 <DockRow label="Loaded by" value={d.trailerLoadedBy} />
-                {d.trailerLoadedBy === 'third_party' && d.loadingText ? <Text style={{ fontSize: 7, marginBottom: 1.5 }}>{d.loadingText}</Text> : null}
+                {d.trailerLoadedBy.includes('third_party') && d.loadingText ? <Text style={{ fontSize: 7, marginBottom: 1.5 }}>{d.loadingText}</Text> : null}
                 {d.loadingConditions ? <Text style={{ fontSize: 7, marginBottom: 1.5 }}>Conditions: {d.loadingConditions}</Text> : null}
                 <View style={{ flexDirection: 'row' }}>
                   <Text style={[s.inlineLabel, { alignSelf: 'flex-start', marginTop: 1 }]}>Counted at pickup</Text>
@@ -571,7 +573,7 @@ function BolDocument({ d }: { d: BolData }) {
                   </View>
                 </View>
                 <DockRow label="Unloaded by" value={d.trailerUnloadedBy} />
-                {d.trailerUnloadedBy === 'third_party' && d.unloadingText ? <Text style={{ fontSize: 7, marginBottom: 1.5 }}>{d.unloadingText}</Text> : null}
+                {d.trailerUnloadedBy.includes('third_party') && d.unloadingText ? <Text style={{ fontSize: 7, marginBottom: 1.5 }}>{d.unloadingText}</Text> : null}
                 {d.unloadingConditions ? <Text style={{ fontSize: 7, marginBottom: 1.5 }}>Conditions: {d.unloadingConditions}</Text> : null}
                 <DockRow label="Counted at delivery" value={d.deliveryCountedBy} />
               </Card>

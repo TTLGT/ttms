@@ -84,6 +84,9 @@ export const UNRECORDED_FIELDS: ReadonlySet<string> = new Set([
   'coverThumbUrl', 'photoCount', 'owners',
   // When the mileage was worked out moves with the mileage, which is recorded.
   'laneMilesAt',
+  // Each party's answers at a shared dock: the conditions text built from
+  // them is saved in the same patch and recorded, in the words printed.
+  'loadingRoles', 'unloadingRoles',
   // The ids beside a name: the name is what changed as far as a reader is
   // concerned, and it is saved in the same patch every time the id is.
   'clientId', 'shipperId', 'consigneeId', 'carrierId', 'driverId', 'brokerUid',
@@ -294,8 +297,10 @@ export function describeChangeValue(
       return `${name}${who} ${c.amount == null ? '(no amount)' : usd.format(c.amount)}${by}`;
     }).join('; '));
   }
-  if ((field === 'trailerLoadedBy' || field === 'trailerUnloadedBy') && typeof value === 'string') {
-    return DOCK_PARTY_LABEL[value as DockParty] ?? value;
+  // One party as a string, several as a list (2026-11-12) — see DockAnswer.
+  if (field === 'trailerLoadedBy' || field === 'trailerUnloadedBy') {
+    if (typeof value === 'string') return DOCK_PARTY_LABEL[value as DockParty] ?? value;
+    if (Array.isArray(value)) return value.map((v) => DOCK_PARTY_LABEL[v as DockParty] ?? String(v)).join(' + ') || 'blank';
   }
   // "Crane, hired by Consignee" rather than the stored map.
   if (field === 'loadingHelp' || field === 'unloadingHelp') {

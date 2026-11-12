@@ -905,6 +905,28 @@ const BASE: Record<string, string> = {
   'Earliest the client says the freight can be collected': 'Lo más pronto que el cliente dice que se puede recoger la carga.',
   'Edit rates': 'Editar tarifas',
   'Edit the whole order': 'Editar toda la orden',
+  'No commodity described yet.': 'Todavía no se ha descrito la mercancía.',
+  'What will they do?': '¿Qué van a hacer?',
+  'What tools or equipment will they bring?': '¿Qué herramientas o equipo van a traer?',
+  'Anything else at this dock': 'Algo más sobre este muelle',
+  'Each answer is printed as its own line on the SA, the Dispatch Sheet and the BOL.':
+    'Cada respuesta se imprime en su propia línea en el SA, la Dispatch Sheet y el BOL.',
+  'what they do, and the equipment or staff they provide': 'qué hacen y qué equipo o personal ponen',
+  'what the driver does: guide, strap, chain, open doors, count': 'qué hace el conductor: guiar, amarrar, encadenar, abrir puertas, contar',
+  'what they do, what they bring and when they arrive': 'qué hacen, qué traen y cuándo llegan',
+  'Write one line for each, so nobody at the dock has to guess. Printed on the SA, the Dispatch Sheet and the BOL.':
+    'Escribe una línea para cada uno, para que nadie en el muelle tenga que adivinar. Se imprime en el SA, la Dispatch Sheet y el BOL.',
+  'The driver works together with the others to load the truck. The Dispatch Sheet tells the carrier before they accept the load.':
+    'El conductor trabaja junto con los demás para cargar el camión. La Dispatch Sheet se lo dice al carrier antes de que acepte la carga.',
+  'The driver works together with the others to unload the truck. The Dispatch Sheet tells the carrier before they accept the load.':
+    'El conductor trabaja junto con los demás para descargar el camión. La Dispatch Sheet se lo dice al carrier antes de que acepte la carga.',
+  'Pick everyone who helps — more than one is fine.':'Elige a todos los que ayudan; puedes elegir más de uno.',
+  'Both the shipper and the consignee? They are usually at different ends of the load. Check this is right — you can still save it.':
+    '¿El shipper y el consignee a la vez? Normalmente están en extremos distintos de la carga. Revisa que sea correcto; igual puedes guardarlo.',
+  'Both the shipper and the consignee are set to work this dock. That is unusual — check it is right.':
+    'El shipper y el consignee están marcados para trabajar en este muelle. No es lo usual; revisa que sea correcto.',
+  'No pickup city yet': 'Todavía sin ciudad de recogida',
+  'No delivery city yet': 'Todavía sin ciudad de entrega',
   'Edited — check the file again to see what this does now': 'Editado: revisa el archivo de nuevo para ver qué hace ahora.',
   'English words from TTMS and from freight work, with their meaning in Spanish. Words you look up are saved here so you can practise them. Mark a word “I know this” and it stops being underlined':
     'Palabras en inglés de TTMS y del trabajo de carga, con su significado en español. Las palabras que buscas se guardan aquí para que las practiques. Marca una palabra con “I know this” y deja de subrayarse.',

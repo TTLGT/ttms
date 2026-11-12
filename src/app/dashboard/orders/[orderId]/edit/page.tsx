@@ -45,6 +45,7 @@ import type { LoadFacts } from '@/components/orders/LoadFactsFields';
 import { ORDER_SECTION_LABEL, isOrderSection } from '@/components/orders/SectionEditLink';
 import type { OrderSection } from '@/components/orders/SectionEditLink';
 import { Bi } from '@/components/spanish/Es';
+import LoadGlance from '@/components/orders/LoadGlance';
 
 function tsToDateStr(ts: Order['pickupDate']): string {
   if (!ts || typeof (ts as { toDate?: unknown }).toDate !== 'function') return '';
@@ -571,6 +572,13 @@ export default function EditOrderPage() {
           </section>
           </>)}
 
+          {/* Alone, the dock card hides what is being loaded and where; the
+              whole-order edit already shows both in Freight and Route. */}
+          {section === 'dock' && (
+            <LoadGlance coverUrl={order.coverThumbUrl} commodities={commodities}
+              origin={origin} destination={destination}
+              extraStops={extraPickups.length + extraDeliveries.length} />
+          )}
           {shows('dock') && <DockWorkFields value={dockWork} onChange={setDockWork}
             pickupState={origin.state} deliveryState={destination.state} />}
 
