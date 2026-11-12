@@ -20,7 +20,8 @@ import { qrPng } from '@/lib/qrCode';
 import { generateQuoteBuffer } from '@/lib/quote-pdf';
 import { buildQuoteData } from '@/lib/quoteData';
 import { brokerSnapshot, paperworkBroker } from '@/lib/orderOwnersServer';
-import { clientAgreementContact } from '@/lib/orderReadinessServer';
+import { clientAgreementContact, readinessFactsFor } from '@/lib/orderReadinessServer';
+import { orderReadiness, readinessOf } from '@/types/orderReadiness';
 import { randomBytes } from 'crypto';
 import { dockEndProblem, orderDisplayNumber } from '@/types/order';
 import type { Order } from '@/types/order';
@@ -222,6 +223,34 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       }, { status: 409 });
     }
     kind = 'revision';
+  }
+
+  /*
+   * A first link goes out only from a review (2026-11-12). "Send for Client
+   * Signature" on Client Confirmation used to email the client from here
+   * with nothing checked; it now opens the review instead, and the send
+   * comes from that. A request already sent may still issue a link — that
+   * round was reviewed. A resend and a revision are decided above.
+   */
+  if (kind === 'new' && saStatus !== 'open' && saStatus !== 'sent') {
+    return NextResponse.json({
+      error: 'Open the Shipper Agreement (SA) review first, with Send for Client Signature, and send it from there once the load is checked.',
+    }, { status: 409 });
+  }
+
+  /*
+   * Nothing the SA prints may be blank. Request SA already insists on it, but
+   * the load can be edited after the request, and a review dispatch opened
+   * themselves was never asked. A resend is the link already out, unchanged.
+   */
+  if (kind !== 'resend') {
+    const sa = readinessOf(orderReadiness(order as Partial<Order>, await readinessFactsFor(order)), 'sa');
+    if (sa.missing.length) {
+      return NextResponse.json({
+        error: `Fill these in first: ${sa.missing.map((m) => m.label.toLowerCase()).join(', ')}.`,
+        missing: sa.missing.map((m) => m.key),
+      }, { status: 409 });
+    }
   }
 
   /*

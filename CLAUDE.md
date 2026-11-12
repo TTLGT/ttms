@@ -1378,6 +1378,25 @@ Every reviewer sees every tick and who closed it; Approvals lists them.
   when no review is open — after dispatch sent an update back, or on a load
   that never had one (a signature from an uploaded copy has no link for a
   change to hold). It moves no status; only cancelled and completed refuse.
+- **No SA goes out without a review** (2026-11-12). "Send for Client
+  Signature" on Client Confirmation opens one (`POST sa-request` with
+  `start`, admin and dispatch only, `byReviewer: true`) and tells the load's
+  owners in its room; it no longer emails anything. The send route refuses a
+  first link with no open or sent review, and any non-resend with an SA field
+  missing. A resend of a link already out is unchanged.
+- **Sent back means a list, not just a note** (2026-11-12). `saFixList()` in
+  `src/types/saRequest.ts` is the one definition: what TTMS finds wrong now
+  (empty SA fields, ticks the files refuse, accessorial and provider gaps)
+  plus the items the reviewer marked (`returnedChecks`). The broker sees it in
+  the review with Fix links, gets it as a line in the load's room — chat only,
+  no email — and so does **every owner of the load** (`assignedToUids` plus
+  the members of its work groups), brought into the room first; they also
+  get the line when dispatch starts a review. The broker has Request SA again there — on a Quote too, since a first
+  request sent back un-books the load. An update (`changed`) sent back does
+  **not** un-book it.
+- **Two ticks are decided by the order, like the license**: Payment terms
+  needs a client payment method, Loading and unloading needs both ends
+  answered (`checkBlockedBy()`, facts from `saGateFactsFor()`).
 - **The signing link is posted in the load's room** on purpose (asked for);
   a signature records IP and device, so a staff member signing from it would
   not pass for the client.

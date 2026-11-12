@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "ec562c58bc43d49126b7d512bce23eae0b5abb95",
+      "date": "2026-11-12T13:11:42-06:00",
+      "author": "erwindank",
+      "subject": "Make the quote PDF's disclaimer general: the price may change with accessorial charges, additional services or fees, instead of naming detention, layover and lumper fees",
+      "body": ""
+    },
+    {
       "hash": "fb96645d2ed9926b5e26d7326d8fd767e42dcacf",
       "date": "2026-11-12T13:07:35-06:00",
       "author": "erwindank",

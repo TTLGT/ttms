@@ -41,7 +41,7 @@ import { MIN_OPERATING_MONTHS, isNewCarrier, officeDay, type OperatingSince } fr
 import { dockEndProblem, hasVehicleDetails, orderAccessorials, type Accessorial, type CommodityItem, type ServiceArranger } from './order';
 import type { PhoneRegion } from '@/lib/phone';
 import type { FmcsaConcern } from './fmcsa';
-import type { ReadinessItem } from './orderReadiness';
+import { readinessOf, type ReadinessItem } from './orderReadiness';
 import { samsungModelName } from './samsungModels';
 
 export const SA_REQUESTS_COLLECTION = 'saRequests';
@@ -129,6 +129,12 @@ export interface SaRequest {
   clientName: string;
   /** The carrier, on a Carrier Agreement request. */
   carrierName: string;
+  /**
+   * Opened by admin or dispatch themselves — "Send for Client Signature" on
+   * Client Confirmation — rather than asked for by the broker (2026-11-12).
+   * Absent (false) on every request before that.
+   */
+  byReviewer: boolean;
   status: SaRequestStatus;
   note: string;
   requestedByUid: string;
@@ -144,6 +150,12 @@ export interface SaRequest {
   returnedAt: number | null;
   returnedByName: string | null;
   returnReason: string | null;
+  /**
+   * The double-check items the reviewer marked as wrong when sending it back
+   * — the parts no computer can see ("the contact is the wrong person").
+   * Listed to the broker beside what TTMS finds missing; see saFixList().
+   */
+  returnedChecks: string[];
   /**
    * Why the round was opened. `requested` is a broker pressing Request SA;
    * `changed` is TTMS reopening it because the order changed after the SA was
@@ -226,8 +238,6 @@ export interface SaReviewCheck {
 export const SA_REVIEW_CHECKS: SaReviewCheck[] = [
   { key: 'client', label: 'Client and contact are right',
     detail: 'The Shipper Agreement (SA) goes to the email address shown. A wrong one sends our client’s rate to a stranger.' },
-  { key: 'rate', label: 'Agreed rate is what the client accepted',
-    detail: 'Check it against the quote or the email where they said yes.' },
   { key: 'lane', label: 'Addresses, dates and hours confirmed',
     detail: 'Every pickup and delivery, including appointment windows and any extra stops.' },
   { key: 'freight', label: 'Freight matches the truck',
@@ -235,7 +245,9 @@ export const SA_REVIEW_CHECKS: SaReviewCheck[] = [
   { key: 'accessorials', label: 'Accessorials arranged',
     detail: 'Ramps, a winch, a liftgate, tarps, straps or chains, a pilot car — whatever this freight needs to load and unload is on the truck and priced in.' },
   { key: 'terms', label: 'Payment terms agreed',
-    detail: 'How and when the client pays is set on the order and is what they agreed to.' },
+    detail: 'The client payment method is set in Price and Terms, and it is how and when the client agreed to pay.' },
+  { key: 'dock', label: 'Loading and unloading assistance set',
+    detail: 'Who loads at pickup and who unloads at delivery — the driver, the shipper or consignee, or a 3rd party and who hires it — with the conditions at each end.' },
 ];
 
 export const CA_REVIEW_CHECKS: SaReviewCheck[] = [
@@ -265,6 +277,19 @@ export const CA_REVIEW_CHECKS: SaReviewCheck[] = [
     detail: 'W-9 and how they are paid — factoring company or bank details — on file before they haul, not after.' },
 ];
 
+/**
+ * Items taken off the SA review, kept only so the verification record of an
+ * earlier round still says who ticked them. Never asked again, never counted.
+ *
+ * `rate` went on 2026-11-12: the agreed rate is the broker's to set, and
+ * dispatch has no way to check it against a conversation they were not in —
+ * so the tick confirmed nothing. The client confirms it by signing the SA.
+ */
+export const RETIRED_SA_CHECKS: SaReviewCheck[] = [
+  { key: 'rate', label: 'Agreed rate is what the client accepted',
+    detail: 'Check it against the quote or the email where they said yes.' },
+];
+
 export function reviewChecks(party: AgreementParty): SaReviewCheck[] {
   return party === 'carrier' ? CA_REVIEW_CHECKS : SA_REVIEW_CHECKS;
 }
@@ -280,6 +305,15 @@ export interface SaGateFacts {
   licenseExpiration: number | null;
   truckPhotos: number;
   operatingSince: OperatingSince | null;
+  /**
+   * The client payment method's name on the order, '' when none is set. The
+   * payment-terms tick is refused without one (2026-11-12): a tick saying the
+   * terms were agreed on a load with no terms on it confirmed nothing.
+   * Absent on facts frozen before then, which then refuse nothing.
+   */
+  clientPayment?: string;
+  /** What is still unanswered under Loading and Unloading — dockEndProblem() for each end. */
+  dockProblems?: string[];
 }
 
 /** The order fields the accessorials hint reads. */
@@ -355,7 +389,91 @@ export function checkBlockedBy(key: string, f: SaGateFacts | null | undefined, t
   if (key === 'carrierAge' && isNewCarrier(f.operatingSince, today)) {
     return `This carrier has been operating less than ${MIN_OPERATING_MONTHS} months.`;
   }
+  if (key === 'terms' && f.clientPayment === '') {
+    return 'No client payment method on the order. Set it in Price and Terms.';
+  }
+  if (key === 'dock' && f.dockProblems?.length) {
+    return f.dockProblems.join(' ');
+  }
   return null;
+}
+
+/**
+ * Where a line on the fix list sends the reader. Resolved to a place on the
+ * order by the page (src/components/orders/fixTargets.ts) — this file stays
+ * free of anything that knows the order screen's layout.
+ */
+export type SaFixTarget =
+  | { type: 'readiness'; key: string }
+  | { type: 'check'; key: string }
+  | { type: 'fact'; key: 'clientPayment' | 'accessorials' | 'services' | 'client' };
+
+export interface SaFixItem {
+  id: string;
+  text: string;
+  /** Marked wrong by the reviewer, rather than found by TTMS. */
+  flagged: boolean;
+  target: SaFixTarget | null;
+}
+
+/**
+ * Everything wrong with a load's agreement, as one list a broker can work
+ * down — what the review shows dispatch, gathered in one place
+ * (2026-11-12). Two sources:
+ *
+ * - **What TTMS finds**, worked out fresh from `review`: a field the
+ *   agreement prints that is empty, a tick the files refuse (no payment
+ *   method, Loading and Unloading unanswered…), and, on the SA, what the
+ *   freight needs that the order does not say and a service with nobody
+ *   picked to do it.
+ * - **What the reviewer marked wrong** when sending it back
+ *   (`returnedChecks`), for the parts no computer can check.
+ *
+ * Found problems are live — fixing one takes it off the list. Flagged ones
+ * stay until the next round, because only a person can say they are fixed.
+ * An empty list means the reviewer's note is the whole story.
+ */
+export function saFixList(party: AgreementParty, review: SaReview, flagged: string[] = []): SaFixItem[] {
+  const out: SaFixItem[] = [];
+  const blockedKeys = new Set<string>();
+  const missing = party === 'client' ? readinessOf(review.readiness, 'sa').missing : [];
+  // Loading and Unloading is a field the SA prints as well as a tick; said once.
+  const dockListed = missing.some((m) => m.key === 'loading' || m.key === 'unloading');
+  if (party === 'client') {
+    for (const m of missing) {
+      out.push({ id: `r-${m.key}`, text: m.hint ? `${m.label}: ${m.hint}` : `${m.label} is missing.`, flagged: false, target: { type: 'readiness', key: m.key } });
+    }
+    if (!review.sendTo && !missing.some((m) => m.key === 'clientEmail')) {
+      out.push({ id: 'f-client', text: 'The client has no email address to send the agreement to.', flagged: false, target: { type: 'fact', key: 'client' } });
+    }
+  }
+  for (const c of reviewChecks(party)) {
+    const blocked = checkBlockedBy(c.key, review.gate);
+    if (!blocked) continue;
+    blockedKeys.add(c.key);
+    if (c.key === 'dock' && dockListed) continue;
+    out.push({ id: `c-${c.key}`, text: blocked, flagged: false, target: { type: 'check', key: c.key } });
+  }
+  if (party === 'client') {
+    review.accessorialHints.forEach((h, i) => {
+      out.push({ id: `a-${i}`, text: h, flagged: false, target: { type: 'fact', key: 'accessorials' } });
+    });
+    (review.services ?? []).filter(serviceNeedsProvider).forEach((s, i) => {
+      out.push({
+        id: `s-${i}`,
+        text: `${s.label}: ${s.providerGone ? 'the provider picked is no longer in the directory' : 'no provider picked from the 3rd party directory'}.`,
+        flagged: false,
+        target: { type: 'fact', key: 'services' },
+      });
+    });
+  }
+  for (const key of flagged) {
+    const c = reviewChecks(party).find((x) => x.key === key);
+    // Already on the list with the reason TTMS found; once is enough.
+    if (!c || blockedKeys.has(key)) continue;
+    out.push({ id: `x-${key}`, text: `${c.label} — marked as not right. ${c.detail}`, flagged: true, target: { type: 'check', key } });
+  }
+  return out;
 }
 
 export function isReviewCheckKey(party: AgreementParty, value: unknown): value is string {
@@ -648,6 +766,8 @@ export interface SaRound {
   returnedAt: number | null;
   returnedByName: string | null;
   returnReason: string | null;
+  /** What the reviewer marked wrong when sending it back. */
+  returnedChecks: string[];
   /** When a newer round replaced it. */
   supersededAt: number | null;
 }

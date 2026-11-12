@@ -1,4 +1,5 @@
 import type { OrderSection } from './SectionEditLink';
+import type { SaFixTarget } from '@/types/saRequest';
 
 /**
  * Where a reviewer goes to fill in something the SA or Dispatch Sheet review
@@ -49,10 +50,32 @@ export const READINESS_FIX: Record<string, FixTarget> = {
   driverPhone:    { kind: 'carrier', editor: true },
 };
 
-/** By review check key (src/types/saRequest.ts), for a tick the file refuses. */
+/**
+ * By review check key (src/types/saRequest.ts): for a tick the file refuses,
+ * and for an item the reviewer marked as wrong when sending it back — where
+ * the broker goes to put it right.
+ */
 export const CHECK_FIX: Record<string, FixTarget> = {
-  driverLicense: { kind: 'carrier', editor: true },
-  truckPhotos:   { kind: 'pictures' },
+  // The SA's
+  client:        { kind: 'edit', section: 'general', field: 'client' },
+  lane:          { kind: 'edit', section: 'route', field: 'origin' },
+  freight:       { kind: 'edit', section: 'freight', field: 'commodities' },
+  accessorials:  { kind: 'edit', section: 'freight', field: 'accessorials' },
+  terms:         { kind: 'edit', section: 'price', field: 'clientPayment' },
+  dock:          { kind: 'edit', section: 'dock', field: 'dockWork' },
+  // The Dispatch Sheet's
+  carrierContact:   { kind: 'carrier' },
+  carrierPay:       { kind: 'edit', section: 'price', field: 'agreedRate' },
+  carrierAuthority: { kind: 'carrier' },
+  carrierInsurance: { kind: 'carrier' },
+  carrierIdentity:  { kind: 'carrier' },
+  carrierAge:       { kind: 'carrier' },
+  equipment:        { kind: 'edit', section: 'freight', field: 'transportType' },
+  carrierLane:      { kind: 'edit', section: 'route', field: 'origin' },
+  driver:           { kind: 'carrier', editor: true },
+  driverLicense:    { kind: 'carrier', editor: true },
+  truckPhotos:      { kind: 'pictures' },
+  carrierPayment:   { kind: 'carrier' },
 };
 
 /** Fixed targets for the "What TTMS checked" rows. */
@@ -65,3 +88,11 @@ export const FACT_FIX = {
   pictures:      { kind: 'pictures' },
   client:        { kind: 'client' },
 } satisfies Record<string, FixTarget>;
+
+/** Where a line on the fix list (saFixList()) goes, or null for none. */
+export function saFixTarget(t: SaFixTarget | null): FixTarget | null {
+  if (!t) return null;
+  if (t.type === 'readiness') return READINESS_FIX[t.key] ?? null;
+  if (t.type === 'check') return CHECK_FIX[t.key] ?? null;
+  return FACT_FIX[t.key];
+}

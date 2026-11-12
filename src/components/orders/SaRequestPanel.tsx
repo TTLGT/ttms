@@ -18,14 +18,14 @@ import { usd } from '@/types/paymentMethod';
 import { readinessOf, type ReadinessItem } from '@/types/orderReadiness';
 import {
   AGREEMENT_BUTTON, AGREEMENT_LABEL, MAX_SA_CC, SA_STATUS_LABEL, checkBlockedBy, isCcEmail, outstandingChecks,
-  changeSummary, reviewChecks, serviceNeedsProvider, type AgreementParty, type ReviewService, type SaRequest,
+  changeSummary, reviewChecks, saFixList, serviceNeedsProvider, type AgreementParty, type ReviewService, type SaRequest,
 } from '@/types/saRequest';
 import { SERVICE_ARRANGER_LABEL, notOurCharge } from '@/types/order';
 import Link from 'next/link';
 import PhoneValue from '@/components/PhoneValue';
 import { isNewCarrier, MIN_OPERATING_MONTHS, officeDay } from '@/types/fmcsa';
 import { FixButton, ReadinessLine } from './OrderReadinessCard';
-import { CHECK_FIX, FACT_FIX, type FixTarget } from './fixTargets';
+import { CHECK_FIX, FACT_FIX, saFixTarget, type FixTarget } from './fixTargets';
 import { Bi } from '@/components/spanish/Es';
 
 /**
@@ -265,6 +265,8 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
   const [error, setError] = useState('');
   const [returning, setReturning] = useState(false);
   const [reason, setReason] = useState('');
+  // The double-check items the reviewer marks as wrong when sending it back.
+  const [flagged, setFlagged] = useState<string[]>([]);
   // The CC box's text, held here so Send and Resend can see it — see pendingCc().
   const [ccTyped, setCcTyped] = useState('');
   // Which checks have their explanation open, in the panel layout.
@@ -287,6 +289,14 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
   const applicable = checks.length;
   // The carrier's agreement waits for the client's signature (or a waiver).
   const sendBlocked = carrier && !review.clientSigned;
+  // Nothing the SA prints may be blank — the send route refuses it too.
+  const saMissing = carrier ? [] : readinessOf(review.readiness, 'sa').missing;
+  // What the broker is shown once it is sent back: what TTMS finds still
+  // wrong now, plus what the reviewer marked. Live — fixing a field takes
+  // its line off. See saFixList().
+  const fixes = r.status === 'returned' ? saFixList(party, review, r.returnedChecks) : [];
+  // What TTMS would list by itself, shown to the reviewer while sending back.
+  const found = returning ? saFixList(party, review) : [];
   const working = isReviewer && (r.status === 'open' || r.status === 'sent');
 
   async function run(key: string, fn: () => Promise<unknown>) {
@@ -358,7 +368,7 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
             <ShieldCheck className="w-4 h-4 text-brand-600" /> {r.reason === 'changed' ? `${name} update` : `${name} request`}
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            {r.reason === 'changed' ? 'Opened by TTMS after a change by' : 'Asked by'} {r.requestedByName} · {formatDateTime(new Date(r.requestedAt))}
+            {r.reason === 'changed' ? 'Opened by TTMS after a change by' : r.byReviewer ? 'Started by' : 'Asked by'} {r.requestedByName} · {formatDateTime(new Date(r.requestedAt))}
           </p>
           {r.note && (r.reason === 'changed'
             // TTMS's own words, so not in quotes as if somebody had written them.
@@ -397,8 +407,30 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
       {r.status === 'returned' && (
         <div className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           <p className="font-semibold">Sent back by {r.returnedByName}{r.returnedAt ? ` · ${formatDateTime(new Date(r.returnedAt))}` : ''}</p>
-          {r.returnReason && <p className="mt-0.5">{r.returnReason}</p>}
-          <p className="mt-1 text-amber-800">Fix it, then use Request {AGREEMENT_BUTTON[party]} again.</p>
+          {r.returnReason && <p className="mt-0.5 whitespace-pre-wrap">{r.returnReason}</p>}
+          {fixes.length > 0 ? (
+            <div className="mt-2 rounded-md border border-amber-200 bg-white/70 px-2.5 py-2">
+              <p data-es className="font-semibold text-gray-800">What to fix</p>
+              <ul className="mt-1 space-y-1">
+                {fixes.map((f) => {
+                  const target = saFixTarget(f.target);
+                  return (
+                    <li key={f.id} className="flex items-start gap-1.5 text-gray-800">
+                      <AlertTriangle className={`w-3.5 h-3.5 shrink-0 mt-px ${f.flagged ? 'text-amber-600' : 'text-red-600'}`} />
+                      <span>
+                        {f.text}
+                        {f.flagged && <span data-es className="text-gray-500"> (marked by {r.returnedByName ?? 'dispatch'})</span>}
+                        {target && onFix && <FixButton onClick={() => onFix(target)} />}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : (
+            <p data-es className="mt-1 text-amber-800">TTMS finds nothing missing on the load. The note above is what needs doing.</p>
+          )}
+          <p data-es className="mt-1.5 text-amber-800">Fix it, then use Request {AGREEMENT_BUTTON[party]} again.</p>
           {askAgain && <div className="mt-2">{askAgain}</div>}
         </div>
       )}
@@ -458,6 +490,11 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
                             On the order: {review.accessorials.length ? review.accessorials.join(', ') : 'no accessorials listed'}
                           </span>
                         )}
+                        {c.key === 'terms' && review.gate.clientPayment && (
+                          <span className="mt-0.5 block text-[11px] text-gray-700">
+                            On the order: {review.gate.clientPayment}
+                          </span>
+                        )}
                         {c.key === 'accessorials' && review.accessorialCovered?.map((h) => (
                           <span key={h} className="mt-0.5 flex items-start gap-1 text-[11px] text-green-700">
                             <CheckCircle2 className="w-3 h-3 shrink-0 mt-px" />
@@ -510,8 +547,9 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
 
             <div className="flex flex-wrap gap-2 pt-1">
               {r.status === 'open' && (
-                <button type="button" disabled={busy !== '' || left.length > 0 || !review.sendTo || sendBlocked}
-                  title={left.length ? 'Finish the double check first'
+                <button type="button" disabled={busy !== '' || left.length > 0 || !review.sendTo || sendBlocked || saMissing.length > 0}
+                  title={saMissing.length ? 'Fill in the Shipper Agreement fields first'
+                    : left.length ? 'Finish the double check first'
                     : !review.sendTo ? `The ${carrier ? 'carrier' : 'client'} has no email address`
                     : sendBlocked ? 'The client has not signed the Shipper Agreement (SA) yet, and no waiver is recorded'
                     : ''}
@@ -553,6 +591,12 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
                 </button>
               )}
             </div>
+            {saMissing.length > 0 && r.status === 'open' && (
+              <p className="text-[11px] text-red-700">
+                <Bi>Sending unlocks when every Shipper Agreement field is filled in.</Bi>{' '}
+                {saMissing.map((m) => m.label).join(', ')}.
+              </p>
+            )}
             {left.length > 0 && r.status === 'open' && (
               <p data-es className="text-[11px] text-gray-500">Sending unlocks when every item is ticked.</p>
             )}
@@ -565,18 +609,46 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
                 <label data-es className="block text-xs font-medium text-amber-900">What does the broker need to fix?</label>
                 <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} maxLength={1000}
                   className="w-full border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                {/* The items no computer can check — the broker gets each one
+                    as a line with a link to where it is fixed. */}
+                <div>
+                  <p data-es className="text-xs font-medium text-amber-900">Mark what is not right (optional)</p>
+                  <ul className="mt-1 space-y-1">
+                    {checks.map((c) => (
+                      <li key={c.key}>
+                        <label className="flex items-start gap-2 text-xs text-gray-800 cursor-pointer">
+                          <input type="checkbox" className="mt-0.5 accent-amber-600" checked={flagged.includes(c.key)}
+                            onChange={(e) => setFlagged((f) => (e.target.checked ? [...f, c.key] : f.filter((k) => k !== c.key)))} />
+                          <span>{c.label}</span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {found.length > 0 ? (
+                  <div className="text-[11px] text-amber-900">
+                    <p data-es className="font-semibold">TTMS also lists what it finds missing:</p>
+                    <ul className="list-disc pl-4">{found.map((f) => <li key={f.id}>{f.text}</li>)}</ul>
+                  </div>
+                ) : (
+                  <p data-es className="text-[11px] text-amber-900">TTMS finds nothing missing, so the broker gets your note and anything you mark.</p>
+                )}
+                <p data-es className="text-[11px] text-amber-900">The broker is told in this load&apos;s discussion.</p>
                 <div className="flex gap-2">
                   <button type="button" disabled={!reason.trim() || busy !== ''}
                     onClick={() => void run('return', async () => {
-                      await returnSaRequest(orderId, reason.trim(), party);
+                      const status = await returnSaRequest(orderId, reason.trim(), party, flagged);
                       setReturning(false);
                       setReason('');
-                      if (!carrier) onStatusChange?.('quote');
+                      setFlagged([]);
+                      // Only when the route actually moved it: an update review
+                      // sent back leaves the load where it was.
+                      if (status) onStatusChange?.(status);
                     })}
                     className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50">
                     Send back to broker
                   </button>
-                  <button type="button" onClick={() => setReturning(false)} className="text-xs text-gray-600 hover:text-gray-900">Cancel</button>
+                  <button type="button" onClick={() => { setReturning(false); setFlagged([]); }} className="text-xs text-gray-600 hover:text-gray-900">Cancel</button>
                 </div>
               </div>
             )}

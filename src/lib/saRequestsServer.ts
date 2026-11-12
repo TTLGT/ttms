@@ -3,7 +3,7 @@ import { adminDb, FieldValue } from './firebase-admin';
 import { openedAlert, postOrderAlert } from './chatAlerts';
 import { clientAgreementContact, readinessFactsFor } from './orderReadinessServer';
 import { CONVERSATIONS_COLLECTION, recordConversationId } from '@/types/conversation';
-import { accessorialLabels, dockEndOf, orderDisplayNumber, serviceChargeLines, type Order } from '@/types/order';
+import { accessorialLabels, dockEndOf, dockEndProblem, orderDisplayNumber, serviceChargeLines, type Order } from '@/types/order';
 import { PROVIDERS_COLLECTION, PROVIDER_SERVICE_LABEL, type Provider } from '@/types/provider';
 import { phoneRegionOf } from '@/lib/phone';
 import { orderReadiness } from '@/types/orderReadiness';
@@ -39,6 +39,7 @@ export function toSaRequest(d: FirebaseFirestore.DocumentData, party: AgreementP
     orderNumber:     String(d.orderNumber ?? ''),
     clientName:      String(d.clientName ?? ''),
     carrierName:     String(d.carrierName ?? ''),
+    byReviewer:      d.byReviewer === true,
     status:          STATUSES.includes(d.status) ? d.status : 'open',
     note:            String(d.note ?? ''),
     requestedByUid:  String(d.requestedByUid ?? ''),
@@ -53,6 +54,7 @@ export function toSaRequest(d: FirebaseFirestore.DocumentData, party: AgreementP
     returnedAt:      millis(d.returnedAt),
     returnedByName:  d.returnedByName ?? null,
     returnReason:    d.returnReason ?? null,
+    returnedChecks:  Array.isArray(d.returnedChecks) ? d.returnedChecks.filter((x: unknown): x is string => typeof x === 'string') : [],
     reason:          d.reason === 'changed' ? 'changed' : 'requested',
     ccEmails:        cleanCcList(d.ccEmails),
     sentCc:          cleanCcList(d.sentCc),
@@ -174,6 +176,7 @@ export function toSaRound(id: string, d: FirebaseFirestore.DocumentData, party: 
     returnedAt:      base.returnedAt,
     returnedByName:  base.returnedByName,
     returnReason:    base.returnReason,
+    returnedChecks:  base.returnedChecks,
     supersededAt:    millis(d.supersededAt),
   };
 }
@@ -363,6 +366,11 @@ export async function saGateFactsFor(
     licenseExpiration: driver?.licenseExpiration?.toMillis?.() ?? null,
     truckPhotos: photos.data().count,
     operatingSince: operatingSince(carrierData?.fmcsa?.registry as FmcsaRegistry | undefined),
+    // Read off the order, so they cost nothing; here because the two ticks
+    // they decide are refused the same way a missing license is.
+    clientPayment: String((order.clientPayment as { methodName?: unknown } | null | undefined)?.methodName ?? '').trim(),
+    dockProblems: (['pickup', 'delivery'] as const)
+      .map((end) => dockEndProblem(order as Parameters<typeof dockEndProblem>[0], end)).filter(Boolean),
   };
 }
 

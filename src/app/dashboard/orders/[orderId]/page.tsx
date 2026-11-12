@@ -111,6 +111,7 @@ import {
 import ChangeHistory from '@/components/history/ChangeHistory';
 import { OrderCoverThumb } from '@/components/photos/PhotoBits';
 import { Bi } from '@/components/spanish/Es';
+import { startSaReview } from '@/lib/saRequests';
 import OrderLoadCard from '@/components/orders/OrderLoadCard';
 import DockWorkCard from '@/components/orders/DockWorkCard';
 import { SectionHeading } from '@/components/orders/OrderSection';
@@ -358,6 +359,15 @@ export default function OrderDetailPage() {
     if (hashOpened.current || !changeOrder) return;
     if (window.location.hash === '#change-order') { hashOpened.current = true; setPanel('change'); }
   }, [changeOrder]);
+  // The chat lines about a review (sent back, started) link to #sa-review or
+  // #ca-review, which opens that review's panel once it has loaded.
+  const reviewHashOpened = useRef(false);
+  useEffect(() => {
+    if (reviewHashOpened.current) return;
+    const h = window.location.hash;
+    if (h === '#sa-review' && saReq) { reviewHashOpened.current = true; setPanel('sa'); }
+    if (h === '#ca-review' && caReq) { reviewHashOpened.current = true; setPanel('ca'); }
+  }, [saReq, caReq]);
 
   /*
    * Whether "→ Client Signed" may be pressed by hand: only with the client's
@@ -458,6 +468,7 @@ export default function OrderDetailPage() {
 
   // shipper e-sign state
   const [sendingShipperAgreement, setSendingShipperAgreement] = useState(false);
+  const [startingSaReview, setStartingSaReview] = useState(false);
   const [shipperAgreementSentTo, setShipperAgreementSentTo]   = useState('');
 
   /*
@@ -1056,6 +1067,26 @@ export default function OrderDetailPage() {
     }
   }
 
+  /*
+   * "Send for Client Signature" opens the SA review rather than emailing the
+   * client (2026-11-12): the same checks a broker's Request SA gets, so
+   * nothing goes out with a gap in it. The route tells the broker in the
+   * load's room that it has started. An open review is simply opened.
+   */
+  async function handleStartSaReview() {
+    setStartingSaReview(true);
+    setError('');
+    try {
+      await startSaReview(orderId);
+      setSaRefresh((n) => n + 1);
+      setPanel('sa');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not start the review');
+    } finally {
+      setStartingSaReview(false);
+    }
+  }
+
   async function handleWaiveSignature() {
     if (!order || !user) return;
     setWaiving(true);
@@ -1319,14 +1350,26 @@ export default function OrderDetailPage() {
    * sent, dispatch already has it; once one is done, a later change opens a
    * fresh one by itself. The route checks the status again.
    */
+  /*
+   * Also on a quote whose request was sent back (2026-11-12): sending a first
+   * request back returns the load to Quote, and the broker reading "fix it,
+   * then request it again" in the review needs the button right there, not
+   * only on the next-step card. On a quote it is the ordinary first request
+   * and books the load again.
+   */
+  const saReturnedOnQuote = order?.status === 'quote' && saReq?.status === 'returned';
   const requestSaAgain = order && saReqLoaded && can('orders.create')
-    && !['quote', 'cancelled', 'completed'].includes(order.status)
+    && !['cancelled', 'completed'].includes(order.status)
+    && (order.status !== 'quote' || saReturnedOnQuote)
     && (!saReq || saReq.status === 'returned') ? (
-      <RequestSaButton again orderId={orderId}
+      <RequestSaButton again={order.status !== 'quote'} orderId={orderId}
         owners={order.owners}
         createdBy={order.createdBy}
         onBrokerChanged={() => void refreshOwners()}
-        onRequested={() => setSaRefresh((n) => n + 1)} />
+        onRequested={() => {
+          setOrder((prev) => (prev && prev.status === 'quote' ? { ...prev, status: 'booked' } : prev));
+          setSaRefresh((n) => n + 1);
+        }} />
     ) : null;
   const awaitingCarrierSignature =
     !!order && !['quote', 'booked', 'cancelled'].includes(order.status) && !order.carrierSignedAt;
@@ -1923,13 +1966,21 @@ export default function OrderDetailPage() {
                     : 'Dispatch sends this after reviewing the load. Its progress is shown above.'}
                 </p>
               ) : (
-                <button
-                  onClick={handleSendShipperAgreement}
-                  disabled={sendingShipperAgreement}
-                  className="px-3 py-1.5 bg-brand-50 text-brand-700 border border-brand-200 text-xs font-semibold rounded-lg hover:bg-brand-100 disabled:opacity-50 transition"
-                >
-                  {sendingShipperAgreement ? 'Sending…' : '✉ Send for Client Signature'}
-                </button>
+                <div>
+                  <button
+                    onClick={() => void handleStartSaReview()}
+                    disabled={startingSaReview}
+                    data-es={saReq && (saReq.status === 'open' || saReq.status === 'sent') ? 'Open the SA review' : 'Send for Client Signature'}
+                    className="px-3 py-1.5 bg-brand-50 text-brand-700 border border-brand-200 text-xs font-semibold rounded-lg hover:bg-brand-100 disabled:opacity-50 transition"
+                  >
+                    {startingSaReview ? 'Opening…'
+                      : saReq && (saReq.status === 'open' || saReq.status === 'sent') ? 'Open the SA review'
+                      : '✉ Send for Client Signature'}
+                  </button>
+                  <p className="mt-1 text-xs text-gray-500">
+                    <Bi>Opens the review first. The SA is emailed from there once the load is checked, and the broker is told in this load&apos;s discussion.</Bi>
+                  </p>
+                </div>
               )}
 
               {/* The link, for sending another way. Its own fetch. Kept once

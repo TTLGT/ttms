@@ -157,11 +157,15 @@ export function orderNextSteps(order: Partial<Order>, facts: NextStepFacts = {})
     [facts.saReq, 'sa', 'SA', 'client'],
     [facts.caReq, 'ca', 'Dispatch Sheet', 'carrier'],
   ] as const) {
-    if (!req || req.reason !== 'changed' || req.status === 'done' || req.status === 'sent') continue;
+    if (!req || req.status === 'done' || req.status === 'sent') continue;
+    // A first request sent back is the broker's next job too (2026-11-12);
+    // an open first request is dispatch's, and the rail already says so.
+    if (req.reason !== 'changed' && req.status !== 'returned') continue;
     out.push({
-      key: `resend:${panel}`, level: 'bad', title: `Send the ${what} again`,
+      key: `resend:${panel}`, level: 'bad',
+      title: req.status === 'returned' ? `Fix the ${what} and request it again` : `Send the ${what} again`,
       text: req.status === 'returned'
-        ? `The ${what} update was sent back${req.returnReason ? `: ${req.returnReason}` : ''}. Fix it and ask again.`
+        ? `The ${what} ${req.reason === 'changed' ? 'update' : 'request'} was sent back${req.returnReason ? `: ${req.returnReason}` : ''}. Open it for the list of what to fix, then ask again.`
         : `The load changed after the ${what} went out, so the ${who}’s link is on hold. Review it and send it again.`,
       panel,
     });

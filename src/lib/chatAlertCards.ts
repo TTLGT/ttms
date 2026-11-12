@@ -50,6 +50,8 @@ export interface AlertCardModel {
   tags?: string[];
   /** Somebody's own words — a reason, a note, special instructions. */
   quote?: { label: string; text: string };
+  /** A labelled list, one line per item — what a broker has to fix. */
+  list?: { label: string; items: string[] };
   links: AlertLink[];
   /** For a status change: where the load now is on its way. */
   status?: OrderStatus;
@@ -190,6 +192,45 @@ const RULES: Rule[] = [
     return {
       tone: 'warning', icon: 'returned', title: `${shortDoc(m[2])} request sent back`, by: m[1],
       quote: { label: 'Reason', text: m[3].trim() }, links,
+    };
+  },
+  /*
+   * Sent back to the broker, since 2026-11-12: the reason and the fix list on
+   * lines of their own. The older one-sentence form (the rule above, and the
+   * "To fix: a; b; c" sentence below) stays readable for rooms that have it.
+   */
+  (t, links) => {
+    const m = t.match(/^(.+?) sent the (.+?) back to (.+?)\.\nReason: ([\s\S]*?)(?:\nTo fix:\n([\s\S]*?))?\n(?:Each one has a Fix link in the review\. )?Then use Request (.+?) again:/);
+    if (!m) return null;
+    const items = (m[5] ?? '').split('\n').map((l) => l.replace(/^-\s*/, '').replace(/\.$/, '').trim()).filter(Boolean);
+    return {
+      tone: 'warning', icon: 'returned', title: `${shortDoc(m[2])} sent back to ${m[3]}`, by: m[1],
+      quote: { label: 'Reason', text: m[4].trim() },
+      list: items.length ? { label: 'What to fix', items } : undefined,
+      detail: items.length
+        ? `Each one has a Fix link in the review. Then use Request ${m[6]} again.`
+        : `Then use Request ${m[6]} again.`,
+      links: relabel(links, 'internal', 'Open the review'),
+    };
+  },
+  (t, links) => {
+    const m = t.match(/^(.+?) sent the (.+?) back to (.+?): ([\s\S]*?)(?: To fix: ([\s\S]+?)\.)? (?:The list, with a link to each field, is in the review on the load\. )?Fix it, then use Request/);
+    if (!m) return null;
+    const items = (m[5] ?? '').split(/;\s*/).map((x) => x.trim()).filter(Boolean);
+    return {
+      tone: 'warning', icon: 'returned', title: `${shortDoc(m[2])} sent back to ${m[3]}`, by: m[1],
+      quote: { label: 'Reason', text: m[4].trim() },
+      list: items.length ? { label: 'What to fix', items } : undefined,
+      links: relabel(links, 'internal', 'Open the review'),
+    };
+  },
+  (t, links) => {
+    const m = t.match(/^(.+?) started the (.+?) review for (.+?)\.\n([\s\S]*?)(?::\s*(?:https?:\/\/|ttms\.)\S+)?$/);
+    if (!m) return null;
+    return {
+      tone: 'info', icon: 'request', title: `${shortDoc(m[2])} review started`, by: m[1],
+      detail: `For ${m[3]}. ${m[4].trim().replace(/[:.]?$/, '.')}`,
+      links: relabel(links, 'internal', 'Open the review'),
     };
   },
   (t, links) => {

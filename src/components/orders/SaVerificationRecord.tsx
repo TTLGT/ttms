@@ -7,7 +7,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { listSaRounds } from '@/lib/saRequests';
 import { readinessOf } from '@/types/orderReadiness';
 import {
-  AGREEMENT_LABEL, CA_REVIEW_CHECKS, SA_STATUS_LABEL, reviewChecks, type AgreementParty, type SaRound,
+  AGREEMENT_LABEL, CA_REVIEW_CHECKS, RETIRED_SA_CHECKS, SA_STATUS_LABEL, reviewChecks, type AgreementParty, type SaRound,
 } from '@/types/saRequest';
 import { Facts } from './SaRequestPanel';
 import { ReadinessLine } from './OrderReadinessCard';
@@ -94,10 +94,15 @@ function Round({ round: r, latest }: { round: SaRound; latest: boolean }) {
    * The items this round was checked against. An SA round from before the
    * carrier checks moved to the carrier's own review (2026-10-09) may carry
    * ticks on them; those are shown too, so the record still says who checked
-   * the carrier then.
+   * the carrier then. Items since taken off the SA review (RETIRED_SA_CHECKS)
+   * are shown the same way, only where that round ticked them.
    */
   const checks = r.party === 'client'
-    ? [...reviewChecks('client'), ...CA_REVIEW_CHECKS.filter((c) => r.checks[c.key])]
+    ? [
+        ...reviewChecks('client'),
+        ...RETIRED_SA_CHECKS.filter((c) => r.checks[c.key]),
+        ...CA_REVIEW_CHECKS.filter((c) => r.checks[c.key]),
+      ]
     : reviewChecks(r.party);
 
   return (
@@ -143,6 +148,13 @@ function Round({ round: r, latest }: { round: SaRound; latest: boolean }) {
       {r.returnedAt && (
         <p className="text-xs text-amber-800">
           Sent back to the broker by <strong>{r.returnedByName}</strong> · {at(r.returnedAt)}{r.returnReason && <>: {r.returnReason}</>}
+          {r.returnedChecks.length > 0 && (
+            <span className="block">
+              Marked as not right: {r.returnedChecks
+                .map((k) => [...reviewChecks(r.party), ...RETIRED_SA_CHECKS].find((c) => c.key === k)?.label ?? k)
+                .join(', ')}
+            </span>
+          )}
         </p>
       )}
       {r.supersededAt && (

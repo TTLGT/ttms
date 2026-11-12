@@ -273,6 +273,19 @@ function Body({ card, quiet = false }: { card: AlertCardModel; quiet?: boolean }
           <p className="select-text whitespace-pre-line text-[12.5px] leading-relaxed text-gray-700">{card.quote.text}</p>
         </blockquote>
       )}
+      {card.list && (
+        <div>
+          <p data-es className="text-[10.5px] font-semibold uppercase tracking-wide text-gray-500">{card.list.label}</p>
+          <ul className="mt-1 space-y-1">
+            {card.list.items.map((item, i) => (
+              <li key={i} className="flex items-start gap-1.5 text-[12.5px] leading-snug text-gray-700">
+                <span aria-hidden className={`mt-[5px] h-1.5 w-1.5 flex-shrink-0 rounded-full ${tone.bar}`} />
+                <span className="select-text">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {card.links.length > 0 && <Buttons links={card.links} btn={tone.btn} />}
     </>
   );

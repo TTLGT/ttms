@@ -52,8 +52,31 @@ export const setSaRecipient = (orderId: string, sendTo: { email: string; name: s
   patch(orderId, 'client', { sendTo, updateClient });
 export const tickSaCheck = (orderId: string, check: string, value: boolean, party: AgreementParty = 'client') =>
   patch(orderId, party, { check, value });
-export const returnSaRequest = (orderId: string, reason: string, party: AgreementParty = 'client') =>
-  patch(orderId, party, { action: 'return', reason });
+/**
+ * Sends it back with the reviewer's note and the double-check items they
+ * marked as wrong. Answers the order's status when sending it back moved it
+ * (a first SA request un-books the load), else null.
+ */
+export async function returnSaRequest(
+  orderId: string, reason: string, party: AgreementParty = 'client', checks: string[] = [],
+): Promise<'quote' | null> {
+  const res = await fetch(route(orderId, party), {
+    method: 'PATCH', headers: await authHeaders(), body: JSON.stringify({ action: 'return', reason, checks }),
+  });
+  return (await unwrap<{ orderStatus: 'quote' | null }>(res)).orderStatus ?? null;
+}
+
+/**
+ * Admin or dispatch opening the SA review themselves — what "Send for Client
+ * Signature" does now, instead of emailing the client unchecked. Answers the
+ * open review when there already is one.
+ */
+export async function startSaReview(orderId: string): Promise<SaRequest> {
+  const res = await fetch(route(orderId, 'client'), {
+    method: 'POST', headers: await authHeaders(), body: JSON.stringify({ start: true }),
+  });
+  return (await unwrap<{ request: SaRequest }>(res)).request;
+}
 export const markSaDone = (orderId: string, party: AgreementParty = 'client') => patch(orderId, party, { action: 'done' });
 
 export async function sendShipperAgreement(orderId: string): Promise<string> {

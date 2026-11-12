@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, AdminAuthError, FieldValue } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { can } from './accessControl';
+import { can, WORK_GROUPS_COLLECTION } from './accessControl';
 import { APP_URL } from './appUrl';
 import { postOrderAlert } from './chatAlerts';
 import { requireCaller, type Caller } from './partyAccess';
@@ -17,8 +17,8 @@ import {
 import { orderDisplayNumber, type Order } from '@/types/order';
 import { orderReadiness, readinessOf } from '@/types/orderReadiness';
 import {
-  AGREEMENT_NAME, checkBlockedBy, cleanCcList, isCcEmail, isReviewCheckKey, MAX_SA_CC, outstandingChecks,
-  type AgreementParty,
+  AGREEMENT_BUTTON, AGREEMENT_NAME, checkBlockedBy, cleanCcList, isCcEmail, isReviewCheckKey, MAX_SA_CC,
+  outstandingChecks, saFixList, type AgreementParty,
 } from '@/types/saRequest';
 
 /**
@@ -50,6 +50,50 @@ function fail(e: unknown) {
 
 const isReviewer = (caller: Caller) => can(caller.profile, 'orders.sendAgreement');
 const orderLink = (orderId: string) => `${APP_URL}/dashboard/orders/${orderId}`;
+/** The order page with this party's review panel open (see the order page's hash effect). */
+const reviewLink = (orderId: string, party: AgreementParty) =>
+  `${orderLink(orderId)}#${party === 'carrier' ? 'ca' : 'sa'}-review`;
+
+/**
+ * Everybody a review is about: whoever asked for it, and every owner of the
+ * load — the people on `assignedToUids` and the members of each work group
+ * on `assignedToGroupIds` (2026-11-12: "all owners of the load", rather than
+ * only the broker the paperwork names). Owners can see the load, so they
+ * belong in its room.
+ *
+ * Put into the load's room before the line meant for them is posted, so it
+ * reaches their chat inbox unread with the desktop notification a new line
+ * brings — the same way a request reaches dispatch. Chat only, no email, by
+ * choice. Best-effort, like every room line: what it announces is already on
+ * record. The person acting is left out of the names, and suspended
+ * accounts are neither added nor named.
+ */
+async function tellOwners(
+  orderId: string,
+  order: Record<string, unknown>,
+  requestedByUid: string | null,
+  callerUid: string,
+  text: (names: string) => string,
+): Promise<void> {
+  const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x !== '') : []);
+  const groupIds = list(order.assignedToGroupIds);
+  const groups = groupIds.length
+    ? await adminDb.getAll(...groupIds.map((g) => adminDb.collection(WORK_GROUPS_COLLECTION).doc(g)))
+    : [];
+  const uids = [...new Set([
+    ...(requestedByUid ? [requestedByUid] : []),
+    ...list(order.assignedToUids),
+    ...groups.flatMap((g) => list(g.data()?.memberUids)),
+  ])].filter((u) => u !== callerUid);
+  const snaps = uids.length ? await adminDb.getAll(...uids.map((u) => adminDb.collection('users').doc(u))) : [];
+  const live = snaps.filter((x) => x.exists && x.data()?.suspended !== true);
+  const names = live
+    .map((x) => String(x.data()?.displayName ?? x.data()?.name ?? '').trim())
+    .filter(Boolean);
+  await bringIntoOrderRoom(orderId, order, [...live.map((x) => x.id), callerUid], callerUid).catch(() => {});
+  const who = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] ?? 'the broker';
+  await postOrderAlert(orderId, text(who)).catch(() => {});
+}
 
 /**
  * The request, and everything a reviewer checks it against. Anybody who can
@@ -88,14 +132,34 @@ export function requestPOST(party: AgreementParty) {
     const { orderId } = await params;
     try {
       const caller = await requireCaller(req);
-      if (!can(caller.profile, 'orders.create')) {
-        return NextResponse.json({ error: `You cannot request the ${name}.` }, { status: 403 });
+      const body = (await req.json().catch(() => ({}))) as { note?: unknown; start?: unknown };
+      /*
+       * `start` is admin or dispatch opening the review themselves — "Send
+       * for Client Signature" on Client Confirmation (2026-11-12). That button
+       * used to email the client straight away, with nothing checked; now it
+       * opens the same review a broker's request does, and the SA goes out
+       * from there. Nothing has to be filled in first: the review is where
+       * the reviewer sees what is missing, and the send route refuses while
+       * anything is.
+       */
+      const start = body.start === true && party === 'client';
+      if (start ? !isReviewer(caller) : !can(caller.profile, 'orders.create')) {
+        return NextResponse.json({ error: `You cannot ${start ? 'start' : 'request'} the ${name}.` }, { status: 403 });
       }
       const order = await getVisibleOrder(caller, orderId);
-      const body = (await req.json().catch(() => ({}))) as { note?: unknown };
       const note = (typeof body.note === 'string' ? body.note.trim() : '').slice(0, 1000);
 
-      if (party === 'client') {
+      if (start) {
+        if (order.status === 'cancelled' || order.status === 'completed') {
+          return NextResponse.json({ error: `A Shipper Agreement (SA) cannot be sent for a ${order.status} load.` }, { status: 409 });
+        }
+        // Already being worked: open that one rather than refusing.
+        const current = await requestRef(party, orderId).get();
+        const status = current.exists ? current.data()!.status : null;
+        if (status === 'open' || status === 'sent') {
+          return NextResponse.json({ request: toSaRequest(current.data()!, party) });
+        }
+      } else if (party === 'client') {
         /*
          * Past Booked too, since 2026-11-10: a load that changed after the
          * client signed needs the SA sent again, and the broker has to be able
@@ -138,7 +202,7 @@ export function requestPOST(party: AgreementParty) {
         const [current, orderSnap] = await Promise.all([tx.get(reqRef), tx.get(orderRef)]);
         const status = current.exists ? current.data()!.status : null;
         if (status === 'open' || status === 'sent') {
-          throw new AdminAuthError(`Dispatch already has a ${name} request for this load.`, 409);
+          throw new AdminAuthError(`Dispatch already has a ${name} ${start ? 'review' : 'request'} for this load.`, 409);
         }
         // The round being replaced goes into the record first, ticks and all.
         if (current.exists) archiveRound(tx, party, orderId, current.data()!, { supersededAt: now });
@@ -153,6 +217,7 @@ export function requestPOST(party: AgreementParty) {
           orderNumber: label,
           clientName: String(order.clientName ?? ''),
           ...(party === 'carrier' ? { carrierName: String(order.carrierName ?? '') } : {}),
+          byReviewer: start,
           status: 'open',
           note,
           requestedByUid: caller.uid,
@@ -161,7 +226,7 @@ export function requestPOST(party: AgreementParty) {
           checks: {},
           sentAt: null, sentByName: null, sentTo: null,
           doneAt: null, doneByName: null,
-          returnedAt: null, returnedByName: null, returnReason: null,
+          returnedAt: null, returnedByName: null, returnReason: null, returnedChecks: [],
           ccEmails: cleanCcList(current.data()?.ccEmails),
           sentCc: [],
           saVersion: null,
@@ -177,10 +242,25 @@ export function requestPOST(party: AgreementParty) {
         }
         writeChange(tx, orderRef, {
           action: 'event',
-          summary: note ? `Asked dispatch to send the ${name}: ${note}` : `Asked dispatch to send the ${name}`,
+          summary: start
+            ? `Started the ${name} review before sending it to the client`
+            : note ? `Asked dispatch to send the ${name}: ${note}` : `Asked dispatch to send the ${name}`,
           fields: diffFields(orderSnap.data() ?? {}, patch),
         }, actorOf(caller), now);
       });
+
+      if (start) {
+        // The broker hears that their load's SA is under way, so nobody asks
+        // for it a second time or tells the client it is coming before it is.
+        // One fact per line, which the chat card (src/lib/chatAlertCards.ts)
+        // reads back into a headline and a sentence. Reword it there too.
+        await tellOwners(orderId, order, null, caller.uid, (names) =>
+          `${caller.displayName} started the ${name} review for ${names}.\n`
+          + 'Admin or dispatch will email it to the client once the load is checked. '
+          + `If anything needs fixing, it comes back to you with a list: ${reviewLink(orderId, party)}`,
+        );
+        return NextResponse.json({ request: toSaRequest((await reqRef.get()).data()!, party) });
+      }
 
       // After the commit. A room or a line that failed must not undo a
       // request that is now on record; the Approvals screen lists it either way.
@@ -271,21 +351,39 @@ export function requestPATCH(party: AgreementParty) {
       } else if (body.action === 'return') {
         const reason = (typeof body.reason === 'string' ? body.reason.trim() : '').slice(0, 1000);
         if (!reason) return NextResponse.json({ error: 'Say what the broker needs to fix.' }, { status: 400 });
+        // The double-check items the reviewer says are wrong; unknown keys dropped.
+        const flagged = Array.isArray(body.checks)
+          ? [...new Set(body.checks.filter((k): k is string => isReviewCheckKey(party, k)))]
+          : [];
+        let requestedByUid: string | null = null;
+        let unbooked = false;
         await adminDb.runTransaction(async (tx) => {
           const [snap, orderSnap] = await Promise.all([tx.get(reqRef), tx.get(orderRef)]);
-          if (snap.data()?.status !== 'open') {
+          const data = snap.data();
+          if (!data || data.status !== 'open') {
             throw new AdminAuthError('Only a request still waiting for review can be sent back.', 409);
           }
-          const returned = { status: 'returned', returnedAt: now, returnedByName: caller.displayName, returnReason: reason };
+          // Not the reviewer who opened it themselves: the broker is who it goes back to.
+          requestedByUid = data.byReviewer !== true && typeof data.requestedByUid === 'string' ? data.requestedByUid : null;
+          const returned = {
+            status: 'returned', returnedAt: now, returnedByName: caller.displayName, returnReason: reason,
+            returnedChecks: flagged,
+          };
           tx.update(reqRef, returned);
-          archiveRound(tx, party, orderId, { ...snap.data()!, ...returned });
+          archiveRound(tx, party, orderId, { ...data, ...returned });
           const patch: Record<string, unknown> = {};
-          // The SA's request is what booked the load, so sending it back
-          // un-books it. The carrier's moved nothing and moves nothing back.
-          if (party === 'client' && orderSnap.data()?.status === 'booked') {
+          /*
+           * The SA's first request is what booked the load, so sending it
+           * back un-books it. Not an update review (`changed`): that load was
+           * booked, and its SA sent, long before this round, and sending the
+           * update back means "fix the change", not "this was never booked".
+           * The carrier's moved nothing and moves nothing back.
+           */
+          if (party === 'client' && data.reason !== 'changed' && orderSnap.data()?.status === 'booked') {
             patch.status = 'quote';
             patch.updatedAt = FieldValue.serverTimestamp();
             tx.update(orderRef, patch);
+            unbooked = true;
           }
           writeChange(tx, orderRef, {
             action: 'event',
@@ -293,7 +391,32 @@ export function requestPATCH(party: AgreementParty) {
             fields: diffFields(orderSnap.data() ?? {}, patch),
           }, actorOf(caller), now);
         });
-        await postOrderAlert(orderId, `${caller.displayName} sent the ${name} request back to the broker: ${reason}`).catch(() => {});
+        /*
+         * The broker is told in the load's room, with the same list the
+         * review panel shows them, so the line alone says what to do. When
+         * TTMS finds nothing and nothing was marked, the reviewer's note is
+         * the whole message.
+         */
+        const review = await buildSaReview(orderId, order, false, party).catch(() => null);
+        const fixes = review ? saFixList(party, review, flagged) : [];
+        /*
+         * Laid out in lines — the reason, then one line per thing to fix —
+         * because a sentence with seven fixes run together was unreadable
+         * (2026-11-12). The chat card (src/lib/chatAlertCards.ts) draws the
+         * lines as a list; the room preview and search still get plain text.
+         * Reword this and reword the pattern there.
+         */
+        const list = fixes.length ? `\nTo fix:\n${fixes.map((f) => `- ${f.text}`).join('\n')}` : '';
+        await tellOwners(orderId, order, requestedByUid, caller.uid, (names) =>
+          `${caller.displayName} sent the ${name} back to ${names}.\n`
+          + `Reason: ${reason}${list}\n`
+          + `${fixes.length ? 'Each one has a Fix link in the review. ' : ''}`
+          + `Then use Request ${AGREEMENT_BUTTON[party]} again: ${reviewLink(orderId, party)}`,
+        );
+        return NextResponse.json({
+          request: toSaRequest((await reqRef.get()).data()!, party),
+          orderStatus: unbooked ? 'quote' : null,
+        });
       } else if (body.action === 'done') {
         const gate = await saGateFactsFor(orderId, order);
         await adminDb.runTransaction(async (tx) => {

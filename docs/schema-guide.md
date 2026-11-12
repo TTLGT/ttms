@@ -924,6 +924,8 @@ saRequests/{orderId}
   ccEmails        : string[]         // addresses the SA is copied to, max 5; set by dispatch
   doneAt, doneByUid, doneByName     // who closed it — shown to every reviewer
   returnedAt, returnedByName, returnReason
+  returnedChecks  : string[]         // double-check keys dispatch marked wrong when sending back (2026-11-12)
+  byReviewer      : boolean          // opened by admin/dispatch from Send for Client Signature, not asked for (2026-11-12)
   roundId         : string           // this round's id in rounds/ (absent before 2026-10-09)
   saVersion       : number | null    // the SA version this round sent
   dispatched      : SaReview | null  // the review facts, frozen at the first send
