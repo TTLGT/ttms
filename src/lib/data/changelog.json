@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "2d46b59c95af5f397a6bd36cc4893e9721cbfdc2",
+      "date": "2026-11-12T13:47:06-06:00",
+      "author": "erwindank",
+      "subject": "Make every Shipper Agreement go through dispatch's review, and tell the broker clearly what to fix when it is sent back",
+      "body": "The SA double check drops \"Agreed rate is what the client accepted\", which dispatch had no way to check. \"Payment terms agreed\" can no longer be ticked until the order has a client payment method, and a new \"Loading and unloading assistance set\" item cannot be ticked until both ends say who loads and unloads.\n\nSend for Client Signature on Client Confirmation now opens the SA review instead of emailing the client unchecked, and tells the load's owners in its discussion. The SA can no longer be sent with an SA field blank, or for the first time without a review.\n\nWhen admin or dispatch send the SA back, they can mark which items are not right. The broker sees a What to fix list in the review, with a Fix link on each line, and a Request SA again button, also on a load that went back to Quote. Every owner of the load is told in its discussion, shown as a card with the reason and the list. Sending back an update after an order change no longer returns the load to Quote."
+    },
+    {
       "hash": "ec562c58bc43d49126b7d512bce23eae0b5abb95",
       "date": "2026-11-12T13:11:42-06:00",
       "author": "erwindank",

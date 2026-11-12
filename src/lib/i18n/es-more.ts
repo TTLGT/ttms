@@ -2992,6 +2992,9 @@ export const ES_MORE: Record<string, string> = {
   "Delivery date": 'Fecha de entrega',
   "First available": 'Primer día disponible',
   "Earliest the freight at this stop is ready, as the client said": 'Lo más pronto que la carga de esta parada está lista, según el cliente.',
+  // Pickup / delivery date is a range by default (2026-11-12).
+  "to": 'a',
+  "Leave the second date empty for a single day": 'Deja vacía la segunda fecha si es un solo día.',
   "Pickup 1": 'Recolección 1',
   "Delivery 1": 'Entrega 1',
   "Where the truck loads — the company at the pickup dock": 'Donde carga el camión: la empresa en el andén de recolección.',

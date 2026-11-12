@@ -1,15 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Plus, X } from 'lucide-react';
 import DateField from './DateField';
+import { Bi } from './spanish/Es';
 
 /**
- * A date that can optionally be a window — "pickup 13th to 15th".
+ * A pickup or delivery date that is a window — "pickup 13th to 15th" — with
+ * the last day optional.
  *
- * Most loads are one day, so the second box stays out of the way until someone
- * asks for it. Same `YYYY-MM-DD` contract as DateField for both halves; `end`
- * is '' when the date is a single day.
+ * Both boxes are always shown (2026-11-12). It used to be one box with a
+ * "Make it a date range" link that opened the second, which hid the fact that
+ * a window was possible at all; brokers asked for the range to be the
+ * default. Leaving "to" empty is how somebody says "this exact day": `end` is
+ * then '' and saves as null, exactly as a single day always has, so nothing
+ * that reads `pickupDateEnd` / `deliveryDateEnd` sees a difference. An end
+ * equal to the start is shown as one day by `formatDateRange()`.
+ *
+ * Same `YYYY-MM-DD` contract as DateField for both halves.
  */
 
 interface DateRangeFieldProps {
@@ -37,48 +43,23 @@ export default function DateRangeField({
   onEndChange,
   className = '',
 }: DateRangeFieldProps) {
-  const [open, setOpen] = useState(Boolean(end));
-
-  // An edit form loads its record after the first render, so a saved window
-  // has to open the second box when it arrives, not only on mount.
-  useEffect(() => {
-    if (end) setOpen(true);
-  }, [end]);
-
-  function close() {
-    setOpen(false);
-    onEndChange('');
-  }
-
   const problem = dateRangeProblem(label, start, end);
 
   return (
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      {open ? (
-        <div className="flex items-start gap-2">
-          <div className="flex-1 min-w-0">
-            <DateField value={start} onChange={onStartChange} className={className} ariaLabel={`${label}, from`} />
-          </div>
-          <span className="pt-2 text-sm text-gray-500">to</span>
-          <div className="flex-1 min-w-0">
-            <DateField value={end} onChange={onEndChange} className={className} ariaLabel={`${label}, to`} />
-          </div>
-          <button type="button" onClick={close} title="Make it a single day"
-            className="mt-1.5 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100">
-            <X className="w-4 h-4" />
-          </button>
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <DateField value={start} onChange={onStartChange} className={className} ariaLabel={`${label}, from`} />
         </div>
-      ) : (
-        <>
-          <DateField value={start} onChange={onStartChange} className={className} ariaLabel={label} />
-          <button type="button" onClick={() => setOpen(true)}
-            className="mt-1 inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700">
-            <Plus className="w-3 h-3" /> Make it a date range
-          </button>
-        </>
-      )}
-      {problem && <p className="text-xs text-red-600 mt-1">{problem}</p>}
+        <span data-es className="pt-2 text-sm text-gray-500">to</span>
+        <div className="flex-1 min-w-0">
+          <DateField value={end} onChange={onEndChange} className={className} ariaLabel={`${label}, to`} />
+        </div>
+      </div>
+      {problem
+        ? <p className="text-xs text-red-600 mt-1">{problem}</p>
+        : <p className="text-xs text-gray-500 mt-1"><Bi>Leave the second date empty for a single day.</Bi></p>}
     </div>
   );
 }
