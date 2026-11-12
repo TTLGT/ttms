@@ -328,6 +328,10 @@ scripts cannot import TypeScript either:
 |---|---|
 | `phoneKeysFor()` + `partyPhoneKeys()` | `scripts/import-bats.js`, `scripts/backfill-party-phone-keys.js` |
 
+| `src/types/partyAddress.ts` | mirrored in |
+|---|---|
+| `streetKey()`, `sameAddress()`, `cleanAddress()`, `savedLocations()`, `importedLocationId()`, `mergeImportedLocations()` | `scripts/import-bats.js` — the ids must come out identical, or the two importers add one address twice |
+
 | `src/types/conversation.ts` | mirrored in |
 |---|---|
 | `chatSearchTerms()` | `scripts/backfill-chat-search-terms.js` |

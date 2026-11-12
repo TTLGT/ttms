@@ -3,7 +3,8 @@ import { formatOrderNumber, parseOrderNumber, reserveOrderNumbers } from './orde
 import { createHash } from 'crypto';
 import { adminDb } from './firebase-admin';
 import { parseCsv } from './csv';
-import { toNameKey } from '@/types/party';
+import { phoneKeysFor, toNameKey } from '@/types/party';
+import { mergeImportedLocations } from '@/types/partyAddress';
 import { STATUS_RANK, orderSearchTerms } from '@/types/order';
 import { carrierNameKey, carrierNumber } from '@/types/carrier';
 import { loadOwnerDirectory, resolveOwner, hasOwner } from './ownerResolution';
@@ -475,8 +476,13 @@ interface PartyDraft {
   email: string;
   address: Record<string, string> | null;
   roles: Set<PartyRole>;
-  defaultOrigin: Record<string, string> | null;
-  defaultDest: Record<string, string> | null;
+  /**
+   * Every address this run saw the company at, in order, repeats included —
+   * the customer file's address and each pickup or delivery it was the
+   * facility for. BATS does not tell a client from a shipper, so one company
+   * can collect several. Merged into the record by mergeImportedLocations().
+   */
+  locations: Record<string, string>[];
   /** Owning rep as BATS names them; only applied when the party is new. */
   assignedToName: string;
   /**
@@ -501,7 +507,7 @@ function registerParty(
   reg: PartyRegistry,
   name: string,
   role: PartyRole,
-  extra: Partial<Omit<PartyDraft, 'id' | 'nameKey' | 'roles' | 'sourceId' | 'sourceName'>>
+  extra: Partial<Omit<PartyDraft, 'id' | 'nameKey' | 'roles' | 'sourceId' | 'sourceName' | 'locations'>>
     & { source?: { id: string | null; name: string } } = {},
 ): string {
   const key = toNameKey(name);
@@ -518,8 +524,7 @@ function registerParty(
       email: '',
       address: null,
       roles: new Set<PartyRole>(),
-      defaultOrigin: null,
-      defaultDest: null,
+      locations: [],
       assignedToName: '',
       owners: null,
       sourceId: null,
@@ -533,8 +538,9 @@ function registerParty(
   draft.phone         ||= extra.phone         ?? '';
   draft.email         ||= extra.email         ?? '';
   draft.address       ||= extra.address       ?? null;
-  draft.defaultOrigin ||= extra.defaultOrigin ?? null;
-  draft.defaultDest   ||= extra.defaultDest   ?? null;
+  // Every address, not just the first: the same company at a second
+  // warehouse is a second address on its record, not a detail to drop.
+  if (extra.address) draft.locations.push(extra.address);
   draft.assignedToName ||= extra.assignedToName ?? '';
   draft.owners        ||= extra.owners        ?? null;
   draft.sourceId      ||= extra.source?.id    ?? null;
@@ -580,16 +586,35 @@ async function flushParties(
     contacts: unknown[];
     notes: string;
     sourceId: string | null;
+    // Details TTMS may have corrected since the last import (2026-11-12).
+    phone: string;
+    phoneKeys: string[];
+    email: string;
+    address: Record<string, string> | null;
+    addresses: unknown[];
+    defaultOrigin: Record<string, string> | null;
+    defaultDest: Record<string, string> | null;
+    importedAddressIds: string[];
   }
 
   const existing = new Map<string, Preserved>();
   const snap = await adminDb.collection('parties')
     .select('roles', 'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
-            'assignedToName', 'contactName', 'contacts', 'notes', 'sourceId')
+            'assignedToName', 'contactName', 'contacts', 'notes', 'sourceId',
+            'phone', 'phoneKeys', 'email', 'address', 'addresses',
+            'defaultOrigin', 'defaultDest', 'importedAddressIds')
     .get();
   snap.forEach((doc) => {
     const v = doc.data();
     existing.set(doc.id, {
+      phone:          (v.phone ?? '') as string,
+      phoneKeys:      (v.phoneKeys ?? []) as string[],
+      email:          (v.email ?? '') as string,
+      address:        (v.address ?? null) as Record<string, string> | null,
+      addresses:      (v.addresses ?? []) as unknown[],
+      defaultOrigin:  (v.defaultOrigin ?? null) as Record<string, string> | null,
+      defaultDest:    (v.defaultDest ?? null) as Record<string, string> | null,
+      importedAddressIds: (v.importedAddressIds ?? []) as string[],
       roles:          (v.roles ?? []) as PartyRole[],
       assignedToUids: (v.assignedToUids ?? []) as string[],
       assignedToGroupIds: (v.assignedToGroupIds ?? []) as string[],
@@ -621,17 +646,40 @@ async function flushParties(
     ownership.set(d.id, { uids, groupIds });
     if (!prior) opened.push({ id: d.id, name: d.assignedToName, owners: d.owners });
 
+    // Addresses: every place this run saw the company, added to its list
+    // once each; the main address is TTMS's once it has one. See
+    // mergeImportedLocations() for the whole rule.
+    const places = mergeImportedLocations(
+      prior ? (prior as unknown as Parameters<typeof mergeImportedLocations>[0]) : null,
+      d.locations,
+    );
+
+    // Phone and email: a value already in TTMS wins, so a correction made in
+    // the app survives a re-import. BATS only fills a blank. phoneKeys keeps
+    // whatever the stored numbers gave (a second number included) and adds
+    // BATS's only when BATS's is the number being written.
+    const keepPhone = !!prior?.phone.trim();
+    const phone     = keepPhone ? prior!.phone : d.phone;
+    const phoneKeys = keepPhone
+      ? prior!.phoneKeys
+      : [...new Set([...(prior?.phoneKeys ?? []), ...phoneKeysFor(d.phone, undefined)])];
+
     return {
       _docId:         d.id,
       batsId:         d.batsId,
       companyName:    d.companyName,
       nameKey:        d.nameKey,
-      phone:          d.phone,
-      email:          d.email,
-      address:        d.address ?? { street: '', city: '', state: '', zip: '', country: '' },
+      phone,
+      phoneKeys,
+      email:          prior?.email.trim() ? prior.email : d.email,
+      address:        places.address ?? { street: '', city: '', state: '', zip: '', country: '' },
+      addresses:      places.addresses,
+      importedAddressIds: places.importedAddressIds,
       roles:          [...merged].sort(),
-      defaultOrigin:  d.defaultOrigin,
-      defaultDest:    d.defaultDest,
+      // Folded into `addresses` above, so cleared — as the app's own first
+      // save of the list does.
+      defaultOrigin:  null,
+      defaultDest:    null,
       // Existing values win; the CSV only supplies these for a brand-new party.
       contactName:    prior?.contactName ?? '',
       contacts:       prior?.contacts    ?? [],
@@ -931,14 +979,12 @@ export async function importOrdersCSVs(texts: string[]): Promise<ImportResult> {
         owners,
       });
       const shipperId = registerParty(reg, origin.facility, 'shipper', {
-        phone:         origin.phone,
-        address:       origin.address,
-        defaultOrigin: origin.address,
+        phone:   origin.phone,
+        address: origin.address,
       });
       const consigneeId = registerParty(reg, dest.facility, 'consignee', {
-        phone:       dest.phone,
-        address:     dest.address,
-        defaultDest: dest.address,
+        phone:   dest.phone,
+        address: dest.address,
       });
 
       seen.set(batsId, {

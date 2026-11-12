@@ -228,6 +228,13 @@ export interface Party {
    */
   addresses?: PartyLocation[];
   /**
+   * Every address a BATS import has ever put forward for this party, as
+   * `importedLocationId()` names it (2026-11-12). Written only by the
+   * importers; it is how a re-import knows not to bring back an address
+   * somebody removed. See mergeImportedLocations() in partyAddress.ts.
+   */
+  importedAddressIds?: string[];
+  /**
    * The one default pickup a party had before `addresses`. Still read — see
    * savedLocations() — and cleared once the list is first saved.
    */

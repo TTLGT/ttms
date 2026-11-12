@@ -64,7 +64,17 @@ them are in `src/types/partyAddress.ts`.
   Both write the party's change log.
 - `defaultOrigin` / `defaultDest` are what came before: still read
   (`savedLocations()` folds them in) and set to null the first time the list
-  is saved. The BATS importers still write them, which is harmless.
+  is saved. The BATS importers fold them in and null them the same way.
+- **The BATS importers add every address a company was seen at** (2026-11-12),
+  through `mergeImportedLocations()`. BATS does not tell a client from a
+  shipper, so one company can turn up at many addresses across many loads;
+  each goes on its list once, with an `imp_…` id worked out from the address.
+  The main `address` (and `phone`, `email`) is filled from BATS only while it
+  is blank, so a re-import never undoes a correction made in TTMS.
+  `importedAddressIds : string[]` remembers every address an import has put
+  forward for that party, so one somebody removed is not brought back by the
+  next run. BATS orders carry only city, state and ZIP for a stop, so these
+  addresses have no street until somebody types one.
 - **An address typed with no party suggests who is there**
   (`suggestPartiesForAddress()`), matched in the browser over the parties the
   form already loaded — so it costs no reads, and only suggests records the

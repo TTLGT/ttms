@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "c796d0614117a4936c8b16ad28f4350549f39923",
+      "date": "2026-11-11T15:10:14-06:00",
+      "author": "erwindank",
+      "subject": "Give each pickup and delivery its own dates in Route, and turn General into the client's card: load type, quote date, client budget, payment terms, client type, contacts, billing, load updates and a client snapshot. Clients, shippers and consignees get any number of contacts with a title, their own email and phone, the addresses they work at, and ticks for decision maker, signs the SA, billing and load updates; clients get Billing and Load updates cards and a snapshot. The order banner now shows who owns the load and when it was created",
+      "body": "- Route: the first pickup and delivery sit in their own box like the extra\n  stops, with their dates; every pickup has a first-available date. General\n  no longer carries the dates.\n- A short guide to client, shipper and consignee on both order forms, and a\n  one-click \"the client is the shipper/consignee\" shortcut.\n- Who gets the SA is now saContactIndex(): the contact ticked \"Signs the SA\",\n  else the imported contact it always went to, else the main email. A contact\n  added from the new card never takes the SA by accident.\n- Client type (prospect, new, potentially recurrent, recurrent, occasional,\n  dormant) is worked out on read by GET /api/parties/{id}/snapshot. Credit\n  client can be set by admin and finance only.\n- toVisibleParty() now sends contacts and the phone regions, which were\n  missing, so numbers typed as Guatemalan or Mexican show correctly."
+    },
+    {
       "hash": "6055411196d0ebbe5268156fd1368b49c438089d",
       "date": "2026-11-11T11:25:41-06:00",
       "author": "erwindank",

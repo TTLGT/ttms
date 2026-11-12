@@ -911,6 +911,128 @@ async function writeOpeningHistory(collectionName, opened, now) {
   }
 }
 
+// ── A party's addresses ──────────────────────────────────────────────────────
+// KEEP IN SYNC with src/types/partyAddress.ts: streetKey(), sameAddress(),
+// cleanAddress(), savedLocations(), importedLocationId() and
+// mergeImportedLocations(). This script cannot import TypeScript. The ids
+// must come out identical, or the app's importer and this one would each add
+// the same address under its own name.
+
+const MAX_PARTY_ADDRESSES = 40;
+const ADDRESS_FIELD_MAX = { street: 160, city: 80, state: 40, zip: 20, country: 4 };
+
+const STREET_WORDS = {
+  street: 'st', avenue: 'ave', av: 'ave', road: 'rd', drive: 'dr', boulevard: 'blvd',
+  highway: 'hwy', lane: 'ln', court: 'ct', place: 'pl', parkway: 'pkwy', circle: 'cir',
+  suite: 'ste', building: 'bldg', north: 'n', south: 's', east: 'e', west: 'w',
+  northeast: 'ne', northwest: 'nw', southeast: 'se', southwest: 'sw', freeway: 'fwy',
+  expressway: 'expy', terrace: 'ter', trail: 'trl', way: 'way', square: 'sq', route: 'rte',
+};
+
+function streetKey(street) {
+  return String(street == null ? '' : street)
+    .toLowerCase()
+    .replace(/[#.,]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => (Object.prototype.hasOwnProperty.call(STREET_WORDS, w) ? STREET_WORDS[w] : w))
+    .join(' ');
+}
+
+function zip5(zip) {
+  return String(zip == null ? '' : zip).replace(/\D/g, '').slice(0, 5);
+}
+
+function cityKey(a) {
+  return `${String(a.city == null ? '' : a.city).trim().toLowerCase()}|${String(a.state == null ? '' : a.state).trim().toLowerCase()}`;
+}
+
+function addressIsBlank(a) {
+  return !a || ![a.street, a.city, a.state, a.zip].some((v) => String(v == null ? '' : v).trim());
+}
+
+function cleanAddress(raw) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const s = (k) => (typeof r[k] === 'string' ? r[k].trim() : '').slice(0, ADDRESS_FIELD_MAX[k]);
+  return { street: s('street'), city: s('city'), state: s('state').toUpperCase(), zip: s('zip'), country: s('country') || 'US' };
+}
+
+function sameAddress(a, b) {
+  if (addressIsBlank(a) || addressIsBlank(b)) return false;
+  if (streetKey(a.street) !== streetKey(b.street)) return false;
+  const za = zip5(a.zip), zb = zip5(b.zip);
+  if (za && zb) return za === zb;
+  return cityKey(a) === cityKey(b);
+}
+
+function savedLocations(p) {
+  if (!p) return [];
+  const list = Array.isArray(p.addresses) ? p.addresses.filter((a) => !addressIsBlank(a)) : [];
+  const legacy = [
+    [p.defaultOrigin, 'legacy-origin', 'Pickup'],
+    [p.defaultDest,   'legacy-dest',   'Delivery'],
+  ];
+  const out = list.slice();
+  for (const [a, id, label] of legacy) {
+    if (!a || addressIsBlank(a)) continue;
+    if (sameAddress(a, p.address) || out.some((x) => sameAddress(x, a))) continue;
+    out.push(Object.assign({ id, label }, cleanAddress(a)));
+  }
+  return out;
+}
+
+function fnv1a(text, seed) {
+  let h = seed >>> 0;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+function importedLocationId(a) {
+  const text = `${streetKey(a.street)}|${zip5(a.zip) || cityKey(a)}`;
+  return `imp_${fnv1a(text, 0x811c9dc5)}${fnv1a(text, 0x9747b28c)}`;
+}
+
+/**
+ * A party's addresses after an import: every address seen added once, the
+ * main address TTMS's once it has one, and nothing an import offered before
+ * brought back. The full reasoning is on the TypeScript original.
+ */
+function mergeImportedLocations(prior, found) {
+  const offered  = new Set((prior && prior.importedAddressIds) || []);
+  const incoming = found.filter((a) => !addressIsBlank(a)).map((a) => cleanAddress(a));
+
+  let main = prior && !addressIsBlank(prior.address) ? prior.address : null;
+  if (!main) {
+    const first = incoming.find((a) => !offered.has(importedLocationId(a)));
+    if (first) {
+      main = first;
+      offered.add(importedLocationId(first));
+    }
+  }
+
+  const list = savedLocations(prior);
+  for (const a of incoming) {
+    const id = importedLocationId(a);
+    if (offered.has(id)) continue;
+    if (sameAddress(a, main) || list.some((x) => sameAddress(x, a) || x.id === id)) {
+      offered.add(id);
+      continue;
+    }
+    if (list.length >= MAX_PARTY_ADDRESSES) continue;
+    offered.add(id);
+    list.push(Object.assign({ id, label: '' }, a));
+  }
+
+  return {
+    address: main || (prior && prior.address) || null,
+    addresses: list,
+    importedAddressIds: [...offered].sort(),
+  };
+}
+
 // ── Party registry ───────────────────────────────────────────────────────────
 // Clients, shippers and consignees are all parties. The same company can show
 // up as a customer row and as a pickup facility on an order, so every name is
@@ -937,8 +1059,9 @@ function registerParty(reg, name, role, extra = {}) {
       email: '',
       address: null,
       roles: new Set(),
-      defaultOrigin: null,
-      defaultDest: null,
+      // Every address this run saw the company at, in order. BATS does not
+      // tell a client from a shipper, so one company can collect several.
+      locations: [],
       assignedToName: '',
       owners: null,
       sourceId: null,
@@ -952,8 +1075,7 @@ function registerParty(reg, name, role, extra = {}) {
   draft.phone          ||= extra.phone          || '';
   draft.email          ||= extra.email          || '';
   draft.address        ||= extra.address        || null;
-  draft.defaultOrigin  ||= extra.defaultOrigin  || null;
-  draft.defaultDest    ||= extra.defaultDest    || null;
+  if (extra.address) draft.locations.push(extra.address);
   draft.assignedToName ||= extra.assignedToName || '';
   draft.owners         ||= extra.owners         || null;
   draft.sourceId       ||= (extra.source && extra.source.id)   || null;
@@ -975,11 +1097,22 @@ async function flushParties(reg, now) {
   const existing = new Map();
   const snap = await db.collection('parties')
     .select('roles', 'assignedToUids', 'assignedToGroupIds', 'assignedToEmails',
-            'assignedToName', 'contactName', 'contacts', 'notes', 'sourceId')
+            'assignedToName', 'contactName', 'contacts', 'notes', 'sourceId',
+            'phone', 'phoneKeys', 'email', 'address', 'addresses',
+            'defaultOrigin', 'defaultDest', 'importedAddressIds')
     .get();
   snap.forEach((doc) => {
     const v = doc.data();
     existing.set(doc.id, {
+      // Details TTMS may have corrected since the last import (2026-11-12).
+      phone:              v.phone              || '',
+      phoneKeys:          v.phoneKeys          || [],
+      email:              v.email              || '',
+      address:            v.address            || null,
+      addresses:          v.addresses          || [],
+      defaultOrigin:      v.defaultOrigin      || null,
+      defaultDest:        v.defaultDest        || null,
+      importedAddressIds: v.importedAddressIds || [],
       roles:              v.roles              || [],
       assignedToUids:     v.assignedToUids     || [],
       assignedToGroupIds: v.assignedToGroupIds || [],
@@ -1012,22 +1145,38 @@ async function flushParties(reg, now) {
     ownership.set(d.id, { uids, groupIds });
     if (!prior) opened.push({ id: d.id, name: d.assignedToName, owners: d.owners });
 
+    // Every place this run saw the company, added once each; the main
+    // address is TTMS's once it has one. See mergeImportedLocations().
+    const places = mergeImportedLocations(prior || null, d.locations);
+
+    // A phone or email already in TTMS wins, so a correction made in the app
+    // survives a re-import; BATS only fills a blank.
+    const keepPhone = !!(prior && prior.phone.trim());
+
     return {
       _docId:        d.id,
       batsId:        d.batsId,
       companyName:   d.companyName,
       nameKey:       d.nameKey,
-      phone:         d.phone,
-      email:         d.email,
+      phone:         keepPhone ? prior.phone : d.phone,
+      email:         prior && prior.email.trim() ? prior.email : d.email,
       // The party phone lookup queries this, the same way the search box
       // queries searchTerms. BATS gives a party one number, and no country
       // with it — the records are American, which is what phoneKeysFor's
-      // default says. A second number added in the app joins these keys.
-      phoneKeys:     phoneKeysFor(d.phone),
-      address:       d.address || { street: '', city: '', state: '', zip: '', country: '' },
+      // default says. Keys the stored numbers already gave (a second number
+      // added in the app included) are kept; BATS's are added only when
+      // BATS's number is the one being written.
+      phoneKeys:     keepPhone
+        ? prior.phoneKeys
+        : Array.from(new Set([...((prior && prior.phoneKeys) || []), ...phoneKeysFor(d.phone)])),
+      address:       places.address || { street: '', city: '', state: '', zip: '', country: '' },
+      addresses:     places.addresses,
+      importedAddressIds: places.importedAddressIds,
       roles:         [...merged].sort(),
-      defaultOrigin: d.defaultOrigin,
-      defaultDest:   d.defaultDest,
+      // Folded into `addresses` above, so cleared — as the app's own first
+      // save of the list does.
+      defaultOrigin: null,
+      defaultDest:   null,
       // Existing values win; the CSV only supplies these for a brand-new party.
       contactName:    prior ? prior.contactName    : '',
       contacts:       prior ? prior.contacts       : [],
@@ -1330,14 +1479,12 @@ async function importOrders() {
         owners,
       });
       const shipperId = registerParty(reg, origin.facility, 'shipper', {
-        phone:         origin.phone,
-        address:       origin.address,
-        defaultOrigin: origin.address,
+        phone:   origin.phone,
+        address: origin.address,
       });
       const consigneeId = registerParty(reg, dest.facility, 'consignee', {
-        phone:       dest.phone,
-        address:     dest.address,
-        defaultDest: dest.address,
+        phone:   dest.phone,
+        address: dest.address,
       });
 
       seen.set(batsId, {

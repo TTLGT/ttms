@@ -195,6 +195,90 @@ export function savedLocations(p: PartyAddressFields | null | undefined): PartyL
   return out;
 }
 
+// ─── Addresses an import found ──────────────────────────────────────────────
+// KEEP IN SYNC with importedLocationId() / mergeImportedLocations() in
+// scripts/import-bats.js, which cannot import TypeScript. Used by both BATS
+// importers (src/lib/batsImport.ts and that script).
+
+/** FNV-1a, 32-bit, as 8 hex digits. Not crypto: this file reaches the browser. */
+function fnv1a(text: string, seed: number): string {
+  let h = seed >>> 0;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+/**
+ * A stable id for an address an import found, worked out from the address
+ * itself so every run names the same place the same way. That is what lets a
+ * re-import recognise an address it already offered (see below), and keeps
+ * the record identical from run to run so an unchanged party is skipped.
+ */
+export function importedLocationId(a: Partial<Address>): string {
+  const text = `${streetKey(a.street)}|${zip5(a.zip) || cityKey(a)}`;
+  return `imp_${fnv1a(text, 0x811c9dc5)}${fnv1a(text, 0x9747b28c)}`;
+}
+
+type ImportPrior = PartyAddressFields & { importedAddressIds?: string[] | null };
+
+/**
+ * A party's addresses after an import, from what it already had and every
+ * address the import saw it at, in the order seen (2026-11-12).
+ *
+ * BATS does not tell a client from a shipper, so one company turns up at many
+ * addresses across many loads. Every one of them is added to its list, once.
+ *
+ *  - **The main address is TTMS's once it has one.** The first address seen
+ *    fills it only while it is blank, so a re-import never undoes a
+ *    correction made in the app.
+ *  - **An address is offered once, ever.** `importedAddressIds` remembers
+ *    every address an import has put forward for this party, so one somebody
+ *    has since removed in the app is not brought back by the next run.
+ *  - The two legacy single-address fields are folded into the list by
+ *    `savedLocations()`, so the caller writes them back as null — the same
+ *    as the app's own first save of the list.
+ */
+export function mergeImportedLocations(
+  prior: ImportPrior | null | undefined,
+  found: readonly (Partial<Address> | null | undefined)[],
+): { address: Address | null; addresses: PartyLocation[]; importedAddressIds: string[] } {
+  const offered  = new Set(prior?.importedAddressIds ?? []);
+  const incoming = found.filter((a) => !addressIsBlank(a)).map((a) => cleanAddress(a));
+
+  let main: Address | null = prior && !addressIsBlank(prior.address) ? (prior.address as Address) : null;
+  if (!main) {
+    const first = incoming.find((a) => !offered.has(importedLocationId(a)));
+    if (first) {
+      main = first;
+      offered.add(importedLocationId(first));
+    }
+  }
+
+  const list = savedLocations(prior);
+  for (const a of incoming) {
+    const id = importedLocationId(a);
+    if (offered.has(id)) continue;
+    // Already there, as the main address or a saved one: nothing to add, but
+    // it counts as offered, so removing it later sticks.
+    if (sameAddress(a, main) || list.some((x) => sameAddress(x, a) || x.id === id)) {
+      offered.add(id);
+      continue;
+    }
+    // Full: left un-offered, so a later run can add it once there is room.
+    if (list.length >= MAX_PARTY_ADDRESSES) continue;
+    offered.add(id);
+    list.push({ id, label: '', ...a });
+  }
+
+  return {
+    address: main ?? (prior?.address as Address | undefined) ?? null,
+    addresses: list,
+    importedAddressIds: [...offered].sort(),
+  };
+}
+
 /**
  * Every address a stop can use for this party: the main one first, then the
  * saved ones. For a shipper the old default pickup comes before the rest, and
