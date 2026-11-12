@@ -1285,8 +1285,9 @@ loaded. See "A party's addresses" in the Schema Guide.
   that kept US daylight saving and in Bahía de Banderas (`MX_CITY_ZONE` in
   `src/lib/timeZones.ts`).
 - **An incomplete address is a warning, never a refusal**
-  (`incompleteAddressWarning()`, 2026-11-12): the order forms ask with
-  `confirm()` and save on OK.
+  (`incompleteAddressWarning()`, 2026-11-12): the order forms ask through
+  TTMS's own dialog (`useIncompleteAddressPrompt()`, not the browser's
+  `confirm()`) and save on "Save anyway".
 
 ### Client contacts, billing and client type (2026-11-11)
 

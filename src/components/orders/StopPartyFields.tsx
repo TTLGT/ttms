@@ -200,23 +200,20 @@ export function stopLinkProblem(name: string, role: StopRole, v: StopValue): str
 }
 
 /**
- * The warning shown on save when a stop's address is missing a part, or ''
- * when every one is complete. A warning, never a refusal (2026-11-12): a
- * quote is often priced on a city before anybody knows the dock, and the
- * broker is the one who knows whether that is fine yet — so the forms ask
- * with confirm() and save on OK. `stops` are the stops to check, each with
- * the name the form calls it; leave out the ones the form drops as blank.
+ * What is missing from each stop's address, one line per stop with a gap —
+ * "Pickup: missing street" — or an empty list when every one is complete. A
+ * warning, never a refusal (2026-11-12): a quote is often priced on a city
+ * before anybody knows the dock, and the broker is the one who knows whether
+ * that is fine yet — so the forms ask through IncompleteAddressPrompt and
+ * save on "Save anyway". `stops` are the stops to check, each with the name
+ * the form calls it; leave out the ones the form drops as blank.
  */
-export function incompleteAddressWarning(stops: readonly { name: string; address: Address }[]): string {
-  const lines = stops.flatMap(({ name, address }) => {
-    if (addressIsBlank(address)) return [`• ${name}: no address`];
+export function incompleteAddressWarning(stops: readonly { name: string; address: Address }[]): string[] {
+  return stops.flatMap(({ name, address }) => {
+    if (addressIsBlank(address)) return [`${name}: no address`];
     const missing = missingAddressParts(address);
-    return missing.length ? [`• ${name}: missing ${missing.join(', ')}`] : [];
+    return missing.length ? [`${name}: missing ${missing.join(', ')}`] : [];
   });
-  if (!lines.length) return '';
-  return `Some addresses are incomplete:\n\n${lines.join('\n')}\n\n`
-    + 'Save anyway? The load keeps what was typed. An address without a street, city and state is not '
-    + 'added to its shipper or consignee until it is filled in.';
 }
 
 /**

@@ -29,6 +29,7 @@ import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
 import { BLANK_ADDRESS } from '@/components/orders/AddressFields';
 import StopPartyFields, { incompleteAddressWarning, linkStopAddresses, stopLinkProblem } from '@/components/orders/StopPartyFields';
+import { useIncompleteAddressPrompt } from '@/components/orders/IncompleteAddressPrompt';
 import { partyLocations } from '@/types/partyAddress';
 import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopPartyIdsIn, stopsForAddressCheck, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
 import type { StopDraft } from '@/components/orders/ExtraStopsFields';
@@ -84,6 +85,8 @@ function NewOrderForm() {
   });
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
+  // The incomplete-address question, drawn by TTMS rather than the browser.
+  const addressPrompt = useIncompleteAddressPrompt();
 
   const [commodities, setCommodities]   = useState<CommodityItem[]>([blankCommodityItem()]);
   const [accessorials, setAccessorials] = useState<Accessorial[]>([]);
@@ -234,7 +237,7 @@ function NewOrderForm() {
       ...stopsForAddressCheck('delivery', extraDeliveries),
     ]);
     // Last, after every hard check, so nobody says yes and is then refused.
-    if (gaps && !window.confirm(gaps)) return;
+    if (gaps.length && !(await addressPrompt.ask(gaps))) return;
 
     setError('');
     setSaving(true);
@@ -371,6 +374,7 @@ function NewOrderForm() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl">
+      {addressPrompt.dialog}
       <div className="mb-6">
         <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-gray-700 mb-2 flex items-center gap-1">
           ← Back

@@ -24,6 +24,7 @@ import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
 import { BLANK_ADDRESS } from '@/components/orders/AddressFields';
 import StopPartyFields, { incompleteAddressWarning, linkStopAddresses, stopLinkProblem } from '@/components/orders/StopPartyFields';
+import { useIncompleteAddressPrompt } from '@/components/orders/IncompleteAddressPrompt';
 import ExtraStopsFields, { afterRemoving, savedStopIndex, stopChoices, stopDraftsFrom, stopPartyIdsIn, stopsForAddressCheck, stopsForSave, stopsProblem } from '@/components/orders/ExtraStopsFields';
 import type { StopDraft } from '@/components/orders/ExtraStopsFields';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -97,6 +98,8 @@ export default function EditOrderPage() {
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState('');
+  // The incomplete-address question, drawn by TTMS rather than the browser.
+  const addressPrompt = useIncompleteAddressPrompt();
   const [order, setOrder]       = useState<Order | null>(null);
   const [parties, setParties] = useState<Party[]>([]);
 
@@ -349,9 +352,9 @@ export default function EditOrderPage() {
       ...stopsForAddressCheck('pickup', extraPickups),
       { name: extraDeliveries.length ? 'Delivery 1' : 'Delivery', address: destination },
       ...stopsForAddressCheck('delivery', extraDeliveries),
-    ]) : '';
+    ]) : [];
     // Last, after every hard check, so nobody says yes and is then refused.
-    if (gaps && !window.confirm(gaps)) return;
+    if (gaps.length && !(await addressPrompt.ask(gaps))) return;
 
     setError('');
     setSaving(true);
@@ -496,6 +499,7 @@ export default function EditOrderPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl">
+      {addressPrompt.dialog}
       <div className="mb-6">
         <Link href={backHref} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-2">
           ← Back to {orderDisplayNumber(order)}

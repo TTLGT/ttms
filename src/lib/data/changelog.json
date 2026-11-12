@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "1ff16249ee81518ce2fea95b5f8d09c8b45a763a",
+      "date": "2026-11-12T11:44:31-06:00",
+      "author": "erwindank",
+      "subject": "Let clients, shippers, consignees, carriers and 3rd-party providers have a website and social media links: up to ten per profile, each labelled Website, LinkedIn, Facebook, Instagram, X, YouTube, TikTok, Google Business or Other, added from the profile's Edit form and shown under Contact and in Quick contact. Only real web addresses are saved, so a link can never run anything when clicked. A provider's existing website becomes its first link",
+      "body": ""
+    },
+    {
       "hash": "7cf5b6e2fab15d8b022f31033e0e2800cbacbed1",
       "date": "2026-11-12T11:24:17-06:00",
       "author": "erwindank",

@@ -3108,6 +3108,11 @@ export const ES_MORE: Record<string, string> = {
   "Postal code is required": 'Se requiere el código postal.',
   "Province is required": 'Se requiere la provincia.',
   "Department is required": 'Se requiere el departamento.',
+  // The incomplete-address dialog on the order forms.
+  "Some addresses are incomplete": 'Algunas direcciones están incompletas',
+  "The load keeps what was typed. An address without a street, city and state is not added to its shipper or consignee until it is filled in": 'La carga guarda lo que se escribió. Una dirección sin calle, ciudad y estado no se agrega a su remitente o destinatario hasta que se complete.',
+  "Go back and fix": 'Volver y corregir',
+  "Save anyway": 'Guardar de todos modos',
   // Website and social links (2026-11-12).
   "Website and social media": 'Sitio web y redes sociales',
   "Add a link": 'Agregar un enlace',
