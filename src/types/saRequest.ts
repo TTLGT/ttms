@@ -672,6 +672,13 @@ export interface SaReview {
    * Absent on reviews frozen before 2026-10-15.
    */
   accessorials?: string[];
+  /**
+   * Who loads at pickup and who unloads at delivery, as the agreements print
+   * it (dockEndText()), with the 3rd party's provider when one is picked. ''
+   * for an end nobody is set on. Shown under the loading and unloading item.
+   * Absent on reviews frozen before 2026-11-13.
+   */
+  dock?: { pickup: string; delivery: string };
   /** The client's own addresses, for the CC picker. Empty for a non-reviewer, and never frozen. */
   clientContacts: { name: string; email: string }[];
 }

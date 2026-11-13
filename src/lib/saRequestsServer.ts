@@ -3,7 +3,7 @@ import { adminDb, FieldValue } from './firebase-admin';
 import { openedAlert, postOrderAlert } from './chatAlerts';
 import { clientAgreementContact, readinessFactsFor } from './orderReadinessServer';
 import { CONVERSATIONS_COLLECTION, recordConversationId } from '@/types/conversation';
-import { accessorialLabels, dockEndOf, dockEndProblem, orderDisplayNumber, serviceChargeLines, type Order } from '@/types/order';
+import { accessorialLabels, dockEndOf, dockEndProblem, dockEndText, orderDisplayNumber, serviceChargeLines, type Order } from '@/types/order';
 import { PROVIDERS_COLLECTION, PROVIDER_SERVICE_LABEL, type Provider } from '@/types/provider';
 import { phoneRegionOf } from '@/lib/phone';
 import { orderReadiness } from '@/types/orderReadiness';
@@ -275,6 +275,10 @@ export async function buildSaReview(
     accessorialCovered: hints.covered,
     services,
     accessorials: accessorialLabels(order),
+    dock: {
+      pickup: reviewDockLine(order, 'pickup'),
+      delivery: reviewDockLine(order, 'delivery'),
+    },
     // The client's other contacts, offered as one-click CCs. Reviewers only:
     // a broker reading where their request stands has no use for the
     // client's address book.
@@ -282,6 +286,14 @@ export async function buildSaReview(
     // carrier's pay must not reach the client.
     clientContacts: withContacts && party === 'client' ? await clientContactEmails(order.clientId) : [],
   };
+}
+
+/** One end of Loading and Unloading for the review: the printed words, plus the provider picked. */
+function reviewDockLine(order: Record<string, unknown>, end: 'pickup' | 'delivery'): string {
+  const o = order as Parameters<typeof dockEndText>[0];
+  const text = dockEndText(o, end);
+  const provider = dockEndOf(o, end).help?.providerName?.trim();
+  return text && provider ? `${text} (${provider})` : text;
 }
 
 /**

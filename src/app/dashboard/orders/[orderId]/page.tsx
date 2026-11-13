@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import {
   AlertTriangle, Check, CheckCircle2, ChevronsDownUp, ChevronsUpDown, ClipboardList, ExternalLink, FilePen, FileSignature, FileText, IdCard, ListChecks,
-  Lock, Mail, Map, MapPin, Package, Phone, Plus, RefreshCw, Route, ShieldCheck, Smartphone, StickyNote, Truck, Undo2, User, UserRound, Users,
+  Lock, Mail, Map, MapPin, Package, Phone, Plus, RefreshCw, Route, ShieldCheck, Smartphone, StickyNote, Truck, Undo2, User, UserRound, Users, X,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -78,7 +78,7 @@ import OrderReadinessCard from '@/components/orders/OrderReadinessCard';
 import OrderTermsCard from '@/components/orders/OrderTermsCard';
 import ChangeOrderPanel from '@/components/orders/ChangeOrderPanel';
 import { RequestSaButton, SaRequestPanel } from '@/components/orders/SaRequestPanel';
-import type { FixTarget } from '@/components/orders/fixTargets';
+import type { FixTarget, SeeTarget } from '@/components/orders/fixTargets';
 import SaVerificationRecord from '@/components/orders/SaVerificationRecord';
 import CarrierVettingRecords, { CarrierVettingDocumentsRow } from '@/components/orders/CarrierVettingRecords';
 import SaAgreementVersions from '@/components/orders/SaAgreementVersions';
@@ -353,6 +353,10 @@ export default function OrderDetailPage() {
   // Stable, because the side panel refocuses its close button whenever this
   // changes — a new function every render would steal focus from the CC box.
   const closePanel = useCallback(() => setPanel(null), []);
+  // The review a "See" link left, so a button can take the reviewer back to
+  // it once they have looked. Cleared when any panel opens.
+  const [seeFrom, setSeeFrom] = useState<null | 'sa' | 'ca'>(null);
+  useEffect(() => { if (panel) setSeeFrom(null); }, [panel]);
   // The change-order email and the edit screen link to #change-order, which
   // used to scroll to the card. It is a panel now, so the link opens it.
   const hashOpened = useRef(false);
@@ -587,17 +591,39 @@ export default function OrderDetailPage() {
    * what is missing, and scroll there once it has been drawn.
    */
   const [fixScroll, setFixScroll] = useState<string | null>(null);
+  // Set by a "See" link: the element scrolled to is lit up for a moment.
+  const flashRef = useRef<string | null>(null);
   useEffect(() => {
     if (!fixScroll) return;
     const el = document.getElementById(fixScroll);
     revealSection(el);
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (el && flashRef.current === fixScroll) {
+      const ring = ['ring-2', 'ring-brand-400', 'ring-offset-2', 'transition-shadow'];
+      el.classList.add(...ring);
+      window.setTimeout(() => el.classList.remove(...ring), 2500);
+    }
+    flashRef.current = null;
     setFixScroll(null);
   }, [fixScroll, tab, assigningCarrier]);
 
   function fixFromPanel(target: FixTarget) {
     setPanel(null);
     goFix(target);
+  }
+
+  /**
+   * A "See" link in a review: close the panel, show the card that holds the
+   * answer — unfolded, scrolled to and lit up — and leave a button to go back.
+   * Nothing opens to edit; that is what Fix is for.
+   */
+  function seeFromPanel(from: 'sa' | 'ca', target: SeeTarget) {
+    setPanel(null);
+    const anchor = target.tab === 'pictures' ? 'order-tabs' : target.anchor;
+    setTab(target.tab);
+    flashRef.current = target.tab === 'pictures' ? null : anchor;
+    setFixScroll(anchor);
+    setSeeFrom(from);
   }
 
   function goFix(target: FixTarget) {
@@ -1867,7 +1893,7 @@ export default function OrderDetailPage() {
                 )}
               </table>
             </div>
-            <div className="mt-4 pt-4 border-t border-gray-100">
+            <div id="freight-accessorials" className="mt-4 pt-4 border-t border-gray-100 scroll-mt-4">
               <p data-es className="text-xs font-medium text-gray-500 mb-1.5">Accessorials</p>
               {accessorialLabels(order).length ? (
                 <div className="flex flex-wrap gap-1.5">
@@ -3032,6 +3058,7 @@ export default function OrderDetailPage() {
           onStatusChange={(status) => setOrder((prev) => (prev ? { ...prev, status } : prev))}
           onSent={() => setLinkRefresh((n) => n + 1)}
           onFix={fixFromPanel}
+          onSee={(t) => seeFromPanel('sa', t)}
           // Through toDate(): the order came over the API, so the timestamp is
           // a plain {_seconds} object with no .toDate() of its own.
           signed={order.shipperSignedAt && toDate(order.shipperSignedAt)
@@ -3039,6 +3066,21 @@ export default function OrderDetailPage() {
             : null}
         />
       </OrderSidePanel>
+
+      {/* After a "See" link: the way back to the review it came from. */}
+      {seeFrom && !panel && (
+        <div className="fixed bottom-5 right-5 z-30 flex items-center gap-1 rounded-full border border-gray-200 bg-white py-1 pl-1 pr-2 shadow-lg">
+          <button type="button" onClick={() => setPanel(seeFrom)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span data-es>{seeFrom === 'sa' ? 'Back to the SA review' : 'Back to the Dispatch Sheet review'}</span>
+          </button>
+          <button type="button" onClick={() => setSeeFrom(null)} aria-label="Dismiss"
+            className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* The carrier's review, the same shape as the SA's, once a broker asks. */}
       <OrderSidePanel open={panel === 'ca'} onClose={closePanel} title="Dispatch Sheet review" icon={ShieldCheck}>
@@ -3050,6 +3092,7 @@ export default function OrderDetailPage() {
           onLoaded={(r) => { setCaStatus(r?.status ?? null); setCaReq(r); }}
           onSent={() => setCaRefresh((n) => n + 1)}
           onFix={fixFromPanel}
+          onSee={(t) => seeFromPanel('ca', t)}
           signed={order.carrierSignedAt && toDate(order.carrierSignedAt)
             ? { at: toDate(order.carrierSignedAt)!.getTime(), by: order.carrierSignerName || 'the carrier' }
             : null}

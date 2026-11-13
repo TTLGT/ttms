@@ -243,7 +243,7 @@ export default function PriceAndTermsCard({ order, action }: {
         </div>
       )}
 
-      <div className="mt-6 border-t border-gray-100 pt-5">
+      <div id="price-terms" className="mt-6 border-t border-gray-100 pt-5 scroll-mt-4">
         <PartHeading icon={Banknote} title="How it is paid" />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {terms('client', order.clientPayment)}

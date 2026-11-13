@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  AlertTriangle, CheckCircle2, Clock, HelpCircle, Loader2, Mail, Pencil, Plus, Send, ShieldCheck, Undo2, X,
+  AlertTriangle, CheckCircle2, Clock, Eye, HelpCircle, Loader2, Mail, Pencil, Plus, Send, ShieldCheck, Undo2, X,
 } from 'lucide-react';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { fetchOrderReadiness } from '@/lib/orderPaperwork';
@@ -25,7 +25,7 @@ import Link from 'next/link';
 import PhoneValue from '@/components/PhoneValue';
 import { isNewCarrier, MIN_OPERATING_MONTHS, officeDay } from '@/types/fmcsa';
 import { FixButton, ReadinessLine } from './OrderReadinessCard';
-import { CHECK_FIX, FACT_FIX, saFixTarget, type FixTarget } from './fixTargets';
+import { CHECK_FIX, CHECK_SEE, FACT_FIX, saFixTarget, type FixTarget, type SeeTarget } from './fixTargets';
 import { Bi } from '@/components/spanish/Es';
 
 /**
@@ -222,8 +222,14 @@ export function RequestSaButton({
  * and names who made it, so the second person sees what the first already
  * did; the panel reloads after every action rather than trusting its own copy.
  */
-export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, onLoaded, onFix, party = 'client', signed = null, layout = 'card', askAgain }: {
+export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, onLoaded, onFix, onSee, party = 'client', signed = null, layout = 'card', askAgain }: {
   orderId: string;
+  /**
+   * Shows the reviewer where on the order a double-check item's answer is,
+   * so they can confirm it is really there — the "See" link beside each
+   * tick. Without it no See links are drawn.
+   */
+  onSee?: (target: SeeTarget) => void;
   /**
    * The page's Request button, drawn under "Sent back" so the broker can ask
    * again from where they read that they should. The page decides whether it
@@ -482,7 +488,17 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
                             <HelpCircle className="w-3.5 h-3.5" />
                           </button>
                         )}
+                        {onSee && CHECK_SEE[c.key] && (
+                          <SeeButton onClick={() => onSee(CHECK_SEE[c.key])} />
+                        )}
                         {(!inPanel || helpOpen[c.key]) && <span className="block text-[11px] text-gray-500">{c.detail}</span>}
+                        {/* Who does the work at each end, as the agreement prints it. */}
+                        {c.key === 'dock' && review.dock && (
+                          <span className="mt-0.5 block text-[11px] text-gray-700">
+                            <span className="block">Loads at pickup: {review.dock.pickup || <span className="text-amber-700">not set</span>}</span>
+                            <span className="block">Unloads at delivery: {review.dock.delivery || <span className="text-amber-700">not set</span>}</span>
+                          </span>
+                        )}
                         {/* What the order lists — the client's item on the SA, the
                             truck's on the Dispatch Sheet. */}
                         {(c.key === 'accessorials' || (party === 'carrier' && c.key === 'equipment')) && review.accessorials && (
@@ -656,6 +672,22 @@ export function SaRequestPanel({ orderId, refreshKey, onStatusChange, onSent, on
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * "See" beside a double-check item: go and look at it on the order. Drawn as
+ * a grey outlined chip with an eye, so it does not read as the brand-coloured
+ * "Fix →" link, which is for something missing. Sits inside the item's label,
+ * so the click is stopped from reaching the checkbox.
+ */
+function SeeButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" title="Show where this is on the order"
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick(); }}
+      className="ml-1.5 inline-flex items-center gap-0.5 rounded-full border border-gray-300 px-1.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-gray-600 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-900">
+      <Eye className="w-3 h-3" /> <span data-es>See</span>
+    </button>
   );
 }
 

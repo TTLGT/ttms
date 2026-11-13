@@ -78,6 +78,41 @@ export const CHECK_FIX: Record<string, FixTarget> = {
   carrierPayment:   { kind: 'carrier' },
 };
 
+/**
+ * Where a reviewer looks to confirm a double-check item is really on the
+ * order — the "See" link beside each tick. Unlike a Fix link it opens nothing
+ * to edit: it scrolls the order page to the card (or the part of it) that
+ * shows the answer, unfolding it first, and lights it up.
+ *
+ * `anchor` is an element id on the Details tab.
+ */
+export type SeeTarget = { tab: 'details'; anchor: string } | { tab: 'pictures' };
+
+const see = (anchor: string): SeeTarget => ({ tab: 'details', anchor });
+
+export const CHECK_SEE: Record<string, SeeTarget> = {
+  // The SA's
+  client:        see('general'),
+  lane:          see('route'),
+  freight:       see('freight'),
+  accessorials:  see('freight-accessorials'),
+  terms:         see('price-terms'),
+  dock:          see('dock'),
+  // The Dispatch Sheet's
+  carrierContact:   see('carrier'),
+  carrierPay:       see('price'),
+  carrierAuthority: see('carrier'),
+  carrierInsurance: see('carrier'),
+  carrierIdentity:  see('carrier'),
+  carrierAge:       see('carrier'),
+  equipment:        see('freight'),
+  carrierLane:      see('route'),
+  driver:           see('carrier'),
+  driverLicense:    see('carrier'),
+  truckPhotos:      { tab: 'pictures' },
+  carrierPayment:   see('carrier'),
+};
+
 /** Fixed targets for the "What TTMS checked" rows. */
 export const FACT_FIX = {
   clientPayment: { kind: 'edit', section: 'price', field: 'clientPayment' },

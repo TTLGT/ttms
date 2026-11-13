@@ -2906,6 +2906,10 @@ export const ES_MORE: Record<string, string> = {
     "Cada cambio a este proveedor, quién lo hizo y cuándo",
   "Who does each service": 'Quién hace cada servicio',
   "(from Loading and Unloading)": '(de Carga y Descarga)',
+  // The SA and Dispatch Sheet review: "See" beside each tick, and the way back.
+  "See": 'Ver',
+  "Back to the SA review": 'Volver a la revisión del SA',
+  "Back to the Dispatch Sheet review": 'Volver a la revisión de la Hoja de Despacho',
   // The Next step card's list of what is in the way (orderNextSteps).
   "The load has drifted from its paperwork. Work through these, top first, before moving it on.":
     "La carga ya no coincide con sus documentos. Resuelve esto, empezando por arriba, antes de avanzarla.",
