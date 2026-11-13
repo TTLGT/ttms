@@ -89,6 +89,7 @@ export const ES_MORE: Record<string, string> = {
   "Add source": 'Agregar origen',
   "Add task": 'Agregar tarea',
   "Add team": 'Agregar equipo',
+  "Add the standard text": 'Agregar el texto estándar',
   "Add the task and schedule a work block for this on your calendar": 'Agregar la tarea y programar un bloque de trabajo en tu calendario',
   "Add them under Settings → People → Add People": 'Agrégalos en Configuración → Personas → Agregar personas',
   "Add to Favorites": 'Agregar a favoritos',
@@ -1628,6 +1629,8 @@ export const ES_MORE: Record<string, string> = {
   "Print an extension sheet — choose how it is grouped and ordered": 'Imprimir una hoja de extensiones: elige cómo se agrupa y ordena',
   "Print and export the directory": 'Imprimir y exportar el directorio',
   "Printed on the dispatch sheet the carrier signs and on the BOL": 'Se imprime en la hoja de despacho que firma el transportista y en el BOL',
+  "Printed on the dispatch sheet the carrier signs and on the BOL. Starts with the standard text; add to it or change it for this load":
+    'Se imprime en la hoja de despacho que firma el transportista y en el BOL. Empieza con el texto estándar; agrégale lo que quieras o cámbialo para esta carga.',
   "Printed on the quote and the load confirmation. The client can add their own when they sign; theirs are kept below and never replaced by these":
     'Se imprime en la cotización y la confirmación de carga. El cliente puede agregar las suyas al firmar; esas se guardan abajo y nunca se reemplazan con estas.',
   "Privateer": 'Corsario',

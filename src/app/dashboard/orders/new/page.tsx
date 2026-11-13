@@ -23,7 +23,7 @@ import type { DockWork } from '@/components/orders/DockWorkFields';
 import type { PriceTerms } from '@/components/orders/PriceAndTermsSection';
 import DimensionConverter from '@/components/orders/DimensionConverter';
 import RouteMapLinkField from '@/components/orders/RouteMapLinkField';
-import NotesAndInstructionsFields, { BLANK_NOTES_AND_INSTRUCTIONS, notesAndInstructionsForSave } from '@/components/orders/NotesAndInstructionsFields';
+import NotesAndInstructionsFields, { NEW_ORDER_NOTES_AND_INSTRUCTIONS, notesAndInstructionsForSave } from '@/components/orders/NotesAndInstructionsFields';
 import type { NotesAndInstructions } from '@/components/orders/NotesAndInstructionsFields';
 import RouteDistanceField from '@/components/orders/RouteDistanceField';
 import type { LaneDistanceValue } from '@/components/orders/RouteDistanceField';
@@ -105,7 +105,7 @@ function NewOrderForm() {
   const [deliveryDateEnd, setDeliveryDateEnd] = useState('');
   const [carrierPay, setCarrierPay]     = useState('');
   const [brokerFee, setBrokerFee]       = useState('');
-  const [notes, setNotes]               = useState<NotesAndInstructions>(BLANK_NOTES_AND_INSTRUCTIONS);
+  const [notes, setNotes]               = useState<NotesAndInstructions>(NEW_ORDER_NOTES_AND_INSTRUCTIONS);
   const [rawPriceTerms, setPriceTerms] = useState<PriceTerms>(blankPriceTerms);
   const [dockWork, setDockWork]         = useState<DockWork>(BLANK_DOCK_WORK);
   const [facts, setFacts] = useState<LoadFacts>({ loadType: '', quoteDate: '', clientBudget: '' });

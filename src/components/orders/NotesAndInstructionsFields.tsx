@@ -20,6 +20,23 @@ export interface NotesAndInstructions {
 
 export const BLANK_NOTES_AND_INSTRUCTIONS: NotesAndInstructions = { notes: '', carrierInstructions: '', clientInstructions: '' };
 
+/**
+ * What every new order's carrier instructions start as. Only a starting point:
+ * the broker can add to it or rewrite it per load. Orders already saved keep
+ * whatever they have — this is never filled in behind anyone's back.
+ */
+export const DEFAULT_CARRIER_INSTRUCTIONS =
+  'We need pictures of the unit at the pickup location to avoid any damage liability from the carrier. '
+  + 'Any damages will be disputed by the customer. To process payment efficiently, please email the following '
+  + 'to accounting@totaltransportlogistics.us: the invoice, BOL per load, W9, and payment method information. '
+  + 'Payments will not be processed if any of the paperwork and information is missing. '
+  + 'DO NOT DELIVER UNTIL THE BROKER CONFIRMS CUSTOMER PAID IN FULL. (918) 510-6747';
+
+/** Where the new-order form starts: blank, except the carrier's default instructions. */
+export const NEW_ORDER_NOTES_AND_INSTRUCTIONS: NotesAndInstructions = {
+  ...BLANK_NOTES_AND_INSTRUCTIONS, carrierInstructions: DEFAULT_CARRIER_INSTRUCTIONS,
+};
+
 /** The stored shape, trimmed — what the create and edit screens save. */
 export function notesAndInstructionsForSave(v: NotesAndInstructions): NotesAndInstructions {
   return {
@@ -58,9 +75,21 @@ export default function NotesAndInstructionsFields({ value, onChange, clientAdde
       <Box label="Internal notes" value={value.notes} onChange={set('notes')}
         hint="For the company only. Never printed on a document or sent to a carrier or client."
         placeholder="Anything colleagues should know about this load…" />
-      <Box label="Special instructions for the carrier" value={value.carrierInstructions} onChange={set('carrierInstructions')}
-        hint="Printed on the dispatch sheet the carrier signs and on the BOL."
-        placeholder="e.g. Call the consignee one hour before arrival. Tarps required." />
+      <div>
+        <Box label="Special instructions for the carrier" value={value.carrierInstructions} onChange={set('carrierInstructions')}
+          hint="Printed on the dispatch sheet the carrier signs and on the BOL. Starts with the standard text; add to it or change it for this load."
+          placeholder="e.g. Call the consignee one hour before arrival. Tarps required." />
+        {!value.carrierInstructions.includes(DEFAULT_CARRIER_INSTRUCTIONS) && (
+          <button type="button"
+            onClick={() => set('carrierInstructions')(
+              value.carrierInstructions.trim()
+                ? `${DEFAULT_CARRIER_INSTRUCTIONS}\n\n${value.carrierInstructions.trim()}`
+                : DEFAULT_CARRIER_INSTRUCTIONS)}
+            className="mt-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+            Add the standard text
+          </button>
+        )}
+      </div>
       <div>
         <Box label="Special instructions for the client" value={value.clientInstructions} onChange={set('clientInstructions')}
           hint="Printed on the quote and the load confirmation. The client can add their own when they sign; theirs are kept below and never replaced by these."
