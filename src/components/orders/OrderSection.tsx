@@ -177,7 +177,7 @@ export function SectionHeading({ icon: Icon, tone, title, action, sub, summary, 
             <span className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
               <span data-es className="text-base font-semibold text-gray-900 group-hover:text-brand-700">{title}</span>
               {collapsed && summary ? (
-                <span className="min-w-0 truncate text-sm font-normal text-gray-500">{summary}</span>
+                <span className="min-w-0 line-clamp-2 text-sm font-normal text-gray-500">{summary}</span>
               ) : null}
             </span>
             {!collapsed && sub && <span className="block text-xs font-normal text-gray-500">{sub}</span>}

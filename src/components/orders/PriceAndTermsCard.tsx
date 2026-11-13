@@ -147,7 +147,13 @@ export default function PriceAndTermsCard({ order, action }: {
   return (
     <div id="price" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
       <SectionHeading icon={DollarSign} tone="emerald" title="Price and Terms" action={action}
-        summary={`Rate ${money(order.agreedRate)} · Fee ${money(order.brokerFee)} · Carrier ${money(order.carrierPay)}`} />
+        summary={[
+          `Rate ${money(order.agreedRate)}${ppm !== null ? ` (${usd(ppm)}/mi)` : ''}`,
+          `Fee ${money(order.brokerFee)}${margin !== null ? ` (${margin}%)` : ''}`,
+          `Carrier ${money(order.carrierPay)}`,
+          servicesTotal > 0 ? `Services ${usd(servicesTotal)}` : '',
+          order.clientPayment ? `Client pays by ${order.clientPayment.methodName}` : '',
+        ].filter(Boolean).join(' · ')} />
 
       {/* The money's path, left to right: what the client pays, what TTL
           keeps, what the carrier gets. Stacked top to bottom on a phone. */}

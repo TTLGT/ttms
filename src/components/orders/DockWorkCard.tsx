@@ -138,8 +138,11 @@ export default function DockWorkCard({ order, action }: { order: Order; action?:
       <SectionHeading icon={PackageOpen} tone="rose" title="Loading and Unloading" action={action}
         sub={<Bi>Printed on the SA, the Dispatch Sheet and the BOL.</Bi>}
         summary={(['pickup', 'delivery'] as const).map((end) => {
-          const { by } = dockEndOf(order, end);
-          return `${end === 'pickup' ? 'Loads' : 'Unloads'}: ${by.length ? by.map((p) => DOCK_PARTY_LABEL[p]).join(', ') : 'not set'}`;
+          const { by, help } = dockEndOf(order, end);
+          const what = help?.service === 'other' ? help.label?.trim() || '' : help?.service ? DOCK_HELP_LABEL[help.service] : '';
+          const crew = [what, help?.providerName].filter(Boolean).join(', ');
+          const who = by.map((p) => (p === 'third_party' && crew ? `${DOCK_PARTY_LABEL[p]} (${crew})` : DOCK_PARTY_LABEL[p])).join(', ');
+          return `${end === 'pickup' ? 'Loads' : 'Unloads'}: ${who || 'not set'}`;
         }).join(' · ')} />
       <div className="grid grid-cols-1 items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
         <End order={order} end="pickup" />

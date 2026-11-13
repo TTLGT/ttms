@@ -38,7 +38,7 @@ import {
   vehicleSummary,
   itemWeightLb,
   orderCommodityItems,
-  totalCommodityValue,
+  totalCommodityValue, LOAD_TYPE_LABEL,
   buildTripMapUrl,
   tripAddresses,
   orderPickups,
@@ -1742,7 +1742,12 @@ export default function OrderDetailPage() {
           {/* General — pieces and weight live in Freight, per line */}
           <div id="general" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
             <SectionHeading icon={ClipboardList} tone="brand" title="General" action={<SectionEditLink orderId={orderId} section="general" />}
-              summary={order.clientName || 'No client yet'} />
+              summary={[
+                order.clientName || 'No client yet',
+                partyById[order.clientId ?? '']?.phone ?? '',
+                order.loadType ? LOAD_TYPE_LABEL[order.loadType] : '',
+                order.sourceName ? `Source: ${order.sourceName}` : '',
+              ].filter(Boolean).join(' · ')} />
             {/* The dates moved to each stop in Route (2026-11-11): on a
                 two-pickup load one Pickup Date here read as the whole trip's. */}
             <OrderClientInfo order={order} orderId={orderId} party={partyById[order.clientId ?? '']}
@@ -1756,11 +1761,19 @@ export default function OrderDetailPage() {
               summary={(() => {
                 const items = orderCommodityItems(order);
                 const lbs = items.reduce((sum, i) => sum + (itemWeightLb(i) || 0), 0);
-                const first = items.find((i) => i.description)?.description ?? '';
+                const pieces = items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
+                const named = items.filter((i) => i.description);
+                const list = named.slice(0, 3).map((i) => (Number(i.quantity) > 1 ? `${i.description} ×${i.quantity}` : i.description)).join(', ')
+                  + (named.length > 3 ? ` +${named.length - 3} more` : '');
+                const value = totalCommodityValue(items);
+                const extras = accessorialLabels(order).length;
                 return [
-                  first ? first + (items.length > 1 ? ` +${items.length - 1} more` : '') : '',
+                  list,
+                  pieces ? `${pieces} pc${pieces === 1 ? '' : 's'}` : '',
                   lbs ? `${Math.round(lbs).toLocaleString()} lbs` : '',
+                  value ? `Value ${formatCurrency(value)}` : '',
                   order.transportType?.trim() ?? '',
+                  extras ? `${extras} accessorial${extras === 1 ? '' : 's'}` : '',
                 ].filter(Boolean).join(' · ') || 'Nothing entered yet';
               })()} />
             <div className="mb-4">
@@ -1871,8 +1884,12 @@ export default function OrderDetailPage() {
                 const place = (a: { city?: string; state?: string } | null | undefined) =>
                   [a?.city, a?.state].filter(Boolean).join(', ') || '—';
                 const extra = (order.extraPickups ?? []).length + (order.extraDeliveries ?? []).length;
+                const when = (start: unknown, end: unknown) => {
+                  const d = formatDateRange(start as Parameters<typeof formatDateRange>[0], end as Parameters<typeof formatDateRange>[0], '');
+                  return d ? ` (${d})` : '';
+                };
                 return [
-                  `${place(order.origin)} → ${place(order.destination)}`,
+                  `${place(order.origin)}${when(order.pickupDate, order.pickupDateEnd)} → ${place(order.destination)}${when(order.deliveryDate, order.deliveryDateEnd)}`,
                   extra ? `${extra} more stop${extra === 1 ? '' : 's'}` : '',
                   order.laneMiles != null ? formatLaneMiles(order.laneMiles, order.laneMilesSource) : '',
                 ].filter(Boolean).join(' · ');
@@ -1973,7 +1990,8 @@ export default function OrderDetailPage() {
               {/* Who verified what before each SA went out — kept for good. */}
               <SectionHeading icon={FileSignature} tone="indigo" title="Client Confirmation" action={<SaVerificationRecord orderId={orderId} />}
                 summary={order.shipperSignedAt || order.shipperSignerName
-                  ? `Signed by ${order.shipperSignerName || 'the client'}` : 'Not signed yet'} />
+                  ? `Signed by ${order.shipperSignerName || 'the client'}${order.shipperSignedAt ? ` on ${formatDate(order.shipperSignedAt as { toDate: () => Date })}` : ''}`
+                  : 'Not signed yet'} />
               {requestSaAgain && <div className="mb-3">{requestSaAgain}</div>}
               {order.shipperSignedAt || order.shipperSignerName ? (
                 <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
@@ -2082,7 +2100,12 @@ export default function OrderDetailPage() {
           {/* Carrier */}
           <div id="carrier" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
             <SectionHeading icon={Truck} tone="violet" title="Carrier"
-              summary={[order.carrierName || 'No carrier yet', order.driverName ? `Driver ${order.driverName}` : '']
+              summary={[
+                order.carrierName || 'No carrier yet',
+                order.driverName ? `Driver ${order.driverName}` : '',
+                order.driverPhone || '',
+                order.carrierPay ? `Pay ${formatCurrency(order.carrierPay)}` : '',
+              ]
                 .filter(Boolean).join(' · ')}
               action={!assigningCarrier && (
               <button onClick={openCarrierAssign}
@@ -2447,7 +2470,7 @@ export default function OrderDetailPage() {
           {(order.partyApprovals ?? []).length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6">
               <SectionHeading icon={Users} tone="gray" title="Shared Record Approvals"
-                summary={`${(order.partyApprovals ?? []).length} approved record${(order.partyApprovals ?? []).length === 1 ? '' : 's'}`} />
+                summary={(order.partyApprovals ?? []).map((a) => `${a.partyName} (${a.role})`).join(' · ')} />
               <p className="text-xs text-gray-500 mb-3">
                 <Bi>This order uses records belonging to another user. Each was authorized before use.</Bi>
               </p>
@@ -2525,11 +2548,17 @@ export default function OrderDetailPage() {
               right before typing. Empty rows fade back. */}
           <div id="notes" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
             <SectionHeading icon={StickyNote} tone="gray" title="Notes and Instructions" action={<SectionEditLink orderId={orderId} section="notes" />}
-              summary={[
-                order.notes ? 'Internal notes' : '',
-                order.carrierInstructions ? 'Carrier' : '',
-                order.clientInstructions || clientAddedInstructionsOf(order).length ? 'Client' : '',
-              ].filter(Boolean).join(' · ') || 'Empty'} />
+              summary={(() => {
+                // The start of each note, so a folded card still says what it holds.
+                const clip = (t: string) => (t.length > 70 ? `${t.slice(0, 70).trimEnd()}…` : t);
+                const flat = (t?: string | null) => clip(String(t ?? '').replace(/\s+/g, ' ').trim());
+                const client = flat(order.clientInstructions) || flat(clientAddedInstructionsOf(order)[0]?.text);
+                return [
+                  order.notes ? `Internal: ${flat(order.notes)}` : '',
+                  order.carrierInstructions ? `Carrier: ${flat(order.carrierInstructions)}` : '',
+                  client ? `Client: ${client}` : '',
+                ].filter(Boolean).join(' · ') || 'Empty';
+              })()} />
             <div className="space-y-3">
               {([
                 { key: 'internal', title: 'Internal notes', who: 'Staff only · never printed or sent', tone: 'gray' as const,

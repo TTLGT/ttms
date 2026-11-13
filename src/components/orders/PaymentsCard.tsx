@@ -72,7 +72,7 @@ export default function PaymentsCard({ orderId, order, onChanged }: {
   return (
     <div id="payments" className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6 scroll-mt-4">
       <SectionHeading icon={CircleDollarSign} tone="emerald" title="Payments"
-        summary={missing.length ? `${keys.length - missing.length} of ${keys.length} recorded` : 'All recorded'}
+        summary={keys.map((k) => `${paymentMarkLabel(k, cod)}: ${marks[k] ? 'yes' : 'waiting'}`).join(' · ')}
         action={cod ? <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800">COD</span> : undefined} />
       <p className="-mt-2 mb-4 text-xs text-gray-500">
         {cod
