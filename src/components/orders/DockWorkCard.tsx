@@ -143,7 +143,7 @@ export default function DockWorkCard({ order, action }: { order: Order; action?:
           const crew = [what, help?.providerName].filter(Boolean).join(', ');
           const who = by.map((p) => (p === 'third_party' && crew ? `${DOCK_PARTY_LABEL[p]} (${crew})` : DOCK_PARTY_LABEL[p])).join(', ');
           return `${end === 'pickup' ? 'Loads' : 'Unloads'}: ${who || 'not set'}`;
-        }).join(' · ')} />
+        }).join(' | ')} />
       <div className="grid grid-cols-1 items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
         <End order={order} end="pickup" />
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-gray-400" aria-hidden>

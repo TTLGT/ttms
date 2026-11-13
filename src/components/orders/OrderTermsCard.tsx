@@ -60,7 +60,7 @@ export default function OrderTermsCard({ orderId, onChanged }: { orderId: string
     <div id="terms" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
       <SectionHeading icon={FileSignature} tone="gray" title="Terms and Conditions"
         summary={data ? PARTS.map(({ party, label }) =>
-          `${label}: ${data[party].own !== null ? 'own terms' : 'general'}`).join(' · ') : undefined} />
+          `${label}: ${data[party].own !== null ? 'own terms' : 'general'}`).join(' | ') : undefined} />
       <p className="-mt-2 text-xs text-gray-500">
         <Bi>Changes here apply to this load only. The terms for every load are in Settings → Operations → Agreement Terms.</Bi>
       </p>

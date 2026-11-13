@@ -1754,7 +1754,7 @@ export default function OrderDetailPage() {
                 partyById[order.clientId ?? '']?.phone ?? '',
                 order.loadType ? LOAD_TYPE_LABEL[order.loadType] : '',
                 order.sourceName ? `Source: ${order.sourceName}` : '',
-              ].filter(Boolean).join(' · ')}
+              ].filter(Boolean).join(' | ')}
               </>} />
             {/* The dates moved to each stop in Route (2026-11-11): on a
                 two-pickup load one Pickup Date here read as the whole trip's. */}
@@ -1782,7 +1782,7 @@ export default function OrderDetailPage() {
                   value ? `Value ${formatCurrency(value)}` : '',
                   order.transportType?.trim() ?? '',
                   extras ? `${extras} accessorial${extras === 1 ? '' : 's'}` : '',
-                ].filter(Boolean).join(' · ') || 'Nothing entered yet';
+                ].filter(Boolean).join(' | ') || 'Nothing entered yet';
               })()} />
             <div className="mb-4">
               <p data-es className="text-xs font-medium text-gray-500 mb-0.5">Transport type</p>
@@ -1900,7 +1900,7 @@ export default function OrderDetailPage() {
                   `${place(order.origin)}${when(order.pickupDate, order.pickupDateEnd)} → ${place(order.destination)}${when(order.deliveryDate, order.deliveryDateEnd)}`,
                   extra ? `${extra} more stop${extra === 1 ? '' : 's'}` : '',
                   order.laneMiles != null ? formatLaneMiles(order.laneMiles, order.laneMilesSource) : '',
-                ].filter(Boolean).join(' · ');
+                ].filter(Boolean).join(' | ');
               })()}
               action={
               <div className="flex items-center gap-3">
@@ -2110,11 +2110,11 @@ export default function OrderDetailPage() {
             <SectionHeading icon={Truck} tone="violet" title="Carrier"
               summary={[
                 order.carrierName || 'No carrier yet',
-                order.driverName ? `Driver ${order.driverName}` : '',
+                order.driverName ? `Driver: ${order.driverName}` : '',
                 order.driverPhone || '',
                 order.carrierPay ? `Pay ${formatCurrency(order.carrierPay)}` : '',
               ]
-                .filter(Boolean).join(' · ')}
+                .filter(Boolean).join(' | ')}
               action={!assigningCarrier && (
               <button onClick={openCarrierAssign}
                 className="text-xs text-brand-600 hover:text-brand-700 font-medium">
@@ -2478,7 +2478,7 @@ export default function OrderDetailPage() {
           {(order.partyApprovals ?? []).length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6">
               <SectionHeading icon={Users} tone="gray" title="Shared Record Approvals"
-                summary={(order.partyApprovals ?? []).map((a) => `${a.partyName} (${a.role})`).join(' · ')} />
+                summary={(order.partyApprovals ?? []).map((a) => `${a.partyName} (${a.role})`).join(' | ')} />
               <p className="text-xs text-gray-500 mb-3">
                 <Bi>This order uses records belonging to another user. Each was authorized before use.</Bi>
               </p>
@@ -2565,7 +2565,7 @@ export default function OrderDetailPage() {
                   order.notes ? `Internal: ${flat(order.notes)}` : '',
                   order.carrierInstructions ? `Carrier: ${flat(order.carrierInstructions)}` : '',
                   client ? `Client: ${client}` : '',
-                ].filter(Boolean).join(' · ') || 'Empty';
+                ].filter(Boolean).join(' | ') || 'Empty';
               })()} />
             <div className="space-y-3">
               {([

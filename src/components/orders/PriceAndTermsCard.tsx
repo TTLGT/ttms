@@ -153,7 +153,7 @@ export default function PriceAndTermsCard({ order, action }: {
           `Carrier ${money(order.carrierPay)}`,
           servicesTotal > 0 ? `Services ${usd(servicesTotal)}` : '',
           order.clientPayment ? `Client pays by ${order.clientPayment.methodName}` : '',
-        ].filter(Boolean).join(' · ')} />
+        ].filter(Boolean).join(' | ')} />
 
       {/* The money's path, left to right: what the client pays, what TTL
           keeps, what the carrier gets. Stacked top to bottom on a phone. */}
