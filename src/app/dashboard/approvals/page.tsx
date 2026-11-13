@@ -16,8 +16,7 @@ import { changeSummary, type ProfileUpdateRequest } from '@/types/profileUpdateR
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { useApprovals } from '@/context/ApprovalsContext';
-import SaRequestsSection from '@/components/orders/SaRequestsSection';
-import BolRequestsSection from '@/components/orders/BolRequestsSection';
+import PaperworkSection from '@/components/orders/PaperworkSection';
 import TermsRequestsSection from '@/components/orders/TermsRequestsSection';
 import ChangeOrdersSection from '@/components/orders/ChangeOrdersSection';
 import SignedDocumentsSection from '@/components/orders/SignedDocumentsSection';
@@ -200,9 +199,9 @@ export default function ApprovalsPage() {
       <ChangeOrdersSection />
       {/* Its own block, above the access requests: a different kind of
           approval, decided by different people, ending in a send rather than
-          a yes or no. See src/types/saRequest.ts. */}
-      <SaRequestsSection />
-      <BolRequestsSection />
+          a yes or no. SAs, Dispatch Sheets and BOLs share one card with
+          To do / History / By load views. See src/types/paperwork.ts. */}
+      <PaperworkSection />
       <TermsRequestsSection />
 
       {/* Signed copies uploaded to loads, waiting to be verified — decided

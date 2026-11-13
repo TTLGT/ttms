@@ -3148,4 +3148,17 @@ export const ES_MORE: Record<string, string> = {
   "Opens the review first. The SA is emailed from there once the load is checked, and the broker is told in this load's discussion": 'Primero abre la revisión. El SA se envía por correo desde ahí cuando la carga esté revisada, y se avisa al broker en la conversación de esta carga.',
   "Started by": 'Iniciado por',
   "Open the review": 'Abrir la revisión',
+  // The Agreements and BOLs card on Approvals (PaperworkSection).
+  "Agreements and BOLs": 'Acuerdos y BOLs',
+  "Nothing waiting.": 'Nada pendiente.',
+  "Loading its history…": 'Cargando su historial…',
+  "No history saved for this one.": 'No hay historial guardado para este.',
+  "Nothing more to do on it unless the load opens again.": 'No hay nada más que hacer a menos que la carga se abra de nuevo.',
+  "Nothing in this date range. Try a wider one.": 'Nada en este rango de fechas. Prueba uno más amplio.',
+  "No loads in this date range.": 'No hay cargas en este rango de fechas.',
+  "Loading…": 'Cargando…',
+  "Shipper Agreement (SA)s, Dispatch Sheets and BOLs. Open a row to see everything that happened to it; open the load to do the work.":
+    'Shipper Agreements (SA), Hojas de Despacho y BOLs. Abre una fila para ver todo lo que le pasó; abre la carga para hacer el trabajo.',
+  "Where each request you made stands. Open a row to see everything that happened to it.":
+    'En qué va cada solicitud que hiciste. Abre una fila para ver todo lo que le pasó.',
 };
