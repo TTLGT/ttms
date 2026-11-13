@@ -114,6 +114,7 @@ import { Bi } from '@/components/spanish/Es';
 import { startSaReview } from '@/lib/saRequests';
 import OrderLoadCard from '@/components/orders/OrderLoadCard';
 import DockWorkCard from '@/components/orders/DockWorkCard';
+import { ClientTypeBadges, useClientSnapshot } from '@/components/parties/ClientSnapshotView';
 import { SectionHeading, SectionCollapseContext, useSectionCollapseState, revealSection } from '@/components/orders/OrderSection';
 import OrderSidePanel, { RailItem } from '@/components/orders/OrderSidePanel';
 import { celebrate } from '@/lib/celebrate';
@@ -574,6 +575,10 @@ export default function OrderDetailPage() {
   // The Details tab's sections fold to a one-line summary. Remembered per
   // viewer in this browser, the same on every order.
   const sectionFold = useSectionCollapseState('ttms.orderSections');
+
+  // The client's type and history. Fetched here, once, because the General
+  // card shows it and its folded heading shows the type tag.
+  const clientSnap = useClientSnapshot(order && partyById[order.clientId ?? ''] ? order.clientId : null);
 
   /**
    * A "Fix" link in one of the reviews. Order fields open the edit screen on
@@ -1742,15 +1747,18 @@ export default function OrderDetailPage() {
           {/* General — pieces and weight live in Freight, per line */}
           <div id="general" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
             <SectionHeading icon={ClipboardList} tone="brand" title="General" action={<SectionEditLink orderId={orderId} section="general" />}
-              summary={[
+              summary={<>
+                {clientSnap && <><ClientTypeBadges snap={clientSnap} />{' '}</>}
+                {[
                 order.clientName || 'No client yet',
                 partyById[order.clientId ?? '']?.phone ?? '',
                 order.loadType ? LOAD_TYPE_LABEL[order.loadType] : '',
                 order.sourceName ? `Source: ${order.sourceName}` : '',
-              ].filter(Boolean).join(' · ')} />
+              ].filter(Boolean).join(' · ')}
+              </>} />
             {/* The dates moved to each stop in Route (2026-11-11): on a
                 two-pickup load one Pickup Date here read as the whole trip's. */}
-            <OrderClientInfo order={order} orderId={orderId} party={partyById[order.clientId ?? '']}
+            <OrderClientInfo order={order} orderId={orderId} party={partyById[order.clientId ?? '']} snap={clientSnap}
               leadSource={String(leadSourceLabel(leadSources, order.sourceId, order.sourceName) ?? '')} />
 
           </div>

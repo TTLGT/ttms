@@ -4,7 +4,8 @@ import { AlertTriangle, BadgeCheck, BellRing, FileSignature, Mail, MapPin, Phone
 import CopyValue from '@/components/CopyValue';
 import PhoneValue from '@/components/PhoneValue';
 import PartyLink from '@/components/parties/PartyLink';
-import ClientSnapshotView, { ClientTypeBadges, useClientSnapshot } from '@/components/parties/ClientSnapshotView';
+import ClientSnapshotView, { ClientTypeBadges } from '@/components/parties/ClientSnapshotView';
+import type { ClientSnapshot } from '@/types/clientSnapshot';
 import { UpdatePrefsLine } from '@/components/parties/PartyAccountCards';
 import { Bi } from '@/components/spanish/Es';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -56,15 +57,16 @@ function SubHead({ icon: Icon, children }: { icon: typeof Users; children: strin
   );
 }
 
-export default function OrderClientInfo({ order, orderId, party, leadSource }: {
+export default function OrderClientInfo({ order, orderId, party, leadSource, snap }: {
   order: Order;
   orderId: string;
   party: Party | undefined;
   leadSource: string;
+  /** The client's snapshot, fetched once by the order page (its folded heading shows the type tag too). */
+  snap: ClientSnapshot | null;
 }) {
   const { formatDate } = useDateFormatters();
   const clientId = order.clientId ?? '';
-  const snap = useClientSnapshot(party ? clientId : null);
 
   // Whether the client is also somebody at a stop — said out loud, because a
   // reader who sees the same name twice on a load wonders whether it is a
