@@ -449,3 +449,9 @@ html.dark.dim .chat-ground[data-wallpaper='dots'] {
 }
 @keyframes tz-turn { from { transform: rotate(var(--from)); } to { transform: rotate(var(--to)); } }
 @keyframes tz-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* A folded section on the order page: only its heading shows. The heading
+   marks its card with data-collapsed (see SectionHeading in OrderSection.tsx). */
+[data-collapsed] > :not([data-section-head]) {
+  display: none !important;
+}

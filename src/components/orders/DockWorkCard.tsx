@@ -136,7 +136,11 @@ export default function DockWorkCard({ order, action }: { order: Order; action?:
   return (
     <div id="dock" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
       <SectionHeading icon={PackageOpen} tone="rose" title="Loading and Unloading" action={action}
-        sub={<Bi>Printed on the SA, the Dispatch Sheet and the BOL.</Bi>} />
+        sub={<Bi>Printed on the SA, the Dispatch Sheet and the BOL.</Bi>}
+        summary={(['pickup', 'delivery'] as const).map((end) => {
+          const { by } = dockEndOf(order, end);
+          return `${end === 'pickup' ? 'Loads' : 'Unloads'}: ${by.length ? by.map((p) => DOCK_PARTY_LABEL[p]).join(', ') : 'not set'}`;
+        }).join(' · ')} />
       <div className="grid grid-cols-1 items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
         <End order={order} end="pickup" />
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-gray-400" aria-hidden>

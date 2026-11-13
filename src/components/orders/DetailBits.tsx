@@ -1,5 +1,6 @@
 import { Info, TriangleAlert } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { revealSection } from './OrderSection';
 
 /*
  * Small pieces the order page's cards are built from (2026-11-11).
@@ -179,6 +180,7 @@ export function FixList({ items, title }: { items: FixItem[]; title: string }) {
  */
 export function showPart(el: HTMLElement | null) {
   if (!el) return;
+  revealSection(el);
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   // Written out in full (not built) so Tailwind generates them.
   const cls = ['ring-2', 'ring-amber-400', 'ring-offset-2', 'ring-offset-white', 'rounded-lg'];

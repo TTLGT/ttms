@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import {
-  AlertTriangle, Check, CheckCircle2, ClipboardList, ExternalLink, FilePen, FileSignature, FileText, IdCard, ListChecks,
+  AlertTriangle, Check, CheckCircle2, ChevronsDownUp, ChevronsUpDown, ClipboardList, ExternalLink, FilePen, FileSignature, FileText, IdCard, ListChecks,
   Lock, Mail, Map, MapPin, Package, Phone, Plus, RefreshCw, Route, ShieldCheck, Smartphone, StickyNote, Truck, Undo2, User, UserRound, Users,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -114,7 +114,7 @@ import { Bi } from '@/components/spanish/Es';
 import { startSaReview } from '@/lib/saRequests';
 import OrderLoadCard from '@/components/orders/OrderLoadCard';
 import DockWorkCard from '@/components/orders/DockWorkCard';
-import { SectionHeading } from '@/components/orders/OrderSection';
+import { SectionHeading, SectionCollapseContext, useSectionCollapseState, revealSection } from '@/components/orders/OrderSection';
 import OrderSidePanel, { RailItem } from '@/components/orders/OrderSidePanel';
 import { celebrate } from '@/lib/celebrate';
 import { reviewChecks, type AgreementParty, type SaRequest } from '@/types/saRequest';
@@ -565,8 +565,15 @@ export default function OrderDetailPage() {
     if (!order || scrolledRef.current) return;
     scrolledRef.current = true;
     const id = window.location.hash.slice(1);
-    if (id) document.getElementById(id)?.scrollIntoView({ block: 'start' });
+    const el = id ? document.getElementById(id) : null;
+    // A folded section opens first, or there is nothing to scroll to.
+    revealSection(el);
+    el?.scrollIntoView({ block: 'start' });
   }, [order]);
+
+  // The Details tab's sections fold to a one-line summary. Remembered per
+  // viewer in this browser, the same on every order.
+  const sectionFold = useSectionCollapseState('ttms.orderSections');
 
   /**
    * A "Fix" link in one of the reviews. Order fields open the edit screen on
@@ -577,7 +584,9 @@ export default function OrderDetailPage() {
   const [fixScroll, setFixScroll] = useState<string | null>(null);
   useEffect(() => {
     if (!fixScroll) return;
-    document.getElementById(fixScroll)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const el = document.getElementById(fixScroll);
+    revealSection(el);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setFixScroll(null);
   }, [fixScroll, tab, assigningCarrier]);
 
@@ -1696,7 +1705,8 @@ export default function OrderDetailPage() {
 
         <div className="min-w-0 xl:col-start-1 xl:row-start-1">
       {/* Tabs */}
-      <div id="order-tabs" className="mb-4 flex w-fit max-w-full gap-1 overflow-x-auto whitespace-nowrap rounded-xl border border-gray-200 bg-white p-1 tab-scroll scroll-mt-4 [&>*]:flex-shrink-0">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div id="order-tabs" className="flex w-fit max-w-full gap-1 overflow-x-auto whitespace-nowrap rounded-xl border border-gray-200 bg-white p-1 tab-scroll scroll-mt-4 [&>*]:flex-shrink-0">
         {(['details', 'documents', 'pictures', 'suborders', 'history'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             data-es={t === 'suborders' ? 'Suborders' : t === 'pictures' ? 'Pictures' : t.charAt(0).toUpperCase() + t.slice(1)}
@@ -1711,13 +1721,28 @@ export default function OrderDetailPage() {
           </button>
         ))}
       </div>
+      {tab === 'details' && (
+        <div className="flex items-center gap-1 text-xs font-medium">
+          <button type="button" onClick={sectionFold.collapseAll}
+            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+            <ChevronsDownUp className="h-3.5 w-3.5" /> <span data-es>Collapse all</span>
+          </button>
+          <button type="button" onClick={sectionFold.expandAll}
+            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-gray-600 hover:bg-gray-100 hover:text-gray-900">
+            <ChevronsUpDown className="h-3.5 w-3.5" /> <span data-es>Expand all</span>
+          </button>
+        </div>
+      )}
+      </div>
 
       {/* Details tab */}
       {tab === 'details' && (
+        <SectionCollapseContext.Provider value={sectionFold}>
         <div className="space-y-4">
           {/* General — pieces and weight live in Freight, per line */}
           <div id="general" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
-            <SectionHeading icon={ClipboardList} tone="brand" title="General" action={<SectionEditLink orderId={orderId} section="general" />} />
+            <SectionHeading icon={ClipboardList} tone="brand" title="General" action={<SectionEditLink orderId={orderId} section="general" />}
+              summary={order.clientName || 'No client yet'} />
             {/* The dates moved to each stop in Route (2026-11-11): on a
                 two-pickup load one Pickup Date here read as the whole trip's. */}
             <OrderClientInfo order={order} orderId={orderId} party={partyById[order.clientId ?? '']}
@@ -1727,7 +1752,17 @@ export default function OrderDetailPage() {
 
           {/* Freight */}
           <div id="freight" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
-            <SectionHeading icon={Package} tone="amber" title="Freight" action={<SectionEditLink orderId={orderId} section="freight" />} />
+            <SectionHeading icon={Package} tone="amber" title="Freight" action={<SectionEditLink orderId={orderId} section="freight" />}
+              summary={(() => {
+                const items = orderCommodityItems(order);
+                const lbs = items.reduce((sum, i) => sum + (itemWeightLb(i) || 0), 0);
+                const first = items.find((i) => i.description)?.description ?? '';
+                return [
+                  first ? first + (items.length > 1 ? ` +${items.length - 1} more` : '') : '',
+                  lbs ? `${Math.round(lbs).toLocaleString()} lbs` : '',
+                  order.transportType?.trim() ?? '',
+                ].filter(Boolean).join(' · ') || 'Nothing entered yet';
+              })()} />
             <div className="mb-4">
               <p data-es className="text-xs font-medium text-gray-500 mb-0.5">Transport type</p>
               {order.transportType?.trim()
@@ -1831,7 +1866,18 @@ export default function OrderDetailPage() {
 
           {/* Route */}
           <div id="route" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
-            <SectionHeading icon={MapPin} tone="blue" title="Route" action={
+            <SectionHeading icon={MapPin} tone="blue" title="Route"
+              summary={(() => {
+                const place = (a: { city?: string; state?: string } | null | undefined) =>
+                  [a?.city, a?.state].filter(Boolean).join(', ') || '—';
+                const extra = (order.extraPickups ?? []).length + (order.extraDeliveries ?? []).length;
+                return [
+                  `${place(order.origin)} → ${place(order.destination)}`,
+                  extra ? `${extra} more stop${extra === 1 ? '' : 's'}` : '',
+                  order.laneMiles != null ? formatLaneMiles(order.laneMiles, order.laneMilesSource) : '',
+                ].filter(Boolean).join(' · ');
+              })()}
+              action={
               <div className="flex items-center gap-3">
                 <RouteViewSwitch />
                 <SectionEditLink orderId={orderId} section="route" />
@@ -1925,7 +1971,9 @@ export default function OrderDetailPage() {
           {clientConfirmationStarted && (
             <div id="client-confirmation" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
               {/* Who verified what before each SA went out — kept for good. */}
-              <SectionHeading icon={FileSignature} tone="indigo" title="Client Confirmation" action={<SaVerificationRecord orderId={orderId} />} />
+              <SectionHeading icon={FileSignature} tone="indigo" title="Client Confirmation" action={<SaVerificationRecord orderId={orderId} />}
+                summary={order.shipperSignedAt || order.shipperSignerName
+                  ? `Signed by ${order.shipperSignerName || 'the client'}` : 'Not signed yet'} />
               {requestSaAgain && <div className="mb-3">{requestSaAgain}</div>}
               {order.shipperSignedAt || order.shipperSignerName ? (
                 <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
@@ -2033,7 +2081,10 @@ export default function OrderDetailPage() {
 
           {/* Carrier */}
           <div id="carrier" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
-            <SectionHeading icon={Truck} tone="violet" title="Carrier" action={!assigningCarrier && (
+            <SectionHeading icon={Truck} tone="violet" title="Carrier"
+              summary={[order.carrierName || 'No carrier yet', order.driverName ? `Driver ${order.driverName}` : '']
+                .filter(Boolean).join(' · ')}
+              action={!assigningCarrier && (
               <button onClick={openCarrierAssign}
                 className="text-xs text-brand-600 hover:text-brand-700 font-medium">
                 {order.carrierId ? 'Edit' : '+ Assign Carrier'}
@@ -2395,7 +2446,8 @@ export default function OrderDetailPage() {
           {/* Shared-record approvals */}
           {(order.partyApprovals ?? []).length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6">
-              <SectionHeading icon={Users} tone="gray" title="Shared Record Approvals" />
+              <SectionHeading icon={Users} tone="gray" title="Shared Record Approvals"
+                summary={`${(order.partyApprovals ?? []).length} approved record${(order.partyApprovals ?? []).length === 1 ? '' : 's'}`} />
               <p className="text-xs text-gray-500 mb-3">
                 <Bi>This order uses records belonging to another user. Each was authorized before use.</Bi>
               </p>
@@ -2427,6 +2479,7 @@ export default function OrderDetailPage() {
           {order.status !== 'quote' && order.status !== 'cancelled' && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6">
               <SectionHeading icon={FileText} tone="teal" title="Bill of Lading"
+                summary={order.bolStoragePath ? 'Generated' : 'Not generated yet'}
                 sub={order.bolStoragePath && !bolUrl ? <span data-es>Loading download link…</span> : undefined}
                 action={
                 <div className="flex gap-2">
@@ -2471,7 +2524,12 @@ export default function OrderDetailPage() {
               the carrier or the client — since that is the thing to get
               right before typing. Empty rows fade back. */}
           <div id="notes" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 scroll-mt-4">
-            <SectionHeading icon={StickyNote} tone="gray" title="Notes and Instructions" action={<SectionEditLink orderId={orderId} section="notes" />} />
+            <SectionHeading icon={StickyNote} tone="gray" title="Notes and Instructions" action={<SectionEditLink orderId={orderId} section="notes" />}
+              summary={[
+                order.notes ? 'Internal notes' : '',
+                order.carrierInstructions ? 'Carrier' : '',
+                order.clientInstructions || clientAddedInstructionsOf(order).length ? 'Client' : '',
+              ].filter(Boolean).join(' · ') || 'Empty'} />
             <div className="space-y-3">
               {([
                 { key: 'internal', title: 'Internal notes', who: 'Staff only · never printed or sent', tone: 'gray' as const,
@@ -2524,6 +2582,7 @@ export default function OrderDetailPage() {
             Created {formatDate(order.createdAt as { toDate: () => Date } | null)} · Last updated {formatDate(order.updatedAt as { toDate: () => Date } | null)}
           </div>
         </div>
+        </SectionCollapseContext.Provider>
       )}
 
       {/* The BOL on screen, from either tab. The signed link is stored with a
