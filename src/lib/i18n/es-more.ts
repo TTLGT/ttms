@@ -3161,4 +3161,7 @@ export const ES_MORE: Record<string, string> = {
     'Shipper Agreements (SA), Hojas de Despacho y BOLs. Abre una fila para ver todo lo que le pasó; abre la carga para hacer el trabajo.',
   "Where each request you made stands. Open a row to see everything that happened to it.":
     'En qué va cada solicitud que hiciste. Abre una fila para ver todo lo que le pasó.',
+  // The folded Bill of Lading card's line, after the count.
+  'field missing for the BOL': 'campo faltante para el BOL',
+  'fields missing for the BOL': 'campos faltantes para el BOL',
 };

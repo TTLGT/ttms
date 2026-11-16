@@ -2536,7 +2536,18 @@ export default function OrderDetailPage() {
           {order.status !== 'quote' && order.status !== 'cancelled' && (
             <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6">
               <SectionHeading icon={FileText} tone="teal" title="Bill of Lading"
-                summary={order.bolStoragePath ? 'Generated' : 'Not generated yet'}
+                // The red list below is hidden while the card is folded, so the
+                // folded line has to say it too — otherwise a load whose SA went
+                // out with BOL fields blank reads as merely "not generated".
+                summary={bolIsBlocked
+                  ? <span className="font-semibold text-red-700">
+                      {order.bolStoragePath ? 'Generated · ' : ''}
+                      {/* The count apart from the words, so the Spanish bubble
+                          can look the fixed part up. */}
+                      {bolBlocked!.length}{' '}
+                      <span>{bolBlocked!.length === 1 ? 'field missing for the BOL' : 'fields missing for the BOL'}</span>
+                    </span>
+                  : order.bolStoragePath ? 'Generated' : 'Not generated yet'}
                 sub={order.bolStoragePath && !bolUrl ? <span data-es>Loading download link…</span> : undefined}
                 action={
                 <div className="flex gap-2">

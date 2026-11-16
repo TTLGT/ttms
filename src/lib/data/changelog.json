@@ -1,6 +1,76 @@
 {
   "changes": [
     {
+      "hash": "8706d352bbbb186734222cb525ebfbac7279140c",
+      "date": "2026-11-13T13:45:22-06:00",
+      "author": "erwindank",
+      "subject": "Rebuild the Approvals screen's agreement and BOL cards as one \"Agreements and BOLs\" card with a To do / History / By load switch. Sent-back SAs no longer vanish, requests on cancelled or delivered loads close on their own, History searches any date range (7, 30, 90 days, all time or picked dates), each row opens to show its whole story from the load's saved rounds, and the list refreshes every minute",
+      "body": ""
+    },
+    {
+      "hash": "d7238e03f86145cad05b46051eafed4ffdd5fc62",
+      "date": "2026-11-13T13:35:57-06:00",
+      "author": "erwindank",
+      "subject": "Add a \"See\" link beside each tick on the SA and Dispatch Sheet reviews: it closes the review, opens the order card that holds the answer, scrolls to it and lights it up, and leaves a \"Back to the review\" button. The loading and unloading item now shows who loads at pickup and who unloads at delivery",
+      "body": ""
+    },
+    {
+      "hash": "8b5a16b00cb8bd5579f772a25fff617d8dfba6f3",
+      "date": "2026-11-13T11:08:46-06:00",
+      "author": "erwindank",
+      "subject": "Separate the facts in a folded section's summary with | instead of ·, and label the driver as \"Driver:\"",
+      "body": ""
+    },
+    {
+      "hash": "5fcbcd621fbf038a415274383bcbe5c5fa917d69",
+      "date": "2026-11-13T11:04:48-06:00",
+      "author": "erwindank",
+      "subject": "Show the client type tag (and Credit client) in the folded General section's summary; the order page now fetches the client snapshot once and hands it to the General card",
+      "body": ""
+    },
+    {
+      "hash": "3eb2e3c8f008aa40a108a75ec66366979eb2b263",
+      "date": "2026-11-13T10:46:42-06:00",
+      "author": "erwindank",
+      "subject": "Say more in a folded order section's summary: the client's phone, load type and source; every freight line with pieces, weight, value and accessorials; who the 3rd party at the dock is; the rate per mile, margin and how the client pays; the pickup and delivery dates; when the client signed; the driver's phone and carrier pay; each payment; and the start of each note. Summaries can now run to two lines",
+      "body": ""
+    },
+    {
+      "hash": "cb3db64380f34262b33cd0e076e27932e9c958a0",
+      "date": "2026-11-13T10:44:20-06:00",
+      "author": "erwindank",
+      "subject": "Let each section of an order's Details tab fold down to its heading and a one-line summary (client, freight, who loads and unloads, price, route, signatures, carrier, payments, BOL, notes, terms), with Collapse all and Expand all buttons beside the tabs; the folds are remembered in the browser, and jumping to a section opens it",
+      "body": ""
+    },
+    {
+      "hash": "b0830267e56f359ad9eb8702a0afb4fc4e2211a1",
+      "date": "2026-11-13T10:35:50-06:00",
+      "author": "erwindank",
+      "subject": "Add a one-time script that gives open orders with an empty carrier box the standard carrier instructions, skipping loads whose Dispatch Sheet is already out (it would make the carrier sign again) and loads that are delivered, completed or cancelled",
+      "body": ""
+    },
+    {
+      "hash": "542e0aeb983f94f0cebb8269fef9ed8e6ced3b03",
+      "date": "2026-11-13T10:32:02-06:00",
+      "author": "erwindank",
+      "subject": "Start every new order's carrier special instructions with the standard text (damage pictures, paperwork to accounting, do not deliver until paid in full); the broker can add to it or change it, and a button puts it back if it was removed",
+      "body": ""
+    },
+    {
+      "hash": "5e50e860ee37d45ca18187ec81e6359ba25fbc41",
+      "date": "2026-11-13T09:01:09-06:00",
+      "author": "erwindank",
+      "subject": "Run the local dev server with webpack instead of Turbopack: on Windows, Turbopack kept starting new copies of its CSS helper (907 of them) until the computer ran out of memory",
+      "body": ""
+    },
+    {
+      "hash": "8f57c5912d78f5b6ffb369e0d7debdc6d98ca8d4",
+      "date": "2026-11-12T15:09:27-06:00",
+      "author": "erwindank",
+      "subject": "Let more than one party load or unload at each end of a load, with a box for what each of them will do and bring; warn when the shipper and consignee are both picked; and show the load's picture, freight and lane on the Loading and Unloading edit page",
+      "body": "- Who loads / unloads can name several parties. One answer is stored as the\n  bare string it always was, so no sent SA, Dispatch Sheet or BOL reads as\n  changed; two or more are stored as a list.\n- With several picked, each gets \"What will they do?\" (required) and \"What\n  tools or equipment will they bring?\", plus \"Anything else\". The printed\n  conditions are built from them, one line each, and rebuilt on the server.\n- The 3rd-party questions show whenever 3rd party is among the picks; the\n  driver note says they work together with the others when shared.\n- The BOL ticks every party picked."
+    },
+    {
       "hash": "f81aabcb7746d15887c275c828084b9d160db00c",
       "date": "2026-11-12T14:08:15-06:00",
       "author": "erwindank",
