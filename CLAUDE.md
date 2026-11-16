@@ -527,6 +527,19 @@ bucket path is always `loadPhotoPath(orderId, photoId)` — never stored, never
 taken from a request — which is what makes the browser-writable
 `coverPhotoId` on an order harmless. See `loadPhotos` in the Schema Guide.
 
+**On the order page, every way in goes through one store** (2026-11-16):
+`src/components/photos/LoadPhotosContext.tsx`, held by the page rather than
+the Pictures tab so unsaved pictures survive a tab switch. The header tile,
+dropping or pasting anywhere on the page, the Pictures tab's boxes, a freight
+line's button and "Add to load pictures" in the load's chat all call its
+`addFiles()` / `choose()`. **Do not add a second upload path.** A picture is
+never saved without a type a person chose; a preset (the Truck box, a freight
+line) counts as choosing and saves at once, anything else waits in the tray.
+Existing drop areas (Documents tab slots, the chat composer) win because they
+`preventDefault()` first — keep that true of any new one. The chat hand-off
+goes through `GET /api/orders/{id}/photos/from-chat`, which only serves a
+picture from that load's own room to somebody in it.
+
 ### Data model
 
 `parties` is the central record. The same party can be the client on one order,

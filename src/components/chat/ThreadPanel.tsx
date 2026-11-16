@@ -20,6 +20,7 @@ import { dayLabel, dayOf, groupsWithPrevious } from '@/lib/chatFormat';
 import PersonCard from './PersonCard';
 import ActionMenu, { type MenuAction } from './ActionMenu';
 import MessageBubble from './MessageBubble';
+import { ChatRoomOrderContext, roomOrderId } from './MessageAttachments';
 import ChatWallpaper from './ChatWallpaper';
 import MessageComposer from './MessageComposer';
 import { can } from '@/lib/accessControl';
@@ -333,6 +334,7 @@ export default function ThreadPanel({
   }
 
   return (
+    <ChatRoomOrderContext.Provider value={roomOrderId(conversation)}>
     <div className="flex h-full min-h-0 flex-col bg-white">
       <div className="flex flex-shrink-0 items-center gap-2 border-b border-gray-200 px-4 py-3">
         <div className="min-w-0 flex-1">
@@ -422,5 +424,6 @@ export default function ThreadPanel({
         <PersonCard uid={card.uid} anchor={card.anchor} onClose={() => setCard(null)} />
       )}
     </div>
+    </ChatRoomOrderContext.Provider>
   );
 }

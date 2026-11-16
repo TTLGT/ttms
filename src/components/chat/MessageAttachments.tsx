@@ -1,11 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import Image from 'next/image';
-import { Download, FileText, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Download, FileText, ImagePlus, X } from 'lucide-react';
 import { useStorageUrl } from '@/lib/useStorageUrl';
 import { readableSize } from '@/lib/chatUploads';
-import type { Attachment } from '@/types/conversation';
+import type { Attachment, Conversation } from '@/types/conversation';
+import { CHAT_PICTURE_EVENT, CHAT_PICTURE_KEY, type ChatPictureDetail } from '@/lib/chatPictureHandoff';
+
+/**
+ * The load a room is about, when it is a load's own room — so a picture sent
+ * there can be added to that load's pictures (2026-11-16). Provided by the
+ * thread and the thread panel; null everywhere else.
+ */
+export const ChatRoomOrderContext = createContext<string | null>(null);
+
+export function roomOrderId(c: Pick<Conversation, 'kind' | 'recordType' | 'recordId'>): string | null {
+  return c.kind === 'record' && c.recordType === 'order' && c.recordId ? c.recordId : null;
+}
 
 /**
  * Photos and files hanging off a message.
@@ -98,8 +111,33 @@ function FileRow({ attachment }: { attachment: Attachment }) {
  * Closes on Escape, on the backdrop and on the button — three ways out, because
  * a picture covering the screen with no visible exit is alarming.
  */
-export function Lightbox({ attachment, onClose }: { attachment: Attachment; onClose: () => void }) {
+export function Lightbox({ attachment, onClose, orderId }: {
+  attachment: Attachment;
+  onClose: () => void;
+  /** The load whose room this is; read from ChatRoomOrderContext when not given. */
+  orderId?: string | null;
+}) {
   const url = useStorageUrl(attachment.path);
+  const fromRoom = useContext(ChatRoomOrderContext);
+  const target = orderId !== undefined ? orderId : fromRoom;
+  const router = useRouter();
+
+  /*
+   * Hands the picture to the load's own picture store, which fetches it,
+   * shrinks it and opens the tray for a type — the same path as a picture
+   * dropped on the page. If that load is open, it answers the event
+   * straight away; if not, the picture waits in sessionStorage and the load
+   * is opened on its Pictures tab, which picks it up.
+   */
+  function addToLoad() {
+    if (!target) return;
+    const detail: ChatPictureDetail = { orderId: target, path: attachment.path, name: attachment.name };
+    window.dispatchEvent(new CustomEvent(CHAT_PICTURE_EVENT, { detail }));
+    onClose();
+    if (detail.handled) return;
+    try { sessionStorage.setItem(CHAT_PICTURE_KEY, JSON.stringify(detail)); } catch { /* blocked: the tab opens, nothing waits */ }
+    router.push(`/dashboard/orders/${target}?tab=pictures`);
+  }
 
   return (
     <div
@@ -122,6 +160,14 @@ export function Lightbox({ attachment, onClose }: { attachment: Attachment; onCl
           />
         )}
         <p className="mt-3 text-center text-sm text-white">{attachment.name}</p>
+        {target && (
+          <div className="mt-2 flex justify-center">
+            <button type="button" onClick={addToLoad}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-gray-800 shadow hover:bg-gray-100">
+              <ImagePlus size={16} /> <span data-es>Add to load pictures</span>
+            </button>
+          </div>
+        )}
         <button
           type="button"
           onClick={onClose}

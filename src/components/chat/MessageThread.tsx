@@ -25,6 +25,7 @@ import { copyToClipboard } from '@/lib/clipboard';
 import PersonCard from './PersonCard';
 import ActionMenu, { type MenuAction } from './ActionMenu';
 import MessageBubble from './MessageBubble';
+import { ChatRoomOrderContext, roomOrderId } from './MessageAttachments';
 import ChatWallpaper from './ChatWallpaper';
 import MessageComposer from './MessageComposer';
 import PinnedBar from './PinnedBar';
@@ -710,6 +711,7 @@ export default function MessageThread({ conversation }: { conversation: Conversa
   /* --------------------------------------------------------------- render */
 
   return (
+    <ChatRoomOrderContext.Provider value={roomOrderId(conversation)}>
     <div className="flex h-full min-h-0 flex-col">
       {/* Above the scroller rather than inside it: a pin that scrolled away
           with the conversation would be a pin you have to go and look for. */}
@@ -904,6 +906,7 @@ export default function MessageThread({ conversation }: { conversation: Conversa
         <PersonCard uid={card.uid} anchor={card.anchor} onClose={() => setCard(null)} />
       )}
     </div>
+    </ChatRoomOrderContext.Provider>
   );
 }
 

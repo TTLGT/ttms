@@ -124,3 +124,21 @@ export async function uploadLoadPhoto(
   trackActivity('documentsUploaded');
   return result;
 }
+
+/**
+ * A picture from the load's own chat room, as a file that can go through the
+ * same tray as any other — see GET /api/orders/{id}/photos/from-chat.
+ * Fetched through the server rather than from the bucket, because the bucket
+ * answers a browser on another origin only if CORS has been set on it, and it
+ * has not.
+ */
+export async function fetchChatPicture(orderId: string, path: string, name: string): Promise<File> {
+  const url = `/api/orders/${orderId}/photos/from-chat?path=${encodeURIComponent(path)}`;
+  const res = await fetch(url, { headers: await authHeaders() });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as { error?: string }).error ?? `Could not fetch that picture (${res.status})`);
+  }
+  const blob = await res.blob();
+  return new File([blob], name || 'Chat picture', { type: blob.type || 'image/jpeg' });
+}

@@ -1,524 +1,102 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, ImageUp, Images, Loader2, X } from 'lucide-react';
+import { useState } from 'react';
+import { Camera, ClipboardPaste, ImageUp, Images } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import {
-  deleteLoadPhoto,
-  listOrderPhotos,
-  prepareLoadPhoto,
-  setOrderCover,
-  updateLoadPhoto,
-  uploadLoadPhoto,
-  type PreparedPhoto,
-} from '@/lib/loadPhotos';
-import {
-  MAX_CAPTION,
-  PHOTO_STAGES,
-  PHOTO_STAGE_LABEL,
-  commodityLineChoices,
-  hasRoute,
-  photoLocationChoices,
-  type LoadPhoto,
-  type PhotoStage,
-} from '@/types/loadPhoto';
-import type { Order } from '@/types/order';
+import { updateLoadPhoto } from '@/lib/loadPhotos';
+import type { LoadPhoto } from '@/types/loadPhoto';
 import PhotoReel from './PhotoReel';
 import PhotoLightbox from './PhotoLightbox';
+import PictureNeeds from './PictureNeeds';
+import { useLoadPhotos } from './LoadPhotosContext';
 import { Bi } from '@/components/spanish/Es';
 
 /**
- * A picture that has been chosen but not saved. It sits in the tray, shrunk
- * and previewed, until somebody has tagged it and pressed Save — nothing is
- * sent before then, so a wrong pick costs nothing and there is no half-tagged
- * picture on the load to go back and fix.
- */
-interface Draft {
-  key: string;
-  name: string;
-  state: 'preparing' | 'ready' | 'uploading' | 'failed';
-  prepared?: PreparedPhoto;
-  /** Object URL of the thumbnail; revoked when the draft leaves the tray. */
-  preview?: string;
-  progress: number;
-  error?: string;
-  /** '' until somebody picks one — the type is the one tag that is required. */
-  stage: PhotoStage | '';
-  /** Commodity only — see hasRoute(). Nothing else is asked for a stop. */
-  pickupAt: string;
-  deliverTo: string;
-  /** The freight line a commodity picture shows, or '' — see commodityLineChoices(). */
-  commodityItemId: string;
-  caption: string;
-}
-
-interface Props {
-  order: Order;
-  /** Tells the page when the profile picture changes, so its header follows. */
-  onCoverChange: (coverPhotoId: string | null, thumbUrl: string | null) => void;
-  onCountChange?: (count: number) => void;
-}
-
-/**
- * A load's pictures: add them, tag them, slide through them, pick the profile
- * picture.
+ * The Pictures tab: what the load still needs, every picture it has, and the
+ * profile picture.
  *
- * Adding is two steps on purpose. Choosing files only puts them in the tray;
- * the type, the stops (commodity only) and caption are set there, per picture, and Save sends them.
- * The type is what the SA review counts (`truck`) and what keeps a picture off
- * the client's documents (`truck`, `proof`) — too much rides on it to take
- * from a dropdown somebody set before choosing the files and forgot about.
- *
- * What the picture shows is not asked: the server files it under the load's
- * commodity, which is all the Documents screen groups by.
+ * Adding is no longer done here. The tray, the uploads and the list live in
+ * the page's picture store (LoadPhotosContext), shared with the header tile,
+ * the freight lines and the drop-anywhere frame, so a picture chosen here and
+ * not yet saved survives a switch to Details. This tab only draws.
  *
  * Anybody who can open the load can add pictures and choose its profile
  * picture, the same as editing any other part of it. Removing one is narrower
  * — see DELETE /api/orders/{id}/photos/{photoId}.
  */
-export default function OrderPhotos({ order, onCoverChange, onCountChange }: Props) {
+export default function OrderPhotos({ truckNeeded }: { truckNeeded: boolean }) {
   const { user, can } = useAuth();
-  const [photos, setPhotos]   = useState<LoadPhoto[]>([]);
-  const [coverId, setCoverId] = useState<string | null>(order.coverPhotoId ?? null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [open, setOpen]       = useState<number | null>(null);
+  const s = useLoadPhotos();
+  const { order, photos, loaded, loadError, coverId } = s;
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  const [drafts, setDrafts]     = useState<Draft[]>([]);
-  const [saving, setSaving]     = useState(false);
-  const [trayError, setTrayError] = useState('');
-  const [dragging, setDragging] = useState(false);
-  const pickRef   = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
-
-  // Files waiting to be shrunk, and whether the loop that shrinks them is
-  // running. One at a time: each picture is decoded to full size in memory
-  // before it is shrunk, and a phone handed twenty of those at once runs out.
-  const toPrepare = useRef<{ key: string; file: File }[]>([]);
-  const preparing = useRef(false);
-  const draftsRef = useRef<Draft[]>([]);
-  draftsRef.current = drafts;
-
-  // A commodity's two boxes, each listing only its own kind of stop.
-  // The freight lines a commodity picture can be linked to; empty on a load
-  // with one line, where there is nothing to choose.
-  const lines = useMemo(() => commodityLineChoices(order), [order]);
-  const pickupChoices   = useMemo(() => photoLocationChoices(order, ['pickup']),   [order]);
-  const deliveryChoices = useMemo(() => photoLocationChoices(order, ['delivery']), [order]);
-
-  useEffect(() => {
-    let live = true;
-    listOrderPhotos(order.id)
-      .then(({ photos: list, coverPhotoId }) => {
-        if (!live) return;
-        setPhotos(list);
-        setCoverId(coverPhotoId);
-      })
-      .catch((e) => { if (live) setLoadError(e instanceof Error ? e.message : 'Could not load pictures'); })
-      .finally(() => { if (live) setLoading(false); });
-    return () => { live = false; };
-  }, [order.id]);
-
-  // Not until the list has arrived, or the tab would read 0 for a moment on a
-  // load that has pictures.
-  useEffect(() => {
-    if (!loading && !loadError) onCountChange?.(photos.length);
-  }, [loading, loadError, photos.length, onCountChange]);
-
-  // Previews are object URLs, which hold the image in memory until revoked.
-  useEffect(() => () => {
-    for (const d of draftsRef.current) if (d.preview) URL.revokeObjectURL(d.preview);
-  }, []);
-
-  // Pictures in the tray are not on the load yet; leaving would lose them.
-  const unsaved = drafts.length > 0;
-  useEffect(() => {
-    if (!unsaved) return;
-    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [unsaved]);
-
-  function announceCover(id: string | null, list: LoadPhoto[]) {
-    setCoverId(id);
-    onCoverChange(id, list.find((p) => p.id === id)?.thumbUrl ?? null);
-  }
-
-  function patchDraft(key: string, patch: Partial<Draft>) {
-    setDrafts((list) => list.map((d) => (d.key === key ? { ...d, ...patch } : d)));
-  }
-
-  /**
-   * A new type, and the stops that go with it: each kept when it still fits
-   * the type, filled in when the load has only one stop it could mean, and
-   * otherwise left for the person to choose. Only a commodity has stops;
-   * every other type is asked for none.
-   */
-  function withStage(d: Draft, stage: PhotoStage | ''): Draft {
-    const pick = (current: string, choices: string[]) =>
-      choices.includes(current) ? current : choices.length === 1 ? choices[0] : '';
-    if (hasRoute(stage)) {
-      return {
-        ...d, stage,
-        pickupAt:  pick(d.pickupAt, pickupChoices),
-        deliverTo: pick(d.deliverTo, deliveryChoices),
-      };
-    }
-    return { ...d, stage, pickupAt: '', deliverTo: '', commodityItemId: '' };
-  }
-
-  async function runPrepare() {
-    if (preparing.current) return;
-    preparing.current = true;
-    try {
-      while (toPrepare.current.length > 0) {
-        const { key, file } = toPrepare.current.shift()!;
-        // Removed from the tray while it waited.
-        if (!draftsRef.current.some((d) => d.key === key)) continue;
-        try {
-          const prepared = await prepareLoadPhoto(file);
-          const preview  = URL.createObjectURL(prepared.thumb);
-          if (!draftsRef.current.some((d) => d.key === key)) { URL.revokeObjectURL(preview); continue; }
-          patchDraft(key, { state: 'ready', prepared, preview });
-        } catch (e) {
-          patchDraft(key, { state: 'failed', error: e instanceof Error ? e.message : 'Could not open that picture' });
-        }
-      }
-    } finally {
-      preparing.current = false;
-    }
-  }
-
-  function addFiles(files: File[]) {
-    const images = files.filter((f) => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
-    if (images.length === 0) return;
-    setTrayError('');
-    const stamp = Date.now();
-    const fresh: Draft[] = images.map((f, i) => ({
-      key: `${stamp}-${i}-${f.name}`, name: f.name, state: 'preparing', progress: 0,
-      stage: '', pickupAt: '', deliverTo: '', commodityItemId: '', caption: '',
-    }));
-    // Written to the ref as well as the state so the shrinking loop, which
-    // checks the ref, sees them before React has rendered.
-    draftsRef.current = [...draftsRef.current, ...fresh];
-    setDrafts((list) => [...list, ...fresh]);
-    toPrepare.current.push(...images.map((file, i) => ({ key: fresh[i].key, file })));
-    void runPrepare();
-  }
-
-  function removeDraft(key: string) {
-    const d = drafts.find((x) => x.key === key);
-    if (d?.preview) URL.revokeObjectURL(d.preview);
-    draftsRef.current = draftsRef.current.filter((x) => x.key !== key);
-    setDrafts((list) => list.filter((x) => x.key !== key));
-  }
-
-  function discardAll() {
-    if (drafts.length > 1 && !window.confirm(`Discard these ${drafts.length} pictures? They have not been saved.`)) return;
-    for (const d of drafts) if (d.preview) URL.revokeObjectURL(d.preview);
-    toPrepare.current = [];
-    draftsRef.current = [];
-    setDrafts([]);
-    setTrayError('');
-  }
-
-  async function saveAll() {
-    const ready = drafts.filter((d) => d.prepared && d.state !== 'uploading');
-    if (ready.some((d) => !d.stage)) {
-      setTrayError('Choose a type for every picture before saving.');
-      return;
-    }
-    setTrayError('');
-    setSaving(true);
-    let list  = photos;
-    let cover = coverId;
-    for (const d of ready) {
-      try {
-        patchDraft(d.key, { state: 'uploading', progress: 0, error: undefined });
-        const { photo, coverPhotoId } = await uploadLoadPhoto(
-          order.id, d.prepared!,
-          {
-            caption: d.caption, stage: d.stage as PhotoStage, commodity: '',
-            location: '', pickupAt: d.pickupAt, deliverTo: d.deliverTo, commodityItemId: d.commodityItemId,
-          },
-          (progress) => patchDraft(d.key, { progress }),
-        );
-        list = [...list, photo];
-        setPhotos(list);
-        if (coverPhotoId !== cover) { cover = coverPhotoId; announceCover(coverPhotoId, list); }
-        removeDraft(d.key);
-      } catch (e) {
-        // Left in the tray, tags and all, so Save tries it again.
-        patchDraft(d.key, { state: 'ready', progress: 0, error: e instanceof Error ? e.message : 'Upload failed' });
-      }
-    }
-    setSaving(false);
-  }
-
-  const stillShrinking = drafts.some((d) => d.state === 'preparing');
-  const saveable       = drafts.filter((d) => d.prepared).length;
-  const untyped        = drafts.filter((d) => d.prepared && !d.stage).length;
-
-  // "Set for all": a value shows only when every picture already agrees on it.
-  const same = <K extends 'stage' | 'pickupAt' | 'deliverTo' | 'commodityItemId'>(k: K): Draft[K] | '' =>
-    drafts.length > 0 && drafts.every((d) => d[k] === drafts[0][k]) ? drafts[0][k] : '';
-  const allStage     = same('stage');
-  const allRoute     = hasRoute(allStage);
-
-  const field = 'border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:opacity-60';
-  const label = 'block text-xs text-gray-500 mb-0.5';
-
-  /** One of a commodity's two stop dropdowns. */
-  const stopSelect = (
-    title: string, empty: string, value: string, choices: string[],
-    onChange: (v: string) => void, disabled: boolean, width: string,
-  ) => (
-    <label>
-      <span data-es className={label}>{title}</span>
-      <select value={value} disabled={disabled} className={`${field} ${width}`}
-        onChange={(e) => onChange(e.target.value)}>
-        <option data-es value="">{empty}</option>
-        {choices.map((l) => <option key={l} value={l}>{l}</option>)}
-      </select>
-    </label>
-  );
-  const setAll = (k: 'pickupAt' | 'deliverTo') => (v: string) =>
-    setDrafts((list) => list.map((d) => ({ ...d, [k]: v })));
-
-  /**
-   * Linking a picture to a freight line takes the line's own stops with it —
-   * what the line says is where that piece goes — and they are then shown,
-   * not chosen: the picture follows the line from then on (toLoadPhoto()).
-   * Unlinking leaves the stops as they are, to change by hand.
-   */
-  const withLine = (d: Draft, id: string): Draft => {
-    const line = lines.find((l) => l.id === id);
-    return line
-      ? { ...d, commodityItemId: id, pickupAt: line.pickupAt, deliverTo: line.deliverTo }
-      : { ...d, commodityItemId: '' };
-  };
-  const lineSelect = (value: string, onChange: (v: string) => void, disabled: boolean, cls: string) => (
-    <label className={cls}>
-      <span data-es className={label}>Which commodity?</span>
-      <select value={value} disabled={disabled} className={`${field} w-full`}
-        onChange={(e) => onChange(e.target.value)}>
-        <option data-es value="">The whole load</option>
-        {lines.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
-      </select>
-    </label>
-  );
+  if (!order) return null;
+  const open = openId ? photos.findIndex((p) => p.id === openId) : -1;
+  const openPhoto = (p: LoadPhoto) => setOpenId(p.id);
 
   return (
-    <div
-      className={`bg-white rounded-xl border p-5 transition ${dragging ? 'border-brand-400 ring-2 ring-brand-200' : 'border-gray-200'}`}
-      onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDragging(true); } }}
-      onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }}
-      onDrop={(e) => { e.preventDefault(); setDragging(false); addFiles([...e.dataTransfer.files]); }}
-    >
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-            <Images className="w-4 h-4 text-gray-400" /> Load Pictures
+            <Images className="w-4 h-4 text-gray-400" /> <span data-es>Load Pictures</span>
             {photos.length > 0 && <span className="text-xs font-normal text-gray-400">{photos.length}</span>}
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            <Bi>Choose pictures (or drop them here), tag each one, then save. The star marks the
-            load&apos;s profile picture — open a picture to change it or its tags.</Bi>
+            <Bi>1. Add pictures: drop, paste or choose them, anywhere on this load. 2. Tap a type. 3. Save. The star marks the load&apos;s profile picture.</Bi>
           </p>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => pickRef.current?.click()} disabled={saving}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
-            <ImageUp className="w-4 h-4" /> Add pictures
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => s.choose()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700">
+            <ImageUp className="w-4 h-4" /> <span data-es>Add pictures</span>
+          </button>
+          <button type="button" onClick={() => void s.pasteFromClipboard()}
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
+            <ClipboardPaste className="w-4 h-4" /> <span data-es>Paste picture</span>
           </button>
           {/* The camera opens straight away on a phone; on a PC `capture` is
               ignored and this would be a second file picker, so it is hidden. */}
-          <button type="button" onClick={() => cameraRef.current?.click()} disabled={saving}
-            className="sm:hidden inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-brand-200 bg-brand-50 text-brand-700 disabled:opacity-50">
-            <Camera className="w-4 h-4" /> Take photo
+          <button type="button" onClick={() => s.camera()}
+            className="sm:hidden inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-brand-200 bg-brand-50 text-brand-700">
+            <Camera className="w-4 h-4" /> <span data-es>Take a photo</span>
           </button>
         </div>
-        <input ref={pickRef} type="file" accept="image/*" multiple className="hidden"
-          onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ''; addFiles(f); }} />
-        <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
-          onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ''; addFiles(f); }} />
       </div>
 
-      {/* The tray: chosen, not yet saved */}
-      {drafts.length > 0 && (
-        <div className="mb-5 rounded-xl border border-brand-200 bg-brand-50/40 p-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
-            <p className="text-sm font-semibold text-gray-900">
-              {drafts.length} new picture{drafts.length === 1 ? '' : 's'} — not saved yet
-            </p>
-            <p className="text-xs text-gray-500"><Bi>Pick a type for each one. The rest is optional.</Bi></p>
-          </div>
-
-          {drafts.length > 1 && (
-            <div className="flex flex-wrap items-end gap-2 mb-3 pb-3 border-b border-brand-100">
-              <span data-es className="text-xs font-medium text-gray-600 w-full">Set for all</span>
-              <label>
-                <span data-es className={label}>Type</span>
-                <select value={allStage} disabled={saving} className={field}
-                  onChange={(e) => {
-                    const stage = e.target.value as PhotoStage | '';
-                    setDrafts((list) => list.map((d) => withStage(d, stage)));
-                  }}>
-                  <option value="">{allStage ? 'Choose…' : 'Mixed / choose…'}</option>
-                  {PHOTO_STAGES.map((s) => <option key={s} value={s}>{PHOTO_STAGE_LABEL[s]}</option>)}
-                </select>
-              </label>
-              {allRoute && lines.length > 0 && lineSelect(same('commodityItemId'),
-                (v) => setDrafts((list) => list.map((d) => withLine(d, v))), saving, 'max-w-[16rem]')}
-              {allRoute && !same('commodityItemId') && pickupChoices.length > 1 && stopSelect('Picked up at', 'Not set',
-                same('pickupAt'), pickupChoices, setAll('pickupAt'), saving, 'max-w-[16rem]')}
-              {allRoute && !same('commodityItemId') && deliveryChoices.length > 1 && stopSelect('Delivered to', 'Not set',
-                same('deliverTo'), deliveryChoices, setAll('deliverTo'), saving, 'max-w-[16rem]')}
-            </div>
-          )}
-
-          <ul className="space-y-3">
-            {drafts.map((d) => {
-              const route  = hasRoute(d.stage);
-              const locked = saving || d.state === 'uploading';
-              return (
-                <li key={d.key} className="flex flex-col sm:flex-row gap-3 rounded-lg bg-white border border-gray-200 p-3">
-                  <div className="relative w-full sm:w-36 h-40 sm:h-28 flex-shrink-0 rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
-                    {d.preview ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- a local object URL, never fetched
-                      <img src={d.preview} alt={d.name} className="w-full h-full object-cover" />
-                    ) : d.state === 'preparing' ? (
-                      <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-                    ) : (
-                      <Images className="w-6 h-6 text-gray-300" />
-                    )}
-                    {d.state === 'uploading' && (
-                      <span className="absolute inset-x-0 bottom-0 h-1.5 bg-black/20">
-                        <span className="block h-full bg-brand-500 transition-all" style={{ width: `${d.progress}%` }} />
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2 mb-2">
-                      <p className="text-xs text-gray-500 truncate flex-1">
-                        {d.name}
-                        {d.state === 'preparing' && ' · getting it ready…'}
-                        {d.state === 'uploading' && ` · saving ${d.progress}%`}
-                      </p>
-                      <button type="button" onClick={() => removeDraft(d.key)} disabled={locked}
-                        aria-label={`Remove ${d.name}`} title="Remove — it will not be saved"
-                        className="p-1 -m-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-40">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {d.state === 'failed' && !d.prepared ? (
-                      <p className="text-xs text-red-600">{d.error}</p>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-[12rem_1fr_1fr] gap-2">
-                        <label>
-                          <span className={label}>Type <span className="text-red-500">*</span></span>
-                          <select value={d.stage} disabled={locked}
-                            onChange={(e) => setDrafts((list) => list.map((x) => (x.key === d.key ? withStage(x, e.target.value as PhotoStage | '') : x)))}
-                            className={`${field} w-full ${!d.stage && trayError ? 'border-red-400 ring-1 ring-red-300' : ''}`}>
-                            <option data-es value="">Choose…</option>
-                            {PHOTO_STAGES.map((s) => <option key={s} value={s}>{PHOTO_STAGE_LABEL[s]}</option>)}
-                          </select>
-                        </label>
-                        {route ? (
-                          <>
-                            {lines.length > 0 && lineSelect(d.commodityItemId,
-                              (v) => setDrafts((list) => list.map((x) => (x.key === d.key ? withLine(x, v) : x))),
-                              locked, 'sm:col-span-2')}
-                            {stopSelect('Picked up at', 'Not set', d.pickupAt, pickupChoices,
-                              (v) => patchDraft(d.key, { pickupAt: v }), locked || d.commodityItemId !== '', 'w-full')}
-                            {stopSelect('Delivered to', 'Not set', d.deliverTo, deliveryChoices,
-                              (v) => patchDraft(d.key, { deliverTo: v }), locked || d.commodityItemId !== '', 'w-full')}
-                          </>
-                        ) : null}
-                        {/* A commodity's two stops fill the row, so its caption takes the next one. */}
-                        <label className={route ? (lines.length > 0 ? '' : 'sm:col-span-3') : 'sm:col-span-2'}>
-                          <span data-es className={label}>Caption</span>
-                          <input value={d.caption} maxLength={MAX_CAPTION} disabled={locked}
-                            onChange={(e) => patchDraft(d.key, { caption: e.target.value })}
-                            placeholder="e.g. Strapped and tarped at the dock" className={`${field} w-full`} />
-                        </label>
-                      </div>
-                    )}
-                    {d.error && d.prepared && <p className="text-xs text-red-600 mt-1.5">{d.error} — press Save to try again.</p>}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-
-          <div className="flex flex-wrap items-center justify-end gap-2 mt-4">
-            {trayError && <p className="text-xs text-red-600 mr-auto">{trayError}</p>}
-            {!trayError && untyped > 0 && !saving && (
-              <p className="text-xs text-gray-500 mr-auto">
-                {untyped} picture{untyped === 1 ? '' : 's'} still need{untyped === 1 ? 's' : ''} a type.
-              </p>
-            )}
-            <button data-es type="button" onClick={discardAll} disabled={saving}
-              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-              Discard
-            </button>
-            <button type="button" onClick={() => void saveAll()}
-              disabled={saving || stillShrinking || saveable === 0}
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
-              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-              {saving ? 'Saving…' : stillShrinking ? 'Getting pictures ready…'
-                : `Save ${saveable} picture${saveable === 1 ? '' : 's'}`}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {loading ? (
+      {loadError ? (
+        <p className="text-sm text-red-600">{loadError}</p>
+      ) : !loaded ? (
         <div className="flex justify-center py-10">
           <div className="w-6 h-6 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : loadError ? (
-        <p className="text-sm text-red-600">{loadError}</p>
-      ) : photos.length === 0 ? (
-        drafts.length === 0 && (
-          <button type="button" onClick={() => pickRef.current?.click()}
-            className="w-full border-2 border-dashed border-gray-200 rounded-xl py-10 text-center hover:border-brand-300 transition">
-            <Images className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p data-es className="text-sm text-gray-500">No pictures of this load yet.</p>
-            <p className="text-xs text-gray-400 mt-1">
-              <Bi>Drop them here or click to choose. You tag them before they are saved, and the
-              first one becomes the load&apos;s profile picture.</Bi>
-            </p>
-          </button>
-        )
       ) : (
-        <PhotoReel photos={photos} coverPhotoId={coverId} onOpen={setOpen} />
+        <>
+          <PictureNeeds truckNeeded={truckNeeded} onOpen={openPhoto} />
+          {photos.length > 0 && (
+            <PhotoReel photos={photos} coverPhotoId={coverId} onOpen={(i) => setOpenId(photos[i]?.id ?? null)} />
+          )}
+        </>
       )}
 
-      {open !== null && (
+      {open >= 0 && (
         <PhotoLightbox
           photos={photos}
-          index={Math.min(open, photos.length - 1)}
-          onIndex={setOpen}
-          onClose={() => setOpen(null)}
+          index={open}
+          onIndex={(i) => setOpenId(photos[i]?.id ?? null)}
+          onClose={() => setOpenId(null)}
           isCover={(p) => p.id === coverId}
-          onSetCover={async (p) => announceCover(await setOrderCover(order.id, p.id), photos)}
-          onSave={async (p, patch) => {
-            const saved = await updateLoadPhoto(order.id, p.id, patch);
-            setPhotos((list) => list.map((x) => (x.id === saved.id ? saved : x)));
-          }}
+          onSetCover={s.setCover}
+          onSave={async (p, patch) => s.replaced(await updateLoadPhoto(order.id, p.id, patch))}
           canDelete={(p) => p.uploadedByUid === user?.uid || can('orders.viewAll')}
           onDelete={async (p) => {
-            const nextCover = await deleteLoadPhoto(order.id, p.id);
+            const at = open;
+            await s.remove(p);
             const rest = photos.filter((x) => x.id !== p.id);
-            setPhotos(rest);
-            announceCover(nextCover, rest);
-            if (rest.length === 0) setOpen(null);
+            setOpenId(rest.length ? rest[Math.min(at, rest.length - 1)].id : null);
           }}
-          routeChoices={{ pickup: pickupChoices, delivery: deliveryChoices }}
-          lines={lines}
+          routeChoices={{ pickup: s.pickupChoices, delivery: s.deliveryChoices }}
+          lines={s.lines}
         />
       )}
     </div>

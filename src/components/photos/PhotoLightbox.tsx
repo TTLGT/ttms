@@ -8,6 +8,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   MAX_CAPTION,
   PHOTO_STAGES,
+  PHOTO_STAGE_HINT,
   PHOTO_STAGE_LABEL,
   hasRoute,
   type CommodityLineChoice,
@@ -45,15 +46,6 @@ interface Props<T extends LoadPhoto> {
   /** The load's freight lines, when it has more than one — see commodityLineChoices(). */
   lines?: CommodityLineChoice[];
 }
-
-/** One line under each type, so nobody has to guess what "Location" means. */
-const STAGE_HINT: Record<PhotoStage, string> = {
-  commodity: 'The freight itself',
-  truck:     "The driver's truck and trailer",
-  location:  'A place: a dock, a gate, a yard',
-  proof:     'Damage, a broken seal, a shortage',
-  other:     'Anything else',
-};
 
 type Draft = Required<PhotoPatch>;
 const draftOf = (p: LoadPhoto): Draft =>
@@ -326,7 +318,7 @@ export default function PhotoLightbox<T extends LoadPhoto>({
                         </span>
                         <span className="min-w-0">
                           <span className="block text-sm font-medium text-gray-900">{PHOTO_STAGE_LABEL[s]}</span>
-                          <span data-es className="block text-xs text-gray-500">{STAGE_HINT[s]}</span>
+                          <span data-es className="block text-xs text-gray-500">{PHOTO_STAGE_HINT[s]}</span>
                         </span>
                       </button>
                     );

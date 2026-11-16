@@ -102,12 +102,13 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { trackActivity } from '@/lib/attendance';
 import OrderPhotos from '@/components/photos/OrderPhotos';
 import PhotoLightbox from '@/components/photos/PhotoLightbox';
-import LinePhotoCell, { useLinePhotos } from '@/components/photos/LinePhotoCell';
+import LinePhotoCell from '@/components/photos/LinePhotoCell';
 import CommodityThumbs, { commodityFaces } from '@/components/photos/CommodityThumbs';
-import { deleteLoadPhoto, setOrderCover, updateLoadPhoto } from '@/lib/loadPhotos';
-import {
-  commodityLineChoices, itemPhotoRoute, photoLocationChoices, photosForItem, type LoadPhoto,
-} from '@/types/loadPhoto';
+import AddPictureTile from '@/components/photos/AddPictureTile';
+import PhotoAdderLayer from '@/components/photos/PhotoAdderLayer';
+import { LoadPhotosProvider, useLoadPhotoStore } from '@/components/photos/LoadPhotosContext';
+import { updateLoadPhoto } from '@/lib/loadPhotos';
+import { itemPhotoRoute, photosForItem } from '@/types/loadPhoto';
 import ChangeHistory from '@/components/history/ChangeHistory';
 import { OrderCoverThumb } from '@/components/photos/PhotoBits';
 import { Bi } from '@/components/spanish/Es';
@@ -311,26 +312,7 @@ export default function OrderDetailPage() {
     else url.searchParams.set('tab', tab);
     if (url.href !== window.location.href) window.history.replaceState(window.history.state, '', url);
   }, [tab]);
-  // Kept apart from `order` so the tab label can count pictures added or
-  // removed on this visit without refetching the load.
-  const [photoCount, setPhotoCount] = useState<number | null>(null);
-
-  // The pictures of each freight line — beside the line in Freight, and one
-  // per commodity in the header. Read only for a load with several lines (one
-  // line needs no telling apart) that has pictures, and again on every change
-  // of tab, so a picture changed on the Pictures tab shows in both.
-  const manyLines = !!order && orderCommodityItems(order).length > 1;
-  const [linePhotos, setLinePhotos] = useLinePhotos(
-    orderId, manyLines && ((photoCount ?? order?.photoCount ?? 0) > 0), tab,
-  );
   const [lineView, setLineView] = useState<{ itemId: string; photoId: string } | null>(null);
-  const lineAdded = (photo: LoadPhoto, coverPhotoId: string | null) => {
-    setLinePhotos((list) => [...list, photo]);
-    setPhotoCount((n) => (n ?? order?.photoCount ?? 0) + 1);
-    if (coverPhotoId === photo.id) {
-      setOrder((prev) => (prev ? { ...prev, coverPhotoId, coverThumbUrl: photo.thumbUrl } : prev));
-    }
-  };
 
   // The Carrier Agreement review: reloaded on demand, and its status known
   // here so "Request Carrier Agreement" is offered only when none is open.
@@ -347,6 +329,33 @@ export default function OrderDetailPage() {
   // drawn for the moment before an open review arrives to say it is not needed.
   const [saReqLoaded, setSaReqLoaded] = useState(false);
   const [caReq, setCaReq] = useState<SaRequest | null>(null);
+
+  /*
+   * The load's pictures, and every way of adding one — see
+   * LoadPhotosContext. One list for the whole page, read once when something
+   * on screen needs it: the Pictures tab, the freight lines' own pictures on
+   * a load with several lines, or the Truck reminder while the Dispatch Sheet
+   * review is open (CA_REVIEW_CHECKS asks for one).
+   */
+  const truckNeeded = !!caReq && (caReq.status === 'open' || caReq.status === 'returned');
+  const manyLines = !!order && orderCommodityItems(order).length > 1;
+  const onPhotoCover = useCallback((coverPhotoId: string | null, coverThumbUrl: string | null) => {
+    setOrder((prev) => (prev ? { ...prev, coverPhotoId, coverThumbUrl } : prev));
+    // A new profile picture whose thumbnail the page does not hold (the list
+    // was never read): the order has it.
+    if (coverPhotoId && !coverThumbUrl) {
+      getOrder(orderId)
+        .then((access) => { if (access.status === 'ok') setOrder(access.order); })
+        .catch(() => {});
+    }
+  }, [orderId]);
+  const photoStore = useLoadPhotoStore(order, {
+    wantList: tab === 'pictures' || truckNeeded || (manyLines && (Number(order?.photoCount) || 0) > 0),
+    onCoverChange: onPhotoCover,
+  });
+  const photoCount = photoStore.count;
+  const linePhotos = photoStore.photos;
+  const truckMissing = truckNeeded && photoStore.loaded && !photoStore.photos.some((p) => p.stage === 'truck');
   const [changeOrder, setChangeOrder] = useState<ChangeOrder | null>(null);
   const [readiness, setReadiness] = useState<ReadinessItem[] | null>(null);
   const [panel, setPanel] = useState<null | 'sa' | 'ca' | 'change' | 'readiness'>(null);
@@ -1550,29 +1559,36 @@ export default function OrderDetailPage() {
   ].filter(Boolean);
 
   return (
+    <LoadPhotosProvider value={photoStore}>
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px]">
+      {/* The tray, the drop-anywhere frame and the saved/Undo card. */}
+      <PhotoAdderLayer onOpenDocuments={() => setTab('documents')} />
       <Link href="/dashboard/orders" className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4">
         ← Orders
       </Link>
 
       <OrderLoadCard
         order={order}
-        thumb={commodityFaces(order, linePhotos).length > 0 ? (
-          /* Several commodities with pictures: one tile each, instead of the
-             one profile picture — see CommodityThumbs. */
-          <CommodityThumbs faces={commodityFaces(order, linePhotos)}
-            onOpen={(itemId, photoId) => setLineView({ itemId, photoId })}
-            onMore={() => setTab('pictures')} />
-        ) : (
-          /* The load's profile picture, so it can be recognised before its
-             number is read. Opens the pictures; with none yet, it is the
-             prompt to add one. */
-          <button type="button" onClick={() => setTab('pictures')}
-            title={order.coverThumbUrl ? 'Load pictures' : 'Add pictures of this load'}
-            className="rounded-xl hover:ring-2 hover:ring-brand-300 transition flex-shrink-0">
-            <OrderCoverThumb url={order.coverThumbUrl} size={64} className="rounded-xl" alt="Load profile picture" />
-          </button>
-        )}
+        thumb={
+          /* The load's picture(s), with a "+" to add more — or, with none
+             yet, an "Add picture" tile. See AddPictureTile. */
+          <AddPictureTile onOpenPictures={() => setTab('pictures')}>
+            {commodityFaces(order, linePhotos).length > 0 ? (
+              /* Several commodities with pictures: one tile each, instead of
+                 the one profile picture — see CommodityThumbs. */
+              <CommodityThumbs faces={commodityFaces(order, linePhotos)}
+                onOpen={(itemId, photoId) => setLineView({ itemId, photoId })}
+                onMore={() => setTab('pictures')} />
+            ) : order.coverThumbUrl ? (
+              /* The load's profile picture, so it can be recognised before
+                 its number is read. Opens the pictures. */
+              <button type="button" onClick={() => setTab('pictures')} title="Load pictures"
+                className="block rounded-xl hover:ring-2 hover:ring-brand-300 transition">
+                <OrderCoverThumb url={order.coverThumbUrl} size={64} className="rounded-xl" alt="Load profile picture" />
+              </button>
+            ) : null}
+          </AddPictureTile>
+        }
         title={
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
             <h1 className="text-[28px] leading-none font-bold text-gray-900 tracking-wide font-[family-name:var(--font-rajdhani)]">{orderDisplayNumber(order)}</h1>
@@ -1766,7 +1782,14 @@ export default function OrderDetailPage() {
             }`}>
             {t === 'suborders' ? `Suborders (${suborders.length})`
               : t === 'documents' ? 'Documents'
-              : t === 'pictures' ? `Pictures (${photoCount ?? order.photoCount ?? 0})`
+              : t === 'pictures' ? <>
+                  {`Pictures (${photoCount})`}
+                  {/* The Dispatch Sheet review is waiting on a truck picture. */}
+                  {truckMissing && (
+                    <span title="A truck picture is needed for the Dispatch Sheet review"
+                      className="ml-1.5 inline-block h-2 w-2 rounded-full bg-amber-500 align-middle" />
+                  )}
+                </>
               : t === 'history' ? 'History'
               : 'Details'}
           </button>
@@ -1851,11 +1874,9 @@ export default function OrderDetailPage() {
                   {orderCommodityItems(order).map((item) => (
                     <tr key={item.id} className="border-b border-gray-100 last:border-0">
                       <td className="py-2 pr-4 text-gray-900">
-                        <LinePhotoCell order={order} item={item} photos={linePhotos}
+                        <LinePhotoCell order={order} item={item}
                           showPicture={orderCommodityItems(order).length > 1}
-                          onOpen={(p) => setLineView({ itemId: item.id, photoId: p.id })}
-                          onAdded={lineAdded}
-                          onLinked={(saved) => setLinePhotos((all) => all.map((x) => (x.id === saved.id ? saved : x)))}>
+                          onOpen={(p) => setLineView({ itemId: item.id, photoId: p.id })}>
                         {item.description || '—'}
                         {/* The vehicle under its line rather than in columns of
                             its own: most loads have none, and five empty
@@ -3007,44 +3028,28 @@ export default function OrderDetailPage() {
             onIndex={(i) => setLineView({ itemId: lineView.itemId, photoId: list[i].id })}
             onClose={() => setLineView(null)}
             isCover={(p) => p.id === order.coverPhotoId}
-            onSetCover={async (p) => {
-              const cover = await setOrderCover(order.id, p.id);
-              setOrder((prev) => (prev
-                ? { ...prev, coverPhotoId: cover, coverThumbUrl: cover === p.id ? p.thumbUrl : prev.coverThumbUrl }
-                : prev));
-            }}
+            onSetCover={photoStore.setCover}
             onSave={async (p, patch) => {
               const saved = await updateLoadPhoto(order.id, p.id, patch);
-              setLinePhotos((all) => all.map((x) => (x.id === saved.id ? saved : x)));
+              photoStore.replaced(saved);
               // Moved to another line or retyped: it is no longer in this set.
               if (!item || !photosForItem([saved], item).length) setLineView(null);
             }}
             canDelete={(p) => p.uploadedByUid === user?.uid || can('orders.viewAll')}
             onDelete={async (p) => {
-              const cover = await deleteLoadPhoto(order.id, p.id);
-              const rest = linePhotos.filter((x) => x.id !== p.id);
-              setLinePhotos(rest);
-              setPhotoCount((n) => Math.max(0, (n ?? order.photoCount ?? 1) - 1));
-              setOrder((prev) => (prev
-                ? { ...prev, coverPhotoId: cover, coverThumbUrl: cover ? (rest.find((x) => x.id === cover)?.thumbUrl ?? prev.coverThumbUrl) : null }
-                : prev));
+              await photoStore.remove(p);
               const next = list.filter((x) => x.id !== p.id);
               setLineView(next.length ? { itemId: lineView.itemId, photoId: next[Math.min(at, next.length - 1)].id } : null);
             }}
-            routeChoices={{ pickup: photoLocationChoices(order, ['pickup']), delivery: photoLocationChoices(order, ['delivery']) }}
-            lines={commodityLineChoices(order)}
+            routeChoices={{ pickup: photoStore.pickupChoices, delivery: photoStore.deliveryChoices }}
+            lines={photoStore.lines}
           />
         );
       })()}
 
       {/* Pictures tab */}
       {tab === 'pictures' && (
-        <OrderPhotos
-          order={order}
-          onCountChange={setPhotoCount}
-          onCoverChange={(coverPhotoId, coverThumbUrl) =>
-            setOrder((prev) => (prev ? { ...prev, coverPhotoId, coverThumbUrl } : prev))}
-        />
+        <OrderPhotos truckNeeded={truckNeeded} />
       )}
 
       {/* History tab — read only when opened; see ChangeHistory. */}
@@ -3188,5 +3193,6 @@ export default function OrderDetailPage() {
         </OrderSidePanel>
       )}
     </div>
+    </LoadPhotosProvider>
   );
 }

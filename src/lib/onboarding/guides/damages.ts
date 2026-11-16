@@ -34,7 +34,7 @@ export const DAMAGES_GUIDE: Guide = {
       steps: [
         { text: b('Ask the consignee to inspect before they sign.', 'Pide al consignee que revise antes de firmar.') },
         { text: b('If anything is wrong, they write it on the BOL before signing: what, how many pieces, how bad. "2 of 10 pallets crushed."', 'Si algo está mal, lo escribe en el BOL antes de firmar: qué, cuántas piezas, qué tan grave. "2 de 10 tarimas aplastadas."') },
-        { text: b('Pictures: the damage up close, the whole load, the trailer, the BOL with the note. The driver can add them on their link; you can add them to the load in TTMS.', 'Fotos: el daño de cerca, toda la carga, el remolque, el BOL con la nota. El conductor puede subirlas en su enlace; tú puedes agregarlas a la carga en TTMS.') },
+        { text: b('Pictures: the damage up close, the whole load, the trailer, the BOL with the note. The driver can add them on their link. You can drop or paste them anywhere on the load in TTMS, or drop them into the Proof at pickup or Proof at delivery box on its Pictures tab.', 'Fotos: el daño de cerca, toda la carga, el remolque, el BOL con la nota. El conductor puede subirlas en su enlace. Tú puedes soltarlas o pegarlas en cualquier parte de la carga en TTMS, o soltarlas en la casilla Prueba en la recogida o Prueba en la entrega de su pestaña Fotos.') },
         { text: b('Do not refuse freight unless dispatch says so. Refused freight becomes a much bigger problem.', 'No rechaces la carga a menos que despacho lo diga. Una carga rechazada se vuelve un problema mucho mayor.') },
       ],
       callouts: [

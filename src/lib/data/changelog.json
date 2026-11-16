@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "9a39d18e16f81f451e2053e5edb691a9675b0763",
+      "date": "2026-11-16T12:20:36-06:00",
+      "author": "erwindank",
+      "subject": "Send the Dispatch Sheet only from a review: the Rate Con box no longer emails the carrier directly. Admin and dispatch get \"Send for Carrier Signature\", which opens the carrier review, a broker gets Request Rate Con, and the send route refuses a first link to the current carrier without an open or sent review",
+      "body": ""
+    },
+    {
       "hash": "2de86aff8136dbdf2b248ee5abc96f07fbd56c08",
       "date": "2026-11-16T10:36:03-06:00",
       "author": "erwindank",

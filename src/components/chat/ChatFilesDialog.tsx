@@ -11,7 +11,7 @@ import { listSharedItems } from '@/lib/chat';
 import { readableSize } from '@/lib/chatUploads';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { useStorageUrl } from '@/lib/useStorageUrl';
-import { Lightbox } from './MessageAttachments';
+import { Lightbox, roomOrderId } from './MessageAttachments';
 import { Bi } from '@/components/spanish/Es';
 import {
   conversationTitle,
@@ -209,7 +209,7 @@ export default function ChatFilesDialog({
         </div>
       </div>
 
-      {lightbox && <Lightbox attachment={lightbox} onClose={() => setLightbox(null)} />}
+      {lightbox && <Lightbox attachment={lightbox} onClose={() => setLightbox(null)} orderId={roomOrderId(conversation)} />}
     </div>
   );
 }

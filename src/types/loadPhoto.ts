@@ -53,6 +53,15 @@ export const PHOTO_STAGE_LABEL: Record<PhotoStage, string> = {
   other:     'Other',
 };
 
+/** One line under each type, so nobody has to guess what "Location" means. */
+export const PHOTO_STAGE_HINT: Record<PhotoStage, string> = {
+  commodity: 'The freight itself',
+  truck:     "The driver's truck and trailer",
+  location:  'A place: a dock, a gate, a yard',
+  proof:     'Damage, a broken seal, a shortage',
+  other:     'Anything else',
+};
+
 export function isPhotoStage(value: unknown): value is PhotoStage {
   return typeof value === 'string' && (PHOTO_STAGES as readonly string[]).includes(value);
 }
@@ -110,6 +119,60 @@ export const MAX_PHOTO_LOCATION   = 160;
  */
 export function hasRoute(stage: PhotoStage | ''): boolean {
   return stage === 'commodity';
+}
+
+/**
+ * Which end of the trip a Proof picture was taken at, read off its stop label
+ * — every label photoLocationChoices() makes starts "Pickup" or "Delivery",
+ * and that is the label the driver's link files its proof under. Null for any
+ * other type, and for proof that names no stop (damage found in transit).
+ */
+export function proofStopOf(p: { stage: PhotoStage; location: string }): 'pickup' | 'delivery' | null {
+  if (p.stage !== 'proof') return null;
+  if (/^pickup\b/i.test(p.location)) return 'pickup';
+  if (/^delivery\b/i.test(p.location)) return 'delivery';
+  return null;
+}
+
+/**
+ * The boxes at the top of the Pictures tab (2026-11-16): one per kind of
+ * picture a load is expected to have. Dropping into a box *is* choosing the
+ * type, which is why a box can save without the tray asking anything.
+ *
+ * Proof is split by stop on purpose. The office stopped asking anybody for a
+ * stop on 2026-11-10 (see hasRoute()), and that still holds: nobody is asked.
+ * The box knows which end it is, and fills the stop in the way the driver's
+ * link already does — so a broker's proof and a driver's land side by side.
+ *
+ * Every other picture still goes in by dropping anywhere and choosing a type.
+ */
+export type PictureBoxKey = 'truck' | 'commodity' | 'location' | 'proof_pickup' | 'proof_delivery';
+
+export interface PictureBox {
+  key: PictureBoxKey;
+  stage: PhotoStage;
+  /** Proof boxes only: the stop the picture is filed at. */
+  stop?: 'pickup' | 'delivery';
+  label: string;
+  hint: string;
+}
+
+export const PICTURE_BOXES: PictureBox[] = [
+  { key: 'truck', stage: 'truck', label: 'Truck',
+    hint: 'Truck and trailer, with the plate and the DOT number on the door readable.' },
+  { key: 'commodity', stage: 'commodity', label: 'Commodity',
+    hint: 'The freight itself, on the dock or on the deck.' },
+  { key: 'location', stage: 'location', label: 'Location',
+    hint: 'The facility, a dock door, a gate or a yard.' },
+  { key: 'proof_pickup', stage: 'proof', stop: 'pickup', label: 'Proof at pickup',
+    hint: 'The signed BOL, the seal, anything wrong when it was loaded.' },
+  { key: 'proof_delivery', stage: 'proof', stop: 'delivery', label: 'Proof at delivery',
+    hint: 'The signed BOL or POD, damage or a shortage at the door.' },
+];
+
+/** The pictures that belong in one box. */
+export function photosInBox<T extends LoadPhoto>(photos: T[], box: PictureBox): T[] {
+  return photos.filter((p) => (box.stop ? proofStopOf(p) === box.stop : p.stage === box.stage));
 }
 
 /**
