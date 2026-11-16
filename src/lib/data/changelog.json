@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "2de86aff8136dbdf2b248ee5abc96f07fbd56c08",
+      "date": "2026-11-16T10:36:03-06:00",
+      "author": "erwindank",
+      "subject": "Show how many BOL fields are missing on the folded Bill of Lading card, in red, so a load whose SA went out with BOL fields blank still says so when the card is folded",
+      "body": ""
+    },
+    {
       "hash": "8706d352bbbb186734222cb525ebfbac7279140c",
       "date": "2026-11-13T13:45:22-06:00",
       "author": "erwindank",

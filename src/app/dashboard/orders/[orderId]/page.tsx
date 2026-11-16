@@ -474,6 +474,7 @@ export default function OrderDetailPage() {
   // shipper e-sign state
   const [sendingShipperAgreement, setSendingShipperAgreement] = useState(false);
   const [startingSaReview, setStartingSaReview] = useState(false);
+  const [startingCaReview, setStartingCaReview] = useState(false);
   const [shipperAgreementSentTo, setShipperAgreementSentTo]   = useState('');
 
   /*
@@ -1124,6 +1125,25 @@ export default function OrderDetailPage() {
       setError(e instanceof Error ? e.message : 'Could not start the review');
     } finally {
       setStartingSaReview(false);
+    }
+  }
+
+  /*
+   * The carrier's version (2026-11-16): the Dispatch Sheet box's "Send for
+   * Signature" used to email the carrier with no review. Admin and dispatch
+   * now open the Rate Con review from it; the sheet goes out from there.
+   */
+  async function handleStartCaReview() {
+    setStartingCaReview(true);
+    setError('');
+    try {
+      await startSaReview(orderId, 'carrier');
+      setCaRefresh((n) => n + 1);
+      setPanel('ca');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not start the review');
+    } finally {
+      setStartingCaReview(false);
     }
   }
 
@@ -2347,14 +2367,51 @@ export default function OrderDetailPage() {
                   </div>
                 ) : !awaitingCarrierSignature ? null : clientSignatureSatisfied(order) ? (
                   <div>
-                    <button
-                      onClick={handleSendAgreement}
-                      disabled={sendingAgreement}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition"
-                    >
-                      <Mail className="h-3.5 w-3.5" />
-                      {sendingAgreement ? 'Sending…' : 'Send for Signature'}
-                    </button>
+                    {/* No direct send (2026-11-16): every first Rate Con goes
+                        through the review, and the send route refuses one
+                        without it. Dispatch opens the review; a broker asks
+                        for it. */}
+                    {caStatus === 'open' || caStatus === 'sent' ? (
+                      can('orders.sendAgreement') ? (
+                        <button
+                          onClick={() => setPanel('ca')}
+                          data-es="Open the Rate Con review"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 transition"
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" /> Open the Rate Con review
+                        </button>
+                      ) : (
+                        <p className="text-sm text-gray-600">
+                          <Bi>Dispatch is reviewing the carrier and will send the Rate Con from the review.</Bi>
+                        </p>
+                      )
+                    ) : can('orders.sendAgreement') ? (
+                      <>
+                        <button
+                          onClick={() => void handleStartCaReview()}
+                          disabled={startingCaReview}
+                          data-es="Send for Carrier Signature"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 text-white text-xs font-semibold rounded-lg hover:bg-brand-700 disabled:opacity-50 transition"
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                          {startingCaReview ? 'Opening…' : 'Send for Carrier Signature'}
+                        </button>
+                        <p className="mt-1 text-xs text-gray-500">
+                          <Bi>Opens the Rate Con review first. The Rate Con is emailed from there once the carrier is checked.</Bi>
+                        </p>
+                      </>
+                    ) : can('orders.create') && order.status !== 'completed' ? (
+                      <RequestSaButton
+                        party="carrier"
+                        orderId={orderId}
+                        carrierName={order.carrierName}
+                        clientSigned
+                        owners={order.owners}
+                        createdBy={order.createdBy}
+                        onBrokerChanged={() => void refreshOwners()}
+                        onRequested={() => setCaRefresh((n) => n + 1)}
+                      />
+                    ) : null}
                     {order.signatureWaivedAt && !order.shipperSignedAt && (
                       <p className="text-xs text-amber-700 mt-2">
                         Going out without the client&rsquo;s signature
@@ -2436,7 +2493,11 @@ export default function OrderDetailPage() {
                 {/* The carrier's review: asking for it, and its record. */}
                 {order.carrierId && (
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* Not when the box above is already offering the
+                        request (or dispatch's review button) — one button,
+                        not two. */}
                     {!order.carrierSignedAt && can('orders.create') && caStatus !== 'open' && caStatus !== 'sent'
+                      && !(awaitingCarrierSignature && clientSignatureSatisfied(order) && !agreementSentTo)
                       && order.status !== 'quote' && order.status !== 'cancelled' && order.status !== 'completed' && (
                       <RequestSaButton
                         party="carrier"

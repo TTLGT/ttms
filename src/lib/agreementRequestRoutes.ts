@@ -141,8 +141,12 @@ export function requestPOST(party: AgreementParty) {
        * from there. Nothing has to be filled in first: the review is where
        * the reviewer sees what is missing, and the send route refuses while
        * anything is.
+       *
+       * The carrier's got the same on 2026-11-16: the Dispatch Sheet (Rate
+       * Con) box had a "Send for Signature" button that emailed the carrier
+       * with no review at all. It now opens the carrier review instead.
        */
-      const start = body.start === true && party === 'client';
+      const start = body.start === true;
       if (start ? !isReviewer(caller) : !can(caller.profile, 'orders.create')) {
         return NextResponse.json({ error: `You cannot ${start ? 'start' : 'request'} the ${name}.` }, { status: 403 });
       }
@@ -151,7 +155,15 @@ export function requestPOST(party: AgreementParty) {
 
       if (start) {
         if (order.status === 'cancelled' || order.status === 'completed') {
-          return NextResponse.json({ error: `A Shipper Agreement (SA) cannot be sent for a ${order.status} load.` }, { status: 409 });
+          return NextResponse.json({ error: `A ${name} cannot be sent for a ${order.status} load.` }, { status: 409 });
+        }
+        if (party === 'carrier') {
+          if (!order.carrierId) {
+            return NextResponse.json({ error: 'Assign a carrier to the load first.' }, { status: 400 });
+          }
+          if (order.carrierSignedAt) {
+            return NextResponse.json({ error: 'The carrier has already signed the agreement.' }, { status: 409 });
+          }
         }
         // Already being worked: open that one rather than refusing.
         const current = await requestRef(party, orderId).get();
@@ -243,7 +255,7 @@ export function requestPOST(party: AgreementParty) {
         writeChange(tx, orderRef, {
           action: 'event',
           summary: start
-            ? `Started the ${name} review before sending it to the client`
+            ? `Started the ${name} review before sending it to the ${party === 'carrier' ? 'carrier' : 'client'}`
             : note ? `Asked dispatch to send the ${name}: ${note}` : `Asked dispatch to send the ${name}`,
           fields: diffFields(orderSnap.data() ?? {}, patch),
         }, actorOf(caller), now);
@@ -256,7 +268,7 @@ export function requestPOST(party: AgreementParty) {
         // reads back into a headline and a sentence. Reword it there too.
         await tellOwners(orderId, order, null, caller.uid, (names) =>
           `${caller.displayName} started the ${name} review for ${names}.\n`
-          + 'Admin or dispatch will email it to the client once the load is checked. '
+          + `Admin or dispatch will email it to the ${party === 'carrier' ? 'carrier' : 'client'} once the load is checked. `
           + `If anything needs fixing, it comes back to you with a list: ${reviewLink(orderId, party)}`,
         );
         return NextResponse.json({ request: toSaRequest((await reqRef.get()).data()!, party) });

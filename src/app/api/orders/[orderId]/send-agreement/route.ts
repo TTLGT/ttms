@@ -110,7 +110,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
    * The carrier review comes before the send when a broker asked for it —
    * the same rule as the SA's (see src/lib/agreementRequestRoutes.ts). An
    * open Carrier Agreement request with unticked items is refused here, not
-   * only greyed out. A load with no request sends as it always did.
+   * only greyed out.
    */
   const caSnap = await requestRef('carrier', orderId).get();
   const ca = caSnap.exists ? caSnap.data()! : null;
@@ -149,6 +149,22 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     return !x.usedAt && !x.revokedAt && !x.replacedAt;
   });
   const kind: 'new' | 'resend' = earlier.length > 0 ? 'resend' : 'new';
+
+  /*
+   * A first link to this carrier goes out only from a review (2026-11-16),
+   * the SA's rule since 2026-11-12. The Dispatch Sheet box used to email the
+   * carrier from here with nothing checked; it now opens the review (or, for
+   * a broker, Request Rate Con), and the send comes from that. A resend to
+   * the same carrier is the link already reviewed. Counted per carrier, not
+   * per load: links to a carrier who was swapped out do not make a first
+   * send to the new one a "resend".
+   */
+  const sentToThisCarrier = earlier.some((d) => d.data().carrierId === order.carrierId);
+  if (!sentToThisCarrier && ca?.status !== 'open' && ca?.status !== 'sent') {
+    return NextResponse.json({
+      error: 'Open the Rate Con review first (Request Rate Con), and send it from there once the carrier is checked.',
+    }, { status: 409 });
+  }
   const actor   = await actorForUid(caller.uid, caller.email).catch(() => null);
   // The broker on the load, named on the Dispatch Sheet and the email beside
   // the dispatcher who sent it — see paperworkBroker().

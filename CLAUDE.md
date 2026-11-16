@@ -1419,7 +1419,12 @@ asks from the Carrier section, admin and dispatch work a carrier checklist
 mark it done, and every round is kept in its own verification record.
 `caRequests/{orderId}` beside `saRequests/{orderId}`; every helper takes the
 `party` (`client` | `carrier`) it is for, and both request routes are one
-module, `src/lib/agreementRequestRoutes.ts`. **The carrier checks live only on
+module, `src/lib/agreementRequestRoutes.ts`. **No Rate Con goes out without a
+review either** (2026-11-16): the Dispatch Sheet box has no direct send — admin
+and dispatch get "Send for Carrier Signature", which opens the review (`start`,
+now accepted for either party), and a broker gets Request Rate Con in the same
+spot. `send-agreement` refuses a first link to the current carrier with no
+open or sent review; a resend to the same carrier is unchanged. **The carrier checks live only on
 the carrier's review now** — the SA review is about the client. Asking for the
 carrier's moves no status, and its send still waits on
 `clientSignatureSatisfied()`.

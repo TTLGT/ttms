@@ -71,8 +71,8 @@ export async function returnSaRequest(
  * Signature" does now, instead of emailing the client unchecked. Answers the
  * open review when there already is one.
  */
-export async function startSaReview(orderId: string): Promise<SaRequest> {
-  const res = await fetch(route(orderId, 'client'), {
+export async function startSaReview(orderId: string, party: AgreementParty = 'client'): Promise<SaRequest> {
+  const res = await fetch(route(orderId, party), {
     method: 'POST', headers: await authHeaders(), body: JSON.stringify({ start: true }),
   });
   return (await unwrap<{ request: SaRequest }>(res)).request;
