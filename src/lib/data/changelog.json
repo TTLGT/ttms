@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "17ff27bcd95dcd7769083dadb42d7984697c0cc5",
+      "date": "2026-11-18T08:16:27-06:00",
+      "author": "erwindank",
+      "subject": "Add a \"Send a test notification\" button to the chat alerts menu, with a note on where to switch Chrome's notifications back on in Windows or macOS. The computer can hide Chrome's notifications while the browser still reports them allowed, and a web page has no way to detect that, so a test is the only check",
+      "body": ""
+    },
+    {
       "hash": "f7e182fd6c8a5809c48d9d76c055fbdc0f946dd4",
       "date": "2026-11-17T20:42:56-06:00",
       "author": "erwindank",
