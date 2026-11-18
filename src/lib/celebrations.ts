@@ -9,6 +9,7 @@ import {
 import {
   COMPANY_NAME,
   DEFAULT_CELEBRATION_TEMPLATES,
+  celebrationCards,
   celebrationMessage,
   celebrationsToday,
   officeToday,
@@ -117,6 +118,9 @@ export async function runCelebrations(
       // Drawn as a card somebody is meant to read rather than as the thin
       // grey line a load alert gets — see SystemMessage.
       systemKind: 'announcement',
+      // Who is named, as cards — the room draws a cake for birthdays and a
+      // truck on the road for each anniversary. Same facts as the text.
+      celebrationCards: celebrationCards(celebrations, settings.templates),
     }));
     await batch.commit();
   } catch (e) {

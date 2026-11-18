@@ -235,10 +235,16 @@ export function celebrationsToday(
 
 /* ------------------------------------------------------------- the wording */
 
-/** "A", "A and B", "A, B and C". For names, which carry no punctuation. */
+/**
+ * "A", "A y B", "A, B y C". For names, which carry no punctuation.
+ *
+ * Joined with the Spanish "y" (2026-11-17) because HR writes the templates in
+ * Spanish — "el cumpleaños de Ana Cruz y Tom Reed". With "and" a two-birthday
+ * morning read half in English.
+ */
 function listOf(items: string[]): string {
   if (items.length <= 1) return items[0] ?? '';
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+  return `${items.slice(0, -1).join(', ')} y ${items[items.length - 1]}`;
 }
 
 /* ------------------------------------------------------- what it says */
@@ -298,8 +304,8 @@ export const MAX_TEMPLATE_LENGTH = 300;
  */
 export const TEMPLATE_PLACEHOLDERS: Record<CelebrationKind, { token: string; detail: string }[]> = {
   birthday: [
-    { token: '{names}',      detail: 'Everyone with a birthday today — “Tom Reed”, or “Tom Reed and Ana Cruz”. Two or more names are joined with “and”.' },
-    { token: '{firstNames}', detail: 'The same, first names only — “Tom”, or “Tom and Ana”.' },
+    { token: '{names}',      detail: 'Everyone with a birthday today — “Tom Reed”, or “Tom Reed y Ana Cruz”. Two or more names are joined with “y”.' },
+    { token: '{firstNames}', detail: 'The same, first names only — “Tom”, or “Tom y Ana”.' },
     { token: '{company}',    detail: `“${COMPANY_NAME}”.` },
   ],
   anniversary: [
@@ -362,17 +368,39 @@ function firstNameOf(name: string): string {
 }
 
 /**
- * The message, or '' when there is nothing to say today.
+ * One card of the post, as the Everyone room draws it (2026-11-17 redesign:
+ * a cake with candles for birthdays, a truck on the road for anniversaries —
+ * see src/components/chat/CelebrationPost.tsx).
+ *
+ * Stored on the message beside its `text` so the room can draw the names and
+ * the year count large without trying to read them back out of HR's wording,
+ * which can say anything. **It carries nothing the text does not already
+ * say**: names, the count of years for an anniversary, and the rendered line.
+ * No date, no age — the same privacy line as the text itself.
+ */
+export interface CelebrationCard {
+  kind: CelebrationKind;
+  /** A birthday card holds everybody with one today; an anniversary card holds one person. */
+  names: string[];
+  /** Completed years of service for an anniversary; 0 for a birthday. */
+  years: number;
+  /** HR's wording for this card, exactly as it reads in the message text. */
+  line: string;
+}
+
+/**
+ * The post as cards: one birthday card for everybody (one line for everybody,
+ * as the template says), then one anniversary card per person (one line each).
  *
  * A template that fails validation is not rendered — the stored one is trusted
  * because the route that stored it checked, but a document edited by hand in
  * the Firebase Console has been through nothing at all, and the default
  * wording going out is a far better failure than `{Name}` going out.
  */
-export function celebrationMessage(
+export function celebrationCards(
   list: Celebration[],
   templates: CelebrationTemplates = DEFAULT_CELEBRATION_TEMPLATES,
-): string {
+): CelebrationCard[] {
   const usable = (kind: CelebrationKind): string =>
     validateTemplate(kind, templates[kind] ?? '') === ''
       ? templates[kind].trim()
@@ -381,31 +409,63 @@ export function celebrationMessage(
   const birthdays     = list.filter((c) => c.kind === 'birthday');
   const anniversaries = list.filter((c) => c.kind === 'anniversary');
 
-  const blocks: string[] = [];
+  const cards: CelebrationCard[] = [];
 
   if (birthdays.length > 0) {
-    blocks.push(render(usable('birthday'), {
-      '{names}':      listOf(birthdays.map((c) => c.name)),
-      '{firstNames}': listOf(birthdays.map((c) => firstNameOf(c.name))),
-      '{company}':    COMPANY_NAME,
-    }));
+    cards.push({
+      kind: 'birthday',
+      names: birthdays.map((c) => c.name),
+      years: 0,
+      line: render(usable('birthday'), {
+        '{names}':      listOf(birthdays.map((c) => c.name)),
+        '{firstNames}': listOf(birthdays.map((c) => firstNameOf(c.name))),
+        '{company}':    COMPANY_NAME,
+      }),
+    });
   }
 
-  if (anniversaries.length > 0) {
-    // One line each, on consecutive lines — the two kinds are separated by a
-    // blank line below, but a run of anniversaries is one list and reads as
-    // one.
-    blocks.push(anniversaries.map((c) => render(usable('anniversary'), {
-      '{name}':    c.name,
-      '{first}':   firstNameOf(c.name),
-      '{years}':   yearsPhrase(c.years),
-      // The bare number, for a message written in a language where the unit
-      // does not go where an English one does. `{years}` carries the word and
-      // its plural; this carries neither, so whoever uses it writes both.
-      '{count}':   String(c.years),
-      '{company}': COMPANY_NAME,
-    })).join('\n'));
+  for (const c of anniversaries) {
+    cards.push({
+      kind: 'anniversary',
+      names: [c.name],
+      years: c.years,
+      line: render(usable('anniversary'), {
+        '{name}':    c.name,
+        '{first}':   firstNameOf(c.name),
+        '{years}':   yearsPhrase(c.years),
+        // The bare number, for a message written in a language where the unit
+        // does not go where an English one does. `{years}` carries the word and
+        // its plural; this carries neither, so whoever uses it writes both.
+        '{count}':   String(c.years),
+        '{company}': COMPANY_NAME,
+      }),
+    });
   }
+
+  return cards;
+}
+
+/**
+ * The message, or '' when there is nothing to say today.
+ *
+ * Built from celebrationCards() so the text and the cards can never disagree.
+ * The text is still what the room list, notifications, search and any older
+ * client show.
+ */
+export function celebrationMessage(
+  list: Celebration[],
+  templates: CelebrationTemplates = DEFAULT_CELEBRATION_TEMPLATES,
+): string {
+  const cards = celebrationCards(list, templates);
+  const blocks: string[] = [];
+
+  const birthday = cards.find((c) => c.kind === 'birthday');
+  if (birthday) blocks.push(birthday.line);
+
+  // One line each, on consecutive lines — the two kinds are separated by a
+  // blank line, but a run of anniversaries is one list and reads as one.
+  const anniversaries = cards.filter((c) => c.kind === 'anniversary');
+  if (anniversaries.length > 0) blocks.push(anniversaries.map((c) => c.line).join('\n'));
 
   return blocks.join('\n\n');
 }

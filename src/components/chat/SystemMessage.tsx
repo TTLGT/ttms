@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { clock } from '@/lib/chatFormat';
+import CelebrationPost from './CelebrationPost';
 import { useChatAlertStyle, type ChatAlertStyle } from '@/lib/chatAlertStyle';
 import {
   alertCardFor, type AlertCardModel, type AlertIcon, type AlertLink, type AlertTone,
@@ -50,12 +51,17 @@ import type { ChatMessage } from '@/types/conversation';
  * sender's name written out. Not affected by the style choice.
  */
 export default function SystemMessage({
-  message, joinAbove = false, joinBelow = false,
+  message, joinAbove = false, joinBelow = false, onCongratulate,
 }: {
   message: ChatMessage;
   /** The message above is also a load update, same day: draw as one run. */
   joinAbove?: boolean;
   joinBelow?: boolean;
+  /**
+   * The celebrations post's "Congratulate" button: puts a greeting in the
+   * reader's box. Unset where the reader cannot write, and the button hides.
+   */
+  onCongratulate?: (text: string) => void;
 }) {
   const { style } = useChatAlertStyle();
   const text = message.text ?? '';
@@ -64,7 +70,15 @@ export default function SystemMessage({
     [message.systemKind, text],
   );
 
-  if (message.systemKind === 'announcement') return <Announcement message={message} />;
+  if (message.systemKind === 'announcement') {
+    // The daily birthday / anniversary post, since 2026-11-17: a cake card and
+    // a truck-on-the-road card per anniversary. Older posts, and every other
+    // announcement (attendance, IT, reminders), keep the plain card.
+    if (message.celebrationCards?.length) {
+      return <CelebrationPost message={message} cards={message.celebrationCards} onCongratulate={onCongratulate} />;
+    }
+    return <Announcement message={message} />;
+  }
   if (!card) return <Pill message={message} />;
   return <AlertCard card={card} time={clock(message)} style={style} joinAbove={joinAbove} joinBelow={joinBelow} />;
 }

@@ -812,6 +812,17 @@ since 2026-10-19, but still reads as a notice, not a greeting). **Add a new kind
 either**, and keep both inert: no reactions, no thread. "Happy birthday" belongs
 to colleagues, and the post exists to prompt it, not to stand in for it.
 
+**Since 2026-11-17 the celebrations post draws as picture cards**
+(`src/components/chat/CelebrationPost.tsx`): birthdays as "cake and candles",
+each work anniversary as "on the road" (the full logo on a white header band,
+then a dusk highway where a truck drives past pennants and stops under a
+red-and-navy route shield carrying the year count). It reads `celebrationCards` on the message, built by
+`celebrationCards()` in `src/types/celebration.ts` from the same templates as
+the text, so the two cannot disagree; without that field (older posts, every
+other announcement) the plain card is drawn. The card's button only puts a
+greeting in the reader's own box (`seed` on `MessageComposer`) and hides where
+they cannot write — the post itself stays inert.
+
 **The wording is HR's, not the code's.** Two templates in
 `appSettings/general.celebrationTemplates`, edited in the same panel, gated on
 `celebrations.manage` — a permission held by admin and HR. Their shapes differ

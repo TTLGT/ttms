@@ -413,6 +413,46 @@ html.dark.dim .chat-ground[data-wallpaper='dots'] {
 }
 
 /*
+ * The daily celebrations post in the Everyone room
+ * (src/components/chat/CelebrationPost.tsx), redesigned 2026-11-17:
+ *   - anniversary "on the road": a dusk highway with the year count on a
+ *     route shield. The truck drives past the pennants and stops under the
+ *     shield, which glows as it arrives; the lane line runs, the pennants
+ *     wave, the sun breathes and a few stars twinkle. Lengths are SVG user
+ *     units (one scaled <svg>), so the stop lands right at any width;
+ *   - birthday "cake and candles": the candle flames flicker and the
+ *     sprinkles twinkle.
+ * All of it stops for anybody who has asked for less motion.
+ */
+@keyframes tt-anniv-rise  { from { transform: translateY(18px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes tt-anniv-sun   { 0%, 100% { opacity: 0.85; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
+@keyframes tt-anniv-star  { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+@keyframes tt-anniv-drive { 0% { transform: translateX(-330px); } 55%, 100% { transform: translateX(150px); } }
+@keyframes tt-anniv-lane  { from { stroke-dashoffset: 0; } to { stroke-dashoffset: 48; } }
+@keyframes tt-anniv-arrive { 0%, 48% { opacity: 0; transform: scale(0.6); } 60% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.25); } }
+@keyframes tt-anniv-wave  { 0%, 100% { transform: skewY(0deg); } 50% { transform: skewY(-8deg); } }
+@keyframes tt-cake-flame { 0%, 100% { transform: scale(1, 1) rotate(-2deg); } 25% { transform: scale(0.92, 1.08) rotate(2deg); } 50% { transform: scale(1.05, 0.95) rotate(-1deg); } 75% { transform: scale(0.96, 1.06) rotate(3deg); } }
+@keyframes tt-cake-sprinkle { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+.tt-anniv-sun  { transform-box: fill-box; transform-origin: 50% 50%; }
+.tt-anniv-truck { transform: translateX(150px); }
+.tt-anniv-arrive { transform-box: fill-box; transform-origin: 50% 50%; opacity: 0; }
+.tt-anniv-pennant { transform-box: fill-box; transform-origin: 0 50%; }
+.tt-cake-flame { transform-box: fill-box; transform-origin: 50% 100%; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .tt-anniv-shield  { animation: tt-anniv-rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both; }
+  .tt-anniv-sun     { animation: tt-anniv-sun 6s ease-in-out infinite; }
+  .tt-anniv-star    { animation: tt-anniv-star 3.2s ease-in-out infinite; }
+  .tt-anniv-truck   { animation: tt-anniv-drive 7s cubic-bezier(0.25, 0.6, 0.3, 1) infinite; }
+  .tt-anniv-lane    { animation: tt-anniv-lane 0.6s linear infinite; }
+  .tt-anniv-arrive  { animation: tt-anniv-arrive 7s ease-out infinite; }
+  .tt-anniv-pennant { animation: tt-anniv-wave 1.8s ease-in-out infinite; }
+  .tt-cake-flame    { animation: tt-cake-flame 0.9s ease-in-out infinite; }
+  .tt-cake-sprinkle { animation: tt-cake-sprinkle 2.2s ease-in-out infinite; }
+}
+
+/*
  * The US time zone map and the turning clock on the clock change banner —
  * src/components/timeZones/. SVG fills and strokes are not reached by the
  * Tailwind colour mapping, so these read the variables it writes (--c-*)

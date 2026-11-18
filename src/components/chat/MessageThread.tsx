@@ -111,6 +111,8 @@ export default function MessageThread({ conversation }: { conversation: Conversa
 
   /** The message being answered, shown above the box until it is sent or dropped. */
   const [replyingTo, setReplyingTo] = useState<MessageQuote | null>(null);
+  /** A greeting the celebrations post's button puts in the box. See CelebrationPost. */
+  const [composerSeed, setComposerSeed] = useState<{ text: string; at: number } | null>(null);
   /** Briefly ringed after jumping to it from a quote, so the eye finds it. */
   const [flashId, setFlashId] = useState<string | null>(null);
   /** The bubble whose arrow was clicked, and where that arrow is on screen. */
@@ -795,6 +797,9 @@ export default function MessageThread({ conversation }: { conversation: Conversa
                     joinAbove={!newDay && m.id !== firstUnreadId && loadUpdateIds.has(m.id) && !!previous && loadUpdateIds.has(previous.id)}
                     joinBelow={!!following && loadUpdateIds.has(m.id) && loadUpdateIds.has(following.id)
                       && dayOf(following) === dayOf(m) && following.id !== firstUnreadId}
+                    // Only where this person can write: a muted reader or an
+                    // admins-only room gets no button that leads nowhere.
+                    onCongratulate={blocked ? undefined : (text) => setComposerSeed({ text, at: Date.now() })}
                   />
                 ) : (
                 <MessageBubble
@@ -899,6 +904,7 @@ export default function MessageThread({ conversation }: { conversation: Conversa
         blocked={blocked}
         allowFiles={mayAttach}
         allowLinks={mayLink}
+        seed={composerSeed}
         onSend={handleSend}
       />
 

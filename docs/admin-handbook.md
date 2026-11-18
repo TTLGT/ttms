@@ -944,7 +944,7 @@ The words in braces are filled in when the message is sent. Everything else
 goes out exactly as you typed it. Click a box under the editor to drop one in
 rather than typing it:
 
-- **Birthdays** — `{names}` (“Tom Reed and Ana Cruz”), `{firstNames}` (“Tom and
+- **Birthdays** — `{names}` (“Tom Reed y Ana Cruz”), `{firstNames}` (“Tom y
   Ana”), `{company}`.
 - **Work anniversaries** — `{name}`, `{first}`, `{years}` (“3 years”, “1 year”
   — it gets the plural right on its own), `{count}` (just “3”, for writing the

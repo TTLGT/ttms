@@ -61,6 +61,7 @@ export default function MessageComposer({
   blocked,
   allowFiles = true,
   allowLinks = true,
+  seed,
   onSend,
 }: {
   /** Where attachments are uploaded to. A thread shares its room's folder. */
@@ -90,6 +91,8 @@ export default function MessageComposer({
   allowFiles?: boolean;
   /** Whether this room lets this person post a link. */
   allowLinks?: boolean;
+  /** Text to put in the box, e.g. "Happy birthday Ana! ". A new `at` = a new insert. */
+  seed?: { text: string; at: number } | null;
   /**
    * `media` is set only for a sticker or a GIF, which goes on its own the
    * moment it is picked — with no text and no files, and without touching
@@ -146,6 +149,23 @@ export default function MessageComposer({
     setError('');
     setPendingFiles([]);
   }, [focusKey]);
+
+  /**
+   * Text handed in from outside — the celebrations post's "Congratulate" button.
+   * Added after anything already typed rather than replacing it, then the caret
+   * goes to the end so the reader can finish the sentence and send. `at` makes
+   * a second click on the same card count as new.
+   */
+  useEffect(() => {
+    if (!seed) return;
+    setDraft((prev) => (prev.trim() ? `${prev.trimEnd()} ${seed.text}` : seed.text));
+    requestAnimationFrame(() => {
+      const el = composer.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+  }, [seed]);
 
   /* ----------------------------------------------------------- attachments */
 

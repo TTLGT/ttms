@@ -3020,7 +3020,18 @@ The post is a system message — `senderUid: "system"`, which no account can hol
 conversations/company/messages/{id}
   senderName : "Total Transport Logistics"   // a label; the uid is still "system"
   systemKind : "announcement"                // vs "alert" (absent means "alert")
+  celebrationCards : [                        // since 2026-11-17; absent on older posts
+    { kind: "birthday",    names: ["Ana Cruz"],  years: 0, line: "Happy birthday to Ana Cruz." },
+    { kind: "anniversary", names: ["Juan Diaz"], years: 1, line: "Congratulations to Juan Diaz on 1 year with us today." },
+  ]
 ```
+
+`celebrationCards` is what the room draws the post from: one cake-and-candles
+card for all of the day's birthdays, then one "on the road" card (logo header,
+dusk highway, a truck driving up to a route shield with the year count) per anniversary — `CelebrationPost.tsx`. It repeats
+what `text` says and nothing more (names, a count of years, HR's rendered line;
+never a date or an age). `text` is still written in full for the room list,
+notifications, search and older posts, which keep the plain card.
 
 `systemKind` decides the shape it is drawn in, not its wording: an `alert` is
 the thin truncated pill a load status gets, an `announcement` is a card with the

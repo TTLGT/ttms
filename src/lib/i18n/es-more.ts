@@ -801,8 +801,8 @@ export const ES_MORE: Record<string, string> = {
     'Todos aquí reciben el correo, la cotización y la tarifa del cliente. Solo firma el contacto del cliente.',
   "Everyone room": 'Sala Everyone',
   "Everyone signed in can see these. They are the company phone book": 'Todos los que iniciaron sesión pueden ver esto. Es el directorio telefónico de la empresa.',
-  "Everyone with a birthday today — “Tom Reed”, or “Tom Reed and Ana Cruz”. Two or more names are joined with “and”":
-    'Todos los que cumplen años hoy: “Tom Reed”, o “Tom Reed and Ana Cruz”. Dos o más nombres se unen con “and”.',
+  "Everyone with a birthday today — “Tom Reed”, or “Tom Reed y Ana Cruz”. Two or more names are joined with “y”":
+    'Todos los que cumplen años hoy: “Tom Reed”, o “Tom Reed y Ana Cruz”. Dos o más nombres se unen con “y”.',
   "Everything": 'Todo',
   "Everything except the second phone, second email and comments is required — this record is what agreements and load confirmations are addressed to":
     'Todo es obligatorio excepto el segundo teléfono, el segundo correo y los comentarios: a este registro se dirigen los acuerdos y las confirmaciones de carga.',
@@ -2172,7 +2172,7 @@ export const ES_MORE: Record<string, string> = {
   "The rates, truck sizes and market figures the quote calculator prices loads with. Everyone who books loads uses the calculator; this changes what it says": 'Las tarifas, tamaños de camión y cifras del mercado con que la calculadora cotiza las cargas. Todos los que reservan cargas usan la calculadora; esto cambia lo que dice.',
   "The record was saved but could not be read back. Open it from the Clients list": 'El registro se guardó, pero no se pudo volver a leer. Ábrelo desde la lista de Clientes.',
   "The reminder settings are missing": 'Falta la configuración de recordatorios',
-  "The same, first names only — “Tom”, or “Tom and Ana”": 'Lo mismo, solo nombres de pila: “Tom” o “Tom and Ana”',
+  "The same, first names only — “Tom”, or “Tom y Ana”": 'Lo mismo, solo nombres de pila: “Tom” o “Tom y Ana”',
   "The saved rates could not be loaded, so these are the built-in starting rates": 'No se pudieron cargar las tarifas guardadas, así que estas son las tarifas iniciales',
   "The schedule is missing": 'Falta el horario',
   "The signed Dispatch Sheet uploaded to this load is waiting for admin or dispatch to verify it": 'La hoja de despacho firmada que se subió a esta carga espera que administración o despacho la verifique',

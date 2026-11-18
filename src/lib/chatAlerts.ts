@@ -8,6 +8,7 @@ import {
   type SystemMessageKind,
 } from '@/types/conversation';
 import { STATUS_LABEL, type OrderStatus } from '@/types/order';
+import type { CelebrationCard } from '@/types/celebration';
 
 /**
  * TTMS speaking in the room about a load.
@@ -86,7 +87,12 @@ export function systemLine(
    * itself with the company's name rather than "TTMS", because a birthday
    * greeting from an initialism is a birthday greeting from the software.
    */
-  options: { senderName?: string; systemKind?: SystemMessageKind } = {},
+  options: {
+    senderName?: string;
+    systemKind?: SystemMessageKind;
+    /** The celebrations post only: who it names, drawn as cards. See CelebrationCard. */
+    celebrationCards?: CelebrationCard[];
+  } = {},
 ): Record<string, unknown> {
   const senderName = options.senderName?.trim() || SYSTEM_SENDER_NAME;
 
@@ -100,6 +106,8 @@ export function systemLine(
     // bubble from a colleague nobody can find in the directory.
     system:     true,
     systemKind: options.systemKind ?? 'alert',
+    // Only written when there are cards, so every other line stays the shape it was.
+    ...(options.celebrationCards?.length ? { celebrationCards: options.celebrationCards } : {}),
     createdAt:  FieldValue.serverTimestamp(),
     deletedAt:  null,
     editedAt:   null,

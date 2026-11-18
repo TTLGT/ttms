@@ -1,6 +1,7 @@
 import type { Timestamp } from 'firebase/firestore';
 import type { StickerRef } from './sticker';
 import type { GifRef } from './gif';
+import type { CelebrationCard } from './celebration';
 
 /**
  * In-house chat between staff. Everyone on the allowlist can talk to everyone
@@ -492,6 +493,13 @@ export interface ChatMessage {
    * unless `system` is true, and absent means `alert`.
    */
   systemKind?: SystemMessageKind;
+  /**
+   * The daily birthday / work-anniversary post only: who is named, as cards
+   * (cake for birthdays, truck on the road for anniversaries). Absent on every
+   * other message and on posts from before 2026-11-17, which draw as the plain
+   * announcement card. Says nothing `text` does not — see CelebrationCard.
+   */
+  celebrationCards?: CelebrationCard[];
   /** Uids named with an @ in this message. Drives the stronger unread mark. */
   mentions?: string[];
   /** The message this one is answering, quoted above it. */
