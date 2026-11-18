@@ -1669,6 +1669,7 @@ export const ES_MORE: Record<string, string> = {
   "Ramps, a winch, a liftgate, tarps, straps or chains, a pilot car — whatever this freight needs to load and unload is on the truck and priced in":
     'Rampas, un malacate, una rampa elevadora, lonas, correas o cadenas, un vehículo piloto: lo que esta carga necesite para cargarse y descargarse está en el camión y en el precio',
   "Rate Checker": 'Revisor de tarifas',
+  "React": 'Reaccionar',
   "Rate Con": 'Rate Con',
   "Re-delivery": 'Reentrega',
   "Re-importing is safe": 'Volver a importar es seguro',
@@ -2077,6 +2078,7 @@ export const ES_MORE: Record<string, string> = {
   "Thank you for everything you do for the team. We hope you have a great day": 'Gracias por todo lo que haces por el equipo. Esperamos que tengas un gran día.',
   "Thanksgiving Day": 'Día de Acción de Gracias',
   "That carrier could not be opened": 'No se pudo abrir ese transportista',
+  "That's you": 'Eres tú',
   "That conversation could not be opened": 'No se pudo abrir esa conversación',
   "That could not be deleted": 'No se pudo borrar',
   "That did not delete": 'No se borró',

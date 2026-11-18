@@ -40,7 +40,8 @@ import type { ChatMessage } from '@/types/conversation';
  *
  * All three stay visibly not a colleague — centred or railed, never a bubble —
  * and inert: no arrow menu, no reactions, no thread. Anything worth saying
- * about an update is said under it, by a person.
+ * about an update is said under it, by a person. (The celebrations post is the
+ * one exception, and only for reactions — see CelebrationPost.)
  *
  * A line the reader does not recognise and that carries no link — the room's
  * own "Ana added Luis" lines — keeps the small centred pill. It is about the
@@ -51,7 +52,7 @@ import type { ChatMessage } from '@/types/conversation';
  * sender's name written out. Not affected by the style choice.
  */
 export default function SystemMessage({
-  message, joinAbove = false, joinBelow = false, onCongratulate,
+  message, joinAbove = false, joinBelow = false, onCongratulate, myUid, onToggleReaction,
 }: {
   message: ChatMessage;
   /** The message above is also a load update, same day: draw as one run. */
@@ -62,6 +63,12 @@ export default function SystemMessage({
    * reader's box. Unset where the reader cannot write, and the button hides.
    */
   onCongratulate?: (text: string) => void;
+  /**
+   * Reactions, honoured on the celebrations post alone (2026-11-17). Every
+   * other system line stays inert — see the note above.
+   */
+  myUid?: string;
+  onToggleReaction?: (key: string, add: boolean) => void;
 }) {
   const { style } = useChatAlertStyle();
   const text = message.text ?? '';
@@ -75,7 +82,15 @@ export default function SystemMessage({
     // a truck-on-the-road card per anniversary. Older posts, and every other
     // announcement (attendance, IT, reminders), keep the plain card.
     if (message.celebrationCards?.length) {
-      return <CelebrationPost message={message} cards={message.celebrationCards} onCongratulate={onCongratulate} />;
+      return (
+        <CelebrationPost
+          message={message}
+          cards={message.celebrationCards}
+          onCongratulate={onCongratulate}
+          myUid={myUid}
+          onToggleReaction={onToggleReaction}
+        />
+      );
     }
     return <Announcement message={message} />;
   }

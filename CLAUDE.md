@@ -809,8 +809,18 @@ is a label and can never become an identity. An `announcement` is drawn by
 `SystemMessage.tsx` as a card with the sender written out and the text
 in the normal text size — the `alert` shape is an 11px grey pill (it wraps now,
 since 2026-10-19, but still reads as a notice, not a greeting). **Add a new kind rather than restyling
-either**, and keep both inert: no reactions, no thread. "Happy birthday" belongs
+either**, and keep both inert: no thread, no menu. "Happy birthday" belongs
 to colleagues, and the post exists to prompt it, not to stand in for it.
+**The one exception is reactions on the celebrations post** (2026-11-17): a
+reaction there tells the people it congratulates (`notifyUids` on
+`toggleReaction()`), never the system sender. Load alerts stay inert.
+
+**The post @mentions whoever it congratulates** (2026-11-17): `systemLine()`
+takes `mentions` and writes them on the message plus `mentionedAt.<uid>` on the
+room in the same commit, exactly as a person's mention, so their badge reads
+"@" and a room turned down to mentions still notifies them. Each card carries
+`uids` beside `names`; the greeting button seeds `@DisplayName` from the chat
+profile so the greeting is a mention too.
 
 **Since 2026-11-17 the celebrations post draws as picture cards**
 (`src/components/chat/CelebrationPost.tsx`): birthdays as "cake and candles",

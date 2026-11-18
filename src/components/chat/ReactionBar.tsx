@@ -21,11 +21,19 @@ export default function ReactionBar({
   reactions,
   myUid,
   onToggle,
+  variant = 'bubble',
 }: {
   reactions: Record<string, string[]> | undefined;
   myUid: string;
   onToggle: (key: string, add: boolean) => void;
+  /**
+   * `post` is the celebrations post: centred under the cards, slightly larger,
+   * and with the add button always showing — a bubble reveals it on hover,
+   * but a post that exists to be reacted to should not hide the way in.
+   */
+  variant?: 'bubble' | 'post';
 }) {
+  const post = variant === 'post';
   const { nameOf } = useChat();
   const trigger = useRef<HTMLButtonElement>(null);
   // The anchor rect, not a boolean: the picker hangs off the viewport, so
@@ -42,7 +50,7 @@ export default function ReactionBar({
   const present = Object.entries(reactions ?? {}).filter(([, uids]) => uids.length > 0);
 
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-1">
+    <div className={post ? 'flex flex-wrap items-center justify-center gap-1.5' : 'mt-1 flex flex-wrap items-center gap-1'}>
       {present.map(([key, uids]) => {
         const mine = uids.includes(myUid);
         return (
@@ -53,13 +61,17 @@ export default function ReactionBar({
             // Naming everyone who reacted is the difference between a count and
             // a signal you can act on — "who has actually seen this?"
             title={uids.map((u) => (u === myUid ? 'You' : nameOf(u))).join(', ')}
-            className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] leading-none transition ${
+            className={`flex items-center gap-1 rounded-full border leading-none transition ${
+              post ? 'px-2.5 py-1 text-[13px]' : 'px-1.5 py-0.5 text-[11px]'
+            } ${
               mine
                 ? 'border-brand-400 bg-brand-50 text-brand-800'
-                : 'border-transparent bg-black/[0.06] text-gray-600 hover:bg-black/[0.1]'
+                : post
+                  ? 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                  : 'border-transparent bg-black/[0.06] text-gray-600 hover:bg-black/[0.1]'
             }`}
           >
-            <span className="text-[13px] leading-none">{reactionGlyph(key)}</span>
+            <span className={post ? 'text-[17px] leading-none' : 'text-[13px] leading-none'}>{reactionGlyph(key)}</span>
             <span className="font-semibold tabular-nums">{uids.length}</span>
           </button>
         );
@@ -73,9 +85,12 @@ export default function ReactionBar({
             setPickerAt((was) => (was ? null : trigger.current?.getBoundingClientRect() ?? null))
           }
           title="React to this"
-          className="flex items-center rounded-full p-1 text-gray-400 opacity-0 transition hover:bg-black/[0.06] hover:text-gray-700 focus-visible:opacity-100 group-hover:opacity-100"
+          className={post
+            ? 'flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[12.5px] font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-800'
+            : 'flex items-center rounded-full p-1 text-gray-400 opacity-0 transition hover:bg-black/[0.06] hover:text-gray-700 focus-visible:opacity-100 group-hover:opacity-100'}
         >
-          <SmilePlus size={13} />
+          <SmilePlus size={post ? 16 : 13} />
+          {post && <span data-es>React</span>}
         </button>
 
         {pickerAt && (

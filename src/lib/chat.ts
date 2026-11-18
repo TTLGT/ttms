@@ -42,6 +42,7 @@ import {
   messageSummary,
   type MessageMedia,
   REPLIES_COLLECTION,
+  SYSTEM_SENDER_UID,
   THREAD_PAGE_SIZE,
   threadFollowers,
   type Attachment,
@@ -652,7 +653,15 @@ export async function toggleReaction(
   // `rootId` is set only on a thread reply, and is the only thing that tells
   // the two apart — both for which collection to write to and for where a
   // notification about it has to land.
-  message: { id: string; senderUid: string; text: string; rootId?: string | null },
+  message: {
+    id: string; senderUid: string; text: string; rootId?: string | null;
+    /**
+     * Who to tell, when it is not the sender. The celebrations post is signed
+     * by the system, which no person reads, so a reaction on it goes to the
+     * people it congratulates instead (2026-11-17).
+     */
+    notifyUids?: string[];
+  },
   reactionKey: string,
   reactor: { uid: string; displayName: string },
   add: boolean,
@@ -662,30 +671,34 @@ export async function toggleReaction(
     [`reactions.${reactionKey}`]: add ? arrayUnion(reactor.uid) : arrayRemove(reactor.uid),
   });
 
+  const notify = (message.notifyUids ?? [message.senderUid])
+    .filter((uid) => uid && uid !== reactor.uid && uid !== SYSTEM_SENDER_UID);
+
   // A mark on the conversation so the person whose message it is can be told,
   // written in the same batch as the reaction itself — see ReactionPing. Only
   // when adding: taking a thumbs-up back is not news, and notifying somebody
   // that a colleague changed their mind would be worse than saying nothing.
   // Never for your own message either, which is the commonest reaction of all
   // and the one nobody needs telling about.
-  if (add && message.senderUid !== reactor.uid) {
-    batch.update(doc(db, CONVERSATIONS_COLLECTION, conversationId), {
-      [`reactionPings.${message.senderUid}`]: {
-        at:        serverTimestamp(),
-        byUid:     reactor.uid,
-        byName:    reactor.displayName,
-        key:       reactionKey,
-        messageId: message.id,
-        // Carried so that following the notification opens the thread the
-        // reply is in. Jumping to it in the room would find nothing — it was
-        // never in the room.
-        rootId:    message.rootId ?? null,
-        // Trimmed here rather than at render: this is a copy on a document
-        // every member reads, and it only ever has to fill one line of a
-        // desktop notification.
-        text:      message.text.slice(0, 120),
-      },
-    });
+  if (add && notify.length > 0) {
+    const ping = {
+      at:        serverTimestamp(),
+      byUid:     reactor.uid,
+      byName:    reactor.displayName,
+      key:       reactionKey,
+      messageId: message.id,
+      // Carried so that following the notification opens the thread the
+      // reply is in. Jumping to it in the room would find nothing — it was
+      // never in the room.
+      rootId:    message.rootId ?? null,
+      // Trimmed here rather than at render: this is a copy on a document
+      // every member reads, and it only ever has to fill one line of a
+      // desktop notification.
+      text:      message.text.slice(0, 120),
+    };
+    const patch: Record<string, unknown> = {};
+    for (const uid of notify) patch[`reactionPings.${uid}`] = ping;
+    batch.update(doc(db, CONVERSATIONS_COLLECTION, conversationId), patch);
   }
 
   await batch.commit();

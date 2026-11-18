@@ -66,6 +66,11 @@ export type CelebrationKind = keyof typeof ANNOUNCE_FIELDS;
 export interface Celebration {
   kind: CelebrationKind;
   name: string;
+  /**
+   * Their account, so the post can @mention them (2026-11-17). Always set:
+   * nobody without a uid is ever celebrated — see celebrationsToday().
+   */
+  uid: string;
   /** Completed years of service. Always ≥ 1, and 0 for a birthday. */
   years: number;
 }
@@ -205,6 +210,7 @@ export function celebrationsToday(
 
   for (const person of people) {
     if (!person.uid || person.suspended === true) continue;
+    const uid  = person.uid;
     const name = nameOf(person);
     if (!name) continue;
 
@@ -213,7 +219,7 @@ export function celebrationsToday(
       && looksLikeDate(person.dateOfBirth)
       && matches(person.dateOfBirth)
     ) {
-      birthdays.push({ kind: 'birthday', name, years: 0 });
+      birthdays.push({ kind: 'birthday', name, uid, years: 0 });
     }
 
     if (
@@ -222,7 +228,7 @@ export function celebrationsToday(
       && matches(person.startDate)
     ) {
       const years = completedYears(person.startDate, today);
-      if (years >= 1) anniversaries.push({ kind: 'anniversary', name, years });
+      if (years >= 1) anniversaries.push({ kind: 'anniversary', name, uid, years });
     }
   }
 
@@ -382,6 +388,12 @@ export interface CelebrationCard {
   kind: CelebrationKind;
   /** A birthday card holds everybody with one today; an anniversary card holds one person. */
   names: string[];
+  /**
+   * Their accounts, in the same order as `names` (2026-11-17). The post
+   * @mentions them, and the card's greeting button names them with an @ so
+   * the greeting reaches them too. Absent on posts from before this.
+   */
+  uids?: string[];
   /** Completed years of service for an anniversary; 0 for a birthday. */
   years: number;
   /** HR's wording for this card, exactly as it reads in the message text. */
@@ -415,6 +427,7 @@ export function celebrationCards(
     cards.push({
       kind: 'birthday',
       names: birthdays.map((c) => c.name),
+      uids:  birthdays.map((c) => c.uid),
       years: 0,
       line: render(usable('birthday'), {
         '{names}':      listOf(birthdays.map((c) => c.name)),
@@ -428,6 +441,7 @@ export function celebrationCards(
     cards.push({
       kind: 'anniversary',
       names: [c.name],
+      uids:  [c.uid],
       years: c.years,
       line: render(usable('anniversary'), {
         '{name}':    c.name,

@@ -2,8 +2,10 @@
 
 import { useId } from 'react';
 import Image from 'next/image';
-import { MessageSquare } from 'lucide-react';
+import { AtSign, MessageSquare } from 'lucide-react';
 import { clock } from '@/lib/chatFormat';
+import { useChat } from '@/context/ChatContext';
+import ReactionBar from './ReactionBar';
 import type { CelebrationCard } from '@/types/celebration';
 import type { ChatMessage } from '@/types/conversation';
 
@@ -27,27 +29,60 @@ import type { ChatMessage } from '@/types/conversation';
  * cards are pictures, and a navy road or a cream cake that flipped with dark
  * mode would stop being either. Both already read well on a dark room.
  *
- * Still inert, like every system message: no reactions, no thread. The one
- * button only puts a greeting in the reader's own box to send — "happy
- * birthday" belongs to colleagues, and the post exists to prompt it. It is
- * left out when the reader cannot write in the room (`onCongratulate` unset).
+ * **It @mentions whoever it congratulates** (2026-11-17, `mentions` on the
+ * message, `uids` on each card): their chat badge reads "@" and the post
+ * reaches them even in a room turned down to mentions. Their own card says
+ * "That's you".
+ *
+ * **It takes reactions** (2026-11-17) — the one system message that does,
+ * because an emoji is exactly the size of "happy birthday" from somebody who
+ * would not write a line. A reaction tells the people it congratulates, not
+ * the system that signed it. Still no thread and no menu.
+ *
+ * The greeting button only puts a greeting in the reader's own box to send —
+ * "happy birthday" belongs to colleagues, and the post exists to prompt it —
+ * with the person @named so it reaches them. It is left out when the reader
+ * cannot write in the room (`onCongratulate` unset).
  *
  * Animations live in globals.css (tt-anniv-*, tt-cake-*) and stop for anybody
  * who has asked for less motion.
  */
 export default function CelebrationPost({
-  message, cards, onCongratulate,
+  message, cards, onCongratulate, myUid, onToggleReaction,
 }: {
   message: ChatMessage;
   cards: CelebrationCard[];
   /** Puts a greeting in the composer. Unset = the reader cannot post here. */
   onCongratulate?: (text: string) => void;
+  myUid?: string;
+  onToggleReaction?: (key: string, add: boolean) => void;
 }) {
+  const { profileOf } = useChat();
+
+  /**
+   * "@Ana Cruz" when the person has a chat profile, so the greeting the button
+   * seeds is a real mention once sent — the composer resolves `@` + display
+   * name. The card's own name comes from the allowlist and may be spelled
+   * differently, so it is the fallback (first name, no @), never the mention.
+   */
+  const greetName = (card: CelebrationCard, i: number): string => {
+    const uid  = card.uids?.[i];
+    const name = uid ? profileOf(uid)?.displayName?.trim() : '';
+    return name ? `@${name}` : (card.names[i] ?? '').split(' ')[0];
+  };
+
   return (
     <div className="flex flex-col items-center gap-3 px-2 py-2.5">
-      {cards.map((card, i) => (card.kind === 'birthday'
-        ? <CakeCard key={`b${i}`} card={card} onCongratulate={onCongratulate} />
-        : <RoadCard key={`a${i}`} card={card} onCongratulate={onCongratulate} />))}
+      {cards.map((card, i) => {
+        const greet = card.names.map((_, j) => greetName(card, j));
+        const isMe  = Boolean(myUid && card.uids?.includes(myUid));
+        return card.kind === 'birthday'
+          ? <CakeCard key={`b${i}`} card={card} greet={greet} isMe={isMe} myUid={myUid} onCongratulate={onCongratulate} />
+          : <RoadCard key={`a${i}`} card={card} greet={greet} isMe={isMe} onCongratulate={onCongratulate} />;
+      })}
+      {myUid && onToggleReaction && !message.deletedAt && (
+        <ReactionBar reactions={message.reactions} myUid={myUid} onToggle={onToggleReaction} variant="post" />
+      )}
       {/* Signed at the foot, as the company saying it — once for the whole post. */}
       <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-gray-500">
         <Image src="/logo-circle.png" alt="" width={18} height={18} className="flex-shrink-0" />
@@ -68,6 +103,22 @@ function firstNames(names: string[]): string {
 
 function yearsPhrase(years: number): string {
   return `${years} ${years === 1 ? 'year' : 'years'}`;
+}
+
+/** "@Ana", "@Ana and @Tom", "@Ana, @Tom and @Luis" — the greeting's names. */
+function joinGreet(greet: string[]): string {
+  if (greet.length <= 1) return greet[0] ?? '';
+  return `${greet.slice(0, -1).join(', ')} and ${greet[greet.length - 1]}`;
+}
+
+/** On the card that congratulates the reader — the mention, made visible. */
+function YouChip({ className }: { className: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[12px] font-semibold ${className}`}>
+      <AtSign size={12} aria-hidden />
+      <span data-es>That&apos;s you</span>
+    </span>
+  );
 }
 
 /**
@@ -115,7 +166,9 @@ const SHIELD_PATH = 'M0 6 Q25 0 50 6 Q75 0 100 6 Q106 64 50 108 Q-6 64 0 6 Z';
  * tt-anniv-* in globals.css; for reduced motion the truck is simply parked
  * under the shield and nothing moves.
  */
-function RoadCard({ card, onCongratulate }: { card: CelebrationCard; onCongratulate?: (text: string) => void }) {
+function RoadCard({ card, greet, isMe, onCongratulate }: {
+  card: CelebrationCard; greet: string[]; isMe: boolean; onCongratulate?: (text: string) => void;
+}) {
   const name  = card.names[0] ?? '';
   const first = firstNames([name]);
   // Gradient and clip ids must be unique per card: a busy day draws several.
@@ -271,14 +324,15 @@ function RoadCard({ card, onCongratulate }: { card: CelebrationCard; onCongratul
 
       <div className="flex flex-col items-center gap-2.5 px-4 pb-7 pt-5 text-center min-[400px]:px-6 sm:px-10">
         <span data-es className="text-[11.5px] font-semibold uppercase tracking-[0.18em] text-[#cbd5e1]">Work anniversary</span>
+        {isMe && <YouChip className="bg-[#f5c451] text-[#0b1b3a]" />}
         <span className="select-text text-balance text-[34px] font-extrabold leading-[1.05] sm:text-[40px]">{name}</span>
         <span className="text-balance text-[17px] font-semibold text-[#f5c451]">{yearsPhrase(card.years)} down the road with us</span>
         {/* HR's wording, exactly as the template rendered it. */}
         <p className="m-0 max-w-[420px] select-text text-[15px] leading-relaxed text-[#e2e8f0]">{card.line}</p>
-        {onCongratulate && (
+        {onCongratulate && !isMe && (
           <GreetButton
             label={`Congratulate ${first}`}
-            onClick={() => onCongratulate(`Congratulations on ${yearsPhrase(card.years)}, ${first}! `)}
+            onClick={() => onCongratulate(`Congratulations on ${yearsPhrase(card.years)}, ${joinGreet(greet)}! `)}
             className="bg-[#f5c451] text-[#0b1b3a] hover:bg-[#f7d06e]"
           />
         )}
@@ -301,9 +355,18 @@ const SPRINKLES = Array.from({ length: 22 }, (_, i) => ({
   delay: i * 0.3,
 }));
 
-function CakeCard({ card, onCongratulate }: { card: CelebrationCard; onCongratulate?: (text: string) => void }) {
-  const firsts = firstNames(card.names);
+function CakeCard({ card, greet, isMe, myUid, onCongratulate }: {
+  card: CelebrationCard; greet: string[]; isMe: boolean; myUid?: string;
+  onCongratulate?: (text: string) => void;
+}) {
   const several = card.names.length > 1;
+  // One card holds every birthday of the day, so the reader may be on it with
+  // somebody else. The button greets the others and never the reader.
+  const keep = card.names.map((_, i) => !(myUid && card.uids?.[i] === myUid));
+  const names   = card.names.filter((_, i) => keep[i]);
+  const toGreet = greet.filter((_, i) => keep[i]);
+  const firsts  = firstNames(names);
+  const plural  = names.length > 1;
 
   return (
     <div className="relative w-full max-w-[480px] overflow-hidden rounded-3xl border border-[#fed7aa] bg-[#fff1e6] shadow-[0_20px_40px_-20px_rgba(154,52,18,0.35)]">
@@ -343,6 +406,7 @@ function CakeCard({ card, onCongratulate }: { card: CelebrationCard; onCongratul
         </svg>
 
         <span data-es className="text-[14px] font-bold uppercase tracking-[0.14em] text-[#be123c]">Make a wish</span>
+        {isMe && <YouChip className="bg-[#be123c] text-white" />}
         {/* Every name on its own line when there are several, so none is buried mid-sentence. */}
         <div className="flex flex-col gap-1">
           {card.names.map((n) => (
@@ -353,10 +417,10 @@ function CakeCard({ card, onCongratulate }: { card: CelebrationCard; onCongratul
         </div>
         {/* HR's wording, exactly as the template rendered it. */}
         <p className="m-0 max-w-[420px] select-text text-[15px] leading-relaxed text-[#57301c]">{card.line}</p>
-        {onCongratulate && (
+        {onCongratulate && names.length > 0 && (
           <GreetButton
-            label={several ? 'Wish them a happy birthday' : `Wish ${firsts} a happy birthday`}
-            onClick={() => onCongratulate(`Happy birthday ${firsts}! `)}
+            label={plural ? 'Wish them a happy birthday' : `Wish ${firsts} a happy birthday`}
+            onClick={() => onCongratulate(`Happy birthday ${joinGreet(toGreet)}! `)}
             className="bg-[#be123c] text-white hover:bg-[#9f1239]"
           />
         )}

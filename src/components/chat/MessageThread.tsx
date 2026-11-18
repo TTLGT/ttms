@@ -800,6 +800,22 @@ export default function MessageThread({ conversation }: { conversation: Conversa
                     // Only where this person can write: a muted reader or an
                     // admins-only room gets no button that leads nowhere.
                     onCongratulate={blocked ? undefined : (text) => setComposerSeed({ text, at: Date.now() })}
+                    // Reactions, on the celebrations post only (SystemMessage
+                    // ignores this for anything else). A reaction tells the
+                    // people it congratulates, not the system that signed it.
+                    myUid={myUid}
+                    onToggleReaction={(key, add) =>
+                      void toggleReaction(
+                        conversationId,
+                        {
+                          id: m.id, senderUid: m.senderUid, text: m.text,
+                          notifyUids: (m.celebrationCards ?? []).flatMap((c) => c.uids ?? []),
+                        },
+                        key,
+                        senderIdentity,
+                        add,
+                      ).catch(() => setError('That reaction did not save.'))
+                    }
                   />
                 ) : (
                 <MessageBubble

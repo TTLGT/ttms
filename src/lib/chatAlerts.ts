@@ -92,9 +92,19 @@ export function systemLine(
     systemKind?: SystemMessageKind;
     /** The celebrations post only: who it names, drawn as cards. See CelebrationCard. */
     celebrationCards?: CelebrationCard[];
+    /**
+     * People this line @mentions, as uids — the celebrations post names
+     * whoever it congratulates (2026-11-17), so their chat badge reads "@" and
+     * a room they turned down to mentions still notifies them. Written the
+     * way sendMessage() writes a person's mention: on the message, and as
+     * `mentionedAt.<uid>` on the room in the same commit, so the stamp equals
+     * `lastMessage.at` and the notification pass recognises it.
+     */
+    mentions?: string[];
   } = {},
 ): Record<string, unknown> {
   const senderName = options.senderName?.trim() || SYSTEM_SENDER_NAME;
+  const mentions   = [...new Set((options.mentions ?? []).filter(Boolean))];
 
   batch.set(room.collection(MESSAGES_COLLECTION).doc(), {
     text,
@@ -111,12 +121,12 @@ export function systemLine(
     createdAt:  FieldValue.serverTimestamp(),
     deletedAt:  null,
     editedAt:   null,
-    mentions:   [],
+    mentions,
     attachments: [],
     reactions:  {},
   });
 
-  return {
+  const bump: Record<string, unknown> = {
     lastMessage: {
       text,
       senderUid:  SYSTEM_SENDER_UID,
@@ -125,6 +135,9 @@ export function systemLine(
     },
     updatedAt: FieldValue.serverTimestamp(),
   };
+  // Dotted paths, one per person, so nobody else's mark is rewritten.
+  for (const uid of mentions) bump[`mentionedAt.${uid}`] = FieldValue.serverTimestamp();
+  return bump;
 }
 
 /* ---------------------------------------------------------------- wording */

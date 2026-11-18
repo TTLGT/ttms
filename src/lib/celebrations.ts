@@ -121,6 +121,10 @@ export async function runCelebrations(
       // Who is named, as cards — the room draws a cake for birthdays and a
       // truck on the road for each anniversary. Same facts as the text.
       celebrationCards: celebrationCards(celebrations, settings.templates),
+      // Everybody it congratulates is @mentioned, so the post reaches them as
+      // a mention — the "@" on their chat badge, and a notification even if
+      // they turned the Everyone room down to mentions only.
+      mentions: celebrations.map((c) => c.uid),
     }));
     await batch.commit();
   } catch (e) {

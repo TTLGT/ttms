@@ -1,6 +1,20 @@
 {
   "changes": [
     {
+      "hash": "a4e578a998b3bf1a1eaeda5e44fdf41c66a54221",
+      "date": "2026-11-17T20:19:21-06:00",
+      "author": "erwindank",
+      "subject": "Redesign the daily birthday and work-anniversary post as picture cards. Birthdays are \"cake and candles\" (the TTL logo with its white cut away, a cake with flickering candles, every name on its own line); each anniversary is \"on the road\" (the full logo on a white header, a dusk highway where a truck drives past pennants and stops under a red-and-navy route shield with the year count). HR's own wording from Settings still goes under the names. The post now stores who it names as celebrationCards beside its text, so older posts and other announcements keep the plain card. A \"Congratulate\" / \"Wish ... a happy birthday\" button puts a greeting in the reader's message box, and hides where they cannot write. Several birthday names are now joined with \"y\" for the Spanish templates. Cards fit small phones: the button stays on one line and headings wrap evenly",
+      "body": ""
+    },
+    {
+      "hash": "82d668492772853a059a5b7c21fff15d586b950f",
+      "date": "2026-11-16T17:10:39-06:00",
+      "author": "erwindank",
+      "subject": "Make adding load pictures easier: one shared path for every way in. The header box is now an \"Add picture\" tile (or a \"+\" on the picture) with a menu; pictures can be dropped or pasted anywhere on the order; the tray is a window with one-tap type buttons and \"All of them are\"; unsaved pictures survive a tab switch; a saved card offers Undo. The Pictures tab gets Truck, Commodity, Location, Proof at pickup and Proof at delivery boxes, with Truck flagged while the Dispatch Sheet review needs one and an \"Ask the driver\" message. Freight lines take dropped pictures, and a picture in the load's chat can be added to the load",
+      "body": ""
+    },
+    {
       "hash": "9a39d18e16f81f451e2053e5edb691a9675b0763",
       "date": "2026-11-16T12:20:36-06:00",
       "author": "erwindank",
