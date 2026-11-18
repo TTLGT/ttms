@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "f7e182fd6c8a5809c48d9d76c055fbdc0f946dd4",
+      "date": "2026-11-17T20:42:56-06:00",
+      "author": "erwindank",
+      "subject": "Tag the people the daily birthday and work-anniversary post congratulates, and let people react to it. The post now @mentions whoever it names, so their chat badge shows \"@\" and they are notified even in an Everyone room turned down to mentions; their own card says \"That's you\". The Congratulate button puts the person's @name in the greeting so it reaches them too. The post takes emoji reactions, with an always-visible React button, and a reaction notifies the person being celebrated",
+      "body": ""
+    },
+    {
       "hash": "a4e578a998b3bf1a1eaeda5e44fdf41c66a54221",
       "date": "2026-11-17T20:19:21-06:00",
       "author": "erwindank",

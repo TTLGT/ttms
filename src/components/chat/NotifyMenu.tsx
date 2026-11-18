@@ -9,6 +9,7 @@ import {
   desktopPermission,
   playChime,
   requestDesktopPermission,
+  showMessageNotification,
   type PermissionState,
 } from '@/lib/chatNotify';
 
@@ -141,6 +142,34 @@ export default function NotifyMenu() {
             disabled={permission !== 'granted'}
             onChange={(on) => setNotifyPrefs({ ...notifyPrefs, desktop: on })}
           />
+          {/* A test, because "granted" is not the same as "shown". Windows (and
+              macOS) can switch Chrome's notifications off for the whole
+              computer, and the browser still reports permission granted —
+              the notification is dropped after it leaves the page, so nothing
+              here can detect it. Letting people see one is the only check. */}
+          {permission === 'granted' && notifyPrefs.desktop && (
+            <div className="mb-1 mt-1 rounded-lg bg-gray-50 p-2.5">
+              <button
+                type="button"
+                onClick={() => showMessageNotification({
+                  title: 'TTMS test notification',
+                  body:  'If you can see this, chat notifications reach you.',
+                  tag:   'ttms-test',
+                  onClick: () => {},
+                })}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
+              >
+                Send a test notification
+              </button>
+              <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+                <Bi>Nothing appeared? Your computer may be hiding Chrome&rsquo;s
+                notifications. On Windows: Settings, System, Notifications, then
+                turn on Google Chrome and check Do not disturb is off. On a Mac:
+                System Settings, Notifications, Google Chrome.</Bi>
+              </p>
+            </div>
+          )}
+
           <Toggle
             label="Play a sound"
             hint="Off by default — a shared desk would not thank you"

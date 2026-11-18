@@ -546,6 +546,9 @@ const BASE: Record<string, string> = {
   "Nothing recorded yet. Changes to the room show here from now on": 'Aún no hay nada registrado. Los cambios en la sala aparecerán aquí de ahora en adelante.',
   "Notifications are blocked for this site. Turn them back on in the padlock menu beside the web address, then reload":
     'Las notificaciones están bloqueadas para este sitio. Actívalas de nuevo en el menú del candado junto a la dirección web y luego recarga.',
+  "Nothing appeared? Your computer may be hiding Chrome’s notifications. On Windows: Settings, System, Notifications, then turn on Google Chrome and check Do not disturb is off. On a Mac: System Settings, Notifications, Google Chrome":
+    '¿No apareció nada? Puede que tu computadora esté ocultando las notificaciones de Chrome. En Windows: Configuración, Sistema, Notificaciones; activa Google Chrome y revisa que No molestar esté apagado. En Mac: Configuración del Sistema, Notificaciones, Google Chrome.',
+  "Send a test notification": 'Enviar una notificación de prueba',
   "Only changes this browser. Nobody else sees what you pick": 'Solo cambia este navegador. Nadie más ve lo que elijas.',
   "Only this room’s admins can change who is in it": 'Solo los administradores de esta sala pueden cambiar quién está en ella.',
   "Removing someone stops them seeing the room from now on. What they already wrote stays in it":
