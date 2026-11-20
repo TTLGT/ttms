@@ -331,6 +331,25 @@ export const PERMISSIONS = [
    * but never their survey answers.
    */
   'onboarding.manage',
+  /**
+   * Set up a month's incentives: the goals and what each pays, the prize, who
+   * takes part and each person's own targets. See src/types/incentive.ts.
+   *
+   * Admin and Sales Manager by default (added 2026-11-20, widening every Sales
+   * Manager at their next sign-in): the people running the sales floor decide
+   * what it competes for. Reaches the whole programme, not only their team —
+   * a month's goals are one list for everybody.
+   */
+  'incentives.manage',
+  /**
+   * Record where everybody stands on this month's incentives. A Sales Manager
+   * records their own team's without this, scoped like `attendance.view`.
+   *
+   * Admin and HR by default (added 2026-11-20, widening HR): the figures decide
+   * what is paid, and HR pays it. Everybody can *see* every card — the office
+   * asked for a public scoreboard — so this is only about changing them.
+   */
+  'incentives.record',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -443,6 +462,8 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'celebrations.manage', label: 'Edit the celebrations message', detail: 'The wording of the daily birthday and work-anniversary post, and whether it is sent at all. Admin and HR have this already.' },
       { key: 'presence.manage', label: 'Switch online status on or off', detail: 'Whether chat shows who is online and when they were last seen, for the whole company. Admin and HR have this already.' },
       { key: 'onboarding.manage', label: 'Run onboarding', detail: 'Everybody’s 90-day onboarding: their progress, ticking the steps HR, the trainer and other departments do, setting their track, start date and mentor, and reading their survey answers. Admin and HR have this already.' },
+      { key: 'incentives.manage', label: 'Run incentives', detail: 'Set up each month’s incentives: the goals, what each pays, the prize, who takes part and their own targets. Admin and Sales Managers have this already.' },
+      { key: 'incentives.record', label: 'Record incentive progress', detail: 'Enter where everybody stands on this month’s incentives, which decides what is paid. Admin and HR have this already; a Sales Manager can already record their own team’s.' },
     ],
   },
 ];
@@ -601,21 +622,26 @@ export const ROLE_PERMISSIONS: Record<RoleKey, readonly Permission[]> = {
     // HR coordinates the onboarding programme from the interview to day 90.
     // Added 2026-11-05.
     'onboarding.manage',
+    // HR pays the incentives, so HR records the figures that decide them.
+    // Added 2026-11-20.
+    'incentives.record',
   ],
 
   /**
    * Sales Manager: a broker, plus admin-level power over their own team.
    *
-   * Nothing extra appears in this list, and that is the point — their reach is
-   * not a wider set of permissions, it is the same admin abilities applied to
-   * a smaller set of people. That scope comes from the Teams section: whoever
+   * Almost nothing extra appears in this list, and that is the point — their
+   * reach is not a wider set of permissions, it is the same admin abilities
+   * applied to a smaller set of people. The one exception is
+   * `incentives.manage` (2026-11-20): the month's goals are one list for the
+   * whole sales floor, so setting them up cannot be narrowed to a team. That scope comes from the Teams section: whoever
    * they are the lead of. See `managesUid()` in src/lib/accessControl.ts and
    * src/lib/teamScope.ts for how the scope is worked out and kept current.
    *
    * They are the only role a team's setup affects. Every other team lead is
    * just the person a team reports to, with whatever role they hold anyway.
    */
-  isSalesManager: [...BASE_PERMISSIONS],
+  isSalesManager: [...BASE_PERMISSIONS, 'incentives.manage'],
 
   /**
    * Intern: below a broker, and the only role that is.

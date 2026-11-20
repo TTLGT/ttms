@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "6cb0e5b5792b25d79dd353d2df5eb4e460748354",
+      "date": "2026-11-20T08:23:45-06:00",
+      "author": "erwindank",
+      "subject": "Sign people out of TTMS after 3 hours unused, and ask everybody to sign in again every 7 days. Until now a browser stayed signed in until somebody pressed Sign out, so a lost laptop or an unlocked computer stayed open to the company's data. A one-minute warning with a \"Stay signed in\" button comes before the idle sign-out, counted across every TTMS tab, and a laptop that slept past the limit is signed out when it wakes. The 7-day limit gives five minutes' warning and is also checked by the server at sign-in. Both are set in Settings → Operations → Sign-out Timer. Signing out never clocks anybody out",
+      "body": ""
+    },
+    {
       "hash": "7ad554753b9c2f6449127ee58bcd50d653d5b428",
       "date": "2026-11-18T16:31:01-06:00",
       "author": "erwindank",

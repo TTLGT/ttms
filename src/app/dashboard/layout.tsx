@@ -26,6 +26,7 @@ import {
   Calculator,
   History,
   LifeBuoy,
+  Trophy,
   Menu,
   X,
   PanelLeftOpen,
@@ -122,6 +123,10 @@ const NAV_ITEMS: {
   // area on 2026-11-05. Team progress inside it is gated by its own routes.
   // See src/types/onboarding.ts.
   { href: '/dashboard/onboarding', label: 'My onboarding', Icon: GraduationCap },
+  // Everybody, so no permission: the office asked for a public scoreboard,
+  // and a broker reads their own cards here. Recording and setting a month up
+  // are gated in /api/incentives. See src/types/incentive.ts.
+  { href: '/dashboard/incentives', label: 'Incentives', Icon: Trophy },
   { href: '/dashboard/analytics', label: 'Analytics', Icon: BarChart2,     needs: 'analytics.view' },
   // Also open to HR, who read the people directory there and nothing else —
   // the page itself renders read-only for them — and to dispatch and finance
