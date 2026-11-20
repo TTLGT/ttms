@@ -3201,4 +3201,23 @@ export const ES_MORE: Record<string, string> = {
   "You pick a type for each picture next": 'Después eliges un tipo para cada foto.',
   "1. Add pictures: drop, paste or choose them, anywhere on this load. 2. Tap a type. 3. Save. The star marks the load's profile picture":
     '1. Agrega fotos: suéltalas, pégalas o elígelas, en cualquier parte de esta carga. 2. Toca un tipo. 3. Guarda. La estrella marca la foto de perfil de la carga.',
+  // Sign-out timer — SessionGuard and SessionPolicyPanel (2026-11-20).
+  "Still there?": '¿Sigues ahí?',
+  "Time to sign in again": 'Hora de volver a iniciar sesión',
+  "TTMS has not been used for a while, so it will sign you out to keep the company's data safe":
+    'TTMS no se ha usado en un rato, así que cerrará tu sesión para proteger los datos de la empresa.',
+  "For security, TTMS asks everybody to sign in again every few days. Save what you are working on":
+    'Por seguridad, TTMS pide a todos volver a iniciar sesión cada pocos días. Guarda lo que estás haciendo.',
+  "Stay signed in": 'Seguir conectado',
+  "Keep working": 'Seguir trabajando',
+  "Sign in again now": 'Iniciar sesión de nuevo ahora',
+  "Sign-out Timer": 'Cierre de sesión automático',
+  "When TTMS signs a browser out by itself, so a lost laptop or an unlocked computer does not stay open to the company's data. Signing out never clocks anybody out":
+    'Cuándo TTMS cierra la sesión de un navegador por sí solo, para que una laptop perdida o una computadora sin bloquear no quede abierta a los datos de la empresa. Cerrar sesión nunca marca la salida de nadie.',
+  "Sign out after this long unused": 'Cerrar sesión tras este tiempo sin uso',
+  "No click, key or scroll in any TTMS tab. A one-minute warning comes first, with a button to stay signed in":
+    'Sin clics, teclas ni desplazamiento en ninguna pestaña de TTMS. Antes llega un aviso de un minuto, con un botón para seguir conectado.',
+  "Sign in again every": 'Volver a iniciar sesión cada',
+  "However busy somebody is. They get five minutes' warning to save their work":
+    'Aunque la persona esté trabajando. Recibe un aviso cinco minutos antes para guardar su trabajo.',
 };

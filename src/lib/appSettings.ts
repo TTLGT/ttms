@@ -4,6 +4,7 @@ import { DEFAULT_APP_SETTINGS } from '@/types/appSettings';
 import type { AppSettings, DateFormat, LaneDistanceMode } from '@/types/appSettings';
 import type { Celebration, CelebrationTemplates } from '@/types/celebration';
 import { PAYMENT_LIST_KEY } from '@/types/paymentMethod';
+import type { SessionPolicy } from '@/types/sessionPolicy';
 import type { PaymentMethod, PaymentSide } from '@/types/paymentMethod';
 
 /**
@@ -91,6 +92,10 @@ export async function savePresence(on: boolean): Promise<void> {
 
 export async function saveReminderEmails(on: boolean): Promise<void> {
   await saveSetting({ reminderEmails: on });
+}
+
+export async function saveSessionPolicy(policy: SessionPolicy): Promise<void> {
+  await saveSetting({ sessionPolicy: policy });
 }
 
 /**

@@ -10,6 +10,7 @@ export default function LoginPage() {
   const searchParams                  = useSearchParams();
   const [error, setError]             = useState<string | null>(null);
   const [signingIn, setSigningIn]     = useState(false);
+  const [notice, setNotice]           = useState<string | null>(null);
 
   useEffect(() => {
     const reason = searchParams.get('error');
@@ -23,6 +24,11 @@ export default function LoginPage() {
       );
     } else if (reason === 'session_failed') {
       setError('We could not verify your access just now. Please try signing in again.');
+    } else if (reason === 'idle') {
+      // Not an error: nothing went wrong, so not in red. See SessionGuard.
+      setNotice('You were signed out because TTMS was not used for a while. Sign in again to carry on.');
+    } else if (reason === 'expired') {
+      setNotice('For security, TTMS asks everybody to sign in again every few days. Sign in to carry on.');
     }
   }, [searchParams]);
 
@@ -81,6 +87,12 @@ export default function LoginPage() {
             <h2 className="text-gray-800 text-lg font-semibold">Welcome</h2>
             <p className="text-gray-500 text-sm mt-1">Sign in with your TTL Google account to continue</p>
           </div>
+
+          {notice && !error && (
+            <div className="bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-lg px-4 py-3">
+              {notice}
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">

@@ -46,6 +46,7 @@ import DayPlanSharedNotice from '@/components/planning/DayPlanSharedNotice';
 import ChangeOrderPrompt from '@/components/orders/ChangeOrderPrompt';
 import BreakReminder from '@/components/attendance/BreakReminder';
 import CelebrationHeadsUp from '@/components/dashboard/CelebrationHeadsUp';
+import SessionGuard from '@/components/dashboard/SessionGuard';
 import { LearnProvider } from '@/context/LearnContext';
 import { SpanishProvider } from '@/context/SpanishContext';
 import SpanishTips from '@/components/spanish/SpanishTips';
@@ -645,6 +646,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* "Submit a change order" — nothing until an order save needs one. */}
       <ChangeOrderPrompt />
+
+      {/* Signs out after the company's idle limit and maximum sign-in age —
+          nothing on screen until a warning is due. See src/types/sessionPolicy.ts. */}
+      <SessionGuard />
     </div>
   );
 }

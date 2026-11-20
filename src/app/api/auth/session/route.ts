@@ -10,6 +10,7 @@ import { claimPendingAssignments } from '@/lib/pendingClaims';
 import { managedScopeFor, syncManagedScopes } from '@/lib/teamScope';
 import { otherPhone } from '@/lib/phone';
 import { effectivePermissions } from '@/types/permission';
+import { readSessionPolicy, sessionEndsAt } from '@/types/sessionPolicy';
 
 /**
  * Called by AuthContext immediately after Firebase sign-in.
@@ -32,6 +33,31 @@ export async function POST(req: NextRequest) {
     decoded = await adminAuth.verifyIdToken(idToken, true);
   } catch {
     return NextResponse.json({ error: 'Invalid or expired session' }, { status: 401 });
+  }
+
+  /**
+   * The "sign in again every N days" limit — see src/types/sessionPolicy.ts.
+   *
+   * `auth_time` is when the person last actually signed in with Google, set by
+   * Google and carried in the signed token, so the browser cannot move it; a
+   * token refresh does not change it. Checked here because every page load
+   * comes through this route — SessionGuard ends an open tab on the same
+   * clock, this stops a reload from carrying on past it.
+   *
+   * Refused without revoking: a revoke would also end the fresh sign-in this
+   * person may be making in another browser right now. The browser signs out
+   * on any failure here, which is all that is needed.
+   *
+   * Applies to the bootstrap admins too. Signing in again is not a lockout.
+   */
+  const settingsSnap = await adminDb.collection('appSettings').doc('general').get();
+  const policy = readSessionPolicy(settingsSnap.data()?.sessionPolicy);
+  const endsAt = sessionEndsAt(decoded.auth_time * 1000, policy);
+  if (endsAt !== null && Date.now() >= endsAt) {
+    return NextResponse.json(
+      { error: 'session_expired', message: 'Your sign-in has expired. Please sign in again.' },
+      { status: 401 },
+    );
   }
 
   const { uid } = decoded;

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "7ad554753b9c2f6449127ee58bcd50d653d5b428",
+      "date": "2026-11-18T16:31:01-06:00",
+      "author": "erwindank",
+      "subject": "Add unlisted monthly update pages behind TTMS sign-in, starting with November 2026. The page opens at /dashboard/updates/2026-11 for anyone on the allowlist, so management can read the report without a Claude account. Nothing in the app links to it. The report is drawn in a sandboxed frame that follows the reader's TTMS theme, and is served only through a guarded route, never from public/",
+      "body": ""
+    },
+    {
       "hash": "17ff27bcd95dcd7769083dadb42d7984697c0cc5",
       "date": "2026-11-18T08:16:27-06:00",
       "author": "erwindank",

@@ -19,6 +19,7 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { auth, db, googleProvider } from '@/lib/firebase';
 import { USERS_COLLECTION } from '@/lib/accessControl';
+import { noteSignedIn } from '@/lib/sessionActivity';
 import type { UserProfile } from '@/types/userProfile';
 import { can as canDo } from '@/lib/accessControl';
 import type { Permission } from '@/types/permission';
@@ -55,8 +56,11 @@ interface AuthContextValue {
   isDispatcher: boolean;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (reason?: SignOutReason) => Promise<void>;
 }
+
+/** Why TTMS signed somebody out by itself — shown on the login page. */
+export type SignOutReason = 'idle' | 'expired';
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -81,6 +85,10 @@ async function establishSession(firebaseUser: User): Promise<UserProfile> {
 
   const data = await res.json().catch(() => ({}));
 
+  // The "sign in again every N days" limit — src/types/sessionPolicy.ts.
+  if (res.status === 401 && data.error === 'session_expired') {
+    throw new AccessDeniedError(data.message || 'Your sign-in has expired.', 'expired');
+  }
   if (res.status === 403) {
     throw new AccessDeniedError(
       data.message || 'This account does not have access to TTMS.',
@@ -180,6 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, googleProvider);
+    noteSignedIn();
 
     try {
       await establishSession(result.user);
@@ -195,9 +204,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/dashboard');
   };
 
-  const logout = async () => {
+  /**
+   * `reason` is set only by SessionGuard, so the login page can say why
+   * somebody who pressed nothing was signed out. Never pass this as an
+   * onClick handler directly — the click event would arrive as the reason.
+   */
+  const logout = async (reason?: SignOutReason) => {
     await signOut(auth);
-    router.push('/login');
+    router.push(reason ? `/login?error=${reason}` : '/login');
   };
 
   const isAdmin = profile?.isAdmin ?? false;

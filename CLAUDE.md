@@ -186,6 +186,16 @@ claims. Any failure signs the user straight back out. Preserve that property:
 - `allowedUsers/{email}` — the allowlist, keyed by lowercased email, source of truth for roles. `uid: null` = pending invite.
 - `users/{uid}` — live profile, provisioned server-side.
 - Neither is client-writable. All mutations go through the Admin SDK so nobody can self-promote.
+- **A sign-in does not last for ever** (2026-11-20). Firebase alone keeps a
+  browser signed in until Sign out is pressed, so `appSettings/general.sessionPolicy`
+  (Settings → Operations → Sign-out Timer, `settings.manage`) sets an idle
+  limit (default 3 hours, any TTMS tab, one-minute warning) and a maximum age
+  (default 7 days). The idle limit lives only in the browser (`SessionGuard`,
+  shared through localStorage by `src/lib/sessionActivity.ts`); the maximum age
+  is also refused by `/api/auth/session` from the token's `auth_time`, which
+  the browser cannot move. Rules in `src/types/sessionPolicy.ts`. It guards
+  against an unattended computer, not a removed person — the allowlist check
+  and token revocation already cover that. A sign-out never clocks anyone out.
 - **The address can change** (admins, Settings → People → editor): `src/lib/emailChange.ts` moves the entry and everything else keyed by email — attendance, pending assignments, team leads, requests. **Anything new keyed by email must be added to its list**, or it is left behind on the old address.
 
 ### Ability is a permission, not a role

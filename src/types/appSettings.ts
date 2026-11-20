@@ -3,6 +3,7 @@ import {
   type CelebrationTemplates,
 } from './celebration';
 import type { PaymentMethod } from './paymentMethod';
+import { DEFAULT_SESSION_POLICY, type SessionPolicy } from './sessionPolicy';
 
 /**
  * Company-wide settings an admin controls from the Settings page.
@@ -89,6 +90,11 @@ export interface AppSettings {
    * turning this back on restores what they had chosen.
    */
   reminderEmails: boolean;
+  /**
+   * How long a sign-in lasts: signed out after so long idle, and after so many
+   * days whatever. See src/types/sessionPolicy.ts.
+   */
+  sessionPolicy: SessionPolicy;
 }
 
 /**
@@ -124,6 +130,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   brokerFeeTermOptions: [],
   presence: true,
   reminderEmails: false,
+  sessionPolicy: DEFAULT_SESSION_POLICY,
 };
 
 export const LANE_DISTANCE_MODES: LaneDistanceMode[] = ['off', 'estimate', 'routes'];

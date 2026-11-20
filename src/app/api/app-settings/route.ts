@@ -8,6 +8,7 @@ import {
 } from '@/types/celebration';
 import type { Permission } from '@/types/permission';
 import { readPaymentMethods, validatePaymentMethods } from '@/types/paymentMethod';
+import { isIdleMinutes, isMaxDays, readSessionPolicy } from '@/types/sessionPolicy';
 
 const DOC = adminDb.collection('appSettings').doc('general');
 
@@ -52,6 +53,7 @@ export async function GET(req: NextRequest) {
       reminderEmails: typeof stored?.reminderEmails === 'boolean'
         ? stored.reminderEmails
         : DEFAULT_APP_SETTINGS.reminderEmails,
+      sessionPolicy: readSessionPolicy(stored?.sessionPolicy),
     },
     // Whether the Google Routes option can actually work, so the Settings page
     // can warn before an admin picks a mode that would silently do nothing.
@@ -85,6 +87,7 @@ const SETTING_OWNERS: { permission: readonly Permission[]; keys: string[] }[] = 
   { permission: ['celebrations.manage'],                    keys: ['celebrations', 'celebrationTemplates'] },
   { permission: ['settings.manage', 'presence.manage'],     keys: ['presence'] },
   { permission: ['settings.manage'],                        keys: ['reminderEmails'] },
+  { permission: ['settings.manage'],                        keys: ['sessionPolicy'] },
 ];
 
 /** Stored wording, with the default substituted for anything unusable. */
@@ -188,6 +191,16 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Reminder emails must be on or off.' }, { status: 400 });
     }
     patch.reminderEmails = body.reminderEmails;
+  }
+
+  // Both halves together, from the fixed lists only — a typed "1" would sign
+  // the whole company out every minute.
+  if ('sessionPolicy' in body) {
+    const raw = body.sessionPolicy ?? {};
+    if (!isIdleMinutes(raw.idleMinutes) || !isMaxDays(raw.maxDays)) {
+      return NextResponse.json({ error: 'Pick a sign-out time from the list.' }, { status: 400 });
+    }
+    patch.sessionPolicy = { idleMinutes: raw.idleMinutes, maxDays: raw.maxDays };
   }
 
   // Each side is saved whole, as one list: the panel edits a list, and a
