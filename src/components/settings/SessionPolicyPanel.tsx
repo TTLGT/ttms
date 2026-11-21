@@ -77,7 +77,7 @@ export default function SessionPolicyPanel() {
               ))}
             </select>
             <span className="mt-1 block text-xs text-gray-500">
-              <Bi>No click, key or scroll in any TTMS tab. A one-minute warning comes first, with a button to stay signed in.</Bi>
+              <Bi>No click, key or scroll in any TTMS tab — or, while clocked in, no use of the computer at all where Chrome or Edge allow TTMS to see it. A one-minute warning comes first, with a button to stay signed in.</Bi>
             </span>
           </label>
 

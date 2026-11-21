@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "be493e26288f0e1ce39e2437408e5c21d09824d8",
+      "date": "2026-11-20T16:13:32-06:00",
+      "author": "erwindank",
+      "subject": "Add an Incentives section for each month's bonus programme. Every broker sees a card per goal with what it pays, where they stand, what is left and how to get it (sales report columns, the Quotes form, proof to send), and everybody can see everybody's progress and the prize standings. Admins, HR and Sales Managers for their own team record the figures, and every change is logged with who and when. Admins and Sales Managers set up each month's goals, rewards, prize, people and personal targets, and can start a month from the one before. Adds the \"Run incentives\" permission (widens Sales Managers) and \"Record incentive progress\" (widens HR). November's Black Friday bonus was loaded from the spreadsheet with scripts/seed-incentives.js",
+      "body": ""
+    },
+    {
       "hash": "6cb0e5b5792b25d79dd353d2df5eb4e460748354",
       "date": "2026-11-20T08:23:45-06:00",
       "author": "erwindank",

@@ -3215,8 +3215,8 @@ export const ES_MORE: Record<string, string> = {
   "When TTMS signs a browser out by itself, so a lost laptop or an unlocked computer does not stay open to the company's data. Signing out never clocks anybody out":
     'Cuándo TTMS cierra la sesión de un navegador por sí solo, para que una laptop perdida o una computadora sin bloquear no quede abierta a los datos de la empresa. Cerrar sesión nunca marca la salida de nadie.',
   "Sign out after this long unused": 'Cerrar sesión tras este tiempo sin uso',
-  "No click, key or scroll in any TTMS tab. A one-minute warning comes first, with a button to stay signed in":
-    'Sin clics, teclas ni desplazamiento en ninguna pestaña de TTMS. Antes llega un aviso de un minuto, con un botón para seguir conectado.',
+  "No click, key or scroll in any TTMS tab — or, while clocked in, no use of the computer at all where Chrome or Edge allow TTMS to see it. A one-minute warning comes first, with a button to stay signed in":
+    'Sin clics, teclas ni desplazamiento en ninguna pestaña de TTMS; o, con la entrada marcada, sin ningún uso de la computadora donde Chrome o Edge le permiten a TTMS verlo. Antes llega un aviso de un minuto, con un botón para seguir conectado.',
   "Sign in again every": 'Volver a iniciar sesión cada',
   "However busy somebody is. They get five minutes' warning to save their work":
     'Aunque la persona esté trabajando. Recibe un aviso cinco minutos antes para guardar su trabajo.',

@@ -13,7 +13,9 @@
  * Two limits, each switchable off (0):
  *
  * - `idleMinutes` — no click, key or scroll in **any** TTMS tab for this long
- *   signs the browser out, with a one-minute warning. Measured in the browser
+ *   signs the browser out, with a one-minute warning. While clocked in, use
+ *   of the whole computer counts too, where Chrome/Edge allow TTMS to see it
+ *   (the attendance idle detection). Measured in the browser
  *   (`SessionGuard`), because only the browser knows about clicks. A laptop
  *   that slept past the limit is signed out the moment it wakes.
  * - `maxDays` — a sign-in older than this ends however busy somebody is. This

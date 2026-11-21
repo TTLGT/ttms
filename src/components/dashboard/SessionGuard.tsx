@@ -5,6 +5,7 @@ import { LogOut } from 'lucide-react';
 import { useAuth, type SignOutReason } from '@/context/AuthContext';
 import { getAppSettingsOrDefaults } from '@/lib/appSettings';
 import { readLastActive, writeLastActive } from '@/lib/sessionActivity';
+import { onSystemActive, systemActivity } from '@/lib/idleDetection';
 import {
   IDLE_WARNING_MS,
   sessionEndsAt,
@@ -24,6 +25,16 @@ import { Bi } from '@/components/spanish/Es';
  * - Activity is a click, key, scroll, touch or mouse move in any TTMS tab,
  *   shared through localStorage (src/lib/sessionActivity.ts). Written at most
  *   every 15 seconds, so a mouse move is not a storage write.
+ * - **While clocked in, use of the whole computer counts too** — somebody
+ *   working all afternoon in Excel or their email with TTMS in the background
+ *   is not idle (asked for, 2026-11-20). That is the Idle Detection API the
+ *   attendance heartbeat already runs (src/lib/idleDetection.ts); this only
+ *   reads its answer and records nothing of it. Outside work hours the
+ *   detector is off — deliberately, see that file — so the limit falls back
+ *   to TTMS alone, as it does wherever the browser has not allowed it.
+ *   System activity goes through `markActive` like a click does, so a laptop
+ *   waking from the night is still caught: the detector reports "active" the
+ *   moment it wakes, and `markActive` checks the gap before recording.
  * - The sign-in itself counts as activity (`authTime`), so a stale time from
  *   last week cannot sign somebody straight back out after they sign in.
  * - **Nothing is marked until the policy and the sign-in time are known.** A
@@ -115,10 +126,12 @@ export default function SessionGuard() {
     setNow(t);
   }, [end, lastSeen]);
 
-  const markActive = useCallback((force = false) => {
+  /** Records activity at `at` (now, unless the computer reports an earlier time). */
+  const markActive = useCallback((force = false, at?: number) => {
     const r = ready.current;
     if (!r || ending.current) return;
-    const t = Date.now();
+    const t = at ?? Date.now();
+    if (t <= lastActive.current) return;
     // A long gap since this tab last saw anything — a sleeping laptop, most
     // often. Check before recording, or the wake-up itself erases the gap.
     if (r.policy.idleMinutes > 0 && t - lastActive.current >= IDLE_WARNING_MS) {
@@ -131,6 +144,18 @@ export default function SessionGuard() {
       writeLastActive(t);
     }
   }, [check]);
+
+  /**
+   * The computer's own answer, when the attendance heartbeat is watching it
+   * (clocked in, and allowed by the browser). Null otherwise — then only
+   * TTMS's own clicks and keys count.
+   */
+  const markSystemActive = useCallback(() => {
+    const sys = systemActivity();
+    if (!sys) return;
+    if (sys.activeNow) markActive();
+    else if (sys.lastActiveAt > 0) markActive(false, sys.lastActiveAt);
+  }, [markActive]);
 
   // Start once both answers are in: check first, then listen.
   useEffect(() => {
@@ -149,15 +174,20 @@ export default function SessionGuard() {
     const onWake = () => check();
     document.addEventListener('visibilitychange', onWake);
     window.addEventListener('focus', onWake);
-    const timer = setInterval(check, CHECK_EVERY_MS);
+    // Work in another program, asked on every tick (the detector raises no
+    // event while somebody simply keeps working) and on the moment they come
+    // back to the computer. Recorded first, then judged.
+    const timer = setInterval(() => { markSystemActive(); check(); }, CHECK_EVERY_MS);
+    const offSystem = onSystemActive(markSystemActive);
 
     return () => {
+      offSystem();
       for (const e of ACTIVITY_EVENTS) window.removeEventListener(e, onActivity, { capture: true });
       document.removeEventListener('visibilitychange', onWake);
       window.removeEventListener('focus', onWake);
       clearInterval(timer);
     };
-  }, [policy, signedInAt, check, markActive]);
+  }, [policy, signedInAt, check, markActive, markSystemActive]);
 
   // A one-second countdown only while a warning is on screen.
   useEffect(() => {

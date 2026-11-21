@@ -189,7 +189,8 @@ claims. Any failure signs the user straight back out. Preserve that property:
 - **A sign-in does not last for ever** (2026-11-20). Firebase alone keeps a
   browser signed in until Sign out is pressed, so `appSettings/general.sessionPolicy`
   (Settings → Operations → Sign-out Timer, `settings.manage`) sets an idle
-  limit (default 3 hours, any TTMS tab, one-minute warning) and a maximum age
+  limit (default 3 hours, any TTMS tab — or, while clocked in, the whole
+  computer through the attendance Idle Detection; one-minute warning) and a maximum age
   (default 7 days). The idle limit lives only in the browser (`SessionGuard`,
   shared through localStorage by `src/lib/sessionActivity.ts`); the maximum age
   is also refused by `/api/auth/session` from the token's `auth_time`, which
