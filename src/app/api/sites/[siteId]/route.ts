@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
 import { ALLOWED_USERS_COLLECTION, USERS_COLLECTION } from '@/lib/accessControl';
+import { logSettingsChange } from '@/lib/settingsChangeServer';
 
 const COL = 'sites';
 
@@ -11,7 +12,7 @@ export async function PATCH(
 ) {
   try {
     const { siteId } = await params;
-    await requirePermission(req, 'settings.manage');
+    const caller = await requirePermission(req, 'settings.manage');
     const body = await req.json().catch(() => ({}));
 
     const ref  = adminDb.collection(COL).doc(siteId);
@@ -34,7 +35,16 @@ export async function PATCH(
     }
     if (typeof body.address === 'string') patch.address = body.address.trim();
 
-    await ref.update(patch);
+    const was = { name: snap.get('name') ?? '', address: snap.get('address') ?? '' };
+    const batch = adminDb.batch();
+    batch.update(ref, patch);
+    await logSettingsChange({
+      area: 'sites', summary: `Changed the site ${was.name}`, caller,
+      before: was,
+      after: { name: patch.name ?? was.name, address: patch.address ?? was.address },
+      labels: { name: 'Name', address: 'Address' },
+    }, batch);
+    await batch.commit();
     return NextResponse.json({ id: siteId });
   } catch (e) {
     if (e instanceof AdminAuthError) {
@@ -57,7 +67,7 @@ export async function DELETE(
 ) {
   try {
     const { siteId } = await params;
-    await requirePermission(req, 'settings.manage');
+    const caller = await requirePermission(req, 'settings.manage');
 
     const ref  = adminDb.collection(COL).doc(siteId);
     const snap = await ref.get();
@@ -72,6 +82,11 @@ export async function DELETE(
     for (const doc of entries.docs) batch.update(doc.ref, { siteId: null });
     for (const doc of profiles.docs) batch.update(doc.ref, { siteId: null });
     batch.delete(ref);
+    await logSettingsChange({
+      area: 'sites',
+      summary: `Deleted the site ${snap.get('name')}${entries.size ? `, leaving ${entries.size} ${entries.size === 1 ? 'person' : 'people'} without one` : ''}`,
+      caller,
+    }, batch);
     await batch.commit();
 
     return NextResponse.json({ deleted: siteId, detachedUsers: entries.size });

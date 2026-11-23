@@ -1,15 +1,15 @@
 'use client';
 
 import { Fragment, type ReactNode } from 'react';
-import { ArrowUp, ArrowDown } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowUp, ArrowDown, ChevronRight } from 'lucide-react';
 import { otherPhone } from '@/lib/phone';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import type { SortDir, SortField } from '@/lib/peopleSort';
 import type { PeopleCardFieldState } from '@/lib/peopleCardFields';
 import { accessStatus, fullName } from '@/types/allowedUser';
-import type { AllowedUser, AllowedUserRole } from '@/types/allowedUser';
+import type { AllowedUser } from '@/types/allowedUser';
 import { UserAvatar } from '@/components/settings/UserAvatar';
-import PersonActions from '@/components/settings/PersonActions';
 import PersonRoles from '@/components/settings/PersonRoles';
 import StatusChip from '@/components/settings/StatusChip';
 
@@ -112,42 +112,30 @@ function Heading({
 }
 
 export default function PeopleTable({
-  people, fields, canEdit, myEmail, isProtectedEmail, busy, editing,
-  siteName, teamName, formatWhen, anchorId,
+  people, fields, myEmail, isProtectedEmail,
+  siteName, teamName, formatWhen, anchorId, hrefFor,
   sortField, sortDir, onSort,
-  onMakeBroker, onToggleRole, onEdit, onSuspend, onRevoke, renderEditor,
 }: {
   people: AllowedUser[];
   /** Which detail columns the reader has left switched on. */
   fields: PeopleCardFieldState;
-  canEdit: boolean;
   /** The reader's own address, already lowercased. */
   myEmail: string;
   isProtectedEmail: (email: string) => boolean;
-  busy: string | null;
-  /** The email whose editor is open, or null. */
-  editing: string | null;
   siteName: (id: string | null | undefined) => string | null;
   teamName: (id: string | null | undefined) => string | null;
   /** "Added" in the company's date format — the page owns the formatters. */
   formatWhen: (person: AllowedUser) => string;
   /** The id the settings search box scrolls to. */
   anchorId: (email: string) => string;
+  /**
+   * The person's own page. Every change to somebody is made there — the list
+   * is for finding them — so a row is a link and holds no buttons.
+   */
+  hrefFor: (person: AllowedUser) => string;
   sortField: SortField;
   sortDir: SortDir;
   onSort: (field: SortField) => void;
-  onMakeBroker: (person: AllowedUser) => void;
-  onToggleRole: (person: AllowedUser, field: AllowedUserRole) => void;
-  onEdit: (person: AllowedUser) => void;
-  onSuspend: (person: AllowedUser) => void;
-  onRevoke: (person: AllowedUser) => void;
-  /**
-   * The editor, drawn by the page and dropped into a full-width row under the
-   * person being edited. It stays on the page because it owns the draft state
-   * and every save; the table only decides where it goes, so editing works the
-   * same in whichever view the reader happened to be in.
-   */
-  renderEditor: (person: AllowedUser) => ReactNode;
 }) {
   const { formatCalendarDate } = useDateFormatters();
 
@@ -161,9 +149,6 @@ export default function PeopleTable({
    * are still offered in full by the Sort by dropdown.
    */
   const personSort: SortField = sortField === 'lastName' ? 'lastName' : 'firstName';
-  // Person, status, roles, the detail columns, and the buttons where there are
-  // any — the number the editor's row has to span.
-  const span = 3 + columns.length + (canEdit ? 1 : 0);
 
   return (
     /* Every detail column switched on is wider than a laptop screen, so the
@@ -186,7 +171,7 @@ export default function PeopleTable({
                 onSort={onSort}
               />
             ))}
-            {canEdit && <th scope="col" className="px-4 py-3" />}
+            <th scope="col" className="px-4 py-3" />
           </tr>
         </thead>
 
@@ -198,7 +183,6 @@ export default function PeopleTable({
             const isSelf      = p.email.toLowerCase() === myEmail;
             const isProtected = isProtectedEmail(p.email);
             const other       = otherPhone(p);
-            const open        = editing === p.email;
             // Same rule as the cards: a legal name that is the everyday name
             // again is noise, in a column as much as on a card.
             const legal =
@@ -270,14 +254,11 @@ export default function PeopleTable({
             };
 
             return (
-              /* The row and its editor are one entry in the list, so they are
-                 keyed together — a fragment per person rather than two
-                 siblings that React would have to match up on its own. */
               <Fragment key={p.email}>
                 <tr
                   id={anchorId(p.email)}
-                  className={`scroll-mt-44 transition target:bg-brand-50 ${
-                    suspended ? 'bg-red-50/40' : open ? 'bg-brand-50/40' : 'hover:bg-gray-50'
+                  className={`scroll-mt-6 transition target:bg-brand-50 ${
+                    suspended ? 'bg-red-50/40' : 'hover:bg-gray-50'
                   }`}
                 >
                   <td className="px-4 py-2.5">
@@ -291,10 +272,10 @@ export default function PeopleTable({
                         name={name || p.email}
                       />
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-gray-900">
+                        <Link href={hrefFor(p)} className="block truncate text-sm font-medium text-gray-900 hover:text-brand-700 hover:underline">
                           {name || p.email}
                           {isSelf && <span className="ml-1.5 text-xs text-gray-400">(you)</span>}
-                        </div>
+                        </Link>
                         {/* Added, and by whom, follows the name rather than
                             taking a column of its own: it is the one fact here
                             that is about the record instead of the person. */}
@@ -313,46 +294,26 @@ export default function PeopleTable({
                   <td className="px-4 py-2.5">
                     <PersonRoles
                       person={p}
-                      canEdit={canEdit}
+                      canEdit={false}
                       suspended={suspended}
                       isSelf={isSelf}
                       isProtected={isProtected}
-                      busy={busy}
-                      onMakeBroker={onMakeBroker}
-                      onToggle={onToggleRole}
+                      busy={null}
+                      onMakeBroker={() => {}}
+                      onToggle={() => {}}
                       size="small"
                     />
                   </td>
 
                   {columns.map((c) => cells[c.key])}
 
-                  {canEdit && (
-                    <td className="px-4 py-2.5">
-                      <PersonActions
-                        person={p}
-                        editing={open}
-                        suspended={suspended}
-                        isSelf={isSelf}
-                        isProtected={isProtected}
-                        busy={busy}
-                        onEdit={onEdit}
-                        onSuspend={onSuspend}
-                        onRevoke={onRevoke}
-                      />
-                    </td>
-                  )}
+                  <td className="px-4 py-2.5 text-right">
+                    <Link href={hrefFor(p)} aria-label={`Open ${name || p.email}`}
+                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50">
+                      <span data-es>Open</span> <ChevronRight size={13} />
+                    </Link>
+                  </td>
                 </tr>
-
-                {/* The editor opens in place, under the row it belongs to,
-                    rather than sending the reader to another view to make a
-                    change they decided on here. */}
-                {open && (
-                  <tr className="bg-brand-50/40">
-                    <td colSpan={span} className="px-4 pb-4">
-                      {renderEditor(p)}
-                    </td>
-                  </tr>
-                )}
               </Fragment>
             );
           })}

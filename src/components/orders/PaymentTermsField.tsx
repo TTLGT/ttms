@@ -16,7 +16,7 @@ const INPUT =
 
 interface Props {
   side: PaymentSide;
-  /** The options an admin set up in Settings → Operations. */
+  /** The options an admin set up in Settings → Payment terms. */
   methods: PaymentMethod[];
   value: OrderPaymentTerms | null;
   onChange: (terms: OrderPaymentTerms | null) => void;
@@ -63,7 +63,7 @@ export default function PaymentTermsField({ side, methods, value, onChange, base
           ))}
         </select>
         {!methods.length && !retired && (
-          <p data-es className="text-xs text-gray-500 mt-1">An admin adds these in Settings → Operations.</p>
+          <p data-es className="text-xs text-gray-500 mt-1">An admin adds these in Settings → Payment terms.</p>
         )}
       </div>
 

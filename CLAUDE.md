@@ -188,7 +188,7 @@ claims. Any failure signs the user straight back out. Preserve that property:
 - Neither is client-writable. All mutations go through the Admin SDK so nobody can self-promote.
 - **A sign-in does not last for ever** (2026-11-20). Firebase alone keeps a
   browser signed in until Sign out is pressed, so `appSettings/general.sessionPolicy`
-  (Settings → Operations → Sign-out Timer, `settings.manage`) sets an idle
+  (Settings → Security, `settings.manage`) sets an idle
   limit (default 3 hours, any TTMS tab — or, while clocked in, the whole
   computer through the attendance Idle Detection; one-minute warning) and a maximum age
   (default 7 days). The idle limit lives only in the browser (`SessionGuard`,
@@ -197,7 +197,7 @@ claims. Any failure signs the user straight back out. Preserve that property:
   the browser cannot move. Rules in `src/types/sessionPolicy.ts`. It guards
   against an unattended computer, not a removed person — the allowlist check
   and token revocation already cover that. A sign-out never clocks anyone out.
-- **The address can change** (admins, Settings → People → editor): `src/lib/emailChange.ts` moves the entry and everything else keyed by email — attendance, pending assignments, team leads, requests. **Anything new keyed by email must be added to its list**, or it is left behind on the old address.
+- **The address can change** (admins, Settings → People → a person's page): `src/lib/emailChange.ts` moves the entry and everything else keyed by email — attendance, pending assignments, team leads, requests. **Anything new keyed by email must be added to its list**, or it is left behind on the old address.
 
 ### Ability is a permission, not a role
 
@@ -863,11 +863,11 @@ years is not the same for each of them.
   so no editor can produce "1 years". `{count}` is the bare number for a
   message written in another language.
 
-**`celebrations.manage` is the first permission that opens a Settings tab to a
-non-admin.** `SettingsTab.permission` is additive and never a narrowing, and a
-tab reached that way **must have its page filter its own panels** — the
-Operations page does. A control drawn for somebody whose save will 403 is worse
-than one that is hidden.
+**`celebrations.manage` opens a Settings page to a non-admin**, like several
+narrow permissions do now — see "Settings" below. A page reached on a narrow
+permission **must filter its own panels** (Settings → General does, for HR's
+Online status): a control drawn for somebody whose save will 403 is worse than
+one that is hidden.
 
 Wording note: this is the **one place TTMS is allowed to sound pleased.** Every
 other automated line (`src/lib/chatAlerts.ts`) is a flat statement of fact, and
@@ -989,7 +989,7 @@ report), `attendanceAdmin.ts` (schedules, holidays, requests) and
   the press; `pendingReturn()` is that state, and a new break, a clock-out and
   `summarizeDay()` all respect it. Undo reopens the break until its end.
 - **Lunch time is the `lunch` slot of the break reminders** — there is no
-  separate record. Settings → Attendance → Lunch times moves it for everyone
+  separate record. Settings → Lunch and breaks → Lunch times moves it for everyone
   or for several people at once (`moveLunch()`, `PATCH
   /api/attendance/reminders`), writing the same company setting and
   per-person overrides the Break reminders panel does.
@@ -1198,8 +1198,8 @@ Types and pure rules in `src/types/task.ts`; server in
   `notice_tasks_{uid}` room — never the celebration one. It grants and removes
   nothing.
 - **Reminder emails are off company-wide unless an admin turns them on**
-  (2026-11-05): `appSettings/general.reminderEmails`, Settings → Operations →
-  Reminder Emails, `settings.manage`. **Absent means off.** It covers both
+  (2026-11-05): `appSettings/general.reminderEmails`, Settings → General →
+  Reminder emails, `settings.manage`. **Absent means off.** It covers both
   calendar reminder runs — these and the birthday/anniversary ones —
   applied over each person's own email tick by `reminderEmailsAllowed()` in
   `src/lib/reminderEmailsServer.ts`, so nobody's own choice is rewritten. The
@@ -1388,8 +1388,8 @@ stored as `providerId` / `providerName` on `loadingHelp` / `unloadingHelp`).
 a button in Price and Terms (new and edit). Distance from two ZIPs or typed,
 freight in any unit, a fit check against each truck, then price, driver pay,
 broker fee and a uShip column. Pure maths in `src/types/quoteRates.ts`; the
-rate card is `appSettings/quoteRates`, edited in Settings → Operations → Quote
-Rates under `quoteRates.manage` (admin only by default). See the Schema Guide.
+rate card is `appSettings/quoteRates`, edited in Settings → Quote rates under
+`quoteRates.manage` (admin only by default). See the Schema Guide.
 
 - **Nothing it works out is stored.** "Apply to order" fills Agreed Rate and
   Broker Fee in the form, and the broker saves the order as usual — so the
@@ -1534,8 +1534,8 @@ Two halves, both 2026-10-19. See `changeOrders` in the Schema Guide.
 
 ### Terms and conditions — general, per load, approved by an admin
 
-The SA and the Dispatch Sheet each have general terms (Settings → Operations →
-Agreement Terms, `appSettings/agreementTerms`) and a load can have its own
+The SA and the Dispatch Sheet each have general terms (Settings → Agreement
+terms, `appSettings/agreementTerms`) and a load can have its own
 (`clientTerms` / `carrierTerms` on the order, from the Terms and Conditions
 card on the order — **that load only**). See `src/types/agreementTerms.ts` and
 `termsChangeRequests` in the Schema Guide.
@@ -1859,11 +1859,70 @@ Guide.
   number on that page as a rule. The damages guide is general practice for
   Dispatch to correct to TTL's own procedure.
 
+### Settings — one page per setting, one way to save (2026-11-23)
+
+Settings is a side menu grouped by topic (People & access, Company, Sales &
+orders, Team life, Data & history) with **one setting per page**, each at its
+own address (`/dashboard/settings/<id>`). It replaced seven tabs, one of which
+("Operations") held ten unrelated panels.
+
+- **`src/components/settings/settingsSections.ts` is the one description of
+  Settings.** Every page is an entry there: its label, group, blurb, search
+  keywords, the change-log areas behind its "Last changed" line, an optional
+  risk chip, and **`access()`** — who may open it (`edit`, `view` or false).
+  The side menu, Home, the search box, "See it as another role", the
+  sidebar's Settings link (`canOpenSettings()` in the dashboard layout) and the
+  redirects from old addresses all read it. **A new page is an entry there
+  plus its route folder.** The layout refuses a page whose `access()` is
+  false; the routes behind it check again — `access()` decides what is drawn,
+  never what is allowed.
+- **Old addresses keep working.** `/settings/organization`, `/operations`,
+  `/attendance` and `/data` are `LegacyRedirect`, which reads the old `#anchor`
+  and replaces the address with the page that holds it (`LEGACY_ANCHORS`).
+  The People page does the same for `#add-people` and friends.
+- **Saving works one way on every page** — `src/components/settings/kit/SaveBar.tsx`.
+  A panel holds its change as a draft and registers it with
+  `useSaveBarEntry({ dirty, problem, save, discard })`; the bar at the foot of
+  the page saves every dirty panel in order, Ctrl+S included, and asks before a
+  link or a reload throws a draft away. `save` may return an undo, offered for
+  ten seconds; an undo is an ordinary save of the old value, so it is logged
+  too. **Outside Settings there is no provider** and the hook reports
+  `active: false` — the panels that also appear on Attendance → Setup and the
+  order page (`TermsEditor`) draw their own buttons then. Keep both paths
+  working. Adding or deleting an item in a list (a site, a lead source, a
+  person) and uploading a photo stay one-press actions that name what they do.
+- **Everything about one person is on their page**
+  (`/settings/people/[email]`, `PersonPage.tsx`): details, roles and extra
+  permissions, team and site, suspend and remove, and their access history.
+  The People list only finds and exports people. The role tab shows
+  `AbilityList` — what the person will be able to do, what the change adds and
+  takes away, sensitive abilities flagged — before Save. The details save
+  (`PATCH /api/admin/users` with `details`) replaces the whole block, so
+  anything that changes one field of it sends the rest through `detailsOf()`
+  in `src/lib/personDetails.ts` (the Teams org chart does).
+- **Previews never cost anything.** The lane distance calculator is arithmetic
+  in the browser and never calls Google; the work-group preview
+  (`GET /api/work-groups/[id]/reach`) is three count aggregations run only when
+  a group is opened for editing, never on Home. Keep both true.
+- **Search can stage, never save.** `SETTINGS_ACTIONS` ("Turn off reminder
+  emails") open a page with `?stage=key:value`; the panel reads it once with
+  `useStagedAction()` into its draft, and the person still presses Save.
+- **The settings change log** is `settingsChanges` — see the Schema Guide.
+  Every route that saves a company setting calls `logSettingsChange()` from
+  `src/lib/settingsChangeServer.ts`, in the same batch where it can. **A new
+  setting's route must log too**, and its area must be added to
+  `SETTINGS_AREAS` and `AREA_PERMISSIONS` in `src/types/settingsChange.ts`
+  (readers are whoever may change it). It is closed to the browser by having
+  no rule at all. Not to be confused with the order/party/carrier change log
+  (`changes` subcollections) or the code's Change history.
+- The Spanish for these screens is `src/lib/i18n/es-settings.ts`, merged in
+  `es.ts`.
+
 ## Conventions
 
 - **Comments explain why, not what.** This codebase is unusually well commented on non-obvious decisions, and that is the main reason it is handoverable. Match that density. When you make a non-obvious call, leave the reasoning.
 - Data access belongs in `src/lib/`, never inline in a page component.
-- **Every date shown on screen goes through `src/lib/dateFormat.ts`** — in a component, via `useDateFormatters()`. The format is a company-wide setting (`appSettings/general.dateFormat`, Settings → Operations → Date Format), so a page that formats its own dates silently ignores the setting. That is exactly what the old per-page `formatDate` copies did. The PDFs, the agreement emails and the public `sign/[token]` page deliberately stay on the spelled-out "March 4, 2020": they leave the company, and a slashed date is two different days depending on the reader.
+- **Every date shown on screen goes through `src/lib/dateFormat.ts`** — in a component, via `useDateFormatters()`. The format is a company-wide setting (`appSettings/general.dateFormat`, Settings → General → Date format), so a page that formats its own dates silently ignores the setting. That is exactly what the old per-page `formatDate` copies did. The PDFs, the agreement emails and the public `sign/[token]` page deliberately stay on the spelled-out "March 4, 2020": they leave the company, and a slashed date is two different days depending on the reader.
 - **Phone numbers are typed into `src/components/PhoneField.tsx`, and shown through `src/components/PhoneValue.tsx`.** The field carries the country beside the number (US, Mexico, Canada, Guatemala — `RECORD_PHONE_REGIONS` in `src/lib/phone.ts`, defaulting to US); the display dials it and offers a copy button. **The country is never guessed from the digits** — Mexican and US numbers are both ten digits and Canada shares the US country code, so the field a number was typed into is the only thing that says which country it is. A record with no region reads as US through `phoneRegionOf()`; do not read the raw field. Adding a country is an entry in `REGIONS`, a branch in the format switch, and a line in each table below it.
 - **Dates are typed into `src/components/DateField.tsx`, never `<input type="date">`.** A native date input takes its format from the browser's language, which is neither the setting nor anything the app can read. `DateField` keeps the same `YYYY-MM-DD` in/out contract, so it drops straight in, and its calendar button still opens the native picker. `parseDateInput()` in `dateFormat.ts` resolves a typed `3/4/2020` using the company setting, and refuses it as ambiguous when the setting is the spelled-month one — same rule as the spreadsheet importer, for the same reason.
 - Types in `src/types/`, one file per domain object, with domain helpers (`toNameKey`, `partyDisplayName`, `isUnowned`, `isBroker`) beside them.
@@ -1876,7 +1935,7 @@ Guide.
 
 - `@react-pdf/renderer` is in `serverExternalPackages` in `next.config.ts`. Removing it breaks the build.
 - Resend is lazily initialized on purpose, so a missing `RESEND_API_KEY` fails at send time rather than crashing the build.
-- Order lane distances have **two methods behind one admin setting** (`appSettings/general.laneDistanceMode`, Settings → Lane Distance): `estimate` (default) is free and offline — ZIP centroids in `src/lib/data/zipCentroids.json` plus a circuity factor, `src/lib/routeDistance.ts`, ~5% typical error and ~17% on mountain lanes; `routes` is the Google Routes API, exact but **billed per lookup**, `src/lib/routeDistanceGoogle.ts`, needs `GOOGLE_MAPS_API_KEY`. `off` hides distances entirely.
+- Order lane distances have **two methods behind one admin setting** (`appSettings/general.laneDistanceMode`, Settings → Lane distance): `estimate` (default) is free and offline — ZIP centroids in `src/lib/data/zipCentroids.json` plus a circuity factor, `src/lib/routeDistance.ts`, ~5% typical error and ~17% on mountain lanes; `routes` is the Google Routes API, exact but **billed per lookup**, `src/lib/routeDistanceGoogle.ts`, needs `GOOGLE_MAPS_API_KEY`. `off` hides distances entirely.
   - The mode is read server-side in `/api/route-distance` and **never taken from the request** — a client that could name its own method could run up a Routes bill.
   - The default is `estimate` on purpose: a default must never be the option that spends money.
   - Distances are looked up once and stored on the order (`laneMiles` + `laneMilesSource`). Don't add code that re-derives them on render — under `routes` that bills on every page view.

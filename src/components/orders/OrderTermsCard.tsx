@@ -62,7 +62,7 @@ export default function OrderTermsCard({ orderId, onChanged }: { orderId: string
         summary={data ? PARTS.map(({ party, label }) =>
           `${label}: ${data[party].own !== null ? 'own terms' : 'general'}`).join(' | ') : undefined} />
       <p className="-mt-2 text-xs text-gray-500">
-        <Bi>Changes here apply to this load only. The terms for every load are in Settings → Operations → Agreement Terms.</Bi>
+        <Bi>Changes here apply to this load only. The terms for every load are in Settings → Agreement terms.</Bi>
       </p>
 
       {!data && !error && <p data-es className="mt-3 text-sm text-gray-500">Loading…</p>}

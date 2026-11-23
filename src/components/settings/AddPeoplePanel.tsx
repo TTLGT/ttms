@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { AlertCircle, Check, Keyboard, Table2, UserPlus } from 'lucide-react';
 import { inviteUsers, type NewPersonDetails } from '@/lib/allowedUsers';
 import {
@@ -26,11 +27,13 @@ import {
 // added without the role they were meant to have.
 import { ROLE_CHIPS } from '@/types/allowedUser';
 import type { InviteResult } from '@/types/allowedUser';
-import { ROLE_ORDER, type RoleKey } from '@/types/permission';
+import { ROLE_ORDER, effectivePermissions, type RoleKey } from '@/types/permission';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
-import CollapsibleSection from './CollapsibleSection';
 import SpreadsheetImport from './SpreadsheetImport';
+import AbilityList from './AbilityList';
+import { SettingsCard } from './kit/ui';
+import { personHref } from './settingsSections';
 import DateField from '@/components/DateField';
 import { Bi } from '@/components/spanish/Es';
 
@@ -206,18 +209,18 @@ export default function AddPeoplePanel({
   }
 
   const addedCount = results.filter((r) => r.status === 'added').length;
+  // What the roles ticked so far would let them do — read before they are
+  // given it, which is when a wrong tick is cheapest to notice.
+  const abilities = useMemo(() => new Set(effectivePermissions(roles, [])), [roles]);
 
   return (
-    <CollapsibleSection
-      id="add-people"
-      title="Add People"
-      Icon={UserPlus}
-      className="mb-6"
+    <SettingsCard
+      padded={false}
       description={
         <>
           Only people on this list can sign in. Addresses must end in{' '}
           <span className="font-medium text-gray-600">@{ALLOWED_EMAIL_DOMAIN}</span>. They can
-          sign in as soon as you add them, and appear below as “Pending” until they do.
+          sign in as soon as you add them, and show as “Pending” under People until they do.
         </>
       }
       /* Two ways in, one section — see the note at the top of this file. The
@@ -366,6 +369,11 @@ export default function AddPeoplePanel({
                   ))}
                 </div>
               </div>
+
+              <div className="mt-2 rounded-lg border border-dashed border-brand-300 bg-brand-50/40 p-3">
+                <p data-es className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-brand-700">What they will be able to do</p>
+                <AbilityList held={abilities} who={single && (details.firstName || details.lastName) ? `${details.firstName} ${details.lastName}`.trim() : 'They'} compact />
+              </div>
             </div>
           </div>
 
@@ -385,7 +393,7 @@ export default function AddPeoplePanel({
             {!single && (
               <p className="text-xs text-gray-400 mb-3">
                 {parsed.length > 1
-                  ? 'A name and a birthday belong to one person, so these are off for a batch. Add the people first, then fill each one in with the pencil icon below — or use the Spreadsheet mode to do it all at once.'
+                  ? 'A name and a birthday belong to one person, so these are off for a batch. Add the people first, then fill each one in on their own page under People — or use the Spreadsheet mode to do it all at once.'
                   : 'Enter one address to fill these in while you add them.'}
               </p>
             )}
@@ -480,7 +488,7 @@ export default function AddPeoplePanel({
                   <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
                   <p>
                     Saved without {skippedPhones.join(' or ')} — the number was not the right
-                    length, so it was left blank. Add it with the pencil icon below.
+                    length, so it was left blank. Add it on their page under People.
                   </p>
                 </div>
               </div>
@@ -503,7 +511,9 @@ export default function AddPeoplePanel({
                         }`}
                       />
                     )}
-                    <span className="font-mono text-gray-700 truncate">{r.email}</span>
+                    {r.status === 'added'
+                      ? <Link href={personHref(r.email)} className="font-mono text-brand-700 truncate hover:underline">{r.email}</Link>
+                      : <span className="font-mono text-gray-700 truncate">{r.email}</span>}
                     <span
                       className={`ml-auto flex-shrink-0 ${
                         r.status === 'added'
@@ -526,6 +536,6 @@ export default function AddPeoplePanel({
           </div>
         </form>
       )}
-    </CollapsibleSection>
+    </SettingsCard>
   );
 }

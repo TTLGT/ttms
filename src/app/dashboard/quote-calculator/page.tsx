@@ -40,7 +40,7 @@ export default function QuoteCalculatorPage() {
           </p>
         </div>
         {canEditRates && (
-          <Link data-es href="/dashboard/settings/operations#quote-rates"
+          <Link data-es href="/dashboard/settings/quote-rates"
             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
             <Settings className="w-3.5 h-3.5" />
             Edit rates

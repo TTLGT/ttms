@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
+import { logSettingsChange, namesForUids } from '@/lib/settingsChangeServer';
 import { requireCaller } from '@/lib/partyAccess';
 
 const COL = 'workGroups';
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    await requirePermission(req, 'settings.manage');
+    const caller = await requirePermission(req, 'settings.manage');
     const body = await req.json().catch(() => ({}));
 
     const name = String(body.name ?? '').trim();
@@ -54,7 +55,15 @@ export async function POST(req: NextRequest) {
     }
 
     const ref = adminDb.collection(COL).doc();
+    const memberNames = [...await namesForUids(memberUids), ...memberEmails];
     await adminDb.runTransaction(async (tx) => {
+      // A work group grants access to records, so who was put in it is the
+      // part of this entry that matters.
+      await logSettingsChange({
+        area: 'workGroups', summary: `Added the work group ${name}`, caller,
+        before: {}, after: { name, members: memberNames },
+        labels: { name: 'Name', members: 'Members' },
+      }, tx);
       tx.set(ref, {
         name,
         memberUids,

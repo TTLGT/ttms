@@ -10,6 +10,7 @@ import {
 } from '@/lib/leadSources';
 import type { LeadSource } from '@/types/leadSource';
 import { Bi } from '@/components/spanish/Es';
+import { ConfirmDialog, EmptyState, Loading, Notice, SettingsCard } from './kit/ui';
 
 /**
  * Admin management of lead sources — where clients and loads come from.
@@ -21,17 +22,20 @@ import { Bi } from '@/components/spanish/Es';
  * Retiring is the normal way to remove one. Deleting is refused by the API
  * while anything still points at the source, because blanking the field across
  * thousands of orders would destroy attribution nobody could rebuild.
+ *
+ * Each row's buttons act at once rather than through the Save bar: adding,
+ * renaming, retiring and deleting a source are each one deliberate press that
+ * names what it does, and every one is written to the change log.
  */
 export default function LeadSourcesPanel() {
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
   const [busy, setBusy]       = useState('');
-
   const [newName, setNewName] = useState('');
-
   const [editing, setEditing]     = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
+  const [deleting, setDeleting]   = useState<LeadSource | null>(null);
 
   const load = useCallback(async () => {
     setError('');
@@ -59,44 +63,25 @@ export default function LeadSourcesPanel() {
     }
   }
 
-  async function handleDelete(source: LeadSource) {
-    const ok = window.confirm(
-      `Delete "${source.name}"?\n\nThis only works if no order or client is using it. ` +
-      `If any are, retire it instead — they keep their source and it leaves the pickers.`,
-    );
-    if (!ok) return;
-    await run(source.id, () => deleteLeadSource(source.id));
-  }
-
   const active  = sources.filter((s) => s.isActive);
   const retired = sources.filter((s) => !s.isActive);
 
   function row(source: LeadSource) {
     return (
-      <li key={source.id} className="px-4 py-3 bg-gray-50">
+      <li key={source.id} className="px-4 py-3">
         {editing === source.id ? (
-          <div className="flex gap-2 flex-wrap items-center">
-            <input
-              value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
-              className="flex-1 min-w-40 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
-            />
-            <button
-              onClick={() => run(source.id, async () => {
-                await updateLeadSource(source.id, { name: draftName.trim() });
-                setEditing(null);
-              })}
+          <div className="flex flex-wrap items-center gap-2">
+            <input value={draftName} onChange={(e) => setDraftName(e.target.value)} autoFocus
+              onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null); }}
+              className="min-w-40 flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+            <button type="button" title="Save the new name"
+              onClick={() => run(source.id, async () => { await updateLeadSource(source.id, { name: draftName.trim() }); setEditing(null); })}
               disabled={busy === source.id || !draftName.trim()}
-              title="Save"
-              className="p-2 rounded-lg border border-green-200 text-green-600 hover:bg-green-50 transition disabled:opacity-50"
-            >
+              className="rounded-lg border border-green-200 p-2 text-green-600 transition hover:bg-green-50 disabled:opacity-50">
               <Check size={14} />
             </button>
-            <button
-              onClick={() => setEditing(null)}
-              title="Cancel"
-              className="p-2 rounded-lg border border-gray-200 text-gray-400 hover:bg-white transition"
-            >
+            <button type="button" title="Cancel" onClick={() => setEditing(null)}
+              className="rounded-lg border border-gray-200 p-2 text-gray-400 transition hover:bg-white">
               <X size={14} />
             </button>
           </div>
@@ -104,34 +89,22 @@ export default function LeadSourcesPanel() {
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-gray-900">{source.name}</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {source.isActive
-                  ? 'Selectable on orders and clients'
-                  : 'Retired — hidden from the pickers, kept on records that use it'}
+              <p className="mt-0.5 text-xs text-gray-500">
+                {source.isActive ? 'Offered on orders and clients' : 'Retired — hidden from the pickers, kept on records that use it'}
               </p>
             </div>
-            <div className="flex gap-2 shrink-0">
-              <button
-                onClick={() => { setEditing(source.id); setDraftName(source.name); }}
-                title="Rename"
-                className="p-2 rounded-lg border border-gray-200 text-gray-400 hover:bg-white hover:text-gray-600 transition"
-              >
+            <div className="flex shrink-0 gap-1.5">
+              <button type="button" onClick={() => { setEditing(source.id); setDraftName(source.name); }} title="Rename"
+                className="rounded-lg border border-gray-200 p-2 text-gray-400 transition hover:bg-white hover:text-gray-600">
                 <Pencil size={14} />
               </button>
-              <button
-                onClick={() => run(source.id, () => updateLeadSource(source.id, { isActive: !source.isActive }))}
-                disabled={busy === source.id}
-                title={source.isActive ? 'Retire' : 'Bring back'}
-                className="p-2 rounded-lg border border-gray-200 text-gray-400 hover:bg-white hover:text-gray-600 transition disabled:opacity-50"
-              >
+              <button type="button" onClick={() => run(source.id, () => updateLeadSource(source.id, { isActive: !source.isActive }))}
+                disabled={busy === source.id} title={source.isActive ? 'Retire — hide it from the pickers' : 'Bring it back'}
+                className="rounded-lg border border-gray-200 p-2 text-gray-400 transition hover:bg-white hover:text-gray-600 disabled:opacity-50">
                 <RotateCcw size={14} />
               </button>
-              <button
-                onClick={() => handleDelete(source)}
-                disabled={busy === source.id}
-                title="Delete"
-                className="p-2 rounded-lg border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition disabled:opacity-50"
-              >
+              <button type="button" onClick={() => setDeleting(source)} disabled={busy === source.id} title="Delete"
+                className="rounded-lg border border-gray-200 p-2 text-gray-400 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-50">
                 <Trash2 size={14} />
               </button>
             </div>
@@ -142,67 +115,59 @@ export default function LeadSourcesPanel() {
   }
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="text-sm font-semibold text-gray-900"><Bi>Lead Sources</Bi></h2>
-        <p className="text-xs text-gray-500 mt-0.5">
-          <Bi>Where clients and loads come from. Brokers pick from this list rather than typing it,
-          so the same source is spelled one way and totals up correctly. Importing from BATS adds
-          any source it finds that is not here yet.</Bi>
-        </p>
-      </div>
+    <SettingsCard>
+      <p className="mb-4 text-sm text-gray-500">
+        <Bi>Brokers pick from this list rather than typing it, so the same source is spelled one way and totals up correctly. Importing from BATS adds any source it finds that is not here yet.</Bi>
+      </p>
 
-      <div className="p-6 space-y-4">
-        <div className="flex gap-2 flex-wrap">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Source name, e.g. Repeat Customer"
-            className="flex-1 min-w-48 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
-          />
-          <button
-            onClick={() => run('create', async () => {
-              await createLeadSource(newName.trim());
-              setNewName('');
-            })}
-            disabled={busy === 'create' || !newName.trim()}
-            className="flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white text-sm font-semibold rounded-lg hover:bg-brand-700 transition disabled:opacity-50"
-          >
-            <Plus size={15} />
-            {busy === 'create' ? 'Adding…' : 'Add source'}
-          </button>
-        </div>
+      <form className="flex flex-wrap gap-2" onSubmit={(e) => {
+        e.preventDefault();
+        if (newName.trim()) void run('create', async () => { await createLeadSource(newName.trim()); setNewName(''); });
+      }}>
+        <input id="new-lead-source" value={newName} onChange={(e) => setNewName(e.target.value)}
+          placeholder="Source name, e.g. Repeat Customer"
+          className="min-w-48 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400" />
+        <button type="submit" disabled={busy === 'create' || !newName.trim()}
+          className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-50">
+          <Plus size={15} />
+          <span data-es>{busy === 'create' ? 'Adding…' : 'Add source'}</span>
+        </button>
+      </form>
 
-        {error && (
-          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
-            {error}
-          </div>
-        )}
+      {error && <Notice tone="amber" className="mt-4">{error}</Notice>}
 
-        {loading ? (
-          <p data-es className="text-sm text-gray-400">Loading…</p>
-        ) : sources.length === 0 ? (
-          <p className="text-sm text-gray-400">
-            <Bi>No lead sources yet. Add one and it becomes selectable on orders and clients.</Bi>
-          </p>
+      <div className="mt-5">
+        {loading ? <Loading /> : sources.length === 0 ? (
+          <EmptyState art="road" title="No lead sources yet" body="Add one and it becomes selectable on orders and clients." />
         ) : (
-          <>
-            <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
+          <div className="space-y-5">
+            <ul className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-gray-50/50">
               {active.map(row)}
             </ul>
             {retired.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                  Retired ({retired.length})
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  <Bi vars={{ n: retired.length }}>{'Retired ({n})'}</Bi>
                 </p>
-                <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden opacity-70">
+                <ul className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 opacity-75">
                   {retired.map(row)}
                 </ul>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
-    </section>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title={`Delete “${deleting?.name ?? ''}”?`}
+        body="This only works if no order or client is using it. If any are, retire it instead — they keep their source and it leaves the pickers."
+        confirmLabel="Delete it"
+        tone="red"
+        busy={busy === deleting?.id}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => { const s = deleting!; setDeleting(null); void run(s.id, () => deleteLeadSource(s.id)); }}
+      />
+    </SettingsCard>
   );
 }

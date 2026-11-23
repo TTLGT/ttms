@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
 import { toSourceKey } from '@/types/leadSource';
+import { logSettingsChange } from '@/lib/settingsChangeServer';
 
 const COL = 'leadSources';
 
@@ -27,7 +28,7 @@ export async function PATCH(
 ) {
   try {
     const { sourceId } = await params;
-    await requirePermission(req, ['settings.manage', 'leadSources.manage']);
+    const caller = await requirePermission(req, ['settings.manage', 'leadSources.manage']);
     const body = await req.json().catch(() => ({}));
 
     const ref  = adminDb.collection(COL).doc(sourceId);
@@ -59,7 +60,20 @@ export async function PATCH(
 
     if (typeof body.isActive === 'boolean') patch.isActive = body.isActive;
 
-    await ref.update(patch);
+    const was = snap.get('name') as string;
+    const batch = adminDb.batch();
+    batch.update(ref, patch);
+    await logSettingsChange({
+      area: 'leadSources',
+      summary: patch.isActive === false ? `Retired the lead source ${was}`
+        : patch.isActive === true && !('name' in patch) ? `Brought back the lead source ${was}`
+        : `Changed the lead source ${was}`,
+      caller,
+      before: { name: was, active: snap.get('isActive') !== false },
+      after: { name: (patch.name as string | undefined) ?? was, active: (patch.isActive as boolean | undefined) ?? snap.get('isActive') !== false },
+      labels: { name: 'Name', active: 'Offered on the pickers' },
+    }, batch);
+    await batch.commit();
     return NextResponse.json({ id: sourceId });
   } catch (e) {
     if (e instanceof AdminAuthError) {
@@ -85,7 +99,7 @@ export async function DELETE(
 ) {
   try {
     const { sourceId } = await params;
-    await requirePermission(req, ['settings.manage', 'leadSources.manage']);
+    const caller = await requirePermission(req, ['settings.manage', 'leadSources.manage']);
 
     const ref  = adminDb.collection(COL).doc(sourceId);
     const snap = await ref.get();
@@ -107,7 +121,10 @@ export async function DELETE(
       );
     }
 
-    await ref.delete();
+    const batch = adminDb.batch();
+    batch.delete(ref);
+    await logSettingsChange({ area: 'leadSources', summary: `Deleted the lead source ${snap.get('name')}`, caller }, batch);
+    await batch.commit();
     return NextResponse.json({ deleted: sourceId });
   } catch (e) {
     if (e instanceof AdminAuthError) {

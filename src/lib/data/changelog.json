@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "c1654a3f8ee3acd0835645179743032b15b22d02",
+      "date": "2026-11-20T18:13:33-06:00",
+      "author": "erwindank",
+      "subject": "Count use of the whole computer, not just TTMS, toward the 3-hour sign-out while somebody is clocked in. Someone working in Excel or their email with TTMS in the background was being signed out as idle. This reads the same computer-activity signal attendance already uses (where Chrome or Edge allow it) and records nothing new; outside work hours only TTMS clicks and keys count, as before. A laptop that slept past the limit is still signed out when it wakes",
+      "body": ""
+    },
+    {
       "hash": "be493e26288f0e1ce39e2437408e5c21d09824d8",
       "date": "2026-11-20T16:13:32-06:00",
       "author": "erwindank",

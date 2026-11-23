@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
+import { logSettingsChange } from '@/lib/settingsChangeServer';
 import { requireCaller } from '@/lib/partyAccess';
 
 const COL = 'sites';
@@ -35,13 +36,20 @@ export async function POST(req: NextRequest) {
     }
 
     const ref = adminDb.collection(COL).doc();
-    await ref.set({
+    const address = String(body.address ?? '').trim();
+    const batch = adminDb.batch();
+    batch.set(ref, {
       name,
-      address:   String(body.address ?? '').trim(),
+      address,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: caller.email ?? caller.uid,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    await logSettingsChange({
+      area: 'sites', summary: `Added the site ${name}`, caller,
+      before: {}, after: { name, address }, labels: { name: 'Name', address: 'Address' },
+    }, batch);
+    await batch.commit();
 
     return NextResponse.json({ id: ref.id, name }, { status: 201 });
   } catch (e) {

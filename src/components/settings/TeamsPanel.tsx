@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Check, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Check, LayoutList, Network, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { listTeams, createTeam, updateTeam, deleteTeam } from '@/lib/teams';
 import { listUserProfiles } from '@/lib/userProfiles';
 import { listAllowedUsers } from '@/lib/allowedUsers';
@@ -11,19 +11,21 @@ import type { Team } from '@/types/team';
 import type { UserProfile } from '@/types/userProfile';
 import type { AllowedUser } from '@/types/allowedUser';
 import { Bi } from '@/components/spanish/Es';
+import { ConfirmDialog, EmptyState, Loading, Notice, SettingsCard } from './kit/ui';
+import TeamOrgChart from './TeamOrgChart';
 
 /**
  * Admin management of teams — the reporting structure.
  *
- * A team says who its members report to. It is NOT an access boundary: putting
- * someone on a team changes nothing about what they can see. Work Groups below
- * are the thing that shares records, and the two are kept apart on purpose so
- * that recording the org chart can never hand somebody another team's clients.
- * The copy in this panel says so out loud, because "team" is the word people
- * reach for when they mean either one.
+ * A team says who its members report to. For everybody but a Sales Manager it
+ * is not an access boundary: putting someone on a team changes nothing about
+ * what they can see. The exception is the team a Sales Manager leads, which is
+ * that manager's scope — see src/lib/teamScope.ts. Work Groups are what share
+ * records between people, and the copy here says so, because "team" is the
+ * word people reach for when they mean either one.
  *
- * People are assigned to a team in the People With Access list above, which
- * reads the same collection.
+ * Two views: the list, for naming teams and their leads, and the org chart,
+ * for moving people between them by dragging.
  */
 export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) => void }) {
   const [teams, setTeams]       = useState<Team[]>([]);
@@ -39,6 +41,8 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
   const [editing, setEditing]     = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
   const [draftLead, setDraftLead] = useState('');
+  const [view, setView] = useState<'list' | 'chart'>('list');
+  const [deleting, setDeleting] = useState<Team | null>(null);
 
   const load = useCallback(async () => {
     setError('');
@@ -120,11 +124,6 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
   }
 
   async function handleDelete(team: Team) {
-    const ok = window.confirm(
-      `Delete "${team.name}"?\n\nAnyone on this team will be left without one. ` +
-      `Their access does not change.`,
-    );
-    if (!ok) return;
     setBusy(team.id);
     setError('');
     try {
@@ -174,19 +173,27 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
   }
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="text-sm font-semibold text-gray-900"><Bi>Teams</Bi></h2>
-        <p className="text-xs text-gray-500 mt-0.5">
-          <Bi>Who reports to whom. Everyone on a team reports to that team&rsquo;s lead. A team often
-          lines up with one office, but it does not have to — where someone sits is set separately
-          under Sites. Putting someone on a team records their place in the org chart; it does not
-          change what they can see. Sharing records between people is what Work Groups below are
-          for.</Bi>
-        </p>
-      </div>
-
-      <div className="p-6 space-y-4">
+    <SettingsCard
+      aside={
+        <div className="flex rounded-lg border border-gray-200 p-0.5" role="group" aria-label="View">
+          {([['list', 'List', LayoutList], ['chart', 'Org chart', Network]] as const).map(([id, label, Icon]) => (
+            <button key={id} type="button" onClick={() => setView(id)} aria-pressed={view === id}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                view === id ? 'bg-brand-50 text-brand-700' : 'text-gray-500 hover:bg-gray-50'
+              }`}>
+              <Icon size={13} /> <span data-es>{label}</span>
+            </button>
+          ))}
+        </div>
+      }
+      description="Everyone on a team reports to its lead. A team often lines up with one office, but it does not have to. For anybody but a Sales Manager, a team changes nothing about what people can see — sharing records is what Work groups are for."
+    >
+      {view === 'chart' ? (
+        loading ? <Loading /> : (
+          <TeamOrgChart teams={teams} people={people} personName={personName} onMoved={load} />
+        )
+      ) : (
+      <div className="space-y-4">
         <div className="flex gap-2 flex-wrap">
           <input
             value={newName}
@@ -209,18 +216,12 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
           </button>
         </div>
 
-        {error && (
-          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
-            {error}
-          </div>
-        )}
+        {error && <Notice tone="amber">{error}</Notice>}
 
         {loading ? (
-          <p data-es className="text-sm text-gray-400">Loading…</p>
+          <Loading />
         ) : teams.length === 0 ? (
-          <p className="text-sm text-gray-400">
-            <Bi>No teams yet. Add one and it becomes assignable in the list above.</Bi>
-          </p>
+          <EmptyState art="people" title="No teams yet" body="Add the first team above. People are put on a team from their page, or by dragging them in the org chart." />
         ) : (
           <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
             {teams.map((team) => {
@@ -291,7 +292,7 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
                           <Pencil size={14} />
                         </button>
                         <button
-                          onClick={() => handleDelete(team)}
+                          onClick={() => setDeleting(team)}
                           disabled={busy === team.id}
                           title="Delete team"
                           className="p-2 rounded-lg border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition disabled:opacity-50"
@@ -307,6 +308,16 @@ export default function TeamsPanel({ onChange }: { onChange?: (teams: Team[]) =>
           </ul>
         )}
       </div>
-    </section>
+      )}
+      <ConfirmDialog
+        open={deleting !== null}
+        title={`Delete “${deleting?.name ?? ''}”?`}
+        body="Anyone on this team will be left without one. If a Sales Manager leads it, they stop managing those people."
+        confirmLabel="Delete the team"
+        tone="red"
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => { const t = deleting!; setDeleting(null); void handleDelete(t); }}
+      />
+    </SettingsCard>
   );
 }

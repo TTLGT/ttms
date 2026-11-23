@@ -7,6 +7,15 @@ import {
 } from '@/lib/accessControl';
 import { resolveLead } from '@/lib/teamLead';
 import { syncManagedScopes } from '@/lib/teamScope';
+import { logSettingsChange } from '@/lib/settingsChangeServer';
+
+/** Who a stored lead is, in words, for the change log. One read at most. */
+async function leadLabel(uid: unknown, email: unknown): Promise<string> {
+  if (typeof email === 'string' && email) return email;
+  if (typeof uid !== 'string' || !uid) return '';
+  const snap = await adminDb.collection(USERS_COLLECTION).doc(uid).get();
+  return (snap.get('email') as string | undefined) ?? (snap.get('displayName') as string | undefined) ?? '';
+}
 
 /** Renames a team or changes who it reports to. */
 export async function PATCH(
@@ -15,7 +24,7 @@ export async function PATCH(
 ) {
   try {
     const { teamId } = await params;
-    await requirePermission(req, 'settings.manage');
+    const caller = await requirePermission(req, 'settings.manage');
     const body = await req.json().catch(() => ({}));
 
     const ref  = adminDb.collection(TEAMS_COLLECTION).doc(teamId);
@@ -50,7 +59,19 @@ export async function PATCH(
       Object.assign(patch, lead);
     }
 
-    await ref.update(patch);
+    const was = { name: snap.get('name') ?? '', lead: await leadLabel(snap.get('leadUid'), snap.get('leadEmail')) };
+    const batch = adminDb.batch();
+    batch.update(ref, patch);
+    await logSettingsChange({
+      area: 'teams', summary: `Changed the team ${was.name}`, caller,
+      before: was,
+      after: {
+        name: (patch.name as string | undefined) ?? was.name,
+        lead: 'lead' in body ? (typeof body.lead === 'string' ? body.lead.trim().toLowerCase() : '') : was.lead,
+      },
+      labels: { name: 'Name', lead: 'Lead' },
+    }, batch);
+    await batch.commit();
 
     // The lead may have changed hands, which moves a whole team in or out of
     // somebody's scope.
@@ -80,7 +101,7 @@ export async function DELETE(
 ) {
   try {
     const { teamId } = await params;
-    await requirePermission(req, 'settings.manage');
+    const caller = await requirePermission(req, 'settings.manage');
 
     const ref  = adminDb.collection(TEAMS_COLLECTION).doc(teamId);
     const snap = await ref.get();
@@ -95,6 +116,11 @@ export async function DELETE(
     for (const doc of entries.docs) batch.update(doc.ref, { teamId: null });
     for (const doc of profiles.docs) batch.update(doc.ref, { teamId: null });
     batch.delete(ref);
+    await logSettingsChange({
+      area: 'teams',
+      summary: `Deleted the team ${snap.get('name')}${entries.size ? `, leaving ${entries.size} ${entries.size === 1 ? 'person' : 'people'} without one` : ''}`,
+      caller,
+    }, batch);
     await batch.commit();
 
     // Everyone just lost their team, so any manager who led this one now leads

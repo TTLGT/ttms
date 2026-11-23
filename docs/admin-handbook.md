@@ -48,7 +48,7 @@ Before anything else, understand this:
 >
 > **Being able to open it still grants nothing.** Anyone in the world can reach
 > the sign-in page — that is true of every website — and they get no further.
-> Access is given one email address at a time in **Settings → Team Access**, and
+> Access is given one email address at a time in **Settings → Invite people**, and
 > an account that is not on that list is signed straight back out.
 >
 > **The data is real and shared.** The orders, carriers and clients you see are
@@ -300,31 +300,52 @@ described in this section is absent for them.
 
 ### How Settings is laid out
 
-Settings is split across five tabs along the top, so you are never scrolling
-through the whole system to reach one thing.
+Settings has a menu down its left side, grouped by topic, and **one setting per
+page** beside it. (Until 23 November 2026 it was seven tabs; old links and
+bookmarks still land on the right page.)
 
-| Tab | What is on it |
+| Group | Pages |
 |---|---|
-| **Overview** | Every panel on one screen, each showing what it is currently set to. A map, not a page you change things on. |
-| **People** | Add People · People With Access · Removed People · Access History |
-| **Organization** | Sites · Teams · Work Groups |
-| **Operations** | Date Format · Lane Distance · Lead Sources · Payment Terms |
-| **Data** | BATS Data Import |
+| **Home** | What every setting you look after is set to now, anything that needs a look, the company setup checklist and the latest changes. |
+| **People & access** | People · Invite people · Who can do what · Removed people · Access history |
+| **Company** | General (date format, online status, reminder emails) · Security (sign-out timer) · Sites · Teams · Work groups |
+| **Sales & orders** | Quote rates · Payment terms · Lane distance · Agreement terms · Lead sources |
+| **Team life** | Celebrations · Work schedules · Holidays · Lunch and breaks · Office network |
+| **Data & history** | BATS import · Change log |
 
-Each tab is its own web address, so you can bookmark one or send someone a link
-straight to it, and the browser's Back button works the way you expect.
+Each page is its own web address, so you can bookmark one or send someone a
+link straight to it, and the browser's Back button works the way you expect.
 
-**If you cannot remember which tab something is on, use the search box in the
-top right.** Type what you are after — `miles`, `office`, or a person's name —
-and it takes you there. Searching a person's name jumps to their row in the
-directory.
+**Saving works the same way on every page.** Change something and a dark bar
+appears at the bottom: *You have unsaved changes · Discard · Save* (Ctrl+S
+works too). Nothing is saved until you press Save. Afterwards a green *Saved*
+note offers **Undo** for ten seconds. Leaving a page with unsaved changes asks
+first. Most pages show a **preview** of what the change will do — a load card
+in the new date format, the quote rates on three example lanes, the agreement
+terms with the changed wording marked like tracked changes in Word — so you see
+the result before anybody else does. Adding or deleting something in a list (a
+site, a lead source, a person) is still a single button that says what it does.
 
-HR sees only the People tab, with no tabs shown at all — there is nothing else
-they are allowed to open.
+**Every saved change is recorded** in **Data & history → Change log**: who, when,
+and what it was before. Each page shows "Last changed by …" under its title,
+with a link to its history. Each person sees the history of the settings they
+can change themselves.
 
-1. In the left-hand menu click **Settings**, then open the **People** tab.
-2. Find the panel headed **Add People**. It has two modes, in the top right:
-   **Type it in** (what follows) and **Spreadsheet** (section 7).
+**If you cannot remember where something is, use the search box at the top of
+the menu** (or press **Ctrl+K**). Type what you are after — `miles`, `office`,
+a person's name — and it takes you there. It can also *do* a few things:
+typing `reminder emails` offers **Turn off reminder emails**, which opens the
+page with that change ready for you to save.
+
+Each person only sees the pages they can use. Somebody who sees fewer than all
+of them is told so at the foot of the menu. An admin can check what another
+role would see with **See it as another role** at the bottom of the menu.
+
+1. In the left-hand menu click **Settings**, then **Invite people**.
+2. The page has two modes, in the top right:
+   **Type it in** (what follows) and **Spreadsheet** (section 7). As you tick
+   roles, the box under them lists **what the person will be able to do**, with
+   anything sensitive flagged — read it before you add them.
 3. Type their email address into the box.
    - It must end in **`@totaltransportlogistics.us`**. Anything else is skipped, and a yellow warning appears naming it — usually that means a typo.
    - You can paste **several** addresses, one per line, to add a batch.
@@ -368,15 +389,22 @@ they are allowed to open.
 7. Click **Add Person** (or **Add N People**).
 8. **You should see:** a small list confirming *"Added 3 of 3"*, with a green tick next to each address.
 
-The new person appears in the **People With Access** list below, marked
+The new person appears under **Settings → People**, marked
 **Pending first sign-in** (amber) until they actually log in, then **Active** (green).
+Each address in the confirmation list is a link straight to their page.
+
+### Each person's page
+
+Click anybody under **Settings → People** to open their own page. It has four
+tabs: **Details**, **Roles & permissions**, **Team & groups** and **History**.
+Everything on it is saved with the Save bar at the bottom.
 
 ### Filling in their details
 
-Click the **pencil** icon on someone's row to record who they are: first and
-last name, a photo, their site, their team, work phone, other phone, desk
-extension, **full legal name**, **personal email**, **start date** and
-**date of birth**.
+On the **Details** tab, record who they are: first and last name, work phone,
+other phone, desk extension, **full legal name**, **personal email**,
+**start date** and **date of birth**. Their photo is on the same tab and is
+saved as soon as it is chosen. Their site and team are on **Team & groups**.
 
 Phone numbers are reformatted here the same way they are on the Add People
 panel, and **Other phone** has the same country dropdown beside it. One with
@@ -395,21 +423,27 @@ a maiden name, a full compound surname, a middle name nobody uses at work.
 Leave it blank when it is simply their first and last name.
 
 Use this to change details **after** someone is on the list — when adding them,
-fill the same fields in on the Add People panel instead. For more than a handful
+fill the same fields in on Invite people instead. For more than a handful
 of people, use the spreadsheet in section 7.
 
 ### Changing what someone can do
 
-In **People With Access**, click a role chip on their row to switch it on or
-off. Click **Broker** to strip the other roles away. Changes take effect the
-next time they load a page.
+On their page, open **Roles & permissions**. Click a role to switch it on or
+off, or **Broker** to strip the other roles away, and tick any extra
+permission underneath. The box on the right lists **what they will be able to
+do**, with what your change adds in green and what it takes away in red —
+read it before pressing Save. Changes take effect the next time they load a
+page. **Suspend** and **Remove from TTMS** are at the foot of the same tab.
+
+To answer "why can Ana see this and Luis cannot?", use **Settings → Who can do
+what → Compare two**.
 
 ### Suspending versus removing
 
 | | What it does | Use it when |
 |---|---|---|
 | **Suspend** | Blocks them from signing in but keeps their roles. Reversible. | Someone is on leave, or you need to stop access while you check something. |
-| **Remove** (trash icon) | Deletes their entry completely, but keeps a full record of it. Can be undone — see the removal log below. | Someone has left the company. |
+| **Remove from TTMS** | Deletes their entry completely, but keeps a full record of it. Can be undone — see the removal log below. | Someone has left the company. |
 
 > **One thing to know about removing someone.** They lose access to the records
 > immediately. But a file they already had open — a PDF, a scanned document —
@@ -419,7 +453,7 @@ next time they load a page.
 ### The removal log
 
 Removing someone deletes their entry, so the list below stops showing them
-entirely. **Settings → People → Removed People** is the record that they were ever here:
+entirely. **Settings → Removed people** is the record that they were ever here:
 click it open to see everyone who has been removed, when, and **which admin did
 it** — along with their photo, name, full legal name, phones, site, team, roles,
 start date and personal email they had at the time.
@@ -465,7 +499,7 @@ edited or deleted from inside TTMS — it is a record, not a list you manage.
 
 ### The access history
 
-**Settings → People → Access History** is the other half of the same story, and
+**Settings → Access history** is the other half of the same story, and
 a shorter read: one line every time somebody was **added**, **removed** or **put
 back**, newest first, with the admin who did it and the roles the person held at
 the time. The chips at the top narrow it to one kind of change, and there is an
@@ -501,9 +535,8 @@ same across all three — only the shape changes.
 In the **List** view the headings sort: click **Person**, **Email**, **Work
 phone**, **Started** or **Born** to order by it, and click the same heading
 again to reverse it. Status and roles have a column each and cannot be switched
-off. The role chips still work — if you spot a role that is wrong while
-scanning, click it there and then; you do not have to go and find the person in
-another view. The pencil opens the same editor, in a panel under their line.
+off. Click a name (or **Open**) to go to that person's page, where every change
+to them is made.
 
 ### Choosing what each card shows
 
@@ -931,7 +964,7 @@ off, because it tells nobody but you.
 
 ### Changing what it says
 
-**Settings → Operations → Celebrations**, which administrators and **HR** can
+**Settings → Celebrations**, which administrators and **HR** can
 both open. There are two boxes, and you can write whatever this company would
 actually say:
 
@@ -989,7 +1022,7 @@ is just quiet.
 
 ## 6a. Sites, Teams and Work Groups
 
-The **Organization** tab of Settings holds three panels that group people in
+The **Company** group of Settings holds three pages that group people in
 three different ways. They are easy to mix up, so here is the difference in one
 table.
 
@@ -1012,12 +1045,12 @@ whole point of them.
 
 ### Setting up teams
 
-**Settings → Organization → Teams**.
+**Settings → Teams**.
 
 1. Type the team name — for example `GT`, `Top Brokers`, `Hibrid`, `Staff`.
 2. Pick the **lead** from the dropdown: the person everyone on that team reports
    to. You can leave it as *No lead yet* and set it later.
-   - Everyone on the People With Access list can be picked, including someone
+   - Everyone under Settings → People can be picked, including someone
      who has not logged in yet — the dropdown says *has not signed in yet*
      beside their name, and so does the team's row until they do. This is on
      purpose: a new manager is usually named before their first day. They
@@ -1036,8 +1069,9 @@ A team often turns out to be everyone in one office, but it does not have to
 be. Site and team are separate fields precisely so a team can span two offices,
 or one office can hold several teams.
 
-People are put on a team from the **People With Access** list above — the pencil
-icon on their row — or in bulk with the spreadsheet in section 7.
+People are put on a team on their own page (**Team & groups**), by dragging
+them in the **Org chart** view of Settings → Teams, or in bulk with the
+spreadsheet in section 7.
 
 ---
 
@@ -1047,12 +1081,12 @@ When you are setting up TTMS for the whole company — or your HR list has been
 updated and you want TTMS to match — do it with a spreadsheet instead of
 typing each person in.
 
-**Settings → People → Add People**, then switch the mode in the top right to
+**Settings → Invite people**, then switch the mode in the top right to
 **Spreadsheet**.
 
 1. Click **Template** to download a CSV with the right column headings and one
    example row. Open it in Excel.
-   - Or click **Export CSV** above the People With Access list to download
+   - Or click **Export CSV** on Settings → People to download
      everyone you already have, and edit that. The two files have the same
      columns, so an export can be edited and uploaded straight back.
 2. Fill it in. The columns are:
@@ -1102,7 +1136,7 @@ typing each person in.
   the gaps rather than creating everyone twice.
 - **An empty cell changes nothing.** If you only know two people's birthdays,
   fill in those two and leave the rest of the column blank — nobody else's
-  details are touched. To *erase* something, clear it with the pencil icon on
+  details are touched. To *erase* something, clear it on the person's page, on
   their row; a blank cell will never do it.
 - **Leaving someone out of the file does nothing to them.** The import only
   adds and updates. It never suspends and never removes anyone — those are
@@ -1138,7 +1172,7 @@ The old BATS CRM data can be pulled in through the browser. **No commands needed
 1. Export the data from BATS as CSV files. You should end up with files named
    like `carriers-export-....csv`, `customers-export-....csv` and
    `orders-export-....csv`.
-2. In TTMS, go to **Settings → Data**, which holds **BATS Data Import**.
+2. In TTMS, go to **Settings → BATS import**.
 3. There are three drop boxes — **Carriers**, **Customers** and **Orders**.
    Drag each file into its matching box. You can drop **several** order files at once.
 4. Click **Run Import**.
@@ -1175,7 +1209,7 @@ check stops with "FMCSA checks are not set up yet".
 > refused the connection" even when the key is right. The live site runs on
 > US servers and is not affected.
 
-Also in Settings, on the **Organization** tab: **Sites** (your company
+Also in Settings, under **Company**: **Sites** (your company
 locations) and **Work Groups** (teams that share client records). Both are
 simple add-and-name lists.
 
@@ -1364,7 +1398,7 @@ src/
 ## Access control
 
 Signing in with Google grants nothing. An admin must create an
-`allowedUsers/{email}` document via **Settings → People → Add People**.
+`allowedUsers/{email}` document via **Settings → Invite people**.
 
 On every sign-in: `AuthContext` posts the ID token to `POST /api/auth/session`,
 which verifies it, requires an `allowedUsers` entry, provisions `users/{uid}`
@@ -1499,7 +1533,7 @@ All plain Node, all read `.env.local` themselves, all writers support
 # BATS CRM import. CSV exports go in the project root.
 # Re-running is safe: rows are hashed, unchanged ones skipped.
 # Does NOT check carriers with FMCSA. Afterwards, press "Check carriers not
-# yet checked" in Settings -> Data.
+# yet checked" in Settings -> BATS import.
 node scripts/import-bats.js
 node scripts/import-bats.js --only orders
 
@@ -1515,7 +1549,7 @@ node scripts/resolve-party-owners.js --map "Nery Mendez=nery@ttl.us"
 ```
 
 `migrate-parties.js` and `seed-allowed-users.js` are historical one-time
-migrations. The BATS import also has a drag-and-drop UI at **Settings → Data → BATS
+migrations. The BATS import also has a drag-and-drop UI at **Settings → BATS
 Data Import**, which is what non-technical staff should use.
 
 ## Data model
@@ -1614,7 +1648,7 @@ everyone reading TTMS shares one convention, either slash format is fine.
 ### Lane distance
 
 Every order can show the distance between its pickup and delivery addresses.
-An admin chooses how in **Settings → Operations → Lane Distance**, and the choice applies to
+An admin chooses how in **Settings → Lane distance**, and the choice applies to
 everyone:
 
 | Option | What it does | Cost |
@@ -1810,7 +1844,7 @@ Until that is done, assume every local change is live.
 | Symptom | Cause / fix |
 |---|---|
 | *"Missing or insufficient permissions"* | Repo rules aren't deployed. `node scripts/deploy-rules.js`. |
-| Signed in, immediately signed back out | No `allowedUsers` entry. Add via Settings → People → Add People, or use a bootstrap admin. |
+| Signed in, immediately signed back out | No `allowedUsers` entry. Add via Settings → Invite people, or use a bootstrap admin. |
 | Everyone locked out | Sign in as `it@totaltransportlogistics.us`. If a rules deploy caused it, `rollback-rules.js --list` then `--to <rulesetId>`. |
 | Signing links point at localhost | `NEXT_PUBLIC_APP_URL` wrong for that environment. |
 | No email at all | `RESEND_API_KEY` missing, or sending domain lost verification. Resend init is deliberately lazy, so it fails at send time, not build time. |

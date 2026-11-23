@@ -1,36 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
-  ArrowDown, ArrowUp, AtSign, Building2, Cake, CalendarDays, Check, Download,
-  IdCard, LayoutGrid, LayoutList, List, Phone, Smartphone, UsersRound,
+  ArrowDown, ArrowUp, AtSign, Building2, Cake, CalendarDays, ChevronRight, Download,
+  IdCard, LayoutGrid, LayoutList, List, Phone, Smartphone, UserPlus, UsersRound,
 } from 'lucide-react';
-import {
-  listManageableUsers,
-  setAllowedUserRole,
-  setAllowedUserDetails,
-  setAllowedUserPhoto,
-  setAllowedUserSuspended,
-  setAllowedUserPermissions,
-  changeAllowedUserEmail,
-  revokeUser,
-} from '@/lib/allowedUsers';
-import { canManagePerson, isBootstrapAdmin, isBroker, normalizeEmail } from '@/lib/accessControl';
-import {
-  DEFAULT_OTHER_REGION,
-  OTHER_PHONE_LABEL,
-  OTHER_PHONE_REGIONS,
-  PHONE_COUNTRY_CODE,
-  PHONE_EXAMPLE,
-  PHONE_LABEL,
-  PHONE_NATIONAL_LENGTH,
-  PHONE_REGION_NAME,
-  normalizePhone,
-  otherPhone,
-  phoneHint,
-  type OtherPhoneRegion,
-  type PhoneRegion,
-} from '@/lib/phone';
+import { listManageableUsers } from '@/lib/allowedUsers';
+import { isBootstrapAdmin, isBroker, normalizeEmail } from '@/lib/accessControl';
+import { PHONE_LABEL, otherPhone } from '@/lib/phone';
 import { listSites } from '@/lib/sites';
 import { listTeams } from '@/lib/teams';
 import { useAuth } from '@/context/AuthContext';
@@ -40,15 +19,7 @@ import {
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import type { DateLike } from '@/lib/dateFormat';
 import type { AccessStatus, AllowedUser, AllowedUserRole } from '@/types/allowedUser';
-import { ROLE_ORDER, type Permission, type RoleKey } from '@/types/permission';
-
-/**
- * Never delegable by a Sales Manager, whatever they hold themselves: either
- * one would take the person receiving it outside the team the manager's own
- * authority comes from. Kept in step with NON_DELEGABLE in /api/admin/users,
- * which is where it is actually enforced.
- */
-const NON_DELEGABLE: Permission[] = ['people.manage', 'settings.manage'];
+import { ROLE_ORDER, type RoleKey } from '@/types/permission';
 import {
   SORT_FIELDS, directionLabel, millis, sortText,
   type SortDir, type SortField,
@@ -58,23 +29,15 @@ import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
 import { usePeopleCardFields } from '@/lib/peopleCardFields';
 import { usePeopleView, type PeopleView } from '@/lib/peopleView';
-import AddPeoplePanel from '@/components/settings/AddPeoplePanel';
 import CardFieldPicker from '@/components/settings/CardFieldPicker';
 import PeopleTable from '@/components/settings/PeopleTable';
-import PersonActions from '@/components/settings/PersonActions';
 import PersonRoles from '@/components/settings/PersonRoles';
-import PersonPermissions from '@/components/settings/PersonPermissions';
 import StatusChip from '@/components/settings/StatusChip';
-import CollapsibleSection from '@/components/settings/CollapsibleSection';
-import RemovedPeoplePanel from '@/components/settings/RemovedPeoplePanel';
-import AccessHistoryPanel from '@/components/settings/AccessHistoryPanel';
-import { personAnchorId } from '@/components/settings/settingsSections';
-import { AvatarUploader, UserAvatar } from '@/components/settings/UserAvatar';
-import DateField from '@/components/DateField';
+import { LEGACY_ANCHORS, pageHref, personAnchorId, personHref } from '@/components/settings/settingsSections';
+import { UserAvatar } from '@/components/settings/UserAvatar';
+import { EmptyState } from '@/components/settings/kit/ui';
 import Fact from '@/components/people/Fact';
 import { Bi } from '@/components/spanish/Es';
-
-const NO_ROLES = { isAdmin: false, isDispatcher: false, isFinance: false, isHr: false };
 
 type StatusFilter = 'all' | 'active' | 'pending' | 'suspended';
 /** 'broker' means "no elevated role" — the default everyone starts with. */
@@ -153,8 +116,19 @@ function tally(people: AllowedUser[], key: (p: AllowedUser) => string | null | u
   return counts;
 }
 
+/**
+ * Settings → People: everyone who can sign in, to find them.
+ *
+ * This page used to be where everything about a person was changed, in an
+ * editor that opened under their card — 1,500 lines that held the list, the
+ * editor, the roles, the permissions and the photo. Every change to somebody
+ * is now made on their own page (/settings/people/[email]); this one finds
+ * them, counts them and exports them. Adding people, the removal log and the
+ * access history have pages of their own too.
+ */
 export default function SettingsPeoplePage() {
-  const { user, isAdmin, profile, can } = useAuth();
+  const { user, profile, can } = useAuth();
+  const router = useRouter();
   // Start dates and birthdays follow the company setting — Settings →
   // Operations → Date Format.
   const { formatCalendarDate, formatDateTime } = useDateFormatters();
@@ -181,7 +155,6 @@ export default function SettingsPeoplePage() {
   const [loading, setLoading]   = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError]       = useState('');
-  const [busy, setBusy]         = useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [roleFilter, setRoleFilter]     = useState<RoleFilter>('all');
@@ -199,86 +172,10 @@ export default function SettingsPeoplePage() {
   const teamName = (id: string | null | undefined) =>
     teams.find((x) => x.id === id)?.name ?? null;
 
-  const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft]     = useState({
-    firstName: '', lastName: '', legalName: '', personalEmail: '', phone: '',
-    phoneOther: '', phoneOtherRegion: DEFAULT_OTHER_REGION as OtherPhoneRegion,
-    extension: '', dateOfBirth: '', startDate: '', siteId: '', teamId: '',
-  });
-  /**
-   * Something that was not an error but that the admin still has to be told —
-   * currently only a phone number that could not be read and was therefore
-   * saved blank. Kept apart from `error`, because the save itself worked.
-   */
-  const [notice, setNotice]   = useState('');
-
-  /**
-   * The new work email being typed, kept apart from `draft` on purpose: it is
-   * not saved by "Save details". Changing the sign-in address moves records
-   * and signs the person out, so it has its own button and its own confirm.
-   */
-  const [emailDraft, setEmailDraft] = useState('');
-
-  /**
-   * Rewrite a phone field into the shape it is stored in when it loses focus.
-   * Same rule as the add form: a number that cannot be read is left as typed so
-   * it can be corrected, and the hint under the field says it will not be kept.
-   * See lib/phone.ts.
-   */
-  const tidyPhone = (key: 'phone' | 'phoneOther', region: PhoneRegion) => () =>
-    setDraft((d) => {
-      const { value, rejected } = normalizePhone(d[key], region);
-      return rejected ? d : { ...d, [key]: value };
-    });
-
-  /**
-   * Changing the country re-reads the digits already in the box under the new
-   * country's rules — the same as the add form does. A number that will not
-   * fit the new country is left exactly as typed, and the hint underneath is
-   * what says it will not be kept.
-   */
-  const setOtherRegion = (region: OtherPhoneRegion) =>
-    setDraft((d) => {
-      const { value, rejected } = normalizePhone(d.phoneOther, region);
-      return { ...d, phoneOtherRegion: region, phoneOther: rejected ? d.phoneOther : value };
-    });
-
-  /**
-   * Three different authorities on this page, and they are not the same.
-   *
-   * - `canEdit` — may write here at all. Admins, and Sales Managers, who reach
-   *   this page for their own team. HR reads and does not write.
-   * - `canManageAll` — the company-wide powers: adding somebody, removing
-   *   them, changing a role. A role is company-wide by nature, so a manager
-   *   scoped to a team cannot hand one out.
-   * - `canEditPerson(p)` — may act on this particular row. Always true for an
-   *   admin; true for a manager only on their own team.
-   *
-   * Collapsing them would either lock a manager out of their own team or hand
-   * them the whole access list, and each of these is separately enforced on
-   * the server — see the guards in /api/admin/users.
-   */
+  // Admins add people; a Sales Manager manages their own team on each
+  // person's page; HR reads. The list itself is the same for all three.
   const canManageAll = can('people.manage');
   const canEdit      = canManageAll || profile?.isSalesManager === true;
-
-  const canEditPerson = useCallback(
-    (person: AllowedUser) =>
-      canManagePerson(profile, { uid: person.uid, email: person.email }),
-    [profile],
-  );
-
-  /**
-   * Which permissions this reader may hand over. Admins, anything; a manager,
-   * only what they hold themselves and nothing that would take the recipient
-   * outside the team — the same rule the server applies, drawn here so a box
-   * that would be refused is never tickable in the first place.
-   */
-  const grantable = useCallback(
-    (permission: Permission) =>
-      canManageAll
-      || (!NON_DELEGABLE.includes(permission) && can(permission)),
-    [canManageAll, can],
-  );
 
   const myEmail = normalizeEmail(user?.email);
 
@@ -319,47 +216,6 @@ export default function SettingsPeoplePage() {
     void listSites().then(setSites).catch(() => {});
     void listTeams().then(setTeams).catch(() => {});
   }, []);
-
-  async function handleToggle(person: AllowedUser, field: AllowedUserRole) {
-    const key = `${person.email}:${field}`;
-    setBusy(key);
-    setError('');
-    try {
-      await setAllowedUserRole(person.email, field, !person[field]);
-      setPeople((prev) =>
-        prev.map((p) => (p.email === person.email ? { ...p, [field]: !person[field] } : p)),
-      );
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not update role');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  /**
-   * Save the extras one person has been given, as a set.
-   *
-   * The whole list goes at once rather than one key per click — see
-   * setAllowedUserPermissions. The row is updated from what the server sends
-   * back rather than from what was asked for: a Sales Manager's save keeps any
-   * grant an admin made that they are not allowed to touch, so the two can
-   * differ and the server's answer is the true one.
-   */
-  async function handlePermissions(person: AllowedUser, permissions: Permission[]) {
-    const key = `${person.email}:permissions`;
-    setBusy(key);
-    setError('');
-    try {
-      const saved = await setAllowedUserPermissions(person.email, permissions);
-      setPeople((prev) =>
-        prev.map((p) => (p.email === person.email ? { ...p, grantedPermissions: saved } : p)),
-      );
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not update permissions');
-    } finally {
-      setBusy(null);
-    }
-  }
 
   /**
    * Exports exactly what is on screen — same filters, same order — because the
@@ -413,194 +269,6 @@ export default function SettingsPeoplePage() {
 
     const stamp = new Date().toISOString().slice(0, 10);
     downloadCsv(`people-with-access-${stamp}.csv`, toCsv([header, ...rows]));
-  }
-
-  function startEditing(person: AllowedUser) {
-    // An entry saved before the name was split has only displayName; seed the
-    // two fields from it so editing anything else does not wipe the name.
-    const name = person.firstName || person.lastName
-      ? { firstName: person.firstName ?? '', lastName: person.lastName ?? '' }
-      : splitName(person.displayName);
-
-    setEditing(person.email);
-    setNotice('');
-    setEmailDraft(person.email);
-    setDraft({
-      ...name,
-      legalName:     person.legalName ?? '',
-      personalEmail: person.personalEmail ?? '',
-      phone:            person.phone ?? '',
-      phoneOther:       otherPhone(person).value,
-      phoneOtherRegion: otherPhone(person).region,
-      extension:     person.extension ?? '',
-      dateOfBirth:   person.dateOfBirth ?? '',
-      startDate:     person.startDate ?? '',
-      siteId:        person.siteId ?? '',
-      teamId:        person.teamId ?? '',
-    });
-  }
-
-  async function handlePhoto(person: AllowedUser, photoPath: string | null) {
-    await setAllowedUserPhoto(person.email, photoPath);
-    setPeople((prev) =>
-      prev.map((p) => (p.email === person.email ? { ...p, photoPath } : p)),
-    );
-  }
-
-  async function handleSaveDetails(person: AllowedUser) {
-    setBusy(`${person.email}:details`);
-    setError('');
-    setNotice('');
-    try {
-      const details = {
-        ...draft,
-        siteId: draft.siteId || null,
-        teamId: draft.teamId || null,
-      };
-      const { skippedPhones } = await setAllowedUserDetails(person.email, details);
-      // The server composes displayName from the two parts; mirror that here so
-      // the row does not keep showing the name it had before the edit.
-      const displayName = [details.firstName, details.lastName].filter(Boolean).join(' ');
-      // Phones are taken from what the server would have accepted, not from the
-      // draft: one it could not read was stored blank, and leaving the typed
-      // digits in the row would show a number that is not on the record.
-      const saved = {
-        ...details,
-        phone:      normalizePhone(details.phone, 'US').value,
-        phoneOther: normalizePhone(details.phoneOther, details.phoneOtherRegion).value,
-        // Blanked on the row as well as on the record: the server clears the
-        // old field on every write, and a stale value left here would show
-        // through `otherPhone()` until the page was reloaded.
-        phoneGt:    '',
-      };
-      setPeople((prev) =>
-        prev.map((p) => (p.email === person.email ? { ...p, ...saved, displayName } : p)),
-      );
-      if (skippedPhones.length > 0) {
-        setNotice(
-          `Saved, but ${skippedPhones.join(' and ')} was not the right length, so it was left blank.`,
-        );
-      }
-      setEditing(null);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not save the details');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  /**
-   * Move somebody to a new work email. The server does the moving — the
-   * allowlist entry, attendance, pending assignments and the rest; this only
-   * asks first and then re-keys the row, since the address is its key.
-   */
-  async function handleChangeEmail(person: AllowedUser) {
-    const next = normalizeEmail(emailDraft);
-    if (!next || next === person.email) return;
-
-    const active = accessStatus(person) !== 'pending';
-    const ok = window.confirm(
-      `Change the work email for ${fullName(person) || person.email}?\n\n`
-      + `From: ${person.email}\nTo:   ${next}\n\n`
-      + (active
-        ? 'They will be signed out and must sign in again with the new address. '
-          + 'Rename them in the Google Workspace admin console first, so their Google '
-          + 'account has the new address — otherwise they will not be able to sign in.'
-        : 'They have not signed in yet, so they will simply sign in with the new address.'),
-    );
-    if (!ok) return;
-
-    setBusy(`${person.email}:email`);
-    setError('');
-    setNotice('');
-    try {
-      const result = await changeAllowedUserEmail(person.email, next);
-      setPeople((prev) =>
-        prev.map((p) => (p.email === person.email ? { ...p, email: result.email } : p)),
-      );
-      // The editor is keyed on the address too, so it follows the row.
-      setEditing(result.email);
-      setEmailDraft(result.email);
-      setNotice(
-        result.signedOut
-          ? `Work email changed to ${result.email}. They have been signed out and sign in again with the new address.`
-          : `Work email changed to ${result.email}.`,
-      );
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not change the work email');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  /**
-   * Demote back to the default. There is no broker flag to set — being a broker
-   * is the absence of the others — so this clears whichever ones are on.
-   */
-  async function handleMakeBroker(person: AllowedUser) {
-    const held = ROLE_CHIPS.filter(({ field }) => person[field]);
-    if (held.length === 0) return;
-
-    setBusy(`${person.email}:broker`);
-    setError('');
-    try {
-      for (const { field } of held) {
-        await setAllowedUserRole(person.email, field, false);
-      }
-      setPeople((prev) =>
-        prev.map((p) => (p.email === person.email ? { ...p, ...NO_ROLES } : p)),
-      );
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not update roles');
-      // A role may have been cleared before the failure — resync rather than
-      // leave the row showing a state the server never reached.
-      await refresh().catch(() => {});
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleSuspend(person: AllowedUser) {
-    const suspending = !person.suspended;
-    if (suspending) {
-      const ok = window.confirm(
-        `Suspend access for ${person.email}?
-
-They will be signed out immediately and cannot sign in until you restore them. Their roles are kept, so restoring puts everything back.`,
-      );
-      if (!ok) return;
-    }
-
-    setBusy(`${person.email}:suspend`);
-    setError('');
-    try {
-      await setAllowedUserSuspended(person.email, suspending);
-      setPeople((prev) =>
-        prev.map((p) => (p.email === person.email ? { ...p, suspended: suspending } : p)),
-      );
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not update access');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleRevoke(person: AllowedUser) {
-    const ok = window.confirm(
-      `Remove access for ${person.email}?\n\nThey will be signed out immediately and will not be able to sign in again unless you re-add them.`,
-    );
-    if (!ok) return;
-
-    setBusy(`${person.email}:revoke`);
-    setError('');
-    try {
-      await revokeUser(person.email);
-      setPeople((prev) => prev.filter((p) => p.email !== person.email));
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not remove access');
-    } finally {
-      setBusy(null);
-    }
   }
 
   // Counted off the full list, not the filtered one, so the tiles keep showing
@@ -683,15 +351,6 @@ They will be signed out immediately and cannot sign in until you restore them. T
     else { setSortField(field); setSortDir('asc'); }
   };
 
-  /**
-   * The pencil is a toggle: clicking it on the person already being edited
-   * closes the editor rather than reopening it on the same draft. Here rather
-   * than in PersonActions so both views get the same behaviour from the same
-   * place.
-   */
-  const toggleEditor = (person: AllowedUser) =>
-    (editing === person.email ? setEditing(null) : startEditing(person));
-
   function clearFilters() {
     setStatusFilter('all');
     setRoleFilter('all');
@@ -700,233 +359,12 @@ They will be signed out immediately and cannot sign in until you restore them. T
   }
 
 
-  /**
-   * The editor for one person, drawn wherever the view that is on screen wants
-   * it: under the card in either card view, in a full-width row under the line
-   * in the list view. It stays here rather than in a component of its own
-   * because it writes through `draft` and every handler above it — the views
-   * decide where it goes, never what it does.
-   */
-  const renderEditor = (p: AllowedUser) => (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-      <div className="pb-4 mb-4 border-b border-gray-200">
-        <AvatarUploader
-          email={p.email}
-          photoPath={p.photoPath}
-          onChange={(path) => handlePhoto(p, path)}
-        />
-      </div>
-
-      {/* Admins only, and never for a protected account or your own — the
-          same three refusals the server makes, drawn here so a box that would
-          only fail is not offered. */}
-      {canManageAll && !isBootstrapAdmin(p.email) && p.email !== myEmail && (
-        <div className="pb-4 mb-4 border-b border-gray-200">
-          <label className="block text-xs text-gray-500">
-            Work email
-            <div className="mt-1 flex flex-col gap-2 sm:flex-row">
-              <input
-                type="email"
-                value={emailDraft}
-                onChange={(e) => setEmailDraft(e.target.value)}
-                placeholder="name@totaltransportlogistics.us"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400 sm:max-w-md"
-              />
-              <button
-                type="button"
-                onClick={() => handleChangeEmail(p)}
-                disabled={
-                  busy === `${p.email}:email`
-                  || !normalizeEmail(emailDraft)
-                  || normalizeEmail(emailDraft) === p.email
-                }
-                className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
-              >
-                <AtSign size={13} />
-                {busy === `${p.email}:email` ? 'Changing…' : 'Change email'}
-              </button>
-            </div>
-          </label>
-          <p className="text-[11px] text-gray-400 mt-1">
-            <Bi>The address they sign in with. Saved on its own, not by Save details.
-            Their attendance, schedule, team and anything assigned to them move
-            with it. Someone already signed in is signed out and signs in again
-            with the new address — rename them in Google Workspace first.</Bi>
-          </p>
-        </div>
-      )}
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <label className="text-xs text-gray-500">
-          First name
-          <input
-            value={draft.firstName}
-            onChange={(e) => setDraft((d) => ({ ...d, firstName: e.target.value }))}
-            placeholder="First"
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-          />
-        </label>
-        <label className="text-xs text-gray-500">
-          Last name
-          <input
-            value={draft.lastName}
-            onChange={(e) => setDraft((d) => ({ ...d, lastName: e.target.value }))}
-            placeholder="Last"
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-          />
-        </label>
-        <label className="text-xs text-gray-500">
-          Full legal name
-          <input
-            value={draft.legalName}
-            onChange={(e) => setDraft((d) => ({ ...d, legalName: e.target.value }))}
-            placeholder="As it appears on payroll"
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-          />
-        </label>
-        <label className="text-xs text-gray-500">
-          Team
-          <select
-            value={draft.teamId}
-            onChange={(e) => setDraft((d) => ({ ...d, teamId: e.target.value }))}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-          >
-            <option data-es value="">No team</option>
-            {teams.map((team) => (
-              <option key={team.id} value={team.id}>{team.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs text-gray-500">
-          Site
-          <select
-            value={draft.siteId}
-            onChange={(e) => setDraft((d) => ({ ...d, siteId: e.target.value }))}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-          >
-            <option data-es value="">No site</option>
-            {sites.map((site) => (
-              <option key={site.id} value={site.id}>{site.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs text-gray-500">
-          {PHONE_LABEL.US}
-          <input
-            value={draft.phone}
-            onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
-            onBlur={tidyPhone('phone', 'US')}
-            placeholder={PHONE_EXAMPLE.US}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-          />
-          {phoneHint(draft.phone, 'US') && (
-            <span className="mt-1 block text-[11px] text-amber-700">
-              {phoneHint(draft.phone, 'US')}
-            </span>
-          )}
-        </label>
-        <label className="text-xs text-gray-500">
-          {OTHER_PHONE_LABEL}
-          <div className="mt-1 flex gap-2">
-            <select
-              value={draft.phoneOtherRegion}
-              onChange={(e) => setOtherRegion(e.target.value as OtherPhoneRegion)}
-              className="w-32 shrink-0 rounded-lg border border-gray-300 px-2 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-            >
-              {OTHER_PHONE_REGIONS.map((r) => (
-                <option key={r} value={r}>{PHONE_REGION_NAME[r]}</option>
-              ))}
-            </select>
-            <input
-              value={draft.phoneOther}
-              onChange={(e) => setDraft((d) => ({ ...d, phoneOther: e.target.value }))}
-              onBlur={tidyPhone('phoneOther', draft.phoneOtherRegion)}
-              placeholder={PHONE_EXAMPLE[draft.phoneOtherRegion]}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-            />
-          </div>
-          {phoneHint(draft.phoneOther, draft.phoneOtherRegion) && (
-            <span className="mt-1 block text-[11px] text-amber-700">
-              {phoneHint(draft.phoneOther, draft.phoneOtherRegion)}
-            </span>
-          )}
-        </label>
-        <label className="text-xs text-gray-500">
-          Extension
-          <input
-            value={draft.extension}
-            onChange={(e) => setDraft((d) => ({ ...d, extension: e.target.value }))}
-            placeholder="e.g. 204"
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-          />
-        </label>
-        <label className="text-xs text-gray-500">
-          Personal email
-          <input
-            type="email"
-            value={draft.personalEmail}
-            onChange={(e) => setDraft((d) => ({ ...d, personalEmail: e.target.value }))}
-            placeholder="name@example.com"
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-          />
-        </label>
-        {/* DateField holds a real YYYY-MM-DD whatever was
-            typed, so what is saved still needs no parsing. */}
-        <label className="text-xs text-gray-500">
-          Start date
-          <DateField
-            value={draft.startDate}
-            onChange={(v) => setDraft((d) => ({ ...d, startDate: v }))}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-          />
-        </label>
-        <label className="text-xs text-gray-500">
-          Date of birth
-          <DateField
-            value={draft.dateOfBirth}
-            onChange={(v) => setDraft((d) => ({ ...d, dateOfBirth: v }))}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-400"
-          />
-        </label>
-      </div>
-
-      {/* Said once, next to the two fields it applies to,
-          rather than left for someone to assume either way. */}
-      <p className="text-[11px] text-gray-400 mt-2">
-        <Bi>Full legal name, date of birth and personal email are visible to admins
-        and HR only — they are not copied onto the profile the rest of the
-        company can read. Leave the legal name blank when it is the same as the
-        first and last name above.</Bi>
-      </p>
-
-      <div className="flex items-center gap-2 mt-3">
-        <button
-          onClick={() => handleSaveDetails(p)}
-          disabled={busy === `${p.email}:details`}
-          className="flex items-center gap-1.5 rounded-lg bg-brand-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-800 transition disabled:opacity-50"
-        >
-          <Check size={13} />
-          {busy === `${p.email}:details` ? 'Saving…' : 'Save details'}
-        </button>
-        <button
-          onClick={() => setEditing(null)}
-          className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
-        >
-          Cancel
-        </button>
-        {sites.length === 0 && (
-          <span className="text-xs text-gray-400">
-            No sites yet — add one under Sites below.
-          </span>
-        )}
-        {teams.length === 0 && (
-          <span className="text-xs text-gray-400">
-            No teams yet — add one under Teams below.
-          </span>
-        )}
-      </div>
-    </div>
-  );
+  // An old link to a section that used to live on this page — #add-people,
+  // #removed-people, #access-history — goes to the page that holds it now.
+  useEffect(() => {
+    const hit = LEGACY_ANCHORS[decodeURIComponent(window.location.hash.slice(1))];
+    if (hit && hit.page !== 'people') router.replace(pageHref(hit.page, hit.anchor));
+  }, [router]);
 
   return (
     <div>
@@ -936,63 +374,28 @@ They will be signed out immediately and cannot sign in until you restore them. T
         </div>
       )}
 
-      {notice && (
-        <div className="mb-6 rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-700">
-          {notice}
-        </div>
-      )}
-
-      {/* All three sections run to the same edge, and each folds shut. This
-          one used to be capped narrower, on the rule that a form field
-          stretched across the whole screen is harder to fill in than an easy
-          one — right while it was a single column, but it lays itself out in
-          columns now, so the width buys more fields side by side rather than
-          wider ones. */}
-      {canManageAll && <AddPeoplePanel sites={sites} teams={teams} onChanged={load} />}
-
-      {/* Open unless the reader has folded it away: this list is the reason
-          the tab exists, and the other two are things you go looking for.
-          `anchorPrefix` because search results link at one person's row inside
-          it — the section has to open before that row can be scrolled to. */}
-      <CollapsibleSection
-        id="people-list"
-        title="People With Access"
-        defaultOpen
-        anchorPrefix="person-"
-        description={
-          canEdit ? (
-            <>
-              Everyone is a Broker by default — their own clients and loads, and nothing they
-              do not own. Admins can see all records and manage access, dispatchers can send
-              carrier/shipper agreements, finance can generate BOLs and invoices, HR can read
-              this directory and nothing else, a Sales Manager has an admin&rsquo;s powers over
-              the team they lead under Teams, and an Intern sees less than a broker — the
-              directory, chat and their own area. Click a role to toggle it, or Broker to take
-              the others away. Anything smaller than a whole role is a permission: open
-              Permissions under a person to give them one thing without the rest.
-              Suspending blocks sign-in but keeps the roles, so access can be restored;
-              removing deletes the entry outright.
-            </>
-          ) : (
-            <>
-              Everyone who can sign in to TTMS, with the details on file for them — including
-              full legal name, date of birth and personal email, which nobody outside this
-              page can see. Use Export CSV to take the list into Excel. Changing any of it
-              is an admin job.
-            </>
-          )
-        }
-        aside={
-          <div className="text-right">
-            <p className="text-2xl font-bold text-gray-900 leading-none tabular-nums">
-              {counts.all}
-            </p>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mt-1">
-              {counts.all === 1 ? 'Person' : 'People'}
-            </p>
+      <section id="people-list" className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <div className="flex flex-wrap items-start gap-4 px-6 py-4">
+          <p className="min-w-0 flex-1 text-sm text-gray-500">
+            {canEdit
+              ? <Bi>Click anybody to see and change their details, roles and permissions. Everyone is a Broker unless they are given a role.</Bi>
+              : <Bi>Everyone who can sign in, with the details on file for them — including payroll details nobody outside this page can see. Changing any of it is an admin job.</Bi>}
+          </p>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-2xl font-bold leading-none tabular-nums text-gray-900">{counts.all}</p>
+              <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                {counts.all === 1 ? 'Person' : 'People'}
+              </p>
+            </div>
+            {canManageAll && (
+              <Link href={pageHref('invite')}
+                className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+                <UserPlus size={15} /> <span data-es>Invite people</span>
+              </Link>
+            )}
           </div>
-        }
-      >
+        </div>
 
         {!loading && !loadFailed && people.length > 0 && (
           <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col gap-3">
@@ -1224,9 +627,7 @@ They will be signed out immediately and cannot sign in until you restore them. T
             </button>
           </div>
         ) : people.length === 0 ? (
-          <div data-es className="py-16 text-center text-sm text-gray-400">
-            No one has been granted access yet.
-          </div>
+          <EmptyState art="people" title="Nobody has access yet" body="Invite the first person and they appear here." />
         ) : visiblePeople.length === 0 ? (
           <div className="py-16 text-center">
             <p data-es className="text-sm text-gray-400">No one matches these filters.</p>
@@ -1244,26 +645,18 @@ They will be signed out immediately and cannot sign in until you restore them. T
             <PeopleTable
               people={visiblePeople}
               fields={cardFields.fields}
-              canEdit={canManageAll}
               myEmail={myEmail}
               isProtectedEmail={isBootstrapAdmin}
-              busy={busy}
-              editing={editing}
               siteName={siteName}
               teamName={teamName}
               formatWhen={(person) =>
                 `Added ${formatWhen(person.invitedAt)}${person.invitedBy ? ` by ${person.invitedBy}` : ''}`
               }
               anchorId={personAnchorId}
+              hrefFor={(person) => personHref(person.email)}
               sortField={sortField}
               sortDir={sortDir}
               onSort={sortBy}
-              onMakeBroker={handleMakeBroker}
-              onToggleRole={handleToggle}
-              onEdit={toggleEditor}
-              onSuspend={handleSuspend}
-              onRevoke={handleRevoke}
-              renderEditor={renderEditor}
             />
           </div>
         ) : (
@@ -1321,12 +714,8 @@ They will be signed out immediately and cannot sign in until you restore them. T
                 <li
                   key={p.email}
                   id={personAnchorId(p.email)}
-                  className={`scroll-mt-44 rounded-xl border transition target:ring-2 target:ring-brand-400 ${
+                  className={`scroll-mt-6 rounded-xl border border-gray-200 transition hover:border-brand-300 hover:shadow-sm target:ring-2 target:ring-brand-400 ${
                     compact ? 'p-3' : 'p-4'
-                  } ${
-                    editing === p.email
-                      ? `border-brand-300 ${compact ? 'sm:col-span-2 xl:col-span-3' : 'xl:col-span-2'}`
-                      : 'border-gray-200'
                   } ${suspended ? 'bg-red-50/50' : 'bg-white'}`}
                 >
                   {/* Photo down the side rather than a circle in front of the
@@ -1353,14 +742,15 @@ They will be signed out immediately and cannot sign in until you restore them. T
                     <div className="flex min-w-0 flex-1 flex-col">
                       <div className="flex items-start gap-3">
                         <div className="min-w-0 flex-1">
-                          <p
-                            className={`truncate text-sm font-medium ${
+                          <Link
+                            href={personHref(p.email)}
+                            className={`block truncate text-sm font-medium hover:text-brand-700 hover:underline ${
                               suspended ? 'text-gray-500' : 'text-gray-900'
                             }`}
                           >
                             {name || p.email}
                             {isSelf && <span className="ml-1.5 text-xs text-gray-400">(you)</span>}
-                          </p>
+                          </Link>
 
                           {/* Only worth a line of its own once a name is displacing
                               it from the line above. `break-all` because an address
@@ -1475,21 +865,13 @@ They will be signed out immediately and cannot sign in until you restore them. T
                       <div className="mt-3 border-t border-gray-100 pt-3">
                         <PersonRoles
                           person={p}
-                          canEdit={canManageAll}
+                          canEdit={false}
                           suspended={suspended}
                           isSelf={isSelf}
                           isProtected={isProtected}
-                          busy={busy}
-                          onMakeBroker={handleMakeBroker}
-                          onToggle={handleToggle}
-                        />
-
-                        <PersonPermissions
-                          person={p}
-                          canEdit={canEditPerson(p)}
-                          grantable={grantable}
-                          busy={busy === `${p.email}:permissions`}
-                          onSave={(next) => handlePermissions(p, next)}
+                          busy={null}
+                          onMakeBroker={() => {}}
+                          onToggle={() => {}}
                         />
 
                         <div className="mt-2 flex items-end justify-between gap-3">
@@ -1499,46 +881,20 @@ They will be signed out immediately and cannot sign in until you restore them. T
                             {isProtected && <span data-es className="block">Protected account</span>}
                           </p>
 
-                          {canEditPerson(p) && (
-                            <PersonActions
-                              person={p}
-                              canRemove={canManageAll}
-                              editing={editing === p.email}
-                              suspended={suspended}
-                              isSelf={isSelf}
-                              isProtected={isProtected}
-                              busy={busy}
-                              onEdit={toggleEditor}
-                              onSuspend={handleSuspend}
-                              onRevoke={handleRevoke}
-                            />
-                          )}
+                          <Link href={personHref(p.email)}
+                            className="flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-brand-700 hover:bg-brand-50">
+                            <span data-es>Open</span> <ChevronRight size={13} />
+                          </Link>
                         </div>
                       </div>
                     </div>
                   </div>
-
-                  {canEditPerson(p) && editing === p.email && (
-                    <div className="mt-3">{renderEditor(p)}</div>
-                  )}
                 </li>
               );
             })}
           </ul>
         )}
-      </CollapsibleSection>
-
-      {/* The archive holds date of birth and personal email for people who
-          have left, so it stays admin-only — HR reads the live directory
-          above and nothing else. Putting someone back adds them to the list
-          above, so it reloads it. */}
-      {canManageAll && (
-        <RemovedPeoplePanel sites={sites} teams={teams} onRestored={load} />
-      )}
-
-      {/* Same audience, and last on the page: it is the record of the two
-          panels above rather than something to act on. */}
-      {canManageAll && <AccessHistoryPanel />}
+      </section>
     </div>
   );
 }

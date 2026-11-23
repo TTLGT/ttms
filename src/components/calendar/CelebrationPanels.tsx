@@ -190,7 +190,7 @@ export function CelebrationReminderPanel({
   onRemove: (id: string) => void;
 }) {
   const { settings, reminders } = data;
-  // Off company-wide (Settings → Operations → Reminder Emails) hides the
+  // Off company-wide (Settings → General → Reminder emails) hides the
   // Email tick, and it stops counting as a way of being reminded.
   const emailsAllowed = useReminderEmails();
   const noChannel = !(settings.email && emailsAllowed !== false) && !settings.chat;

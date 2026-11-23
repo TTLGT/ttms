@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
+import { logSettingsChange } from '@/lib/settingsChangeServer';
 import { requireCaller } from '@/lib/partyAccess';
 import { TEAMS_COLLECTION } from '@/lib/accessControl';
 import { resolveLead } from '@/lib/teamLead';
@@ -48,13 +49,20 @@ export async function POST(req: NextRequest) {
     }
 
     const ref = adminDb.collection(TEAMS_COLLECTION).doc();
-    await ref.set({
+    const batch = adminDb.batch();
+    batch.set(ref, {
       name,
       ...lead,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: caller.email ?? caller.uid,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    await logSettingsChange({
+      area: 'teams', summary: `Added the team ${name}`, caller,
+      before: {}, after: { name, lead: typeof body.lead === 'string' ? body.lead : '' },
+      labels: { name: 'Name', lead: 'Lead' },
+    }, batch);
+    await batch.commit();
 
     // A team with a Sales Manager at its head is an access boundary the moment
     // it exists — see src/lib/teamScope.ts. Nothing else about a team is.

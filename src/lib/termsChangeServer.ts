@@ -6,6 +6,7 @@ import { planAgreementHold } from './clientAgreements';
 import { planCarrierHold } from './carrierAgreements';
 import { agreementTermsDoc, currentTerms, ORDER_TERMS_AT, TERMS_STAMP } from './agreementTermsServer';
 import type { Caller } from './partyAccess';
+import { logSettingsChange } from './settingsChangeServer';
 import { orderDisplayNumber } from '@/types/order';
 import {
   MAX_TERMS_REASON, ORDER_TERMS_FIELD, TERMS_DOC_LABEL, orderTermsOf, termsRequestSummary,
@@ -38,11 +39,23 @@ export function cleanReason(raw: unknown): string {
 /** The general terms for `party`, saved. Merged: the other party's are left alone. */
 export async function applyGeneralTerms(party: TermsParty, text: string, actor: ChangeActor): Promise<void> {
   const stamp = TERMS_STAMP[party];
-  await agreementTermsDoc().set({
+  // Both the direct save and an approved request land here, so this is the
+  // one place the settings change log has to be told. The wording is kept
+  // whole on both sides: a legal change is read clause by clause.
+  const before = (await currentTerms(party)).text;
+  const batch = adminDb.batch();
+  batch.set(agreementTermsDoc(), {
     [party]: text,
     [stamp.at]: FieldValue.serverTimestamp(),
     [stamp.by]: actor.email || actor.name,
   }, { merge: true });
+  await logSettingsChange({
+    area: 'agreementTerms',
+    summary: `Changed the ${TERMS_DOC_LABEL[party]} terms`,
+    caller: { uid: actor.uid, email: actor.email },
+    text: { field: `${TERMS_DOC_LABEL[party]} terms`, from: before, to: text },
+  }, batch);
+  await batch.commit();
 }
 
 /**

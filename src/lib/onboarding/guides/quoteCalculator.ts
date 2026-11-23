@@ -76,7 +76,7 @@ export const QUOTE_GUIDE: Guide = {
       id: 'rates',
       title: b('Who sets the rates', 'Quién pone las tarifas'),
       points: [
-        b('The rate card — prices per truck, truck sizes, the target fee and the market figures — is kept by an admin in Settings → Operations → Quote Rates.', 'La tabla — precios por camión, tamaños, la comisión meta y las cifras del mercado — la mantiene un administrador en Configuración → Operaciones → Tarifas de cotización.'),
+        b('The rate card — prices per truck, truck sizes, the target fee and the market figures — is kept by an admin in Settings → Sales & orders → Quote rates.', 'La tabla — precios por camión, tamaños, la comisión meta y las cifras del mercado — la mantiene un administrador en Configuración → Ventas y órdenes → Tarifas de cotización.'),
         b('If a rate looks out of date, tell your team lead. Do not quote around it.', 'Si una tarifa se ve desactualizada, avísale a tu líder. No cotices ignorándola.'),
       ],
     },

@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { RotateCcw, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarDays, List, RotateCcw, Trash2 } from 'lucide-react';
 import DateField from '@/components/DateField';
 import {
   deleteHolidayOverride,
@@ -19,6 +19,8 @@ import {
 } from '@/lib/attendance';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { Bi } from '@/components/spanish/Es';
+import { useSaveBarEntry } from '@/components/settings/kit/SaveBar';
+import { PreviewBox } from '@/components/settings/kit/ui';
 import {
   BACK_ON_TIME_LEAD,
   DEFAULT_SCHEDULE_ID,
@@ -58,17 +60,32 @@ export default function AttendanceSetup() {
   const [remindersVersion, setRemindersVersion] = useState(0);
   const bump = useCallback(() => setRemindersVersion((v) => v + 1), []);
   return (
-    // The ids are the anchors Settings search and the Overview cards jump to
-    // (settingsSections.ts); scroll-mt clears the sticky Settings tab bar.
     <div className="grid items-start gap-6 xl:grid-cols-2">
-      <div id="attendance-schedules" className="scroll-mt-44"><SchedulesPanel /></div>
+      <div id="attendance-schedules" className="scroll-mt-6"><SchedulesPanel /></div>
       <div className="space-y-6">
-        <div id="attendance-holidays" className="scroll-mt-44"><HolidaysPanel /></div>
-        <div id="lunch-times" className="scroll-mt-44"><LunchTimesPanel version={remindersVersion} onSaved={bump} /></div>
-        <div id="break-reminders" className="scroll-mt-44"><RemindersPanel version={remindersVersion} onSaved={bump} /></div>
-        <div id="back-on-time" className="scroll-mt-44"><BackOnTimePanel /></div>
-        <div id="office-network" className="scroll-mt-44"><NetworkPanel /></div>
+        <div id="attendance-holidays" className="scroll-mt-6"><HolidaysPanel /></div>
+        <div id="lunch-times" className="scroll-mt-6"><LunchTimesPanel version={remindersVersion} onSaved={bump} /></div>
+        <div id="break-reminders" className="scroll-mt-6"><RemindersPanel version={remindersVersion} onSaved={bump} /></div>
+        <div id="back-on-time" className="scroll-mt-6"><BackOnTimePanel /></div>
+        <div id="office-network" className="scroll-mt-6"><NetworkPanel /></div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Settings → Lunch and breaks: the three panels that edit the same reminder
+ * settings, on one page. Each panel is also exported on its own for the
+ * Settings pages that hold just one (schedules, holidays, office network).
+ */
+export function LunchAndBreaks() {
+  const [version, setVersion] = useState(0);
+  const bump = useCallback(() => setVersion((v) => v + 1), []);
+  return (
+    <div className="space-y-6">
+      <div id="lunch-times" className="scroll-mt-6"><LunchTimesPanel version={version} onSaved={bump} /></div>
+      <div id="break-reminders" className="scroll-mt-6"><RemindersPanel version={version} onSaved={bump} /></div>
+      <div id="back-on-time" className="scroll-mt-6"><BackOnTimePanel /></div>
     </div>
   );
 }
@@ -79,7 +96,7 @@ const lede = 'mt-1 text-sm text-gray-500';
 
 // ── Schedules ────────────────────────────────────────────────────────────────
 
-function SchedulesPanel() {
+export function SchedulesPanel() {
   const [data, setData] = useState<SchedulesResponse | null>(null);
   const [target, setTarget] = useState(DEFAULT_SCHEDULE_ID);
   const [error, setError] = useState('');
@@ -132,10 +149,27 @@ function ScheduleEditor({
   onSave: (s: Schedule | null) => Promise<void>;
   who: string;
 }) {
-  const [s, setS] = useState<Schedule>(initial ?? fallback ?? STANDARD_SCHEDULE);
+  const start = initial ?? fallback ?? STANDARD_SCHEDULE;
+  const [s, setS] = useState<Schedule>(start);
+  const [base, setBase] = useState<Schedule>(start);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+
+  // A change to an existing schedule goes through Settings' Save bar. A
+  // schedule nobody has saved yet still needs its own button below: the
+  // suggested week is not a change, so the bar would never appear for it.
+  const dirty = JSON.stringify(s) !== JSON.stringify(base);
+  const { active } = useSaveBarEntry({
+    dirty: Boolean(initial) && dirty,
+    save: async () => {
+      const previous = base;
+      await onSave(s);
+      setBase(s);
+      return async () => { await onSave(previous); setBase(previous); setS(previous); };
+    },
+    discard: () => setS(base),
+  });
 
   async function save(next: Schedule | null) {
     setBusy(true); setMsg(''); setError('');
@@ -207,10 +241,12 @@ function ScheduleEditor({
         </label>
       </div>
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={busy} onClick={() => void save(s)}
-          className="rounded-lg bg-brand-600 px-4 py-1.5 font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
-          Save
-        </button>
+        {(!active || !initial) && (
+          <button type="button" disabled={busy} onClick={() => void save(s)}
+            className="rounded-lg bg-brand-600 px-4 py-1.5 font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+            {initial ? 'Save' : isDefault ? 'Save as the company schedule' : `Give ${who} this schedule`}
+          </button>
+        )}
         <button type="button" disabled={busy} onClick={() => setS(STANDARD_SCHEDULE)}
           className="rounded-lg border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50">
           Standard week (Mon–Fri, 7–4)
@@ -232,7 +268,7 @@ function ScheduleEditor({
 
 const COMPANY = '_company';
 
-function RemindersPanel({ version, onSaved }: { version: number; onSaved: () => void }) {
+export function RemindersPanel({ version, onSaved }: { version: number; onSaved: () => void }) {
   const [data, setData] = useState<RemindersResponse | null>(null);
   const [target, setTarget] = useState(COMPANY);
   const [error, setError] = useState('');
@@ -298,6 +334,28 @@ function RemindersEditor({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  // What was there when the editor opened, so the Save bar knows what changed.
+  const [startKey] = useState(() => JSON.stringify({ values: { ...company, ...(own ?? {}) }, custom: {
+    clockIn: Boolean(own?.clockIn), break: Boolean(own?.break), lunch: Boolean(own?.lunch), activePause: Boolean(own?.activePause),
+  } }));
+  const dirty = JSON.stringify({ values, custom }) !== startKey;
+  const { active } = useSaveBarEntry({
+    dirty,
+    // The editor is remounted with the stored values after a save (see the
+    // key in RemindersPanel), so there is nothing to put back here; Undo is
+    // left to the change log for a set of reminders.
+    save: async () => {
+      const next: ReminderOverride = own === null
+        ? values
+        : Object.fromEntries(REMINDER_KINDS.filter((k) => custom[k]).map((k) => [k, values[k]]));
+      await onSave(next);
+    },
+    discard: () => {
+      const start = JSON.parse(startKey) as { values: BreakReminderSettings; custom: Record<ReminderKind, boolean> };
+      setValues(start.values);
+      setCustom(start.custom);
+    },
+  });
 
   async function save() {
     setBusy(true); setMsg(''); setError('');
@@ -319,6 +377,13 @@ function RemindersEditor({
 
   return (
     <div className="mt-4 space-y-4 text-sm">
+      <PreviewBox title="The day, with its reminders" note="Drag a reminder along the day to move it; its length stays the same. Nothing is saved until you press Save.">
+        <ReminderTimeline
+          values={values}
+          editable={(k) => own === null || custom[k]}
+          onMove={(kind, at, until) => setValues((v) => ({ ...v, [kind]: { ...v[kind], at, until } }))}
+        />
+      </PreviewBox>
       {REMINDER_KINDS.map((kind) => {
         const editable = own === null || custom[kind];
         const r = editable ? values[kind] : company[kind];
@@ -369,10 +434,12 @@ function RemindersEditor({
           </fieldset>
         );
       })}
-      <button type="button" disabled={busy} onClick={() => void save()}
-        className="rounded-lg bg-brand-600 px-4 py-1.5 font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
-        Save
-      </button>
+      {!active && (
+        <button type="button" disabled={busy} onClick={() => void save()}
+          className="rounded-lg bg-brand-600 px-4 py-1.5 font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+          Save
+        </button>
+      )}
       {msg && <p className="text-green-700">{msg}</p>}
       {error && <p className="text-red-600">{error}</p>}
     </div>
@@ -381,6 +448,98 @@ function RemindersEditor({
 
 const numberBox = 'w-16 rounded-lg border border-gray-300 px-2 py-1';
 const timeBox = 'rounded-lg border border-gray-300 px-2 py-1';
+
+const toMin = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+const toHhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+const TIMELINE_FROM = 6 * 60;
+const TIMELINE_TO = 18 * 60;
+const SLOT_COLOUR: Record<Exclude<ReminderKind, 'clockIn'>, string> = {
+  break: 'bg-sky-400',
+  lunch: 'bg-amber-400',
+  activePause: 'bg-emerald-400',
+};
+
+/**
+ * The working day from 6:00 to 18:00 with each reminder drawn where it
+ * appears and for as long as it stays up. Dragging one moves its start and
+ * end together, in five-minute steps — one change to the draft on release,
+ * like the Calendar's week grid. Clock in is left off: it follows each
+ * person's schedule, not a time set here.
+ */
+function ReminderTimeline({
+  values, editable, onMove,
+}: {
+  values: BreakReminderSettings;
+  editable: (kind: ReminderKind) => boolean;
+  onMove: (kind: ReminderKind, at: string, until: string) => void;
+}) {
+  const track = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ kind: Exclude<ReminderKind, 'clockIn'>; startX: number; at: number; until: number; shift: number } | null>(null);
+  const span = TIMELINE_TO - TIMELINE_FROM;
+  const pct = (m: number) => `${((Math.min(Math.max(m, TIMELINE_FROM), TIMELINE_TO) - TIMELINE_FROM) / span) * 100}%`;
+  const kinds = (['break', 'lunch', 'activePause'] as const).filter((k) => values[k].enabled);
+
+  function onPointerMove(e: React.PointerEvent) {
+    if (!drag || !track.current) return;
+    const width = track.current.getBoundingClientRect().width;
+    const raw = ((e.clientX - drag.startX) / width) * span;
+    const shift = Math.round(raw / 5) * 5;
+    const clamped = Math.max(TIMELINE_FROM - drag.at, Math.min(TIMELINE_TO - drag.until, shift));
+    setDrag({ ...drag, shift: clamped });
+  }
+  function onPointerUp() {
+    if (drag && drag.shift !== 0) onMove(drag.kind, toHhmm(drag.at + drag.shift), toHhmm(drag.until + drag.shift));
+    setDrag(null);
+  }
+
+  return (
+    <div onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={onPointerUp} className="select-none">
+      <div ref={track} className="relative h-28 rounded-lg border border-gray-200 bg-white">
+        {[7, 9, 11, 13, 15, 17].map((h) => (
+          <div key={h} className="absolute inset-y-0 border-l border-dashed border-gray-100" style={{ left: pct(h * 60) }} />
+        ))}
+        {kinds.map((kind, i) => {
+          const r = values[kind];
+          const shift = drag?.kind === kind ? drag.shift : 0;
+          const at = toMin(r.at) + shift;
+          const until = toMin(r.until) + shift;
+          const can = editable(kind);
+          return (
+            <div
+              key={kind}
+              role="slider"
+              aria-label={`${REMINDER_LABEL[kind]}, ${toHhmm(at)} to ${toHhmm(until)}`}
+              aria-valuenow={at}
+              tabIndex={can ? 0 : -1}
+              onKeyDown={(e) => {
+                if (!can || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+                e.preventDefault();
+                const d = e.key === 'ArrowLeft' ? -5 : 5;
+                onMove(kind, toHhmm(toMin(r.at) + d), toHhmm(toMin(r.until) + d));
+              }}
+              onPointerDown={(e) => {
+                if (!can) return;
+                (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+                setDrag({ kind, startX: e.clientX, at: toMin(r.at), until: toMin(r.until), shift: 0 });
+              }}
+              className={`absolute flex h-7 items-center overflow-hidden rounded-md px-2 text-[11px] font-semibold text-white shadow-sm ${SLOT_COLOUR[kind]} ${
+                can ? 'cursor-grab active:cursor-grabbing' : 'opacity-60'
+              } ${drag?.kind === kind ? 'ring-2 ring-brand-500' : ''}`}
+              style={{ left: pct(at), width: `calc(${pct(until)} - ${pct(at)})`, top: `${10 + i * 32}px`, minWidth: '3.5rem' }}
+            >
+              <span className="truncate">{REMINDER_LABEL[kind]} {toHhmm(at)}</span>
+            </div>
+          );
+        })}
+        {kinds.length === 0 && <p data-es className="absolute inset-0 flex items-center justify-center text-xs text-gray-400">No reminders are switched on.</p>}
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] tabular-nums text-gray-400">
+        {['6:00', '9:00', '12:00', '15:00', '18:00'].map((t) => <span key={t}>{t}</span>)}
+      </div>
+    </div>
+  );
+}
 
 function SlotFields({
   kind, r, disabled, onChange,
@@ -424,7 +583,7 @@ function DaysField({ days, disabled, onChange }: { days: WeekdayKey[]; disabled:
 
 // ── Holidays ─────────────────────────────────────────────────────────────────
 
-function HolidaysPanel() {
+export function HolidaysPanel() {
   const { formatDate } = useDateFormatters();
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [overrides, setOverrides] = useState<HolidayOverride[] | null>(null);
@@ -433,6 +592,7 @@ function HolidaysPanel() {
   const [adding, setAdding] = useState(false);
   const [add, setAdd] = useState<{ country: HolidayCountry; date: string; name: string }>({ country: 'GT', date: '', name: '' });
   const [error, setError] = useState('');
+  const [view, setView] = useState<'calendar' | 'list'>('calendar');
 
   const load = useCallback(async () => {
     try { setOverrides((await fetchHolidayOverrides()).overrides); } catch (e) { setError(e instanceof Error ? e.message : 'Could not load'); }
@@ -469,7 +629,33 @@ function HolidaysPanel() {
         company day off. The Celebrations calendar follows the same list.</Bi>
       </p>
 
-      <ul className="mt-3 divide-y divide-gray-100 text-sm">
+      <div className="mt-3 flex rounded-lg border border-gray-200 p-0.5 text-xs w-fit" role="group" aria-label="View">
+        {([['calendar', 'Year', CalendarDays], ['list', 'List', List]] as const).map(([id, text, Icon]) => (
+          <button key={id} type="button" onClick={() => setView(id)} aria-pressed={view === id}
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium ${view === id ? 'bg-brand-50 text-brand-700' : 'text-gray-500 hover:bg-gray-50'}`}>
+            <Icon size={13} /> <span data-es>{text}</span>
+          </button>
+        ))}
+      </div>
+
+      {view === 'calendar' && (
+        <YearCalendar
+          year={year}
+          rows={rows}
+          onPickDay={(date, holiday) => {
+            if (holiday && !holiday.cancelled && !('added' in holiday && holiday.added)) {
+              setMoving(`${holiday.country}|${holiday.date}|${holiday.name}`);
+              setMoveTo(holiday.date);
+              setView('list');
+            } else if (!holiday) {
+              setAdd({ country: 'GT', date, name: '' });
+              setAdding(true);
+            }
+          }}
+        />
+      )}
+
+      <ul className={`mt-3 divide-y divide-gray-100 text-sm ${view === 'list' ? '' : 'hidden'}`}>
         {rows.map((h) => {
           const key = `${h.country}|${h.date}|${h.name}`;
           const original = 'movedFrom' in h && h.movedFrom ? h.movedFrom : h.date;
@@ -544,6 +730,66 @@ function HolidaysPanel() {
   );
 }
 
+/**
+ * The year as twelve small months, holidays marked by country. Clicking a
+ * holiday opens its Move in the list; clicking any other day starts adding a
+ * company day off on it. Nothing is saved by a click — the Add and Move it
+ * buttons do that, as before.
+ */
+function YearCalendar({
+  year, rows, onPickDay,
+}: {
+  year: number;
+  rows: { date: string; country: HolidayCountry; name: string; cancelled: boolean }[];
+  onPickDay: (date: string, holiday: (typeof rows)[number] | null) => void;
+}) {
+  const byDate = new Map<string, (typeof rows)[number][]>();
+  for (const r of rows) if (!r.cancelled) byDate.set(r.date, [...(byDate.get(r.date) ?? []), r]);
+  const months = Array.from({ length: 12 }, (_, m) => m);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const monthName = (m: number) => new Date(year, m, 1).toLocaleString('en-US', { month: 'long' });
+
+  return (
+    <div className="mt-3">
+      <div className="mb-2 flex gap-3 text-[11px] text-gray-500">
+        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-rose-400" /> Guatemala</span>
+        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-blue-500" /> United States</span>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {months.map((m) => {
+          const first = new Date(year, m, 1).getDay();
+          const days = new Date(year, m + 1, 0).getDate();
+          return (
+            <div key={m} className="rounded-lg border border-gray-100 p-2">
+              <p className="mb-1 text-xs font-semibold text-gray-700">{monthName(m)}</p>
+              <div className="grid grid-cols-7 gap-px text-center text-[10px]">
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <span key={i} className="text-gray-300">{d}</span>)}
+                {Array.from({ length: first }, (_, i) => <span key={`b${i}`} />)}
+                {Array.from({ length: days }, (_, i) => {
+                  const date = `${year}-${pad(m + 1)}-${pad(i + 1)}`;
+                  const hs = byDate.get(date) ?? [];
+                  const colour = hs.some((h) => h.country === 'GT') && hs.some((h) => h.country === 'US')
+                    ? 'bg-gradient-to-br from-rose-400 to-blue-500 text-white'
+                    : hs.some((h) => h.country === 'GT') ? 'bg-rose-400 text-white'
+                    : hs.length ? 'bg-blue-500 text-white' : 'text-gray-600 hover:bg-gray-100';
+                  return (
+                    <button key={date} type="button" title={hs.map((h) => `${h.name} (${h.country})`).join(', ') || 'Add a day off'}
+                      onClick={() => onPickDay(date, hs[0] ?? null)}
+                      className={`aspect-square rounded tabular-nums leading-none transition ${colour}`}>
+                      {i + 1}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-xs text-gray-500"><Bi>Click a holiday to move it, or any other day to add a company day off there.</Bi></p>
+    </div>
+  );
+}
+
 // ── Lunch times ──────────────────────────────────────────────────────────────
 
 /** "1:00 PM" from "13:00" — the box shows 24-hour, the list reads easier this way. */
@@ -558,7 +804,7 @@ function clock12(hhmm: string): string {
  * setting: what it saves shows in Break reminders below, and "Back on time"
  * ends lunch by its end.
  */
-function LunchTimesPanel({ version, onSaved }: { version: number; onSaved: () => void }) {
+export function LunchTimesPanel({ version, onSaved }: { version: number; onSaved: () => void }) {
   const [data, setData] = useState<RemindersResponse | null>(null);
   const [mode, setMode] = useState<'everyone' | 'people'>('everyone');
   const [chosen, setChosen] = useState<Set<string>>(new Set());
@@ -674,6 +920,14 @@ function LunchTimesPanel({ version, onSaved }: { version: number; onSaved: () =>
         </div>
       )}
 
+      <WhoMoves
+        people={mode === 'everyone'
+          ? data.people.filter((p) => resetOwn || !lunchOf(p.email))
+          : data.people.filter((p) => chosen.has(p.email))}
+        at={at}
+        until={until}
+      />
+
       <button type="button" onClick={() => void save()}
         disabled={busy || !at || !until || (mode === 'people' && chosen.size === 0)}
         className="mt-3 rounded-lg bg-brand-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
@@ -688,24 +942,71 @@ function LunchTimesPanel({ version, onSaved }: { version: number; onSaved: () =>
   );
 }
 
+/** The faces of whoever a lunch move reaches — initials, with the name on hover. */
+function WhoMoves({ people, at, until }: { people: { email: string; name: string }[]; at: string; until: string }) {
+  if (!at || !until) return null;
+  const shown = people.slice(0, 30);
+  const initials = (name: string) => name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  return (
+    <PreviewBox className="mt-3" title="Who moves">
+      {people.length === 0 ? (
+        <p className="text-sm text-gray-500"><Bi>Nobody yet. Choose the people to move.</Bi></p>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-1.5">
+            {shown.map((p) => (
+              <span key={p.email} title={p.name}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 text-[11px] font-bold text-amber-800">
+                {initials(p.name)}
+              </span>
+            ))}
+            {people.length > shown.length && <span className="self-center text-xs text-gray-500">+{people.length - shown.length}</span>}
+          </div>
+          <p className="mt-2 text-sm text-gray-700">
+            {people.length} {people.length === 1 ? 'person goes' : 'people go'} to lunch at {clock12(at)}–{clock12(until)}.
+          </p>
+        </>
+      )}
+    </PreviewBox>
+  );
+}
+
 // ── Back on time ─────────────────────────────────────────────────────────────
 
 /** Company-wide only, unlike the reminders above: it is one switch and one number. */
-function BackOnTimePanel() {
+export function BackOnTimePanel() {
+  const [stored, setStored] = useState<BackOnTimeSettings | null>(null);
   const [value, setValue] = useState<BackOnTimeSettings | null>(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
 
   useEffect(() => {
     fetchConfig()
-      .then((r) => setValue(r.config.backOnTime))
+      .then((r) => { setStored(r.config.backOnTime); setValue(r.config.backOnTime); })
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load'));
   }, []);
 
+  const writeOut = async (next: BackOnTimeSettings) => {
+    const saved = (await saveConfig({ backOnTime: next })).config.backOnTime;
+    setStored(saved);
+    setValue(saved);
+  };
+  const { active } = useSaveBarEntry({
+    dirty: Boolean(value && stored) && JSON.stringify(value) !== JSON.stringify(stored),
+    save: async () => {
+      const previous = stored!;
+      await writeOut(value!);
+      return async () => { await writeOut(previous); };
+    },
+    discard: () => setValue(stored),
+  });
+
+  // Outside Settings (Attendance → Setup) a change still saves as it is made.
   async function save(next: BackOnTimeSettings) {
+    if (active) { setValue(next); return; }
     setError(''); setMsg('');
     try {
-      setValue((await saveConfig({ backOnTime: next })).config.backOnTime);
+      await writeOut(next);
       setMsg('Saved. Open copies of TTMS pick it up the next time they load the clock.');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save');
@@ -748,8 +1049,9 @@ function BackOnTimePanel() {
 
 // ── Networks and alerts ──────────────────────────────────────────────────────
 
-function NetworkPanel() {
+export function NetworkPanel() {
   const [config, setConfig] = useState<AttendanceConfig | null>(null);
+  const [alertDraft, setAlertDraft] = useState<{ alerts: boolean; alertAfterMinutes: number } | null>(null);
   const [yourIp, setYourIp] = useState<string | null>(null);
   const [ip, setIp] = useState('');
   const [label, setLabel] = useState('');
@@ -758,7 +1060,7 @@ function NetworkPanel() {
 
   useEffect(() => {
     fetchConfig()
-      .then((r) => { setConfig(r.config); setYourIp(r.yourIp); })
+      .then((r) => { setConfig(r.config); setAlertDraft({ alerts: r.config.alerts, alertAfterMinutes: r.config.alertAfterMinutes }); setYourIp(r.yourIp); })
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load'));
   }, []);
 
@@ -771,6 +1073,27 @@ function NetworkPanel() {
       setError(e instanceof Error ? e.message : 'Could not save');
     }
   }
+
+  // The two alert settings are a draft for the Save bar; adding or removing a
+  // network is a one-press action, as it always was.
+  const alertsDirty = Boolean(config && alertDraft)
+    && (alertDraft!.alerts !== config!.alerts || alertDraft!.alertAfterMinutes !== config!.alertAfterMinutes);
+  const { active } = useSaveBarEntry({
+    dirty: alertsDirty,
+    problem: alertDraft && (alertDraft.alertAfterMinutes < 5 || alertDraft.alertAfterMinutes > 240)
+      ? 'The alert delay must be between 5 and 240 minutes.' : undefined,
+    save: async () => {
+      const previous = { alerts: config!.alerts, alertAfterMinutes: config!.alertAfterMinutes };
+      const next = (await saveConfig(alertDraft!)).config;
+      setConfig(next);
+      return async () => {
+        const back = (await saveConfig(previous)).config;
+        setConfig(back);
+        setAlertDraft(previous);
+      };
+    },
+    discard: () => config && setAlertDraft({ alerts: config.alerts, alertAfterMinutes: config.alertAfterMinutes }),
+  });
 
   if (!config) return <section className={card}><h2 className={h2}><Bi>Office network</Bi></h2><p className={lede}>{error || 'Loading…'}</p></section>;
 
@@ -817,17 +1140,35 @@ function NetworkPanel() {
           <Bi>A message in the Attendance alerts chat room for HR, administrators and the person&rsquo;s team lead, when
           somebody scheduled has not clocked in or used TTMS. Checked every 15 minutes, 6am to 6pm, Monday to Saturday.</Bi>
         </p>
-        <label className="mt-3 flex items-center gap-2">
-          <input type="checkbox" checked={config.alerts} onChange={(e) => void save({ alerts: e.target.checked })} />
-          Send alerts
-        </label>
-        <label className="mt-2 flex items-center gap-2">
-          After
-          <input type="number" min={5} max={240} defaultValue={config.alertAfterMinutes}
-            onBlur={(e) => { const n = Number(e.target.value); if (n !== config.alertAfterMinutes) void save({ alertAfterMinutes: n }); }}
-            className="w-16 rounded-lg border border-gray-300 px-2 py-1" />
-          minutes past their start (after their grace minutes)
-        </label>
+        {active && alertDraft ? (
+          <>
+            <label className="mt-3 flex items-center gap-2">
+              <input type="checkbox" checked={alertDraft.alerts} onChange={(e) => setAlertDraft({ ...alertDraft, alerts: e.target.checked })} />
+              Send alerts
+            </label>
+            <label className="mt-2 flex items-center gap-2">
+              After
+              <input type="number" min={5} max={240} value={alertDraft.alertAfterMinutes}
+                onChange={(e) => setAlertDraft({ ...alertDraft, alertAfterMinutes: Number(e.target.value) })}
+                className="w-16 rounded-lg border border-gray-300 px-2 py-1" />
+              minutes past their start (after their grace minutes)
+            </label>
+          </>
+        ) : (
+          <>
+            <label className="mt-3 flex items-center gap-2">
+              <input type="checkbox" checked={config.alerts} onChange={(e) => void save({ alerts: e.target.checked })} />
+              Send alerts
+            </label>
+            <label className="mt-2 flex items-center gap-2">
+              After
+              <input type="number" min={5} max={240} defaultValue={config.alertAfterMinutes}
+                onBlur={(e) => { const n = Number(e.target.value); if (n !== config.alertAfterMinutes) void save({ alertAfterMinutes: n }); }}
+                className="w-16 rounded-lg border border-gray-300 px-2 py-1" />
+              minutes past their start (after their grace minutes)
+            </label>
+          </>
+        )}
       </div>
 
       {msg && <p className="mt-2 text-sm text-green-700">{msg}</p>}

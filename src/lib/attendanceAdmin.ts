@@ -1,4 +1,5 @@
 import { adminDb, FieldValue } from './firebase-admin';
+import { logSettingsChange } from './settingsChangeServer';
 import { ALLOWED_USERS_COLLECTION, normalizeEmail } from './accessControl';
 import {
   AttendanceError,
@@ -92,13 +93,28 @@ export async function listSchedules(): Promise<{ fallback: Schedule | null; byEm
 export async function saveSchedule(caller: AttendanceCaller, target: string, raw: unknown): Promise<void> {
   const id = target === DEFAULT_SCHEDULE_ID ? DEFAULT_SCHEDULE_ID : (await personEntry(target)).email;
   const ref = adminDb.collection(ATTENDANCE_SCHEDULES_COLLECTION).doc(id);
+  const whose = id === DEFAULT_SCHEDULE_ID ? 'the company schedule' : `${id}’s schedule`;
+  const was = (await ref.get()).data() ?? null;
+  const strip = (d: Record<string, unknown> | null) => {
+    if (!d) return {};
+    const { updatedAt: _a, updatedByEmail: _b, ...rest } = d;
+    return rest;
+  };
   if (raw === null) {
     await ref.delete();
+    await logSettingsChange({ area: 'schedules', summary: `Removed ${whose}`, caller, before: strip(was), after: {} });
     return;
   }
   const schedule = readSchedule(raw);
   if (typeof schedule === 'string') throw new AttendanceError(schedule);
   await ref.set({ ...schedule, updatedAt: Date.now(), updatedByEmail: caller.email });
+  await logSettingsChange({
+    area: 'schedules',
+    summary: `${was ? 'Changed' : 'Set'} ${whose}`,
+    caller,
+    before: strip(was),
+    after: schedule,
+  });
 }
 
 // ── Holidays ─────────────────────────────────────────────────────────────────
@@ -136,12 +152,30 @@ export async function saveOverride(caller: AttendanceCaller, raw: Record<string,
     updatedByEmail: caller.email, updatedAt: Date.now(),
   };
   await adminDb.collection(HOLIDAY_OVERRIDES_COLLECTION).doc(id).set(doc);
+  await logSettingsChange({
+    area: 'holidays',
+    summary: originalDate === null ? `Added the day off ${name} (${country}) on ${movedTo}`
+      : movedTo === null ? `Stopped observing ${name} (${country}) on ${originalDate}`
+      : `Moved ${name} (${country}) from ${originalDate} to ${movedTo}`,
+    caller,
+  });
   return { ...doc, id };
 }
 
 /** Deleting a change puts the calculated holiday back (or removes an added day). */
-export async function deleteOverride(id: string): Promise<void> {
-  await adminDb.collection(HOLIDAY_OVERRIDES_COLLECTION).doc(id).delete();
+export async function deleteOverride(caller: AttendanceCaller, id: string): Promise<void> {
+  const ref = adminDb.collection(HOLIDAY_OVERRIDES_COLLECTION).doc(id);
+  const was = (await ref.get()).data() as Omit<HolidayOverride, 'id'> | undefined;
+  await ref.delete();
+  if (was) {
+    await logSettingsChange({
+      area: 'holidays',
+      summary: was.originalDate === null
+        ? `Removed the day off ${was.name} (${was.country})`
+        : `Put ${was.name} (${was.country}) back on ${was.originalDate}`,
+      caller,
+    });
+  }
 }
 
 // ── Setup ────────────────────────────────────────────────────────────────────
@@ -187,6 +221,24 @@ export async function saveConfig(caller: AttendanceCaller, raw: Record<string, u
   await adminDb.collection(ATTENDANCE_CONFIG_COLLECTION).doc(ATTENDANCE_CONFIG_DOC).set({
     ...next, updatedAt: Date.now(), updatedByEmail: caller.email,
   });
+
+  // One entry per kind of setting touched — the office network, the company's
+  // reminders and Back on time are three different pages in Settings.
+  const groups: { area: 'officeNetwork' | 'breakReminders' | 'backOnTime'; keys: (keyof AttendanceConfig)[]; summary: string }[] = [
+    { area: 'officeNetwork',  keys: ['officeNetworks', 'alerts', 'alertAfterMinutes'], summary: 'Changed the office network and alerts' },
+    { area: 'breakReminders', keys: ['reminders'],  summary: 'Changed the company reminders' },
+    { area: 'backOnTime',     keys: ['backOnTime'], summary: 'Changed Back on time' },
+  ];
+  for (const g of groups) {
+    const touched = g.keys.filter((k) => k in raw);
+    if (touched.length === 0) continue;
+    await logSettingsChange({
+      area: g.area, summary: g.summary, caller,
+      before: Object.fromEntries(touched.map((k) => [k, current[k]])),
+      after: Object.fromEntries(touched.map((k) => [k, next[k]])),
+      labels: { officeNetworks: 'Office networks', alerts: 'Alerts', alertAfterMinutes: 'Alert after (minutes)', reminders: 'Reminders', backOnTime: 'Back on time' },
+    });
+  }
   return next;
 }
 
@@ -215,12 +267,20 @@ export async function saveReminderOverride(caller: AttendanceCaller, target: str
   const own = raw === null ? {} : readReminderOverride(raw);
   if (typeof own === 'string') throw new AttendanceError(own);
   const ref = adminDb.collection(ATTENDANCE_PREFS_COLLECTION).doc(email);
+  const was = storedReminderOverride((await ref.get()).data()?.reminders);
   await ref.set(
     Object.keys(own).length === 0
       ? { reminders: FieldValue.delete() }
       : { reminders: own, remindersUpdatedAt: Date.now(), remindersUpdatedByEmail: caller.email },
     { merge: true },
   );
+  await logSettingsChange({
+    area: 'breakReminders',
+    summary: Object.keys(own).length === 0 ? `Put ${email} back on the company reminders` : `Changed ${email}’s own reminders`,
+    caller,
+    before: was,
+    after: own,
+  });
 }
 
 /**
@@ -277,6 +337,13 @@ export async function moveLunch(
       }
       if (reset > 0) await batch.commit();
     }
+    await logSettingsChange({
+      area: 'breakReminders',
+      summary: `Moved the company lunch to ${at}–${until}${reset ? `, and ${reset} ${reset === 1 ? 'person' : 'people'} back onto it` : ''}`,
+      caller,
+      before: { lunch: config.reminders.lunch },
+      after: { lunch },
+    });
     return { moved: 1, reset };
   }
 
@@ -296,6 +363,11 @@ export async function moveLunch(
     batch.set(snap.ref, { reminders: { ...own, lunch }, ...stamp }, { merge: true });
   });
   await batch.commit();
+  await logSettingsChange({
+    area: 'breakReminders',
+    summary: `Moved lunch to ${at}–${until} for ${people.map((p) => p.email).join(', ')}`.slice(0, 500),
+    caller,
+  });
   return { moved: people.length, reset: 0 };
 }
 

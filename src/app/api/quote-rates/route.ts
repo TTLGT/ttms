@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
 import { DEFAULT_QUOTE_RATES, validateQuoteRates } from '@/types/quoteRates';
+import { logSettingsChange } from '@/lib/settingsChangeServer';
 
 /**
  * The quote calculator's rate card. See src/types/quoteRates.ts.
@@ -62,13 +63,28 @@ export async function PUT(req: NextRequest) {
   const checked = validateQuoteRates(body?.rates);
   if ('error' in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
 
+  // The card as it stood, for the change log. A card never saved reads as the
+  // starting rates, which is what the calculator was using.
+  const beforeSnap = await DOC.get();
+  const before = beforeSnap.exists ? beforeSnap.data() : DEFAULT_QUOTE_RATES;
+
   // set() without merge: the validated card is the whole of the document, so a
   // truck removed in the panel is removed here rather than left behind.
-  await DOC.set({
+  const batch = adminDb.batch();
+  batch.set(DOC, {
     ...checked.ok,
     updatedAt: FieldValue.serverTimestamp(),
     updatedBy: caller.email ?? caller.uid,
   });
+  await logSettingsChange({
+    area: 'quoteRates',
+    summary: 'Changed the quote rates',
+    caller,
+    before,
+    after: checked.ok,
+    labels: { targetBrokerFee: 'Target broker fee', ushipFeePercent: 'uShip fee %', market: 'Market check', trucks: 'Trucks' },
+  }, batch);
+  await batch.commit();
 
   return NextResponse.json({ rates: checked.ok });
 }

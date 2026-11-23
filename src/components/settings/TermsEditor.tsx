@@ -6,6 +6,8 @@ import { decideTermsRequest, type TermsSaveResult } from '@/lib/agreementTerms';
 import { useAuth } from '@/context/AuthContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { Bi } from '@/components/spanish/Es';
+import { useSaveBarEntry } from './kit/SaveBar';
+import TrackedChanges from './TrackedChanges';
 import {
   MAX_TERMS_LENGTH, MAX_TERMS_REASON, validateTerms, type TermsChangeRequest, type TermsParty,
 } from '@/types/agreementTerms';
@@ -23,7 +25,7 @@ import {
  * not happened would have them telling a client the terms are new.
  */
 export default function TermsEditor({
-  party, saved, standard, canApprove, pending, onSave, onChanged, footer, extraActions, rows = 18,
+  party, saved, standard, canApprove, pending, onSave, onChanged, footer, extraActions, rows = 18, trackedChanges = false,
 }: {
   party: TermsParty;
   /** What is in force now. */
@@ -40,6 +42,11 @@ export default function TermsEditor({
   footer?: React.ReactNode;
   extraActions?: React.ReactNode;
   rows?: number;
+  /**
+   * Show the edit as tracked changes against what is in force, under the box.
+   * Settings turns it on; the order page has the room for the box alone.
+   */
+  trackedChanges?: boolean;
 }) {
   const { user } = useAuth();
   const { formatDateTime } = useDateFormatters();
@@ -56,6 +63,31 @@ export default function TermsEditor({
   const dirty = draft !== saved;
   const checked = validateTerms(draft, party);
   const problem = dirty && 'error' in checked ? checked.error : '';
+
+  /*
+   * In Settings the page's Save bar saves this. An admin's save applies and
+   * can be undone (by saving the old wording back, which is logged like any
+   * change); anybody else's becomes a request for an admin, which is not
+   * something an Undo should quietly withdraw — they withdraw it from the
+   * request card above instead.
+   */
+  const { active } = useSaveBarEntry({
+    dirty,
+    problem: problem || undefined,
+    save: async () => {
+      const previous = saved;
+      const res = await onSave(draft, reason);
+      setReason('');
+      setNotice(res.applied
+        ? 'Saved. The next agreement sent will use these terms.'
+        : 'Sent to an admin for approval. Nothing changes until it is approved.');
+      if (!res.applied) setDraft(saved);
+      onChanged();
+      if (!res.applied) return;
+      return async () => { await onSave(previous, 'Undo'); onChanged(); };
+    },
+    discard: () => { setDraft(saved); setNotice(''); },
+  });
 
   async function save() {
     if (!dirty || problem) return;
@@ -142,23 +174,34 @@ export default function TermsEditor({
         </div>
       )}
 
+      {trackedChanges && dirty && (
+        <div className="mt-4">
+          <p data-es className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-brand-700">The change, as the signer will read it</p>
+          <TrackedChanges before={saved} after={draft} />
+        </div>
+      )}
+
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => void save()}
-          disabled={!dirty || Boolean(problem) || saving}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {saving ? 'Saving…' : canApprove ? 'Save terms' : 'Ask an admin to approve'}
-        </button>
-        <button
-          type="button"
-          onClick={() => { setDraft(saved); setNotice(''); }}
-          disabled={!dirty || saving}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Discard changes
-        </button>
+        {!active && (
+          <>
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={!dirty || Boolean(problem) || saving}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {saving ? 'Saving…' : canApprove ? 'Save terms' : 'Ask an admin to approve'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setDraft(saved); setNotice(''); }}
+              disabled={!dirty || saving}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Discard changes
+            </button>
+          </>
+        )}
         {extraActions}
         {/* Puts the standard wording in the box; nothing is saved until Save. */}
         <button
@@ -172,7 +215,11 @@ export default function TermsEditor({
       </div>
 
       {!canApprove && (
-        <p className="mt-2 text-xs text-gray-500"><Bi>Changes you make here go to an admin to approve before they apply.</Bi></p>
+        <p className="mt-2 text-xs text-gray-500">
+          {active
+            ? <Bi>Pressing Save sends your change to an admin to approve. Nothing changes until they do.</Bi>
+            : <Bi>Changes you make here go to an admin to approve before they apply.</Bi>}
+        </p>
       )}
       {problem && <p className="mt-3 text-sm text-red-600">{problem}</p>}
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}

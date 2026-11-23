@@ -1,16 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check } from 'lucide-react';
+import { CalendarDays, FileText, ShieldCheck, Truck } from 'lucide-react';
 import { getAppSettings, saveDateFormat } from '@/lib/appSettings';
 import { formatCalendarDate } from '@/lib/dateFormat';
-import { DEFAULT_APP_SETTINGS } from '@/types/appSettings';
+import { DEFAULT_APP_SETTINGS, isDateFormat } from '@/types/appSettings';
 import type { DateFormat } from '@/types/appSettings';
 import { Bi } from '@/components/spanish/Es';
+import { useSaveBarEntry } from './kit/SaveBar';
+import { Loading, Notice, OptionCards, PreviewBox, SettingsCard, useStagedAction } from './kit/ui';
 
 /**
  * Admin choice of how dates are written on screen. Applies to everyone: two
  * brokers reading the same order have to be reading the same day.
+ *
+ * Held as a draft and saved through the Settings Save bar; the preview shows
+ * a load card redrawn in the format being considered, before anybody else
+ * sees it.
  */
 
 /**
@@ -38,86 +44,59 @@ const OPTIONS: { format: DateFormat; detail: string }[] = [
 ];
 
 export default function DateFormatPanel() {
-  const [format, setFormat] = useState<DateFormat>(DEFAULT_APP_SETTINGS.dateFormat);
+  const [saved, setSaved] = useState<DateFormat>(DEFAULT_APP_SETTINGS.dateFormat);
+  const [draft, setDraft] = useState<DateFormat>(DEFAULT_APP_SETTINGS.dateFormat);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<DateFormat | ''>('');
   const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
+  const staged = useStagedAction('dateFormat');
 
   useEffect(() => {
     getAppSettings()
-      .then((res) => setFormat(res.settings.dateFormat))
+      .then((res) => { setSaved(res.settings.dateFormat); setDraft(res.settings.dateFormat); })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load the setting'))
       .finally(() => setLoading(false));
   }, []);
 
-  async function choose(next: DateFormat) {
-    if (next === format || saving) return;
-    const previous = format;
-    setFormat(next);
-    setSaving(next);
-    setError('');
-    setSaved(false);
-    try {
-      await saveDateFormat(next);
-      setSaved(true);
-    } catch (e) {
-      // Put the radio back: leaving it on a format that did not save would
-      // claim dates now read a way they do not.
-      setFormat(previous);
-      setError(e instanceof Error ? e.message : 'Failed to save the setting');
-    } finally {
-      setSaving('');
-    }
-  }
+  // A search action ("Write dates as 03/04/2020") arrives already staged.
+  useEffect(() => {
+    if (!loading && staged && isDateFormat(staged)) setDraft(staged);
+  }, [loading, staged]);
+
+  const { active } = useSaveBarEntry({
+    dirty: !loading && draft !== saved,
+    save: async () => {
+      const previous = saved;
+      await saveDateFormat(draft);
+      setSaved(draft);
+      return async () => { await saveDateFormat(previous); setSaved(previous); setDraft(previous); };
+    },
+    discard: () => setDraft(saved),
+  });
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Date Format</h2>
-      <p className="text-sm text-gray-500 mt-1 mb-4">
-        <Bi>How dates are written everywhere in TTMS — pickup and delivery dates, insurance expiry,
-        start dates and birthdays. The examples below all show the same day, the 4th of March 2020.</Bi>
-      </p>
-
-      {loading ? (
-        <p data-es className="text-sm text-gray-500">Loading…</p>
-      ) : (
-        <div className="space-y-2">
-          {OPTIONS.map((option) => {
-            const selected = format === option.format;
-            return (
-              <label
-                key={option.format}
-                className={`flex gap-3 rounded-lg border p-4 cursor-pointer transition ${
-                  selected ? 'border-brand-400 bg-brand-50/50' : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="dateFormat"
-                  className="mt-1 accent-brand-600"
-                  checked={selected}
-                  disabled={Boolean(saving)}
-                  onChange={() => void choose(option.format)}
-                />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {formatCalendarDate(SAMPLE, option.format)}
-                    {saving === option.format && (
-                      <span data-es className="ml-2 text-xs font-normal text-gray-500">Saving…</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-gray-600 mt-1 leading-relaxed">{option.detail}</p>
-                </div>
-              </label>
-            );
-          })}
+    <SettingsCard
+      id="date-format"
+      title="Date format"
+      description="How dates are written everywhere in TTMS — pickup and delivery dates, insurance expiry, start dates and birthdays. Every example shows the same day, the 4th of March 2020."
+    >
+      {loading ? <Loading /> : (
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <OptionCards
+            name="dateFormat"
+            value={draft}
+            saved={saved}
+            onChange={setDraft}
+            options={OPTIONS.map((o) => ({ value: o.format, title: formatCalendarDate(SAMPLE, o.format), detail: o.detail }))}
+          />
+          <PreviewBox title="How a load reads" note="An example load, drawn in the format picked on the left. Nothing here is saved until you press Save.">
+            <LoadCardSample format={draft} />
+          </PreviewBox>
         </div>
       )}
 
       {/* Both of these get asked the first time someone changes this, so they
           are answered here rather than left to be discovered. */}
-      <div className="mt-4 space-y-2 text-xs text-gray-500 leading-relaxed">
+      <div className="mt-5 space-y-2 text-xs leading-relaxed text-gray-500">
         <p>
           <Bi>Bills of lading, invoices, dispatch sheets and the page carriers sign always spell the
           month out — “March 4, 2020” — whatever is chosen here. Those leave the company and stand
@@ -125,21 +104,39 @@ export default function DateFormatPanel() {
         </p>
         <p>
           <Bi>Typing a date follows this too — every date box in TTMS shows and accepts the format
-          chosen here, and the calendar button beside it still opens the usual picker for clicking.
-          A box that cannot read what was typed, or that could read it as two different days, says
-          so rather than guessing.</Bi>
+          chosen here, and the calendar button beside it still opens the usual picker for clicking.</Bi>
         </p>
       </div>
 
-      {saved && !error && (
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-green-700">
-          <Check className="w-3.5 h-3.5" /> Saved. Everyone sees dates this way the next time their
-          page loads.
-        </p>
+      {!active && draft !== saved && (
+        <button type="button" onClick={() => void saveDateFormat(draft).then(() => setSaved(draft))}
+          className="mt-4 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">Save</button>
       )}
-      {error && (
-        <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-600">{error}</div>
-      )}
-    </section>
+      {error && <Notice tone="red" className="mt-4">{error}</Notice>}
+    </SettingsCard>
+  );
+}
+
+/** A made-up load, in the shape of the Orders list card, with its dates in `format`. */
+function LoadCardSample({ format }: { format: DateFormat }) {
+  const d = (iso: string) => formatCalendarDate(iso, format);
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm shadow-sm">
+      <div className="flex items-center justify-between">
+        <span className="font-[family-name:var(--font-rajdhani)] text-lg font-bold tracking-wide text-gray-900">TTL-10482</span>
+        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">Booked</span>
+      </div>
+      <p className="mt-1 flex items-center gap-1.5 text-gray-700"><Truck size={13} className="text-gray-400" /> Dallas, TX → Atlanta, GA</p>
+      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+        <dt className="flex items-center gap-1 text-gray-500"><CalendarDays size={12} /> <span data-es>Pickup</span></dt>
+        <dd className="font-medium tabular-nums text-gray-900">{d('2020-03-04')}</dd>
+        <dt className="flex items-center gap-1 text-gray-500"><CalendarDays size={12} /> <span data-es>Delivery</span></dt>
+        <dd className="font-medium tabular-nums text-gray-900">{d('2020-03-06')}</dd>
+        <dt className="flex items-center gap-1 text-gray-500"><ShieldCheck size={12} /> <span data-es>Insurance until</span></dt>
+        <dd className="font-medium tabular-nums text-gray-900">{d('2020-12-11')}</dd>
+        <dt className="flex items-center gap-1 text-gray-500"><FileText size={12} /> <span data-es>On the BOL</span></dt>
+        <dd className="text-gray-600">March 4, 2020</dd>
+      </dl>
+    </div>
   );
 }

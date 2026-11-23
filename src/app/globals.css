@@ -495,3 +495,21 @@ html.dark.dim .chat-ground[data-wallpaper='dots'] {
 [data-collapsed] > :not([data-section-head]) {
   display: none !important;
 }
+
+/*
+ * Settings (2026-11-23). Three small motions and nothing else: the Saved note
+ * sliding in, its tick drawing itself, and the truck that drives across the
+ * Company setup card once, the day the last step is done. All three stop for
+ * anybody who has asked their computer for less motion.
+ */
+@keyframes tt-settings-toast { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes tt-settings-check { from { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } to { transform: scale(1); } }
+@keyframes tt-setup-drive { 0% { transform: translateX(-12%); opacity: 1; } 85% { transform: translateX(96%); opacity: 1; } 100% { transform: translateX(100%); opacity: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .settings-toast { animation: tt-settings-toast 220ms ease-out; }
+  .settings-check { animation: tt-settings-check 380ms ease-out; }
+  .setup-truck { animation: tt-setup-drive 3.2s ease-in-out 1 forwards; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .setup-truck { display: none; }
+}

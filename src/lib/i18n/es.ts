@@ -20,6 +20,7 @@
  */
 
 import { ES_MORE } from './es-more';
+import { ES_SETTINGS } from './es-settings';
 
 const BASE: Record<string, string> = {
   // ── Sidebar ─────────────────────────────────────────────────────────────
@@ -172,8 +173,8 @@ const BASE: Record<string, string> = {
   'Additional Services': 'Servicios adicionales',
   'Agreed Rate (auto)': 'Tarifa acordada (automática)',
   'Already in TTMS': 'Ya está en TTMS',
-  'An admin adds these in Settings → Operations':
-    'Un administrador los agrega en Configuración → Operaciones.',
+  'An admin adds these in Settings → Payment terms':
+    'Un administrador los agrega en Configuración → Condiciones de pago.',
   'Another number': 'Otro número…',
   'Applies to the next send': 'Se aplica en el próximo envío.',
   'Arranged by': 'Organizado por…',
@@ -597,8 +598,8 @@ const BASE: Record<string, string> = {
   "Asks for this load to go back to the general terms": 'Pide que esta carga vuelva a las condiciones generales.',
   "Built from the stops above. Paste your own link to override it — a custom link is never overwritten":
     'Se arma con las paradas de arriba. Pega tu propio enlace para reemplazarlo; un enlace personalizado nunca se sobrescribe.',
-  "Changes here apply to this load only. The terms for every load are in Settings → Operations → Agreement Terms":
-    'Los cambios aquí aplican solo a esta carga. Las condiciones de todas las cargas están en Configuración → Operaciones → Agreement Terms.',
+  "Changes here apply to this load only. The terms for every load are in Settings → Agreement terms":
+    'Los cambios aquí aplican solo a esta carga. Las condiciones de todas las cargas están en Configuración → Condiciones del acuerdo.',
   "Copying is blocked here. The link is selected — press Ctrl+C": 'Copiar está bloqueado aquí. El enlace está seleccionado: presiona Ctrl+C.',
   "FMCSA lists nobody under that name. Add the carrier with their MC or DOT":
     'FMCSA no tiene a nadie con ese nombre. Agrega el transportista con su MC o DOT.',
@@ -1423,5 +1424,5 @@ const BASE: Record<string, string> = {
   'Location shared': 'Ubicación compartida',
 };
 
-/** Everything, with an entry here winning over one in es-more.ts. */
-export const ES: Record<string, string> = { ...ES_MORE, ...BASE };
+/** Everything, with an entry here winning over one in es-settings.ts, and that over es-more.ts. */
+export const ES: Record<string, string> = { ...ES_MORE, ...ES_SETTINGS, ...BASE };

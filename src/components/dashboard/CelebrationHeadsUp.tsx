@@ -227,7 +227,7 @@ export default function CelebrationHeadsUp() {
         )}
 
         <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
-          <Link data-es href="/dashboard/settings/operations#celebrations" onClick={done}
+          <Link data-es href="/dashboard/settings/celebrations" onClick={done}
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
             Change the wording
           </Link>

@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import { Download, History, RotateCcw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Download, RotateCcw } from 'lucide-react';
 import { listRemovedUsers, restoreRemovedUser } from '@/lib/allowedUsers';
 import { downloadCsv, toCsv } from '@/lib/csv';
 import { PHONE_LABEL, otherPhone } from '@/lib/phone';
@@ -10,20 +10,21 @@ import { isRestored, removedUserName, removedUserRoles } from '@/types/removedUs
 import type { RemovedUser } from '@/types/removedUser';
 import type { Site } from '@/types/site';
 import type { Team } from '@/types/team';
-import CollapsibleSection from './CollapsibleSection';
 import { UserAvatar } from './UserAvatar';
+import AbilityList from './AbilityList';
+import { ConfirmDialog, EmptyState, Loading, SettingsCard } from './kit/ui';
+import { effectivePermissions } from '@/types/permission';
 
 /**
  * The removal log — who was taken off the system, when, and by whom.
  *
- * Collapsed by default and loaded only when opened: an admin visits Settings to
- * manage current access, and this is a record they go looking for rather than
- * one they need in front of them. Leaving it shut also keeps a page that
- * already reads two collections from reading a third on every visit.
+ * It has a page of its own now (Settings → Removed people), so it loads when
+ * that page is opened and at no other time.
  *
- * The folding itself is CollapsibleSection's, which the whole People tab now
- * uses — this panel had the only one of these, and the other two sections were
- * given the same behaviour rather than a second copy of it.
+ * Putting somebody back shows what comes back first — their roles, what those
+ * let them do, any extra permissions, their site and team — because restoring
+ * an admin hands back the whole system, and the confirm box is the last place
+ * to notice that.
  */
 
 /** `YYYY-MM-DD HH:mm` for the CSV, which Excel parses as a real datetime. */
@@ -66,6 +67,8 @@ export default function RemovedPeoplePanel({
    * retry — a failed restore must not take the list it happened in off screen.
    */
   const [restoreError, setRestoreError] = useState('');
+  /** The row whose "what comes back" box is open. */
+  const [asking, setAsking] = useState<RemovedUser | null>(null);
 
   const siteName = (id: string | null | undefined) =>
     sites.find((s) => s.id === id)?.name ?? null;
@@ -89,12 +92,7 @@ export default function RemovedPeoplePanel({
     }
   }, []);
 
-  // Fetched on first open only; the log does not change while it is on screen
-  // unless the admin removes someone, which reloads the page's own list. The
-  // section calls this again on every open, so the guard is what makes it once.
-  const loadOnce = useCallback(() => {
-    if (users === null && !loading) load();
-  }, [users, loading, load]);
+  useEffect(() => { void load(); }, [load]);
 
   /**
    * Put one person back from their removal record.
@@ -108,17 +106,7 @@ export default function RemovedPeoplePanel({
    * says both.
    */
   async function handleRestore(u: RemovedUser) {
-    const roles = removedUserRoles(u);
-    const ok = window.confirm(
-      `Put ${removedUserName(u)} back on the system?
-
-` +
-      `They will be added again as ${roles.length ? roles.join(', ') : 'a Broker'}, ` +
-      'with their details, permissions and photo exactly as they were. ' +
-      'They can sign in as soon as you say yes.',
-    );
-    if (!ok) return;
-
+    setAsking(null);
     setRestoring(u.id);
     setRestoreError('');
     try {
@@ -190,21 +178,9 @@ export default function RemovedPeoplePanel({
   }
 
   return (
-    <CollapsibleSection
-      id="removed-people"
-      title="Removed People"
-      Icon={History}
-      className="mt-6"
-      onOpen={loadOnce}
-      description={
-        <>
-          Everyone whose access has been revoked, with the date and the admin who did it.
-          Removing someone deletes their entry — this log is the only record that they were
-          ever here, and the one place to put them back with everything they had.
-        </>
-      }
-      /* Only once it has been opened: a count of nothing, or of a log that has
-         not been read yet, would be a number nobody could account for. */
+    <SettingsCard
+      padded={false}
+      description="Removing someone deletes their entry — this log is the only record that they were ever here, and the one place to put them back with everything they had."
       aside={
         users !== null ? (
           <span className="text-sm font-semibold tabular-nums text-gray-600">
@@ -215,9 +191,7 @@ export default function RemovedPeoplePanel({
       }
     >
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-6 h-6 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-        </div>
+        <Loading />
       ) : error ? (
         <div className="py-12 text-center">
           <p className="text-sm text-gray-500">{error}</p>
@@ -229,9 +203,7 @@ export default function RemovedPeoplePanel({
           </button>
         </div>
       ) : !users || users.length === 0 ? (
-        <div data-es className="py-12 text-center text-sm text-gray-400">
-          Nobody has been removed yet.
-        </div>
+        <EmptyState art="people" title="Nobody has been removed yet" />
       ) : (
         <>
           <div className="px-6 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
@@ -357,7 +329,7 @@ export default function RemovedPeoplePanel({
                         </p>
                       ) : (
                         <button
-                          onClick={() => handleRestore(u)}
+                          onClick={() => setAsking(u)}
                           disabled={restoring !== null}
                           title={`Put ${name} back with the roles and details they had`}
                           className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:border-green-200 hover:bg-green-50 hover:text-green-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -374,6 +346,60 @@ export default function RemovedPeoplePanel({
           </ul>
         </>
       )}
-    </CollapsibleSection>
+
+      {asking && (
+        <RestoreDialog
+          user={asking}
+          siteName={siteName(asking.siteId)}
+          teamName={teamName(asking.teamId)}
+          busy={restoring === asking.id}
+          onCancel={() => setAsking(null)}
+          onConfirm={() => void handleRestore(asking)}
+        />
+      )}
+    </SettingsCard>
+  );
+}
+
+/** "What comes back", before anything does. */
+function RestoreDialog({
+  user, siteName, teamName, busy, onCancel, onConfirm,
+}: {
+  user: RemovedUser;
+  siteName: string | null;
+  teamName: string | null;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const roles = removedUserRoles(user);
+  const held = useMemo(() => new Set(effectivePermissions(user, user.grantedPermissions ?? [])), [user]);
+  const extras = (user.grantedPermissions ?? []).length;
+  return (
+    <ConfirmDialog
+      open
+      title={`Put ${removedUserName(user)} back?`}
+      body="They can sign in as soon as you say yes, with everything below exactly as it was when they were removed."
+      confirmLabel="Put them back"
+      busy={busy}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+    >
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt className="text-gray-500">Roles</dt>
+        <dd className="font-medium text-gray-900">{roles.length ? roles.join(', ') : 'Broker'}</dd>
+        <dt className="text-gray-500">Extra permissions</dt>
+        <dd className="text-gray-900">{extras ? `${extras} given one at a time` : 'None'}</dd>
+        <dt className="text-gray-500">Site</dt>
+        <dd className="text-gray-900">{siteName ?? '—'}</dd>
+        <dt className="text-gray-500">Team</dt>
+        <dd className="text-gray-900">{teamName ?? '—'}</dd>
+        <dt className="text-gray-500">Details and photo</dt>
+        <dd className="text-gray-900">As they were</dd>
+      </dl>
+      <div className="mt-4 max-h-64 overflow-y-auto rounded-lg border border-gray-200 p-3">
+        <AbilityList held={held} who={removedUserName(user)} compact />
+      </div>
+    </ConfirmDialog>
   );
 }

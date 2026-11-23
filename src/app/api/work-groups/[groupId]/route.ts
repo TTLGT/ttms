@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
+import { logSettingsChange, namesForUids } from '@/lib/settingsChangeServer';
 
 const COL = 'workGroups';
 
@@ -15,7 +16,7 @@ export async function PATCH(
 ) {
   try {
     const { groupId } = await params;
-    await requirePermission(req, 'settings.manage');
+    const caller = await requirePermission(req, 'settings.manage');
     const body = await req.json().catch(() => ({}));
 
     const ref  = adminDb.collection(COL).doc(groupId);
@@ -39,7 +40,24 @@ export async function PATCH(
     // their first sign-in.
     if (Array.isArray(body.memberEmails)) patch.memberEmails = uniqueEmails(body.memberEmails);
 
+    // Members by name, both sides, so the entry reads "Ana, Luis → Ana, Luis,
+    // Marta" — who gained access to the group's records is the point of it.
+    const data = snap.data()!;
+    const beforeEmails: string[] = data.memberEmails ?? [];
+    const afterEmails: string[] = (patch.memberEmails as string[] | undefined) ?? beforeEmails;
+    const [beforeNames, afterNames] = await Promise.all([namesForUids(before), namesForUids(after)]);
+
     await adminDb.runTransaction(async (tx) => {
+      await logSettingsChange({
+        area: 'workGroups', summary: `Changed the work group ${data.name ?? ''}`.trim(), caller,
+        before: { name: data.name ?? '', notes: data.notes ?? '', members: [...beforeNames, ...beforeEmails].sort() },
+        after: {
+          name: (patch.name as string | undefined) ?? data.name ?? '',
+          notes: (patch.notes as string | undefined) ?? data.notes ?? '',
+          members: [...afterNames, ...afterEmails].sort(),
+        },
+        labels: { name: 'Name', notes: 'Notes', members: 'Members' },
+      }, tx);
       tx.update(ref, patch);
       for (const uid of added) {
         tx.set(adminDb.collection('users').doc(uid),
@@ -71,7 +89,7 @@ export async function DELETE(
 ) {
   try {
     const { groupId } = await params;
-    await requirePermission(req, 'settings.manage');
+    const caller = await requirePermission(req, 'settings.manage');
 
     const ref  = adminDb.collection(COL).doc(groupId);
     const snap = await ref.get();
@@ -112,6 +130,11 @@ export async function DELETE(
       });
     }
     batch.delete(ref);
+    await logSettingsChange({
+      area: 'workGroups',
+      summary: `Deleted the work group ${snap.get('name')}, detaching ${owned.size} client${owned.size === 1 ? '' : 's'} and ${ownedOrders.size + mirroredOrders.size} load${ownedOrders.size + mirroredOrders.size === 1 ? '' : 's'}`,
+      caller,
+    }, batch);
     await batch.commit();
 
     return NextResponse.json({

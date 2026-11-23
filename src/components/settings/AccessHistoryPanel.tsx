@@ -1,14 +1,14 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
-import { AtSign, Download, ScrollText, UserMinus, UserPlus, UserRoundCheck } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AtSign, Download, UserMinus, UserPlus, UserRoundCheck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { listPeopleEvents } from '@/lib/allowedUsers';
 import { downloadCsv, toCsv } from '@/lib/csv';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { PEOPLE_EVENT_LABEL } from '@/types/peopleEvent';
 import type { PeopleEvent, PeopleEventAction } from '@/types/peopleEvent';
-import CollapsibleSection from './CollapsibleSection';
+import { EmptyState, Loading, SettingsCard } from './kit/ui';
 
 /**
  * The access history: every arrival and departure, in the order they happened.
@@ -19,8 +19,9 @@ import CollapsibleSection from './CollapsibleSection';
  * done to the access list", additions included, which the removal log by
  * definition cannot: an add leaves no record anywhere else.
  *
- * Loaded on first open only, like the removal log, and for the same reason —
- * an admin comes to Settings to change access, not to read about it.
+ * It has a page of its own now (Settings → Access history), so it loads on
+ * arrival. With `email`, it is one person's history, for the History tab on
+ * their page — the same one read, filtered here.
  *
  * Filtered in the browser rather than on the server. A history is read as a
  * sequence and the whole thing is one read; narrowing it to one address
@@ -60,7 +61,7 @@ function csvWhen(iso: string | null): string {
          `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export default function AccessHistoryPanel() {
+export default function AccessHistoryPanel({ email }: { email?: string } = {}) {
   const { formatDateTime } = useDateFormatters();
   const formatWhen = (iso: string | null) => formatDateTime(iso, 'date unknown');
 
@@ -84,21 +85,25 @@ export default function AccessHistoryPanel() {
     }
   }, []);
 
-  // The section calls this on every open, so the guard is what makes it once.
-  const loadOnce = useCallback(() => {
-    if (events === null && !loading) load();
-  }, [events, loading, load]);
+  useEffect(() => { void load(); }, [load]);
+
+  /** One person's, when asked — matched on the address now or the one before. */
+  const mine = useMemo(() => {
+    if (!email) return events;
+    const want = email.toLowerCase();
+    return (events ?? []).filter((e) => e.email.toLowerCase() === want || e.previousEmail?.toLowerCase() === want);
+  }, [events, email]);
 
   const shown = useMemo(
-    () => (events ?? []).filter((e) => filter === 'all' || e.action === filter),
-    [events, filter],
+    () => (mine ?? []).filter((e) => filter === 'all' || e.action === filter),
+    [mine, filter],
   );
 
   function handleExport() {
-    if (!events) return;
+    if (!mine) return;
 
     const header = ['When', 'What', 'Name', 'Email', 'Roles at the time', 'By', 'Source'];
-    const rows = events.map((e) => [
+    const rows = mine.map((e) => [
       csvWhen(e.at),
       PEOPLE_EVENT_LABEL[e.action] ?? e.action,
       e.name || '',
@@ -117,32 +122,22 @@ export default function AccessHistoryPanel() {
   }
 
   return (
-    <CollapsibleSection
-      id="access-history"
-      title="Access History"
-      Icon={ScrollText}
-      className="mt-6"
-      onOpen={loadOnce}
-      description={
-        <>
-          Every time someone was added, removed or put back, in order, with the admin who
-          did it. The log above keeps a departed person&apos;s details; this one keeps the
-          sequence.
-        </>
-      }
+    <SettingsCard
+      padded={false}
       aside={
-        events !== null ? (
+        mine !== null ? (
           <span className="text-sm font-semibold tabular-nums text-gray-600">
-            {events.length}
-            {truncated && '+'}
+            {mine.length}
+            {truncated && !email && '+'}
           </span>
         ) : null
       }
+      description={email
+        ? 'Every time their access was added, taken away, put back or moved to a new address.'
+        : 'Every time someone was added, removed or put back, in order, with the admin who did it. Removed people keeps a departed person’s details; this keeps the sequence.'}
     >
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="w-6 h-6 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
-        </div>
+        <Loading />
       ) : error ? (
         <div className="py-12 text-center">
           <p className="text-sm text-gray-500">{error}</p>
@@ -153,15 +148,12 @@ export default function AccessHistoryPanel() {
             Try again
           </button>
         </div>
-      ) : !events || events.length === 0 ? (
-        <div className="px-6 py-12 text-center text-sm text-gray-400">
-          {/* Worth saying when this starts, because the history begins the day
-              it was switched on and everybody already on the system arrived
-              before that. A blank panel on a company of twelve otherwise reads
-              as broken. */}
-          Nothing yet. This records changes from the day it was added — people who
-          were already here do not appear until something happens to their access.
-        </div>
+      ) : !mine || mine.length === 0 ? (
+        /* Worth saying when this starts, because the history begins the day
+           it was switched on and everybody already on the system arrived
+           before that. A blank panel otherwise reads as broken. */
+        <EmptyState art="list" title="Nothing yet"
+          body="This records changes from the day it was added — people who were already here do not appear until something happens to their access." />
       ) : (
         <>
           <div className="px-6 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
@@ -180,10 +172,10 @@ export default function AccessHistoryPanel() {
                 </button>
               ))}
               <span className="ml-1 text-xs text-gray-500">
-                {shown.length} of {events.length}
-                {truncated && (
+                {shown.length} of {mine.length}
+                {truncated && !email && (
                   <span className="ml-2 text-amber-600">
-                    · only the most recent {events.length} are kept on screen
+                    · only the most recent {mine.length} are kept on screen
                   </span>
                 )}
               </span>
@@ -251,6 +243,6 @@ export default function AccessHistoryPanel() {
           )}
         </>
       )}
-    </CollapsibleSection>
+    </SettingsCard>
   );
 }

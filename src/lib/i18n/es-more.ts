@@ -32,8 +32,8 @@ export const ES_MORE: Record<string, string> = {
   "A heading per office, for a sheet by the phones": 'Un encabezado por oficina, para una hoja junto a los teléfonos',
   "A heading per team, the way the org chart reads": 'Un encabezado por equipo, como se lee el organigrama',
   "A lead source is required on a client": 'Un cliente requiere un origen.',
-  "A name and a birthday belong to one person, so these are off for a batch. Add the people first, then fill each one in with the pencil icon below — or use the Spreadsheet mode to do it all at once":
-    'Un nombre y un cumpleaños pertenecen a una sola persona, así que esto no está disponible en lote. Agrega primero a las personas y luego completa cada una con el ícono de lápiz de abajo, o usa el modo Hoja de cálculo para hacerlo todo a la vez.',
+  "A name and a birthday belong to one person, so these are off for a batch. Add the people first, then fill each one in on their own page under People — or use the Spreadsheet mode to do it all at once":
+    'Un nombre y un cumpleaños pertenecen a una sola persona, así que esto no está disponible en lote. Agrega primero a las personas y luego completa cada una en su propia página, en Personas, o usa el modo Hoja de cálculo para hacerlo todo a la vez.',
   "A note for IT only — the reporter never sees it": 'Una nota solo para TI: quien reportó nunca la ve',
   "A phone number is required": 'Se requiere un número de teléfono.',
   "A photo is set": 'Hay una foto definida',
@@ -2509,7 +2509,7 @@ export const ES_MORE: Record<string, string> = {
   "At each clock in and out: the internet address you connected from, the city and internet provider that address belongs to, whether it is the office network, and your browser and type of device (for example “Windows · Chrome · desktop”)":
     'En cada entrada y salida: la dirección de internet desde la que te conectaste, la ciudad y el proveedor de esa dirección, si es la red de la oficina, y tu navegador y tipo de dispositivo (por ejemplo, “Windows · Chrome · desktop”)',
   "Change what it sends you on the Calendar page": 'Cambia lo que te envía en la página Calendario',
-  "Change who is in one in Settings → Organization": 'Cambia quién está en uno en Configuración → Organización',
+  "Change who is in one in Settings → Work groups": 'Cambia quién está en uno en Configuración → Grupos de trabajo',
   "Clear done": 'Limpiar hechas',
   "Click the icon at the left end of the address bar, next to the TTMS address": 'Haz clic en el ícono del extremo izquierdo de la barra de direcciones, junto a la dirección de TTMS',
   "Colleagues will not see Online, Away or Last seen for you in chat — only a status you set yourself. HR still sees your attendance":

@@ -700,10 +700,10 @@ export default function PersonPage() {
               is visible to everyone in it.{' '}
               {canEditGroups ? (
                 <Link
-                  href="/dashboard/settings/organization#work-groups"
+                  href="/dashboard/settings/work-groups"
                   className="text-brand-700 underline"
                 >
-                  Change who is in one in Settings → Organization.
+                  Change who is in one in Settings → Work groups.
                 </Link>
               ) : (
                 'Ask an admin to change who is in one.'

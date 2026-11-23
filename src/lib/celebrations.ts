@@ -46,7 +46,7 @@ export type CelebrationOutcome =
   | 'posted'
   /** Would have posted; nothing was written because this was a preview. */
   | 'preview'
-  /** The company-wide switch in Settings → Operations is off. */
+  /** The company-wide switch in Settings → Celebrations is off. */
   | 'disabled'
   /** Nobody has a birthday or an anniversary today. */
   | 'nobody'

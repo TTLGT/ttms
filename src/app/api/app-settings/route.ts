@@ -9,6 +9,8 @@ import {
 import type { Permission } from '@/types/permission';
 import { readPaymentMethods, validatePaymentMethods } from '@/types/paymentMethod';
 import { isIdleMinutes, isMaxDays, readSessionPolicy } from '@/types/sessionPolicy';
+import { logSettingsChange } from '@/lib/settingsChangeServer';
+import { AREA_LABEL, type SettingsArea } from '@/types/settingsChange';
 
 const DOC = adminDb.collection('appSettings').doc('general');
 
@@ -59,6 +61,11 @@ export async function GET(req: NextRequest) {
     // can warn before an admin picks a mode that would silently do nothing.
     // Reports only that a key exists — never any part of its value.
     routesKeyConfigured: Boolean(process.env.GOOGLE_MAPS_API_KEY),
+    // Which settings somebody has actually chosen, as opposed to running on
+    // the default. Settings → Home uses it for "decide whether reminder
+    // emails go out" — off by default and off by choice look the same
+    // otherwise, and only one of them is a decision.
+    chosen: stored ? Object.keys(DEFAULT_APP_SETTINGS).filter((k) => k in stored) : [],
   });
 }
 
@@ -216,7 +223,13 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'No setting was named.' }, { status: 400 });
   }
 
-  await DOC.set(
+  // Read what is there now, so the change log can say what it was. One read
+  // on a save that happens a few times a month.
+  const before = (await DOC.get()).data() ?? {};
+
+  const batch = adminDb.batch();
+  batch.set(
+    DOC,
     {
       ...patch,
       updatedAt: FieldValue.serverTimestamp(),
@@ -225,5 +238,57 @@ export async function PUT(req: NextRequest) {
     { merge: true },
   );
 
+  // One entry per setting touched, in the same batch as the save — a setting
+  // that changed without its entry is the gap this log exists to close.
+  if (caller) {
+    for (const [area, keys] of Object.entries(KEY_AREAS) as [SettingsArea, string[]][]) {
+      const touched = keys.filter((k) => k in patch);
+      if (touched.length === 0) continue;
+      await logSettingsChange({
+        area,
+        summary: `Changed ${AREA_LABEL[area].toLowerCase()}`,
+        caller,
+        before: Object.fromEntries(touched.map((k) => [k, before[k] ?? defaultFor(k)])),
+        after: Object.fromEntries(touched.map((k) => [k, patch[k]])),
+        labels: KEY_LABELS,
+      }, batch);
+    }
+  }
+
+  await batch.commit();
+
   return NextResponse.json({ settings: patch });
+}
+
+/** Which change-log area each stored key belongs to. */
+const KEY_AREAS: Partial<Record<SettingsArea, string[]>> = {
+  dateFormat:     ['dateFormat'],
+  laneDistance:   ['laneDistanceMode'],
+  paymentTerms:   ['clientPaymentMethods', 'carrierPaymentMethods', 'brokerFeeTermOptions'],
+  celebrations:   ['celebrations', 'celebrationTemplates'],
+  presence:       ['presence'],
+  reminderEmails: ['reminderEmails'],
+  sessionPolicy:  ['sessionPolicy'],
+};
+
+/** The stored keys, as the log prints them. */
+const KEY_LABELS: Record<string, string> = {
+  dateFormat:            'Date format',
+  laneDistanceMode:      'Lane distance',
+  clientPaymentMethods:  'Client payment method',
+  carrierPaymentMethods: 'Carrier pay terms',
+  brokerFeeTermOptions:  'Broker fee terms',
+  celebrations:          'Post the message',
+  celebrationTemplates:  'Wording',
+  presence:              'Online status',
+  reminderEmails:        'Reminder emails',
+  sessionPolicy:         'Sign-out timer',
+};
+
+/**
+ * What a key read as before anybody saved it, so the first change to a setting
+ * reads "Estimate → Google Routes" rather than "— → Google Routes".
+ */
+function defaultFor(key: string): unknown {
+  return (DEFAULT_APP_SETTINGS as unknown as Record<string, unknown>)[key] ?? null;
 }

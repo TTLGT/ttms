@@ -283,7 +283,7 @@ export default function QuoteCalculator({ prefill, onApply }: Props) {
                 ? 'The saved rates could not be loaded, so these are the built-in starting rates.'
                 : 'Nobody has saved a rate card yet, so these are the built-in starting rates from the old Google Sheet.'}
               {canEditRates && (
-                <> <Link data-es href="/dashboard/settings/operations#quote-rates" className="underline font-medium">Update them in Settings</Link>.</>
+                <> <Link data-es href="/dashboard/settings/quote-rates" className="underline font-medium">Update them in Settings</Link>.</>
               )}
             </span>
           </p>

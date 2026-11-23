@@ -5,6 +5,7 @@ import { Check, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { listSites, createSite, updateSite, deleteSite } from '@/lib/sites';
 import type { Site } from '@/types/site';
 import { Bi } from '@/components/spanish/Es';
+import { ConfirmDialog, EmptyState, Loading, Notice, SettingsCard } from './kit/ui';
 
 /**
  * Admin management of sites — the offices and terminals people work out of.
@@ -25,6 +26,7 @@ export default function SitesPanel({ onChange }: { onChange?: (sites: Site[]) =>
   const [editing, setEditing]         = useState<string | null>(null);
   const [draftName, setDraftName]     = useState('');
   const [draftAddress, setDraftAddress] = useState('');
+  const [deleting, setDeleting] = useState<Site | null>(null);
 
   const load = useCallback(async () => {
     setError('');
@@ -75,11 +77,6 @@ export default function SitesPanel({ onChange }: { onChange?: (sites: Site[]) =>
   }
 
   async function handleDelete(site: Site) {
-    const ok = window.confirm(
-      `Delete "${site.name}"?\n\nAnyone assigned to this site will be left without one. ` +
-      `Their access does not change.`,
-    );
-    if (!ok) return;
     setBusy(site.id);
     setError('');
     try {
@@ -96,16 +93,11 @@ export default function SitesPanel({ onChange }: { onChange?: (sites: Site[]) =>
   }
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="text-sm font-semibold text-gray-900"><Bi>Sites</Bi></h2>
-        <p className="text-xs text-gray-500 mt-0.5">
-          <Bi>The offices and terminals your people work out of. Assigning someone to a site records
-          where they sit — it does not change what they can see.</Bi>
-        </p>
-      </div>
-
-      <div className="p-6 space-y-4">
+    <SettingsCard>
+      <p className="mb-4 text-sm text-gray-500">
+        <Bi>Assigning someone to a site records where they sit — it does not change what they can see. People are given a site on their own page under People.</Bi>
+      </p>
+      <div className="space-y-4">
         <div className="flex gap-2 flex-wrap">
           <input
             value={newName}
@@ -129,18 +121,12 @@ export default function SitesPanel({ onChange }: { onChange?: (sites: Site[]) =>
           </button>
         </div>
 
-        {error && (
-          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
-            {error}
-          </div>
-        )}
+        {error && <Notice tone="amber">{error}</Notice>}
 
         {loading ? (
-          <p data-es className="text-sm text-gray-400">Loading…</p>
+          <Loading />
         ) : sites.length === 0 ? (
-          <p className="text-sm text-gray-400">
-            <Bi>No sites yet. Add one and it becomes assignable in the list above.</Bi>
-          </p>
+          <EmptyState art="office" title="No sites yet" body="Add the first office above and it can be given to people on their page." />
         ) : (
           <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
             {sites.map((site) => (
@@ -195,7 +181,7 @@ export default function SitesPanel({ onChange }: { onChange?: (sites: Site[]) =>
                         <Pencil size={14} />
                       </button>
                       <button
-                        onClick={() => handleDelete(site)}
+                        onClick={() => setDeleting(site)}
                         disabled={busy === site.id}
                         title="Delete site"
                         className="p-2 rounded-lg border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition disabled:opacity-50"
@@ -210,6 +196,15 @@ export default function SitesPanel({ onChange }: { onChange?: (sites: Site[]) =>
           </ul>
         )}
       </div>
-    </section>
+      <ConfirmDialog
+        open={deleting !== null}
+        title={`Delete “${deleting?.name ?? ''}”?`}
+        body="Anyone assigned to this site will be left without one. Their access does not change."
+        confirmLabel="Delete the site"
+        tone="red"
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => { const site = deleting!; setDeleting(null); void handleDelete(site); }}
+      />
+    </SettingsCard>
   );
 }

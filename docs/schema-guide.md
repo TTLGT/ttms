@@ -470,6 +470,56 @@ show a distance. Written only through `PUT /api/app-settings`, admin-only, like
 every other collection that shapes app behaviour. The default is `"estimate"`
 and not `"routes"`: a default must never be the option that spends money.
 
+`GET /api/app-settings` also returns `chosen` — which of these keys are
+actually stored rather than running on their default. Settings Home uses it
+for "decide whether reminder emails go out": off by default and off by choice
+look the same otherwise, and only one of them is a decision.
+
+### Collection: `settingsChanges` — the settings change log (2026-11-23)
+
+One document per save of a company setting: who, when, and what it was
+before. Shown in Settings → Change log, and as the "Last changed by" line under
+every Settings page title. Types in `src/types/settingsChange.ts`, writing and
+reading in `src/lib/settingsChangeServer.ts`.
+
+```
+settingsChanges/{autoId}
+  area:      'dateFormat' | 'presence' | 'reminderEmails' | 'sessionPolicy'
+           | 'laneDistance' | 'paymentTerms' | 'celebrations' | 'quoteRates'
+           | 'agreementTerms' | 'leadSources' | 'sites' | 'teams' | 'workGroups'
+           | 'schedules' | 'holidays' | 'breakReminders' | 'backOnTime'
+           | 'officeNetwork'
+  summary:   string            // "Changed lane distance", "Added the site Zona 10"
+  changes:   { field, from, to }[]   // words, ready to print; at most 30
+  truncated: boolean           // more fields changed than were kept
+  byUid, byEmail, byName: string
+  at:        Timestamp
+```
+
+- **Server-written only.** No Firestore rule matches the collection, so the
+  browser can neither read nor write it; `GET /api/settings-changes` is the
+  only way in, and it narrows the entries to the areas the caller could change
+  (`AREA_PERMISSIONS`). Nothing to deploy.
+- **Append-only.** No route edits or deletes an entry.
+- **Written beside every save**: in the same batch where the route makes one
+  write (`app-settings`, `quote-rates`, the agreement terms, lead sources,
+  sites, teams, work groups), and just after it where the write is inside a
+  helper (the attendance settings). A save that changes nothing writes nothing.
+- **Agreement terms keep both whole texts** (up to 20,000 characters each), so
+  the change log can show the change as tracked changes. Everything else is
+  diffed field by field into short words.
+- **Not people.** Adding, removing and restoring people is `peopleEvents`;
+  roles, permissions and details are not copied here, because a person's
+  details carry payroll fields this log must never hold.
+- Read newest first with one `orderBy('at')` (a single-field index Firestore
+  keeps by itself), or by `area` alone with an equality filter — neither needs
+  a composite index.
+- **`settingsChangesLatest/{area}`** holds a copy of the newest entry for each
+  area (who, when, the summary and `entryId`; not the before-and-after),
+  written in the same batch as the entry. It is what the "Last changed by"
+  line under every Settings page title reads — one document per area instead
+  of a scan of the log on every page view. Closed to the browser the same way.
+
 ### `appSettings/quoteRates` — the quote calculator's rate card
 
 A second document in the same collection, kept apart from `general` because
@@ -519,7 +569,7 @@ BATS's "Price and Terms" block, adapted. BATS's *Total Tariff* is `agreedRate`
 here; *Carrier Pay* and *Broker Fee* are the fields of the same names.
 
 ```
-PaymentMethod {                     // one option in Settings → Operations → Payment Terms
+PaymentMethod {                     // one option in Settings → Payment terms
   id        : string                // client-generated, stable across renames
   name      : string                // "COD - Cash", "Charge on Dispatch", "ACH"
   feeType   : "none" | "flat" | "percent"
@@ -2784,8 +2834,8 @@ a direct chat as **Online**, **Away**, **In a meeting · note**, **On break** or
   minutes (five plus slack). Nothing is ever written to say somebody left.
 - **Somebody who hides their last seen** (profile page) has both times removed
   and none written after; their chosen status still shows.
-- **Switched by `appSettings/general.presence`** (Settings → Operations →
-  Online Status, `presence.manage`: admin and HR). Off also stops attendance's
+- **Switched by `appSettings/general.presence`** (Settings → General →
+  Online status, `presence.manage`: admin and HR). Off also stops attendance's
   active and idle minutes; the clock is unaffected.
 - Cost at about 30 staff: roughly 6,500 writes a day (presence and the day
   record), plus one read per check-in per person watching that colleague.
@@ -3040,7 +3090,7 @@ inferred from the sender name, because the name is editable and the layout must
 not be.
 
 The wording lives in `appSettings/general.celebrationTemplates` and is edited in
-Settings → Operations → Celebrations by anyone holding `celebrations.manage`
+Settings → Celebrations by anyone holding `celebrations.manage`
 (admin and HR). Placeholders are `{names}`, `{firstNames}`, `{company}` for the
 birthday line, and `{name}`, `{first}`, `{years}`, `{count}`, `{company}` for
 the anniversary line. **An unrecognised placeholder is refused rather than

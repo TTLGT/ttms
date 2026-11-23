@@ -2,34 +2,35 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, X } from 'lucide-react';
-import { listAllowedUsers } from '@/lib/allowedUsers';
+import { CornerDownLeft, Search, User, X, Zap } from 'lucide-react';
+import { listManageableUsers } from '@/lib/allowedUsers';
 import { fullName } from '@/types/allowedUser';
 import type { AllowedUser } from '@/types/allowedUser';
-import type { Permission } from '@/types/permission';
+import type { UserProfile } from '@/types/userProfile';
 import {
-  SETTINGS_SECTIONS,
-  personAnchorId,
+  SETTINGS_ACTIONS,
+  actionHref,
+  personHref,
   scrollToAnchor,
-  sectionHref,
+  searchEntries,
+  type SettingsAccess,
 } from './settingsSections';
 
 /**
- * Find anything in Settings without knowing which tab it is on.
+ * Find anything in Settings — or do it — without knowing where it lives.
  *
- * Tabs cured the endless scroll but introduced the opposite problem: you now
- * have to know that "lane distance" lives under Operations before you can get
- * to it. This is the answer to that — type what you want, not where it is.
+ * Three kinds of result. **Pages** (and the smaller settings inside them)
+ * come from the static list, which costs nothing. **People** are fetched once,
+ * lazily, on the first real keystroke, and only for somebody who can open the
+ * People page. **Actions** — "Turn off reminder emails" — open the page with
+ * the change already made in the draft and the Save bar showing; the search
+ * box never saves anything itself.
  *
- * It searches two different things. The panels come from the static section
- * list, which costs nothing. People are fetched once, lazily, on the first
- * real keystroke: most visits to Settings never use the box at all, and
- * loading the whole directory on every tab change to serve a search nobody
- * ran would be waste.
+ * Ctrl+K (⌘K on a Mac) jumps here from anywhere in Settings.
  */
 
 type Result = {
-  kind: 'section' | 'person';
+  kind: 'action' | 'page' | 'person';
   key: string;
   title: string;
   detail: string;
@@ -43,12 +44,13 @@ function matches(haystack: string, terms: string[]): boolean {
 }
 
 export default function SettingsSearch({
-  isAdmin,
-  can,
+  access,
+  profile,
+  seesPeople,
 }: {
-  isAdmin: boolean;
-  /** From AuthContext, so a section gated on one permission is findable. */
-  can: (permission: Permission) => boolean;
+  access: SettingsAccess;
+  profile: UserProfile | null;
+  seesPeople: boolean;
 }) {
   const router = useRouter();
   const [query, setQuery]   = useState('');
@@ -57,7 +59,6 @@ export default function SettingsSearch({
   const [people, setPeople] = useState<AllowedUser[] | null>(null);
   const boxRef   = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  /** Guards against a second fetch while the first is still in flight. */
   const asked = useRef(false);
 
   const terms = useMemo(
@@ -65,55 +66,53 @@ export default function SettingsSearch({
     [query],
   );
 
-  // Pull the directory in the first time someone actually types something.
+  // Ctrl+K from anywhere on the page.
   useEffect(() => {
-    if (terms.length === 0 || asked.current) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        inputRef.current?.focus();
+        inputRef.current?.select();
+        setOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
+    if (!seesPeople || terms.length === 0 || asked.current) return;
     asked.current = true;
-    void listAllowedUsers()
-      .then(setPeople)
-      // A failure here costs the people half of the search and nothing else —
-      // the panel results still work, so there is nothing worth interrupting
-      // anyone about.
-      .catch(() => setPeople([]));
-  }, [terms.length]);
+    // A Sales Manager is given their team and nobody else — the same narrowing
+    // the People page applies, so search cannot find more than the page shows.
+    void listManageableUsers(profile).then(setPeople).catch(() => setPeople([]));
+  }, [terms.length, seesPeople, profile]);
+
+  const entries = useMemo(() => searchEntries(access), [access]);
 
   const results = useMemo<Result[]>(() => {
     if (terms.length === 0) return [];
 
-    const sections: Result[] = SETTINGS_SECTIONS
-      // A section is reachable if you are an admin, if it is open to
-      // everybody who gets this far, or if you hold the one permission it
-      // names. Without the last of those, HR could open the Celebrations panel
-      // from the tab bar and still not find it by typing "birthday".
-      .filter((s) => isAdmin || !s.adminOnly || (s.permissions ?? []).some((p) => can(p)))
-      .filter((s) => matches(`${s.label} ${s.blurb} ${s.keywords}`, terms))
+    const actions: Result[] = SETTINGS_ACTIONS
+      .filter((a) => a.access(access) && matches(`${a.label} ${a.keywords}`, terms))
+      .slice(0, 3)
+      .map((a) => ({ kind: 'action', key: a.key, title: a.label, detail: 'Opens the page with this ready to save', href: actionHref(a) }));
+
+    const pages: Result[] = entries
+      .filter((e) => matches(e.haystack, terms))
       .slice(0, 6)
-      .map((s) => ({
-        kind: 'section',
-        key: s.id,
-        title: s.label,
-        detail: s.blurb,
-        href: sectionHref(s),
-      }));
+      .map((e) => ({ kind: 'page', key: e.key, title: e.title, detail: e.where ? `${e.where} · ${e.detail}` : e.detail, href: e.href }));
 
     const persons: Result[] = (people ?? [])
       .filter((p) => matches(`${fullName(p)} ${p.email}`, terms))
       .slice(0, 5)
-      .map((p) => ({
-        kind: 'person',
-        key: p.email,
-        title: fullName(p) || p.email,
-        detail: p.email,
-        href: `/dashboard/settings/people#${personAnchorId(p.email)}`,
-      }));
+      .map((p) => ({ kind: 'person', key: p.email, title: fullName(p) || p.email, detail: p.email, href: personHref(p.email) }));
 
-    return [...sections, ...persons];
-  }, [terms, people, isAdmin, can]);
+    return [...actions, ...pages, ...persons];
+  }, [terms, people, entries, access]);
 
-  // Keep the highlight on a row that still exists as the list narrows.
   useEffect(() => setActive(0), [query]);
 
-  // Close when the click lands anywhere else on the page.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
@@ -128,9 +127,6 @@ export default function SettingsSearch({
     setQuery('');
     inputRef.current?.blur();
     router.push(result.href);
-    // The router will not scroll to a hash whose element has not rendered yet,
-    // and none of these have — the destination panel loads its own rows after
-    // the navigation lands. scrollToAnchor waits for it.
     scrollToAnchor(result.href.split('#')[1] ?? '');
   }
 
@@ -155,11 +151,8 @@ export default function SettingsSearch({
   }
 
   return (
-    <div ref={boxRef} className="relative w-full sm:w-72 flex-shrink-0">
-      <Search
-        size={14}
-        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-      />
+    <div ref={boxRef} className="relative w-full">
+      <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
       <input
         ref={inputRef}
         type="text"
@@ -169,9 +162,9 @@ export default function SettingsSearch({
         onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-8 pr-8 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
+        className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-8 pr-14 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
       />
-      {query && (
+      {query ? (
         <button
           type="button"
           onClick={() => { setQuery(''); inputRef.current?.focus(); }}
@@ -180,37 +173,38 @@ export default function SettingsSearch({
         >
           <X size={13} />
         </button>
+      ) : (
+        <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-gray-200 px-1.5 font-mono text-[10px] text-gray-400">
+          Ctrl K
+        </kbd>
       )}
 
       {open && terms.length > 0 && (
-        <div className="absolute right-0 z-20 mt-1 w-full min-w-[18rem] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+        <div className="absolute left-0 z-30 mt-1 w-[min(26rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
           {results.length === 0 ? (
             <p className="px-3 py-3 text-xs text-gray-500">
-              {people === null
-                ? 'Searching...'
-                : `Nothing in Settings matches "${query.trim()}".`}
+              {seesPeople && people === null ? 'Searching…' : `Nothing in Settings matches "${query.trim()}".`}
             </p>
           ) : (
-            <ul className="max-h-80 overflow-y-auto py-1">
+            <ul className="max-h-96 overflow-y-auto py-1">
               {results.map((r, i) => (
                 <li key={`${r.kind}:${r.key}`}>
                   <button
                     type="button"
                     onMouseEnter={() => setActive(i)}
                     onClick={() => go(r)}
-                    className={`flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left transition ${
+                    className={`flex w-full items-start gap-2.5 px-3 py-2 text-left transition ${
                       i === active ? 'bg-brand-50' : 'hover:bg-gray-50'
                     }`}
                   >
-                    <span className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900">{r.title}</span>
-                      {r.kind === 'person' && (
-                        <span data-es className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
-                          Person
-                        </span>
-                      )}
+                    <span className={`mt-0.5 flex-shrink-0 ${r.kind === 'action' ? 'text-amber-500' : 'text-gray-400'}`}>
+                      {r.kind === 'action' ? <Zap size={14} /> : r.kind === 'person' ? <User size={14} /> : <Search size={14} />}
                     </span>
-                    <span className="line-clamp-1 text-xs text-gray-500">{r.detail}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium text-gray-900">{r.title}</span>
+                      <span className="line-clamp-1 text-xs text-gray-500">{r.detail}</span>
+                    </span>
+                    {i === active && <CornerDownLeft size={13} className="mt-1 flex-shrink-0 text-gray-400" />}
                   </button>
                 </li>
               ))}

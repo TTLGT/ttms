@@ -38,7 +38,7 @@ export async function DELETE(req: NextRequest) {
     if (!caller.manages) return NextResponse.json({ error: 'You cannot change holidays.' }, { status: 403 });
     const id = new URL(req.url).searchParams.get('id') ?? '';
     if (!id) return NextResponse.json({ error: 'Which change?' }, { status: 400 });
-    await deleteOverride(id);
+    await deleteOverride(caller, id);
     return NextResponse.json({ ok: true });
   } catch (e) {
     const { error, status } = authErrorResponse(e);

@@ -1,23 +1,25 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Check } from 'lucide-react';
 import { getAppSettings, saveLaneDistanceMode } from '@/lib/appSettings';
-import { DEFAULT_APP_SETTINGS } from '@/types/appSettings';
+import { DEFAULT_APP_SETTINGS, isLaneDistanceMode } from '@/types/appSettings';
 import type { LaneDistanceMode } from '@/types/appSettings';
 import { Bi } from '@/components/spanish/Es';
+import { useSaveBarEntry } from './kit/SaveBar';
+import { Loading, Notice, OptionCards, PreviewBox, SettingsCard, useStagedAction } from './kit/ui';
 
 /**
  * Admin choice of how orders work out the distance between their two
  * addresses. Applies to everyone — a broker cannot pick a different method,
  * which is deliberate: one of the options costs money per order.
+ *
+ * Beside the choice sits a cost calculator. **It is arithmetic in the browser
+ * and nothing else** — it never asks Google anything, because a preview that
+ * spent money to show what money would be spent is the one thing this page
+ * must not do.
  */
 
-const OPTIONS: {
-  mode: LaneDistanceMode;
-  title: string;
-  detail: string;
-}[] = [
+const OPTIONS: { mode: LaneDistanceMode; title: string; detail: string; tag?: { text: string; tone: 'amber' | 'green' | 'gray' } }[] = [
   {
     mode: 'off',
     title: 'Off',
@@ -25,119 +27,144 @@ const OPTIONS: {
   },
   {
     mode: 'estimate',
-    title: 'Estimate — free',
+    title: 'Estimate',
+    tag: { text: 'Free', tone: 'green' },
     detail:
       'Worked out from the two ZIP codes, in TTMS, at no cost. Usually within about 5% of the real driving distance; mountain routes such as Denver to Salt Lake City read low, because the interstate detours a long way around. Fine for checking a quote. Never bill per mile from it.',
   },
   {
     mode: 'routes',
-    title: 'Google Routes — exact, but charged',
+    title: 'Google Routes',
+    tag: { text: 'Billed', tone: 'amber' },
     detail:
-      'Real road miles from Google. Google charges for every lane it has not been asked about before, so on this setting distances stop filling themselves in as you type: the order shows a button and works the distance out only when somebody asks for it. A lane already paid for is reused for nothing, on every later order. Needs GOOGLE_MAPS_API_KEY set on the server. If Google is ever unreachable, orders fall back to the free estimate and say so.',
+      'Real road miles from Google. Google charges for every lane it has not been asked about before, so on this setting the order shows a button and works the distance out only when somebody asks for it. A lane already paid for is reused for nothing, on every later order. If Google is ever unreachable, orders fall back to the free estimate and say so.',
   },
 ];
 
+/**
+ * Google's list price for a Compute Routes request, per thousand, as an
+ * editable starting point — this account's real price and any free monthly
+ * allowance are on its Google Cloud billing page, which TTMS cannot read.
+ */
+const DEFAULT_PRICE_PER_THOUSAND = 5;
+
 export default function LaneDistancePanel() {
-  const [mode, setMode] = useState<LaneDistanceMode>(DEFAULT_APP_SETTINGS.laneDistanceMode);
+  const [saved, setSaved] = useState<LaneDistanceMode>(DEFAULT_APP_SETTINGS.laneDistanceMode);
+  const [draft, setDraft] = useState<LaneDistanceMode>(DEFAULT_APP_SETTINGS.laneDistanceMode);
   const [keyConfigured, setKeyConfigured] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<LaneDistanceMode | ''>('');
   const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
+  const staged = useStagedAction('laneDistance');
 
   useEffect(() => {
     getAppSettings()
       .then((res) => {
-        setMode(res.settings.laneDistanceMode);
+        setSaved(res.settings.laneDistanceMode);
+        setDraft(res.settings.laneDistanceMode);
         setKeyConfigured(res.routesKeyConfigured);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load the setting'))
       .finally(() => setLoading(false));
   }, []);
 
-  async function choose(next: LaneDistanceMode) {
-    if (next === mode || saving) return;
-    const previous = mode;
-    setMode(next);
-    setSaving(next);
-    setError('');
-    setSaved(false);
-    try {
-      await saveLaneDistanceMode(next);
-      setSaved(true);
-    } catch (e) {
-      // Put the radio back where it was — leaving it on a mode that did not
-      // save would misrepresent what orders are actually doing.
-      setMode(previous);
-      setError(e instanceof Error ? e.message : 'Failed to save the setting');
-    } finally {
-      setSaving('');
-    }
-  }
+  useEffect(() => {
+    if (!loading && staged && isLaneDistanceMode(staged)) setDraft(staged);
+  }, [loading, staged]);
+
+  const { active } = useSaveBarEntry({
+    dirty: !loading && draft !== saved,
+    save: async () => {
+      const previous = saved;
+      await saveLaneDistanceMode(draft);
+      setSaved(draft);
+      return async () => { await saveLaneDistanceMode(previous); setSaved(previous); setDraft(previous); };
+    },
+    discard: () => setDraft(saved),
+  });
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Lane Distance</h2>
-      <p className="text-sm text-gray-500 mt-1 mb-4">
-        <Bi>How an order works out the distance between its pickup and delivery addresses.</Bi>
-      </p>
+    <div className="space-y-6">
+      <SettingsCard>
+        {loading ? <Loading /> : (
+          <OptionCards
+            name="laneDistanceMode"
+            value={draft}
+            saved={saved}
+            onChange={setDraft}
+            options={OPTIONS.map((o) => ({
+              value: o.mode,
+              title: o.title,
+              tag: o.tag,
+              detail: o.detail,
+              disabled: o.mode === 'routes' && !keyConfigured,
+              disabledNote: (
+                <span>
+                  Unavailable until <span className="font-mono">GOOGLE_MAPS_API_KEY</span> is added to the
+                  server settings. See the Admin Handbook.
+                </span>
+              ),
+            }))}
+          />
+        )}
+        {draft === 'routes' && saved !== 'routes' && (
+          <Notice tone="amber" className="mt-4" title="This starts a bill">
+            From the moment this is saved, every lane nobody has asked about before is charged by Google when somebody presses the button on an order.
+          </Notice>
+        )}
+        {!active && draft !== saved && (
+          <button type="button" onClick={() => void saveLaneDistanceMode(draft).then(() => setSaved(draft))}
+            className="mt-4 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">Save</button>
+        )}
+        {error && <Notice tone="red" className="mt-4">{error}</Notice>}
+      </SettingsCard>
 
-      {loading ? (
-        <p data-es className="text-sm text-gray-500">Loading…</p>
-      ) : (
-        <div className="space-y-2">
-          {OPTIONS.map((option) => {
-            const selected = mode === option.mode;
-            const blocked = option.mode === 'routes' && !keyConfigured;
-            return (
-              <label
-                key={option.mode}
-                className={`flex gap-3 rounded-lg border p-4 transition ${
-                  blocked
-                    ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-70'
-                    : selected
-                      ? 'border-brand-400 bg-brand-50/50 cursor-pointer'
-                      : 'border-gray-200 hover:border-gray-300 cursor-pointer'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="laneDistanceMode"
-                  className="mt-1 accent-brand-600"
-                  checked={selected}
-                  disabled={blocked || Boolean(saving)}
-                  onChange={() => void choose(option.mode)}
-                />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {option.title}
-                    {saving === option.mode && <span data-es className="ml-2 text-xs font-normal text-gray-500">Saving…</span>}
-                  </p>
-                  <p className="text-xs text-gray-600 mt-1 leading-relaxed">{option.detail}</p>
-                  {blocked && (
-                    <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
-                      <span>
-                        Unavailable until <span className="font-mono">GOOGLE_MAPS_API_KEY</span> is added to the
-                        server settings file. See the Admin Handbook.
-                      </span>
-                    </p>
-                  )}
-                </div>
-              </label>
-            );
-          })}
+      <SettingsCard title="What would it cost?" description="Worked out here from the numbers you type. It never asks Google anything, so trying numbers costs nothing.">
+        <CostCalculator />
+      </SettingsCard>
+    </div>
+  );
+}
+
+const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: n < 10 ? 2 : 0 });
+
+function CostCalculator() {
+  const [lanes, setLanes] = useState('200');
+  const [price, setPrice] = useState(String(DEFAULT_PRICE_PER_THOUSAND));
+  const nLanes = Math.max(0, Number(lanes) || 0);
+  const nPrice = Math.max(0, Number(price) || 0);
+  const month = (nLanes * nPrice) / 1000;
+  const input = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-brand-400';
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <div className="space-y-3">
+        <label className="block text-sm">
+          <span className="font-semibold text-gray-900"><Bi>New lanes a month</Bi></span>
+          <span className="block text-xs text-gray-500"><Bi>Pickup-and-delivery pairs nobody has looked up before. Repeat lanes are free.</Bi></span>
+          <input id="lanes-month" inputMode="numeric" value={lanes} onChange={(e) => setLanes(e.target.value.replace(/[^\d]/g, ''))} className={`mt-1 ${input}`} />
+        </label>
+        <label className="block text-sm">
+          <span className="font-semibold text-gray-900"><Bi>Google’s price per 1,000 lookups</Bi></span>
+          <span className="block text-xs text-gray-500"><Bi>Google’s list price to start with. Check this account’s billing page for its real price and any free monthly allowance.</Bi></span>
+          <input id="price-thousand" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ''))} className={`mt-1 ${input}`} />
+        </label>
+      </div>
+      <PreviewBox title="Per month">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-lg border border-gray-200 bg-white p-3">
+            <p data-es className="text-xs text-gray-500">Estimate</p>
+            <p className="font-[family-name:var(--font-rajdhani)] text-3xl font-bold tabular-nums text-green-700">$0</p>
+            <p className="text-xs text-gray-500"><Bi>About 5% off the real distance, more on mountain lanes.</Bi></p>
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p data-es className="text-xs text-amber-800">Google Routes</p>
+            <p className="font-[family-name:var(--font-rajdhani)] text-3xl font-bold tabular-nums text-amber-800">{usd(month)}</p>
+            <p className="text-xs text-amber-800">
+              <Bi vars={{ year: usd(month * 12) }}>{'About {year} a year, before any free allowance.'}</Bi>
+            </p>
+          </div>
         </div>
-      )}
-
-      {saved && !error && (
-        <p data-es className="mt-3 flex items-center gap-1.5 text-xs text-green-700">
-          <Check className="w-3.5 h-3.5" /> Saved. New orders use this from now on.
-        </p>
-      )}
-      {error && (
-        <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-600">{error}</div>
-      )}
-    </section>
+      </PreviewBox>
+    </div>
   );
 }

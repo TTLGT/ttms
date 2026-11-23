@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FieldValue, adminDb, AdminAuthError, requirePermission } from '@/lib/firebase-admin';
+import { logSettingsChange } from '@/lib/settingsChangeServer';
 import { requireCaller } from '@/lib/partyAccess';
 import { leadSourceDocId, toSourceKey } from '@/types/leadSource';
 
@@ -57,7 +58,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await ref.set({
+    const batch = adminDb.batch();
+    batch.set(ref, {
       name,
       nameKey,
       isActive:  true,
@@ -65,6 +67,8 @@ export async function POST(req: NextRequest) {
       createdBy: caller.email ?? caller.uid,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    await logSettingsChange({ area: 'leadSources', summary: `Added the lead source ${name}`, caller }, batch);
+    await batch.commit();
 
     return NextResponse.json({ id: ref.id, name }, { status: 201 });
   } catch (e) {

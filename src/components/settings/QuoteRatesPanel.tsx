@@ -1,14 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import DateField from '@/components/DateField';
 import { getQuoteRates, saveQuoteRates } from '@/lib/quoteRates';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { Bi } from '@/components/spanish/Es';
+import { useSaveBarEntry } from './kit/SaveBar';
+import { ConfirmDialog, PreviewBox, SettingsCard } from './kit/ui';
 import {
   DEFAULT_QUOTE_RATES,
   LOAD_SIZES,
+  estimatePrice,
   LOAD_SIZE_LABEL,
   MARKET_EQUIPMENT,
   MARKET_EQUIPMENT_LABEL,
@@ -26,7 +29,7 @@ import {
 } from '@/types/quoteRates';
 
 /**
- * Settings → Operations → Quote Rates: the card the quote calculator prices
+ * Settings → Quote rates: the card the quote calculator prices
  * with. See src/types/quoteRates.ts for what each number means.
  *
  * Edited as a draft and saved whole, with a Discard beside Save. A rate card is
@@ -64,6 +67,26 @@ export default function QuoteRatesPanel() {
   }, []);
 
   const dirty = Boolean(draft && saved && JSON.stringify(draft) !== JSON.stringify(saved));
+  const [askReset, setAskReset] = useState(false);
+
+  // Settings' Save bar saves the card; outside Settings the buttons below do.
+  const { active } = useSaveBarEntry({
+    dirty,
+    save: async () => {
+      if (!draft || !saved) return;
+      const previous = saved;
+      const stored = await saveQuoteRates(draft);
+      setSaved(stored);
+      setDraft(clone(stored));
+      setMeta({ updatedAt: new Date().toISOString(), updatedBy: 'you', isDefault: false, problem: null });
+      return async () => {
+        const back = await saveQuoteRates(previous);
+        setSaved(back);
+        setDraft(clone(back));
+      };
+    },
+    discard: () => { if (saved) setDraft(clone(saved)); setError(''); },
+  });
 
   async function save() {
     if (!draft) return;
@@ -113,11 +136,9 @@ export default function QuoteRatesPanel() {
   }
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-6">
-      <h2 data-es className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Quote Rates</h2>
-      <p className="text-sm text-gray-500 mt-1 mb-4">
-        <Bi>What the quote calculator charges the client for each truck, how big a load each one takes, and the
-        market figures it checks a driver&apos;s pay against. Changes reach every broker the next time they open the calculator.</Bi>
+    <SettingsCard>
+      <p className="mb-4 text-sm text-gray-500">
+        <Bi>Changes reach every broker the next time they open the calculator.</Bi>
       </p>
 
       {!draft ? (
@@ -220,27 +241,115 @@ export default function QuoteRatesPanel() {
             </button>
           </div>
 
+          {saved && <LanePreview draft={draft} saved={saved} />}
+
           {error && <p className="text-sm text-red-700">{error}</p>}
 
           <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4">
-            <button type="button" onClick={() => void save()} disabled={!dirty || saving}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
-              {saving ? 'Saving…' : 'Save rates'}
-            </button>
-            <button type="button" onClick={() => { if (saved) setDraft(clone(saved)); setError(''); }} disabled={!dirty || saving}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
-              Discard changes
-            </button>
-            {justSaved && !dirty && <span data-es className="inline-flex items-center gap-1 text-xs text-green-700"><Check className="w-3.5 h-3.5" />Saved</span>}
-            <button type="button"
-              onClick={() => { if (confirm('Put every rate back to the starting rates from the old Google Sheet? Nothing is saved until you press Save.')) setDraft(clone(DEFAULT_QUOTE_RATES)); }}
+            {!active && (
+              <>
+                <button type="button" onClick={() => void save()} disabled={!dirty || saving}
+                  className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save rates'}
+                </button>
+                <button type="button" onClick={() => { if (saved) setDraft(clone(saved)); setError(''); }} disabled={!dirty || saving}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                  Discard changes
+                </button>
+                {justSaved && !dirty && <span data-es className="inline-flex items-center gap-1 text-xs text-green-700"><Check className="w-3.5 h-3.5" />Saved</span>}
+              </>
+            )}
+            <button type="button" onClick={() => setAskReset(true)}
               className="ml-auto inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800">
-              <RotateCcw className="w-3.5 h-3.5" /> Starting rates
+              <RotateCcw className="w-3.5 h-3.5" /> <span data-es>Starting rates</span>
             </button>
           </div>
         </div>
       )}
-    </section>
+      <ConfirmDialog
+        open={askReset}
+        title="Put back the starting rates?"
+        body="Every rate goes back to the starting rates from the old Google Sheet. Nothing is saved until you press Save, and Discard brings back what you had."
+        confirmLabel="Put them back"
+        onCancel={() => setAskReset(false)}
+        onConfirm={() => { setDraft(clone(DEFAULT_QUOTE_RATES)); setAskReset(false); }}
+      />
+    </SettingsCard>
+  );
+}
+
+/**
+ * Example lanes, made up for the preview but real-sized. Long, middling and
+ * short, because a per-mile change reads very differently on each.
+ */
+const SAMPLE_LANES = [
+  { from: 'Dallas, TX', to: 'Atlanta, GA', miles: 781 },
+  { from: 'Chicago, IL', to: 'Memphis, TN', miles: 532 },
+  { from: 'Houston, TX', to: 'San Antonio, TX', miles: 197 },
+];
+
+const money0 = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+
+/**
+ * What a full truckload on each example lane would be quoted at, from the card
+ * as it is being edited, with the difference from the saved card beside it.
+ * The middle of each range, the way the calculator opens.
+ */
+function LanePreview({ draft, saved }: { draft: QuoteRates; saved: QuoteRates }) {
+  const rows = useMemo(() => draft.trucks
+    .filter((t) => t.pricing !== 'hourly')
+    .map((t) => {
+      const before = saved.trucks.find((x) => x.id === t.id);
+      return {
+        truck: t,
+        cells: SAMPLE_LANES.map((lane) => {
+          const input = { miles: lane.miles, hours: 0, size: 'tl' as const, position: 0.5 };
+          const now = estimatePrice(t, input);
+          const was = before ? estimatePrice(before, input) : null;
+          return { now, delta: now.missing || !was || was.missing ? null : now.price - was.price };
+        }),
+      };
+    }), [draft, saved]);
+
+  return (
+    <PreviewBox title="What these rates quote" note="Example lanes, full truckload, the middle of each range. Green and red show the change from what is saved now. Nothing here is saved until you press Save.">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] text-sm">
+          <thead>
+            <tr className="text-left text-[11px] uppercase tracking-wide text-gray-500">
+              <th data-es className="py-1.5 pr-3 font-semibold">Truck</th>
+              {SAMPLE_LANES.map((l) => (
+                <th key={l.from} className="py-1.5 pr-3 font-semibold">
+                  {l.from.split(',')[0]} → {l.to.split(',')[0]}
+                  <span className="block font-normal normal-case tracking-normal text-gray-400">{l.miles} mi</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.map(({ truck, cells }) => (
+              <tr key={truck.id}>
+                <td className="py-2 pr-3 font-medium text-gray-900">{truck.name || 'New truck'}</td>
+                {cells.map((c, i) => (
+                  <td key={i} className="py-2 pr-3 tabular-nums">
+                    {c.now.missing ? <span className="text-gray-300">—</span> : (
+                      <>
+                        <span className="font-semibold text-gray-900">{money0(c.now.price)}</span>
+                        {c.delta !== null && Math.abs(c.delta) >= 1 && (
+                          <span className={`ml-1.5 text-xs font-semibold ${c.delta > 0 ? 'text-green-700' : 'text-red-600'}`}>
+                            {c.delta > 0 ? '+' : '−'}{money0(Math.abs(c.delta))}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </PreviewBox>
   );
 }
 

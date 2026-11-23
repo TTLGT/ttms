@@ -187,7 +187,7 @@ export default function CalendarPage() {
     asked.answered?.(true);
   };
 
-  // The company can switch reminder emails off (Settings → Operations); then
+  // The company can switch reminder emails off (Settings → General); then
   // the Email tick is hidden and does not count as a way of being reminded.
   const emailsAllowed = useReminderEmails();
   const noChannel = !(settings.email && emailsAllowed !== false) && !settings.chat;

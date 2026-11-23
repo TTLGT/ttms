@@ -54,6 +54,7 @@ import SpanishTips from '@/components/spanish/SpanishTips';
 import { AttendanceProvider, useAttendance } from '@/context/AttendanceContext';
 import ClockWidget from '@/components/attendance/ClockWidget';
 import { canSeeChangelog } from '@/types/changelog';
+import { canOpenSettings } from '@/components/settings/settingsSections';
 import { IT_TICKETS_CHANGED, itTicketBadge, rememberPage } from '@/lib/itTickets';
 import { isItDesk } from '@/types/itTicket';
 
@@ -131,10 +132,11 @@ const NAV_ITEMS: {
   // Also open to HR, who read the people directory there and nothing else —
   // the page itself renders read-only for them — and to dispatch and finance
   // for their own panels on the Operations tab.
+  // Who sees it is worked out by canOpenSettings() below, from the same page
+  // list the Settings menu draws — see src/components/settings/settingsSections.ts.
+  // This list is only the fallback the type wants; the filter never reads it.
   { href: '/dashboard/settings',  label: 'Settings',  Icon: Settings,
-    anyOf: ['people.manage', 'people.view', 'settings.manage',
-            'leadSources.manage', 'laneDistance.manage', 'paymentTerms.manage',
-            'celebrations.manage', 'presence.manage', 'quoteRates.manage'] },
+    anyOf: ['people.manage', 'people.view', 'settings.manage'] },
   { href: '/dashboard/handbook',  label: 'Handbook',  Icon: BookOpen,      needs: 'handbook.view' },
   // Everybody, interns included, so no permission: anyone can be stuck. The
   // same page is the IT account's desk — see src/types/itTicket.ts.
@@ -311,11 +313,19 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   /** The sidebar this viewer actually gets. */
   const visible = useMemo(
     () => NAV_ITEMS.filter((item) => {
+      // Settings is a doorway to twenty-odd pages, each with its own test,
+      // and a Sales Manager reaches it by leading a team rather than by any
+      // permission — so it asks the Settings page list itself. A hand-kept
+      // list here had drifted: it left out agreement terms, attendance and
+      // Sales Managers, who were bounced off the People page that is theirs.
+      if (item.href === '/dashboard/settings') {
+        return canOpenSettings({ can, isSalesManager: profile?.isSalesManager === true });
+      }
       if (item.needs) return can(item.needs);
       if (item.anyOf) return item.anyOf.some((p) => can(p));
       return true;
     }),
-    [can],
+    [can, profile?.isSalesManager],
   );
 
   /**

@@ -1,170 +1,178 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { ChevronLeft, LayoutList, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import SettingsNav from '@/components/settings/SettingsNav';
 import SettingsSearch from '@/components/settings/SettingsSearch';
-import { SETTINGS_TABS, scrollToAnchor } from '@/components/settings/settingsSections';
+import { SettingsDataProvider } from '@/components/settings/SettingsData';
+import { SaveBarOutlet, SaveBarProvider, useSaveVersion } from '@/components/settings/kit/SaveBar';
+import { Chip } from '@/components/settings/kit/ui';
+import {
+  SETTINGS_GROUPS,
+  canOpenSettings,
+  pageFromPath,
+  scrollToAnchor,
+  type SettingsAccess,
+  type SettingsPage,
+} from '@/components/settings/settingsSections';
+import { useLastChange } from '@/lib/settingsChanges';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 import { Bi } from '@/components/spanish/Es';
 
 /**
- * The frame around every Settings tab: title, tab bar, search box.
+ * The frame around every Settings page: a side menu grouped by topic, and one
+ * setting per page beside it.
  *
- * Settings used to be one page with nine panels stacked down it, which meant
- * scrolling past everything to reach anything. The panels themselves did not
- * change — they were split across four routes, and this layout is what makes
- * them read as one screen with tabs rather than four unrelated pages.
+ * Settings was seven tabs, one of which ("Operations") held ten unrelated
+ * panels laid out by height. Everything now has a page of its own, at its own
+ * address, listed once in `settingsSections.ts`; this layout draws the menu
+ * from that list, the page's title and "Last changed" line from the same
+ * entry, and the Save bar at the foot of whatever page is open.
  *
- * A layout does not re-render when you move between the pages beneath it, so
- * the tab bar and whatever is typed in the search box both survive the
- * navigation. Each tab is a real URL, so it can be linked to, bookmarked and
- * gone back from — which is the whole reason these are routes and not a
- * useState holding a tab name. Never mirror the active tab in state: the
- * moment the two disagree, the back button starts lying.
+ * A layout does not re-render its state away when moving between the pages
+ * beneath it, so the menu, the search box and the settings it has loaded all
+ * survive a click. Each page is a real URL — linkable, bookmarkable, and the
+ * back button works — which is why the current page is read from the
+ * pathname and never mirrored in state.
+ *
+ * **Access is decided per page, here.** A page whose `access()` is false for
+ * this reader is never mounted: they are sent to Settings Home instead. The
+ * routes behind every page check the permission again; this only decides
+ * what is drawn.
  */
-
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
-  const { isAdmin, profile, can, loading } = useAuth();
+  const { profile, can, loading } = useAuth();
   const router   = useRouter();
   const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  /**
-   * Three kinds of reader belong in here, and each sees a different Settings.
-   *
-   * - Somebody managing people or company settings: everything.
-   * - HR: the People tab, read-only. The payroll fields on it are the reason
-   *   they are here and the only reason.
-   * - A Sales Manager: the People tab, writable for their own team and nobody
-   *   else. That narrowing happens inside the page — see canEditPerson there.
-   * - Somebody holding one Operations panel — HR's Celebrations, dispatch's
-   *   Lead Sources and Agreement Terms, finance's Lane Distance and Payment
-   *   Terms: that tab, with only their panels on it.
-   *
-   * Anyone else is bounced, and the Firestore rules refuse them independently
-   * of this. Gating in the layout rather than in each page means a new tab
-   * cannot be added without the check, and the pages below never mount for
-   * someone who should not see them at all.
-   */
-  const managesPeople = can('people.manage');
-  const allowed =
-    managesPeople
-    || can('people.view')
-    || can('settings.manage')
-    || can('celebrations.manage')
-    || can('presence.manage')
-    || can('leadSources.manage')
-    || can('laneDistance.manage')
-    || can('paymentTerms.manage')
-    || can('quoteRates.manage')
-    || can('agreementTerms.manage')
-    || can('attendance.manage')
-    || profile?.isSalesManager === true;
+  const isSalesManager = profile?.isSalesManager === true;
+  const access = useMemo<SettingsAccess>(() => ({ can, isSalesManager }), [can, isSalesManager]);
+  const allowed = canOpenSettings(access);
+  const page = pageFromPath(pathname);
+  // The old tab addresses (/settings/operations and friends) are not pages;
+  // their own route sends them on, so they must not be bounced here first.
+  const legacy = /^\/dashboard\/settings\/(organization|operations|attendance|data)\/?$/.test(pathname);
+  const pageAllowed = legacy || (page !== null && page.access(access) !== false);
 
   useEffect(() => {
-    if (!loading && !allowed) router.replace('/dashboard');
-  }, [loading, allowed, router]);
+    if (loading) return;
+    if (!allowed) router.replace('/dashboard');
+    else if (!pageAllowed) router.replace('/dashboard/settings');
+  }, [loading, allowed, pageAllowed, router]);
 
-  // A hash typed, pasted or arrived at from another tab. The browser's own
-  // hash scrolling has already given up by now — the panels render their rows
-  // after the navigation lands — so it is done here instead. Re-runs per tab,
-  // which is what a cross-tab jump needs; the search box handles its own
-  // scroll for a jump within the tab you are already on.
-  useEffect(() => {
-    return scrollToAnchor(decodeURIComponent(window.location.hash.slice(1)));
-  }, [pathname]);
+  // A hash typed, pasted or arrived at from another page. The panels render
+  // their rows after the navigation lands, so the browser's own jump has
+  // already given up — this waits for the element.
+  useEffect(() => scrollToAnchor(decodeURIComponent(window.location.hash.slice(1))), [pathname]);
 
-  if (loading || !allowed) return null;
+  // The phone's menu sheet closes itself when the page changes.
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
 
-  // The admin-only tabs are the ones about the company rather than about a
-  // person: offices, teams, lane distance, the import. A Sales Manager lands
-  // on People alone — they write their own team and nothing else.
-  //
-  // HR gets People for the same reason in reverse (they read everybody), and
-  // now Operations as well, because the Celebrations panel is theirs. A tab
-  // reached on a single permission still shows only the panels that permission
-  // covers — the page below it filters its own — so this opens a door, not a
-  // tab full of controls that answer 403.
-  //
-  // People is the one tab open to "everybody who gets this far", which was
-  // true when everybody who got this far was there for People. Dispatch and
-  // finance now get in for an Operations panel, and a directory of payroll
-  // fields they have no permission to read is not a tab to show them.
-  const seesPeople = managesPeople || can('people.view') || can('settings.manage')
-    || profile?.isSalesManager === true;
-  const tabs = SETTINGS_TABS.filter((t) =>
-    (t.id === 'people' ? seesPeople : !t.adminOnly)
-    || managesPeople
-    || can('settings.manage')
-    || (t.permissions ?? []).some((p) => can(p)),
-  );
+  if (loading || !allowed || !pageAllowed) return null;
 
-  /**
-   * Every tab but Data gets the whole screen, because every one of them lays
-   * itself out in two columns — People its people, and Overview, Organization
-   * and Operations their panels. Two columns of this width come out at about
-   * the width the single narrow column had, so nothing on those tabs got
-   * smaller; there is just half as far to scroll.
-   *
-   * Data stays narrow because it is one import panel with nothing to sit
-   * beside it, and a form field stretched across 1600px is harder to read,
-   * not easier. Any new tab that is a single stack of panels belongs here too.
-   */
-  const wide = !pathname.startsWith('/dashboard/settings/data');
+  const isHome = page?.id === 'home';
+  const seesPeople = Boolean(pageFromPath('/dashboard/settings/people')?.access(access));
 
   return (
-    <div className={`p-4 sm:p-6 lg:p-8 ${wide ? 'max-w-[1600px]' : 'max-w-3xl'}`}>
-      {/* Sticky so the tabs stay reachable while a long tab — People, mostly —
-          is scrolled. `top-0` refers to <main>, which is the scroll container;
-          the background is opaque so rows do not show through it.
+    <SaveBarProvider>
+      <SettingsDataProvider access={access}>
+        <div className="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
+          <div className="grid items-start gap-6 lg:grid-cols-[232px_minmax(0,1fr)] lg:gap-8">
+            {/* On a phone the menu is the Home page's first screen, and a
+                sheet everywhere else; on a desktop it is always beside the
+                page, sticky so it stays in reach down a long one. */}
+            <aside className={`${isHome ? 'block' : 'hidden'} lg:sticky lg:top-0 lg:block lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pb-6`}>
+              <div className="mb-4 flex items-baseline justify-between gap-2 px-1">
+                <h1 className="font-[family-name:var(--font-rajdhani)] text-2xl font-bold tracking-wide text-gray-900">
+                  <Link href="/dashboard/settings" data-es>Settings</Link>
+                </h1>
+              </div>
+              <div className="mb-4">
+                <SettingsSearch access={access} profile={profile} seesPeople={seesPeople} />
+              </div>
+              <SettingsNav access={access} currentId={page?.id ?? null} canPreview={can('people.manage')} />
+            </aside>
 
-          The negative margins have to cancel the container's padding exactly,
-          so they step at the same breakpoints it does — otherwise the sticky
-          band sits inset from the page edge on a phone and the rows scroll
-          past in the gutter beside it. */}
-      <div className="sticky top-0 z-10 -mx-4 -mt-4 bg-gray-50 px-4 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 lg:-mx-8 lg:-mt-8 lg:px-8 lg:pt-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900"><Bi>Settings</Bi></h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {tabs.length > 1
-                ? 'Access, permissions, sites, teams and how orders are worked out'
-                : profile?.isSalesManager
-                ? 'The people on your team — their details and what they are allowed to do.'
-                : 'The company directory. Read-only — ask an admin to change anything here.'}
-            </p>
+            <div className="min-w-0">
+              {!isHome && (
+                <div className="mb-3 flex items-center justify-between gap-2 lg:hidden">
+                  <Link href="/dashboard/settings" className="flex items-center gap-1 text-sm font-medium text-brand-700">
+                    <ChevronLeft size={16} /> <span data-es>Settings</span>
+                  </Link>
+                  <button type="button" onClick={() => setMenuOpen(true)}
+                    className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700">
+                    <LayoutList size={15} /> <span data-es>All settings</span>
+                  </button>
+                </div>
+              )}
+
+              {page && <PageHeader page={page} access={access} />}
+
+              <div className="mt-6">{children}</div>
+              <SaveBarOutlet />
+            </div>
           </div>
-          <SettingsSearch isAdmin={isAdmin} can={can} />
         </div>
 
-        {/* One tab is not a tab bar. HR sees only People, so they get the
-            page without the furniture. */}
-        {tabs.length > 1 && (
-          <nav className="mt-5 flex gap-1 overflow-x-auto whitespace-nowrap border-b border-gray-200 tab-scroll [&>*]:flex-shrink-0">
-            {tabs.map((tab) => {
-              // Overview is the parent of the others, so it can only match
-              // exactly — otherwise it would light up on every tab.
-              const current = pathname === tab.href;
-              return (
-                <Link
-                  key={tab.id}
-                  href={tab.href}
-                  aria-current={current ? 'page' : undefined}
-                  className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition ${
-                    current
-                      ? 'border-brand-600 text-brand-700'
-                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                  }`}
-                >
-                  {tab.label}
-                </Link>
-              );
-            })}
-          </nav>
+        {menuOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="All settings">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
+            <div className="absolute inset-y-0 left-0 w-[min(20rem,88vw)] overflow-y-auto bg-gray-50 p-4 shadow-2xl">
+              <div className="mb-3 flex items-center justify-between">
+                <p data-es className="font-[family-name:var(--font-rajdhani)] text-xl font-bold text-gray-900">Settings</p>
+                <button type="button" onClick={() => setMenuOpen(false)} aria-label="Close" className="rounded p-1 text-gray-500 hover:bg-gray-200">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="mb-4">
+                <SettingsSearch access={access} profile={profile} seesPeople={seesPeople} />
+              </div>
+              <SettingsNav access={access} currentId={page?.id ?? null} canPreview={false} onNavigate={() => setMenuOpen(false)} />
+            </div>
+          </div>
         )}
-      </div>
+      </SettingsDataProvider>
+    </SaveBarProvider>
+  );
+}
 
-      <div className="pt-6">{children}</div>
-    </div>
+/**
+ * The page's title, what makes it risky, what it is for, and who last
+ * changed it — all from its entry in `settingsSections.ts`, so no page draws
+ * its own and none can be missing one.
+ */
+function PageHeader({ page, access }: { page: SettingsPage; access: SettingsAccess }) {
+  const version = useSaveVersion();
+  const last = useLastChange(page.areas ?? [], version);
+  const { formatDateTime } = useDateFormatters();
+  const group = SETTINGS_GROUPS.find((g) => g.id === page.group)?.label;
+  const readOnly = page.access(access) === 'view' && page.id !== 'home' && page.id !== 'change-log';
+
+  return (
+    <header>
+      {group && <p data-es className="text-xs font-medium text-gray-400">{group}</p>}
+      <div className="mt-0.5 flex flex-wrap items-center gap-2.5">
+        <h2 className="font-[family-name:var(--font-rajdhani)] text-3xl font-bold tracking-wide text-gray-900">
+          <span data-es>{page.id === 'home' ? 'Settings' : page.label}</span>
+        </h2>
+        {page.risk && <Chip>{page.risk}</Chip>}
+        {readOnly && <Chip tone="gray">View only</Chip>}
+      </div>
+      <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-gray-500"><Bi>{page.blurb}</Bi></p>
+      {last && (
+        <p className="mt-2 text-xs text-gray-400">
+          Last changed by <span className="font-medium text-gray-600">{last.byName || last.byEmail}</span>
+          {last.at ? `, ${formatDateTime(last.at)}` : ''}
+          {' · '}
+          <Link href={`/dashboard/settings/change-log?area=${(page.areas ?? []).join(',')}`} className="font-medium text-brand-700 hover:underline">
+            <span data-es>See history</span>
+          </Link>
+        </p>
+      )}
+    </header>
   );
 }

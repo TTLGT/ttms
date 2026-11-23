@@ -40,6 +40,8 @@ export type AppSettingsResponse = {
   settings: AppSettings;
   /** Whether GOOGLE_MAPS_API_KEY is present on the server. Never the key itself. */
   routesKeyConfigured: boolean;
+  /** The settings somebody has saved, rather than ones still on their default. */
+  chosen?: string[];
 };
 
 let cached: Promise<AppSettingsResponse> | null = null;
