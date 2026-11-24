@@ -371,9 +371,12 @@ function AgreementDocument({ d }: { d: SignedAgreementData }) {
                 </View>
               ) : null}
               {f.brokerName
-                ? <Field label={carrier ? 'Broker contact' : 'Questions'} value={[f.brokerName, f.brokerPhone, f.brokerEmail].filter(Boolean).join(' · ')} />
+                // The email goes on a line of its own: joined to the name and
+                // phone it wrapped mid-address ("operations@total-" /
+                // "transportlogistics.us"), which is hard to read and to copy.
+                ? <Field label={carrier ? 'Broker contact' : 'Questions'} value={[[f.brokerName, f.brokerPhone].filter(Boolean).join(' · '), f.brokerEmail].filter(Boolean).join('\n')} />
                 : f.sentByEmail
-                  ? <Field label={carrier ? 'Dispatch' : 'Questions'} value={`${f.sentByName ? `${f.sentByName} · ` : ''}${f.sentByEmail}`} />
+                  ? <Field label={carrier ? 'Dispatch' : 'Questions'} value={[f.sentByName, f.sentByEmail].filter(Boolean).join('\n')} />
                   : null}
             </View>
           </View>
