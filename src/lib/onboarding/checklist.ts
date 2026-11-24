@@ -108,6 +108,13 @@ export const CHECKLIST: readonly ChecklistStep[] = [
   { id: 'd2-guide-calendar', stage: 'training', order: 120, owner: 'you', tracks: 'all', guide: 'calendar', href: '/dashboard/onboarding/learn/calendar',
     when: { en: 'Day 2', es: 'Día 2' },
     title: { en: 'Learn the Calendar and planning', es: 'Aprender el Calendario y la planificación' } },
+  // Ticked by finishing the tour on the Planner's Today tab (recordTour() in
+  // src/lib/planner.ts) — a new id, never one of the old ones re-used, because
+  // ticks are stored under the id.
+  { id: 'd2-planner-tour', stage: 'training', order: 125, owner: 'you', tracks: 'all', href: '/dashboard/planner',
+    when: { en: 'Day 2', es: 'Día 2' },
+    title: { en: 'Take the Planner tour', es: 'Hacer el recorrido del Planner' },
+    detail: { en: 'Open the Planner and follow the tour on the Today tab. It ticks this step when you finish. If the Planner is not switched on for you yet, ask your team lead.', es: 'Abre el Planner y sigue el recorrido en la pestaña Hoy. Al terminarlo se marca este paso. Si todavía no tienes el Planner, pregúntale a tu líder de equipo.' } },
   { id: 'd3-guide-quote', stage: 'training', order: 130, owner: 'you', tracks: SALES, guide: 'quote-calculator', href: '/dashboard/onboarding/learn/quote-calculator',
     when: { en: 'Day 3', es: 'Día 3' },
     title: { en: 'Learn the Quote calculator', es: 'Aprender la Calculadora de cotizaciones' } },

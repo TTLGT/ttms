@@ -1296,6 +1296,54 @@ Types and pure rules in `src/types/task.ts`; server in
   Friday": `repeatWeekday` (0–6) and `repeatNths` (1–4, 5 = last).
   `repeatFields()` is the one place the stored repeat fields are worked out.
 
+### The Planner — My tasks and the Calendar as one page (2026-11-24)
+
+The redesign agreed on 2026-11-24 has seven steps; **step 1 is built**: the
+Planner at `/dashboard/planner` with Today, Tasks and Calendar tabs, the
+rollout switch, the Today tour, and the onboarding updates for it. Steps 2–7
+(the planning pop-up, suggestions per role, broker goals and leads, the new
+editor and Tasks tab, the Calendar tab, game mode 2.0) are still to come. Pure
+rules in `src/types/planner.ts`; browser side `src/lib/planner.ts`.
+
+- **It reaches people a few at a time.** `appSettings/general.plannerRollout`
+  (Settings → Planner, `settings.manage`) has four stages; each person's own
+  switch is `preferences.planner`. `plannerState()` is the one rule — the
+  sidebar, the old pages and the Planner all ask it. Read only through
+  `/api/planner/rollout`, never `/api/app-settings`, because it names people:
+  everybody else learns the stage and whether *they* are named.
+- **It is not access.** Every tab reads the caller's own list through the same
+  `/api/me/tasks` routes. Who has which page decides what is drawn.
+- **The old pages are wrappers now.** The screens live in
+  `src/components/tasks/MyTasksScreen.tsx` and
+  `src/components/calendar/CalendarScreen.tsx` (with `embedded` for the tabs);
+  `/dashboard/tasks` and `/dashboard/calendar` wrap them in `OldPlannerPage`,
+  which sends a Planner user to the matching tab and shows everybody offered it
+  the "Try the new Planner" banner. Going back can file an IT ticket with what
+  did not work.
+- **One copy of the list per page.** The Planner wraps its tabs in
+  `PersonalTasksProvider`, and `usePersonalTasks()` uses that copy when there
+  is one, so switching tabs reads nothing again. Only the open tab is mounted,
+  so a game notice shows once.
+- **Today's 3** is `personalTasks/{uid}.todayPicks` (`PUT /api/me/tasks/today`,
+  which reads each id from the caller's own list first). A pick from another
+  day reads as none.
+- **Quick add** (`src/types/quickAdd.ts`) reads dates, times, `!urgent`,
+  `#load` and `@person` in English and Spanish, shows what it understood as
+  chips, and saves through the ordinary create route. **It never reads a
+  numeric date like 3/4** — the same ambiguity `parseDateInput()` refuses.
+  `#` resolves through the access-checked `/api/orders/lookup`; `@` only
+  against the directory the person already sees, and only an unambiguous
+  match.
+- **Tours** (`PlannerTour.tsx`) are drawn over the page by `data-tour`
+  attributes, never change it, and are recorded per account in
+  `preferences.toursSeen.<id>` at the version in `PLANNER_TOURS` — bump it to
+  bring a changed tour back. Finishing ticks `d2-planner-tour` on My journey.
+  **Rename a `data-tour` target and change the tour the same day.**
+- **The Today drawing and guide section** (`planner-today` in
+  `screens/taskScreens.tsx`, the `planner-today` section of the My tasks guide)
+  change with the Today tab, like every other guide.
+- Spanish for all of it: `src/lib/i18n/es-planner.ts`.
+
 ### Shipper and consignee addresses — never an address on its own (2026-11-06)
 
 A pickup or delivery address always belongs to the shipper or consignee at

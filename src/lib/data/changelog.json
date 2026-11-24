@@ -1,6 +1,27 @@
 {
   "changes": [
     {
+      "hash": "7cc3294b319f2d2b1740751a12cad631b516c89e",
+      "date": "2026-11-24T11:48:04-06:00",
+      "author": "erwindank",
+      "subject": "Rename Agreed Rate to Total Tariff on orders, BATS's name for it. Changed on the order screens, the SA review, the missing-fields checklist, the change log, the quote calculator, Payment methods, the SA email, the client's signing page and clause 2 of the standard client terms, plus the Spanish (Tarifa total), the glossary and the onboarding guide. The signed SA PDF already said Total Tariff, so the client now sees one name. The invoice keeps TOTAL DUE and the quote keeps QUOTED PRICE. The stored field is still agreedRate",
+      "body": ""
+    },
+    {
+      "hash": "2a7dfbd9ef5d606f9d6953e775637a08a6a02a2c",
+      "date": "2026-11-24T11:47:14-06:00",
+      "author": "erwindank",
+      "subject": "Change the task reminder choices to 10 minutes before instead of 15, and let people set their own reminder time. The task and event editor now has an \"Other time\" box for any number of minutes, hours or days before (up to a week, eight reminders an item). Reminders already set to 15 minutes before keep working and show as a custom time",
+      "body": ""
+    },
+    {
+      "hash": "3eb130fb20b67cb5bb1e2ace1042c43e240f735f",
+      "date": "2026-11-24T11:46:15-06:00",
+      "author": "erwindank",
+      "subject": "Put the broker's email on its own line on the SA and Dispatch Sheet PDFs. Joined to the name and phone it wrapped mid-address, which was hard to read and to copy",
+      "body": ""
+    },
+    {
       "hash": "18cfad2a6b229d027f9b209f80fe63312b1260ca",
       "date": "2026-11-23T18:05:05-06:00",
       "author": "erwindank",

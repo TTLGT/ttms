@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { auth } from './firebase';
 import {
   DEFAULT_BOARD_COLUMNS,
@@ -21,6 +21,7 @@ import {
 import type { GameEvent, GameState, GameTheme } from '@/types/taskGame';
 import { DAY_PLAN_SHARED_EVENT } from '@/types/dayPlan';
 import { EMPTY_TASK_STREAK, type TaskStreak } from '@/types/taskStreak';
+import type { TodayPicks } from '@/types/planner';
 
 /**
  * Browser side of the personal task list, which lives behind /api/me/tasks —
@@ -56,19 +57,31 @@ interface GameReply {
 
 export async function listMyTasks(): Promise<{
   tasks: PersonalTask[]; settings: TaskReminderSettings; columns: BoardColumn[]; colorLabels: ColorLabels;
+  todayPicks: TodayPicks | null;
 } & GameReply> {
   const data = await authedFetch<{
     tasks?: PersonalTask[]; settings?: TaskReminderSettings; columns?: BoardColumn[]; colorLabels?: ColorLabels;
+    todayPicks?: TodayPicks | null;
   } & GameReply>('/api/me/tasks');
   return {
     tasks: data.tasks ?? [],
     settings: data.settings ?? DEFAULT_TASK_REMINDER_SETTINGS,
     columns: data.columns ?? DEFAULT_BOARD_COLUMNS,
     colorLabels: data.colorLabels ?? {},
+    todayPicks: data.todayPicks ?? null,
     game: data.game ?? null,
     events: data.events ?? [],
     streak: data.streak ?? EMPTY_TASK_STREAK,
   };
+}
+
+/** The Planner's Today's 3, saved whole — see /api/me/tasks/today. */
+export async function saveMyTodayPicks(picks: TodayPicks): Promise<TodayPicks> {
+  const data = await authedFetch<{ picks: TodayPicks }>('/api/me/tasks/today', {
+    method: 'PUT',
+    body: JSON.stringify(picks),
+  });
+  return data.picks;
 }
 
 /** Save the board's columns. `moved` is how many tasks a hide or a delete stepped back. */
@@ -244,7 +257,7 @@ export interface GameNotice {
  * XP is the exception: it is never guessed in the browser. The server works
  * it out with the save and the number on screen is the one it sends back.
  */
-export function usePersonalTasks() {
+function usePersonalTasksStore(enabled: boolean) {
   const [tasks, setTasks] = useState<PersonalTask[] | null>(null);
   const [error, setError] = useState('');
   const [settings, setSettings] = useState<TaskReminderSettings>(DEFAULT_TASK_REMINDER_SETTINGS);
@@ -253,6 +266,7 @@ export function usePersonalTasks() {
   const [game, setGame] = useState<GameState | null>(null);
   const [notices, setNotices] = useState<GameNotice[]>([]);
   const [streak, setStreak] = useState<TaskStreak>(EMPTY_TASK_STREAK);
+  const [todayPicks, setTodayPicks] = useState<TodayPicks | null>(null);
   const noticeId = useRef(0);
 
   const takeGame = useCallback((reply: GameReply) => {
@@ -275,6 +289,7 @@ export function usePersonalTasks() {
       setSettings(data.settings);
       setColumns(data.columns);
       setColorLabels(data.colorLabels);
+      setTodayPicks(data.todayPicks);
       takeGame(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load your list');
@@ -282,7 +297,7 @@ export function usePersonalTasks() {
     }
   }, [takeGame]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => { if (enabled) reload(); }, [reload, enabled]);
 
   const fail = useCallback((e: unknown, what: string) => {
     setError(e instanceof Error ? e.message : what);
@@ -530,8 +545,43 @@ export function usePersonalTasks() {
     }
   }, [fail]);
 
+  /** Drawn first, like a board drop; a refusal puts the server's answer back. */
+  const saveTodayPicks = useCallback(async (next: TodayPicks) => {
+    setError('');
+    setTodayPicks(next);
+    try {
+      setTodayPicks(await saveMyTodayPicks(next));
+    } catch (e) {
+      fail(e, "Could not save Today's 3");
+    }
+  }, [fail]);
+
   return {
+    todayPicks, saveTodayPicks,
     tasks, settings, columns, colorLabels, game, streak, notices, error, setError, reload,
     create, update, detach, changeSeries, reschedule, remove, clearDone, move, rankQueue, saveSettings, saveColumns, saveColorLabels, saveGameOptions, dismissNotice,
   };
+}
+
+type PersonalTasksStore = ReturnType<typeof usePersonalTasksStore>;
+
+const SharedTasks = createContext<PersonalTasksStore | null>(null);
+
+/**
+ * One copy of the list for a page that shows it several ways at once — the
+ * Planner's Today, Tasks and Calendar tabs. Without it each tab would read
+ * the whole list again on opening (up to MAX_TASKS_PER_PERSON reads), and a
+ * task added on Today would be missing from Tasks until a reload.
+ */
+export function PersonalTasksProvider({ children }: { children: ReactNode }) {
+  const store = usePersonalTasksStore(true);
+  return createElement(SharedTasks.Provider, { value: store }, children);
+}
+
+/** The caller's list: the page's shared copy inside a PersonalTasksProvider, else one of its own. */
+export function usePersonalTasks(): PersonalTasksStore {
+  const shared = useContext(SharedTasks);
+  // Always called, so the hook order never changes; it loads nothing when a shared copy exists.
+  const own = usePersonalTasksStore(!shared);
+  return shared ?? own;
 }

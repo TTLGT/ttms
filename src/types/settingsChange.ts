@@ -41,6 +41,7 @@ export const SETTINGS_AREAS = [
   'breakReminders',
   'backOnTime',
   'officeNetwork',
+  'planner',
 ] as const;
 
 export type SettingsArea = (typeof SETTINGS_AREAS)[number];
@@ -68,6 +69,7 @@ export const AREA_LABEL: Record<SettingsArea, string> = {
   breakReminders: 'Lunch and break reminders',
   backOnTime:     'Back on time',
   officeNetwork:  'Office network and alerts',
+  planner:        'Planner rollout',
 };
 
 /**
@@ -95,6 +97,7 @@ export const AREA_PERMISSIONS: Record<SettingsArea, readonly Permission[]> = {
   breakReminders: ['attendance.manage'],
   backOnTime:     ['attendance.manage'],
   officeNetwork:  ['attendance.manage'],
+  planner:        ['settings.manage'],
 };
 
 /** One field that changed. Both sides are words, ready to print. */

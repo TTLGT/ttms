@@ -13,6 +13,7 @@ import {
 } from '@/lib/personalTasksServer';
 import { gameClock, gameFrom, liveStreakFor, runDailyCheck, writeGame } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
+import { readTodayPicks } from '@/types/planner';
 import { organizerFrom, syncInvitesQuietly } from '@/lib/taskInvitesServer';
 import { GameTurn, type GameEvent, type GameState } from '@/types/taskGame';
 import { MAX_TASKS_PER_PERSON, cleanBoardColumns, cleanColorLabels, cleanTaskInput, defaultColorFor, repeatEnd, repeatFields, type WorkLink } from '@/types/task';
@@ -53,6 +54,9 @@ export async function GET(req: NextRequest) {
       settings: toReminderSettings(owner.data()?.reminderSettings),
       columns: cleanBoardColumns(owner.data()?.boardColumns),
       colorLabels: cleanColorLabels(owner.data()?.colorLabels),
+      // The Planner's Today's 3 — see /api/me/tasks/today. Only today's; an
+      // older pick reads as none so nobody has to clear yesterday's.
+      todayPicks: readTodayPicks(owner.data()?.todayPicks),
       game,
       events,
       streak,

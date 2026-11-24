@@ -24,6 +24,8 @@
  * validate a body, and the browser imports it for the lists.
  */
 
+import { PLANNER_TOURS, isPlannerTourId, type PlannerChoice, type PlannerTourId } from './planner';
+
 export type ThemeChoice = 'light' | 'dim' | 'dark' | 'system';
 
 export const THEME_CHOICES: ThemeChoice[] = ['light', 'dim', 'dark', 'system'];
@@ -70,6 +72,19 @@ export interface UserPreferences {
   timeZone?: string | null;
   /** The city they chose it by ("Tuxtla Gutiérrez"), so the banner can name it. */
   timeZoneCity?: string | null;
+  /**
+   * The new Planner or the old My tasks and Calendar, while the Planner is
+   * being rolled out — see `plannerState()` in src/types/planner.ts. Which
+   * pages somebody prefers, nothing more: the company setting decides whether
+   * there is a choice, and both read the same private list.
+   */
+  planner?: PlannerChoice;
+  /**
+   * Which on-screen tours this person has finished, tour id → version, so a
+   * tour does not start again on another computer and comes back only when
+   * its content changes. Saved one tour at a time (`preferences.toursSeen.<id>`).
+   */
+  toursSeen?: Partial<Record<PlannerTourId, number>>;
 }
 
 /** Same test as isTimeZoneName() in clockChange.ts, kept here so the route imports nothing else. */
@@ -112,6 +127,17 @@ export function cleanPreferences(input: unknown): UserPreferences {
     out.timeZone = body.timeZone;
     const city = typeof body.timeZoneCity === 'string' ? body.timeZoneCity.replace(/\s+/g, ' ').trim().slice(0, 80) : '';
     out.timeZoneCity = city || null;
+  }
+  if (body.planner === 'new' || body.planner === 'old') out.planner = body.planner;
+  // Only known tours, each at most its current version.
+  if (body.toursSeen && typeof body.toursSeen === 'object') {
+    const seen: Partial<Record<PlannerTourId, number>> = {};
+    for (const [id, version] of Object.entries(body.toursSeen as Record<string, unknown>)) {
+      if (isPlannerTourId(id) && Number.isInteger(version) && (version as number) >= 1 && (version as number) <= PLANNER_TOURS[id]) {
+        seen[id] = version as number;
+      }
+    }
+    if (Object.keys(seen).length) out.toursSeen = seen;
   }
   return out;
 }

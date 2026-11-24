@@ -312,3 +312,58 @@ export function BrokerDayScreen() {
     </div>
   );
 }
+
+/** The Planner's Today tab (2026-11-24). Made-up items, like every drawing here. */
+export function PlannerTodayScreen() {
+  return (
+    <Frame path="/dashboard/planner">
+      <div className="mb-2 flex items-center gap-2">
+        <b className="text-[13px] text-gray-900">Planner</b>
+        <span className="flex gap-1"><Pill on>Today</Pill><Pill>Tasks</Pill><Pill>Calendar</Pill></span>
+        <span className="ml-auto h-4 w-4 rounded-full border border-brand-500 text-center text-[9px] font-bold leading-[14px] text-brand-700">?</span>
+      </div>
+      <div className="relative mb-2 flex items-end gap-3 rounded-lg border border-gray-200 p-2">
+        <div className="flex-1"><div className="text-[9px] text-gray-500">Tuesday</div><b className="text-[12px] text-gray-900">Good morning, Ana</b></div>
+        {[['1 of 3', "Today's 3"], ['2', 'For today'], ['0', 'Late'], ['2', 'Meetings']].map(([v, l]) => (
+          <div key={l} className="text-right"><div className="font-bold text-brand-700">{v}</div><div className="text-[8px] text-gray-500">{l}</div></div>
+        ))}
+        <Spot n={1} at="tl" />
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        <div className="col-span-3 flex flex-col gap-2">
+          <div className="relative flex items-center gap-1.5 rounded-lg border border-gray-200 px-2 py-1.5 text-gray-400">
+            <Plus size={10} /> Call Rio Grande tomorrow 3pm !urgent
+            <Spot n={3} at="tr" />
+          </div>
+          <div className="relative rounded-lg border border-gray-200 p-2">
+            <div className="mb-1 font-semibold text-gray-900">Today&rsquo;s 3</div>
+            {[['Send rate con to Patel Farms', true], ['Quote Blue Mesa, Laredo → Denver', false], ['Call 5 new prospects', false]].map(([t, done], i) => (
+              <div key={String(t)} className={`mb-1 flex items-center gap-1.5 rounded-md px-1.5 py-1 ${done ? 'bg-green-50' : 'border border-gray-200'}`}>
+                <span className="w-2 text-gray-400">{i + 1}</span>
+                {done ? <CheckCircle2 size={11} className="text-green-600" /> : <Circle size={11} className="text-gray-400" />}
+                <span className={done ? 'text-gray-500 line-through' : 'text-gray-800'}>{t}</span>
+              </div>
+            ))}
+            <Spot n={2} at="tl" />
+          </div>
+          <div className="relative rounded-lg border border-gray-200 p-2">
+            <div className="mb-1 font-semibold text-gray-900">Inbox</div>
+            <div className="flex items-center gap-1 text-gray-700">Ask Swift Logistics for a referral <span className="ml-auto flex gap-1"><Btn>Today</Btn><Btn>Tomorrow</Btn></span></div>
+            <Spot n={5} at="tl" />
+          </div>
+        </div>
+        <div className="relative col-span-2 rounded-lg border border-gray-200 p-2">
+          <div className="mb-1 font-semibold text-gray-900">Your day</div>
+          {[['9:00', 'Team huddle', 'bg-brand-50 text-brand-800 border-brand-600'], ['10:30', 'Send rate con', 'bg-green-50 text-green-700 border-green-600'], ['2:00', 'Call Blue Mesa', 'bg-amber-50 text-amber-800 border-amber-500']].map(([h, t, c]) => (
+            <div key={h} className="mb-1 flex items-center gap-1.5">
+              <span className="w-6 text-[8px] text-gray-400">{h}</span>
+              <span className={`flex-1 truncate rounded border-l-2 px-1 py-0.5 text-[9px] font-semibold ${c}`}>{t}</span>
+            </div>
+          ))}
+          <div className="mt-1 h-px bg-red-500" />
+          <Spot n={4} at="tr" />
+        </div>
+      </div>
+    </Frame>
+  );
+}

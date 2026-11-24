@@ -1,5 +1,5 @@
 import {
-  CalendarClock, CalendarDays, Database, FileSignature, Gauge, Grid3x3, History, Home, MapPin,
+  CalendarCheck, CalendarClock, CalendarDays, Database, FileSignature, Gauge, Grid3x3, History, Home, MapPin,
   PartyPopper, Receipt, Route, ScrollText, Shield, ShieldCheck, SlidersHorizontal, Tag, UserMinus,
   UserPlus, Users, Users2, UtensilsCrossed, Wifi,
 } from 'lucide-react';
@@ -203,6 +203,13 @@ export const SETTINGS_PAGES: SettingsPage[] = [
     keywords: 'birthday anniversary congratulations chat everyone room 8am announcement wording template greeting',
     access: editIf(any('celebrations.manage')),
     areas: ['celebrations'],
+  },
+  {
+    id: 'planner', label: 'Planner', group: 'teamLife', Icon: CalendarCheck,
+    blurb: 'Who has the new Planner while it is being tried, a few people at a time.',
+    keywords: 'planner rollout pilot try new tasks calendar today switch old pages',
+    access: editIf(any('settings.manage')),
+    areas: ['planner'],
   },
   {
     id: 'schedules', label: 'Work schedules', group: 'teamLife', Icon: CalendarClock,

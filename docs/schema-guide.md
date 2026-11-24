@@ -461,6 +461,10 @@ appSettings/general
   carrierPaymentMethods : PaymentMethod[]   // BATS "Carrier Pay Terms" — default []
   brokerFeeTermOptions  : PaymentMethod[]   // BATS "Broker Fee Terms" — default []
   presence         : boolean         // default true — the chat status and attendance check-in; see presence below
+  plannerRollout   : {               // who has the new Planner (2026-11-24); absent = nobody
+    stage        : 'nobody' | 'chosen' | 'optIn' | 'everyone'
+    chosenEmails : string[]          // lower-cased, up to 200
+  }
   updatedAt        : Timestamp
   updatedBy        : string          // email or uid of the admin who changed it
 ```
@@ -475,6 +479,12 @@ actually stored rather than running on their default. Settings Home uses it
 for "decide whether reminder emails go out": off by default and off by choice
 look the same otherwise, and only one of them is a decision.
 
+`plannerRollout` is the exception to "readable by any allowed user": it is
+read and written only through `/api/planner/rollout`, never `/api/app-settings`,
+because it names people. Anybody gets the stage and whether **they** are
+named; `settings.manage` gets the list (`?full=1`) and saves it, logged under
+the `planner` area. It grants nothing — see `src/types/planner.ts`.
+
 ### Collection: `settingsChanges` — the settings change log (2026-11-23)
 
 One document per save of a company setting: who, when, and what it was
@@ -488,7 +498,7 @@ settingsChanges/{autoId}
            | 'laneDistance' | 'paymentTerms' | 'celebrations' | 'quoteRates'
            | 'agreementTerms' | 'leadSources' | 'sites' | 'teams' | 'workGroups'
            | 'schedules' | 'holidays' | 'breakReminders' | 'backOnTime'
-           | 'officeNetwork'
+           | 'officeNetwork' | 'planner'
   summary:   string            // "Changed lane distance", "Added the site Zona 10"
   changes:   { field, from, to }[]   // words, ready to print; at most 30
   truncated: boolean           // more fields changed than were kept
@@ -1998,7 +2008,10 @@ check before extending it.
 **Look-and-feel choices.** `users/{uid}.preferences` is a map of `theme`
 (`light` / `dim` / `dark` / `system`), `chatWallpaper`, `chatAlertStyle`
 (`tickets` / `cards` / `timeline` — how load updates are drawn in chat; absent
-reads as `tickets`) and `learnEnglish`, each
+reads as `tickets`) and `learnEnglish`, `planner` (`new` / `old` — this
+person's own switch while the Planner is rolled out) and `toursSeen` (tour id →
+version, written one tour at a time as `preferences.toursSeen.<id>` so one
+tour never wipes another), each
 optional — absent means never chosen. It is written only by
 `PATCH /api/me/preferences`, which takes the uid off the ID token and accepts
 only the keys `cleanPreferences()` in `src/types/userPreferences.ts` knows. The
@@ -3186,6 +3199,10 @@ personalTasks/{uid}
     }
   }
   historySweptOn   : 'YYYY-MM-DD'             // office date of the last move to history
+  todayPicks       : {                        // the Planner's Today's 3 (2026-11-24); absent = never picked
+    date,                                     // 'YYYY-MM-DD', the browser's day; any other day reads as none
+    ids                                       // up to 3 of the person's own task ids, in order
+  }                                           // written only by PUT /api/me/tasks/today, which reads each id first
   updatedAt        : Timestamp
 
 personalTasks/{uid}/items/{itemId}

@@ -28,7 +28,18 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Nothing to change.' }, { status: 400 });
     }
 
-    const patch = Object.fromEntries(entries.map(([key, value]) => [`preferences.${key}`, value]));
+    // One dotted path per key — and per tour for `toursSeen`, so finishing one
+    // tour never wipes the record of another.
+    const patch: Record<string, unknown> = {};
+    for (const [key, value] of entries) {
+      if (key === 'toursSeen') {
+        for (const [tour, version] of Object.entries(value as Record<string, number>)) {
+          patch[`preferences.toursSeen.${tour}`] = version;
+        }
+      } else {
+        patch[`preferences.${key}`] = value;
+      }
+    }
     try {
       await adminDb.collection(USERS_COLLECTION).doc(uid).update(patch);
     } catch (e) {

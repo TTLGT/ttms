@@ -21,6 +21,7 @@
 
 import { ES_MORE } from './es-more';
 import { ES_SETTINGS } from './es-settings';
+import { ES_PLANNER } from './es-planner';
 
 const BASE: Record<string, string> = {
   // ── Sidebar ─────────────────────────────────────────────────────────────
@@ -1424,5 +1425,5 @@ const BASE: Record<string, string> = {
   'Location shared': 'Ubicación compartida',
 };
 
-/** Everything, with an entry here winning over one in es-settings.ts, and that over es-more.ts. */
-export const ES: Record<string, string> = { ...ES_MORE, ...ES_SETTINGS, ...BASE };
+/** Everything, with an entry here winning over one in es-settings.ts, that over es-planner.ts, and that over es-more.ts. */
+export const ES: Record<string, string> = { ...ES_MORE, ...ES_PLANNER, ...ES_SETTINGS, ...BASE };

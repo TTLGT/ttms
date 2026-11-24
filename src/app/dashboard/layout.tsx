@@ -23,6 +23,7 @@ import {
   GraduationCap,
   ListTodo,
   CalendarDays,
+  CalendarCheck,
   Calculator,
   History,
   LifeBuoy,
@@ -57,6 +58,7 @@ import { canSeeChangelog } from '@/types/changelog';
 import { canOpenSettings } from '@/components/settings/settingsSections';
 import { IT_TICKETS_CHANGED, itTicketBadge, rememberPage } from '@/lib/itTickets';
 import { isItDesk } from '@/types/itTicket';
+import { usePlanner } from '@/lib/planner';
 
 /**
  * The sidebar, and the permission each entry needs.
@@ -205,6 +207,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const { incoming, outgoing }          = useApprovals();
 
   const { seesOthers: seesAttendance }  = useAttendance();
+  const { state: planner }              = usePlanner();
 
   /**
    * The IT support badge: tickets waiting on IT for the IT account, answers
@@ -339,6 +342,17 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
    */
   const shown = useMemo(() => {
     let list = visible;
+    // The Planner replaces My tasks and the Calendar for whoever has it —
+    // one item where My tasks was. Added here rather than in NAV_ITEMS, like
+    // Attendance: who has it is a rollout setting, not a permission, and the
+    // bounce below must not send anybody off either old page while it loads.
+    // The old pages send a Planner user to the matching tab by themselves.
+    if (planner.on) {
+      const at = list.findIndex((i) => i.href === '/dashboard/tasks');
+      const rest = list.filter((i) => i.href !== '/dashboard/tasks' && i.href !== '/dashboard/calendar');
+      const item = { href: '/dashboard/planner', label: 'Planner', Icon: CalendarCheck };
+      list = at < 0 ? [...rest, item] : [...rest.slice(0, at), item, ...rest.slice(at)];
+    }
     if (seesAttendance) {
       const item = { href: '/dashboard/attendance', label: 'Attendance', Icon: CalendarClock };
       const at = list.findIndex((i) => i.href === '/dashboard/analytics' || i.href === '/dashboard/settings');
@@ -351,7 +365,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       list = [...list, { href: '/dashboard/changes', label: 'Change history', Icon: History }];
     }
     return list;
-  }, [visible, seesAttendance, user?.email]);
+  }, [visible, seesAttendance, user?.email, planner.on]);
 
   /**
    * Somebody who typed, bookmarked or was sent the address of a section they

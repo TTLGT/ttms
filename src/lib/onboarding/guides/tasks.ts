@@ -31,6 +31,27 @@ export const TASKS_GUIDE: Guide = {
       ],
     },
     {
+      // Added 2026-11-24 with step 1 of the Planner. A new section id, so
+      // nobody's progress on the guide is touched.
+      id: 'planner-today',
+      title: b('The new Planner: the Today tab', 'El nuevo Planner: la pestaña Hoy'),
+      intro: b(
+        'TTMS is moving My tasks and the Calendar into one page, the Planner, a few people at a time. If Planner is in your menu instead of My tasks, this is your day. Same tasks, same privacy: only you see your list.',
+        'TTMS está juntando Mis tareas y el Calendario en una sola página, el Planner, unas pocas personas a la vez. Si en tu menú aparece Planner en lugar de Mis tareas, este es tu día. Las mismas tareas y la misma privacidad: solo tú ves tu lista.',
+      ),
+      screen: 'planner-today',
+      steps: [
+        { spot: 1, text: b('Your day at a glance: how much of Today’s 3 is done, what is for today, what is late and how many meetings you have.', 'Tu día de un vistazo: cuánto de tus 3 de hoy está hecho, qué es para hoy, qué está atrasado y cuántas reuniones tienes.') },
+        { spot: 2, text: b('Today’s 3: pick the three things that matter most today, first thing in the morning, and finish them first. Tick one and it stays there, done.', 'Tus 3 de hoy: elige las tres cosas más importantes del día, a primera hora, y termínalas primero. Al marcarla queda ahí, hecha.') },
+        { spot: 3, text: b('Quick add: type a task the way you would say it. “Call Rio Grande tomorrow 3pm !urgent #10511 @Ana” gets a day, a time, the urgent flag, the load and the colleague. Spanish works too: “mañana a las 3”. Check the chips under the box, then press Enter.', 'Agregar rápido: escribe la tarea como la dirías. “Call Rio Grande tomorrow 3pm !urgent #10511 @Ana” recibe día, hora, urgente, la carga y el compañero. En español también: “mañana a las 3”. Revisa las etiquetas debajo de la caja y presiona Enter.') },
+        { spot: 4, text: b('Your day: your working hours with every meeting and timed task, and a red line for now. Blue is a meeting, amber a task, green done.', 'Tu día: tu horario con cada reunión y tarea con hora, y una línea roja para ahora. Azul es reunión, ámbar tarea, verde hecha.') },
+        { spot: 5, text: b('Inbox: tasks with no day. Press Today or Tomorrow so nothing you wrote down gets lost.', 'Bandeja: tareas sin día. Presiona Hoy o Mañana para que nada de lo que anotaste se pierda.') },
+      ],
+      callouts: [
+        { tone: 'tip', text: b('The ? at the top right of the Planner replays the tour. Finishing it ticks “Take the Planner tour” on My journey. “Back to the old pages” returns you to My tasks whenever you like.', 'El ? arriba a la derecha del Planner repite el recorrido. Al terminarlo se marca “Hacer el recorrido del Planner” en Mi recorrido. “Volver a las páginas anteriores” te regresa a Mis tareas cuando quieras.') },
+      ],
+    },
+    {
       id: 'add',
       title: b('Add a task', 'Agregar una tarea'),
       screen: 'tasks-editor',
