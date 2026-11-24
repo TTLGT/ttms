@@ -109,9 +109,7 @@ export const ES_MORE: Record<string, string> = {
   "Admiral": 'Almirante',
   "Admiral of the Black Flag": 'Almirante de la Bandera Negra',
   "Agenda": 'Agenda',
-  "Agreed Rate": 'Tarifa acordada',
-  "Agreed rate": 'Tarifa acordada',
-  "Agreed rate is what the client accepted": 'La tarifa acordada es lo que aceptó el cliente',
+  "Total Tariff is what the client accepted": 'La tarifa total es lo que aceptó el cliente',
   "Agreement": 'Acuerdo',
   "Agreement emails are not arriving": 'Los correos de los acuerdos no llegan',
   "Agreements sent": 'Acuerdos enviados',
@@ -2693,8 +2691,8 @@ export const ES_MORE: Record<string, string> = {
   "Who unloads at delivery, and the conditions": 'Quién descarga en la entrega, y las condiciones',
   "The driver does the work. The Dispatch Sheet tells the carrier before they accept the load":
     'El conductor hace el trabajo. La hoja de despacho se lo dice al transportista antes de que acepte la carga.',
-  "TTL books and pays them. Put the cost in Price and Terms, where it is added to the Agreed Rate":
-    'TTL lo contrata y lo paga. Pon el costo en Precio y condiciones, donde se suma a la tarifa acordada.',
+  "TTL books and pays them. Put the cost in Price and Terms, where it is added to the Total Tariff":
+    'TTL lo contrata y lo paga. Pon el costo en Precio y condiciones, donde se suma a la tarifa total.',
   "The carrier or the driver books and pays them. Agree with the carrier how they are paid back":
     'El transportista o el conductor lo contrata y lo paga. Acuerda con el transportista cómo se le reembolsa.',
   // 3rd-party providers and shipper/consignee addresses (2026-11-06).

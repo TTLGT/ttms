@@ -561,7 +561,7 @@ Read through `GET /api/quote-rates` (`orders.create`, `settings.manage` or
 `quoteRates.manage`). Re-validated on read, so a hand edit in the Console that
 breaks it puts the defaults on screen rather than a NaN in a quote. Nothing the
 calculator works out is stored; "Apply to order" only fills the order form's
-Agreed Rate and Broker Fee.
+Total Tariff and Broker Fee.
 
 ### Price and Terms: `PaymentMethod`, `OrderPaymentTerms`, `ComplexTerms`
 
@@ -1234,7 +1234,7 @@ PDFs. Renaming or removing a key is a migration: an unknown key is dropped
 and stops printing. New keys are **appended**, never slotted in: the catalog
 order is part of the SA's fingerprint.
 
-### Additional services and the Agreed Rate (2026-11-04)
+### Additional services and the Total Tariff (2026-11-04)
 
 Some accessorials are a service the client pays for on top of the move —
 `PAID_SERVICES`: towing, cleaning, mechanic, auto parts, scaling, forklift,

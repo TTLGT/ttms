@@ -91,7 +91,7 @@ export type BolData = {
   originFreight: string;
   destFreight: string;
   /*
-   * No rates, on purpose (2026-10-14). The BOL used to print the agreed rate,
+   * No rates, on purpose (2026-10-14). The BOL used to print the Total Tariff,
    * carrier pay and broker fee — our whole margin — on a document that is
    * handed to the driver and emailed to the shipper, consignee, carrier and
    * client (see src/lib/bolRequests.ts). What anybody pays is on the

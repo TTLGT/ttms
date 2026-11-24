@@ -1028,7 +1028,7 @@ export function Facts({ review, formatDate, asOf, party = 'client', onFix }: {
           : <span className="text-red-600">{party === 'carrier' ? 'No email on the carrier' : 'No email on the client'}</span>}
         {review.sendToChosen && <span data-es className="block text-[11px] text-gray-500">Chosen for this load</span>}
       </Row>
-      <Row label="Agreed rate">{usd(review.agreedRate)}</Row>
+      <Row label="Total Tariff">{usd(review.agreedRate)}</Row>
       <Row label="Carrier pay / our fee">{usd(review.carrierPay)} / {usd(review.brokerFee)}{margin !== null && ` (${margin.toFixed(1)}%)`}</Row>
       {party === 'client' && (
         <Row label="Client payment terms" fix={!review.hasClientPayment && FACT_FIX.clientPayment}>{review.hasClientPayment ? 'Set' : <span data-es className="text-amber-700">Not set</span>}</Row>

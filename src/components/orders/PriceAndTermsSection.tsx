@@ -212,7 +212,7 @@ interface Props {
   carrierPay: string;
   onCarrierPay: (v: string) => void;
   /**
-   * The Agreed Rate on file, on the edit form. When it does not equal the
+   * The Total Tariff on file, on the edit form. When it does not equal the
    * sum — a BATS import stored all three figures separately, and they need
    * not add up — the form says so before a save rewrites it.
    */
@@ -237,8 +237,9 @@ interface Props {
 /**
  * BATS's "Price and Terms" block, shared by the new and edit order forms.
  *
- * BATS's "Total Tariff" is this app's Agreed Rate, and the name is kept: it is
- * what the invoice, the client's confirmation and every list already call it.
+ * Shown as "Total Tariff", BATS's name for it, since 2026-11-24 — it was
+ * "Agreed Rate" until then. The stored field is still `agreedRate`: renaming a
+ * stored field is a migration, and nobody sees it.
  * It is worked out — carrier pay, broker fee and additional services, added
  * up (agreedRateFrom()) — and carrier pay is typed.
  */
@@ -306,7 +307,7 @@ export default function PriceAndTermsSection({
       </div>
 
       {/* field-* ids are where the SA review's "Fix" links land — see
-          fixTargets.ts. A missing Agreed Rate is fixed by typing what it is
+          fixTargets.ts. A missing Total Tariff is fixed by typing what it is
           made of, so the link lands on this row and focuses Carrier Pay. */}
       <div id="field-agreedRate" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
@@ -320,7 +321,7 @@ export default function PriceAndTermsSection({
             placeholder="0.00" className={INPUT} />
         </div>
         <div>
-          <label data-es className="block text-xs font-medium text-gray-600 mb-1">Agreed Rate (auto)</label>
+          <label data-es className="block text-xs font-medium text-gray-600 mb-1">Total Tariff (auto)</label>
           <div className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-900 font-semibold">
             {rate > 0 ? usd(rate) : '—'}
           </div>
@@ -332,8 +333,8 @@ export default function PriceAndTermsSection({
 
       {mismatch && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          The Agreed Rate on file is {usd(storedAgreedRate!)}, but carrier pay, broker fee and additional services
-          add up to {usd(rate)}. Saving will make the Agreed Rate {usd(rate)}. If {usd(storedAgreedRate!)} is the
+          The Total Tariff on file is {usd(storedAgreedRate!)}, but carrier pay, broker fee and additional services
+          add up to {usd(rate)}. Saving will make the Total Tariff {usd(rate)}. If {usd(storedAgreedRate!)} is the
           price the client agreed, change Carrier Pay or Broker Fee until the total matches.
         </p>
       )}
@@ -442,7 +443,7 @@ function ComplexTermsFields({ terms, onChange, carrierPay, brokerFee }: {
 
 /**
  * Additional Services: a line per paid service ticked in Freight, plus any
- * typed by hand. Their total is one of the three parts the Agreed Rate is
+ * typed by hand. Their total is one of the three parts the Total Tariff is
  * added up from — see agreedRateFrom().
  */
 function ServiceChargesFields({ accessorials, costs, onCosts, arrangers, onArrangers, providers, onProviders, others, onOthers, dockLinked }: {
@@ -472,7 +473,7 @@ function ServiceChargesFields({ accessorials, costs, onCosts, arrangers, onArran
       <div>
         <p data-es className="text-sm font-semibold text-gray-800">Additional Services</p>
         <p className="text-xs text-gray-500 mt-0.5">
-          <Bi>What each service costs the client. Added to carrier pay and the broker fee to make the Agreed Rate. Tick
+          <Bi>What each service costs the client. Added to carrier pay and the broker fee to make the Total Tariff. Tick
           a service under Freight → Additional Services and its line appears here; add anything rarer by hand. The
           client&apos;s SA and invoice list each service with its price; the Dispatch Sheet names them without
           prices. Say who arranges each one — TTL, the client, the shipper, the consignee or the carrier. One the

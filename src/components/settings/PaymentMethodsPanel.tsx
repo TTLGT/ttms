@@ -26,7 +26,7 @@ const INPUT =
 
 /** What each list is for, and what a percentage fee on it is taken of. */
 const LISTS: { side: PaymentSide; title: string; blurb: string; percentOf: string; placeholder: string }[] = [
-  { side: 'client',    title: 'Client payment method', blurb: 'How the client pays us.', percentOf: 'the agreed rate', placeholder: 'e.g. ACH, Credit card, Check' },
+  { side: 'client',    title: 'Client payment method', blurb: 'How the client pays us.', percentOf: 'the Total Tariff', placeholder: 'e.g. ACH, Credit card, Check' },
   { side: 'carrier',   title: 'Carrier pay terms', blurb: 'How and when the carrier is paid.', percentOf: 'the carrier pay', placeholder: 'e.g. COD - Cash, Quick pay, Net 30' },
   { side: 'brokerFee', title: 'Broker fee terms', blurb: 'When our fee is collected.', percentOf: 'the broker fee', placeholder: 'e.g. Charge on Dispatch, Charge on Delivery' },
 ];

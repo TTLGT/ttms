@@ -68,7 +68,7 @@ export const QUOTE_GUIDE: Guide = {
       steps: [
         { text: b('On a new or existing order, open Price and Terms and press the calculator button.', 'En una orden nueva o existente, abre Precio y condiciones y presiona el botón de la calculadora.') },
         { text: b('It opens already filled with the order’s miles and freight. Change anything.', 'Se abre ya llena con las millas y la carga de la orden. Cambia lo que quieras.') },
-        { text: b('Press Apply to order. It fills Agreed Rate and Broker Fee in the form.', 'Presiona Aplicar a la orden. Llena la Tarifa acordada y la Comisión en el formulario.') },
+        { text: b('Press Apply to order. It fills Total Tariff and Broker Fee in the form.', 'Presiona Aplicar a la orden. Llena la Tarifa total y la Comisión en el formulario.') },
         { text: b('Save the order as usual. Until you save, nothing has changed.', 'Guarda la orden como siempre. Hasta que guardes, nada ha cambiado.') },
       ],
     },

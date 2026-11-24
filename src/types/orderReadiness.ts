@@ -67,7 +67,7 @@ export function orderReadiness(order: Partial<Order>, facts: ReadinessFacts = {}
     { key: 'weight', label: 'Weight', ok: weighed },
     { key: 'transportType', label: 'Transport type (the truck or trailer)', ok: filled(order.transportType),
       hint: 'Edit the freight and choose one. It prints on the SA, the Dispatch Sheet and the BOL.' },
-    { key: 'agreedRate', label: 'Agreed rate', ok: (Number(order.agreedRate) || 0) > 0,
+    { key: 'agreedRate', label: 'Total Tariff', ok: (Number(order.agreedRate) || 0) > 0,
       hint: 'The quote calculator can work this out.' },
     // Only on a load with additional services. The order form refuses to
     // save without it, but a Freight-only edit can tick one without saying.

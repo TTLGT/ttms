@@ -423,7 +423,7 @@ export default function EditOrderPage() {
           weight:       Math.round(totalWeightLb(commodityItems)),
           accessorials: effAccessorials,
           transportType: transportType.trim(),
-          // A ticked or unticked service with a cost moves the Agreed Rate by
+          // A ticked or unticked service with a cost moves the Total Tariff by
           // that cost, or a Freight-only save would leave the rate counting a
           // service the load no longer has. Shifted from the rate on file
           // rather than recomputed, so a figure the client agreed to is not

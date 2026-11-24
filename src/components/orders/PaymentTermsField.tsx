@@ -20,7 +20,7 @@ interface Props {
   methods: PaymentMethod[];
   value: OrderPaymentTerms | null;
   onChange: (terms: OrderPaymentTerms | null) => void;
-  /** What a percentage fee is taken of — the agreed rate, or the carrier pay. */
+  /** What a percentage fee is taken of — the Total Tariff, or the carrier pay. */
   base: number;
 }
 

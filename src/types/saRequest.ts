@@ -281,12 +281,12 @@ export const CA_REVIEW_CHECKS: SaReviewCheck[] = [
  * Items taken off the SA review, kept only so the verification record of an
  * earlier round still says who ticked them. Never asked again, never counted.
  *
- * `rate` went on 2026-11-12: the agreed rate is the broker's to set, and
+ * `rate` went on 2026-11-12: the Total Tariff is the broker's to set, and
  * dispatch has no way to check it against a conversation they were not in —
  * so the tick confirmed nothing. The client confirms it by signing the SA.
  */
 export const RETIRED_SA_CHECKS: SaReviewCheck[] = [
-  { key: 'rate', label: 'Agreed rate is what the client accepted',
+  { key: 'rate', label: 'Total Tariff is what the client accepted',
     detail: 'Check it against the quote or the email where they said yes.' },
 ];
 

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "18cfad2a6b229d027f9b209f80fe63312b1260ca",
+      "date": "2026-11-23T18:05:05-06:00",
+      "author": "erwindank",
+      "subject": "Line Settings up against the sidebar like every other page instead of centring it, which left a wide empty band between the two menus on a big screen",
+      "body": ""
+    },
+    {
       "hash": "f006fd1754eb17b1a1df9482d486deb33e023f85",
       "date": "2026-11-23T17:08:59-06:00",
       "author": "erwindank",

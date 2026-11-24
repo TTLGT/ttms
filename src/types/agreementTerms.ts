@@ -46,7 +46,7 @@ This Load Confirmation ("Agreement") is entered into between Total Transport Log
 
 1. LOAD ACCEPTANCE. By signing below, Client confirms the freight details described in this confirmation and authorizes Total Transport Logistics to arrange transportation of the described shipment.
 
-2. RATE. Client agrees to pay the Agreed Rate stated above for transportation services. Payment terms are net 30 days from invoice date.
+2. RATE. Client agrees to pay the Total Tariff stated above for transportation services. Payment terms are net 30 days from invoice date.
 
 3. FREIGHT DESCRIPTION. Client warrants that the commodity description, weight, and piece count are accurate. Any discrepancies may result in additional charges.
 

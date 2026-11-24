@@ -260,7 +260,7 @@ export default function QuoteCalculator({ prefill, onApply }: Props) {
 
   function apply() {
     if (!onApply) return;
-    // On uShip the order's Agreed Rate is what the client paid uShip, and the
+    // On uShip the order's Total Tariff is what the client paid uShip, and the
     // broker fee is everything that is not the driver's, uShip's cut included —
     // so Carrier Pay, which the order works out as the difference, still comes
     // out as the driver's pay. uShip's cut is ours to pay out of the fee.
@@ -605,7 +605,7 @@ export default function QuoteCalculator({ prefill, onApply }: Props) {
           )}
           {onApply && (
             <p className="text-[11px] text-gray-500">
-              Sets the order&apos;s Agreed Rate to {usd(channel === 'uship' ? ushipTotal : customerPrice)} and its Broker Fee
+              Sets the order&apos;s Total Tariff to {usd(channel === 'uship' ? ushipTotal : customerPrice)} and its Broker Fee
               to {usd((channel === 'uship' ? ushipTotal : customerPrice) - driverPay)}, so Carrier Pay
               is {usd(driverPay)}.{channel === 'uship' && ' uShip’s fee comes out of the broker fee.'} Nothing is saved until you save the order.
             </p>

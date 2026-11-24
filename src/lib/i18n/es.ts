@@ -171,7 +171,7 @@ const BASE: Record<string, string> = {
   'Add another commodity': 'Agregar otra mercancía',
   'Add owner': 'Agregar responsable',
   'Additional Services': 'Servicios adicionales',
-  'Agreed Rate (auto)': 'Tarifa acordada (automática)',
+  'Total Tariff (auto)': 'Tarifa total (automática)',
   'Already in TTMS': 'Ya está en TTMS',
   'An admin adds these in Settings → Payment terms':
     'Un administrador los agrega en Configuración → Condiciones de pago.',
@@ -607,8 +607,8 @@ const BASE: Record<string, string> = {
     'Para un transportista reservado sin la hoja de despacho por correo, o una segunda revisión el día de la recolección.',
   "Handling units and hazardous material are set on each freight line. Truck, trailer and freight charges left empty print as a blank to fill in by hand. Loading, unloading and counts also go on the carrier's Dispatch Sheet the next time it is sent. Leave a count empty when nobody counts":
     'Las unidades de manejo y el material peligroso se indican en cada línea de carga. Camión, remolque y cargos de flete vacíos se imprimen en blanco para llenar a mano. La carga, descarga y conteos también van en la hoja de despacho del transportista la próxima vez que se envíe. Deja un conteo vacío cuando nadie cuente.',
-  "Included in the Agreed Rate, and listed one by one on the client's SA and invoice. Carrier pay and the broker fee are shown to the client together, as Freight Transportation":
-    'Incluido en la tarifa acordada y detallado uno por uno en el SA y la factura del cliente. El pago al transportista y la comisión del bróker se le muestran juntos al cliente, como Freight Transportation.',
+  "Included in the Total Tariff, and listed one by one on the client's SA and invoice. Carrier pay and the broker fee are shown to the client together, as Freight Transportation":
+    'Incluido en la tarifa total y detallado uno por uno en el SA y la factura del cliente. El pago al transportista y la comisión del bróker se le muestran juntos al cliente, como Freight Transportation.',
   "Loads where the client and the carrier have both signed. TTMS made the BOL; open the load to choose who gets it, send it, and mark it done":
     'Cargas en las que el cliente y el transportista ya firmaron. TTMS generó el BOL; abre la carga para elegir quién lo recibe, enviarlo y marcarlo como hecho.',
   "No carrier could be read off this file. Assign the carrier in the Carrier section of the load, then verify":
@@ -630,8 +630,8 @@ const BASE: Record<string, string> = {
     'Se guarda en el transportista, no en esta carga: el certificado en cuanto se sube y lo demás con su propio botón. Todas las cargas con este transportista muestran lo mismo.',
   "Sent before TTMS kept a copy of the facts at the time of sending":
     'Enviado antes de que TTMS guardara una copia de los datos al momento del envío.',
-  "Services the client pays for on top of the move. Ticking one opens a line for its cost in Price and Terms, which is added to the Agreed Rate. A service not listed can be added there by hand":
-    'Servicios que el cliente paga además del traslado. Marcar uno abre una línea para su costo en Price and Terms, que se suma a la tarifa acordada. Un servicio que no esté en la lista se puede agregar ahí a mano.',
+  "Services the client pays for on top of the move. Ticking one opens a line for its cost in Price and Terms, which is added to the Total Tariff. A service not listed can be added there by hand":
+    'Servicios que el cliente paga además del traslado. Marcar uno abre una línea para su costo en Price and Terms, que se suma a la tarifa total. Un servicio que no esté en la lista se puede agregar ahí a mano.',
   "Split this order into separate loads with different carriers or dates":
     'Divide esta orden en cargas separadas con distintos transportistas o fechas.',
   "The QR card could not be made. Try again, or copy the link instead": 'No se pudo crear la tarjeta QR. Intenta de nuevo o copia el enlace.',
@@ -656,8 +656,8 @@ const BASE: Record<string, string> = {
   "This order uses records belonging to another user. Each was authorized before use":
     'Esta orden usa registros de otro usuario. Cada uno se autorizó antes de usarse.',
   "This record points at a lead source that no longer exists": 'Este registro apunta a un origen de cliente que ya no existe.',
-  "What each service costs the client. Added to carrier pay and the broker fee to make the Agreed Rate. Tick a service under Freight → Additional Services and its line appears here; add anything rarer by hand. The client's SA and invoice list each service with its price; the Dispatch Sheet names them without prices. Say who arranges each one — the carrier, the client or TTL. One the client arranges costs $0, and the SA says “Arranged by the client” in place of a price":
-    'Lo que cada servicio le cuesta al cliente. Se suma al pago del transportista y a la comisión del bróker para formar la tarifa acordada. Marca un servicio en Freight → Additional Services y su línea aparecerá aquí; agrega a mano cualquier otro. El SA y la factura del cliente listan cada servicio con su precio; la hoja de despacho los nombra sin precios. Indica quién organiza cada uno: el transportista, el cliente o TTL. Uno que organiza el cliente cuesta $0, y el SA dice “Arranged by the client” en lugar de un precio.',
+  "What each service costs the client. Added to carrier pay and the broker fee to make the Total Tariff. Tick a service under Freight → Additional Services and its line appears here; add anything rarer by hand. The client's SA and invoice list each service with its price; the Dispatch Sheet names them without prices. Say who arranges each one — the carrier, the client or TTL. One the client arranges costs $0, and the SA says “Arranged by the client” in place of a price":
+    'Lo que cada servicio le cuesta al cliente. Se suma al pago del transportista y a la comisión del bróker para formar la tarifa total. Marca un servicio en Freight → Additional Services y su línea aparecerá aquí; agrega a mano cualquier otro. El SA y la factura del cliente listan cada servicio con su precio; la hoja de despacho los nombra sin precios. Indica quién organiza cada uno: el transportista, el cliente o TTL. Uno que organiza el cliente cuesta $0, y el SA dice “Arranged by the client” en lugar de un precio.',
   "What the truck or the stops need for this load. Printed on the BOL, the client's SA and the carrier's Dispatch Sheet. Anything not listed goes in the special instructions":
     'Lo que el camión o las paradas necesitan para esta carga. Se imprime en el BOL, el SA del cliente y la hoja de despacho del transportista. Lo que no esté en la lista va en las instrucciones especiales.',
   "Who pays whom on this load. These replace the carrier pay terms and broker fee terms. Both remaining figures reach $0.00 once every dollar is accounted for":

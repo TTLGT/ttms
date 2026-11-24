@@ -151,7 +151,7 @@ const LABELS: Record<string, string> = {
   invoiceStoragePath: 'Invoice',
   podStoragePath: 'Proof of delivery',
   coverPhotoId: 'Profile picture',
-  agreedRate: 'Agreed rate',
+  agreedRate: 'Total Tariff',
   brokerFee: 'Broker fee',
   carrierPay: 'Carrier pay',
   partyApprovals: 'Party approvals',

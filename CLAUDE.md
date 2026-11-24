@@ -1391,7 +1391,7 @@ broker fee and a uShip column. Pure maths in `src/types/quoteRates.ts`; the
 rate card is `appSettings/quoteRates`, edited in Settings → Quote rates under
 `quoteRates.manage` (admin only by default). See the Schema Guide.
 
-- **Nothing it works out is stored.** "Apply to order" fills Agreed Rate and
+- **Nothing it works out is stored.** "Apply to order" fills Total Tariff and
   Broker Fee in the form, and the broker saves the order as usual — so the
   change log and every order-write rule apply unchanged.
 - **The ZIP lookup is never `manual`.** Under Google Routes a new lane waits

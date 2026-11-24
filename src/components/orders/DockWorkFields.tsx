@@ -246,7 +246,7 @@ function EndFields({ end, value, onChange, near }: { end: DockEnd; value: DockWo
               value={help.hiredBy} onChange={(hiredBy) => setHelp({ hiredBy })} />
             {help.hiredBy === 'ttl' && (
               <p className="text-xs text-gray-500 mt-1.5">
-                <Bi>TTL books and pays them. Put the cost in Price and Terms, where it is added to the Agreed Rate.</Bi>
+                <Bi>TTL books and pays them. Put the cost in Price and Terms, where it is added to the Total Tariff.</Bi>
               </p>
             )}
             {help.hiredBy === 'carrier' && (

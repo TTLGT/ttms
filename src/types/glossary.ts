@@ -243,9 +243,11 @@ export const GLOSSARY: GlossaryTerm[] = [
   { id: 'rate', word: 'rate', es: 'tarifa, precio', category: 'money',
     meaning: 'The price for a load.',
     example: 'What rate did the carrier ask for?' },
-  { id: 'agreed-rate', word: 'agreed rate', es: 'tarifa acordada', category: 'money', forms: [],
-    meaning: 'The price the client agreed to pay us.',
-    example: 'The agreed rate is $2,400.' },
+  // The id is still 'agreed-rate': people's saved word lists (vocabulary/{uid})
+  // store it, and the term was renamed to Total Tariff on 2026-11-24.
+  { id: 'agreed-rate', word: 'total tariff', es: 'tarifa total', category: 'money', forms: [],
+    meaning: 'The total the client pays us: carrier pay, broker fee and any additional services.',
+    example: 'The total tariff is $2,400.' },
   { id: 'carrier-pay', word: 'carrier pay', es: 'pago al transportista', category: 'money', forms: [],
     meaning: 'What we pay the carrier for the load.',
     example: 'Carrier pay is $2,000, so we keep $400.' },

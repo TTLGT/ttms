@@ -116,7 +116,7 @@ export function termsFromMethod(m: PaymentMethod): OrderPaymentTerms {
 
 /**
  * The fee in dollars. A percentage is taken of the money that option moves:
- * the agreed rate for the client's method, the carrier pay for the carrier's
+ * the Total Tariff for the client's method, the carrier pay for the carrier's
  * terms, the broker fee for the broker fee terms — see `feeBase`.
  * Worked out when shown rather than stored, so correcting the rate after the
  * method was picked cannot leave a stale fee behind.

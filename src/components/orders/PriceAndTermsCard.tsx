@@ -158,7 +158,7 @@ export default function PriceAndTermsCard({ order, action }: {
       {/* The money's path, left to right: what the client pays, what TTL
           keeps, what the carrier gets. Stacked top to bottom on a phone. */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)]">
-        <FlowNode tone="indigo" label="Agreed Rate" sub="What the client pays" value={money(order.agreedRate)}
+        <FlowNode tone="indigo" label="Total Tariff" sub="What the client pays" value={money(order.agreedRate)}
           extra={ppm !== null ? `${usd(ppm)} / mi` : null} />
         <FlowArrow />
         <FlowNode tone="emerald" label="Broker Fee" sub="What TTL keeps" value={money(order.brokerFee)}
@@ -237,7 +237,7 @@ export default function PriceAndTermsCard({ order, action }: {
             </p>
           )}
           <Hint label="How services show to the client">
-            <Bi>Included in the Agreed Rate, and listed one by one on the client&apos;s SA and invoice. Carrier pay and the
+            <Bi>Included in the Total Tariff, and listed one by one on the client&apos;s SA and invoice. Carrier pay and the
             broker fee are shown to the client together, as Freight Transportation.</Bi>
           </Hint>
         </div>

@@ -405,7 +405,7 @@ export function withDockServices(accessorials: readonly Accessorial[], o: DockFi
  * The fields a save must also write so the dock answers and the additional
  * services say the same thing: help cleared at an end no 3rd party works,
  * each linked service ticked and arranged by whoever hires the help, and the
- * Agreed Rate moved by whatever that does to the services' total (a service
+ * Total Tariff moved by whatever that does to the services' total (a service
  * now hired by the consignee costs the client nothing from us).
  *
  * Run on the order as it will be saved, by both create and update — so a
@@ -597,7 +597,7 @@ export const OTHER_CHARGE_SUGGESTIONS = [
 
 /**
  * One additional service and what the client pays for it (2026-11-04). The
- * Agreed Rate is worked out as carrier pay + broker fee + every one of these
+ * Total Tariff is worked out as carrier pay + broker fee + every one of these
  * (agreedRateFrom() in PriceAndTermsSection), and the client's SA and invoice
  * list them one by one beside Freight Transportation (clientChargeLines()). The
  * carrier's Dispatch Sheet and the BOL print the names only, never the costs.
@@ -794,7 +794,7 @@ export const FREIGHT_TRANSPORTATION_LABEL = 'Freight Transportation';
  * rate as the one figure they always have.
  *
  * Freight Transportation is the rate less the services rather than carrier pay +
- * broker fee read separately. On any load saved since the Agreed Rate became
+ * broker fee read separately. On any load saved since the Total Tariff became
  * their sum those are the same number; on an imported load whose three
  * stored figures never agreed, this is what keeps the printed lines adding
  * up to the printed total. The carrier's pay and our fee are never shown to
@@ -2066,7 +2066,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   carrier_assigned: 'Carrier Assigned',
   carrier_signed:   'Carrier Signed',
   // Stored as `shipper_signed` and shown as "Client Signed". The document has
-  // always been the client's load confirmation — it quotes the agreed rate,
+  // always been the client's load confirmation — it quotes the Total Tariff,
   // which is what the client pays us — and it was only ever addressed to the
   // shipper by mistake. The key is left alone because live orders carry it and
   // renaming a stored status is a migration, not a rename.

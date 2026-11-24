@@ -61,7 +61,7 @@ export default function AccessorialsField({ value, onChange, locked = [] }: {
         </p>
         <p className="text-xs text-gray-500 mb-2">
           <Bi>Services the client pays for on top of the move. Ticking one opens a line for its cost in Price and
-          Terms, which is added to the Agreed Rate. A service not listed can be added there by hand.</Bi>
+          Terms, which is added to the Total Tariff. A service not listed can be added there by hand.</Bi>
         </p>
         <div className={grid}>{ACCESSORIALS.filter(isPaidService).map(box)}</div>
       </div>

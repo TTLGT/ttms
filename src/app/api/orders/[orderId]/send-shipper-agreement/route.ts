@@ -79,7 +79,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   /*
    * The load confirmation goes to the **client**, not the shipper.
    *
-   * It quotes the agreed rate — what the client pays us — so it was never a
+   * It quotes the Total Tariff — what the client pays us — so it was never a
    * document a shipper should have been holding. It went to `shipperId` for
    * years, which put our client's rate in a facility's inbox on every load.
    * The stored field is still called `shipperSignedAt` because live orders
@@ -581,7 +581,7 @@ function buildEmailHtml(p: {
         ${row('Pickup',    p.pickupStr,      '#ffffff')}
         ${row('Delivery',  p.deliveryStr,    '#f9fafb')}
         <tr style="background:#fff">
-          <td style="padding:10px 16px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:1px">Agreed Rate</td>
+          <td style="padding:10px 16px;font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:1px">Total Tariff</td>
           <td style="padding:10px 16px;font-size:18px;color:#111827;font-weight:700">${esc(p.formattedRate)}</td>
         </tr>
       </table>

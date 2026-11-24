@@ -228,7 +228,7 @@ export default function SignForm({
   // The type string is historical; the party signing this one is the client.
   const isClient   = type === 'shipper_agreement';
   const partyLabel = isClient ? 'Client' : 'Carrier';
-  const rateLabel  = isClient ? 'Agreed Rate' : 'Carrier Pay';
+  const rateLabel  = isClient ? 'Total Tariff' : 'Carrier Pay';
   const termsText  = terms || DEFAULT_CARRIER_TERMS;
   const docName    = isClient ? 'Client Load Confirmation' : 'Dispatch Sheet';
 
