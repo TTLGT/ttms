@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/firebase-admin';
-import { syncReminderQueue, taskItems, taskOwnerDoc, toTask } from '@/lib/personalTasksServer';
+import { QUEUE_BATCH_ITEMS, syncReminderQueue, taskItems, taskOwnerDoc, toTask } from '@/lib/personalTasksServer';
 import { cleanBoardColumns, stepBackFrom, type TaskStatus } from '@/types/task';
 
 /**
@@ -39,11 +39,11 @@ export async function PUT(req: NextRequest) {
     let moved = 0;
     for (const [from, to] of moves) {
       const snap = await taskItems(uid).where('status', '==', from).get();
-      // Six writes a task at most (the task and five reminder slots), so 80
-      // keeps a batch under Firestore's 500.
-      for (let i = 0; i < snap.docs.length; i += 80) {
+      // The task and its reminder slots each; QUEUE_BATCH_ITEMS keeps a batch
+      // under Firestore's 500.
+      for (let i = 0; i < snap.docs.length; i += QUEUE_BATCH_ITEMS) {
         const batch = adminDb.batch();
-        snap.docs.slice(i, i + 80).forEach((d, k) => {
+        snap.docs.slice(i, i + QUEUE_BATCH_ITEMS).forEach((d, k) => {
           const task = toTask(d);
           batch.update(d.ref, {
             status: to,
@@ -60,7 +60,7 @@ export async function PUT(req: NextRequest) {
           if (to === 'done') syncReminderQueue(batch, uid, { ...task, status: to }, d.id);
         });
         await batch.commit();
-        moved += Math.min(80, snap.docs.length - i);
+        moved += Math.min(QUEUE_BATCH_ITEMS, snap.docs.length - i);
       }
     }
 

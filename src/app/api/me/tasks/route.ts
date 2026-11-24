@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/firebase-admin';
 import { officeToday } from '@/types/celebration';
 import {
+  QUEUE_BATCH_ITEMS,
   resolveWorkLink,
   sweepToHistory,
   syncReminderQueue,
@@ -214,14 +215,14 @@ export async function DELETE(req: NextRequest) {
 
     const snap = await taskItems(uid).where('status', '==', 'done').get();
     const done = snap.docs.filter((d) => d.data().kind !== 'event' && d.data().archived !== true);
-    // Six operations per task (the task and its five queue slots) against
-    // Firestore's 500 per batch. A finished task has nothing queued, but the
-    // slots are cleared anyway in case one was left by an older save.
-    for (let i = 0; i < done.length; i += 80) {
+    // The task and its queue slots each, against Firestore's 500 per batch. A
+    // finished task has nothing queued, but the slots are cleared anyway in
+    // case one was left by an older save.
+    for (let i = 0; i < done.length; i += QUEUE_BATCH_ITEMS) {
       const batch = adminDb.batch();
-      for (const d of done.slice(i, i + 80)) {
+      for (const d of done.slice(i, i + QUEUE_BATCH_ITEMS)) {
         batch.update(d.ref, { archived: true, updatedAt: FieldValue.serverTimestamp() });
-        syncReminderQueue(batch, uid, null, d.id);
+        syncReminderQueue(batch, uid, null, d.id, undefined, toTask(d).reminders);
       }
       await batch.commit();
     }

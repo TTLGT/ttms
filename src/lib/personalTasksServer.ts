@@ -12,7 +12,10 @@ import {
   TASK_DIFFICULTIES,
   TASK_REMINDERS_COLLECTION,
   TASK_REMINDER_LEADS,
+  MAX_TASK_REMINDERS,
   TASK_REPEATS,
+  cleanReminderLeads,
+  type TaskReminderLead,
   PERSONAL_TASK_HISTORY,
   belongsInHistory,
   blockStillAhead,
@@ -112,9 +115,7 @@ export function toTask(snap: DocumentSnapshot): PersonalTask {
     // version of each — which is what they were.
     eventType: pick(EVENT_TYPES, d.eventType, 'other'),
     location:  typeof d.location === 'string' ? d.location : '',
-    reminders: Array.isArray(d.reminders)
-      ? TASK_REMINDER_LEADS.filter((l) => (d.reminders as unknown[]).includes(l))
-      : [],
+    reminders: cleanReminderLeads(d.reminders),
     // Events have repeated since monthlyNth came in; one saved before then reads 'none', which it was.
     repeat:    pick(TASK_REPEATS, d.repeat, 'none'),
     repeatDay: typeof d.repeatDay === 'number' ? d.repeatDay : null,
@@ -262,9 +263,16 @@ export function reminderQueueId(uid: string, itemId: string, lead: string): stri
  * index somebody has to deploy by hand.
  *
  * Every lead is written or deleted every time, rather than working out which
- * changed: five operations, and no way for a moved date to leave a reminder
- * behind at the old time. Anything already in the past is deleted rather than
- * queued — nobody wants "in 15 minutes" about a call that was yesterday.
+ * changed, and no way for a moved date to leave a reminder behind at the old
+ * time. Anything already in the past is deleted rather than queued — nobody
+ * wants "in 15 minutes" about a call that was yesterday.
+ *
+ * "Every lead" is the presets, the retired `15m` preset, the item's own leads
+ * and `was` — the leads it had before this save, which callers that have them
+ * pass so a custom lead somebody untick is cleared too. A custom slot left
+ * behind by a caller that did not (a delete of a work block, say) is never
+ * sent: the run re-reads the item and drops any entry the item no longer asks
+ * for, at a cost of one read.
  */
 /** A batch or a transaction — the queue is written inside whichever the caller is using. */
 interface Writes {
@@ -279,10 +287,14 @@ export function syncReminderQueue(
     & Partial<Pick<PersonalTask, 'repeat' | 'repeatDay' | 'repeatWeekday' | 'repeatNths' | 'skipDates' | 'repeatUntil'>>) | null,
   itemId: string,
   now: number = Date.now(),
+  was: readonly TaskReminderLead[] = [],
 ) {
   // `now` matters only to a repeating event, whose next occurrence is the one queued.
   const due = task ? reminderInstants(task, now) : {};
-  for (const lead of TASK_REMINDER_LEADS) {
+  const leads = new Set<TaskReminderLead>([
+    ...TASK_REMINDER_LEADS, ...RETIRED_REMINDER_LEADS, ...(task?.reminders ?? []), ...was,
+  ]);
+  for (const lead of leads) {
     const ref = adminDb.collection(TASK_REMINDERS_COLLECTION).doc(reminderQueueId(uid, itemId, lead));
     const at = due[lead];
     if (at !== undefined && at > now) {
@@ -292,6 +304,18 @@ export function syncReminderQueue(
     }
   }
 }
+
+/** Presets that were once offered. Their slots may still be queued, so every sync clears them. */
+const RETIRED_REMINDER_LEADS: readonly TaskReminderLead[] = ['15m'];
+
+/**
+ * Most items one batch can touch when each also syncs its queue: the item,
+ * plus every slot `syncReminderQueue()` may write (presets, retired, the
+ * item's own, and as many again from `was`), under Firestore's 500.
+ */
+export const QUEUE_BATCH_ITEMS = Math.floor(
+  490 / (1 + TASK_REMINDER_LEADS.length + RETIRED_REMINDER_LEADS.length + 2 * MAX_TASK_REMINDERS),
+);
 
 /* ------------------------------------------------------------ work blocks */
 

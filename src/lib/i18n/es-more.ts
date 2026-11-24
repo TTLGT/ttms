@@ -186,6 +186,19 @@ export const ES_MORE: Record<string, string> = {
   "Asking FMCSA and saving": 'Consultando a FMCSA y guardando',
   "Asking Google": 'Consultando a Google',
   "At the time": 'En ese momento',
+  // Task reminder presets and the "other time" box (2026-11-24). A custom
+  // time reads e.g. "45 minutes before" and has no Spanish, like any text
+  // built from pieces.
+  "10 minutes before": '10 minutos antes',
+  "1 hour before": '1 hora antes',
+  "1 day before": '1 día antes',
+  "1 week before": '1 semana antes',
+  "15 minutes before": '15 minutos antes',
+  "Other time": 'Otra hora',
+  "minutes before": 'minutos antes',
+  "hours before": 'horas antes',
+  "days before": 'días antes',
+  "Give it a time to pick your own reminder time.": 'Ponle una hora para elegir tu propio momento de recordatorio.',
   "Attach": 'Adjuntar',
   "Attach a photo or file": 'Adjuntar una foto o un archivo',
   "Attach files": 'Adjuntar archivos',

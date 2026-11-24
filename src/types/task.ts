@@ -490,18 +490,94 @@ export const EVENT_TYPE_LABEL: Record<EventType, string> = {
  * sense: "on the morning" and "the day before". `leadsFor()` is the one place
  * that says which leads apply.
  */
-export const TASK_REMINDER_LEADS = ['start', '15m', '1h', '1d', '1w'] as const;
-export type TaskReminderLead = typeof TASK_REMINDER_LEADS[number];
+export const TASK_REMINDER_LEADS = ['start', '10m', '1h', '1d', '1w'] as const;
+type PresetLead = typeof TASK_REMINDER_LEADS[number];
 
-const LEAD_MINUTES: Record<TaskReminderLead, number> = {
-  start: 0, '15m': 15, '1h': 60, '1d': 24 * 60, '1w': 7 * 24 * 60,
+/**
+ * A preset, or a custom "N minutes before" (`90m`, `45m`) on a timed item.
+ *
+ * Custom leads are stored as whole minutes and nothing else, so one moment has
+ * one spelling: `customLead()` turns 60 into `1h`, never `60m`, and a stored
+ * `15m` — the preset this replaced on 2026-11-24 — is simply a custom lead of
+ * fifteen minutes, with no backfill.
+ */
+export type TaskReminderLead = PresetLead | `${number}m`;
+
+/** A week, the longest preset. `reminderInstants()` looks seventy days ahead for a series, which this keeps true. */
+export const MAX_CUSTOM_LEAD_MINUTES = 7 * 24 * 60;
+
+/** Presets plus customs; a handful is plenty and keeps the queue writes per save small. */
+export const MAX_TASK_REMINDERS = 8;
+
+const PRESET_MINUTES: Record<PresetLead, number> = {
+  start: 0, '10m': 10, '1h': 60, '1d': 24 * 60, '1w': 7 * 24 * 60,
 };
+
+function customMinutes(lead: string): number | null {
+  const m = /^([1-9]\d{0,4})m$/.exec(lead);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return n <= MAX_CUSTOM_LEAD_MINUTES ? n : null;
+}
+
+/** How long before the item a lead is, in minutes; null for anything that is not a lead. */
+export function leadMinutes(lead: string): number | null {
+  if ((TASK_REMINDER_LEADS as readonly string[]).includes(lead)) return PRESET_MINUTES[lead as PresetLead];
+  return customMinutes(lead);
+}
+
+export function isReminderLead(v: unknown): v is TaskReminderLead {
+  return typeof v === 'string' && leadMinutes(v) !== null;
+}
+
+/** The lead for "N minutes before", in its one spelling — a preset when it is one. */
+export function customLead(minutes: number): TaskReminderLead | null {
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > MAX_CUSTOM_LEAD_MINUTES) return null;
+  const preset = TASK_REMINDER_LEADS.find((l) => PRESET_MINUTES[l] === minutes);
+  return preset ?? `${minutes}m`;
+}
+
+/** A stored or requested list, kept to real leads, once each, soonest-before last. */
+export function cleanReminderLeads(raw: unknown): TaskReminderLead[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: TaskReminderLead[] = [];
+  for (const v of raw) {
+    if (!isReminderLead(v) || seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out
+    .sort((a, b) => (leadMinutes(b) ?? 0) - (leadMinutes(a) ?? 0))
+    .slice(0, MAX_TASK_REMINDERS);
+}
 
 /** The hour an untimed item is reminded about, office time. */
 export const UNTIMED_REMINDER_TIME = '08:00';
 
+/** The presets offered as buttons. A custom lead is offered only with a time. */
 export function leadsFor(hasTime: boolean): readonly TaskReminderLead[] {
   return hasTime ? TASK_REMINDER_LEADS : ['start', '1d', '1w'];
+}
+
+/**
+ * Whether a lead means anything for this item. With no time there is no
+ * minute to count back from, so only the whole-day presets apply.
+ */
+export function leadApplies(lead: TaskReminderLead, hasTime: boolean): boolean {
+  return hasTime ? leadMinutes(lead) !== null : leadsFor(false).includes(lead);
+}
+
+/** "1 hour 30 minutes", "2 days", "45 minutes". */
+function spanText(minutes: number): string {
+  const parts: string[] = [];
+  const d = Math.floor(minutes / 1440);
+  const h = Math.floor((minutes % 1440) / 60);
+  const m = minutes % 60;
+  if (d) parts.push(`${d} ${d === 1 ? 'day' : 'days'}`);
+  if (h) parts.push(`${h} ${h === 1 ? 'hour' : 'hours'}`);
+  if (m) parts.push(`${m} ${m === 1 ? 'minute' : 'minutes'}`);
+  return parts.join(' ');
 }
 
 export function reminderLeadLabel(lead: TaskReminderLead, hasTime: boolean): string {
@@ -510,10 +586,9 @@ export function reminderLeadLabel(lead: TaskReminderLead, hasTime: boolean): str
       : lead === '1d' ? 'The day before (8:00 AM)'
       : 'A week before (8:00 AM)';
   }
-  return {
-    start: 'At the time', '15m': '15 minutes before', '1h': '1 hour before',
-    '1d': '1 day before', '1w': '1 week before',
-  }[lead];
+  if (lead === 'start') return 'At the time';
+  if (lead === '1w') return '1 week before';
+  return `${spanText(leadMinutes(lead) ?? 0)} before`;
 }
 
 export interface TaskReminderSettings {
@@ -1151,9 +1226,7 @@ export function cleanTaskInput(body: unknown): PersonalTaskInput {
   // Checked against the catalog by the route, which is the one that knows it.
   if (b.suggestionId === null) out.suggestionId = null;
   else if (typeof b.suggestionId === 'string' && /^[a-z_]{1,40}$/.test(b.suggestionId)) out.suggestionId = b.suggestionId;
-  if (Array.isArray(b.reminders)) {
-    out.reminders = TASK_REMINDER_LEADS.filter((l) => (b.reminders as unknown[]).includes(l));
-  }
+  if (Array.isArray(b.reminders)) out.reminders = cleanReminderLeads(b.reminders);
   if (Array.isArray(b.steps)) out.steps = cleanSteps(b.steps);
   if (b.rank === null) out.rank = null;
   else if (typeof b.rank === 'number' && Number.isInteger(b.rank) && b.rank >= 1 && b.rank <= MAX_QUEUE_RANK) out.rank = b.rank;
@@ -1400,17 +1473,16 @@ export function reminderInstants(
   // Office wall-clock → UTC: the office is UTC−6, so 10:00 there is 16:00 UTC.
   const start = Date.UTC(y, m - 1, d, hh, mm) - OFFICE_UTC_OFFSET_MINUTES * 60_000;
 
-  const allowed = leadsFor(!!t.time);
   for (const lead of t.reminders) {
-    if (!allowed.includes(lead)) continue;
-    out[lead] = start - LEAD_MINUTES[lead] * 60_000;
+    if (!leadApplies(lead, !!t.time)) continue;
+    out[lead] = start - (leadMinutes(lead) ?? 0) * 60_000;
   }
   return out;
 }
 
 /** The office date an occurrence starts on, from one of its reminder instants. */
 export function occurrenceDateOf(at: number, lead: TaskReminderLead): string {
-  return new Date(at + (LEAD_MINUTES[lead] + OFFICE_UTC_OFFSET_MINUTES) * 60_000).toISOString().slice(0, 10);
+  return new Date(at + ((leadMinutes(lead) ?? 0) + OFFICE_UTC_OFFSET_MINUTES) * 60_000).toISOString().slice(0, 10);
 }
 
 /** A location worth drawing as a link: http(s) only, so nothing typed can become a `javascript:` URL. */

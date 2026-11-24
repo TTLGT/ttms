@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError, FieldValue, adminDb, requireCompanyUser } from '@/lib/firebase-admin';
 import {
-  blocksQuery, nextCopyData, resolveWorkLink, syncReminderQueue, taskItems, taskOwnerDoc, toTask,
+  QUEUE_BATCH_ITEMS, blocksQuery, nextCopyData, resolveWorkLink, syncReminderQueue, taskItems, taskOwnerDoc, toTask,
 } from '@/lib/personalTasksServer';
 import { gameClock, gameFrom, offDaysFor } from '@/lib/taskGameServer';
 import { brokerSuggestion } from '@/types/brokerSuggestions';
@@ -89,7 +89,7 @@ export async function PATCH(
           if (input.inviteResponse) copyUpdate.inviteResponse = input.inviteResponse;
           apply?.();
           tx.update(ref, copyUpdate);
-          if (input.reminders) syncReminderQueue(tx, uid, { ...current, reminders: input.reminders }, taskId);
+          if (input.reminders) syncReminderQueue(tx, uid, { ...current, reminders: input.reminders }, taskId, undefined, current.reminders);
           return {
             nextId: null, game: null, events: [], streak: null, blockIds: [], share: null,
             answered: apply ? current : null,
@@ -348,7 +348,7 @@ export async function PATCH(
             ...repeating,
             repeatUntil,
             skipDates: current.skipDates,
-          }, taskId);
+          }, taskId, undefined, current.reminders);
         }
         // Finishing the morning review shares that day's plan; finishing the
         // end-of-day planning shares the next working day's. Only Done does —
@@ -429,7 +429,7 @@ export async function DELETE(
         apply?.();
         answered = !!apply;
         tx.delete(snap.ref);
-        syncReminderQueue(tx, uid, null, taskId);
+        syncReminderQueue(tx, uid, null, taskId, undefined, item.reminders);
       });
       if (answered) await tellOrganizer(item, me.name, 'declined');
       return NextResponse.json({ deleted: taskId, blocks: [] });
@@ -441,21 +441,21 @@ export async function DELETE(
     //
     // A task's work blocks go with it: time set aside for work that no longer
     // exists is clutter on the calendar, and the editor says so before the
-    // click. Six operations each (the block and its five queue slots) against
-    // Firestore's 500 per batch; the task itself goes in the last batch, so a
+    // click. The block and its queue slots each, `QUEUE_BATCH_ITEMS` at a time
+    // against Firestore's 500 per batch; the task itself goes in the last batch, so a
     // failure part way leaves it there to delete again rather than orphans.
     const blocks = (await blocksQuery(uid, taskId).get()).docs;
-    for (let i = 0; i < blocks.length; i += 80) {
+    for (let i = 0; i < blocks.length; i += QUEUE_BATCH_ITEMS) {
       const chunk = adminDb.batch();
-      for (const b of blocks.slice(i, i + 80)) {
+      for (const b of blocks.slice(i, i + QUEUE_BATCH_ITEMS)) {
         chunk.delete(b.ref);
-        syncReminderQueue(chunk, uid, null, b.id);
+        syncReminderQueue(chunk, uid, null, b.id, undefined, toTask(b).reminders);
       }
       await chunk.commit();
     }
     const batch = adminDb.batch();
     batch.delete(taskItems(uid).doc(taskId));
-    syncReminderQueue(batch, uid, null, taskId);
+    syncReminderQueue(batch, uid, null, taskId, undefined, item?.reminders);
     await batch.commit();
     // An event that invited people is cancelled for all of them.
     if (hasInvites(item)) await syncInvitesQuietly(me, taskId, item);

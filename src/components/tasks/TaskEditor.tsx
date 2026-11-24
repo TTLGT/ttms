@@ -31,6 +31,10 @@ import {
   weekdayNumberOf,
   colorLabel,
   leadsFor,
+  customLead,
+  leadMinutes,
+  MAX_CUSTOM_LEAD_MINUTES,
+  MAX_TASK_REMINDERS,
   placeOf,
   reminderInstants,
   reminderLeadLabel,
@@ -170,6 +174,9 @@ export default function TaskEditor({
   const [dueDate, setDueDate]     = useState(start.dueDate ?? '');
   const [dueTime, setDueTime]     = useState(start.dueTime ?? '');
   const [reminders, setReminders] = useState<TaskReminderLead[]>(start.reminders ?? []);
+  // The "other time" box: a number and a unit, turned into minutes on Add.
+  const [customAmount, setCustomAmount] = useState('');
+  const [customUnit, setCustomUnit] = useState<'m' | 'h' | 'd'>('m');
   const [repeat, setRepeat]       = useState<TaskRepeat>(start.repeat ?? 'none');
   // monthlyNth: the weekday and which of them. Seeded from the date when the
   // item has none yet, so picking the pattern on the 9th offers "2nd …day".
@@ -269,7 +276,27 @@ export default function TaskEditor({
   const now = Date.now();
 
   const toggleLead = (lead: TaskReminderLead, on: boolean) =>
-    setReminders((r) => (on ? [...r, lead] : r.filter((l) => l !== lead)));
+    setReminders((r) => (on
+      ? (r.includes(lead) || r.length >= MAX_TASK_REMINDERS ? r : [...r, lead])
+      : r.filter((l) => l !== lead)));
+
+  // Ticked leads that are not one of the buttons — a custom time, or the
+  // retired "15 minutes before" — drawn as their own chips so they can be
+  // seen and taken off. Only with a time: without one they do not apply.
+  const customOn = hasTime
+    ? reminders
+      .filter((l) => !leads.includes(l))
+      .sort((a, b) => (leadMinutes(b) ?? 0) - (leadMinutes(a) ?? 0))
+    : [];
+  const customAmountN = Number(customAmount);
+  const customMinutesN = customAmountN * (customUnit === 'd' ? 1440 : customUnit === 'h' ? 60 : 1);
+  const customReady = !!customLead(customMinutesN);
+  const addCustom = () => {
+    const lead = customLead(customMinutesN);
+    if (!lead) return;
+    toggleLead(lead, true);
+    setCustomAmount('');
+  };
 
   /** What the form would save, or null (with the problem shown) when it cannot be. */
   const collect = (): { input: PersonalTaskInput; place: number | null } | null => {
@@ -704,7 +731,7 @@ export default function TaskEditor({
             ) : (
               <>
                 <div className="flex flex-wrap gap-1.5">
-                  {leads.map((lead) => {
+                  {[...leads, ...customOn].map((lead) => {
                     const on = reminders.includes(lead);
                     const past = instants[lead] !== undefined && instants[lead]! <= now;
                     return (
@@ -721,10 +748,57 @@ export default function TaskEditor({
                         }`}
                       >
                         {reminderLeadLabel(lead, hasTime)}
+                        {customOn.includes(lead) && <X size={10} className="ml-1 inline" aria-label="Remove" />}
                       </button>
                     );
                   })}
                 </div>
+                {hasTime ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <label data-es className="text-xs text-gray-500" htmlFor="task-remind-custom">Other time</label>
+                    <input
+                      id="task-remind-custom"
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      value={customAmount}
+                      onChange={(e) => setCustomAmount(e.target.value)}
+                      // Enter here adds the reminder rather than saving the whole task.
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } }}
+                      placeholder="30"
+                      className="w-16 rounded-md border border-gray-200 px-2 py-1 text-xs"
+                    />
+                    <select
+                      aria-label="Unit"
+                      value={customUnit}
+                      onChange={(e) => setCustomUnit(e.target.value as 'm' | 'h' | 'd')}
+                      className="rounded-md border border-gray-200 px-1.5 py-1 text-xs"
+                    >
+                      <option value="m">minutes before</option>
+                      <option value="h">hours before</option>
+                      <option value="d">days before</option>
+                    </select>
+                    <button
+                      type="button"
+                      data-es
+                      onClick={addCustom}
+                      disabled={!customReady || reminders.length >= MAX_TASK_REMINDERS}
+                      className="rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                    {customAmount !== '' && !customReady && (
+                      <span className="text-xs text-amber-700">
+                        Pick a whole number, up to {MAX_CUSTOM_LEAD_MINUTES / 1440} days before.
+                      </span>
+                    )}
+                    {reminders.length >= MAX_TASK_REMINDERS && (
+                      <span className="text-xs text-gray-500">{MAX_TASK_REMINDERS} reminders is the most one item can have.</span>
+                    )}
+                  </div>
+                ) : (
+                  <p data-es className="mt-1.5 text-xs text-gray-500">Give it a time to pick your own reminder time.</p>
+                )}
                 {kind === 'task' && status === 'done' && reminders.length > 0 && (
                   <p data-es className="mt-1.5 text-xs text-gray-500">A finished task sends no reminders.</p>
                 )}

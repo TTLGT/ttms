@@ -3254,8 +3254,12 @@ personalTasks/{uid}/items/{itemId}
   dueTime   : 'HH:MM' | null       // time on the deadline; null without dueDate
   endTime   : 'HH:MM' | null       // events, and planning slots (follows the start
                                    // when it moves, keeping the length); null on other tasks
-  reminders : ('start' | '15m' | '1h' | '1d' | '1w')[]
-                                   // without a time, only start/1d/1w, at 8am
+  reminders : ('start' | '10m' | '1h' | '1d' | '1w' | '<N>m')[]
+                                   // without a time, only start/1d/1w, at 8am;
+                                   // '<N>m' = a custom N minutes before (1–10080),
+                                   // timed items only, at most 8 leads. A stored
+                                   // '15m' (the old preset) reads as one of these
+
   order     : number               // position on the board and the sticky notes
   steps     : [{ id, title, done, date, status, xp, everDone }]
                                    // a task's checklist, up to 50; ids 's_' + 4–16
@@ -3325,7 +3329,7 @@ keeps events. No composite index is needed.
 taskReminders/{uid}__{itemId}__{lead}
   uid    : string
   itemId : string
-  lead   : 'start' | '15m' | '1h' | '1d' | '1w'
+  lead   : 'start' | '10m' | '1h' | '1d' | '1w' | '<N>m'
   sendAt : Timestamp
 ```
 
