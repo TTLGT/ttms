@@ -80,7 +80,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   return (
     <SaveBarProvider>
       <SettingsDataProvider access={access}>
-        <div className="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
+        {/* Not centred: every other TTMS page starts against the sidebar, and
+            centring left a wide empty band between the two menus on a big
+            screen. */}
+        <div className="max-w-[1600px] p-4 sm:p-6 lg:p-8">
           <div className="grid items-start gap-6 lg:grid-cols-[232px_minmax(0,1fr)] lg:gap-8">
             {/* On a phone the menu is the Home page's first screen, and a
                 sheet everywhere else; on a desktop it is always beside the

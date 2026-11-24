@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "f006fd1754eb17b1a1df9482d486deb33e023f85",
+      "date": "2026-11-23T17:08:59-06:00",
+      "author": "erwindank",
+      "subject": "Rebuild Settings as a side menu with one page per setting, one Save bar, and a change log. Settings was seven tabs, one of which held ten unrelated panels; it is now grouped by topic (People & access, Company, Sales & orders, Team life, Data & history) with a Home page showing what each setting is set to, what needs a look and the company setup checklist. Every change is a draft saved from one bar at the foot of the page, with Undo for ten seconds and a question before leaving unsaved work. Every save of a company setting is now recorded in a change log (who, when, before and after), and each page shows who changed it last. Pages show previews before saving: dates on a load card, quote rates on example lanes, payment fees on a sample load, a lane-distance cost calculator that never calls Google, agreement terms as tracked changes, celebration cards, a sign-out timeline, a draggable reminder timeline, a holiday year calendar. Each person has their own page, with what a role change adds and takes away before saving; Who can do what can show one person in plain words or compare two; Teams has a drag-and-drop org chart and Work groups shows what joining hands over. Search (Ctrl+K) can stage actions, the menu says how many pages are hidden, and admins can see the menu as another role. Old Settings links redirect to the new pages. Also fixes Sales Managers being sent away from Settings, which kept them from their own team's People page",
+      "body": ""
+    },
+    {
       "hash": "c1654a3f8ee3acd0835645179743032b15b22d02",
       "date": "2026-11-20T18:13:33-06:00",
       "author": "erwindank",
