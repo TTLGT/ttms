@@ -275,4 +275,12 @@ export const ES_PLANNER: Record<string, string> = {
   'Tasks with no time yet. Drag one onto a day, or onto an hour in Week view': 'Tareas que todavía no tienen hora. Arrastra una a un día, o a una hora en la vista Semana.',
   'Everything open has a time': 'Todo lo abierto tiene hora.',
   'Show fewer': 'Mostrar menos',
+
+  // ── Game mode rules (step 7a, 2026-11-25) ────────────────────────────────
+  'Rules': 'Reglas',
+  'Gentle': 'Suave',
+  'Hard': 'Difícil',
+  'in force': 'vigente',
+  'Switch': 'Cambiar',
+  'Game mode (turning off)': 'Modo juego (apagándose)',
 };

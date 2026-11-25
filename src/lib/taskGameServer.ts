@@ -4,7 +4,9 @@ import { taskOwnerDoc } from './personalTasksServer';
 import { officeToday } from '@/types/celebration';
 import { normalizeEmail } from './accessControl';
 import { TIME_OFF_COLLECTION } from '@/types/attendance';
-import { GameTurn, addDays, cleanGameState, prevWorkingDay, type GameEvent, type GameState } from '@/types/taskGame';
+import {
+  GameTurn, addDays, cleanGameState, nextWorkingDay, prevWorkingDay, type GameEvent, type GameRules, type GameState,
+} from '@/types/taskGame';
 import type { PersonalTask } from '@/types/task';
 import { cleanTaskStreak, liveTaskStreak, streakNeedsOffDays, type TaskStreak } from '@/types/taskStreak';
 
@@ -94,35 +96,64 @@ export function writeGame(tx: Transaction, uid: string, game: GameState) {
   tx.set(taskOwnerDoc(uid), { game }, { merge: true });
 }
 
+export class GameOptionRefused extends Error {}
+
 /**
- * Switch game mode on or off, or change the theme.
+ * Switch game mode on or off, change the theme, or choose Gentle or Hard.
  *
- * Turning it on starts the count from today: the day's check is marked done
- * without charging anything, and a streak left over from the last time it was
- * on is cleared quietly rather than charged as broken — the person did not
- * break it, they put the game down.
+ * Turning it on starts the count from today, always under Gentle: the day's
+ * check is marked done without charging anything, and a streak left over from
+ * the last time it was on is cleared quietly rather than charged as broken —
+ * the person did not break it, they put the game down.
+ *
+ * Anything into or out of Hard waits for the next working day
+ * (`pendingChange`, applied by the first look of that day in
+ * GameTurn.onNewDay()), so a day is never charged half by one set of rules
+ * and half by the other. Gentle ↔ off is immediate. Asking for the rules
+ * already in force — or turning the game back on while an "off" is waiting —
+ * cancels whatever was waiting. See src/types/taskGame.ts.
  */
 export async function setGameOptions(
   uid: string,
   email: string | undefined,
-  options: { enabled?: boolean; theme?: GameState['theme'] },
+  options: { enabled?: boolean; theme?: GameState['theme']; rules?: GameRules },
 ): Promise<GameState> {
   const { today, now } = gameClock();
   const owner = taskOwnerDoc(uid);
-  const offDays = options.enabled === true ? await offDaysFor(email, today) : new Set<string>();
+  // The person's time off decides which day is "the next working day", and
+  // whether an old streak is still alive when the game is switched on.
+  const offDays = await offDaysFor(email, today);
   return adminDb.runTransaction(async (tx) => {
     const state = gameFrom(await tx.get(owner));
     if (options.theme) state.theme = options.theme;
+    const next = nextWorkingDay(today, offDays);
 
     if (options.enabled === true && !state.enabled) {
       state.enabled = true;
+      state.rules = 'gentle';
+      state.pendingChange = null;
       if (state.lastActiveDate && state.lastActiveDate < prevWorkingDay(today, offDays)) state.streak = 0;
       state.lastCheckDate = null;
       const turn = new GameTurn(state, today, now, offDays);
       turn.onNewDay([]);
       Object.assign(state, turn.finish().state);
-    } else if (options.enabled === false) {
-      state.enabled = false;
+    } else if (options.enabled === true && state.pendingChange?.to === 'off') {
+      // Changed their mind before the day came.
+      state.pendingChange = null;
+    } else if (options.enabled === false && state.enabled) {
+      if (state.rules === 'hard') state.pendingChange = { to: 'off', from: next };
+      else { state.enabled = false; state.pendingChange = null; }
+    }
+
+    if (options.rules && state.enabled) {
+      if (options.rules === state.rules) {
+        state.pendingChange = null;
+      } else {
+        if (options.rules === 'hard' && state.hardAgainFrom && state.hardAgainFrom > today) {
+          throw new GameOptionRefused(`Hard mode can be chosen again from ${state.hardAgainFrom}.`);
+        }
+        state.pendingChange = { to: options.rules, from: next };
+      }
     }
 
     tx.set(owner, { game: state }, { merge: true });

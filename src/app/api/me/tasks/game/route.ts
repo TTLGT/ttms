@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError, requireCompanyUser } from '@/lib/firebase-admin';
-import { setGameOptions } from '@/lib/taskGameServer';
-import { isGameTheme } from '@/types/taskGame';
+import { GameOptionRefused, setGameOptions } from '@/lib/taskGameServer';
+import { isGameRules, isGameTheme } from '@/types/taskGame';
 
 /**
- * Game mode on or off, and which theme its level titles come from — the
+ * Game mode on or off, Gentle or Hard, and which theme its level titles come from — the
  * caller's own, keyed on the uid off the ID token. See src/types/taskGame.ts.
  *
  * XP itself is never written from here. It moves only as a side effect of
@@ -17,9 +17,11 @@ export async function PUT(req: NextRequest) {
     const game = await setGameOptions(uid, email, {
       enabled: typeof body?.enabled === 'boolean' ? body.enabled : undefined,
       theme: isGameTheme(body?.theme) ? body.theme : undefined,
+      rules: isGameRules(body?.rules) ? body.rules : undefined,
     });
     return NextResponse.json({ game });
   } catch (e) {
+    if (e instanceof GameOptionRefused) return NextResponse.json({ error: e.message }, { status: 409 });
     if (e instanceof AdminAuthError) {
       return NextResponse.json({ error: e.message }, { status: e.status });
     }

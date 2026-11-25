@@ -12,12 +12,30 @@
  * moves: no penalties accrue while it is off, and turning it back on starts
  * counting from that day rather than charging for the gap.
  *
- * **Penalties are real, as in DankQuest:** an open task past its due date
- * costs XP each working day it is first seen overdue, a broken streak costs
- * XP, closing a task as Not done costs half its worth, reopening a finished
- * task takes back what it earned, and XP lost can
- * take a level with it. They are applied when the list is read, the same
- * "applied when read" shape as a mute or an order grant — there is no job.
+ * **Two sets of rules (2026-11-25, step 7 of the Planner redesign).**
+ *
+ * - **Gentle**, the default: nothing is ever charged. No XP for an overdue
+ *   task, a broken streak or a task closed as Not done, and XP never falls
+ *   below the start of the level the person is on — taking back what a
+ *   reopened task or an unticked step earned stops there. A broken streak
+ *   can be saved by a **streak shield**, earned every SHIELD_EVERY streak days.
+ * - **Hard**, chosen on purpose: the DankQuest rules as they always were. An
+ *   open task past its due date costs XP each working day it is first seen
+ *   overdue, a broken streak costs XP, Not done costs half a task's worth,
+ *   and XP lost can take a level with it. No shields. It earns no extra XP —
+ *   only its own badges, for unbroken runs (HARD_BADGES).
+ *
+ * **Switching is fair** (decided 2026-11-24). Gentle ↔ off is immediate.
+ * Anything into or out of Hard — including turning the game off while in
+ * Hard — takes effect the next working day (`pendingChange`), so a day is
+ * never half one and half the other, and nobody can drop out of Hard to dodge
+ * the evening's charges. `rulesHistory` is dated: each day is charged by the
+ * rules it was played under, so what Hard owes is settled before it is left.
+ * Leaving Hard ends the run (badges earned are kept) and Hard can be chosen
+ * again only after HARD_COOLDOWN_DAYS.
+ *
+ * Penalties are applied when the list is read, the same "applied when read"
+ * shape as a mute or an order grant — there is no job.
  *
  * Everything here is pure: no Firestore, no clock except the dates passed in.
  * src/lib/taskGameServer.ts reads, calls these, and writes.
@@ -317,6 +335,62 @@ export function weekStartOf(date: string): string {
   return addDays(date, dow === 0 ? -6 : 1 - dow);
 }
 
+/** The first working day strictly after `date`: when a change into or out of Hard lands. */
+export function nextWorkingDay(date: string, offDays: ReadonlySet<string> = NO_DAYS_OFF): string {
+  let d = addDays(date, 1);
+  for (let i = 0; i < 120 && !isWorkingDay(d, offDays); i++) d = addDays(d, 1);
+  return d;
+}
+
+/* ------------------------------------------------------------------ rules */
+
+export const GAME_RULES = ['gentle', 'hard'] as const;
+export type GameRules = (typeof GAME_RULES)[number];
+
+export function isGameRules(v: unknown): v is GameRules {
+  return v === 'gentle' || v === 'hard';
+}
+
+export const GAME_RULES_LABEL: Record<GameRules, string> = { gentle: 'Gentle', hard: 'Hard' };
+
+/** What each set of rules means, said plainly before anybody picks one. */
+export const GAME_RULES_TEXT: Record<GameRules, string[]> = {
+  gentle: [
+    'Finishing things earns XP. Nothing ever takes it away for being late, missing a day or closing a task as Not done.',
+    'You never drop a level.',
+    'Every 5 days of streak earns a streak shield (up to 3). A shield is used by itself to save your streak the next time you miss a working day.',
+  ],
+  hard: [
+    'Every working day a task is overdue costs 5 XP per day late, up to what the task is worth.',
+    'Missing a working day breaks your streak and costs 25 XP per day of it, up to 300. No shields.',
+    'Closing a task as Not done costs half of what it was worth.',
+    'Losing XP can lose you a level.',
+    'It pays no extra XP. What it gives is badges for staying in Hard: 1, 4, 10 and 26 weeks without leaving.',
+    'Choosing it, or leaving it, takes effect the next working day. After you leave, Hard can be chosen again in 14 days.',
+  ],
+};
+
+/** After leaving Hard, how long before it can be chosen again. */
+export const HARD_COOLDOWN_DAYS = 14;
+/** A streak shield is earned every this many streak days, Gentle only. */
+export const SHIELD_EVERY = 5;
+export const MAX_SHIELDS = 3;
+
+/** Badges for an unbroken run in Hard. Ids are stored: never rename one. */
+export const HARD_BADGES: { id: string; weeks: number; label: string }[] = [
+  { id: 'hard-1w', weeks: 1, label: 'A week in Hard mode' },
+  { id: 'hard-4w', weeks: 4, label: 'A month in Hard mode' },
+  { id: 'hard-10w', weeks: 10, label: '10 weeks in Hard mode' },
+  { id: 'hard-26w', weeks: 26, label: 'Half a year in Hard mode' },
+];
+
+/** A change into or out of Hard, waiting for its day. */
+export interface PendingRulesChange {
+  to: GameRules | 'off';
+  /** The working day it takes effect. */
+  from: string;
+}
+
 /* --------------------------------------------------------------- missions */
 
 export type MissionCounter = 'done' | 'high' | 'onTime' | 'added' | 'suggested' | 'activeDays';
@@ -411,12 +485,28 @@ export interface GameState {
   levelHistory: { level: number; at: string }[];
   /** The latest XP changes, newest last. */
   log: GameLogEntry[];
+  /** The rules in force today. Absent on every state before 2026-11-25, which reads as Gentle. */
+  rules: GameRules;
+  /** A change into or out of Hard, waiting for the next working day. */
+  pendingChange: PendingRulesChange | null;
+  /** Which rules each day was played under: entries from a date on. Newest last. */
+  rulesHistory: { from: string; rules: GameRules | 'off' }[];
+  /** The first day of the current run in Hard, or null. */
+  hardRunStart: string | null;
+  /** Hard can be chosen again from this day (after leaving it), or null. */
+  hardAgainFrom: string | null;
+  /** Streak shields held (Gentle). */
+  shields: number;
+  /** Badges earned, kept for good. */
+  badges: { id: string; at: string }[];
 }
 
 export const MAX_GAME_LOG = 60;
 
 export type GameEvent =
   | { kind: 'xp'; amount: number; label: string }
+  /** Something worth saying that is not XP: a shield earned or used, a badge, the rules changing. */
+  | { kind: 'note'; text: string }
   | { kind: 'level'; level: number; up: boolean }
   | { kind: 'mission'; title: string; weekly: boolean; xp: number };
 
@@ -472,7 +562,43 @@ export function cleanGameState(raw: unknown): GameState {
         .map((e) => ({ at: String(e.at ?? ''), label: e.label as string, xp: num(e.xp) }))
         .slice(-MAX_GAME_LOG)
       : [],
+    rules: isGameRules(r.rules) ? r.rules : 'gentle',
+    pendingChange: cleanPending(r.pendingChange),
+    rulesHistory: Array.isArray(r.rulesHistory)
+      ? (r.rulesHistory as Record<string, unknown>[])
+        .filter((h) => h && typeof h.from === 'string' && (isGameRules(h.rules) || h.rules === 'off'))
+        .map((h) => ({ from: h.from as string, rules: h.rules as GameRules | 'off' }))
+        .slice(-200)
+      : [],
+    hardRunStart: str(r.hardRunStart),
+    hardAgainFrom: str(r.hardAgainFrom),
+    shields: Math.max(0, Math.min(MAX_SHIELDS, num(r.shields))),
+    badges: Array.isArray(r.badges)
+      ? (r.badges as Record<string, unknown>[])
+        .filter((b) => b && typeof b.id === 'string')
+        .map((b) => ({ id: b.id as string, at: String(b.at ?? '') }))
+      : [],
   };
+}
+
+function cleanPending(raw: unknown): PendingRulesChange | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (!(isGameRules(r.to) || r.to === 'off') || typeof r.from !== 'string') return null;
+  return { to: r.to as GameRules | 'off', from: r.from };
+}
+
+/**
+ * Which rules a day was played under. A day before any entry reads as Gentle:
+ * the history starts with the first switch into Hard (`applyPendingChange()`
+ * writes it), so anything earlier was played under the default. Reading it
+ * as "the rules now" instead would charge the last Gentle day by Hard rules
+ * on the first morning after somebody chose Hard.
+ */
+export function rulesOn(state: Pick<GameState, 'rulesHistory'>, date: string): GameRules | 'off' {
+  let out: GameRules | 'off' = 'gentle';
+  for (const h of state.rulesHistory) if (h.from <= date) out = h.rules;
+  return out;
 }
 
 /* ------------------------------------------------------------- the engine */
@@ -506,7 +632,9 @@ export class GameTurn {
   private award(amount: number, label: string, announce = true) {
     if (amount === 0) return;
     const before = this.state.xp;
-    this.state.xp = Math.max(0, before + amount);
+    // Gentle never takes anybody below the start of the level they are on.
+    const floor = this.state.rules === 'gentle' ? levelFor(before).xp : 0;
+    this.state.xp = Math.max(Math.min(floor, before), before + amount);
     const real = this.state.xp - before;
     this.state.log = [...this.state.log, { at: this.now, label, xp: real }].slice(-MAX_GAME_LOG);
     if (announce) this.events.push({ kind: 'xp', amount: real, label });
@@ -585,13 +713,33 @@ export class GameTurn {
     const charge = s.lastCheckDate !== null && isWorkingDay(this.today, this.offDays);
     this.ensureSets();
 
-    if (charge && s.streak > 0 && s.lastActiveDate && s.lastActiveDate < prevWorkingDay(this.today, this.offDays)) {
+    // The day being judged is the last working day; it is charged by the
+    // rules it was played under, whatever is in force from today.
+    const judgedDay = prevWorkingDay(this.today, this.offDays);
+    // A change whose day has come counts here even though it is applied
+    // below: somebody who left Hard on Friday and next looks on Monday must
+    // have Friday judged as Gentle, not as the Hard they had already left.
+    const p = s.pendingChange;
+    const history = p && p.from <= this.today ? [...s.rulesHistory, { from: p.from, rules: p.to }] : s.rulesHistory;
+    const hard = rulesOn({ rulesHistory: history }, judgedDay) === 'hard';
+
+    if (charge && s.streak > 0 && s.lastActiveDate && s.lastActiveDate < judgedDay) {
       const lost = s.streak;
-      s.streak = 0;
-      this.award(-streakPenalty(lost), `${lost}-day streak broken`);
+      if (hard) {
+        s.streak = 0;
+        this.award(-streakPenalty(lost), `${lost}-day streak broken`);
+      } else if (s.shields > 0) {
+        // The gap is covered as if that day had been worked: the streak
+        // carries on from it, and grows again with the next finished task.
+        s.shields--;
+        s.lastActiveDate = judgedDay;
+        this.events.push({ kind: 'note', text: `A streak shield saved your ${lost}-day streak (${s.shields} left)` });
+      } else {
+        s.streak = 0;
+      }
     }
 
-    if (charge) {
+    if (charge && hard) {
       let penalty = 0;
       let late = 0;
       for (const t of openTasks) {
@@ -603,7 +751,44 @@ export class GameTurn {
       if (penalty > 0) this.award(-penalty, `${late} overdue task${late === 1 ? '' : 's'}`);
     }
 
+    this.applyPendingChange();
+    this.checkHardBadges();
     s.lastCheckDate = this.today;
+  }
+
+  /** A change into or out of Hard whose day has come. Runs after yesterday was charged. */
+  private applyPendingChange() {
+    const s = this.state;
+    const p = s.pendingChange;
+    if (!p || p.from > this.today) return;
+    s.pendingChange = null;
+    const wasHard = s.rules === 'hard';
+    s.rulesHistory = [...s.rulesHistory, { from: p.from, rules: p.to }].slice(-200);
+    if (wasHard && p.to !== 'hard') {
+      s.hardRunStart = null;
+      s.hardAgainFrom = addDays(this.today, HARD_COOLDOWN_DAYS);
+    }
+    if (p.to === 'off') {
+      s.enabled = false;
+      s.rules = 'gentle';
+      return;
+    }
+    s.rules = p.to;
+    if (p.to === 'hard' && !wasHard) s.hardRunStart = p.from;
+    this.events.push({ kind: 'note', text: `${GAME_RULES_LABEL[p.to]} rules from today` });
+  }
+
+  /** Badges for an unbroken run in Hard, each once. */
+  private checkHardBadges() {
+    const s = this.state;
+    if (s.rules !== 'hard' || !s.hardRunStart) return;
+    const weeks = Math.floor(daysBetween(s.hardRunStart, this.today) / 7);
+    for (const b of HARD_BADGES) {
+      if (weeks >= b.weeks && !s.badges.some((x) => x.id === b.id)) {
+        s.badges = [...s.badges, { id: b.id, at: this.now }];
+        this.events.push({ kind: 'note', text: `Badge earned: ${b.label}` });
+      }
+    }
   }
 
   /**
@@ -656,6 +841,10 @@ export class GameTurn {
     if (s.lastActiveDate === this.today) return;
     s.streak = s.lastActiveDate && s.lastActiveDate >= prevWorkingDay(this.today, this.offDays) ? s.streak + 1 : 1;
     s.longestStreak = Math.max(s.longestStreak, s.streak);
+    if (s.rules === 'gentle' && s.streak % SHIELD_EVERY === 0 && s.shields < MAX_SHIELDS) {
+      s.shields++;
+      this.events.push({ kind: 'note', text: `Streak shield earned (${s.shields} of ${MAX_SHIELDS})` });
+    }
     s.lastActiveDate = this.today;
     this.award(STREAK_DAY_XP, `Streak: day ${s.streak}`);
   }
@@ -684,7 +873,7 @@ export class GameTurn {
    * stores on the task (`xpLost`) so changing its mind gives back exactly that.
    */
   onTaskNotDone(task: Pick<PersonalTask, 'title' | 'difficulty'>): number {
-    if (!this.state.enabled) return 0;
+    if (!this.state.enabled || this.state.rules !== 'hard') return 0;
     const lost = notDonePenalty(task.difficulty);
     this.award(-lost, `Not done: "${task.title}"`);
     return lost;

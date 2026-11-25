@@ -252,9 +252,9 @@ export default function TasksTab() {
             </label>
           )}
           <button type="button" aria-pressed={playing} onClick={() => saveGameOptions({ enabled: !playing })}
-            title={playing ? 'Turn game mode off' : 'Earn XP and levels for finishing tasks. Only you see it.'}
+            title={!playing ? 'Earn XP and levels for finishing tasks. Only you see it.' : game?.rules === 'hard' ? 'Under Hard rules, turning it off takes effect the next working day' : 'Turn game mode off'}
             className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-            <Gamepad2 size={15} /> <span data-es>{playing ? 'Game mode on' : 'Game mode'}</span>
+            <Gamepad2 size={15} /> <span data-es>{!playing ? 'Game mode' : game?.pendingChange?.to === 'off' ? 'Game mode (turning off)' : 'Game mode on'}</span>
           </button>
           {doneCount > 0 && (
             <button type="button" data-es

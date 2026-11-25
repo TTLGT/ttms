@@ -4,13 +4,19 @@ import { useEffect, useState } from 'react';
 import { PLAIN_SKIN, skinFor, type TaskSkin } from './taskSkins';
 import { artUrl } from './taskSkinArt';
 import { LevelArt } from './LevelArt';
-import { ChevronDown, ChevronUp, Plus, Target, Trophy, X } from 'lucide-react';
+import { Award, ChevronDown, ChevronUp, Plus, Shield, Target, Trophy, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useDateFormatters } from '@/lib/useDateFormatters';
 import type { GameNotice } from '@/lib/personalTasks';
 import { BROKER_SUGGESTIONS, suggestionsFor, type BrokerSuggestion } from '@/types/brokerSuggestions';
 import {
   GAME_LEVELS,
+  GAME_RULES,
+  GAME_RULES_LABEL,
+  GAME_RULES_TEXT,
   GAME_THEMES,
+  HARD_BADGES,
+  MAX_SHIELDS,
   STEP_XP,
   SUGGESTION_BONUS_XP,
   TASK_XP,
@@ -20,6 +26,7 @@ import {
   missionDef,
   nextLevelAfter,
   type GameLevel,
+  type GameRules,
   type GameState,
   type GameTheme,
   type MissionSet,
@@ -46,7 +53,7 @@ export function GameBar({
   game: GameState;
   skin?: TaskSkin;
   onAddSuggestion: (input: PersonalTaskInput) => void;
-  onOptions: (options: { enabled?: boolean; theme?: GameTheme }) => void;
+  onOptions: (options: { enabled?: boolean; theme?: GameTheme; rules?: GameRules }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const level = levelFor(game.xp);
@@ -293,11 +300,67 @@ function GameOptions({
   onOptions,
 }: {
   game: GameState;
-  onOptions: (options: { enabled?: boolean; theme?: GameTheme }) => void;
+  onOptions: (options: { enabled?: boolean; theme?: GameTheme; rules?: GameRules }) => void;
 }) {
+  const { formatCalendarDate } = useDateFormatters();
+  const today = calendarToday();
+  const pending = game.pendingChange;
+  const hardLocked = !!game.hardAgainFrom && game.hardAgainFrom > today;
   return (
     <section>
-      <h3 data-es className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Your theme</h3>
+      {/* Gentle or Hard (2026-11-25): each set of rules said in full before
+          it is picked, and a change into or out of Hard said with its day. */}
+      <h3 data-es className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Rules</h3>
+      <div className="grid gap-2">
+        {GAME_RULES.map((r) => {
+          const on = game.rules === r;
+          const waiting = pending?.to === r;
+          const locked = r === 'hard' && !on && hardLocked;
+          return (
+            <div key={r} className={`rounded-lg border p-2.5 ${on ? 'border-brand-500 bg-brand-50/40' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-2">
+                <span className="flex-1 text-sm font-semibold text-gray-900">
+                  <span data-es>{GAME_RULES_LABEL[r]}</span>{on && <span data-es className="ml-1.5 text-xs font-normal text-brand-700">· in force</span>}
+                </span>
+                {!on && !waiting && (
+                  <button type="button" disabled={locked} onClick={() => onOptions({ rules: r })}
+                    className="rounded-md border border-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                    <span data-es>Switch</span>
+                  </button>
+                )}
+              </div>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-gray-600">
+                {GAME_RULES_TEXT[r].map((line) => <li key={line}>{line}</li>)}
+              </ul>
+              {waiting && pending && (
+                <p className="mt-1.5 text-[11px] font-medium text-amber-800">
+                  Starts {formatCalendarDate(pending.from)}.{' '}
+                  <button type="button" onClick={() => onOptions({ rules: game.rules })} className="underline">Keep {GAME_RULES_LABEL[game.rules]}</button>
+                </p>
+              )}
+              {locked && game.hardAgainFrom && (
+                <p className="mt-1.5 text-[11px] text-gray-500">Can be chosen again from {formatCalendarDate(game.hardAgainFrom)}.</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {game.rules === 'gentle' && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-600">
+          <Shield size={13} className="text-brand-600" /> {game.shields} of {MAX_SHIELDS} streak shields
+        </p>
+      )}
+      {game.badges.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {game.badges.map((b) => (
+            <span key={b.id} className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+              <Award size={11} /> {HARD_BADGES.find((x) => x.id === b.id)?.label ?? b.id}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <h3 data-es className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">Your theme</h3>
       <p className="text-[11px] text-gray-500">
         {GAME_THEMES[game.theme].label}: the look of this page and the name of every level, up to level 30,{' '}
         {levelTitle(GAME_LEVELS.length, game.theme)}. Changing it keeps your XP and level.
@@ -310,19 +373,25 @@ function GameOptions({
           <li>Each step of a task you tick off: +{STEP_XP} XP. Unticking it takes that back.</li>
           <li>First task or step of each day: +50 XP and your streak grows. Only Monday to Friday count.</li>
           <li>Your streak is frozen on weekends, Guatemalan holidays and days you have asked for time off (waiting or approved).</li>
-          <li>Each weekday a task is overdue costs 5 XP per day late, up to what it is worth. Nothing is charged on a day off.</li>
-          <li>Missing a weekday you were working breaks the streak and costs 25 XP per day of it, up to 300.</li>
-          <li>Reopening a finished task takes back what it earned. Losing XP can lose you a level.</li>
+          <li>Reopening a finished task takes back what it earned{game.rules === 'gentle' ? ', but never below the start of your level' : ''}.</li>
+          <li>Under Hard only: overdue tasks, a broken streak and Not done cost XP, and losing XP can lose you a level. Under Gentle nothing is charged. See Rules above.</li>
           <li data-es>Only you can see any of this.</li>
         </ul>
       </details>
-      <button
-        type="button"
-        onClick={() => onOptions({ enabled: false })}
-        className="mt-3 text-xs text-gray-500 hover:text-red-600"
-      >
-        Turn game mode off
-      </button>
+      {pending?.to === 'off' ? (
+        <p className="mt-3 text-xs text-amber-800">
+          Game mode turns off {formatCalendarDate(pending.from)}, after today is settled under Hard.{' '}
+          <button type="button" onClick={() => onOptions({ enabled: true })} className="underline">Keep it on</button>
+        </p>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onOptions({ enabled: false })}
+          className="mt-3 text-xs text-gray-500 hover:text-red-600"
+        >
+          {game.rules === 'hard' ? 'Turn game mode off (from the next working day)' : 'Turn game mode off'}
+        </button>
+      )}
     </section>
   );
 }
@@ -366,6 +435,13 @@ export function GameFeedback({
                 }`}
               >
                 {lost ? '' : '+'}{event.amount} XP · {event.label}
+              </div>
+            );
+          }
+          if (event.kind === 'note') {
+            return (
+              <div key={id} className="pointer-events-auto rounded-full bg-brand-50 px-4 py-2 text-sm font-medium text-brand-800 shadow-lg">
+                {event.text}
               </div>
             );
           }

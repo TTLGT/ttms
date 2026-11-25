@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "7a47965e447e2ff061a297452c3b3b1431121434",
+      "date": "2026-11-25T10:03:49-06:00",
+      "author": "erwindank",
+      "subject": "Lighten the Planner's Calendar tab, step 6 of the Planner redesign. A new To schedule tray beside the calendar lists every open task with no time yet, in the person's own order, and dragging one onto a day, or onto an hour in Week view, gives it that day and time. The layer switches fold into one Layers menu, and the four side panels (how reminders arrive, planning times, the shared plan, celebration reminder rules) move unchanged behind a Settings button, leaving the side column with the mini month, the tray, the chosen day and, for admin and HR, upcoming celebrations. Items open in the same side panel as the Tasks tab. The tab has its own five-step tour and a new section in the Calendar guide. The old Calendar page is unchanged",
+      "body": ""
+    },
+    {
       "hash": "9fbd9fc2d8309ae1d9cf404338b1772b06966513",
       "date": "2026-11-25T09:49:16-06:00",
       "author": "erwindank",

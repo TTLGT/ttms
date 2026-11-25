@@ -188,12 +188,14 @@ export const TASKS_GUIDE: Guide = {
         { spot: 3, text: b('Difficulty sets what a task is worth: Trivial 5, Easy 15, Medium 30, Hard 60, Very hard 90, Epic 120 XP. Each step ticked adds 5.', 'La dificultad define lo que vale una tarea: Trivial 5, Fácil 15, Media 30, Difícil 60, Muy difícil 90, Épica 120 XP. Cada paso marcado suma 5.') },
       ],
       table: [
-        [b('You earn', 'Ganas'), b('You lose', 'Pierdes')],
+        [b('You earn', 'Ganas'), b('You lose — under Hard rules only', 'Pierdes — solo con reglas Difícil')],
         [b('A finished task’s XP (less if late: 75% up to 3 days, 50% up to a week, then 25%)', 'El XP de una tarea terminada (menos si es tarde: 75% hasta 3 días, 50% hasta una semana, luego 25%)'), b('5 XP per weekday a task is overdue, up to its worth', '5 XP por día laboral que una tarea está vencida, hasta lo que vale')],
         [b('+50 XP for the first task or step of each working day', '+50 XP por la primera tarea o paso de cada día laboral'), b('25 XP per missed working day of a streak, up to 300', '25 XP por cada día laboral perdido de una racha, hasta 300')],
         [b('5 XP for each step', '5 XP por cada paso'), b('Half a task’s worth if you close it as Not done', 'La mitad de lo que vale una tarea si la cierras como No hecha')],
       ],
       callouts: [
+        // Added 2026-11-25 with step 7 of the Planner (Gentle and Hard rules).
+        { tone: 'tip', text: b('Game mode starts on Gentle rules: nothing in the right-hand column is ever charged, you never drop a level, and every 5 days of streak earns a shield that saves your streak once. Hard rules charge everything in that column, pay no extra XP, and give badges for staying in them. Switching into or out of Hard takes effect the next working day.', 'El modo juego empieza con reglas Suave: nada de la columna derecha se cobra, nunca bajas de nivel, y cada 5 días de racha ganas un escudo que salva tu racha una vez. Las reglas Difícil cobran todo lo de esa columna, no dan XP extra, y dan insignias por quedarte en ellas. Cambiar a Difícil o salir de ella cuenta desde el siguiente día laboral.') },
         { tone: 'why', text: b('Your streak counts Monday to Friday only, and is frozen on Guatemalan holidays and on days you asked for time off — waiting or approved. A day off never breaks it.', 'Tu racha cuenta de lunes a viernes, y se congela en feriados de Guatemala y en días que pediste libres — pendientes o aprobados. Un día libre nunca la rompe.') },
       ],
     },

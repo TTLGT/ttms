@@ -1143,7 +1143,15 @@ Types and pure rules in `src/types/task.ts`; server in
 - **Game mode is private** (`personalTasks/{uid}.game`, rules in
   `src/types/taskGame.ts`). XP moves only as a side effect of saving a task,
   in the same transaction; there is no route that sets it. Penalties are
-  applied on the first `GET /api/me/tasks` of an office day. **No
+  applied on the first `GET /api/me/tasks` of an office day, **and only
+  under Hard rules** (2026-11-25): Gentle is the default and charges
+  nothing, never drops a level and earns streak shields; Hard is opt-in.
+  Anything into or out of Hard waits for the next working day
+  (`pendingChange`), each day is charged by the rules it was played under
+  (`rulesHistory`, `rulesOn()`), and leaving Hard means a 14-day wait to
+  return. Keep all of that in `GameTurn` — a route that changed the rules
+  directly would let somebody leave Hard to dodge the evening's charges.
+  **No
   leaderboard** — a ranked private notepad is a performance measure, which the
   list deliberately is not. **The theme dresses the whole page** while game
   mode is on, set in `src/components/tasks/taskSkins.ts`: a dark banner with
@@ -1483,7 +1491,7 @@ leads (`LeadsBoard`, `?tab=leads`). Counted goals: `GOAL_COUNTERS` in
   `leads`), the Planner's machinery reused: it starts on the first visit,
   replays from the ? beside the tabs, and waits for the board to load
   (`onLoaded`) so the board and card steps are not skipped.
-- Not built, on purpose: XP for calls (step 7), the Broker dashboard, and a
+- Not built, on purpose: XP for calls (step 7b), the Broker dashboard, and a
   separate "check-ins with existing clients" target.
 
 **The Tasks tab and the side panel (step 5, 2026-11-25).**

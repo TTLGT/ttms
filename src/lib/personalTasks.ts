@@ -19,7 +19,7 @@ import {
   type SeriesScope,
   type TaskReminderSettings,
 } from '@/types/task';
-import type { GameEvent, GameState, GameTheme } from '@/types/taskGame';
+import type { GameEvent, GameRules, GameState, GameTheme } from '@/types/taskGame';
 import { DAY_PLAN_SHARED_EVENT } from '@/types/dayPlan';
 import { EMPTY_TASK_STREAK, type TaskStreak } from '@/types/taskStreak';
 import type { TodayPicks } from '@/types/planner';
@@ -101,7 +101,7 @@ export async function saveMyColorLabels(
   return { colorLabels: data.colorLabels, removed: data.removed ?? [] };
 }
 
-export async function saveMyGameOptions(options: { enabled?: boolean; theme?: GameTheme }): Promise<GameState> {
+export async function saveMyGameOptions(options: { enabled?: boolean; theme?: GameTheme; rules?: GameRules }): Promise<GameState> {
   const data = await authedFetch<{ game: GameState }>('/api/me/tasks/game', {
     method: 'PUT',
     body: JSON.stringify(options),
@@ -546,9 +546,9 @@ function usePersonalTasksStore(enabled: boolean) {
     }
   }, [fail]);
 
-  const saveGameOptions = useCallback(async (options: { enabled?: boolean; theme?: GameTheme }) => {
+  const saveGameOptions = useCallback(async (options: { enabled?: boolean; theme?: GameTheme; rules?: GameRules }) => {
     setError('');
-    setGame((g) => (g ? { ...g, ...options } : g));
+    if (options.theme) setGame((g) => (g ? { ...g, theme: options.theme! } : g));
     try {
       setGame(await saveMyGameOptions(options));
     } catch (e) {
