@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Bell, CalendarClock, CalendarPlus, Copy, Target, Trash2, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Bell, CalendarClock, CalendarPlus, ChevronDown, Copy, Flag, Target, Trash2, UserPlus, X } from 'lucide-react';
 import DateField from '@/components/DateField';
 import TimeField from '@/components/TimeField';
+import DayChips from './DayChips';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import {
   EVENT_TYPES,
@@ -90,6 +91,7 @@ export default function TaskEditor({
   onAddAndScheduleBlock,
   onOpenItem,
   onClose,
+  layout = 'dialog',
 }: {
   /** The item being edited; null to add one. */
   task: PersonalTask | null;
@@ -140,6 +142,13 @@ export default function TaskEditor({
   /** Swap the dialog over to another item — one of this task's blocks, or a block's task. */
   onOpenItem?: (item: PersonalTask) => void;
   onClose: () => void;
+  /**
+   * `dialog` — the window in the middle of the page, every field in one
+   * column (the old pages and the Calendar). `panel` — the Planner's side
+   * panel: title, When, Deadline, Urgent and the steps up front, the rest
+   * under More. The same fields, checks and save either way.
+   */
+  layout?: 'dialog' | 'panel';
 }) {
   const start = task ?? initial ?? {};
   // History is a record; an invitation is somebody else's event. Both are
@@ -378,58 +387,11 @@ export default function TaskEditor({
   const input = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500';
   const label = 'mb-1 block text-xs font-medium text-gray-600';
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={dismiss}>
-      <form
-        role="dialog"
-        aria-modal="true"
-        aria-label={task ? 'Edit item' : 'Add item'}
-        onSubmit={submit}
-        onClick={(e) => e.stopPropagation()}
-        // The window wears the colour picked below, the same classes the board
-        // card and the sticky note use, so choosing one previews the card.
-        // The inputs keep their own plain ground and stay easy to read on it.
-        className={`max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border shadow-xl transition-colors ${NOTE_STYLE[color].note}`}
-      >
-        {/* The header and footer inherit the window's colour and edge. */}
-        <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-inherit bg-inherit px-5 py-4">
-          <h2 className="flex-1 text-base font-semibold">
-            {task ? 'Edit' : 'Add'} {kind === 'event' ? EVENT_TYPE_LABEL[eventType].toLowerCase() : 'task'}
-          </h2>
-          <button type="button" onClick={dismiss} aria-label="Close" className="rounded-md p-1 text-gray-400 hover:bg-gray-100">
-            <X size={18} />
-          </button>
-        </header>
+  // Read by the pieces below (the settings block drops two boxes in the panel).
+  const panel = layout === 'panel';
 
-        {/* History is a record: everything shown, nothing changeable. A
-            disabled fieldset turns off every control inside it at once. */}
-        {invitedBy && (
-          <div className="flex flex-wrap items-center gap-2 border-b border-inherit bg-white/60 px-5 py-3 text-sm">
-            <UserPlus size={15} className="shrink-0 text-brand-600" />
-            <p className="min-w-0 flex-1 text-gray-700">
-              <span className="font-medium">{invitedBy.name}</span> invited you.
-              {task?.inviteResponse === 'accepted' ? ' You accepted.' : ' You have not answered yet.'}
-            </p>
-            {task?.inviteResponse !== 'accepted' && (
-              <button type="button" disabled={answering}
-                onClick={async () => { setAnswering(true); await onSave({ inviteResponse: 'accepted' }, null); setAnswering(false); }}
-                className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50">
-                Accept
-              </button>
-            )}
-            {onDelete && (
-              <button type="button" disabled={answering}
-                onClick={() => {
-                  if (window.confirm(`Decline "${task!.title}"? It comes off your calendar and ${invitedBy.name} is told.`)) onDelete();
-                }}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50">
-                Decline
-              </button>
-            )}
-          </div>
-        )}
-        <fieldset disabled={readOnly} className="min-w-0">
-        <div className="space-y-4 px-5 py-4">
+  const notices = (
+<>
           {copyOf !== undefined && (
             <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
               A copy of &ldquo;{copyOf}&rdquo;, with its steps unticked. Change what you need — nothing is saved until you press Add.
@@ -440,6 +402,11 @@ export default function TaskEditor({
               From your history — over {HISTORY_AFTER_DAYS} days ago — so it can be read but not changed.
             </p>
           )}
+</>
+  );
+
+  const kindSwitch = (
+<>
           {/* A task is something to finish; an event is something to turn
               up to. Only tasks go on the board. */}
           <div className="inline-flex rounded-lg border border-gray-200 p-0.5 text-sm">
@@ -455,7 +422,11 @@ export default function TaskEditor({
               </button>
             ))}
           </div>
+</>
+  );
 
+  const eventTypeBlock = (
+<>
           {kind === 'event' && (
             <div>
               <span data-es className={label}>What sort of event</span>
@@ -482,7 +453,11 @@ export default function TaskEditor({
               <p className="mt-1.5 text-xs text-gray-500"><Bi>Events show on your calendar only, not on the board.</Bi></p>
             </div>
           )}
+</>
+  );
 
+  const workForBlock = (
+<>
           {/* A block of time to work on one of your tasks, or one step of it. */}
           {kind === 'event' && (
             <div>
@@ -536,7 +511,11 @@ export default function TaskEditor({
               ) : null}
             </div>
           )}
+</>
+  );
 
+  const titleBlock = (
+<>
           <div>
             <label data-es className={label} htmlFor="task-title">Title</label>
             <input
@@ -549,7 +528,11 @@ export default function TaskEditor({
               placeholder={kind === 'event' ? 'Call with a client' : 'Send dispatch sheet'}
             />
           </div>
+</>
+  );
 
+  const datesBlock = (
+<>
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
               <span className={label}>{kind === 'event' ? 'Date' : 'Planned for'}</span>
@@ -575,6 +558,11 @@ export default function TaskEditor({
                 onChange={setEndTime} className={`${input} disabled:opacity-50`} />
             </div>
           </div>
+</>
+  );
+
+  const dueBlock = (
+<>
           {kind === 'task' && (
             <div className="grid gap-3 sm:grid-cols-3">
               <div>
@@ -588,12 +576,21 @@ export default function TaskEditor({
               </div>
             </div>
           )}
+</>
+  );
+
+  const datesHint = (
+<>
           <p className="-mt-2 text-xs text-gray-400">
             {kind === 'task'
               ? 'Planned, Starts and Ends are when you will work on it — the block it takes on your calendar, and reminders count from the start. Due is the deadline to finish it. With no due date, the planned day counts as the deadline. Times are Guatemala office time.'
               : 'Times are Guatemala office time.'}
           </p>
+</>
+  );
 
+  const locationBlock = (
+<>
           {kind === 'event' && (
             <div>
               <label className={label} htmlFor="task-location">
@@ -609,7 +606,11 @@ export default function TaskEditor({
               />
             </div>
           )}
+</>
+  );
 
+  const notesBlock = (
+<>
           <div>
             <label data-es className={label} htmlFor="task-notes">Notes</label>
             <textarea
@@ -621,7 +622,11 @@ export default function TaskEditor({
               className={input}
             />
           </div>
+</>
+  );
 
+  const withBlock = (
+<>
           {/* Who it is with, so their number is one click from the task. */}
           <div>
             <span data-es className={label}>With</span>
@@ -652,13 +657,21 @@ export default function TaskEditor({
               </ul>
             )}
           </div>
+</>
+  );
 
+  const orderBlock = (
+<>
           {/* The load it is about, so the order is one click from the task. */}
           <div>
             <span data-es className={label}>Order</span>
             <TaskOrderPicker value={orders} onChange={setOrders} inputClass={input} />
           </div>
+</>
+  );
 
+  const stepsBlock = (
+<>
           {kind === 'task' && (
             <div>
               <span className={`${label} capitalize`}>{stepWords.many}</span>
@@ -678,7 +691,11 @@ export default function TaskEditor({
               />
             </div>
           )}
+</>
+  );
 
+  const workBlocksBlock = (
+<>
           {kind === 'task' && (task ? myBlocks.length > 0 || (!!onScheduleBlock && !readOnly) : !!onOpenItem || !!addThenSchedule) && (
             <div>
               <span data-es className={`${label} flex items-center gap-1`}><Target size={12} /> Work blocks</span>
@@ -722,7 +739,11 @@ export default function TaskEditor({
               )}
             </div>
           )}
+</>
+  );
 
+  const remindersBlock = (
+<>
           {/* ── Reminders ───────────────────────────────────────── */}
           <div>
             <span data-es className={`${label} flex items-center gap-1`}><Bell size={12} /> Remind me</span>
@@ -810,7 +831,11 @@ export default function TaskEditor({
               </>
             )}
           </div>
+</>
+  );
 
+  const settingsBlock = (
+<>
           <div className="grid gap-3 sm:grid-cols-2">
             {kind === 'task' && (
               <div>
@@ -840,12 +865,12 @@ export default function TaskEditor({
                 )}
               </div>
             )}
-            <div>
+            {!panel && <div>
               <label data-es className={label} htmlFor="task-priority">Priority</label>
               <select id="task-priority" value={priority} onChange={(e) => setPriority(e.target.value as typeof priority)} className={input}>
                 {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{TASK_PRIORITY_LABEL[p]}</option>)}
               </select>
-            </div>
+            </div>}
             {playing && kind === 'task' && (
               <div>
                 <label data-es className={label} htmlFor="task-difficulty">Difficulty</label>
@@ -854,7 +879,7 @@ export default function TaskEditor({
                 </select>
               </div>
             )}
-            {kind === 'task' && status !== 'done' && (
+            {!panel && kind === 'task' && status !== 'done' && (
               <div>
                 <label data-es className={label} htmlFor="task-place">Priority number (place in queue)</label>
                 <input
@@ -945,7 +970,11 @@ export default function TaskEditor({
               )}
             </div>
           </div>
+</>
+  );
 
+  const colourBlock = (
+<>
           <div>
             <span className={label}>Colour · <span className="font-semibold">{colorLabel(colorLabels, color)}</span></span>
             <div className="flex flex-wrap gap-2">
@@ -965,7 +994,11 @@ export default function TaskEditor({
               ))}
             </div>
           </div>
+</>
+  );
 
+  const rescheduleBlock = (
+<>
           {task && onReschedule && !readOnly && kind === 'task' && task.status !== 'done' && (
             <div className="rounded-lg border border-gray-200 p-3">
               {moveTo ? (
@@ -1004,12 +1037,210 @@ export default function TaskEditor({
               )}
             </div>
           )}
+</>
+  );
+
+  // ── The side panel (the Planner, step 5) ───────────────────────────────────
+  // The same fields and the same save as the window; only the order differs.
+  // When and Deadline are one tap each; Urgent is the High priority — the
+  // only priority the Planner draws, since the List's order is dragged.
+  const moreSummary = [
+    notes.trim() ? 'notes' : '',
+    contacts.length && kind === 'task' ? `with ${contacts.length}` : '',
+    orders.length ? `${orders.length} load${orders.length === 1 ? '' : 's'}` : '',
+    reminders.length ? `${reminders.length} reminder${reminders.length === 1 ? '' : 's'}` : '',
+    repeat !== 'none' ? 'repeats' : '',
+    kind === 'task' && status !== 'todo' ? (columns.find((c) => c.id === status)?.label ?? status).toLowerCase() : '',
+  ].filter(Boolean).join(' · ');
+  const [moreOpen, setMoreOpen] = useState(() => layout === 'panel' && !!task && (
+    !!(task.notes?.trim()) || task.reminders.length > 0 || task.repeat !== 'none' || task.orders.length > 0
+    || (task.kind === 'task' && task.contacts.length > 0) || (task.kind === 'task' && task.status !== 'todo')
+    || !!task.workFor || task.kind === 'event'
+  ));
+
+  const whenBlock = (
+    <div data-tour="editor-when">
+      <span data-es className={label}>{kind === 'event' ? 'Date' : 'When'}</span>
+      <DayChips value={date} onChange={(d) => { setDate(d); if (!d) { setTime(''); setEndTime(''); } }}
+        noneLabel={kind === 'event' ? 'No date' : 'No day'} ariaLabel={kind === 'event' ? 'Date' : 'When'} />
+      {date && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <div>
+            <label data-es className={label} htmlFor="task-time">From</label>
+            <TimeField id="task-time" value={time}
+              onChange={(next) => { if (time && endTime && next) setEndTime(shiftedEnd(time, endTime, next) ?? endTime); setTime(next); }}
+              className={input} />
+          </div>
+          <div>
+            <label data-es className={label} htmlFor="task-end">To</label>
+            <TimeField id="task-end" value={endTime} disabled={!time} onChange={setEndTime} className={`${input} disabled:opacity-50`} />
+          </div>
+        </div>
+      )}
+      {kind === 'task' && !date && <p className="mt-1 text-xs text-gray-500"><Bi>No day keeps it in your inbox until you give it one.</Bi></p>}
+    </div>
+  );
+
+  const deadlineBlock = (
+    <div>
+      <span data-es className={label}>Deadline</span>
+      <DayChips value={dueDate} onChange={(d) => { setDueDate(d); if (!d) setDueTime(''); }}
+        noneLabel="None" ahead="friday" ariaLabel="Deadline" />
+      {dueDate && (
+        <div className="mt-2 max-w-[10rem]">
+          <label data-es className={label} htmlFor="task-due-time">By what time (optional)</label>
+          <TimeField id="task-due-time" value={dueTime} onChange={setDueTime} className={input} />
+        </div>
+      )}
+      {!dueDate && date && <p className="mt-1 text-xs text-gray-500"><Bi>With no deadline, the day in When counts as one.</Bi></p>}
+    </div>
+  );
+
+  const urgentBlock = (
+    <label className="flex items-center gap-2 text-sm text-gray-800">
+      <input type="checkbox" checked={priority === 'high'}
+        onChange={(e) => setPriority(e.target.checked ? 'high' : 'normal')}
+        className="rounded border-gray-300 text-red-600 focus:ring-red-500" />
+      <Flag size={14} className={priority === 'high' ? 'text-red-600' : 'text-gray-400'} />
+      <span data-es>Urgent</span>
+    </label>
+  );
+
+  // The window (every page but the Planner) and the side panel (the Planner)
+  // share every piece above; only the frame and the order differ.
+  return (
+    <div className={panel ? 'fixed inset-0 z-50 flex justify-end bg-black/30' : 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'} onClick={dismiss}>
+      <form
+        role="dialog"
+        aria-modal="true"
+        aria-label={task ? 'Edit item' : 'Add item'}
+        onSubmit={submit}
+        onClick={(e) => e.stopPropagation()}
+        // The window wears the colour picked below, the same classes the board
+        // card and the sticky note use, so choosing one previews the card.
+        // The inputs keep their own plain ground and stay easy to read on it.
+        className={panel
+          ? `flex h-full w-full max-w-md flex-col overflow-y-auto border-l shadow-2xl transition-colors ${NOTE_STYLE[color].note}`
+          : `max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border shadow-xl transition-colors ${NOTE_STYLE[color].note}`}
+      >
+        {/* The header and footer inherit the window's colour and edge. */}
+        <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-inherit bg-inherit px-5 py-4">
+          <h2 className="flex-1 text-base font-semibold">
+            {task ? 'Edit' : 'Add'} {kind === 'event' ? EVENT_TYPE_LABEL[eventType].toLowerCase() : 'task'}
+          </h2>
+          <button type="button" onClick={dismiss} aria-label="Close" className="rounded-md p-1 text-gray-400 hover:bg-gray-100">
+            <X size={18} />
+          </button>
+        </header>
+
+        {/* History is a record: everything shown, nothing changeable. A
+            disabled fieldset turns off every control inside it at once. */}
+        {invitedBy && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-inherit bg-white/60 px-5 py-3 text-sm">
+            <UserPlus size={15} className="shrink-0 text-brand-600" />
+            <p className="min-w-0 flex-1 text-gray-700">
+              <span className="font-medium">{invitedBy.name}</span> invited you.
+              {task?.inviteResponse === 'accepted' ? ' You accepted.' : ' You have not answered yet.'}
+            </p>
+            {task?.inviteResponse !== 'accepted' && (
+              <button type="button" disabled={answering}
+                onClick={async () => { setAnswering(true); await onSave({ inviteResponse: 'accepted' }, null); setAnswering(false); }}
+                className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+                Accept
+              </button>
+            )}
+            {onDelete && (
+              <button type="button" disabled={answering}
+                onClick={() => {
+                  if (window.confirm(`Decline "${task!.title}"? It comes off your calendar and ${invitedBy.name} is told.`)) onDelete();
+                }}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50">
+                Decline
+              </button>
+            )}
+          </div>
+        )}
+        <fieldset disabled={readOnly} className={panel ? 'min-w-0 flex-1' : 'min-w-0'}>
+        <div className="space-y-4 px-5 py-4">
+          {panel ? (
+            <>
+          {notices}
+          {titleBlock}
+          {whenBlock}
+          {kind === 'task' && deadlineBlock}
+          {kind === 'task' && urgentBlock}
+          {kind === 'task' ? stepsBlock : <>{locationBlock}{withBlock}</>}
+
+          {/* Everything else, one click away. Opens by itself on an item
+              that already uses any of it, so nothing set is ever hidden. */}
+          <div className="border-t border-inherit pt-3">
+            <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen}
+              className="flex w-full items-center gap-2 text-left text-sm font-medium text-gray-700">
+              <ChevronDown size={16} className={`transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+              <span data-es>More</span>
+              {!moreOpen && moreSummary && <span className="min-w-0 flex-1 truncate text-xs font-normal text-gray-500">{moreSummary}</span>}
+            </button>
+            {moreOpen && (
+              <div className="mt-3 space-y-4">
+                {kindSwitch}
+                {eventTypeBlock}
+                {workForBlock}
+                {notesBlock}
+                {kind === 'task' && withBlock}
+                {orderBlock}
+                {remindersBlock}
+                {settingsBlock}
+                {colourBlock}
+                {workBlocksBlock}
+                {rescheduleBlock}
+              </div>
+            )}
+          </div>
 
           {problem && <p className="text-sm text-red-600">{problem}</p>}
+            </>
+          ) : (
+            <>
+          {notices}
+          {kindSwitch}
+
+          {eventTypeBlock}
+
+          {workForBlock}
+
+          {titleBlock}
+
+          {datesBlock}
+          {dueBlock}
+          {datesHint}
+
+          {locationBlock}
+
+          {notesBlock}
+
+          {withBlock}
+
+          {orderBlock}
+
+          {stepsBlock}
+
+          {workBlocksBlock}
+
+          {remindersBlock}
+
+          {settingsBlock}
+
+          {colourBlock}
+
+          {rescheduleBlock}
+
+          {problem && <p className="text-sm text-red-600">{problem}</p>}
+            </>
+          )}
         </div>
         </fieldset>
 
-        <footer className="flex items-center gap-2 border-t border-inherit px-5 py-3">
+        <footer className={`flex items-center gap-2 border-t border-inherit px-5 py-3 ${panel ? "sticky bottom-0 bg-inherit" : ""}`}>
           {task && onDelete && !readOnly && (
             <button
               type="button"

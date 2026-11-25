@@ -54,6 +54,26 @@ export const TASKS_GUIDE: Guide = {
       ],
     },
     {
+      // Added 2026-11-25 with step 5 of the Planner. A new section id, so
+      // nobody's progress on the guide is touched.
+      id: 'planner-tasks',
+      title: b('The new Planner: the Tasks tab', 'El nuevo Planner: la pestaña Tareas'),
+      intro: b(
+        'On the Planner, your whole list lives on the Tasks tab. The same tasks as My tasks, drawn more simply: one box to add, one filter, four views, and a side panel to edit.',
+        'En el Planner, toda tu lista está en la pestaña Tareas. Las mismas tareas que en Mis tareas, más sencillas: una caja para agregar, un filtro, cuatro vistas y un panel lateral para editar.',
+      ),
+      screen: 'planner-tasks',
+      steps: [
+        { spot: 1, text: b('One add box for every view, the same as on Today: type the task the way you would say it, with a day, a time, !urgent, #load or @person. Add with details opens the full editor.', 'Una caja para agregar en todas las vistas, igual que en Hoy: escribe la tarea como la dirías, con día, hora, !urgent, #carga o @persona. Agregar con detalles abre el editor completo.') },
+        { spot: 2, text: b('Four views — List, Board, Sticky notes and Table — and one filter that narrows all of them.', 'Cuatro vistas — Lista, Tablero, Notas adhesivas y Tabla — y un filtro que las reduce todas.') },
+        { spot: 3, text: b('The List is your order. Drag a task up or down (or use its arrows) to put it where it belongs. A red flag means Urgent. Each row says when you will work on it and when it is due. With game mode on, the List is drawn as the Path.', 'La Lista es tu orden. Arrastra una tarea hacia arriba o abajo (o usa sus flechas) para ponerla donde va. Una bandera roja significa Urgente. Cada fila dice cuándo trabajarás en ella y cuándo vence. Con el modo juego, la Lista se dibuja como el Camino.') },
+        { spot: 4, text: b('Click a task to open the side panel. Up front: the title, When (Today, Tomorrow, Next week or any day, with a time if you want one), Deadline, Urgent and the steps. Notes, reminders, repeats, the load, the colour and the rest are under More, which opens by itself when a task uses any of them.', 'Haz clic en una tarea para abrir el panel lateral. Al frente: el título, Cuándo (Hoy, Mañana, La próxima semana o cualquier día, con hora si quieres), Fecha límite, Urgente y los pasos. Notas, recordatorios, repeticiones, la carga, el color y lo demás están en Más, que se abre solo cuando la tarea usa alguno.') },
+      ],
+      callouts: [
+        { tone: 'tip', text: b('When is when you plan to work on it; Deadline is when it must be done. A task with no day stays in your inbox on Today until you give it one.', 'Cuándo es cuando piensas trabajar en ella; Fecha límite es cuándo debe estar hecha. Una tarea sin día se queda en tu bandeja de Hoy hasta que le des uno.') },
+      ],
+    },
+    {
       id: 'add',
       title: b('Add a task', 'Agregar una tarea'),
       screen: 'tasks-editor',

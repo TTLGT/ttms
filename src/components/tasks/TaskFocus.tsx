@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Check, Crosshair, Pencil, RotateCcw, StickyNote, Timer, Zap } from 'lucide-react';
-import { TASK_PRIORITY_LABEL, nextStepOf, type BoardColumn, type PersonalTask, type PersonalTaskInput, type TaskStep } from '@/types/task';
+import { nextStepOf, type BoardColumn, type PersonalTask, type PersonalTaskInput, type TaskStep } from '@/types/task';
 import StepList from './StepList';
 import { TaskWhen } from './TaskQueue';
-import { PRIORITY_STYLE } from './taskStyle';
+import { PriorityTag } from './UrgentOnly';
 import XpBadge from './XpBadge';
 import { PLAIN_SKIN, type TaskSkin } from './taskSkins';
 
@@ -117,11 +117,7 @@ export default function TaskFocus({
             </h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {!finished && <TaskWhen task={task} today={today} />}
-              {task.priority !== 'normal' && (
-                <span className={`rounded px-1.5 py-0.5 text-[11px] ${PRIORITY_STYLE[task.priority]}`}>
-                  {TASK_PRIORITY_LABEL[task.priority]} priority
-                </span>
-              )}
+              <PriorityTag priority={task.priority} suffix=" priority" />
               {playing && <XpBadge task={task} today={today} theme={skin.id} />}
             </div>
           </div>

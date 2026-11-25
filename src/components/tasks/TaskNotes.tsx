@@ -17,6 +17,7 @@ import {
   type PersonalTask,
   type PersonalTaskInput,
 } from '@/types/task';
+import { useUrgentOnly } from './UrgentOnly';
 import { NOTE_STYLE, TASK_DRAG_TYPE } from './taskStyle';
 import StatusMark, { StepStatusChip } from './StatusMark';
 import type { GameTheme } from '@/types/taskGame';
@@ -73,6 +74,8 @@ export default function TaskNotes({
   onAdd: () => void;
 }) {
   const { formatCalendarDate } = useDateFormatters();
+  // The Planner calls High "Urgent" (UrgentOnly.tsx).
+  const urgentOnly = useUrgentOnly();
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const notes = [...tasks].sort(byOrder);
@@ -169,7 +172,7 @@ export default function TaskNotes({
                     · Due {t.dueDate === today ? 'today' : formatCalendarDate(t.dueDate)}{t.dueTime && ` ${formatTime(t.dueTime)}`}
                   </span>
                 )}
-                {t.priority === 'high' && <span className="font-semibold">· High</span>}
+                {t.priority === 'high' && <span className="font-semibold">· {urgentOnly ? 'Urgent' : 'High'}</span>}
                 {t.repeat !== 'none' && <Repeat size={10} aria-label={repeatText(t)}><title>{repeatText(t)}</title></Repeat>}
                 {t.steps.length > 0 && (
                   <span>· {t.steps.filter((x) => x.done).length}/{t.steps.length} {stepWord}s</span>

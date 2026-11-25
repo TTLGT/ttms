@@ -2,7 +2,7 @@
 
 import {
   Bell, CalendarDays, ChevronLeft, ChevronRight, Circle, CheckCircle2, Columns3, Flame, ListOrdered,
-  Plus, Route, StickyNote, Table2, Target, X, ZoomIn, ZoomOut, Trophy,
+  Flag, GripVertical, Plus, Route, StickyNote, Table2, Target, X, ZoomIn, ZoomOut, Trophy,
 } from 'lucide-react';
 import { Bar, Btn, Frame, Pill, Spot } from './Frame';
 
@@ -361,6 +361,54 @@ export function PlannerTodayScreen() {
             </div>
           ))}
           <div className="mt-1 h-px bg-red-500" />
+          <Spot n={4} at="tr" />
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
+/** The Planner's Tasks tab and its side panel (step 5, 2026-11-25). Made-up items. */
+export function PlannerTasksScreen() {
+  return (
+    <Frame path="/dashboard/planner?tab=tasks">
+      <div className="mb-2 flex items-center gap-2">
+        <b className="text-[13px] text-gray-900">Planner</b>
+        <span className="flex gap-1"><Pill>Today</Pill><Pill on>Tasks</Pill><Pill>Calendar</Pill></span>
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        <div className="col-span-3 flex flex-col gap-2">
+          <div className="relative flex items-center gap-1.5 rounded-lg border border-gray-200 px-2 py-1.5 text-gray-400">
+            <Plus size={10} /> Send rates to Sunbelt Friday !urgent
+            <Spot n={1} at="tr" />
+          </div>
+          <div className="relative flex items-center gap-1">
+            <Pill on>List</Pill><Pill>Board</Pill><Pill>Sticky notes</Pill><Pill>Table</Pill>
+            <span className="ml-1 flex-1 rounded border border-gray-200 px-1.5 py-0.5 text-[9px] text-gray-400">Filter tasks</span>
+            <Spot n={2} at="tr" />
+          </div>
+          <div className="relative space-y-1">
+            {[['Send rates to Sunbelt Steel', 'Today', 'Due Fri', true], ['Quote Blue Mesa, Laredo → Denver', 'Tomorrow', '', false], ['Ask Swift Logistics for a referral', '', '', false]].map(([t, when, due, urgent]) => (
+              <div key={String(t)} className={`flex items-center gap-1.5 rounded-md border px-1.5 py-1 ${urgent ? 'border-red-200' : 'border-gray-200'}`}>
+                <GripVertical size={10} className="text-gray-300" />
+                <Circle size={10} className="text-gray-400" />
+                {urgent && <Flag size={9} className="text-red-600" />}
+                <span className="flex-1 truncate text-gray-800">{t}</span>
+                {when ? <span className="rounded bg-brand-50 px-1 text-[8px] text-brand-700">{when}</span> : <span className="text-[8px] text-gray-400">No day</span>}
+                {due && <span className="rounded bg-gray-100 px-1 text-[8px] text-gray-600">{due}</span>}
+              </div>
+            ))}
+            <Spot n={3} at="tl" />
+          </div>
+        </div>
+        <div className="relative col-span-2 rounded-lg border border-gray-200 p-2 shadow-sm">
+          <div className="mb-1 font-semibold text-gray-900">Send rates to Sunbelt Steel</div>
+          <div className="text-[8px] text-gray-500">When</div>
+          <div className="mb-1 flex flex-wrap gap-0.5"><Pill>No day</Pill><Pill on>Today</Pill><Pill>Tomorrow</Pill></div>
+          <div className="text-[8px] text-gray-500">Deadline</div>
+          <div className="mb-1 flex flex-wrap gap-0.5"><Pill>None</Pill><Pill>Tomorrow</Pill><Pill on>Friday</Pill></div>
+          <div className="mb-1 flex items-center gap-1 text-[9px] text-gray-800"><Flag size={9} className="text-red-600" /> Urgent</div>
+          <div className="border-t border-gray-100 pt-1 text-[9px] text-gray-600">More · reminder · 1 load</div>
           <Spot n={4} at="tr" />
         </div>
       </div>

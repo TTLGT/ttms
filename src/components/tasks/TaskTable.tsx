@@ -18,6 +18,7 @@ import {
   type PersonalTask,
   type PersonalTaskInput,
 } from '@/types/task';
+import { useUrgentOnly } from './UrgentOnly';
 import { NOTE_STYLE, PRIORITY_STYLE } from './taskStyle';
 import type { GameTheme } from '@/types/taskGame';
 import XpBadge from './XpBadge';
@@ -66,6 +67,8 @@ export default function TaskTable({
   onUpdate: (id: string, input: PersonalTaskInput) => void;
 }) {
   const { formatCalendarDate, formatDate } = useDateFormatters();
+  // The Planner shows priority as one Urgent tick (UrgentOnly.tsx).
+  const urgentOnly = useUrgentOnly();
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'date', dir: 1 });
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const stepLabel = stepWord.charAt(0).toUpperCase() + stepWord.slice(1);
@@ -134,7 +137,7 @@ export default function TaskTable({
             {header('title', 'Task')}
             {header('contact', 'With')}
             {header('status', 'Status')}
-            {header('priority', 'Priority')}
+            {header('priority', urgentOnly ? 'Urgent' : 'Priority')}
             {header('date', 'Planned')}
             {header('due', 'Due')}
             {header('createdAt', 'Added', 'hidden md:table-cell')}
@@ -219,6 +222,12 @@ export default function TaskTable({
                   </select>
                 </td>
                 <td className="px-3 py-2">
+                  {urgentOnly ? (
+                    // Ticking makes it High; unticking makes it Normal (a Low one stays Low until touched).
+                    <input type="checkbox" aria-label={`${t.title} is urgent`} checked={t.priority === 'high'}
+                      onChange={(e) => onUpdate(t.id, { priority: e.target.checked ? 'high' : 'normal' })}
+                      className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500" />
+                  ) : (
                   <select
                     aria-label="Priority"
                     value={t.priority}
@@ -227,6 +236,7 @@ export default function TaskTable({
                   >
                     {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{TASK_PRIORITY_LABEL[p]}</option>)}
                   </select>
+                  )}
                 </td>
                 {/* Red goes on whichever date made it overdue: the deadline, or the planned day when there is none. */}
                 <td className={`whitespace-nowrap px-3 py-2 ${!t.dueDate && isOverdue(t, today) ? 'font-medium text-red-700' : 'text-gray-700'}`}>

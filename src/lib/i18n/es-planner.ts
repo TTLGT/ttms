@@ -247,4 +247,23 @@ export const ES_PLANNER: Record<string, string> = {
   'Why (required)': 'Por qué (obligatorio)',
   'Save correction': 'Guardar corrección',
   'Show me around My leads': 'Muéstrame Mis prospectos',
+
+  // ── The Tasks tab and the side panel (step 5, 2026-11-25) ─────────────────
+  'Add with details': 'Agregar con detalles',
+  'Show done': 'Mostrar hechas',
+  'Game mode': 'Modo juego',
+  'Game mode on': 'Modo juego activado',
+  'Drag to change the order': 'Arrastra para cambiar el orden',
+  'Nothing to do. Add a task above': 'Nada por hacer. Agrega una tarea arriba.',
+  'No open task matches the filter': 'Ninguna tarea abierta coincide con el filtro.',
+  'No day': 'Sin día',
+  'No date': 'Sin fecha',
+  'Next week': 'La próxima semana',
+  'Pick a day': 'Elegir un día',
+  'Deadline': 'Fecha límite',
+  'By what time (optional)': 'A qué hora (opcional)',
+  'More': 'Más',
+  'To': 'Hasta',
+  'No day keeps it in your inbox until you give it one': 'Sin día se queda en tu bandeja hasta que le des uno.',
+  'With no deadline, the day in When counts as one': 'Sin fecha límite, el día de Cuándo cuenta como una.',
 };

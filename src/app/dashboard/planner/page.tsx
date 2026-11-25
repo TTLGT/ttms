@@ -8,9 +8,9 @@ import { useAuth } from '@/context/AuthContext';
 import { PersonalTasksProvider } from '@/lib/personalTasks';
 import { choosePlanner, recordTour, tourSeen, usePlanner } from '@/lib/planner';
 import TodayTab from '@/components/planner/TodayTab';
-import MyTasksScreen from '@/components/tasks/MyTasksScreen';
+import TasksTab from '@/components/planner/TasksTab';
 import CalendarScreen from '@/components/calendar/CalendarScreen';
-import PlannerTour, { TODAY_TOUR } from '@/components/planner/PlannerTour';
+import PlannerTour, { TASKS_TOUR, TODAY_TOUR, type TourStep } from '@/components/planner/PlannerTour';
 import { BackToOldDialog } from '@/components/planner/PlannerSwitch';
 import { Bi } from '@/components/spanish/Es';
 import { DAILY_PLAN_OPEN_EVENT, PLAN_NOW_PARAM } from '@/types/dailyPlan';
@@ -41,8 +41,9 @@ const TABS: { id: Tab; label: string; Icon: typeof Sun }[] = [
 const isTab = (v: string | null): v is Tab => v === 'today' || v === 'tasks' || v === 'calendar';
 
 /** Tabs that have a tour so far. The rest get theirs with their redesign. */
-const TOURS: Partial<Record<Tab, { id: 'today'; steps: typeof TODAY_TOUR; label: string }>> = {
+const TOURS: Partial<Record<Tab, { id: 'today' | 'tasks'; steps: TourStep[]; label: string }>> = {
   today: { id: 'today', steps: TODAY_TOUR, label: 'Today' },
+  tasks: { id: 'tasks', steps: TASKS_TOUR, label: 'Tasks' },
 };
 
 function Planner() {
@@ -149,7 +150,8 @@ function Planner() {
         </div>
 
         {tab === 'today' && <TodayTab />}
-        {tab === 'tasks' && <MyTasksScreen embedded />}
+        {/* The new Tasks tab (step 5). The old My tasks page keeps MyTasksScreen. */}
+        {tab === 'tasks' && <TasksTab />}
         {tab === 'calendar' && <CalendarScreen embedded />}
       </div>
 

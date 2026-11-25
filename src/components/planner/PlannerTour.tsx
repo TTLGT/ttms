@@ -278,3 +278,41 @@ export const LEADS_TOUR: TourStep[] = [
     es: { title: 'Quién ve esto', text: 'Solo tú, tu Sales Manager y los administradores. Los compañeros que pueden abrir un cliente igual no ven sus llamadas, correos ni etapa.' },
   },
 ];
+
+/**
+ * The Tasks tab's tour (step 5). Targets are `data-tour` attributes in
+ * TasksTab.tsx, TaskList.tsx and QuickAdd.tsx. "A task" is skipped while the
+ * list is empty; on the Path (game mode) the list step lights the road.
+ */
+export const TASKS_TOUR: TourStep[] = [
+  {
+    target: 'tasks-add',
+    title: 'One box for every view',
+    text: 'Type a task the way you would say it, the same as on Today: “Send rates to Sunbelt Friday !urgent #10533”. Add with details opens the full editor.',
+    es: { title: 'Una caja para todas las vistas', text: 'Escribe la tarea como la dirías, igual que en Hoy: “Send rates to Sunbelt Friday !urgent #10533”. Agregar con detalles abre el editor completo.' },
+  },
+  {
+    target: 'tasks-views',
+    title: 'Four views',
+    text: 'List, Board, Sticky notes and Table: the same tasks, four ways. TTMS remembers the one you used last.',
+    es: { title: 'Cuatro vistas', text: 'Lista, Tablero, Notas adhesivas y Tabla: las mismas tareas, de cuatro formas. TTMS recuerda la última que usaste.' },
+  },
+  {
+    target: 'tasks-filter',
+    title: 'One filter',
+    text: 'Type a word, a name or a load number to narrow every view at once. The colour chips below filter by tag.',
+    es: { title: 'Un filtro', text: 'Escribe una palabra, un nombre o un número de carga para filtrar todas las vistas a la vez. Las etiquetas de color de abajo filtran por color.' },
+  },
+  {
+    target: 'tasks-list',
+    title: 'Your order',
+    text: 'Drag a task up or down to put it where it belongs, or use its arrows. A red flag means Urgent. The chips say when you will work on it and when it is due.',
+    es: { title: 'Tu orden', text: 'Arrastra una tarea hacia arriba o abajo para ponerla donde va, o usa sus flechas. Una bandera roja significa Urgente. Las etiquetas dicen cuándo trabajarás en ella y cuándo vence.' },
+  },
+  {
+    target: 'tasks-row',
+    title: 'Open a task',
+    text: 'Click it to open the side panel: title, When, Deadline, Urgent and the steps up front. Reminders, repeats, notes, the load and the rest are under More.',
+    es: { title: 'Abrir una tarea', text: 'Haz clic para abrir el panel lateral: título, Cuándo, Fecha límite, Urgente y los pasos al frente. Recordatorios, repeticiones, notas, la carga y lo demás están en Más.' },
+  },
+];

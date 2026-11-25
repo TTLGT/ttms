@@ -1298,14 +1298,14 @@ Types and pure rules in `src/types/task.ts`; server in
 
 ### The Planner — My tasks and the Calendar as one page (2026-11-24)
 
-The redesign agreed on 2026-11-24 has seven steps; **steps 1–4 are built**:
+The redesign agreed on 2026-11-24 has seven steps; **steps 1–5 are built**:
 the Planner at `/dashboard/planner` with Today, Tasks and Calendar tabs, the
 rollout switch, the Today tour, and the onboarding updates for it (step 1);
 the planning pop-up (step 2, below); suggestions and questions for every role
-(step 3, below); brokers' daily targets and numbers (step 4a, below); and
-leads plus Incentives goals TTMS counts (step 4b, below). Still to come: the
-new editor and Tasks tab, the Calendar tab, game mode 2.0, and the Broker
-dashboard. Pure rules in `src/types/planner.ts`;
+(step 3, below); brokers' daily targets and numbers (step 4a, below);
+leads plus Incentives goals TTMS counts (step 4b, below); and the new Tasks
+tab and side-panel editor (step 5, below). Still to come: the Calendar tab,
+game mode 2.0, and the Broker dashboard. Pure rules in `src/types/planner.ts`;
 browser side `src/lib/planner.ts`.
 
 - **It reaches people a few at a time.** `appSettings/general.plannerRollout`
@@ -1485,6 +1485,40 @@ leads (`LeadsBoard`, `?tab=leads`). Counted goals: `GOAL_COUNTERS` in
   (`onLoaded`) so the board and card steps are not skipped.
 - Not built, on purpose: XP for calls (step 7), the Broker dashboard, and a
   separate "check-ins with existing clients" target.
+
+**The Tasks tab and the side panel (step 5, 2026-11-25).**
+`src/components/planner/TasksTab.tsx`, `src/components/tasks/TaskList.tsx`,
+`DayChips.tsx`, and `TaskEditor`'s `layout="panel"`.
+
+- **Planner only.** The old My tasks page keeps `MyTasksScreen` and the
+  window editor unchanged, so going back to the old pages gives back exactly
+  what people knew. The Calendar tab still opens the window until step 6.
+- **One editor, two layouts.** The panel is the same component, fields,
+  checks and save as the window — the form is built from named pieces and
+  the two layouts only order them differently. **Do not fork it**: a rule
+  added to one layout's copy would be missing from the other. Up front: title,
+  When, Deadline, Urgent, steps (an event: title, date, where, with); the rest
+  under More, which opens by itself on an item that already uses any of it.
+- **No data changed.** When is `date`/`time`/`endTime`, Deadline is
+  `dueDate`/`dueTime`, Urgent is `priority: 'high'` (what `!urgent` sets),
+  and the List's order is the queue's `rank` through `rankQueue()`. The panel
+  draws no priority box and no queue number; a task that was Low stays Low
+  until somebody ticks Urgent off it, which makes it Normal.
+- **Urgent is a flag, never a re-sort.** The List's order is the person's.
+- **The Planner shows priority as Urgent or nothing, everywhere** (decided
+  2026-11-25): the shared Board, Sticky notes, Table and focus views ask
+  `useUrgentOnly()` (`src/components/tasks/UrgentOnly.tsx`), which the Tasks
+  tab turns on and the old page never does. Priority sets no XP — difficulty
+  does — so hiding Low costs game mode nothing. An Eisenhower-style
+  "Important" tick was considered and left out for now; if it comes back it
+  is a second flag, not more levels.
+- **One add box** is `QuickAdd.tsx`, shared with the Today tab (`tourId`
+  names its tour target; `extra` carries the colour being filtered on). The
+  Board's per-column add and the notes' add tile stay.
+- With game mode on the List is drawn as `TaskPath`. Focus mode is the same
+  `TaskFocus`, and shares its localStorage key with My tasks.
+- Tour `tasks` (`TASKS_TOUR`, five steps), no My journey tick of its own.
+  Guide section `planner-tasks` with the `planner-tasks` drawing.
 
 ### Shipper and consignee addresses — never an address on its own (2026-11-06)
 

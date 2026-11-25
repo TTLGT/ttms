@@ -6,7 +6,6 @@ import { useDragAutoScroll } from './useDragAutoScroll';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import OutcomeBadge from './OutcomeBadge';
 import {
-  TASK_PRIORITY_LABEL,
   byOrder,
   outcomeOf,
   repeatText,
@@ -24,7 +23,8 @@ import {
   type TaskStatus,
   type TaskStep,
 } from '@/types/task';
-import { BOARD_STEP_DRAG_TYPE, COLUMN_DRAG_TYPE, NOTE_STYLE, PRIORITY_STYLE, TASK_DRAG_TYPE } from './taskStyle';
+import { PriorityTag } from './UrgentOnly';
+import { BOARD_STEP_DRAG_TYPE, COLUMN_DRAG_TYPE, NOTE_STYLE, TASK_DRAG_TYPE } from './taskStyle';
 import StatusMark from './StatusMark';
 import type { GameTheme } from '@/types/taskGame';
 import XpBadge from './XpBadge';
@@ -562,11 +562,7 @@ function Card({
               {task.dueTime && ` ${formatTime(task.dueTime)}`}
             </span>
           )}
-          {task.priority !== 'normal' && (
-            <span className={`rounded px-1.5 py-0.5 text-[11px] ${PRIORITY_STYLE[task.priority]}`}>
-              {TASK_PRIORITY_LABEL[task.priority]}
-            </span>
-          )}
+          <PriorityTag priority={task.priority} />
           {task.steps.length > 0 && (
             <span className="inline-flex items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">
               <ListChecks size={10} /> {task.steps.filter((s) => s.done).length}/{task.steps.length}

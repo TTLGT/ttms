@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "1e882c5aad59622a00d440f3a4fc8d3594d72da8",
+      "date": "2026-11-25T08:47:33-06:00",
+      "author": "erwindank",
+      "subject": "Add a guided tour to Clients → My leads. It starts the first time somebody opens My leads and plays again from the ? beside the tabs: the two tabs, Add a lead, the four columns and which moves happen by themselves, a lead card and where to log calls, whose leads for Sales Managers and admins, and who sees the board, in English with Spanish underneath. Finishing it ticks a new \"Take the My leads tour\" step on My journey for brokers and Sales Managers. Each tour now ticks only its own My journey step, so finishing the leads tour does not tick \"Take the Planner tour\"",
+      "body": ""
+    },
+    {
       "hash": "c529ed91ac373dae89a6706085d64e892cabddee",
       "date": "2026-11-25T08:40:13-06:00",
       "author": "erwindank",
