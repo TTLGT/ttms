@@ -185,7 +185,7 @@ export const CHECKLIST: readonly ChecklistStep[] = [
   { id: 'w2-first-prospects', stage: 'floor', order: 40, owner: 'you', tracks: SALES, href: '/dashboard/clients',
     when: { en: 'Week 2', es: 'Semana 2' },
     title: { en: 'Your first 20 prospects in TTMS', es: 'Tus primeros 20 prospectos en TTMS' },
-    detail: { en: 'Company, contact, phone, what they ship and the next step. A prospect who is not written down is a prospect you will lose.', es: 'Empresa, contacto, teléfono, qué envían y el siguiente paso. Un prospecto que no está escrito es un prospecto que perderás.' } },
+    detail: { en: 'Add them from Clients → My leads: company, contact, phone, what they ship and the next step. A prospect who is not written down is a prospect you will lose.', es: 'Agrégalos desde Clientes → Mis prospectos: empresa, contacto, teléfono, qué envían y el siguiente paso. Un prospecto que no está escrito es un prospecto que perderás.' } },
   { id: 'w2-daily-plan', stage: 'floor', order: 50, owner: 'you', tracks: 'all', href: '/dashboard/tasks',
     when: { en: 'Week 2', es: 'Semana 2' },
     title: { en: 'Plan every day for a week in My tasks', es: 'Planifica cada día de una semana en Mis tareas' },

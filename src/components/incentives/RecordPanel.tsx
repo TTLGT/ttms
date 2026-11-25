@@ -6,6 +6,7 @@ import { Bi, EsLine } from '@/components/spanish/Es';
 import { recordMark, type MarkPatch } from '@/lib/incentives';
 import { StateBadge } from './IncentiveCards';
 import {
+  GOAL_COUNTER_INFO,
   formatGoalValue,
   formatReward,
   goalState,
@@ -88,7 +89,10 @@ export default function RecordPanel({ month, program, progress, abilities, onSav
               {formatReward(summarize(program, person, byUid.get(person.uid)).earned, program.currency)} <span data-es>earned so far</span>
             </p>
           </div>
-          {program.goals.map((goal, i) => (
+          {program.goals.map((goal, i) => goal.counter ? (
+            <CountedGoalRow key={goal.id} month={month} goal={goal} index={i} program={program}
+              participant={person} mark={byUid.get(person.uid)?.marks[goal.id]} onSaved={onSaved} />
+          ) : (
             <GoalRow key={goal.id} month={month} goal={goal} index={i} program={program}
               participant={person} mark={byUid.get(person.uid)?.marks[goal.id]} onSaved={onSaved} />
           ))}
@@ -117,14 +121,16 @@ function useSaver(month: string, onSaved: (p: IncentiveProgress) => void) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
-  async function save(patch: MarkPatch) {
+  async function save(patch: MarkPatch): Promise<boolean> {
     setSaving(true); setError(''); setSaved(false);
     try {
       onSaved(await recordMark(month, patch));
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -227,6 +233,132 @@ function GoalRow({ month, goal, index, program, participant, mark, onSaved }: {
             className={`${INPUT} w-full resize-y`} />
         </label>
         <SaveButton dirty={dirty} saving={saving} saved={saved} onClick={submit} />
+      </div>
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+/**
+ * A goal TTMS counts. Nothing to type unless the count is wrong: then the
+ * number it should be and why, saved as a correction the card names. "Go back
+ * to TTMS's count" drops the correction. Does not apply and the note work as
+ * on a typed goal, saved with the same button.
+ */
+function CountedGoalRow({ month, goal, index, program, participant, mark, onSaved }: {
+  month: string;
+  goal: IncentiveGoal;
+  index: number;
+  program: IncentiveProgram;
+  participant: IncentiveParticipant;
+  mark: GoalMark | undefined;
+  onSaved: (p: IncentiveProgress) => void;
+}) {
+  const target = targetFor(goal, participant);
+  const counted = mark?.counted ?? 0;
+  const isCorrected = mark?.source === 'corrected';
+  const [correcting, setCorrecting] = useState(false);
+  const [value, setValue] = useState(numberText(isCorrected ? mark?.value : counted));
+  const [reason, setReason] = useState(isCorrected ? mark?.reason ?? '' : '');
+  const [na, setNa] = useState(mark?.na ?? false);
+  const [note, setNote] = useState(mark?.note ?? '');
+  const { saving, saved, error, save, setError } = useSaver(month, onSaved);
+  const info = GOAL_COUNTER_INFO[goal.counter!];
+
+  const dirty = na !== (mark?.na ?? false) || note !== (mark?.note ?? '');
+
+  function saveOther() {
+    void save({ uid: participant.uid, goalId: goal.id, na, note });
+  }
+
+  function saveCorrection() {
+    const n = parseNumber(value);
+    if (n === 'bad' || n === null) { setError('Type the number it should be.'); return; }
+    if (!reason.trim()) { setError('Say why TTMS’s count is wrong. The reason is kept in the log.'); return; }
+    void save({ uid: participant.uid, goalId: goal.id, value: n, corrected: true, reason: reason.trim() })
+      .then((ok) => { if (ok) setCorrecting(false); });
+  }
+
+  function goBack() {
+    void save({ uid: participant.uid, goalId: goal.id, corrected: false }).then((ok) => {
+      if (!ok) return;
+      setCorrecting(false); setReason(''); setValue(numberText(counted));
+    });
+  }
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-semibold text-gray-900">
+            <span className="text-gray-400 mr-1.5">{index + 1}.</span>{goal.title}
+            <EsLine>{goal.titleEs ?? ''}</EsLine>
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {formatReward(goal.reward, program.currency)}
+            {' · '}<span data-es>target</span> {goal.compare === 'above' ? 'more than ' : ''}{formatGoalValue(goal.kind, target)}
+            {' · '}<span data-es className="font-semibold text-green-700">Counted by TTMS</span>: {info.label}
+          </p>
+        </div>
+        <StateBadge state={goalState(goal, target, mark)} />
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <span><span data-es className="text-gray-500">TTMS counted</span>{' '}
+          <span className="font-semibold tabular-nums">{formatGoalValue(goal.kind, counted)}</span></span>
+        {isCorrected && (
+          <span className="text-amber-800">
+            <span data-es>Corrected to</span> <span className="font-semibold tabular-nums">{formatGoalValue(goal.kind, mark?.value)}</span>
+            {' '}<span data-es>by</span> {mark?.byName || 'someone'}
+            {mark?.reason && <span className="block text-xs text-gray-600">{mark.reason}</span>}
+          </span>
+        )}
+        <span className="flex gap-2">
+          {!correcting && (
+            <button type="button" onClick={() => setCorrecting(true)} data-es
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+              {isCorrected ? 'Change the correction' : 'Correct this number'}
+            </button>
+          )}
+          {isCorrected && (
+            <button type="button" onClick={goBack} disabled={saving} data-es
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+              Go back to TTMS’s count
+            </button>
+          )}
+        </span>
+      </div>
+
+      {correcting && (
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3 flex flex-wrap items-end gap-3">
+          <label className="text-sm text-gray-700">
+            <span data-es className="block text-xs text-gray-500 mb-1">Set to</span>
+            <input value={value} onChange={(e) => setValue(e.target.value)} inputMode="decimal" className={`${INPUT} w-32 tabular-nums`} />
+          </label>
+          <label className="flex-1 min-w-[14rem] text-sm">
+            <span data-es className="block text-xs text-gray-500 mb-1">Why (required)</span>
+            <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={1000}
+              placeholder="Booked by phone; the load was entered under another broker" className={`${INPUT} w-full`} />
+          </label>
+          <button type="button" onClick={saveCorrection} disabled={saving} data-es
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-40">
+            {saving && <Loader2 className="w-4 h-4 animate-spin" aria-hidden />}Save correction
+          </button>
+          <button type="button" onClick={() => { setCorrecting(false); setError(''); }} data-es
+            className="text-sm text-gray-600 underline">Cancel</button>
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <label className="inline-flex items-center gap-2 text-sm text-gray-600 pb-2">
+          <input type="checkbox" checked={na} onChange={(e) => setNa(e.target.checked)} className="w-4 h-4 rounded border-gray-300" />
+          <span data-es>Does not apply</span>
+        </label>
+        <label className="flex-1 min-w-[14rem] text-sm">
+          <span data-es className="block text-xs text-gray-500 mb-1">Note on the card (which clients, which orders)</span>
+          <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={1} className={`${INPUT} w-full resize-y`} />
+        </label>
+        <SaveButton dirty={dirty} saving={saving} saved={saved} onClick={saveOther} />
       </div>
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </div>

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "9f6a5b0f341a9adc0740276ef273bb3be9f4fce9",
+      "date": "2026-11-25T06:23:25-06:00",
+      "author": "erwindank",
+      "subject": "Add brokers' daily targets and numbers, the first half of step 4 of the Planner redesign. Brokers and Sales Managers on the new Planner get a Today's targets card on the Today tab: cold calls, cold emails and referrals asked are a +1 tap each, while quotes made and new clients added count themselves from what they created in TTMS that day. A Calls button at the bottom of every page counts a call without leaving the page, \"Plan my whole day\" has a step to change today's targets, and closing the day shows the numbers so a miscount can be fixed. Team plans has a new Numbers view where a Sales Manager sees their team's day and admins see everybody's, and where they set the targets each broker starts the day with. Adds the permission \"See everyone's sales numbers\" (sales.viewAll), held by admins and grantable one person at a time; no role gained it",
+      "body": ""
+    },
+    {
       "hash": "21c15655eba4d73504dad22793e287bbd9765a27",
       "date": "2026-11-24T23:41:02-06:00",
       "author": "erwindank",

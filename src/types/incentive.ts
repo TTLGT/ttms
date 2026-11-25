@@ -10,12 +10,26 @@
  *
  * ## What this is deliberately not
  *
- * - **Not fed from the orders.** The first programme ran on figures kept in a
- *   spreadsheet, and several goals ("15 quotes to new clients", "closed within
- *   24 hours of the quote") are about things TTMS does not record. A recorded
- *   number is what a person typed, with who and when beside it. If a goal is
- *   ever worked out from orders, it gets a new `kind` rather than quietly
- *   replacing typed values.
+ * - **Not fed from the orders unless a goal says so.** The first programme ran
+ *   on figures kept in a spreadsheet, and several goals ("closed within 24
+ *   hours of the quote") are about things TTMS does not record. A typed number
+ *   is what a person typed, with who and when beside it.
+ *
+ *   Since 2026-11-25 (step 4b of the Planner redesign) a goal can instead be
+ *   **counted by TTMS** — `counter` names what is counted, from the list in
+ *   GOAL_COUNTERS. Three rules keep that from quietly replacing anybody's
+ *   figures:
+ *   - It is chosen per goal when the month is set up, and can be switched back
+ *     to typed at any time. Typed marks are never deleted by the switch: they
+ *     stay under the goal and show again the moment it is typed once more.
+ *   - The count is worked out when the month is read (lib/incentiveCounts.ts),
+ *     never stored. A stored count would go stale the first time an order was
+ *     reassigned or cancelled.
+ *   - Whoever records incentives can **correct** a counted number, with a
+ *     reason. A correction is an ordinary mark with `corrected: true`, written
+ *     through the same route and logged in the same `events` history; the
+ *     card says "Corrected by X · TTMS counted N". "Go back to TTMS's count"
+ *     is a mark with `corrected: false`.
  * - **Not private.** Everybody signed in sees everybody's cards and amounts —
  *   the office asked for a public scoreboard (2026-11-20). That is the opposite
  *   choice from My tasks, which is a private notepad; the two must not be
@@ -68,6 +82,64 @@ export interface IncentiveLink {
   url: string;
 }
 
+// ── Goals TTMS counts (2026-11-25) ───────────────────────────────────────────
+
+/**
+ * What TTMS can count for a goal, one calendar month (office time) at a time.
+ * Every one is about records the person made or owns:
+ *
+ * - "Loads they created" is `createdBy` on a top-level order — the same rule
+ *   as "Quotes made" on today's targets (src/types/salesDay.ts), so the day's
+ *   numbers and the month's agree. A suborder is the same piece of work as
+ *   its parent and is not counted again.
+ * - "Clients they own" is `assignedToUids` on a client party — the record's
+ *   own owners, as on the Clients list.
+ *
+ * Ids are stored on goals: never rename one. Adding one is a line here plus a
+ * branch in lib/incentiveCounts.ts.
+ */
+export const GOAL_COUNTERS = [
+  'quotes', 'quotesNewClients', 'newClients', 'newClientsBooked', 'bookedLoads', 'brokerFee',
+] as const;
+export type GoalCounter = (typeof GOAL_COUNTERS)[number];
+
+export const GOAL_COUNTER_INFO: Record<GoalCounter, { label: string; how: string; kind: 'count' | 'usd' }> = {
+  quotes: {
+    label: 'Quotes made',
+    how: 'Loads they created this month, whatever happened to them after.',
+    kind: 'count',
+  },
+  quotesNewClients: {
+    label: 'Quotes to new clients',
+    how: 'Loads they created this month for a client added to TTMS this month.',
+    kind: 'count',
+  },
+  newClients: {
+    label: 'New clients added',
+    how: 'Client records they own that were added to TTMS this month.',
+    kind: 'count',
+  },
+  newClientsBooked: {
+    label: 'New clients booked',
+    how: 'Client records they own, added this month, with at least one load booked this month (past the quote, not cancelled).',
+    kind: 'count',
+  },
+  bookedLoads: {
+    label: 'Loads booked',
+    how: 'Loads they created this month that are past the quote and not cancelled.',
+    kind: 'count',
+  },
+  brokerFee: {
+    label: 'Broker fee booked',
+    how: 'The broker fee on the loads they created this month that are past the quote and not cancelled.',
+    kind: 'usd',
+  },
+};
+
+export function isGoalCounter(v: unknown): v is GoalCounter {
+  return typeof v === 'string' && (GOAL_COUNTERS as readonly string[]).includes(v);
+}
+
 export interface IncentiveGoal {
   /** Stable for the month: marks are stored under it. */
   id: string;
@@ -92,6 +164,11 @@ export interface IncentiveGoal {
   how: string;
   howEs?: string;
   links: IncentiveLink[];
+  /**
+   * Counted by TTMS, and what is counted. Absent or null means typed by hand,
+   * which is every goal written before 2026-11-25. See GOAL_COUNTERS.
+   */
+  counter?: GoalCounter | null;
 }
 
 /**
@@ -146,6 +223,21 @@ export interface GoalMark {
   at: string;
   byUid: string;
   byName: string;
+  /**
+   * On a counted goal: this mark's `value` replaces TTMS's count. Stored.
+   * False or absent on a counted goal means TTMS's count stands, and any
+   * stored `value` is a typed figure kept from before the goal was counted.
+   */
+  corrected?: boolean;
+  /** Why a counted number was corrected. Required with `corrected`. Stored. */
+  reason?: string;
+  /**
+   * Where the value on the card came from. Never stored — added by
+   * applyCounts() when the month is read.
+   */
+  source?: 'typed' | 'ttms' | 'corrected';
+  /** TTMS's own count, beside a corrected value. Never stored. */
+  counted?: number | null;
 }
 
 export interface IncentiveProgress {
@@ -381,9 +473,12 @@ function cleanGoal(raw: unknown): IncentiveGoal | null {
   const id = str(g.id, 40);
   const title = str(g.title, MAX_TITLE);
   if (!/^[A-Za-z0-9_-]{1,40}$/.test(id) || !title) return null;
-  const kind = isGoalKind(g.kind) ? g.kind : 'count';
+  const counter = isGoalCounter(g.counter) ? g.counter : null;
+  // A counted goal is measured in whatever its counter counts.
+  const kind = counter ? GOAL_COUNTER_INFO[counter].kind : isGoalKind(g.kind) ? g.kind : 'count';
   const reward = Math.max(0, num(g.reward) ?? 0);
   return {
+    counter,
     id, title, titleEs: optStr(g.titleEs, MAX_TITLE),
     reward,
     kind,
@@ -482,6 +577,60 @@ export function emptyProgram(month: string, from?: IncentiveProgram | null): Inc
     updatedAt: null,
     updatedByName: null,
   };
+}
+
+// ── Counted goals, as read ───────────────────────────────────────────────────
+
+/** TTMS's counts for one month: `counts[uid][counter]`. */
+export type MonthCounts = Record<string, Partial<Record<GoalCounter, number>>>;
+
+/** The counters a month's goals use. Empty means the month needs no counting at all. */
+export function countersIn(program: Pick<IncentiveProgram, 'goals'>): GoalCounter[] {
+  return [...new Set(program.goals.map((g) => g.counter).filter(isGoalCounter))];
+}
+
+/**
+ * The mark a card shows for a goal: as stored for a typed goal; for a counted
+ * one, TTMS's count unless a correction stands. `na` and the note always come
+ * from what was stored, because those are a person's call either way.
+ */
+export function effectiveMark(goal: IncentiveGoal, stored: GoalMark | undefined, counted: number | undefined): GoalMark | undefined {
+  if (!goal.counter) return stored ? { ...stored, source: 'typed' } : undefined;
+  const count = typeof counted === 'number' ? counted : 0;
+  if (stored?.corrected) return { ...stored, source: 'corrected', counted: count };
+  return {
+    value: count,
+    done: false,
+    na: stored?.na ?? false,
+    note: stored?.note ?? '',
+    // The "Updated by" line names the last person to touch the mark, if
+    // anybody has; otherwise nothing, since TTMS's count is live.
+    at: stored?.at ?? '',
+    byUid: stored?.byUid ?? '',
+    byName: stored?.byName ?? '',
+    source: 'ttms',
+    counted: count,
+  };
+}
+
+/**
+ * Every participant's progress as the cards read it, counted goals filled in.
+ * Somebody with nothing stored still gets a row when the month counts
+ * anything, since TTMS has a number for them.
+ */
+export function applyCounts(program: IncentiveProgram, stored: IncentiveProgress[], counts: MonthCounts): IncentiveProgress[] {
+  const anyCounted = program.goals.some((g) => g.counter);
+  const byUid = new Map(stored.map((p) => [p.uid, p]));
+  const uids = anyCounted ? program.participants.map((p) => p.uid) : stored.map((p) => p.uid);
+  return uids.map((uid) => {
+    const p = byUid.get(uid) ?? { uid, marks: {}, prizeValue: null, prizeNote: '' };
+    const marks: Record<string, GoalMark> = {};
+    for (const goal of program.goals) {
+      const m = effectiveMark(goal, p.marks[goal.id], goal.counter ? counts[uid]?.[goal.counter] : undefined);
+      if (m) marks[goal.id] = m;
+    }
+    return { ...p, marks };
+  });
 }
 
 /** Undefined keys removed, because Firestore refuses to store `undefined`. */

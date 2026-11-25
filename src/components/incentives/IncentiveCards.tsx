@@ -7,7 +7,9 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import { UserAvatar } from '@/components/settings/UserAvatar';
 import ProgressRing from '@/components/onboarding/ProgressRing';
 import {
+  GOAL_COUNTER_INFO,
   formatGoalValue,
+  type GoalMark,
   formatReward,
   goalRatio,
   goalState,
@@ -43,6 +45,24 @@ const STATE_STYLE: Record<GoalState, { card: string; badge: string; bar: string 
   unrecorded: { card: 'border-gray-200 bg-white',        badge: 'bg-gray-100 text-gray-500', bar: 'bg-gray-300' },
   na:         { card: 'border-dashed border-gray-200 bg-gray-50', badge: 'bg-gray-100 text-gray-500', bar: 'bg-gray-200' },
 };
+
+/**
+ * Where a counted goal's number came from, on every card that shows one: TTMS's
+ * count, or somebody's correction of it with TTMS's own figure beside it. A
+ * corrected number that said nothing would read exactly like a counted one.
+ */
+export function CountSource({ goal, mark }: { goal: IncentiveGoal; mark: GoalMark }) {
+  if (mark.source === 'corrected') {
+    return (
+      <p className="mt-1 text-xs text-amber-800">
+        <span data-es className="font-semibold">Corrected by</span> {mark.byName || 'someone'}
+        {' · '}<span data-es>TTMS counted</span> {formatGoalValue(goal.kind, mark.counted ?? 0)}
+        {mark.reason && <span className="block text-gray-600">{mark.reason}</span>}
+      </p>
+    );
+  }
+  return <p data-es className="mt-1 text-xs font-semibold text-green-700">Counted by TTMS</p>;
+}
 
 export function StateBadge({ state }: { state: GoalState }) {
   return (
@@ -143,7 +163,13 @@ export function GoalCard({
             <div className={`h-full rounded-full transition-all duration-700 ${style.bar}`} style={{ width: `${Math.round(ratio * 100)}%` }} />
           </div>
           {goal.targetNote && <p className="mt-1 text-xs text-gray-500">{goal.targetNote}</p>}
+          {goal.counter && mark && <CountSource goal={goal} mark={mark} />}
         </div>
+      )}
+      {!withPerson && goal.counter && (
+        <p className="text-xs text-green-700">
+          <span data-es className="font-semibold">Counted by TTMS</span> · {GOAL_COUNTER_INFO[goal.counter].how}
+        </p>
       )}
       {!withPerson && goal.kind !== 'check' && (
         <p className="text-sm text-gray-700">

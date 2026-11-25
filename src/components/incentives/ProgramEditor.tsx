@@ -5,6 +5,8 @@ import { ArrowDown, ArrowUp, ChevronDown, Loader2, Plus, Trash2, UserPlus, X } f
 import { Bi } from '@/components/spanish/Es';
 import { fetchPeople, saveMonth, type IncentivePerson } from '@/lib/incentives';
 import {
+  GOAL_COUNTERS,
+  GOAL_COUNTER_INFO,
   GOAL_KINDS,
   GOAL_KIND_LABEL,
   MAX_GOALS,
@@ -165,12 +167,13 @@ export default function ProgramEditor({ month, program, previous, onSaved }: {
                 <label><span data-es className={LABEL}>Pays</span>
                   <NumberBox value={g.reward} onChange={(n) => setGoal(g.id, { reward: Math.max(0, n ?? 0) })} className={`${INPUT} w-40 tabular-nums`} /></label>
                 <label><span data-es className={LABEL}>Measured as</span>
-                  <select value={g.kind} onChange={(e) => {
+                  <select value={g.kind} disabled={Boolean(g.counter)} onChange={(e) => {
                     const kind = e.target.value as IncentiveGoal['kind'];
                     setGoal(g.id, { kind, ...(kind === 'check' ? { target: null, perPerson: false } : { target: g.target ?? 1 }) });
-                  }} className={`${INPUT} w-full`}>
+                  }} className={`${INPUT} w-full disabled:bg-gray-50 disabled:text-gray-500`}>
                     {GOAL_KINDS.map((k) => <option key={k} value={k}>{GOAL_KIND_LABEL[k]}</option>)}
                   </select></label>
+                <MeasuredBy goal={g} onChange={(patch) => setGoal(g.id, patch)} />
                 {g.kind !== 'check' && (
                   <>
                     <div>
@@ -386,5 +389,46 @@ function AddPerson({ people, taken, onAdd }: {
         <UserPlus className="w-4 h-4" aria-hidden /> <span data-es>Add</span>
       </button>
     </div>
+  );
+}
+
+/**
+ * "How is it measured?" — typed by hand, exactly as before, or counted by
+ * TTMS from what it records (GOAL_COUNTERS). Switching back to typed keeps
+ * every typed figure: they were never removed, only not shown. A counted goal
+ * is measured in its counter's unit, so the unit box above is locked to it.
+ */
+function MeasuredBy({ goal, onChange }: { goal: IncentiveGoal; onChange: (patch: Partial<IncentiveGoal>) => void }) {
+  const counted = Boolean(goal.counter);
+  const pick = (counter: IncentiveGoal['counter']) => {
+    if (!counter) { onChange({ counter: null }); return; }
+    const kind = GOAL_COUNTER_INFO[counter].kind;
+    onChange({ counter, kind, target: goal.target ?? 1 });
+  };
+  return (
+    <fieldset className="sm:col-span-2">
+      <legend data-es className={LABEL}>How is it measured?</legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer ${!counted ? 'border-brand-400 bg-brand-50' : 'border-gray-200'}`}>
+          <input type="radio" checked={!counted} onChange={() => pick(null)} className="mt-0.5" />
+          <span><span data-es className="font-semibold text-gray-900">Typed by hand</span>
+            <span className="block text-xs text-gray-500"><Bi>Exactly as before. Whoever records incentives types each person’s number.</Bi></span></span>
+        </label>
+        <label className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer ${counted ? 'border-brand-400 bg-brand-50' : 'border-gray-200'}`}>
+          <input type="radio" checked={counted} onChange={() => pick(goal.counter ?? (goal.kind === 'usd' ? 'brokerFee' : 'quotes'))} className="mt-0.5" />
+          <span><span data-es className="font-semibold text-gray-900">Counted by TTMS</span>
+            <span className="block text-xs text-gray-500"><Bi>TTMS counts it from its own records. Anybody who records incentives can still correct a number, with a reason.</Bi></span></span>
+        </label>
+      </div>
+      {counted && goal.counter && (
+        <div className="mt-2">
+          <select value={goal.counter} onChange={(e) => pick(e.target.value as IncentiveGoal['counter'])} className={`${INPUT} w-full sm:w-auto`}
+            aria-label="What TTMS counts">
+            {GOAL_COUNTERS.map((c) => <option key={c} value={c}>{GOAL_COUNTER_INFO[c].label}</option>)}
+          </select>
+          <p className="mt-1 text-xs text-gray-500">{GOAL_COUNTER_INFO[goal.counter].how}</p>
+        </div>
+      )}
+    </fieldset>
   );
 }

@@ -3,10 +3,13 @@ import { ALLOWED_USERS_COLLECTION, can, managesUid } from '@/lib/accessControl';
 import { requireCaller, type Caller } from '@/lib/partyAccess';
 import { fullName } from '@/types/allowedUser';
 import { officeToday } from '@/types/celebration';
+import { countMonth } from './incentiveCounts';
 import {
   INCENTIVES_COLLECTION,
   MAX_NOTE,
+  applyCounts,
   cleanProgram,
+  countersIn,
   isMonthId,
   monthOf,
   withoutUndefined,
@@ -97,7 +100,23 @@ function readMark(raw: unknown): GoalMark | null {
     at: typeof m.at === 'string' ? m.at : '',
     byUid: typeof m.byUid === 'string' ? m.byUid : '',
     byName: typeof m.byName === 'string' ? m.byName : '',
+    corrected: m.corrected === true,
+    reason: typeof m.reason === 'string' ? m.reason : '',
   };
+}
+
+/**
+ * Stored progress turned into what the cards show: counted goals filled in
+ * from TTMS's records (lib/incentiveCounts.ts). A month with no counted goal
+ * costs nothing extra.
+ */
+async function withCounts(month: string, program: IncentiveProgram, stored: IncentiveProgress[], onlyUid?: string): Promise<IncentiveProgress[]> {
+  const counters = countersIn(program);
+  if (!counters.length) return applyCounts(program, stored, {});
+  const uids = onlyUid ? [onlyUid] : program.participants.map((p) => p.uid);
+  const counts = await countMonth(month, uids, counters);
+  const scoped = onlyUid ? { ...program, participants: program.participants.filter((p) => p.uid === onlyUid) } : program;
+  return applyCounts(scoped, stored, counts);
 }
 
 function readProgress(uid: string, d: Data): IncentiveProgress {
@@ -144,9 +163,10 @@ export async function getMonth(caller: Caller, month: string): Promise<MonthView
   ]);
   const program = doc.exists ? readProgram(month, doc.data() as Data) : null;
   const inProgram = new Set(program?.participants.map((p) => p.uid) ?? []);
-  const progress = progressSnap.docs
+  const stored = progressSnap.docs
     .filter((d) => inProgram.has(d.id))
     .map((d) => readProgress(d.id, d.data() as Data));
+  const progress = program ? await withCounts(month, program, stored) : stored;
   return { month, program, progress, abilities: abilitiesFor(caller, program), months };
 }
 
@@ -236,7 +256,7 @@ export async function saveProgram(caller: Caller, month: string, raw: unknown): 
 function summaryOf(p: IncentiveProgram) {
   return {
     title: p.title,
-    goals: p.goals.map((g) => ({ id: g.id, title: g.title, reward: g.reward, target: g.target, kind: g.kind, compare: g.compare })),
+    goals: p.goals.map((g) => ({ id: g.id, title: g.title, reward: g.reward, target: g.target, kind: g.kind, compare: g.compare, counter: g.counter ?? null })),
     participants: p.participants.map((x) => ({ uid: x.uid, targets: x.targets })),
     prize: p.prize?.title ?? null,
   };
@@ -252,6 +272,9 @@ export interface MarkPatch {
   done?: boolean;
   na?: boolean;
   note?: string;
+  /** On a counted goal: true sets a correction (needs `value` and `reason`), false goes back to TTMS's count. */
+  corrected?: boolean;
+  reason?: string;
 }
 
 function parsePatch(raw: unknown): MarkPatch {
@@ -273,6 +296,8 @@ function parsePatch(raw: unknown): MarkPatch {
   if ('done' in r) patch.done = r.done === true;
   if ('na' in r) patch.na = r.na === true;
   if ('note' in r) patch.note = typeof r.note === 'string' ? r.note.trim().slice(0, MAX_NOTE) : '';
+  if ('corrected' in r) patch.corrected = r.corrected === true;
+  if ('reason' in r) patch.reason = typeof r.reason === 'string' ? r.reason.trim().slice(0, MAX_NOTE) : '';
   return patch;
 }
 
@@ -287,10 +312,13 @@ export async function recordMark(caller: Caller, month: string, raw: unknown): P
   const progressRef = ref.collection('progress').doc(patch.uid);
   const now = new Date().toISOString();
 
-  return adminDb.runTransaction(async (tx) => {
+  // A holder rather than a `let`: TypeScript does not follow an assignment made inside the callback.
+  const seen: { program: IncentiveProgram | null } = { program: null };
+  const stored = await adminDb.runTransaction(async (tx) => {
     const [programDoc, progressDoc] = await Promise.all([tx.get(ref), tx.get(progressRef)]);
     if (!programDoc.exists) throw new IncentiveError('There are no incentives set up for that month.', 404);
     const program = readProgram(month, programDoc.data() as Data);
+    seen.program = program;
     if (!program.participants.some((p) => p.uid === patch.uid)) {
       throw new IncentiveError('That person is not taking part this month.', 400);
     }
@@ -317,19 +345,48 @@ export async function recordMark(caller: Caller, month: string, raw: unknown): P
     const goal = program.goals.find((g) => g.id === patch.goalId);
     if (!goal) throw new IncentiveError('That goal is not in this month’s set-up any more. Reload the page.', 400);
     const was = current.marks[goal.id];
+
+    // A counted goal's number is TTMS's until somebody corrects it, and a
+    // correction always says why — it changes what somebody is paid, against
+    // what the records say.
+    let corrected = was?.corrected ?? false;
+    let reason = was?.reason ?? '';
+    if (goal.counter) {
+      if (patch.corrected === true) {
+        if (typeof patch.value !== 'number') throw new IncentiveError('Type the number it should be.', 400);
+        if (!patch.reason) throw new IncentiveError('Say why TTMS’s count is wrong.', 400);
+        corrected = true;
+        reason = patch.reason;
+      } else if (patch.corrected === false) {
+        corrected = false;
+        reason = '';
+      } else if (patch.value !== undefined && !corrected) {
+        throw new IncentiveError('TTMS counts this goal. Correct the number with a reason instead.', 400);
+      }
+    } else if (patch.corrected !== undefined) {
+      throw new IncentiveError('This goal is typed by hand, so there is no count to correct.', 400);
+    }
+
     const mark: GoalMark = {
       value: patch.value !== undefined ? patch.value : was?.value ?? null,
       done: patch.done !== undefined ? patch.done : was?.done ?? false,
       na: patch.na !== undefined ? patch.na : was?.na ?? false,
       note: patch.note !== undefined ? patch.note : was?.note ?? '',
       at: now, byUid: caller.uid, byName: caller.displayName,
+      corrected, reason,
     };
     tx.set(progressRef, { marks: { [goal.id]: mark } }, { merge: true });
     tx.create(ref.collection('events').doc(), withoutUndefined({
       ...event,
-      from: was ? { value: was.value, done: was.done, na: was.na, note: was.note } : null,
-      to: { value: mark.value, done: mark.done, na: mark.na, note: mark.note },
+      from: was ? { value: was.value, done: was.done, na: was.na, note: was.note, corrected: was.corrected ?? false, reason: was.reason ?? '' } : null,
+      to: { value: mark.value, done: mark.done, na: mark.na, note: mark.note, corrected, reason },
     }));
     return { ...current, marks: { ...current.marks, [goal.id]: mark } };
   });
+
+  // The page swaps in what comes back, so it must be what the cards read:
+  // counted goals filled in, for this one person.
+  if (!seen.program) return stored;
+  const [shown] = await withCounts(month, seen.program, [stored], patch.uid);
+  return shown ?? stored;
 }

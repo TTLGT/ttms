@@ -3,6 +3,8 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createParty, PartyOwnedError } from '@/lib/parties';
+import { actOnClient } from '@/lib/clientSales';
+import { Bi } from '@/components/spanish/Es';
 import { ROLE_LABEL } from '@/types/party';
 import type { Party, PartyRole } from '@/types/party';
 import PartyFields, { blankPartyDraft, validatePartyDraft, partyRequirementNote } from '@/components/parties/PartyFields';
@@ -20,6 +22,8 @@ function NewPartyForm() {
   const router = useRouter();
   const params = useSearchParams();
   const initialRole = (params.get('role') as PartyRole) ?? 'client';
+  // From Clients -> My leads: the new client starts as a lead on the saver's board.
+  const asLead = initialRole === 'client' && params.get('lead') === '1';
 
   const [draft, setDraft]   = useState<PartyDraft>(() => blankPartyDraft(initialRole));
   const [errors, setErrors] = useState<Partial<Record<PartyField, string>>>({});
@@ -62,7 +66,12 @@ function NewPartyForm() {
         notes:       draft.notes.trim(),
         owners:      { uids: draft.ownerUids, groupIds: draft.ownerGroupIds },
       });
-      router.push(`/dashboard/parties/${id}`);
+      if (asLead) {
+        // Best-effort: the client exists either way, and its page has a
+        // Track as a lead button if this did not take.
+        await actOnClient(id, { action: 'lead' }).catch(() => {});
+      }
+      router.push(`/dashboard/parties/${id}${asLead ? '#sales' : ''}`);
     } catch (err: unknown) {
       if (err instanceof PartyOwnedError) {
         setDuplicate({ ownerName: err.ownerName });
@@ -84,7 +93,8 @@ function NewPartyForm() {
         <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-gray-700 mb-2 flex items-center gap-1">
           ← Back
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">New {ROLE_LABEL[initialRole]}</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{asLead ? 'New lead' : `New ${ROLE_LABEL[initialRole]}`}</h1>
+        {asLead && <p className="text-sm text-gray-600 mt-0.5"><Bi>A lead is a client record from the day it is found. Saving puts it on your My leads board.</Bi></p>}
         <p className="text-sm text-gray-500 mt-0.5">{partyRequirementNote(draft.roles)}</p>
       </div>
 

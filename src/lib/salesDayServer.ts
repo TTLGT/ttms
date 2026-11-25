@@ -117,7 +117,8 @@ export async function setDayTargets(uid: string, date: string, raw: unknown): Pr
 
 // ── Who may see and set whose ────────────────────────────────────────────────
 
-function seesEveryone(caller: Caller): boolean {
+/** `sales.viewAll`, or a bootstrap admin. Also the rule for leads (lib/clientSalesServer.ts). */
+export function seesEveryone(caller: Caller): boolean {
   return isBootstrapAdmin(caller.email) || can(caller.profile, 'sales.viewAll');
 }
 

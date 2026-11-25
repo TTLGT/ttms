@@ -9,6 +9,7 @@ import PartyAddressesCard from '@/components/parties/PartyAddressesCard';
 import PartyContactsCard from '@/components/parties/PartyContactsCard';
 import { PartyBillingCard, PartyUpdatesCard } from '@/components/parties/PartyAccountCards';
 import ClientSnapshotView, { useClientSnapshot } from '@/components/parties/ClientSnapshotView';
+import ClientSalesCard from '@/components/parties/ClientSalesCard';
 import { listOrders } from '@/lib/orders';
 import { listUserProfiles } from '@/lib/userProfiles';
 import { listWorkGroups } from '@/lib/workGroups';
@@ -631,6 +632,10 @@ export default function PartyDetailPage() {
             <ClientSnapshotView snap={snapshot} />
           </OrderSection>
         )}
+        {/* Leads and call history (2026-11-25). Draws itself only for the
+            broker working the client, their Sales Manager and admins — the
+            server decides, see src/types/clientSales.ts. */}
+        {isClient && <ClientSalesCard partyId={partyId} snapshot={snapshot} />}
         <PartyContactsCard party={party} canEdit={!editing}
           onChange={(contacts) => setParty((prev) => (prev ? { ...prev, contacts } : prev))} />
         {isClient && (

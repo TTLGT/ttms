@@ -3456,6 +3456,60 @@ salesDays/{uid}__{YYYY-MM-DD}                               // office date
   collection, so the browser can neither read nor write them.
 - Keyed by uid, so a change of email address has nothing here to move.
 
+## Collection: `clientSales` (leads and call history on a client)
+
+```
+clientSales/{partyId}                                       // the client's party id
+  partyId, partyName : string                               // name as last written, for the board
+  isLead     : boolean                                      // on somebody's My leads board
+  stage      : 'found' | 'contacted' | 'quoted'             // never 'first load' — worked out
+  brokerUid  : string | null                                // who works it; the board's query
+  brokerName : string
+  nextStep   : string                                       // ≤ 200 characters
+  nextDue    : 'YYYY-MM-DD' | null                          // office date
+  lost       : boolean
+  lostReason : string
+  wonAt      : string | null                                // ISO; first time TTMS saw a booked load
+  lastContactAt, createdAt, updatedAt : string              // ISO
+
+clientSales/{partyId}/activity/{id}                         // append-only
+  kind   : 'call' | 'email' | 'note' | 'lead' | 'stage' | 'next' | 'lost' | 'reopened'
+  text   : string                                           // ≤ 2000 characters
+  stage  : 'found' | 'contacted' | 'quoted' | null          // for 'stage'
+  at     : string                                           // ISO
+  byUid, byName : string
+```
+
+- **A lead is a client record.** Nothing about the party changes; this sits
+  beside it. Types and rules in `src/types/clientSales.ts`, server in
+  `src/lib/clientSalesServer.ts`.
+- **First load and Quoted are worked out**, never typed: any load for the
+  client means Quoted, a booked one (past the quote, not cancelled) means
+  First load. `wonAt` is stamped the first time TTMS reads a booked load, so
+  the board can keep a won lead for 30 days without reading its loads again.
+- **Who reads it:** the broker working the client (its owners, plus
+  `brokerUid`), their Sales Manager (`managedUids`) and `sales.viewAll` —
+  narrower than the party. Through `GET/POST /api/parties/{id}/sales` and
+  `GET /api/sales/leads`. No Firestore rule matches it, so the browser can
+  neither read nor write it.
+- **Logging a call or an email** also adds one to the caller's own
+  `salesDays` tally, in the same request.
+- **Indexes:** none. The board is `brokerUid ==`; the history is `at` desc on
+  a subcollection; the load check is `orders.clientId ==`. All single-field.
+- Keyed by party id; people by uid. A change of email address has nothing
+  here to move.
+
+### Incentive goals counted by TTMS
+
+Since 2026-11-25 a goal in `incentivePrograms/{YYYY-MM}.goals[]` may carry
+`counter` (one of `GOAL_COUNTERS` in `src/types/incentive.ts`); absent or
+null means typed by hand, as before. The count is never stored — it is
+worked out when the month is read (`src/lib/incentiveCounts.ts`, two
+single-field `createdAt` ranges over the month's orders and parties). A mark
+on a counted goal may carry `corrected: true` with `value` and a required
+`reason`, which replaces the count on the card and is logged in `events`
+like any mark; `corrected: false` goes back to the count.
+
 ## Collection: `plannerNudgeRuns` (the Planner's 10:00 nudge)
 
 ```

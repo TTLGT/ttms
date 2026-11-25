@@ -58,7 +58,7 @@ export const COLD_CALLING_GUIDE: Guide = {
       points: [
         b('Voicemail in 20 seconds: your name, TTL, why you called, your number twice. "Hi Mike, Ana with Total Transport Logistics, we move equipment like yours — call me at 555-123-4567, again 555-123-4567."', 'Buzón en 20 segundos: tu nombre, TTL, por qué llamaste, tu número dos veces. "Hi Mike, Ana with Total Transport Logistics, we move equipment like yours — call me at 555-123-4567, again 555-123-4567."'),
         b('Follow up several times, spaced out: a call, an email two days later, a call a week later, then monthly. Stop when they say stop.', 'Da seguimiento varias veces, con espacio: una llamada, un correo dos días después, una llamada una semana después, luego cada mes. Detente cuando digan que pares.'),
-        b('Every follow-up is a task in TTMS with a date.', 'Cada seguimiento es una tarea en TTMS con fecha.'),
+        b('Every follow-up has a date in TTMS: the next step on the lead (Sales activity on the client’s page), or a task.', 'Cada seguimiento tiene fecha en TTMS: el siguiente paso del prospecto (Actividad de ventas en la página del cliente), o una tarea.'),
       ],
     },
     {
@@ -73,6 +73,7 @@ export const COLD_CALLING_GUIDE: Guide = {
         b('Loads booked.', 'Cargas cerradas.'),
       ],
       callouts: [
+        { tone: 'tip', text: b('TTMS keeps the count for you: Today’s targets on the Planner has a +1 for calls, emails and referrals, Log a call on a client counts the call too, and quotes made and new clients added count themselves.', 'TTMS lleva la cuenta por ti: Metas de hoy en el Planner tiene un +1 para llamadas, correos y referidos, Registrar una llamada en un cliente también cuenta la llamada, y las cotizaciones hechas y los clientes nuevos agregados se cuentan solos.') },
         { tone: 'tip', text: b('Steady beats heroic. Sixty calls every day are worth far more than two hundred on Monday and none the rest of the week.', 'Constante gana a heroico. Sesenta llamadas todos los días valen mucho más que doscientas el lunes y ninguna el resto de la semana.') },
         { tone: 'why', text: b('Numbers in brokerage training material vary a lot (from a handful of calls to hundreds a day). The ones that matter are the ones your team lead agrees with you, measured every week.', 'Los números en el material de capacitación varían mucho (de unas pocas llamadas a cientos por día). Los que importan son los que acuerdas con tu líder, medidos cada semana.') },
       ],

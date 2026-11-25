@@ -180,6 +180,7 @@ export type SuggestionKind =
   | 'pod'       // delivered, no proof of delivery yet
   | 'quote'     // a quote nobody has touched in a week
   | 'quiet'     // a client with no load in three months
+  | 'lead'      // a lead whose next step is due (step 4b)
   // ── queues (step 3) ──
   | 'reviews'      // SA and Dispatch Sheet reviews open (orders.sendAgreement)
   | 'bols'         // BOLs generated, not sent (orders.sendAgreement)
@@ -238,13 +239,15 @@ export const SUGGESTION_RANK: Record<SuggestionKind, number> = {
   teamPlans: 4.6,
   quote: 5,
   onboarding: 5.5,
+  // A follow-up the broker promised themselves, so ahead of a nudge.
+  lead: 4.8,
   quiet: 6,
 };
 
 /** Which group each kind is drawn under. */
 export const SUGGESTION_GROUP_OF: Record<SuggestionKind, SuggestionGroup> = {
   sa: 'loads', pickup: 'loads', delivery: 'loads', pod: 'loads', quote: 'loads',
-  quiet: 'clients',
+  quiet: 'clients', lead: 'clients',
   reviews: 'queues', bols: 'queues', verify: 'queues', changes: 'queues', pickupsAll: 'queues',
   invoices: 'queues', payments: 'queues', access: 'queues', terms: 'queues', profile: 'queues',
   timeOff: 'queues', corrections: 'queues', teamPlans: 'queues',
@@ -309,7 +312,7 @@ export const BROKER_QUESTIONS: PlanQuestion[] = [
     ask: 'Where will new business come from today?',
     hint: 'Leads, referrals, a client to win back.',
     es: { ask: '¿De dónde saldrá el negocio nuevo hoy?', hint: 'Prospectos, referidos, un cliente que recuperar.' },
-    kinds: ['quiet'],
+    kinds: ['lead', 'quiet'],
   },
   {
     id: 'promised',

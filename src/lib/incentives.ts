@@ -57,6 +57,9 @@ export interface MarkPatch {
   done?: boolean;
   na?: boolean;
   note?: string;
+  /** Counted goals only: true to correct TTMS's count (with `value` and `reason`), false to go back to it. */
+  corrected?: boolean;
+  reason?: string;
 }
 
 export async function recordMark(month: string, patch: MarkPatch): Promise<IncentiveProgress> {

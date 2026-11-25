@@ -68,6 +68,8 @@ interface Props {
   /** Plural heading, e.g. "Shippers". */
   title: string;
   blurb: string;
+  /** Drawn under the heading — the Clients screen's All clients · My leads switch. */
+  tabs?: React.ReactNode;
 }
 
 /** See the orders list for why fifty. */
@@ -78,7 +80,7 @@ const PAGE_SIZE = 50;
  * same `parties` collection filtered to a role, so a company that pickups on
  * one order and pays on another shows up in both lists as a single record.
  */
-function PartyList({ role, title, blurb }: Props) {
+function PartyList({ role, title, blurb, tabs }: Props) {
   const { user, can }       = useAuth();
   const [all, setAll]       = useState<Party[]>([]);
   const [loading, setLoad]  = useState(true);
@@ -208,6 +210,8 @@ function PartyList({ role, title, blurb }: Props) {
           + Add {ROLE_LABEL[role]}
         </Link>
       </div>
+
+      {tabs}
 
       {/* Says what is being looked at, because the list otherwise looks like
           the whole company's and simply happens to be short. The address is

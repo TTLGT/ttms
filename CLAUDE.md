@@ -1298,14 +1298,14 @@ Types and pure rules in `src/types/task.ts`; server in
 
 ### The Planner — My tasks and the Calendar as one page (2026-11-24)
 
-The redesign agreed on 2026-11-24 has seven steps; **steps 1–3 and the
-first half of 4 are built**: the Planner at `/dashboard/planner` with Today,
-Tasks and Calendar tabs, the rollout switch, the Today tour, and the
-onboarding updates for it (step 1); the planning pop-up (step 2, below);
-suggestions and questions for every role (step 3, below); and brokers' daily
-targets and numbers (step 4a, below). Still to come: the lead pipeline and
-counted Incentives goals (4b), the new editor and Tasks tab, the Calendar
-tab, game mode 2.0. Pure rules in `src/types/planner.ts`;
+The redesign agreed on 2026-11-24 has seven steps; **steps 1–4 are built**:
+the Planner at `/dashboard/planner` with Today, Tasks and Calendar tabs, the
+rollout switch, the Today tour, and the onboarding updates for it (step 1);
+the planning pop-up (step 2, below); suggestions and questions for every role
+(step 3, below); brokers' daily targets and numbers (step 4a, below); and
+leads plus Incentives goals TTMS counts (step 4b, below). Still to come: the
+new editor and Tasks tab, the Calendar tab, game mode 2.0, and the Broker
+dashboard. Pure rules in `src/types/planner.ts`;
 browser side `src/lib/planner.ts`.
 
 - **It reaches people a few at a time.** `appSettings/general.plannerRollout`
@@ -1436,6 +1436,49 @@ on `personalTasks/{uid}.dailyPlan` through `/api/me/planner/day`.
   users who sell) and the close of day all share one answer through
   `SALES_DAY_CHANGED_EVENT`. The Today tour has a step for the card
   (`PLANNER_TOURS.today` is 2).
+
+**Leads, and Incentives goals TTMS counts (step 4b, 2026-11-25).** Leads:
+`src/types/clientSales.ts`, `src/lib/clientSalesServer.ts`, the "Sales
+activity" section on a client's page (`ClientSalesCard`) and Clients → My
+leads (`LeadsBoard`, `?tab=leads`). Counted goals: `GOAL_COUNTERS` in
+`src/types/incentive.ts`, counted in `src/lib/incentiveCounts.ts`.
+
+- **A lead is a client record**, and nothing about the party changed. The
+  stage, next step and every logged call, email and note live beside it in
+  `clientSales/{partyId}` (+ `activity`), closed to the browser — no rule.
+  **Only the broker working it** (the party's owners plus `brokerUid`),
+  **their Sales Manager and `sales.viewAll`** see that side; somebody who
+  can open the client otherwise (dispatch, an approval) is answered
+  `{ visible: false }` and sent nothing else. Same three as the daily
+  numbers; `maySee()` / `seesEveryone()` from `salesDayServer.ts` are reused,
+  not copied.
+- **Only Found, Contacted and Quoted are stored.** Any load for the client
+  reads as Quoted, a booked one as First load (`leadColumn()`); `wonAt` is
+  stamped the first time a read sees it, and the board drops a won lead after
+  `WON_SHOWN_DAYS`. After the first load the strip on the client page is the
+  client type from `clientSnapshot.ts` — never stored, nobody moves it.
+- **Logging a call or an email counts on the caller's own today's targets**
+  (`tap()` in the same request). Never on the broker's: it was the caller's
+  call.
+- A lead's next step due today is a pop-up suggestion (`lead` kind, the
+  Clients to call group) — one `brokerUid ==` query, no loads read.
+- **A counted goal never replaces typed figures.** `counter` on the goal,
+  chosen per goal and switchable back at any time; typed marks stay stored
+  under it. The count is worked out when the month is read, never stored
+  (`applyCounts()` / `effectiveMark()`), and **every route that returns
+  progress must return it counted** — `getMonth()` and `recordMark()` do.
+- **A correction is a mark** with `corrected: true` and a required `reason`,
+  through the same route, logged in the same `events`; the card says
+  "Corrected by X · TTMS counted N". `corrected: false` is "Go back to TTMS's
+  count". A plain `value` on a counted goal with no correction is refused.
+  Who may correct is who may record (`incentives.record`, a Sales Manager for
+  their team) — no new permission.
+- "Loads they created" is `createdBy` on a top-level order, the same rule as
+  Quotes made on today's targets, so the day and the month agree. Adding a
+  counter is a line in `GOAL_COUNTERS` and a branch in `countMonth()`;
+  counter ids are stored on goals, so never rename one.
+- Not built, on purpose: XP for calls (step 7), the Broker dashboard, and a
+  separate "check-ins with existing clients" target.
 
 ### Shipper and consignee addresses — never an address on its own (2026-11-06)
 

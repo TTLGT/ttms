@@ -3,6 +3,7 @@ import { adminDb } from './firebase-admin';
 import { can, canSeeOrder, canSeeParty } from './accessControl';
 import type { Caller } from './partyAccess';
 import { queueSuggestionsFor } from './plannerQueuesServer';
+import { dueFollowUps } from './clientSalesServer';
 import { ORDER_STATUSES, clientSignatureSatisfied, orderDisplayNumber } from '@/types/order';
 import { PENDING_PICKUP, STALE_DAYS } from '@/types/orderView';
 import { officeToday } from '@/types/celebration';
@@ -197,6 +198,19 @@ async function quietClients(caller: Caller): Promise<PlanSuggestion[]> {
     });
 }
 
+/** The caller's leads with a next step due by today, as "Follow up with …". */
+async function leadSuggestions(caller: Caller, today: string): Promise<PlanSuggestion[]> {
+  const due = await dueFollowUps(caller, today);
+  return due
+    .sort((a, b) => (a.nextDue ?? '').localeCompare(b.nextDue ?? ''))
+    .map((s) => suggestion(
+      'lead', s.partyId,
+      `Follow up with ${s.partyName || 'a lead'}`,
+      s.nextStep ? `${s.nextStep}${s.nextDue && s.nextDue < today ? ' (overdue)' : ''}` : 'Lead follow-up due',
+      null,
+    ));
+}
+
 /**
  * Everything the pop-up suggests to this caller, most pressing first, at most
  * MAX_SUGGESTIONS_PER_GROUP from each group: the queues their role decides
@@ -207,16 +221,20 @@ async function quietClients(caller: Caller): Promise<PlanSuggestion[]> {
 export async function planSuggestionsFor(caller: Caller): Promise<PlanSuggestion[]> {
   const today = officeToday();
   const ownBook = can(caller.profile, 'orders.view');
-  const [queues, loads, clients] = await Promise.all([
+  const [queues, loads, clients, leads] = await Promise.all([
     queueSuggestionsFor(caller),
     ownBook ? loadSuggestions(caller, today) : Promise.resolve([] as PlanSuggestion[]),
     // A failure here costs a group of suggestions, never the pop-up.
     ownBook ? quietClients(caller).catch(() => [] as PlanSuggestion[]) : Promise.resolve([] as PlanSuggestion[]),
+    // Leads whose next step is due (step 4b): one query on the caller's own
+    // leads, no loads read. Drawn ahead of the quiet clients, since the
+    // broker set the date themselves.
+    ownBook ? leadSuggestions(caller, today).catch(() => [] as PlanSuggestion[]) : Promise.resolve([] as PlanSuggestion[]),
   ]);
   const byRank = (a: PlanSuggestion, b: PlanSuggestion) => a.rank - b.rank || a.title.localeCompare(b.title);
   return [
     ...queues.slice(0, MAX_SUGGESTIONS_PER_GROUP + 2),
     ...loads.sort(byRank).slice(0, MAX_SUGGESTIONS_PER_GROUP),
-    ...clients.slice(0, MAX_SUGGESTIONS_PER_GROUP),
+    ...[...leads, ...clients].slice(0, MAX_SUGGESTIONS_PER_GROUP),
   ];
 }

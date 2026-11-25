@@ -73,10 +73,11 @@ export const FINDING_SHIPPERS_GUIDE: Guide = {
       id: 'track',
       title: b('Write it down, every time', 'Anótalo, siempre'),
       steps: [
-        { text: b('Add the prospect as a client in TTMS: company, contact name, phone, email, what they ship. The phone search finds them again from the number that rang in.', 'Agrega el prospecto como cliente en TTMS: empresa, contacto, teléfono, correo, qué envían. La búsqueda por teléfono lo encuentra otra vez por el número que llamó.') },
+        { text: b('Add the prospect from Clients → My leads → Add a lead: company, contact name, phone, email, what they ship. A lead is a client record from the first day, so the phone search finds them again from the number that rang in.', 'Agrega el prospecto desde Clientes → Mis prospectos → Agregar un prospecto: empresa, contacto, teléfono, correo, qué envían. Un prospecto es un registro de cliente desde el primer día, así que la búsqueda por teléfono lo encuentra otra vez por el número que llamó.') },
         { text: b('Set where they came from (the lead source).', 'Pon de dónde vino (la fuente del lead).') },
-        { text: b('Add a task with the next step and a date: "Call Mike at Acme back Tuesday 10am — he ships tractors weekly".', 'Agrega una tarea con el siguiente paso y una fecha: "Llamar a Mike de Acme el martes 10am — envía tractores cada semana".') },
-        { text: b('Put it in your Waiting on someone column until they answer.', 'Ponla en tu columna Esperando a alguien hasta que respondan.') },
+        { text: b('After every call or email, open the client and press Log a call or Log an email under Sales activity, with what was said. It also counts on your today’s targets.', 'Después de cada llamada o correo, abre el cliente y presiona Registrar una llamada o Registrar un correo en Actividad de ventas, con lo que se habló. También cuenta en tus metas de hoy.') },
+        { text: b('Set the next step and its date there: "Call Mike back Tuesday — he ships tractors weekly". On the day, it shows up in your morning planning pop-up.', 'Pon ahí el siguiente paso y su fecha: "Llamar a Mike el martes — envía tractores cada semana". Ese día aparece en tu ventana de planificación de la mañana.') },
+        { text: b('Your My leads board shows every lead by stage: Found, Contacted, Quoted, First load. Logging a call moves a found lead to Contacted; Quoted and First load move by themselves when a load is created and booked for them.', 'Tu tablero Mis prospectos muestra cada prospecto por etapa: Encontrado, Contactado, Cotizado, Primera carga. Registrar una llamada mueve un prospecto encontrado a Contactado; Cotizado y Primera carga se mueven solos cuando se crea y se reserva una carga para él.') },
       ],
       callouts: [
         { tone: 'why', text: b('Most clients say yes after several contacts, not the first. Without a next step written down, the fifth contact never happens.', 'La mayoría de los clientes dicen que sí después de varios contactos, no al primero. Sin un siguiente paso escrito, el quinto contacto nunca pasa.') },
@@ -85,7 +86,7 @@ export const FINDING_SHIPPERS_GUIDE: Guide = {
   ],
   quiz: [
     { q: b('A prospect ships tractors every week. What do you do right after the call?', 'Un prospecto envía tractores cada semana. ¿Qué haces justo después de la llamada?'),
-      options: [b('Remember it', 'Recordarlo'), b('Add them in TTMS with a next-step task', 'Agregarlo en TTMS con una tarea del siguiente paso'), b('Wait for them to call', 'Esperar que llamen')],
+      options: [b('Remember it', 'Recordarlo'), b('Add them as a lead in TTMS with a next step and a date', 'Agregarlo como prospecto en TTMS con un siguiente paso y una fecha'), b('Wait for them to call', 'Esperar que llamen')],
       answer: 1, why: b('If it is not written down with a date, it will not happen.', 'Si no está escrito con fecha, no va a pasar.') },
   ],
 };
