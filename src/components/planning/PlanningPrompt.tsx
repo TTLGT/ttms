@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   AlertTriangle, ArrowLeft, BellRing, CalendarCheck, CalendarClock, CalendarDays, CheckSquare, Minus, MoveRight, Plus, Repeat, Search, X,
@@ -160,7 +160,15 @@ function cadence(kind: PlanningKind, weekday: number, nth: number, repeats: bool
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-export default function PlanningPrompt() {
+export default function PlanningPrompt({ auto = true }: {
+  /**
+   * Whether it asks by itself on page load. Off for people on the new
+   * Planner, whose planning pop-up replaces it (never two pop-ups — see
+   * src/types/dailyPlan.ts); the Calendar's "Set a time" still opens it on
+   * purpose for them.
+   */
+  auto?: boolean;
+} = {}) {
   const { formatCalendarDate } = useDateFormatters();
   const [queue, setQueue] = useState<PlanningKind[]>([]);
   const [step, setStep] = useState(0);
@@ -195,6 +203,8 @@ export default function PlanningPrompt() {
   const [linked, setLinked] = useState<PersonalTask | null>(null);
   // Items already standing for some kind, so one is not offered twice.
   const [takenIds, setTakenIds] = useState<string[]>([]);
+
+  const askRef = useRef<((only: PlanningKind | null, pick?: boolean) => Promise<void>) | null>(null);
 
   const startKind = useCallback((k: PlanningKind) => {
     setTime(PLANNING_DEFAULT_TIME[k]);
@@ -260,7 +270,6 @@ export default function PlanningPrompt() {
         // A prompt that cannot load is a prompt nobody misses. Say nothing.
       }
     };
-    const timer = closedToday() ? null : setTimeout(() => ask(null), SHOW_AFTER_MS);
     // `detail` is a kind, or `{ kind, pick: true }` to open straight on "Use one you have".
     const onAsk = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -269,12 +278,23 @@ export default function PlanningPrompt() {
       ask(isPlanningKind(asked) ? asked : null, pick);
     };
     window.addEventListener(PLANNING_ASK_EVENT, onAsk);
+    askRef.current = ask;
     return () => {
       cancelled = true;
-      if (timer) clearTimeout(timer);
+      askRef.current = null;
       window.removeEventListener(PLANNING_ASK_EVENT, onAsk);
     };
   }, [startKind]);
+
+  // Asking by itself is its own effect, so it waits for `auto` to settle: the
+  // layout only knows whether somebody is on the Planner once the rollout has
+  // been read, and asking before that would show the old card to people who
+  // should get the new pop-up instead.
+  useEffect(() => {
+    if (!auto || closedToday()) return;
+    const timer = setTimeout(() => askRef.current?.(null), SHOW_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [auto]);
 
   const kind = queue[step];
   const [h, m] = time.split(':').map(Number);

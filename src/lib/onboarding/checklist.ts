@@ -188,7 +188,9 @@ export const CHECKLIST: readonly ChecklistStep[] = [
     detail: { en: 'Company, contact, phone, what they ship and the next step. A prospect who is not written down is a prospect you will lose.', es: 'Empresa, contacto, teléfono, qué envían y el siguiente paso. Un prospecto que no está escrito es un prospecto que perderás.' } },
   { id: 'w2-daily-plan', stage: 'floor', order: 50, owner: 'you', tracks: 'all', href: '/dashboard/tasks',
     when: { en: 'Week 2', es: 'Semana 2' },
-    title: { en: 'Plan every day for a week in My tasks', es: 'Planifica cada día de una semana en Mis tareas' } },
+    title: { en: 'Plan every day for a week in My tasks', es: 'Planifica cada día de una semana en Mis tareas' },
+    // The id and the title stay while the Planner is still reaching people; the detail says what it means on either page.
+    detail: { en: 'On the new Planner, that means through the planning pop-up each morning. On My tasks, pick your three for the day first thing.', es: 'En el nuevo Planner, eso es con la ventana de planificación cada mañana. En Mis tareas, elige tus tres del día a primera hora.' } },
   { id: 'w2-hr-feedback', stage: 'floor', order: 60, owner: 'hr', tracks: 'all',
     when: { en: 'Week 2', es: 'Semana 2' },
     title: { en: 'First HR check-in', es: 'Primera retroalimentación de RR. HH.' },

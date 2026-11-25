@@ -78,6 +78,28 @@ export const CALENDAR_GUIDE: Guide = {
       ],
     },
     {
+      // Added 2026-11-24 with step 2 of the Planner. A new section id, so
+      // nobody's progress on the guide is touched.
+      id: 'planner-popup',
+      title: b('On the new Planner: the planning pop-up', 'En el nuevo Planner: la ventana de planificación'),
+      intro: b(
+        'If Planner is in your menu, the card above is replaced by a pop-up that is the plan itself. It opens on your first page of the working day with three things already picked, from your own list and from what is waiting on you in TTMS. Planning takes about a minute.',
+        'Si en tu menú aparece Planner, la tarjeta de arriba se reemplaza por una ventana que es el plan mismo. Se abre en tu primera página del día laboral con tres cosas ya elegidas, de tu propia lista y de lo que te espera en TTMS. Planear toma como un minuto.',
+      ),
+      screen: 'planner-popup',
+      steps: [
+        { spot: 1, text: b('Suggested 3: the most pressing of what it found. Use these 3 accepts them as they are.', 'Las 3 sugeridas: lo más urgente de lo que encontró. Usar estas 3 las acepta tal cual.') },
+        { spot: 2, text: b('Or pick your own, up to three: tasks on your list for today, and what TTMS found in your loads (a load picking up or delivering today, an SA not signed, a POD missing, a quote with no answer) and clients with no load in three months. Something else? Type it at the bottom.', 'O elige las tuyas, hasta tres: tareas de tu lista para hoy, y lo que TTMS encontró en tus cargas (una carga que recoge o entrega hoy, un SA sin firmar, un POD que falta, una cotización sin respuesta) y clientes sin carga en tres meses. ¿Algo más? Escríbelo abajo.') },
+        { spot: 3, text: b('Plan these gives each one half an hour in the free time between your meetings. Plan my whole day asks a few questions first, to catch what is not on your list. The last step shows your manager’s copy: Share my plan, or Keep it to myself.', 'Planear estas le da a cada una media hora en el tiempo libre entre tus reuniones. Planear todo mi día hace unas preguntas primero, para encontrar lo que no está en tu lista. El último paso muestra la copia de tu jefe: Compartir mi plan, o Guardármelo.') },
+        { spot: 4, text: b('You can put it off twice: 15 minutes, then 5. The third time, plan just one thing to get back to work. I’m off today closes it if you are not working.', 'Puedes posponerla dos veces: 15 minutos y luego 5. La tercera vez, planea solo una cosa para volver al trabajo. Hoy no trabajo la cierra si no estás trabajando.') },
+        { spot: 5, text: b('While it is put off, an orange bar with a countdown stays at the top of every page. Plan now opens it.', 'Mientras está pospuesta, una barra naranja con cuenta regresiva queda arriba de cada página. Planear ahora la abre.') },
+      ],
+      callouts: [
+        { tone: 'tip', text: b('A quarter hour before your shift ends, the same pop-up closes the day: tick what got done, move the rest to tomorrow, and see your day’s receipt. On Fridays it offers to plan next week.', 'Un cuarto de hora antes de que termine tu turno, la misma ventana cierra el día: marca lo que quedó hecho, mueve lo demás a mañana y mira el resumen de tu día. Los viernes ofrece planear la próxima semana.') },
+        { tone: 'why', text: b('Not planned by 10:00? A line in Your reminders in chat has a Plan my day button. Days off on your schedule, holidays and time off you asked for never ask at all.', '¿No has planeado a las 10:00? Una línea en Tus recordatorios en el chat tiene un botón Planear mi día. Los días libres de tu horario, los feriados y el tiempo libre que pediste nunca preguntan.') },
+      ],
+    },
+    {
       id: 'share',
       title: b('Sharing your day plan', 'Compartir tu plan del día'),
       points: [

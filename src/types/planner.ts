@@ -116,7 +116,7 @@ export function plannerState(access: PlannerAccess | null, choice: PlannerChoice
  * person as `preferences.toursSeen.<id>`, so it follows the account rather
  * than the browser.
  */
-export const PLANNER_TOURS = { today: 1 } as const;
+export const PLANNER_TOURS = { today: 1, popup: 1 } as const;
 export type PlannerTourId = keyof typeof PLANNER_TOURS;
 
 export function isPlannerTourId(v: unknown): v is PlannerTourId {

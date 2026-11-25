@@ -44,6 +44,7 @@ import AccountMenu from '@/components/dashboard/AccountMenu';
 import PreferenceSync from '@/components/dashboard/PreferenceSync';
 import LearnLayer from '@/components/learn/LearnLayer';
 import PlanningPrompt from '@/components/planning/PlanningPrompt';
+import PlanningPopup from '@/components/planner/PlanningPopup';
 import DayPlanSharedNotice from '@/components/planning/DayPlanSharedNotice';
 import ChangeOrderPrompt from '@/components/orders/ChangeOrderPrompt';
 import BreakReminder from '@/components/attendance/BreakReminder';
@@ -207,7 +208,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const { incoming, outgoing }          = useApprovals();
 
   const { seesOthers: seesAttendance }  = useAttendance();
-  const { state: planner }              = usePlanner();
+  const { state: planner, loaded: plannerLoaded } = usePlanner();
 
   /**
    * The IT support badge: tickets waiting on IT for the IT account, answers
@@ -663,8 +664,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* The Spanish bubbles on hover — nothing unless the Spanish switch is on. */}
       <SpanishTips />
 
-      {/* "Pick a time for your daily planning" — nothing unless one is due. */}
-      <PlanningPrompt />
+      {/* Planning. People on the new Planner get the planning pop-up; everybody
+          else keeps "Pick a time for your daily planning". Never both: the old
+          card only asks by itself once the rollout has been read and says this
+          person is not on the Planner. It stays mounted for both, because the
+          Calendar's "Set a time" opens it on purpose. */}
+      <PlanningPrompt auto={plannerLoaded && !planner.on} />
+      {plannerLoaded && planner.on && <PlanningPopup />}
       <DayPlanSharedNotice />
 
       {/* Break, lunch and active-pause reminders — nothing unless clocked in and one is due. */}

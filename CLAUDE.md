@@ -1298,12 +1298,13 @@ Types and pure rules in `src/types/task.ts`; server in
 
 ### The Planner — My tasks and the Calendar as one page (2026-11-24)
 
-The redesign agreed on 2026-11-24 has seven steps; **step 1 is built**: the
-Planner at `/dashboard/planner` with Today, Tasks and Calendar tabs, the
-rollout switch, the Today tour, and the onboarding updates for it. Steps 2–7
-(the planning pop-up, suggestions per role, broker goals and leads, the new
-editor and Tasks tab, the Calendar tab, game mode 2.0) are still to come. Pure
-rules in `src/types/planner.ts`; browser side `src/lib/planner.ts`.
+The redesign agreed on 2026-11-24 has seven steps; **steps 1 and 2 are
+built**: the Planner at `/dashboard/planner` with Today, Tasks and Calendar
+tabs, the rollout switch, the Today tour, and the onboarding updates for it
+(step 1); and the planning pop-up (step 2, below). Steps 3–7 (suggestions per
+role, broker goals and leads, the new editor and Tasks tab, the Calendar tab,
+game mode 2.0) are still to come. Pure rules in `src/types/planner.ts`;
+browser side `src/lib/planner.ts`.
 
 - **It reaches people a few at a time.** `appSettings/general.plannerRollout`
   (Settings → Planner, `settings.manage`) has four stages; each person's own
@@ -1343,6 +1344,56 @@ rules in `src/types/planner.ts`; browser side `src/lib/planner.ts`.
   `screens/taskScreens.tsx`, the `planner-today` section of the My tasks guide)
   change with the Today tab, like every other guide.
 - Spanish for all of it: `src/lib/i18n/es-planner.ts`.
+
+**The planning pop-up (step 2).** `src/components/planner/PlanningPopup.tsx`
+in the dashboard layout, rules in `src/types/dailyPlan.ts`, the day's answer
+on `personalTasks/{uid}.dailyPlan` through `/api/me/planner/day`.
+
+- **Never two pop-ups.** Planner users get this; everybody else keeps
+  `PlanningPrompt`, which now asks by itself only with `auto` (the layout
+  passes `plannerLoaded && !planner.on`) and still opens on purpose from the
+  Calendar's "Set a time" for both.
+- **It is the plan**, saved as ordinary task saves: a picked suggestion is
+  created as a task dated today (with its load linked), a picked task is
+  moved to today (a repeating one with `moveScope: 'this'`), each gets
+  `PLAN_ITEM_MINUTES` in the next free slot, then Today's 3, then an optional
+  share, then the answer. `DAILY_PLAN_CHANGED_EVENT` makes an open task store
+  read itself again.
+- **Snoozing is the server's count**: 15 minutes, then 5, then only "Just one
+  thing" (`SNOOZE_MINUTES`). The length comes from `snoozes`, never the
+  request. An orange bar counts down across every page while snoozed; after
+  "Just one thing" a bar stays until Today's 3 has three.
+- **It opens only on a working day** — `dueToday()` in
+  `attendanceServer.ts` (exported for this): schedule, holidays, time off,
+  pending included. "I'm off today" therefore always means "nothing on
+  record", and says so. It waits while somebody is typing in a form.
+- **Suggestions are the caller's own work and nothing wider**
+  (`src/lib/plannerSuggestionsServer.ts`, `GET /api/me/planner/suggestions`):
+  open top-level loads assigned to them or whose client they own, through
+  existing indexes, each re-checked with `canSeeOrder()`; an admin is offered
+  their own loads, not the company's. Clients gone quiet are two `count()`s
+  each over `clientId + createdAt`, for at most 60 clients. Nothing is stored.
+  Step 3 adds each role's queues; `BROKER_QUESTIONS` / `GENERAL_QUESTIONS`
+  are the whole-day plan's questions until then.
+- **Sharing is the last step and the person's choice** ("Share my plan" or
+  "Keep it to myself"), through `POST /api/me/plan`. The preview shows
+  everything `publishDayPlan()` copies — the whole day, not only the 3 —
+  and `DAY_PLAN_DISCLOSURE` names the pop-up. Change what is copied and
+  change both the same day.
+- **Closing the day** opens `CLOSE_DAY_BEFORE_END_MINUTES` before the shift
+  ends: tick, move to the next working day, a receipt, "Plan next week" on
+  Fridays (the old card's weekly kind, via `PLANNING_ASK_EVENT`).
+- **The 10:00 nudge is the sixth clock** (`src/lib/plannerNudge.ts`,
+  `GET /api/planner/cron/nudge`, `0 16 * * 1-5`): one line in
+  `notice_tasks_{uid}` for Planner users working today with no plan, locked
+  per day by `plannerNudgeRuns/{date}`. It grants nothing. The line starts
+  with `PLAN_NUDGE_LEAD`, which `chatAlertCards.ts` draws as a card with a
+  "Plan my day" button linking `?plan=1` — keep the two in step.
+- The pop-up tour is `POPUP_TOUR` (`PLANNER_TOURS.popup`); it records seen
+  but does not tick "Take the Planner tour", which is the Today tab's.
+- Not in step 2, on purpose: today's targets (step 4), XP for planning
+  (step 7), "Not planned yet" on Team plans, and Settings for the pop-up's
+  times — the times are constants in `dailyPlan.ts` for now.
 
 ### Shipper and consignee addresses — never an address on its own (2026-11-06)
 
@@ -1996,7 +2047,7 @@ own address (`/dashboard/settings/<id>`). It replaced seven tabs, one of which
 - **It is deployed on Vercel and live at `https://ttms.totaltransportlogistics.us`** (DNS added and verified 2026-09-09). A push to `main` builds and goes live for the whole company within minutes, so **a push to `main` is a production release**; say so before pushing. The repo side is done: security headers in `next.config.ts`, the address centralised in `src/lib/appUrl.ts`, [`docs/deployment.md`](docs/deployment.md) as the runbook.
   - **Firebase → Authentication → Settings → Authorized domains** holds both `ttms.totaltransportlogistics.us` and the fallback `ttms-iota.vercel.app` (confirmed 2026-09-09). Firebase refuses to sign anyone in on a host it has not been told about, and the failure is silent — the Google popup opens and closes with no error on the page — so that list is still the first thing to check if anyone reports it.
   - **`ttms` with two t's is the agreed spelling** (2026-09-08), and the record that exists at Namecheap is the two-t one; `tms.totaltransportlogistics.us` has no record and should not be given one. A Vercel project card was showing a one-t `tms.` variant; if that reappears it is the thing to change, not the code.
-  - **`vercel.json` exists for one reason: the crons.** Vercel's Next.js defaults are otherwise correct and each route declares its own `maxDuration`, so nothing else belongs in it. It declares `GET /api/chat/celebrations` at `0 14 * * *` and `GET /api/celebration-calendar/cron` at `5 14 * * *` — see the Celebrations section below — and the two attendance jobs, `GET /api/attendance/cron/close` at `0 9 * * *` and `GET /api/attendance/cron/alerts` at `*/15 12-23 * * 1-6` — see Attendance — and `GET /api/task-reminders/cron` at `*/5 * * * *`, around the clock — see My tasks and the Calendar. All share `isCron()` in `src/lib/cronAuth.ts`. Adding a build setting, a rewrite or a header there is almost certainly the wrong file; headers live in `next.config.ts`.
+  - **`vercel.json` exists for one reason: the crons.** Vercel's Next.js defaults are otherwise correct and each route declares its own `maxDuration`, so nothing else belongs in it. It declares `GET /api/chat/celebrations` at `0 14 * * *` and `GET /api/celebration-calendar/cron` at `5 14 * * *` — see the Celebrations section below — and the two attendance jobs, `GET /api/attendance/cron/close` at `0 9 * * *` and `GET /api/attendance/cron/alerts` at `*/15 12-23 * * 1-6` — see Attendance — and `GET /api/task-reminders/cron` at `*/5 * * * *`, around the clock — see My tasks and the Calendar — and `GET /api/planner/cron/nudge` at `0 16 * * 1-5` — see The Planner. All share `isCron()` in `src/lib/cronAuth.ts`. Adding a build setting, a rewrite or a header there is almost certainly the wrong file; headers live in `next.config.ts`.
   - **`CRON_SECRET` must be set on Vercel** or the daily post never happens. The route refuses every request without it, deliberately — an endpoint that writes to the whole company must not fall open because a variable is missing. It is set in Vercel → Settings → Environment Variables and nowhere else; Vercel sends it on every scheduled call by itself. It is not in `.env.local` and does not need to be.
   - Deliberately absent: no `.github/workflows/` (Vercel builds on push), no Hosting block in `firebase.json`.
 - Firestore composite indexes are listed in `docs/schema-guide.md`. A missing-index error links to a one-click creator in the Console.

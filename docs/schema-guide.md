@@ -3203,6 +3203,15 @@ personalTasks/{uid}
     date,                                     // 'YYYY-MM-DD', the browser's day; any other day reads as none
     ids                                       // up to 3 of the person's own task ids, in order
   }                                           // written only by PUT /api/me/tasks/today, which reads each id first
+  dailyPlan        : {                        // the Planner's planning pop-up (2026-11-24, src/types/dailyPlan.ts);
+                                              // absent, or from another day = not answered today
+    date,                                     // 'YYYY-MM-DD', office time
+    status,                                   // 'open' | 'snoozed' | 'planned' | 'one' | 'off'
+    snoozes,                                  // times put off today: 15 min, then 5, then none
+    snoozedUntil,                             // epoch ms, set by the server from `snoozes`
+    plannedAt, full,                          // when the plan was made; whole-day rather than quick
+    closedAt, closeSkipped                    // the close-of-day pop-up answered, or waved away
+  }                                           // written only by PATCH /api/me/planner/day, in a transaction
   updatedAt        : Timestamp
 
 personalTasks/{uid}/items/{itemId}
@@ -3401,8 +3410,10 @@ dayPlans/{uid}__{YYYY-MM-DD}
 
 - **Written** when the owner ticks a planning slot Done — the morning review
   shares that day, end-of-day planning the next working day — in
-  `PATCH /api/me/tasks/{id}` after the save, best-effort; and by "Share
-  again" (`POST /api/me/plan`). Each share replaces the day's document.
+  `PATCH /api/me/tasks/{id}` after the save, best-effort; by "Share
+  again" (`POST /api/me/plan`); and by "Share my plan" on the Planner's
+  planning pop-up, through the same `POST /api/me/plan`, stored as `manual`.
+  Each share replaces the day's document.
 - **What is copied:** for each task planned for that day and each event
   falling on it, its title (or "Busy"), kind, event type and start/end time.
   No notes, steps, contacts, orders, status or XP. A "Busy" item's title is
@@ -3416,6 +3427,19 @@ dayPlans/{uid}__{YYYY-MM-DD}
 - **Indexes:** none — `date ==` and the `date` range are single-field.
   Building a copy uses two single-field queries on the owner's items (`date
   ==` and `repeat in`).
+
+## Collection: `plannerNudgeRuns` (the Planner's 10:00 nudge)
+
+```
+plannerNudgeRuns/{YYYY-MM-DD}
+  startedAt : Timestamp
+```
+
+The once-a-day lock for `GET /api/planner/cron/nudge` (`0 16 * * 1-5`, 10:00
+in Guatemala), claimed with `create()` so a cron delivered twice nudges once —
+the same trick as `celebrationRuns`. The nudge itself is a line in the
+person's `notice_tasks_{uid}` room. No rule matches the collection, so the
+browser can neither read nor write it. See `src/lib/plannerNudge.ts`.
 
 ## Collections: `itTickets`, `itTickets/*/messages`, `itTicketCounters` (IT support)
 

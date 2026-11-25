@@ -213,7 +213,16 @@ export function reminderText(due: DueEntry[]): string {
  * room is closed by its policy, not by its id. See `notice` in
  * src/types/conversation.ts.
  */
-export async function postTaskNotice(uid: string, text: string): Promise<void> {
+export async function postTaskNotice(
+  uid: string,
+  text: string,
+  /**
+   * `alert` draws it as a card whose link is a button — the Planner's 10:00
+   * nudge (lib/plannerNudge.ts), the one line here somebody is meant to click.
+   * Everything else stays an announcement: a reminder is read, not followed.
+   */
+  shape: 'announcement' | 'alert' = 'announcement',
+): Promise<void> {
   const room = adminDb.collection(CONVERSATIONS_COLLECTION).doc(`notice_tasks_${uid}`);
   await room.create({
     kind:        'notice',
@@ -230,7 +239,7 @@ export async function postTaskNotice(uid: string, text: string): Promise<void> {
   });
 
   const batch = adminDb.batch();
-  batch.update(room, systemLine(batch, room, text, { systemKind: 'announcement' }));
+  batch.update(room, systemLine(batch, room, text, shape === 'announcement' ? { systemKind: 'announcement' } : {}));
   await batch.commit();
 }
 

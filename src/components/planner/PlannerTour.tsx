@@ -200,3 +200,29 @@ export const TODAY_TOUR: TourStep[] = [
     es: { title: 'La bandeja', text: 'Tareas que todavía no tienen día. Dale un día a cada una, o ponla en tus 3 de hoy, para que nada se pierda.' },
   },
 ];
+
+/**
+ * The planning pop-up's tour, shown the first time it opens. Targets are
+ * `data-tour` attributes in PlanningPopup.tsx; a step whose element is not
+ * drawn (snoozing, once the snoozes are used up) is skipped by itself.
+ */
+export const POPUP_TOUR: TourStep[] = [
+  {
+    target: 'popup-suggested',
+    title: 'A plan, ready to accept',
+    text: 'Three things picked from your list and from what is waiting on you in TTMS: unsigned SAs, loads moving today, quotes with no answer, clients gone quiet. Use them as they are, or pick your own below.',
+    es: { title: 'Un plan listo para aceptar', text: 'Tres cosas elegidas de tu lista y de lo que te espera en TTMS: SA sin firmar, cargas que se mueven hoy, cotizaciones sin respuesta, clientes que se enfriaron. Úsalas tal cual o elige las tuyas abajo.' },
+  },
+  {
+    target: 'popup-full',
+    title: 'Plan my whole day',
+    text: 'A few questions that catch what is not on your list yet, then a time for each of your 3 around your meetings.',
+    es: { title: 'Planear todo mi día', text: 'Unas preguntas que encuentran lo que todavía no está en tu lista, y luego una hora para cada una de tus 3 alrededor de tus reuniones.' },
+  },
+  {
+    target: 'popup-snooze',
+    title: 'Putting it off',
+    text: 'You can put it off twice: 15 minutes, then 5. After that, plan just one thing to get back to work. Planning takes about a minute.',
+    es: { title: 'Posponer', text: 'Puedes posponerlo dos veces: 15 minutos y luego 5. Después, planea solo una cosa para volver al trabajo. Planear toma como un minuto.' },
+  },
+];

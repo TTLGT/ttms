@@ -1,4 +1,5 @@
 import { PRODUCTION_APP_URL } from './appUrl';
+import { PLAN_NUDGE_LEAD } from '@/types/dailyPlan';
 import { STATUS_LABEL, type OrderStatus } from '@/types/order';
 
 /**
@@ -145,6 +146,14 @@ function statusTone(s: OrderStatus | undefined): AlertTone {
 type Rule = (text: string, links: AlertLink[]) => AlertCardModel | null;
 
 const RULES: Rule[] = [
+  // ── The Planner's 10:00 nudge (lib/plannerNudge.ts), in the person's own reminders room ──
+  (t, links) => {
+    if (!t.startsWith(PLAN_NUDGE_LEAD)) return null;
+    return {
+      tone: 'warning', icon: 'request', title: 'You haven’t planned today yet',
+      detail: 'It takes about a minute.', links: relabel(links, 'internal', 'Plan my day'),
+    };
+  },
   // ── Agreements on hold after a change ────────────────────────────────────
   (t, links) => {
     const m = t.match(/^(.+?) changed the (.+?) after the (Shipper Agreement|Dispatch Sheet) was sent( and signed)?\. (The old client’s link has been cancelled\.)?/);

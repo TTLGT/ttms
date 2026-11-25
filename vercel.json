@@ -20,6 +20,10 @@
     {
       "path": "/api/task-reminders/cron",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/planner/cron/nudge",
+      "schedule": "0 16 * * 1-5"
     }
   ]
 }

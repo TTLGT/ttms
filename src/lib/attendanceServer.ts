@@ -468,8 +468,11 @@ export async function clockState(caller: { uid: string; email: string }, now: nu
  *
  * Reads: the person's schedule and the default, the holiday overrides, and
  * the person's own time-off requests — all small.
+ *
+ * Also what decides whether the Planner's planning pop-up opens at all
+ * (`/api/me/planner/day`): nobody is asked to plan a day they are not working.
  */
-async function dueToday(email: string, today: string, now: number): Promise<{ start: string; end: string } | null> {
+export async function dueToday(email: string, today: string, now: number): Promise<{ start: string; end: string } | null> {
   const schedules = adminDb.collection(ATTENDANCE_SCHEDULES_COLLECTION);
   const [own, fallback, overrides, requests] = await Promise.all([
     schedules.doc(email).get(),

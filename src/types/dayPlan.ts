@@ -185,4 +185,4 @@ export function mondayOf(date: string): string {
  * same day.
  */
 export const DAY_PLAN_DISCLOSURE =
-  'When you finish your morning review or your end-of-day planning, the names and times of that day’s tasks and events are shared with your manager (and with admins). Nothing else is shared — no notes, steps, contacts or whether you finished them — and your list itself stays private. Mark anything personal as Busy: the time stays, the name is hidden.';
+  'When you finish your morning review or your end-of-day planning, or press “Share my plan” in the planning pop-up, the names and times of that day’s tasks and events are shared with your manager (and with admins). Nothing else is shared — no notes, steps, contacts or whether you finished them — and your list itself stays private. Mark anything personal as Busy: the time stays, the name is hidden.';

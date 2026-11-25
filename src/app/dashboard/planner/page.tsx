@@ -13,6 +13,7 @@ import CalendarScreen from '@/components/calendar/CalendarScreen';
 import PlannerTour, { TODAY_TOUR } from '@/components/planner/PlannerTour';
 import { BackToOldDialog } from '@/components/planner/PlannerSwitch';
 import { Bi } from '@/components/spanish/Es';
+import { DAILY_PLAN_OPEN_EVENT, PLAN_NOW_PARAM } from '@/types/dailyPlan';
 
 /**
  * The Planner: My tasks and the Calendar as one page, with Today in front.
@@ -68,6 +69,14 @@ function Planner() {
       setTouring(true);
     }
   }, [state.on, tour, profile]);
+
+  // The 10:00 line's link is `/dashboard/planner?plan=1`. From another page
+  // the pop-up sees the address change by itself; already on this page the
+  // path does not change, so the page tells it.
+  const planNow = params.get(PLAN_NOW_PARAM) === '1';
+  useEffect(() => {
+    if (planNow) window.dispatchEvent(new Event(DAILY_PLAN_OPEN_EVENT));
+  }, [planNow]);
 
   const choose = (t: Tab) => router.replace(`${pathname}?tab=${t}`, { scroll: false });
 

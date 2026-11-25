@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "90c3ea3b627098a45479ae719271e60e4583adf7",
+      "date": "2026-11-24T16:19:17-06:00",
+      "author": "erwindank",
+      "subject": "Add the new Planner, step 1 of the redesign: one page with Today, Tasks and Calendar tabs, rolled out a few people at a time from Settings → Planner. Today shows the day at a glance, Today's 3 (the three things that matter most, picked by the person), a timeline of their working hours with every meeting and timed task, an inbox of tasks with no day, and a quick-add box that reads dates, times, !urgent, #load and @person in English and Spanish. Settings → Planner has four stages (nobody, chosen people, anyone who wants it, everyone); people offered it see \"Try the new Planner\" on My tasks and the Calendar and can go back with one click, optionally telling IT what did not work. A guided tour on the Today tab ticks a new \"Take the Planner tour\" step on My journey, and the My tasks guide has a new section and drawing for it. Starts at \"Nobody yet\", so nothing changes for anybody until people are chosen",
+      "body": ""
+    },
+    {
       "hash": "7cc3294b319f2d2b1740751a12cad631b516c89e",
       "date": "2026-11-24T11:48:04-06:00",
       "author": "erwindank",

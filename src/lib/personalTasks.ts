@@ -1,5 +1,6 @@
 'use client';
 
+import { DAILY_PLAN_CHANGED_EVENT } from '@/types/dailyPlan';
 import { createContext, createElement, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { auth } from './firebase';
 import {
@@ -298,6 +299,16 @@ function usePersonalTasksStore(enabled: boolean) {
   }, [takeGame]);
 
   useEffect(() => { if (enabled) reload(); }, [reload, enabled]);
+
+  // The planning pop-up saves through the same routes but outside this store
+  // (it sits in the dashboard layout, over whatever page is open), so a list
+  // already on screen reads itself again once the pop-up has made a plan.
+  useEffect(() => {
+    if (!enabled) return;
+    const onChange = () => { void reload(); };
+    window.addEventListener(DAILY_PLAN_CHANGED_EVENT, onChange);
+    return () => window.removeEventListener(DAILY_PLAN_CHANGED_EVENT, onChange);
+  }, [reload, enabled]);
 
   const fail = useCallback((e: unknown, what: string) => {
     setError(e instanceof Error ? e.message : what);

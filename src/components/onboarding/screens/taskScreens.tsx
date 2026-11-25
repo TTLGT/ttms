@@ -367,3 +367,48 @@ export function PlannerTodayScreen() {
     </Frame>
   );
 }
+
+/** The Planner's planning pop-up (step 2 of the redesign), over the Orders page. Made-up items. */
+export function PlannerPopupScreen() {
+  return (
+    <Frame path="/dashboard/orders">
+      <div className="relative rounded-lg bg-gray-100 p-3">
+        <div className="mx-auto max-w-[78%] overflow-hidden rounded-lg bg-white shadow-lg">
+          <div className="bg-brand-800 px-2.5 py-2 text-white">
+            <div className="text-[8px] font-bold uppercase tracking-wider text-amber-300">Tuesday · Plan your day</div>
+            <b className="text-[12px]">Good morning, Ana. Here&rsquo;s a plan.</b>
+            <div className="mt-1 flex gap-1">{[0, 1, 2].map((i) => <span key={i} className={`h-1 flex-1 rounded-full ${i === 0 ? 'bg-amber-300' : 'bg-white/25'}`} />)}</div>
+          </div>
+          <div className="space-y-1.5 p-2">
+            <div className="relative rounded-md border-2 border-amber-400 bg-amber-50 p-1.5">
+              <div className="flex items-center justify-between"><span className="text-[8px] font-bold uppercase text-amber-800">Suggested 3</span><Btn primary>Use these 3</Btn></div>
+              <ol className="mt-0.5 list-decimal pl-3 text-[9px] font-semibold text-gray-900">
+                <li>Check in with the driver on load 10502</li><li>Get the SA signed for load 10511</li><li>Call Swift Logistics</li>
+              </ol>
+              <Spot n={1} at="tr" />
+            </div>
+            <div className="relative">
+              <div className="text-[8px] font-bold uppercase text-gray-400">Found in your loads</div>
+              {['Get the POD for load 10488', 'Follow up on the quote for Patel Farms'].map((t) => (
+                <div key={t} className="mt-0.5 flex items-center gap-1 rounded border border-gray-200 px-1.5 py-0.5 text-[9px] text-gray-800"><span className="h-2 w-2 rounded-sm border border-gray-400" />{t}</div>
+              ))}
+              <Spot n={2} at="tr" />
+            </div>
+          </div>
+          <div className="relative flex items-center gap-1.5 border-t border-gray-200 bg-gray-50 px-2 py-1.5 text-[9px]">
+            <span className="text-gray-600 underline">Remind me in 15 min</span>
+            <span className="text-gray-400">I&rsquo;m off today</span>
+            <Spot n={4} at="bl" />
+            <span className="ml-auto rounded border border-brand-600 px-1.5 py-0.5 font-bold text-brand-700">Plan my whole day</span>
+            <Btn primary>Plan these 3</Btn>
+            <Spot n={3} at="tr" />
+          </div>
+        </div>
+        <div className="relative mx-auto mt-2 flex max-w-[78%] items-center gap-1.5 rounded bg-amber-500 px-2 py-1 text-[9px] font-semibold text-[#3b2400]">
+          Plan your day · about 1 minute · back in 14:32 <span className="ml-auto rounded bg-[#3b2400] px-1.5 text-white">Plan now</span>
+          <Spot n={5} at="tr" />
+        </div>
+      </div>
+    </Frame>
+  );
+}

@@ -47,6 +47,8 @@ export const BROKER_PLANNING_GUIDE: Guide = {
       ],
       callouts: [
         { tone: 'tip', text: b('Protect the prospecting blocks like a meeting with your best client. Put them on the calendar as Focus time and do not schedule over them.', 'Protege los bloques de prospección como una reunión con tu mejor cliente. Ponlos en el calendario como Tiempo de enfoque y no programes nada encima.') },
+        // Added 2026-11-24 with step 2 of the Planner.
+        { tone: 'example', text: b('On the new Planner, the 7:00 review and the 3:30 planning are the planning pop-up: in the morning it suggests your 3 from your loads (unsigned SAs, pickups and deliveries today, quotes with no answer) and from clients gone quiet; at the end of your shift it closes the day. See “On the new Planner: the planning pop-up” in the Calendar guide.', 'En el nuevo Planner, la revisión de las 7:00 y la planificación de las 3:30 son la ventana de planificación: en la mañana sugiere tus 3 de tus cargas (SA sin firmar, recogidas y entregas de hoy, cotizaciones sin respuesta) y de clientes que se enfriaron; al final de tu turno cierra el día. Mira “En el nuevo Planner: la ventana de planificación” en la guía del Calendario.') },
         { tone: 'why', text: b('US shippers start early on the East Coast and finish late on the West. From March to November, 7am in Guatemala is already 9am in New York.', 'Los shippers de EE. UU. empiezan temprano en la costa este y terminan tarde en la oeste. De marzo a noviembre, las 7am en Guatemala ya son las 9am en Nueva York.') },
       ],
     },
