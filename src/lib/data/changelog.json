@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "d556594a739b900a00a565d505059bddf8c2d598",
+      "date": "2026-11-24T23:32:17-06:00",
+      "author": "erwindank",
+      "subject": "Add the planning pop-up, step 2 of the Planner redesign. For people on the new Planner, the first page of a working day opens a pop-up with a plan ready to accept: three things suggested from their own list and from what is waiting on them in TTMS (loads picking up or delivering today, SAs not signed, PODs missing, quotes with no answer for a week, clients with no load in three months). \"Plan these\" gives each half an hour between meetings; \"Plan my whole day\" asks a few questions first. The last step shares the day's plan with their manager, or keeps it private. It can be put off for 15 minutes, then 5, then only \"Just one thing\", with an orange countdown bar on every page; it never asks on days off, holidays or time off. A quarter hour before the shift ends it closes the day: tick what got done, move the rest, a short receipt. Anybody without a plan by 10:00 gets a chat line with a Plan my day button. Everybody else keeps the old planning card; nobody gets both",
+      "body": ""
+    },
+    {
       "hash": "90c3ea3b627098a45479ae719271e60e4583adf7",
       "date": "2026-11-24T16:19:17-06:00",
       "author": "erwindank",

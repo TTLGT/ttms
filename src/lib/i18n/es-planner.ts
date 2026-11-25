@@ -88,6 +88,8 @@ export const ES_PLANNER: Record<string, string> = {
   'Found in your loads': 'Encontrado en tus cargas',
   'Clients to call': 'Clientes a llamar',
   'Your own': 'Tuyas',
+  'Waiting on you': 'Esperándote',
+  'Your onboarding': 'Tu inducción',
   'Something else?': '¿Algo más?',
   'Type it and press Add': 'Escríbelo y presiona Agregar',
   'Nothing is due today on your list, and TTMS found nothing waiting on you. What are the three things that matter most today?':

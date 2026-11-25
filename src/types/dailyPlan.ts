@@ -166,9 +166,12 @@ export function popupMode(
 // ── Suggestions ──────────────────────────────────────────────────────────────
 
 /**
- * Where a suggestion came from. Step 2 of the redesign fills `loads` and
- * `clients` for anybody with loads of their own (brokers, mostly); step 3
- * adds each role's own queues.
+ * Where a suggestion came from. `loads` and `clients` are the person's own
+ * book (step 2 of the redesign); `queues` are the work their role decides —
+ * reviews, approvals, payments, requests (step 3). A queue is offered as one
+ * task for the whole queue ("Decide 2 time-off requests"), never one per
+ * item: the plan is what to work on, and the queue's own screen is where the
+ * items are.
  */
 export type SuggestionKind =
   | 'sa'        // a booked load whose client has not signed
@@ -176,9 +179,24 @@ export type SuggestionKind =
   | 'delivery'  // delivering today
   | 'pod'       // delivered, no proof of delivery yet
   | 'quote'     // a quote nobody has touched in a week
-  | 'quiet';    // a client with no load in three months
+  | 'quiet'     // a client with no load in three months
+  // ── queues (step 3) ──
+  | 'reviews'      // SA and Dispatch Sheet reviews open (orders.sendAgreement)
+  | 'bols'         // BOLs generated, not sent (orders.sendAgreement)
+  | 'verify'       // signed copies to verify (orders.verifyRecords)
+  | 'changes'      // change orders to decide (orders.applyChanges)
+  | 'pickupsAll'   // every load picking up today (dispatch: orders.viewAll + orders.sendAgreement)
+  | 'invoices'     // delivered loads with no invoice (orders.payments)
+  | 'payments'     // delivered loads waiting on payments to close (orders.payments)
+  | 'access'       // access requests on records the person decides
+  | 'terms'        // terms changes to approve (agreementTerms.approve)
+  | 'profile'      // profile changes to approve (profile.decideUpdates)
+  | 'timeOff'      // time-off requests to decide (attendance.manage)
+  | 'corrections'  // clock corrections to decide (attendance.manage)
+  | 'onboarding'   // the person's own onboarding steps due
+  | 'teamPlans';   // a Sales Manager's team plans, before the huddle
 
-export type SuggestionGroup = 'loads' | 'clients';
+export type SuggestionGroup = 'queues' | 'loads' | 'clients' | 'learning';
 
 export interface PlanSuggestion {
   /** Stable for the day: the kind plus the record's id. */
@@ -201,17 +219,50 @@ export interface PlanSuggestion {
  */
 export const SUGGESTION_RANK: Record<SuggestionKind, number> = {
   delivery: 1,
+  pickupsAll: 1.5,
   pickup: 2,
+  // Somebody is waiting on these: a broker cannot send the SA until it is reviewed.
+  reviews: 2.2,
+  changes: 2.4,
+  verify: 2.6,
+  timeOff: 2.8,
   sa: 3,
+  bols: 3.2,
+  access: 3.4,
+  corrections: 3.6,
+  profile: 3.8,
+  terms: 3.9,
   pod: 4,
+  invoices: 4.2,
+  payments: 4.4,
+  teamPlans: 4.6,
   quote: 5,
+  onboarding: 5.5,
   quiet: 6,
 };
 
+/** Which group each kind is drawn under. */
+export const SUGGESTION_GROUP_OF: Record<SuggestionKind, SuggestionGroup> = {
+  sa: 'loads', pickup: 'loads', delivery: 'loads', pod: 'loads', quote: 'loads',
+  quiet: 'clients',
+  reviews: 'queues', bols: 'queues', verify: 'queues', changes: 'queues', pickupsAll: 'queues',
+  invoices: 'queues', payments: 'queues', access: 'queues', terms: 'queues', profile: 'queues',
+  timeOff: 'queues', corrections: 'queues', teamPlans: 'queues',
+  onboarding: 'learning',
+};
+
+/** The order the groups are drawn in. */
+export const SUGGESTION_GROUPS: readonly SuggestionGroup[] = ['queues', 'loads', 'clients', 'learning'];
+
 export const SUGGESTION_GROUP_LABEL: Record<SuggestionGroup, string> = {
+  queues: 'Waiting on you',
   loads: 'Found in your loads',
   clients: 'Clients to call',
+  learning: 'Your onboarding',
 };
+
+/** At most this many onboarding steps are suggested at once: the next ones, not the whole programme. */
+export const MAX_ONBOARDING_SUGGESTIONS = 2;
 
 /** At most this many per group, so the pop-up stays a pop-up. */
 export const MAX_SUGGESTIONS_PER_GROUP = 6;
@@ -227,8 +278,8 @@ export const MAX_CLIENTS_CHECKED = 60;
 /**
  * The questions the whole-day plan asks, to catch what is not on anybody's
  * list. Each can offer some of the person's own suggestions under it
- * (`kinds`), and always has a box to type into. Brokers' questions for now;
- * step 3 gives every role its own.
+ * (`kinds`), and always has a box to type into. Every role has its own set;
+ * `questionsFor()` picks one.
  */
 export interface PlanQuestion {
   id: string;
@@ -269,7 +320,123 @@ export const BROKER_QUESTIONS: PlanQuestion[] = [
   },
 ];
 
-/** The same questions for everybody without loads of their own, until step 3 writes each role's. */
+const PROMISED: PlanQuestion = {
+  id: 'promised',
+  ask: 'What did you promise someone?',
+  hint: 'The easy thing to forget.',
+  es: { ask: '¿Qué le prometiste a alguien?', hint: 'Lo fácil de olvidar.' },
+  kinds: [],
+};
+
+export const DISPATCH_QUESTIONS: PlanQuestion[] = [
+  {
+    id: 'risk',
+    ask: 'Which loads could go wrong today?',
+    hint: 'Late pickups, tight appointments, a driver not answering.',
+    es: { ask: '¿Qué cargas podrían salir mal hoy?', hint: 'Recogidas tarde, citas ajustadas, un chofer que no contesta.' },
+    kinds: ['pickupsAll', 'delivery', 'pickup'],
+  },
+  {
+    id: 'carriers',
+    ask: 'Which carriers need checking?',
+    hint: 'Insurance, authority, a new truck.',
+    es: { ask: '¿Qué transportistas hay que revisar?', hint: 'Seguro, autoridad, un camión nuevo.' },
+    kinds: ['reviews'],
+  },
+  {
+    id: 'paperwork',
+    ask: 'What paperwork is still open?',
+    hint: 'Signatures, PODs, BOLs.',
+    es: { ask: '¿Qué papeleo sigue abierto?', hint: 'Firmas, POD, BOL.' },
+    kinds: ['verify', 'bols', 'changes', 'pod'],
+  },
+];
+
+export const FINANCE_QUESTIONS: PlanQuestion[] = [
+  {
+    id: 'owed',
+    ask: 'Who owes us?',
+    hint: 'Overdue, and about to be.',
+    es: { ask: '¿Quién nos debe?', hint: 'Vencido, y por vencer.' },
+    kinds: ['invoices'],
+  },
+  {
+    id: 'paying',
+    ask: 'Who are we paying?',
+    hint: 'Carriers and drivers due.',
+    es: { ask: '¿A quién le pagamos?', hint: 'Transportistas y choferes por pagar.' },
+    kinds: ['payments'],
+  },
+  {
+    id: 'closes',
+    ask: 'What closes this week?',
+    hint: 'Month-end, reconciliations.',
+    es: { ask: '¿Qué se cierra esta semana?', hint: 'Cierre de mes, conciliaciones.' },
+    kinds: [],
+  },
+];
+
+export const HR_QUESTIONS: PlanQuestion[] = [
+  {
+    id: 'conversation',
+    ask: 'Who needs a conversation?',
+    hint: 'Check-ins, returns, worries.',
+    es: { ask: '¿Quién necesita una conversación?', hint: 'Seguimientos, regresos, preocupaciones.' },
+    kinds: [],
+  },
+  {
+    id: 'due',
+    ask: 'What is due this week?',
+    hint: 'Payroll, schedules, paperwork.',
+    es: { ask: '¿Qué vence esta semana?', hint: 'Planilla, horarios, papeleo.' },
+    kinds: ['timeOff', 'corrections', 'profile'],
+  },
+  {
+    id: 'team',
+    ask: 'How is the team doing?',
+    hint: 'What people told you.',
+    es: { ask: '¿Cómo está el equipo?', hint: 'Lo que la gente te contó.' },
+    kinds: [],
+  },
+];
+
+export const ADMIN_QUESTIONS: PlanQuestion[] = [
+  {
+    id: 'yes',
+    ask: 'What is waiting on your yes?',
+    hint: 'Approvals, terms, change orders.',
+    es: { ask: '¿Qué está esperando tu sí?', hint: 'Aprobaciones, términos, órdenes de cambio.' },
+    kinds: ['access', 'terms', 'changes', 'verify', 'profile'],
+  },
+  {
+    id: 'blocked',
+    ask: 'What will block someone else today?',
+    hint: 'The thing other people need from you first.',
+    es: { ask: '¿Qué bloqueará hoy a otra persona?', hint: 'Lo que otros necesitan primero de ti.' },
+    kinds: ['reviews', 'bols'],
+  },
+  PROMISED,
+];
+
+export const INTERN_QUESTIONS: PlanQuestion[] = [
+  {
+    id: 'learn',
+    ask: 'What will you learn today?',
+    hint: 'A guide, a step on My journey.',
+    es: { ask: '¿Qué vas a aprender hoy?', hint: 'Una guía, un paso de Mi recorrido.' },
+    kinds: ['onboarding'],
+  },
+  {
+    id: 'shadow',
+    ask: 'Who can you shadow?',
+    hint: 'Sit with a broker or dispatch for an hour.',
+    es: { ask: '¿A quién puedes acompañar?', hint: 'Siéntate una hora con un broker o con despacho.' },
+    kinds: [],
+  },
+  PROMISED,
+];
+
+/** Everybody else's questions. */
 export const GENERAL_QUESTIONS: PlanQuestion[] = [
   {
     id: 'waiting',
@@ -293,6 +460,44 @@ export const GENERAL_QUESTIONS: PlanQuestion[] = [
     kinds: [],
   },
 ];
+
+export const MANAGER_QUESTIONS: PlanQuestion[] = [
+  {
+    id: 'help',
+    ask: 'Who on your team needs help today?',
+    hint: 'A stuck load, a quiet week, a new broker.',
+    es: { ask: '¿Quién de tu equipo necesita ayuda hoy?', hint: 'Una carga atorada, una semana floja, un broker nuevo.' },
+    kinds: ['teamPlans', 'access'],
+  },
+  {
+    id: 'unblock',
+    ask: 'Which deal can you unblock?',
+    hint: 'A quote, a price, a client who needs the manager.',
+    es: { ask: '¿Qué negocio puedes destrabar?', hint: 'Una cotización, un precio, un cliente que necesita al gerente.' },
+    kinds: ['quote'],
+  },
+  ...BROKER_QUESTIONS.filter((q) => q.id === 'new-business'),
+  PROMISED,
+];
+
+/**
+ * Which questions somebody is asked: the first role that fits, in this
+ * order. A person with several roles gets the one closest to their day — a
+ * Sales Manager is a broker too but leads first; dispatch comes before admin
+ * because an admin who also dispatches is dispatching.
+ */
+export function questionsFor(roles: {
+  isDispatcher?: boolean; isFinance?: boolean; isHr?: boolean; isSalesManager?: boolean;
+  isAdmin?: boolean; isIntern?: boolean; broker: boolean;
+}): PlanQuestion[] {
+  if (roles.isDispatcher) return DISPATCH_QUESTIONS;
+  if (roles.isFinance) return FINANCE_QUESTIONS;
+  if (roles.isHr) return HR_QUESTIONS;
+  if (roles.isSalesManager) return MANAGER_QUESTIONS;
+  if (roles.isAdmin) return ADMIN_QUESTIONS;
+  if (roles.isIntern) return INTERN_QUESTIONS;
+  return roles.broker ? BROKER_QUESTIONS : GENERAL_QUESTIONS;
+}
 
 /** How long each of the 3 is given when the pop-up places it on the day, unless changed. */
 export const PLAN_ITEM_MINUTES = 30;

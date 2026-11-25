@@ -2,6 +2,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { adminDb } from './firebase-admin';
 import { can, canSeeOrder, canSeeParty } from './accessControl';
 import type { Caller } from './partyAccess';
+import { queueSuggestionsFor } from './plannerQueuesServer';
 import { ORDER_STATUSES, clientSignatureSatisfied, orderDisplayNumber } from '@/types/order';
 import { PENDING_PICKUP, STALE_DAYS } from '@/types/orderView';
 import { officeToday } from '@/types/celebration';
@@ -9,6 +10,7 @@ import {
   MAX_CLIENTS_CHECKED,
   MAX_SUGGESTIONS_PER_GROUP,
   QUIET_AFTER_DAYS,
+  SUGGESTION_GROUP_OF,
   SUGGESTION_RANK,
   type PlanSuggestion,
   type SuggestionKind,
@@ -84,7 +86,7 @@ function suggestion(
   return {
     id: `${kind}:${recordId}`,
     kind,
-    group: kind === 'quiet' ? 'clients' : 'loads',
+    group: SUGGESTION_GROUP_OF[kind],
     title: title.slice(0, 200),
     why: why.slice(0, 200),
     order,
@@ -197,19 +199,23 @@ async function quietClients(caller: Caller): Promise<PlanSuggestion[]> {
 
 /**
  * Everything the pop-up suggests to this caller, most pressing first, at most
- * MAX_SUGGESTIONS_PER_GROUP from each group. Somebody who cannot open orders
- * at all (an intern) has no loads to be offered and is not queried.
+ * MAX_SUGGESTIONS_PER_GROUP from each group: the queues their role decides
+ * (lib/plannerQueuesServer.ts), then their own loads and clients. Somebody
+ * who cannot open orders at all (an intern) has no loads to be offered and
+ * is not queried for them.
  */
 export async function planSuggestionsFor(caller: Caller): Promise<PlanSuggestion[]> {
-  if (!can(caller.profile, 'orders.view')) return [];
   const today = officeToday();
-  const [loads, clients] = await Promise.all([
-    loadSuggestions(caller, today),
+  const ownBook = can(caller.profile, 'orders.view');
+  const [queues, loads, clients] = await Promise.all([
+    queueSuggestionsFor(caller),
+    ownBook ? loadSuggestions(caller, today) : Promise.resolve([] as PlanSuggestion[]),
     // A failure here costs a group of suggestions, never the pop-up.
-    quietClients(caller).catch(() => [] as PlanSuggestion[]),
+    ownBook ? quietClients(caller).catch(() => [] as PlanSuggestion[]) : Promise.resolve([] as PlanSuggestion[]),
   ]);
   const byRank = (a: PlanSuggestion, b: PlanSuggestion) => a.rank - b.rank || a.title.localeCompare(b.title);
   return [
+    ...queues.slice(0, MAX_SUGGESTIONS_PER_GROUP + 2),
     ...loads.sort(byRank).slice(0, MAX_SUGGESTIONS_PER_GROUP),
     ...clients.slice(0, MAX_SUGGESTIONS_PER_GROUP),
   ];

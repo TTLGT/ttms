@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  ArrowLeft, Building2, CalendarClock, Check, CheckCircle2, Circle, Clock, Coffee, ListChecks, Plus, Sparkles, Sun, Truck, X,
+  ArrowLeft, Building2, CalendarClock, Check, CheckCircle2, Circle, Clock, Coffee, GraduationCap, Inbox, ListChecks, Plus, Sparkles, Sun, Truck, X,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { createMyTask, listMyTasks, saveMyTodayPicks, updateMyTask } from '@/lib/personalTasks';
@@ -19,8 +19,8 @@ import { MAX_TODAY_PICKS, canPickForToday, picksIn, tasksForToday } from '@/type
 import { PLANNING_ASK_EVENT, addMinutes, freeStarts, officeNowTime, shiftQuarterHours, type DayItem, type PlanningDay } from '@/types/planning';
 import { nextWorkingDay } from '@/types/dayPlan';
 import {
-  BROKER_QUESTIONS, DAILY_PLAN_CHANGED_EVENT, DAILY_PLAN_OPEN_EVENT, GENERAL_QUESTIONS, PLAN_ITEM_MINUTES, PLAN_NOW_PARAM,
-  SUGGESTION_GROUP_LABEL, closeDayAt, nextSnoozeMinutes, popupMode,
+  DAILY_PLAN_CHANGED_EVENT, DAILY_PLAN_OPEN_EVENT, PLAN_ITEM_MINUTES, PLAN_NOW_PARAM,
+  SUGGESTION_GROUPS, SUGGESTION_GROUP_LABEL, closeDayAt, nextSnoozeMinutes, popupMode, questionsFor,
   type PlanSuggestion, type PopupMode, type SuggestionGroup,
 } from '@/types/dailyPlan';
 
@@ -248,7 +248,7 @@ interface Choice {
 
 type Step = 'pick' | 'think' | 'times' | 'share' | 'done' | 'off';
 
-const GROUP_ICON: Record<SuggestionGroup, typeof Truck> = { loads: Truck, clients: Building2 };
+const GROUP_ICON: Record<SuggestionGroup, typeof Truck> = { queues: Inbox, loads: Truck, clients: Building2, learning: GraduationCap };
 
 function choiceFromTask(t: PersonalTask, today: string): Choice {
   const late = isOverdue(t, today);
@@ -278,6 +278,12 @@ function PlanDay({ reply, onDemand, onClose, onSnooze, onOff, onPlanned }: {
   onPlanned: (state: DayPlanReply['state'], picks: number) => void;
 }) {
   const { profile, can } = useAuth();
+  // Broker is derived, never stored: no role set means broker (see isBroker()).
+  const roleFlags = {
+    isDispatcher: profile?.isDispatcher, isFinance: profile?.isFinance, isHr: profile?.isHr,
+    isSalesManager: profile?.isSalesManager, isAdmin: profile?.isAdmin, isIntern: profile?.isIntern,
+    broker: can('orders.view'),
+  };
   const { formatCalendarDate } = useDateFormatters();
   const today = reply.today;
   const [step, setStep] = useState<Step>('pick');
@@ -420,7 +426,7 @@ function PlanDay({ reply, onDemand, onClose, onSnooze, onOff, onPlanned }: {
   const loading = tasks === null || suggestions === null;
   const dots = full ? 4 : 3;
   const at = { pick: 0, think: 1, times: full ? 2 : 1, share: full ? 3 : 2, done: dots, off: 0 }[step];
-  const questions = can('orders.view') ? BROKER_QUESTIONS : GENERAL_QUESTIONS;
+  const questions = questionsFor(roleFlags);
   const head = (title: React.ReactNode, sub: React.ReactNode) => (
     <div className="shrink-0 bg-gradient-to-br from-brand-900 to-brand-700 px-5 pb-3 pt-4 text-white">
       <div className="flex items-start gap-2">
@@ -447,7 +453,7 @@ function PlanDay({ reply, onDemand, onClose, onSnooze, onOff, onPlanned }: {
   let foot: React.ReactNode = null;
 
   if (step === 'pick') {
-    const groups = (['loads', 'clients'] as SuggestionGroup[])
+    const groups = SUGGESTION_GROUPS
       .map((g) => ({ g, items: found.filter((c) => c.suggestion?.group === g) }))
       .filter((x) => x.items.length);
     body = loading ? <Spinner /> : (

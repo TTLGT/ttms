@@ -1298,12 +1298,12 @@ Types and pure rules in `src/types/task.ts`; server in
 
 ### The Planner — My tasks and the Calendar as one page (2026-11-24)
 
-The redesign agreed on 2026-11-24 has seven steps; **steps 1 and 2 are
+The redesign agreed on 2026-11-24 has seven steps; **steps 1–3 are
 built**: the Planner at `/dashboard/planner` with Today, Tasks and Calendar
 tabs, the rollout switch, the Today tour, and the onboarding updates for it
-(step 1); and the planning pop-up (step 2, below). Steps 3–7 (suggestions per
-role, broker goals and leads, the new editor and Tasks tab, the Calendar tab,
-game mode 2.0) are still to come. Pure rules in `src/types/planner.ts`;
+(step 1); the planning pop-up (step 2, below); and suggestions and questions
+for every role (step 3, below). Steps 4–7 (broker goals and leads, the new
+editor and Tasks tab, the Calendar tab, game mode 2.0) are still to come. Pure rules in `src/types/planner.ts`;
 browser side `src/lib/planner.ts`.
 
 - **It reaches people a few at a time.** `appSettings/general.plannerRollout`
@@ -1373,8 +1373,21 @@ on `personalTasks/{uid}.dailyPlan` through `/api/me/planner/day`.
   existing indexes, each re-checked with `canSeeOrder()`; an admin is offered
   their own loads, not the company's. Clients gone quiet are two `count()`s
   each over `clientId + createdAt`, for at most 60 clients. Nothing is stored.
-  Step 3 adds each role's queues; `BROKER_QUESTIONS` / `GENERAL_QUESTIONS`
-  are the whole-day plan's questions until then.
+- **Every role's queues (step 3)** are `src/lib/plannerQueuesServer.ts`:
+  one suggestion per queue ("Decide 2 time-off requests"), never one per
+  item, and never naming whose. **Each queue is asked only behind the
+  permission its own screen checks** (`orders.sendAgreement`,
+  `orders.verifyRecords`, `canApplyOrderChanges()`, `orders.payments`,
+  `canApproveTerms()`, `profile.decideUpdates`, `attendance.manage`), and
+  access requests go through `pendingForDecider()`, the Approvals screen's
+  own function. **Add a queue there behind its screen's gate, or not at
+  all.** Mostly `count()`s; overdue invoices reuse the dashboard's
+  `viewQuery('overdue_invoices')` so the number matches the card. HR never
+  sees their own time off or correction counted. Onboarding steps are the
+  person's own, in their first 90 days, through `myProgram()`.
+- **Questions per role**: `questionsFor()` in `dailyPlan.ts` picks the first
+  role that fits — dispatch, finance, HR, Sales Manager, admin, intern,
+  broker, everybody else.
 - **Sharing is the last step and the person's choice** ("Share my plan" or
   "Keep it to myself"), through `POST /api/me/plan`. The preview shows
   everything `publishDayPlan()` copies — the whole day, not only the 3 —
@@ -1391,9 +1404,10 @@ on `personalTasks/{uid}.dailyPlan` through `/api/me/planner/day`.
   "Plan my day" button linking `?plan=1` — keep the two in step.
 - The pop-up tour is `POPUP_TOUR` (`PLANNER_TOURS.popup`); it records seen
   but does not tick "Take the Planner tour", which is the Today tab's.
-- Not in step 2, on purpose: today's targets (step 4), XP for planning
-  (step 7), "Not planned yet" on Team plans, and Settings for the pop-up's
-  times — the times are constants in `dailyPlan.ts` for now.
+- Not built yet, on purpose: today's targets for any role (step 4, which
+  builds the tallies they need), XP for planning (step 7), "Not planned yet"
+  on Team plans, and Settings for the pop-up's times — the times are
+  constants in `dailyPlan.ts` for now.
 
 ### Shipper and consignee addresses — never an address on its own (2026-11-06)
 
