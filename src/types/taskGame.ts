@@ -198,6 +198,19 @@ export function levelProgress(xp: number): number {
   return Math.min(100, Math.round(((xp - cur.xp) / (next.xp - cur.xp)) * 100));
 }
 
+/**
+ * The level that unlocks the theme's extra on the Today scene — a reefer
+ * trailer, a golden broom, black sails (SCENE_THEMES in gameSceneArt.ts).
+ * Worked out from the levels reached, never stored: `levelHistory` is kept
+ * through a level-down, so an unlock once earned is never taken away, even
+ * under Hard.
+ */
+export const UNLOCK_LEVEL = 5;
+
+export function hasUnlock(state: Pick<GameState, 'xp' | 'levelHistory'>): boolean {
+  return levelFor(state.xp).level >= UNLOCK_LEVEL || state.levelHistory.some((h) => h.level >= UNLOCK_LEVEL);
+}
+
 /* --------------------------------------------------------------------- XP */
 
 /**

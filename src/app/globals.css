@@ -527,3 +527,9 @@ html.dark.dim .chat-ground[data-wallpaper='dots'] {
   .tt-stamp-in { animation: tt-stamp-in 450ms cubic-bezier(0.2, 1.6, 0.4, 1); }
   .tt-xp-rise { animation: tt-xp-rise 320ms ease-out; }
 }
+/* The Today scene's "stop reached" caption: pops in, holds, fades. */
+.tt-scene-banner { transform: translate(-50%, -50%); }
+@keyframes tt-scene-banner { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); } 25% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .tt-scene-banner { animation: tt-scene-banner 2.6s ease forwards; }
+}

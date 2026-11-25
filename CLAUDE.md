@@ -1313,10 +1313,9 @@ the planning pop-up (step 2, below); suggestions and questions for every role
 (step 3, below); brokers' daily targets and numbers (step 4a, below);
 leads plus Incentives goals TTMS counts (step 4b, below); the new Tasks
 tab and side-panel editor (step 5, below); and the lighter Calendar tab
-(step 6, below). Step 7, game mode 2.0, is half built: Gentle and Hard
-(see My tasks above) and XP for the day plus its rewards (below). Still to
-come: the animated scenes, journey maps and level unlocks, then the Broker
-dashboard. Pure rules in `src/types/planner.ts`;
+(step 6, below); and game mode 2.0 (step 7): Gentle and Hard (see My tasks
+above), XP for the day with its rewards, and the Today scene (below). Still
+to come: the Broker dashboard. Pure rules in `src/types/planner.ts`;
 browser side `src/lib/planner.ts`.
 
 - **It reaches people a few at a time.** `appSettings/general.plannerRollout`
@@ -1575,8 +1574,7 @@ and `TaskGame.tsx`.
 - `DAY_BADGES` (days planned, days closed, days with every target met) sit
   beside `HARD_BADGES` in `badges`; ids are stored, never rename one.
   `badgeLabel()` names either kind.
-- On Today, with game mode on: `GameStrip` (level, XP, streak, shields,
-  today's XP), "+N XP" on each open pick (`taskXp()`, the number that will
+- On Today, with game mode on: `GameScene` (below), "+N XP" on each open pick (`taskXp()`, the number that will
   land), a "Done" stamp on a pick ticked on this visit, and `Confetti` when
   the third is — never on loading a day already done. The stamp says "Done"
   in every theme. The close-of-day receipt adds XP today, level and streak;
@@ -1586,6 +1584,21 @@ and `TaskGame.tsx`.
 - Tour `game` (`GAME_TOUR`, three steps on the Tasks tab), shown the first
   time game mode is on there and only once the Tasks tour has been seen, so
   the two never start together. No My journey tick.
+- **The Today scene** (`GameScene` in `GameRewards.tsx`, drawing in
+  `gameSceneArt.ts`, ported from the demo approved on 2026-11-24): each
+  theme's animated picture and vehicle — truck, broom, carriage, dragonfly,
+  rocket, galleon — with the level, XP, streak and today's XP over it and the
+  route along the bottom: a start and one stop per pick, lit as each is
+  finished, the vehicle travelling to it. That row is the "journey map". It is
+  plain canvas: it stops while off screen or in a hidden tab, and draws one
+  still frame under `prefers-reduced-motion`. Every colour is fixed, like the
+  banner. Stop names and the route chip ("On the road · 1 of 3") are scene
+  captions in `SCENE_THEMES`; nothing a button or status says changes by
+  theme.
+- **One unlock per theme at `UNLOCK_LEVEL` (5)** — a reefer trailer, a golden
+  broom, black sails — drawn on the vehicle. `hasUnlock()` works it out from
+  `levelHistory`, which survives a level-down, so it is never stored and
+  never taken away. The level-up card names it the time it is reached.
 
 ### Shipper and consignee addresses — never an address on its own (2026-11-06)
 

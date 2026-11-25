@@ -363,8 +363,8 @@ export const GAME_TOUR: TourStep[] = [
   {
     target: 'game-bar',
     title: 'Your level and XP',
-    text: 'Finishing tasks and steps earns XP, and so do planning your day in the pop-up, closing it, and, if you have daily targets, your calls, emails and referrals. Your streak grows with each working day you finish something. Only you see any of this.',
-    es: { title: 'Tu nivel y tu XP', text: 'Terminar tareas y pasos da XP, y también planear tu día en la ventana, cerrarlo y, si tienes metas diarias, tus llamadas, correos y referidos. Tu racha crece cada día laboral en que terminas algo. Solo tú ves esto.' },
+    text: 'Finishing tasks and steps earns XP, and so do planning your day in the pop-up, closing it, and, if you have daily targets, your calls, emails and referrals. Your streak grows with each working day you finish something. On the Today tab, your vehicle travels a stop for each of Today’s 3 you finish. Only you see any of this.',
+    es: { title: 'Tu nivel y tu XP', text: 'Terminar tareas y pasos da XP, y también planear tu día en la ventana, cerrarlo y, si tienes metas diarias, tus llamadas, correos y referidos. Tu racha crece cada día laboral en que terminas algo. En la pestaña Hoy, tu vehículo avanza una parada por cada una de tus 3 de hoy que terminas. Solo tú ves esto.' },
   },
   {
     target: 'game-missions',
@@ -375,7 +375,7 @@ export const GAME_TOUR: TourStep[] = [
   {
     target: 'game-theme',
     title: 'Your theme',
-    text: 'Freight, wizarding, empires, fairy worlds, outer space or pirates. It changes how this page looks and what the levels are called, never your XP or what the buttons say.',
-    es: { title: 'Tu tema', text: 'Carga, magia, imperios, mundos de hadas, el espacio o piratas. Cambia cómo se ve esta página y cómo se llaman los niveles, nunca tu XP ni lo que dicen los botones.' },
+    text: 'Freight, wizarding, empires, fairy worlds, outer space or pirates: a truck, a broom, a carriage, a dragonfly, a rocket or a galleon on your Today scene. Level 5 unlocks an extra for it. A theme changes how things look and what the levels are called, never your XP or what the buttons say.',
+    es: { title: 'Tu tema', text: 'Carga, magia, imperios, mundos de hadas, el espacio o piratas: un camión, una escoba, un carruaje, una libélula, un cohete o un galeón en tu escena de Hoy. El nivel 5 desbloquea un extra. El tema cambia cómo se ven las cosas y cómo se llaman los niveles, nunca tu XP ni lo que dicen los botones.' },
   },
 ];

@@ -14,7 +14,7 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import TaskEditor from '@/components/tasks/TaskEditor';
 import { TaskDirectoryProvider } from '@/components/tasks/TaskContacts';
 import { GameFeedback } from '@/components/tasks/TaskGame';
-import { Confetti, DoneStamp, GameStrip } from '@/components/tasks/GameRewards';
+import { Confetti, DoneStamp, GameScene } from '@/components/tasks/GameRewards';
 import { skinFor, type TaskSkin } from '@/components/tasks/taskSkins';
 import { taskXp } from '@/types/taskGame';
 import { Bi } from '@/components/spanish/Es';
@@ -45,7 +45,8 @@ import type { PlanningDay } from '@/types/planning';
  * Everything is the person's own list through /api/me/tasks; nothing here
  * reads anybody else's. The `data-tour` attributes are what PlannerTour lights.
  *
- * With game mode on (step 7): the game strip above the day, what each pick
+ * With game mode on (step 7): the theme's scene above the day, its vehicle
+ * travelling a stop for each pick finished, what each pick
  * is worth, a "Done" stamp as one is ticked, and confetti when the third is.
  * The XP itself is the server's, like everywhere else.
  */
@@ -155,7 +156,11 @@ export default function TodayTab() {
           </div>
         )}
 
-        {playing && game && <GameStrip game={game} skin={skin} today={today} />}
+        {playing && game && (
+          <div>
+            <GameScene game={game} skin={skin} today={today} planned={picks.length > 0} reached={doneOfPicks} />
+          </div>
+        )}
 
         {/* At a glance */}
         <div data-tour="glance" className="mb-5 flex flex-wrap items-end gap-x-6 gap-y-3 rounded-xl border border-gray-200 bg-white px-5 py-4">

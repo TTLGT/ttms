@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "744d9c52f3ddf6401830bc08c139e9740ed87ef2",
+      "date": "2026-11-25T14:40:41-06:00",
+      "author": "erwindank",
+      "subject": "Add XP for the day around the tasks and game mode's rewards, the second part of step 7 of the Planner redesign. With game mode on, planning the day in the pop-up earns XP once a day (15 for just one thing, 40 for your 3, 60 for the whole day; planning more later pays the difference), closing the day earns 30, each tapped call, email or referral earns 2 up to 40 a day, and meeting every one of the day's targets earns 100 once a day. New badges for days planned, days closed and days with every target met. The Today tab gains a strip with level, XP, streak, shields and today's XP, shows what each of Today's 3 is worth, stamps each one Done as it is ticked, and celebrates the third with confetti. XP earned in the pop-up or from a tap is shown on whatever page is open. The pop-up's last step says what planning earned, the close-of-day receipt shows XP today, level and streak, and the level-up card names the next level. Game mode has its own three-step tour on the Tasks tab. The My tasks guide explains the new XP",
+      "body": ""
+    },
+    {
       "hash": "5ee18aab5cfecabe9943c0a0ad9380828149c5dd",
       "date": "2026-11-25T12:37:48-06:00",
       "author": "erwindank",

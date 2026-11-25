@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PLAIN_SKIN, skinFor, type TaskSkin } from './taskSkins';
 import { artUrl } from './taskSkinArt';
+import { SCENE_THEMES } from './gameSceneArt';
 import { LevelArt } from './LevelArt';
 import { Award, ChevronDown, ChevronUp, Plus, Shield, Target, Trophy, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -21,7 +22,9 @@ import {
   PLAN_XP,
   TAP_XP,
   TAP_XP_CAP,
+  UNLOCK_LEVEL,
   badgeLabel,
+  hasUnlock,
   STEP_XP,
   SUGGESTION_BONUS_XP,
   TASK_XP,
@@ -371,6 +374,11 @@ function GameOptions({
         {GAME_THEMES[game.theme].label}: the look of this page and the name of every level, up to level 30,{' '}
         {levelTitle(GAME_LEVELS.length, game.theme)}. Changing it keeps your XP and level.
       </p>
+      <p className="mt-1 text-[11px] text-gray-500">
+        {hasUnlock(game)
+          ? `Unlocked: ${SCENE_THEMES[game.theme].unlock}, on your Today scene. Every theme's unlock is yours.`
+          : `Level ${UNLOCK_LEVEL} unlocks ${SCENE_THEMES[game.theme].unlock.replace(/^A /, 'a ')} on your Today scene.`}
+      </p>
       <details className="mt-3 text-xs text-gray-500">
         <summary data-es className="cursor-pointer">How XP works</summary>
         <ul className="mt-1.5 list-disc space-y-0.5 pl-4">
@@ -561,6 +569,12 @@ function LevelMoment({
             {up ? 'You are now' : 'You dropped to'} level {level.level}
           </p>
           <p className="mt-1 text-lg font-semibold text-gray-900">{levelTitle(level.level, theme)}</p>
+          {/* The theme's unlock, the one time it is reached. */}
+          {up && level.level === UNLOCK_LEVEL && (
+            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+              Unlocked: {SCENE_THEMES[theme].unlock}, on your Today scene
+            </p>
+          )}
           {up && GAME_LEVELS[level.level] && (
             <p className="mt-2 text-xs text-gray-500">
               Next: {levelTitle(level.level + 1, theme)} at {fmt(GAME_LEVELS[level.level].xp)} XP
