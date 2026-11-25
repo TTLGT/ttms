@@ -14,6 +14,23 @@ export const CALENDAR_GUIDE: Guide = {
   tracks: 'all',
   sections: [
     {
+      // Added 2026-11-25 with step 6 of the Planner. A new section id, so
+      // nobody's progress on the guide is touched.
+      id: 'planner-calendar',
+      title: b('The new Planner: the Calendar tab', 'El nuevo Planner: la pestaña Calendario'),
+      intro: b(
+        'On the Planner, the Calendar is the same calendar, drawn lighter: one menu for what is shown, a tray of tasks to put on it, and the settings behind one button.',
+        'En el Planner, el Calendario es el mismo calendario, más ligero: un menú para lo que se muestra, una bandeja de tareas para ponerle, y la configuración detrás de un botón.',
+      ),
+      screen: 'planner-calendar',
+      steps: [
+        { spot: 1, text: b('To schedule: every open task with no time yet, in your order. Drag one onto a day, or onto an hour in Week view, and it gets that day and time. No form, no separate work block.', 'Por agendar: cada tarea abierta sin hora, en tu orden. Arrástrala a un día, o a una hora en la vista Semana, y recibe ese día y esa hora. Sin formulario ni bloque de trabajo aparte.') },
+        { spot: 2, text: b('Layers chooses what is drawn — your tasks, your events, holidays, and for admins and HR, birthdays and anniversaries. Settings holds how your reminders reach you, your planning times and the plan you shared.', 'Capas elige qué se muestra — tus tareas, tus eventos, los feriados y, para administradores y RR. HH., cumpleaños y aniversarios. Configuración tiene cómo te llegan los recordatorios, tus horarios de planificación y el plan que compartiste.') },
+        { spot: 3, text: b('Month, Week, 4 days or Day. In the hour views, drag anything to another time and pull an event’s bottom edge to change how long it lasts.', 'Mes, Semana, 4 días o Día. En las vistas por hora, arrastra cualquier cosa a otra hora y jala el borde de abajo de un evento para cambiar cuánto dura.') },
+        { spot: 4, text: b('Click a day to see everything on it. Click an item to open it in the side panel, the same one as on the Tasks tab.', 'Haz clic en un día para ver todo lo que tiene. Haz clic en algo para abrirlo en el panel lateral, el mismo de la pestaña Tareas.') },
+      ],
+    },
+    {
       id: 'tour',
       title: b('The Calendar page', 'La página del Calendario'),
       intro: b('Your calendar shows the same tasks as My tasks, plus your events, holidays, and — for your eyes only — anything you shared.', 'Tu calendario muestra las mismas tareas de Mis tareas, más tus eventos, los feriados y — solo para ti — lo que compartiste.'),

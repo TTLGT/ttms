@@ -266,4 +266,13 @@ export const ES_PLANNER: Record<string, string> = {
   'To': 'Hasta',
   'No day keeps it in your inbox until you give it one': 'Sin día se queda en tu bandeja hasta que le des uno.',
   'With no deadline, the day in When counts as one': 'Sin fecha límite, el día de Cuándo cuenta como una.',
+
+  // ── The Calendar tab (step 6, 2026-11-25) ─────────────────────────────────
+  'Layers': 'Capas',
+  'Show on the calendar': 'Mostrar en el calendario',
+  'Calendar settings': 'Configuración del calendario',
+  'To schedule': 'Por agendar',
+  'Tasks with no time yet. Drag one onto a day, or onto an hour in Week view': 'Tareas que todavía no tienen hora. Arrastra una a un día, o a una hora en la vista Semana.',
+  'Everything open has a time': 'Todo lo abierto tiene hora.',
+  'Show fewer': 'Mostrar menos',
 };

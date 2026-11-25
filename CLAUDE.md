@@ -1298,14 +1298,14 @@ Types and pure rules in `src/types/task.ts`; server in
 
 ### The Planner — My tasks and the Calendar as one page (2026-11-24)
 
-The redesign agreed on 2026-11-24 has seven steps; **steps 1–5 are built**:
+The redesign agreed on 2026-11-24 has seven steps; **steps 1–6 are built**:
 the Planner at `/dashboard/planner` with Today, Tasks and Calendar tabs, the
 rollout switch, the Today tour, and the onboarding updates for it (step 1);
 the planning pop-up (step 2, below); suggestions and questions for every role
 (step 3, below); brokers' daily targets and numbers (step 4a, below);
-leads plus Incentives goals TTMS counts (step 4b, below); and the new Tasks
-tab and side-panel editor (step 5, below). Still to come: the Calendar tab,
-game mode 2.0, and the Broker dashboard. Pure rules in `src/types/planner.ts`;
+leads plus Incentives goals TTMS counts (step 4b, below); the new Tasks
+tab and side-panel editor (step 5, below); and the lighter Calendar tab
+(step 6, below). Still to come: game mode 2.0 and the Broker dashboard. Pure rules in `src/types/planner.ts`;
 browser side `src/lib/planner.ts`.
 
 - **It reaches people a few at a time.** `appSettings/general.plannerRollout`
@@ -1492,7 +1492,7 @@ leads (`LeadsBoard`, `?tab=leads`). Counted goals: `GOAL_COUNTERS` in
 
 - **Planner only.** The old My tasks page keeps `MyTasksScreen` and the
   window editor unchanged, so going back to the old pages gives back exactly
-  what people knew. The Calendar tab still opens the window until step 6.
+  what people knew.
 - **One editor, two layouts.** The panel is the same component, fields,
   checks and save as the window — the form is built from named pieces and
   the two layouts only order them differently. **Do not fork it**: a rule
@@ -1519,6 +1519,24 @@ leads (`LeadsBoard`, `?tab=leads`). Counted goals: `GOAL_COUNTERS` in
   `TaskFocus`, and shares its localStorage key with My tasks.
 - Tour `tasks` (`TASKS_TOUR`, five steps), no My journey tick of its own.
   Guide section `planner-tasks` with the `planner-tasks` drawing.
+
+**The Calendar tab (step 6, 2026-11-25).** `CalendarScreen` with
+`embedded` (the Planner) draws the same calendar lighter; without it (the old
+`/dashboard/calendar`) nothing changed.
+
+- **Layers** is one menu holding the same layer switches. **Settings** is a
+  side panel holding the four panels the side column used to carry —
+  reminder delivery, `PlanningPanel`, `MySharedPlanPanel`, the celebration
+  reminder rules — unchanged. The side column is the mini month, the tray,
+  the chosen day and (admin, HR) upcoming celebrations.
+- **The tray** (`ScheduleTray.tsx`) lists open tasks with no time, in queue
+  order, and only starts a drag in the calendar's own format
+  (`TASK_DRAG_TYPE` + `OCCURRENCE_DRAG_TYPE`). The drop is the calendar's
+  ordinary handler, so a repeating task still asks how far the move reaches.
+  **Do not give the tray its own drop logic.** Work blocks still exist, from
+  the editor, for a task that needs several sittings.
+- Items open in the side-panel editor. Tour `calendar` (`CALENDAR_TOUR`),
+  guide section `planner-calendar` in the Calendar guide.
 
 ### Shipper and consignee addresses — never an address on its own (2026-11-06)
 

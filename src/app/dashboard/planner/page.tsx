@@ -10,7 +10,7 @@ import { choosePlanner, recordTour, tourSeen, usePlanner } from '@/lib/planner';
 import TodayTab from '@/components/planner/TodayTab';
 import TasksTab from '@/components/planner/TasksTab';
 import CalendarScreen from '@/components/calendar/CalendarScreen';
-import PlannerTour, { TASKS_TOUR, TODAY_TOUR, type TourStep } from '@/components/planner/PlannerTour';
+import PlannerTour, { CALENDAR_TOUR, TASKS_TOUR, TODAY_TOUR, type TourStep } from '@/components/planner/PlannerTour';
 import { BackToOldDialog } from '@/components/planner/PlannerSwitch';
 import { Bi } from '@/components/spanish/Es';
 import { DAILY_PLAN_OPEN_EVENT, PLAN_NOW_PARAM } from '@/types/dailyPlan';
@@ -41,9 +41,10 @@ const TABS: { id: Tab; label: string; Icon: typeof Sun }[] = [
 const isTab = (v: string | null): v is Tab => v === 'today' || v === 'tasks' || v === 'calendar';
 
 /** Tabs that have a tour so far. The rest get theirs with their redesign. */
-const TOURS: Partial<Record<Tab, { id: 'today' | 'tasks'; steps: TourStep[]; label: string }>> = {
+const TOURS: Partial<Record<Tab, { id: 'today' | 'tasks' | 'calendar'; steps: TourStep[]; label: string }>> = {
   today: { id: 'today', steps: TODAY_TOUR, label: 'Today' },
   tasks: { id: 'tasks', steps: TASKS_TOUR, label: 'Tasks' },
+  calendar: { id: 'calendar', steps: CALENDAR_TOUR, label: 'Calendar' },
 };
 
 function Planner() {

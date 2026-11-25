@@ -316,3 +316,40 @@ export const TASKS_TOUR: TourStep[] = [
     es: { title: 'Abrir una tarea', text: 'Haz clic para abrir el panel lateral: título, Cuándo, Fecha límite, Urgente y los pasos al frente. Recordatorios, repeticiones, notas, la carga y lo demás están en Más.' },
   },
 ];
+
+/**
+ * The Calendar tab's tour (step 6). Targets are `data-tour` attributes in
+ * CalendarScreen.tsx, ScheduleTray.tsx and TaskCalendar.tsx.
+ */
+export const CALENDAR_TOUR: TourStep[] = [
+  {
+    target: 'cal-tray',
+    title: 'To schedule',
+    text: 'Every open task with no time yet. Drag one onto a day, or onto an hour in Week view, to decide when you will do it.',
+    es: { title: 'Por agendar', text: 'Cada tarea abierta que todavía no tiene hora. Arrastra una a un día, o a una hora en la vista Semana, para decidir cuándo la harás.' },
+  },
+  {
+    target: 'cal-modes',
+    title: 'Month, week or day',
+    text: 'Switch how much you see. In Week, 4 days and Day you can drag things to another time and pull an event’s bottom edge to change how long it lasts.',
+    es: { title: 'Mes, semana o día', text: 'Cambia cuánto ves. En Semana, 4 días y Día puedes arrastrar cosas a otra hora y jalar el borde de abajo de un evento para cambiar cuánto dura.' },
+  },
+  {
+    target: 'cal-layers',
+    title: 'Layers',
+    text: 'Choose what is drawn: your tasks, your events, holidays in Guatemala and the US, and for admins and HR, birthdays and anniversaries.',
+    es: { title: 'Capas', text: 'Elige qué se muestra: tus tareas, tus eventos, los feriados de Guatemala y EE. UU., y para administradores y RR. HH., cumpleaños y aniversarios.' },
+  },
+  {
+    target: 'cal-day',
+    title: 'The chosen day',
+    text: 'Click any day to see everything on it here, and add to it.',
+    es: { title: 'El día elegido', text: 'Haz clic en cualquier día para ver aquí todo lo que tiene, y agregarle cosas.' },
+  },
+  {
+    target: 'cal-settings',
+    title: 'Settings',
+    text: 'How your reminders reach you, your planning times, the plan you shared, and for admins and HR the celebration reminders.',
+    es: { title: 'Configuración', text: 'Cómo te llegan los recordatorios, tus horarios de planificación, el plan que compartiste y, para administradores y RR. HH., los recordatorios de celebraciones.' },
+  },
+];

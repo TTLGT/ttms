@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Bell, CalendarClock, Landmark, ListTodo, Mail, MessageCircle, User, Users, X } from 'lucide-react';
+import { Bell, CalendarClock, Landmark, Layers, ListTodo, Mail, MessageCircle, SlidersHorizontal, User, Users, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import { usePersonalTasks, useTaskHistory } from '@/lib/personalTasks';
@@ -12,6 +12,7 @@ import TaskCalendar from '@/components/tasks/TaskCalendar';
 import PlanningPanel from '@/components/planning/PlanningPanel';
 import MySharedPlanPanel from '@/components/calendar/MySharedPlanPanel';
 import TeamPlans from '@/components/calendar/TeamPlans';
+import ScheduleTray from '@/components/calendar/ScheduleTray';
 import { PLANNING_CHANGED_EVENT } from '@/types/planning';
 import TaskEditor from '@/components/tasks/TaskEditor';
 import SeriesChoice, { asksSeries, type SeriesAsk, type SeriesMove } from '@/components/tasks/SeriesChoice';
@@ -62,6 +63,14 @@ import {
  *   themselves shared in the "My shared plan" panel.
  *
  * Not Google Calendar: nothing here is read from or sent to Google.
+ *
+ * **Inside the Planner (`embedded`, step 6, 2026-11-25)** the same calendar
+ * is drawn lighter: the layer chips fold into one Layers menu; the side
+ * column is the mini month, a tray of tasks with no time to drag onto the
+ * calendar, the chosen day, and (admin, HR) upcoming celebrations; and the
+ * other four panels — reminder delivery, planning, my shared plan and the
+ * celebration reminder rules — move behind a Settings button, unchanged.
+ * Items open in the side-panel editor. The old Calendar page is untouched.
  */
 export default function CalendarScreen({ embedded = false }: {
   /**
@@ -101,6 +110,8 @@ export default function CalendarScreen({ embedded = false }: {
   // Which layers are drawn. All on by default; turning one off is how somebody
   // gets a calendar of just their own week, or HR one of just birthdays.
   const [show, setShow] = useState({ tasks: true, events: true });
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [countries, setCountries] = useState<Record<HolidayCountry, boolean>>({ GT: true, US: true });
   const [kinds, setKinds] = useState<Record<CelebrationKind, boolean>>({ birthday: true, anniversary: true });
 
@@ -236,6 +247,36 @@ export default function CalendarScreen({ embedded = false }: {
     </div>
   );
 
+  // The Planner's toolbar: the same switches, folded into one menu, beside the
+  // button that opens the panels the side column no longer carries.
+  const hiddenLayers = [!show.tasks, !show.events, !countries.GT, !countries.US,
+    ...(hr ? [!kinds.birthday, !kinds.anniversary] : [])].filter(Boolean).length;
+  const plannerToolbar = (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="relative">
+        <button type="button" data-tour="cal-layers" aria-expanded={layersOpen} onClick={() => setLayersOpen((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <Layers size={14} /> <span data-es>Layers</span>
+          {hiddenLayers > 0 && <span className="rounded-full bg-gray-100 px-1.5 text-xs text-gray-600">{hiddenLayers} off</span>}
+        </button>
+        {layersOpen && (
+          <>
+            {/* A click anywhere else closes it. */}
+            <div className="fixed inset-0 z-30" onClick={() => setLayersOpen(false)} aria-hidden />
+            <div className="absolute left-0 z-40 mt-1 w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-lg">
+              <p data-es className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Show on the calendar</p>
+              {toolbar}
+            </div>
+          </>
+        )}
+      </div>
+      <button type="button" data-tour="cal-settings" onClick={() => setSettingsOpen(true)}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+        <SlidersHorizontal size={14} /> <span data-es>Settings</span>
+      </button>
+    </div>
+  );
+
   // A planning slot added from the card lands on this calendar without a reload.
   useEffect(() => {
     window.addEventListener(PLANNING_CHANGED_EVENT, reload);
@@ -342,9 +383,25 @@ export default function CalendarScreen({ embedded = false }: {
           celebrationsOn={hr && cel ? celebrationsOn : undefined}
           pickedOccurrence={picked}
           onPickOccurrence={hr ? (o) => { setSelected(o.date); setPicked(o); } : undefined}
-          toolbar={toolbar}
+          toolbar={embedded ? plannerToolbar : toolbar}
           onZoomChange={onZoomChange}
-          asideTop={hr && cel && picked ? (
+          asideTop={embedded ? (
+            <>
+              {hr && cel && picked && (
+                <CelebrationDetail
+                  occurrence={picked}
+                  today={cel.today}
+                  reminders={cel.reminders}
+                  busy={celebrations.busy}
+                  formatCalendarDate={formatCalendarDate}
+                  onAdd={(leadDays) => celebrations.addReminder(picked, leadDays)}
+                  onRemove={celebrations.removeReminder}
+                  onClose={() => setPicked(null)}
+                />
+              )}
+              <ScheduleTray tasks={tasks} today={today} onOpen={(task) => setEditing({ task })} />
+            </>
+          ) : hr && cel && picked ? (
             <CelebrationDetail
               occurrence={picked}
               today={cel.today}
@@ -356,7 +413,14 @@ export default function CalendarScreen({ embedded = false }: {
               onClose={() => setPicked(null)}
             />
           ) : null}
-          asideBottom={(
+          asideBottom={embedded ? (hr && cel ? (
+            <UpcomingCelebrations
+              data={cel}
+              showing={kinds}
+              formatCalendarDate={formatCalendarDate}
+              onPick={(o) => { setSelected(o.date); setPicked(o); }}
+            />
+          ) : null) : (
             <>
               {deliveryPanel}
               <PlanningPanel tasks={tasks} />
@@ -385,9 +449,40 @@ export default function CalendarScreen({ embedded = false }: {
 
       <GameFeedback notices={notices} theme={game?.theme ?? 'freight'} onDismiss={dismissNotice} />
 
+      {/* The panels the Planner's side column no longer carries, unchanged. */}
+      {embedded && settingsOpen && tasks && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={() => setSettingsOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label="Calendar settings" onClick={(e) => e.stopPropagation()}
+            className="flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-gray-200 bg-gray-50 shadow-2xl">
+            <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-gray-200 bg-white px-5 py-4">
+              <h2 data-es className="flex-1 text-base font-semibold text-gray-900">Calendar settings</h2>
+              <button type="button" onClick={() => setSettingsOpen(false)} aria-label="Close" className="rounded-md p-1 text-gray-400 hover:bg-gray-100">
+                <X size={18} />
+              </button>
+            </header>
+            <div className="space-y-4 p-4">
+              {deliveryPanel}
+              <PlanningPanel tasks={tasks} />
+              <MySharedPlanPanel />
+              {hr && cel && (
+                <CelebrationReminderPanel
+                  data={cel}
+                  busy={celebrations.busy}
+                  formatCalendarDate={formatCalendarDate}
+                  onSettings={celebrations.updateSettings}
+                  onRemove={celebrations.removeReminder}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {editing && (
         <TaskDirectoryProvider people={directory}>
         <TaskEditor
+          // The Planner's side panel; the old Calendar page keeps the window.
+          layout={embedded ? 'panel' : 'dialog'}
           // A copy opening in the original's place must be a fresh dialog.
           key={editing.task?.id ?? (editing.copyOf ? `copy-${editing.copyOf.id}` : 'new')}
           // A date of a series opens on that date, so the editor's date is the

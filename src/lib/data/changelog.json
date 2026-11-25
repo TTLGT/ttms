@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "9fbd9fc2d8309ae1d9cf404338b1772b06966513",
+      "date": "2026-11-25T09:49:16-06:00",
+      "author": "erwindank",
+      "subject": "Add the Planner's new Tasks tab and side-panel editor, step 5 of the Planner redesign. On the Planner, the Tasks tab now has one add box above every view (the same quick add as Today, reading days, times, !urgent, #load and @person), one filter, and four views: List, Board, Sticky notes and Table. The List is the person's own order, dragged into place (arrows stay for phones), with a red flag for Urgent and chips for when it is planned and when it is due; with game mode on it is drawn as the Path. Clicking a task opens a side panel with the title, When, Deadline, Urgent and the steps up front, picked in one tap (Today, Tomorrow, Next week or any day), and everything else under More. On the Planner, priority is shown as Urgent or nothing in every view. The Tasks tab has its own five-step tour and a new section in the My tasks guide. The old My tasks page is unchanged, and no task data was converted",
+      "body": ""
+    },
+    {
       "hash": "1e882c5aad59622a00d440f3a4fc8d3594d72da8",
       "date": "2026-11-25T08:47:33-06:00",
       "author": "erwindank",

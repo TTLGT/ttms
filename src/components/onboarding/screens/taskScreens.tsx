@@ -416,6 +416,53 @@ export function PlannerTasksScreen() {
   );
 }
 
+/** The Planner's Calendar tab (step 6, 2026-11-25). Made-up items. */
+export function PlannerCalendarScreen() {
+  return (
+    <Frame path="/dashboard/planner?tab=calendar">
+      <div className="mb-2 flex items-center gap-2">
+        <b className="text-[13px] text-gray-900">Planner</b>
+        <span className="flex gap-1"><Pill>Today</Pill><Pill>Tasks</Pill><Pill on>Calendar</Pill></span>
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        <div className="col-span-3 rounded-lg border border-gray-200 p-2">
+          <div className="relative mb-1.5 flex items-center gap-1">
+            <Btn>Layers</Btn><Btn>Settings</Btn>
+            <span className="ml-auto flex gap-0.5"><Pill>Month</Pill><Pill on>Week</Pill><Pill>Day</Pill></span>
+            <Spot n={2} at="tr" />
+          </div>
+          <div className="relative grid grid-cols-5 gap-0.5">
+            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].map((d, i) => (
+              <div key={d} className="h-20 rounded border border-gray-100 p-0.5">
+                <div className="text-[8px] text-gray-400">{d}</div>
+                {i === 1 && <div className="mt-2 rounded border-l-2 border-brand-600 bg-brand-50 px-0.5 text-[8px] text-brand-800">Team huddle</div>}
+                {i === 2 && <div className="mt-5 rounded border-l-2 border-amber-500 bg-amber-50 px-0.5 text-[8px] text-amber-800">Send rates</div>}
+              </div>
+            ))}
+            <Spot n={3} at="bl" />
+          </div>
+        </div>
+        <div className="col-span-2 flex flex-col gap-2">
+          <div className="relative rounded-lg border border-gray-200 p-2">
+            <div className="mb-1 font-semibold text-gray-900">To schedule</div>
+            {['Quote Blue Mesa', 'Ask Swift for a referral'].map((t) => (
+              <div key={t} className="mb-0.5 flex items-center gap-1 rounded border border-gray-200 px-1 py-0.5 text-[9px] text-gray-800">
+                <GripVertical size={9} className="text-gray-300" />{t}
+              </div>
+            ))}
+            <Spot n={1} at="tr" />
+          </div>
+          <div className="relative rounded-lg border border-gray-200 p-2">
+            <div className="font-semibold text-gray-900">Wednesday</div>
+            <div className="text-[9px] text-gray-600">10:00 Send rates</div>
+            <Spot n={4} at="tr" />
+          </div>
+        </div>
+      </div>
+    </Frame>
+  );
+}
+
 /** The Planner's planning pop-up (step 2 of the redesign), over the Orders page. Made-up items. */
 export function PlannerPopupScreen() {
   return (

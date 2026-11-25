@@ -534,7 +534,7 @@ export default function TaskCalendar({
                 <ZoomIn size={14} />
               </button>
             </div>
-            <div className="inline-flex rounded-lg border border-gray-200 p-0.5 text-xs">
+            <div data-tour="cal-modes" className="inline-flex rounded-lg border border-gray-200 p-0.5 text-xs">
               {MODES.map(({ id, label }) => (
                 <button
                   key={id}
@@ -667,7 +667,7 @@ export default function TaskCalendar({
         {asideTop}
 
         {/* ── The chosen day ─────────────────────────────────────── */}
-        <section className="rounded-xl border border-gray-200 bg-white p-4">
+        <section data-tour="cal-day" className="rounded-xl border border-gray-200 bg-white p-4">
           <div className="mb-3 flex items-center gap-2">
             <h3 className="flex-1 text-sm font-semibold text-gray-900">
               {selected === today ? 'Today' : formatCalendarDate(selected)}

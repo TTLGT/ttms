@@ -6,7 +6,7 @@ import {
 } from './chatScreens';
 import {
   BrokerDayScreen, CalendarMonthScreen, CalendarWeekScreen, PlanningPromptScreen,
-  TasksBoardScreen, TasksEditorScreen, TasksGameScreen, TasksOverviewScreen, PlannerTodayScreen, PlannerPopupScreen, PlannerTasksScreen,
+  TasksBoardScreen, TasksEditorScreen, TasksGameScreen, TasksOverviewScreen, PlannerTodayScreen, PlannerPopupScreen, PlannerTasksScreen, PlannerCalendarScreen,
 } from './taskScreens';
 import {
   AppShellScreen, CallFlowScreen, DirectoryCardsScreen, DirectoryProfileScreen, LoadLifecycleScreen,
@@ -39,6 +39,7 @@ export const SCREENS: Record<string, ComponentType> = {
   'planner-today': PlannerTodayScreen,
   'planner-popup': PlannerPopupScreen,
   'planner-tasks': PlannerTasksScreen,
+  'planner-calendar': PlannerCalendarScreen,
   'calendar-month': CalendarMonthScreen,
   'calendar-week': CalendarWeekScreen,
   'planning-prompt': PlanningPromptScreen,
