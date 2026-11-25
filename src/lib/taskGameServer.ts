@@ -8,6 +8,7 @@ import {
   GameTurn, addDays, cleanGameState, nextWorkingDay, prevWorkingDay, type GameEvent, type GameRules, type GameState,
 } from '@/types/taskGame';
 import type { PersonalTask } from '@/types/task';
+import { TAPPED_METRICS, targetsMet, type SalesDay } from '@/types/salesDay';
 import { cleanTaskStreak, liveTaskStreak, streakNeedsOffDays, type TaskStreak } from '@/types/taskStreak';
 
 /**
@@ -85,6 +86,31 @@ export async function runDailyCheck(
     if (!fresh.enabled || fresh.lastCheckDate === today) return { game: fresh, events: [] };
     const turn = new GameTurn(fresh, today, now, offDays);
     turn.onNewDay(openTasks);
+    const out = turn.finish();
+    tx.set(owner, { game: out.state }, { merge: true });
+    return { game: out.state, events: out.events };
+  });
+}
+
+/**
+ * A seller's day moved (a tap, a logged call, the day closing): pay the
+ * taps and the all-targets bonus. Its own transaction on the owner document,
+ * so two taps at once both count. Nothing happens, and nothing is written,
+ * with game mode off. `null` when there was nothing to say.
+ */
+export async function rewardSalesDay(
+  uid: string,
+  day: Pick<SalesDay, 'targets' | 'done'>,
+): Promise<{ game: GameState; events: GameEvent[] } | null> {
+  const { today, now } = gameClock();
+  const owner = taskOwnerDoc(uid);
+  const { met, set } = targetsMet(day);
+  const taps = TAPPED_METRICS.reduce((n, m) => n + day.done[m], 0);
+  return adminDb.runTransaction(async (tx) => {
+    const state = gameFrom(await tx.get(owner));
+    if (!state.enabled) return null;
+    const turn = new GameTurn(state, today, now);
+    turn.onSalesDay(taps, met, set);
     const out = turn.finish();
     tx.set(owner, { game: out.state }, { merge: true });
     return { game: out.state, events: out.events };

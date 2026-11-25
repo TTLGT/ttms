@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AdminAuthError } from '@/lib/firebase-admin';
 import { requireCaller } from '@/lib/partyAccess';
 import { salesDaysFor, setDayTargets, tap } from '@/lib/salesDayServer';
+import { rewardSalesDay } from '@/lib/taskGameServer';
 import { officeToday } from '@/types/celebration';
 import { isTappedMetric, sellsLoads } from '@/types/salesDay';
 
@@ -48,7 +49,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'What should change?' }, { status: 400 });
     }
     const [day] = await salesDaysFor([caller.uid], today);
-    return NextResponse.json({ day });
+    // Game mode's XP for the taps and for meeting every target (step 7).
+    // Best-effort: a tap must never fail because of the game.
+    const played = day ? await rewardSalesDay(caller.uid, day).catch(() => null) : null;
+    return NextResponse.json({ day, game: played?.game ?? null, events: played?.events ?? [] });
   } catch (e) {
     if (e instanceof AdminAuthError) return NextResponse.json({ error: e.message }, { status: e.status });
     throw e;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   CheckCircle2, Circle, Clock, Flag, Hash, Inbox, Plus, Search, Sun, X,
@@ -14,6 +14,9 @@ import { useDateFormatters } from '@/lib/useDateFormatters';
 import TaskEditor from '@/components/tasks/TaskEditor';
 import { TaskDirectoryProvider } from '@/components/tasks/TaskContacts';
 import { GameFeedback } from '@/components/tasks/TaskGame';
+import { Confetti, DoneStamp, GameStrip } from '@/components/tasks/GameRewards';
+import { skinFor, type TaskSkin } from '@/components/tasks/taskSkins';
+import { taskXp } from '@/types/taskGame';
 import { Bi } from '@/components/spanish/Es';
 import { SalesTargetsCard } from './SalesTargets';
 import QuickAdd from './QuickAdd';
@@ -41,6 +44,10 @@ import type { PlanningDay } from '@/types/planning';
  *
  * Everything is the person's own list through /api/me/tasks; nothing here
  * reads anybody else's. The `data-tour` attributes are what PlannerTour lights.
+ *
+ * With game mode on (step 7): the game strip above the day, what each pick
+ * is worth, a "Done" stamp as one is ticked, and confetti when the third is.
+ * The XP itself is the server's, like everywhere else.
  */
 export default function TodayTab() {
   const store = usePersonalTasks();
@@ -77,6 +84,23 @@ export default function TodayTab() {
   );
 
   const pickIds = picks.map((t) => t.id);
+  const playing = !!game?.enabled;
+  const skin = skinFor(playing ? game?.theme : null);
+  const doneOfPicks = picks.filter((t) => t.status === 'done').length;
+
+  // The stamp lands only for a pick ticked on this visit, and the confetti
+  // only when the third is ticked here — never on loading a day already done.
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
+  const [burst, setBurst] = useState(0);
+  const lastDone = useRef<number | null>(null);
+  useEffect(() => {
+    if (tasks === null || !today) return;
+    const before = lastDone.current;
+    lastDone.current = doneOfPicks;
+    if (playing && before !== null && before < MAX_TODAY_PICKS && doneOfPicks === MAX_TODAY_PICKS && picks.length === MAX_TODAY_PICKS) {
+      setBurst((b) => b + 1);
+    }
+  }, [doneOfPicks, picks.length, playing, tasks, today]);
   const setPicks = (ids: string[]) => saveTodayPicks({ date: today, ids });
   const addPick = (id: string) => {
     if (pickIds.includes(id) || pickIds.length >= MAX_TODAY_PICKS) return;
@@ -121,8 +145,6 @@ export default function TodayTab() {
     );
   }
 
-  const doneOfPicks = picks.filter((t) => t.status === 'done').length;
-
   return (
     <TaskDirectoryProvider people={people}>
       <div className="px-4 pb-8 pt-2 sm:px-6 lg:px-8">
@@ -132,6 +154,8 @@ export default function TodayTab() {
             <button type="button" onClick={() => setError('')} aria-label="Dismiss"><X size={14} /></button>
           </div>
         )}
+
+        {playing && game && <GameStrip game={game} skin={skin} today={today} />}
 
         {/* At a glance */}
         <div data-tour="glance" className="mb-5 flex flex-wrap items-end gap-x-6 gap-y-3 rounded-xl border border-gray-200 bg-white px-5 py-4">
@@ -172,7 +196,11 @@ export default function TodayTab() {
                 <ol className="space-y-2">
                   {picks.map((t, i) => (
                     <PickRow key={t.id} n={i + 1} task={t} today={today}
-                      onToggle={() => update(t.id, { status: t.status === 'done' ? 'todo' : 'done' })}
+                      game={playing ? { skin, fresh: ticked.has(t.id) } : null}
+                      onToggle={() => {
+                        if (t.status !== 'done') setTicked((s) => new Set(s).add(t.id));
+                        update(t.id, { status: t.status === 'done' ? 'todo' : 'done' });
+                      }}
                       onOpen={() => setEditing({ task: t })}
                       onRemove={() => setPicks(pickIds.filter((id) => id !== t.id))}
                     />
@@ -252,6 +280,7 @@ export default function TodayTab() {
         )}
 
         <GameFeedback notices={notices} theme={game?.theme ?? 'freight'} onDismiss={dismissNotice} />
+        <Confetti fire={burst} colors={[skin.accent, '#22c55e', '#3b82f6', '#f59e0b', '#ef4444']} />
         {editor}
       </div>
     </TaskDirectoryProvider>
@@ -295,14 +324,17 @@ function whenOf(t: PersonalTask, today: string, fmt: (iso: string) => string): {
   return null;
 }
 
-function PickRow({ n, task, today, onToggle, onOpen, onRemove }: {
-  n: number; task: PersonalTask; today: string; onToggle: () => void; onOpen: () => void; onRemove: () => void;
+function PickRow({ n, task, today, game, onToggle, onOpen, onRemove }: {
+  n: number; task: PersonalTask; today: string;
+  /** Game mode's look: what the pick is worth, and the stamp. Null with it off. */
+  game: { skin: TaskSkin; fresh: boolean } | null;
+  onToggle: () => void; onOpen: () => void; onRemove: () => void;
 }) {
   const { formatCalendarDate } = useDateFormatters();
   const done = task.status === 'done';
   const when = whenOf(task, today, formatCalendarDate);
   return (
-    <li className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 ${done ? 'border-transparent bg-green-50' : 'border-gray-200 bg-white'}`}>
+    <li className={`relative flex items-center gap-3 overflow-hidden rounded-lg border px-3 py-2.5 ${done ? 'border-transparent bg-green-50' : 'border-gray-200 bg-white'}`}>
       <span className="w-4 text-sm font-semibold text-gray-400">{n}</span>
       <button type="button" onClick={onToggle} aria-label={done ? 'Mark not done' : 'Mark done'}
         className={`shrink-0 ${done ? 'text-green-600' : 'text-gray-400 hover:text-green-600'}`}>
@@ -314,8 +346,10 @@ function PickRow({ n, task, today, onToggle, onOpen, onRemove }: {
           {task.priority === 'high' && <span className="inline-flex items-center gap-0.5 text-red-600"><Flag size={11} /> Urgent</span>}
           {when && <span className={when.late ? 'font-semibold text-red-600' : ''}>{when.text}</span>}
           {task.orders.map((o) => <span key={o.id} className="inline-flex items-center"><Hash size={11} />{o.number}</span>)}
+          {game && !done && <span className="font-semibold text-amber-700">+{taskXp(task, today).xp} XP</span>}
         </span>
       </button>
+      {game && done && <DoneStamp skin={game.skin} fresh={game.fresh} />}
       <button type="button" onClick={onRemove} aria-label="Take out of Today's 3" title="Take out of Today's 3"
         className="text-gray-300 hover:text-gray-600"><X size={16} /></button>
     </li>

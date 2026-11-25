@@ -1313,7 +1313,10 @@ the planning pop-up (step 2, below); suggestions and questions for every role
 (step 3, below); brokers' daily targets and numbers (step 4a, below);
 leads plus Incentives goals TTMS counts (step 4b, below); the new Tasks
 tab and side-panel editor (step 5, below); and the lighter Calendar tab
-(step 6, below). Still to come: game mode 2.0 and the Broker dashboard. Pure rules in `src/types/planner.ts`;
+(step 6, below). Step 7, game mode 2.0, is half built: Gentle and Hard
+(see My tasks above) and XP for the day plus its rewards (below). Still to
+come: the animated scenes, journey maps and level unlocks, then the Broker
+dashboard. Pure rules in `src/types/planner.ts`;
 browser side `src/lib/planner.ts`.
 
 - **It reaches people a few at a time.** `appSettings/general.plannerRollout`
@@ -1416,8 +1419,8 @@ on `personalTasks/{uid}.dailyPlan` through `/api/me/planner/day`.
   "Plan my day" button linking `?plan=1` — keep the two in step.
 - The pop-up tour is `POPUP_TOUR` (`PLANNER_TOURS.popup`); it records seen
   but does not tick "Take the Planner tour", which is the Today tab's.
-- Not built yet, on purpose: targets for roles other than brokers, XP for
-  planning (step 7), "Not planned yet" on Team plans, and Settings for the
+- Not built yet, on purpose: targets for roles other than brokers,
+  "Not planned yet" on Team plans, and Settings for the
   pop-up's times — the times are constants in `dailyPlan.ts` for now.
 
 **Brokers' daily numbers (step 4a, 2026-11-25).** Rules in
@@ -1491,7 +1494,7 @@ leads (`LeadsBoard`, `?tab=leads`). Counted goals: `GOAL_COUNTERS` in
   `leads`), the Planner's machinery reused: it starts on the first visit,
   replays from the ? beside the tabs, and waits for the board to load
   (`onLoaded`) so the board and card steps are not skipped.
-- Not built, on purpose: XP for calls (step 7b), the Broker dashboard, and a
+- Not built, on purpose: the Broker dashboard, and a
   separate "check-ins with existing clients" target.
 
 **The Tasks tab and the side panel (step 5, 2026-11-25).**
@@ -1545,6 +1548,44 @@ leads (`LeadsBoard`, `?tab=leads`). Counted goals: `GOAL_COUNTERS` in
   the editor, for a task that needs several sittings.
 - Items open in the side-panel editor. Tour `calendar` (`CALENDAR_TOUR`),
   guide section `planner-calendar` in the Calendar guide.
+
+**XP for the day, and its rewards (step 7, 2026-11-25).** Rules in
+`src/types/taskGame.ts`; drawing in `src/components/tasks/GameRewards.tsx`
+and `TaskGame.tsx`.
+
+- **Planning, closing the day and a seller's taps pay XP**, under Gentle and
+  Hard alike: `PLAN_XP` (one thing / the 3 / the whole day — planning more
+  later the same day pays only the difference), `CLOSE_DAY_XP`, `TAP_XP` per
+  call, email or referral **capped at `TAP_XP_CAP` a day** because they are
+  self-reported, and `ALL_TARGETS_XP` once a day when every target is met.
+  Each is recorded on `game.day` (reset by date) so it pays once however
+  many tabs answer. Taps pay from the day's total, never per tap, so a mis-tap
+  taken back takes its XP with it.
+- **Paid where it is earned, in the same write.** `PATCH /api/me/planner/day`
+  runs the `GameTurn` inside its own transaction; `/api/me/sales-day` and a
+  call logged on a client's page call `rewardSalesDay()` after the tap,
+  best-effort — a tap never fails because of the game. Closing the day also
+  re-checks a seller's targets, because quotes and new clients count
+  themselves without a tap. There is still no route that sets XP.
+- **`GAME_MOVED_EVENT`** carries those replies to the page: the task store
+  takes the new state, and `GameEventsLayer` in the dashboard layout — the
+  only thing that draws them — shows the toasts over any page, above the
+  pop-up. Task saves keep their own `GameFeedback`; do not route them
+  through the layer as well, or every toast shows twice.
+- `DAY_BADGES` (days planned, days closed, days with every target met) sit
+  beside `HARD_BADGES` in `badges`; ids are stored, never rename one.
+  `badgeLabel()` names either kind.
+- On Today, with game mode on: `GameStrip` (level, XP, streak, shields,
+  today's XP), "+N XP" on each open pick (`taskXp()`, the number that will
+  land), a "Done" stamp on a pick ticked on this visit, and `Confetti` when
+  the third is — never on loading a day already done. The stamp says "Done"
+  in every theme. The close-of-day receipt adds XP today, level and streak;
+  "Close my day" now records the close before drawing it, and an empty day
+  closes as skipped and earns nothing. Motion stops under
+  `prefers-reduced-motion`.
+- Tour `game` (`GAME_TOUR`, three steps on the Tasks tab), shown the first
+  time game mode is on there and only once the Tasks tour has been seen, so
+  the two never start together. No My journey tick.
 
 ### Shipper and consignee addresses — never an address on its own (2026-11-06)
 

@@ -1,7 +1,8 @@
 import { adminDb } from './firebase-admin';
 import { canSeeParty } from './accessControl';
 import { readParty, type Caller } from './partyAccess';
-import { maySee, seesEveryone, tap } from './salesDayServer';
+import { maySee, salesDaysFor, seesEveryone, tap } from './salesDayServer';
+import { rewardSalesDay } from './taskGameServer';
 import { officeToday } from '@/types/celebration';
 import { isCalendarDateString } from '@/types/attendance';
 import { isBookedStatus } from '@/types/clientSnapshot';
@@ -266,7 +267,14 @@ export async function actOnClient(caller: Caller, partyId: string, raw: unknown)
   // Counted on the caller's own day, never the broker's: it was the caller's
   // call. Best-effort — the call is logged whether or not the tally moves.
   if (act.action === 'log' && act.kind !== 'note' && sellsLoads(caller.profile)) {
-    await tap(caller.uid, officeToday(), act.kind === 'call' ? 'calls' : 'emails', 1).catch(() => {});
+    const today = officeToday();
+    await tap(caller.uid, today, act.kind === 'call' ? 'calls' : 'emails', 1)
+      // And game mode's XP for it, the same as a tap on the Today card.
+      .then(async () => {
+        const [day] = await salesDaysFor([caller.uid], today);
+        if (day) await rewardSalesDay(caller.uid, day);
+      })
+      .catch(() => {});
   }
   return clientSalesView(caller, partyId);
 }

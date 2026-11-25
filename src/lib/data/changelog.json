@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "5ee18aab5cfecabe9943c0a0ad9380828149c5dd",
+      "date": "2026-11-25T12:37:48-06:00",
+      "author": "erwindank",
+      "subject": "Add Gentle and Hard rules to game mode, the first half of step 7 of the Planner redesign. Gentle is the new default: finishing things earns XP, nothing is ever charged for overdue tasks, a broken streak or Not done, XP never falls below the start of the current level, and every 5 days of streak earns a streak shield (up to 3) that saves the streak on a missed working day. Hard is opt-in and keeps the old rules with every penalty, and earns badges for staying in it 1, 4, 10 and 26 weeks. Choosing Hard or leaving it, including turning game mode off while on Hard, takes effect the next working day and can be cancelled until then; each day is charged by the rules it was played under, and leaving Hard means a 14-day wait before choosing it again. The game options show both sets of rules in full, any waiting change with its date, shields and badges. Everybody already playing moves to Gentle. The My tasks guide explains both",
+      "body": ""
+    },
+    {
       "hash": "7a47965e447e2ff061a297452c3b3b1431121434",
       "date": "2026-11-25T10:03:49-06:00",
       "author": "erwindank",

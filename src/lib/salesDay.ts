@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { authedFetch } from './personalTasks';
+import { announceGame, authedFetch } from './personalTasks';
+import type { GameEvent, GameState } from '@/types/taskGame';
 import {
   SALES_DAY_CHANGED_EVENT, type SalesDay, type SalesPerson, type SalesTargets, type TappedMetric,
 } from '@/types/salesDay';
@@ -46,18 +47,21 @@ export function useMySalesDay(enabled = true): { day: SalesDay | null; loaded: b
 }
 
 export async function tapSales(metric: TappedMetric, delta: 1 | -1): Promise<SalesDay | null> {
-  const d = await authedFetch<{ day: SalesDay | null }>('/api/me/sales-day', {
+  const d = await authedFetch<{ day: SalesDay | null; game?: GameState | null; events?: GameEvent[] }>('/api/me/sales-day', {
     method: 'POST', body: JSON.stringify({ action: 'tap', metric, delta }),
   });
   announce(d.day);
+  // Game mode's XP for the tap (capped per day), drawn by GameEventsLayer.
+  announceGame(d);
   return d.day;
 }
 
 export async function setTodayTargets(targets: SalesTargets): Promise<SalesDay | null> {
-  const d = await authedFetch<{ day: SalesDay | null }>('/api/me/sales-day', {
+  const d = await authedFetch<{ day: SalesDay | null; game?: GameState | null; events?: GameEvent[] }>('/api/me/sales-day', {
     method: 'POST', body: JSON.stringify({ action: 'targets', targets }),
   });
   announce(d.day);
+  announceGame(d);
   return d.day;
 }
 

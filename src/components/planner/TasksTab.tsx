@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Columns3, Gamepad2, List, Plus, Search, StickyNote, Table2, X } from 'lucide-react';
 import { usePersonalTasks } from '@/lib/personalTasks';
 import { useReminderEmails } from '@/lib/appSettings';
@@ -18,6 +18,9 @@ import { GameBar, GameFeedback } from '@/components/tasks/TaskGame';
 import { ROOM_CLASS, roomCss, skinFor } from '@/components/tasks/taskSkins';
 import { THEME_FONT_VARS } from '@/components/tasks/themeFonts';
 import QuickAdd from './QuickAdd';
+import PlannerTour, { GAME_TOUR } from './PlannerTour';
+import { useAuth } from '@/context/AuthContext';
+import { recordTour, tourSeen } from '@/lib/planner';
 import { UrgentOnlyProvider } from '@/components/tasks/UrgentOnly';
 import {
   TASK_COLORS, calendarToday, duplicateInput, newBlockInput, nextStepOf, stepWithDone, taskQueue, upNextTask,
@@ -76,6 +79,21 @@ export default function TasksTab() {
   const [today, setToday] = useState('');
   const [mentionsWanted, setMentionsWanted] = useState(false);
   const { people } = useTaskDirectory(!!editing || mentionsWanted || (tasks ?? []).some((t) => t.contacts.length > 0));
+
+  // Game mode's tour: the first time it is on here, once the Tasks tab's own
+  // tour has been seen — so the two never start on top of each other. Once
+  // per visit, like the Planner's other tours.
+  const { profile } = useAuth();
+  const [gameTour, setGameTour] = useState(false);
+  const gameTourAsked = useRef(false);
+  useEffect(() => {
+    if (!playing || !profile || gameTourAsked.current) return;
+    const seen = profile.preferences?.toursSeen;
+    if (tourSeen(seen, 'tasks') && !tourSeen(seen, 'game')) {
+      gameTourAsked.current = true;
+      setGameTour(true);
+    }
+  }, [playing, profile]);
 
   useEffect(() => {
     setToday(calendarToday());
@@ -311,6 +329,10 @@ export default function TasksTab() {
 
         <GameFeedback notices={notices} theme={game?.theme ?? 'freight'} onDismiss={dismissNotice} />
         {editor}
+        {gameTour && (
+          <PlannerTour steps={GAME_TOUR} label="Game mode"
+            onClose={(how) => { setGameTour(false); if (how !== 'nothing') void recordTour('game', how === 'finished'); }} />
+        )}
       </div>
     </UrgentOnlyProvider></TaskDirectoryProvider>
   );

@@ -5,6 +5,10 @@ import { dueToday } from '@/lib/attendanceServer';
 import { officeToday } from '@/types/celebration';
 import { readTodayPicks } from '@/types/planner';
 import { nextSnoozeMinutes, readDailyPlan, type DailyPlanState } from '@/types/dailyPlan';
+import { GameTurn, type GameEvent, type GameState } from '@/types/taskGame';
+import { sellsLoads } from '@/types/salesDay';
+import { gameFrom, rewardSalesDay } from '@/lib/taskGameServer';
+import { salesDaysFor } from '@/lib/salesDayServer';
 
 /**
  * The caller's answer to today's planning pop-up — see src/types/dailyPlan.ts.
@@ -23,6 +27,11 @@ import { nextSnoozeMinutes, readDailyPlan, type DailyPlanState } from '@/types/d
  * `PATCH { action }` records an answer. The server keeps the count and the
  * clock: a snooze's length comes from how many were used before, never from
  * the request, so "Remind me in 15 minutes" cannot be asked for a third time.
+ *
+ * With game mode on, planning and closing the day pay XP (step 7 of the
+ * redesign, src/types/taskGame.ts) in the same transaction as the answer, so
+ * two tabs answering at once pay once. The reply carries the game and what
+ * to tell the person, like a task save does.
  */
 
 async function stateOf(uid: string, today: string): Promise<{ state: DailyPlanState; picks: number }> {
@@ -52,7 +61,7 @@ type Action = typeof ACTIONS[number];
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { uid } = await requireCompanyUser(req);
+    const { uid, entry } = await requireCompanyUser(req);
     const body = await req.json().catch(() => ({}));
     const action = body?.action as Action;
     if (!ACTIONS.includes(action)) {
@@ -63,16 +72,17 @@ export async function PATCH(req: NextRequest) {
 
     // A transaction, because two tabs can both be showing the pop-up and the
     // snooze count is the thing that must not be lost between them.
-    const state = await adminDb.runTransaction(async (tx) => {
+    const { state, played } = await adminDb.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const s = readDailyPlan(snap.data()?.dailyPlan, today);
       const now = Date.now();
+      const unchanged = { state: s, played: null as { game: GameState; events: GameEvent[] } | null };
       switch (action) {
         case 'snooze': {
           const minutes = nextSnoozeMinutes(s.snoozes);
           if (minutes === null) throw new Refused('No more snoozes today — plan just one thing to get back to work.');
           // A snooze never undoes a plan already made in another tab.
-          if (s.status === 'planned' || s.status === 'one') return s;
+          if (s.status === 'planned' || s.status === 'one') return unchanged;
           s.status = 'snoozed';
           s.snoozes += 1;
           s.snoozedUntil = now + minutes * 60_000;
@@ -81,7 +91,7 @@ export async function PATCH(req: NextRequest) {
         case 'planned':
         case 'one':
           // A whole plan made after "Just one thing" replaces it; one thing never downgrades a plan.
-          if (action === 'one' && s.status === 'planned') return s;
+          if (action === 'one' && s.status === 'planned') return unchanged;
           s.status = action;
           s.full = action === 'planned' && body?.full === true;
           s.plannedAt = new Date(now).toISOString();
@@ -97,10 +107,37 @@ export async function PATCH(req: NextRequest) {
           s.closeSkipped = action === 'closeSkipped';
           break;
       }
-      tx.set(ref, { dailyPlan: s, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-      return s;
+      // XP for planning (once a day, an upgrade pays the difference) and for
+      // closing the day (once). GameTurn keeps the once-a-day record itself.
+      let played: { game: GameState; events: GameEvent[] } | null = null;
+      const game = gameFrom(snap);
+      if (game.enabled && (action === 'planned' || action === 'one' || action === 'closed')) {
+        const turn = new GameTurn(game, today, new Date(now).toISOString());
+        if (action === 'closed') turn.onDayClosed();
+        else turn.onPlanned(action === 'one' ? 'one' : s.full ? 'full' : 'planned');
+        const out = turn.finish();
+        played = { game: out.state, events: out.events };
+      }
+      tx.set(ref, {
+        dailyPlan: s,
+        ...(played ? { game: played.game } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return { state: s, played };
     });
-    return NextResponse.json({ state });
+
+    // Closing the day is also the last look at a seller's targets: quotes and
+    // new clients count themselves, so "every target met" can have become
+    // true without a tap. Best-effort, and only with the game on.
+    let events = played?.events ?? [];
+    let game = played?.game ?? null;
+    if (action === 'closed' && game && sellsLoads(entry)) {
+      const extra = await salesDaysFor([uid], today)
+        .then(([day]) => (day ? rewardSalesDay(uid, day) : null))
+        .catch(() => null);
+      if (extra) { game = extra.game; events = [...events, ...extra.events]; }
+    }
+    return NextResponse.json({ state, game, events });
   } catch (e) {
     if (e instanceof Refused) return NextResponse.json({ error: e.message }, { status: 409 });
     if (e instanceof AdminAuthError) return NextResponse.json({ error: e.message }, { status: e.status });

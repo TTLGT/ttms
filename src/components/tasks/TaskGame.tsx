@@ -1,22 +1,27 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { PLAIN_SKIN, skinFor, type TaskSkin } from './taskSkins';
 import { artUrl } from './taskSkinArt';
 import { LevelArt } from './LevelArt';
 import { Award, ChevronDown, ChevronUp, Plus, Shield, Target, Trophy, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useDateFormatters } from '@/lib/useDateFormatters';
-import type { GameNotice } from '@/lib/personalTasks';
+import { GAME_MOVED_EVENT, type GameNotice } from '@/lib/personalTasks';
 import { BROKER_SUGGESTIONS, suggestionsFor, type BrokerSuggestion } from '@/types/brokerSuggestions';
 import {
   GAME_LEVELS,
   GAME_RULES,
   GAME_RULES_LABEL,
   GAME_RULES_TEXT,
+  ALL_TARGETS_XP,
+  CLOSE_DAY_XP,
   GAME_THEMES,
-  HARD_BADGES,
   MAX_SHIELDS,
+  PLAN_XP,
+  TAP_XP,
+  TAP_XP_CAP,
+  badgeLabel,
   STEP_XP,
   SUGGESTION_BONUS_XP,
   TASK_XP,
@@ -68,7 +73,7 @@ export function GameBar({
   const onBanner = 'border border-[rgba(255,255,255,0.2)] bg-[rgba(255,255,255,0.08)] text-white hover:bg-[rgba(255,255,255,0.14)]';
 
   return (
-    <div className="mb-4">
+    <div data-tour="game-bar" className="mb-4">
       {/*
         The banner. Its colours are fixed hex, the same in light and dark
         mode — it is a dark panel in both — so nothing in it uses the
@@ -128,7 +133,7 @@ export function GameBar({
           <span className="text-[rgba(255,255,255,0.6)]">
             {week.length > 0 ? `${weekDone} of ${week.length} ${skin.missions.toLowerCase()} done this week` : 'Finish a task to start this week’s ' + skin.missions.toLowerCase()}
           </span>
-          <label className="ml-auto inline-flex items-center gap-2 text-[rgba(255,255,255,0.6)]">
+          <label data-tour="game-theme" className="ml-auto inline-flex items-center gap-2 text-[rgba(255,255,255,0.6)]">
             Theme
             <select
               value={game.theme}
@@ -149,6 +154,7 @@ export function GameBar({
           </label>
           <button
             type="button"
+            data-tour="game-missions"
             onClick={() => setOpen((o) => !o)}
             aria-expanded={open}
             className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1 text-sm ${onBanner}`}
@@ -354,7 +360,7 @@ function GameOptions({
         <div className="mt-2 flex flex-wrap gap-1.5">
           {game.badges.map((b) => (
             <span key={b.id} className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-              <Award size={11} /> {HARD_BADGES.find((x) => x.id === b.id)?.label ?? b.id}
+              <Award size={11} /> {badgeLabel(b.id)}
             </span>
           ))}
         </div>
@@ -372,6 +378,9 @@ function GameOptions({
           <li>Finished late: 75% up to 3 days late, 50% up to a week, then 25%.</li>
           <li>Each step of a task you tick off: +{STEP_XP} XP. Unticking it takes that back.</li>
           <li>First task or step of each day: +50 XP and your streak grows. Only Monday to Friday count.</li>
+          <li>Planning your day in the planning pop-up, once a day: just one thing +{PLAN_XP.one}, your 3 +{PLAN_XP.planned}, the whole day +{PLAN_XP.full}. Closing the day: +{CLOSE_DAY_XP}.</li>
+          <li>If you have daily targets: +{TAP_XP} XP for each call, email or referral you tap, up to {TAP_XP_CAP} XP a day, and +{ALL_TARGETS_XP} XP the first time in a day every target is met.</li>
+          <li>Badges for days planned, days closed and days with every target met, under either set of rules.</li>
           <li>Your streak is frozen on weekends, Guatemalan holidays and days you have asked for time off (waiting or approved).</li>
           <li>Reopening a finished task takes back what it earned{game.rules === 'gentle' ? ', but never below the start of your level' : ''}.</li>
           <li>Under Hard only: overdue tasks, a broken streak and Not done cost XP, and losing XP can lose you a level. Under Gentle nothing is charged. See Rules above.</li>
@@ -430,7 +439,7 @@ export function GameFeedback({
             return (
               <div
                 key={id}
-                className={`pointer-events-auto rounded-full px-4 py-2 text-sm font-medium shadow-lg ${
+                className={`tt-xp-rise pointer-events-auto rounded-full px-4 py-2 text-sm font-medium shadow-lg ${
                   lost ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'
                 }`}
               >
@@ -466,6 +475,37 @@ export function GameFeedback({
       )}
     </>
   );
+}
+
+/**
+ * What game mode says about XP earned away from a task save — planning the
+ * day, closing it, a tap on today's targets (`GAME_MOVED_EVENT`). Mounted
+ * once in the dashboard layout, because the pop-up and the targets counter
+ * sit over every page and most pages have no task store to draw them.
+ * Above the pop-up's backdrop, so "+40 XP · Planned the day" is seen while
+ * the pop-up is still open.
+ */
+export function GameEventsLayer() {
+  const [notices, setNotices] = useState<GameNotice[]>([]);
+  const [theme, setTheme] = useState<GameTheme>('freight');
+  const next = useRef(0);
+
+  useEffect(() => {
+    const onMoved = (e: Event) => {
+      const d = (e as CustomEvent<{ game?: GameState; events?: GameNotice['event'][] }>).detail;
+      if (d?.game) setTheme(d.game.theme);
+      const events = d?.events ?? [];
+      if (events.length) setNotices((list) => [...list, ...events.map((event) => ({ id: ++next.current, event }))]);
+    };
+    window.addEventListener(GAME_MOVED_EVENT, onMoved);
+    return () => window.removeEventListener(GAME_MOVED_EVENT, onMoved);
+  }, []);
+
+  const dismiss = useCallback((id: number) => setNotices((list) => list.filter((n) => n.id !== id)), []);
+  if (!notices.length) return null;
+  // A positioned box with a z-index is its own stacking context: everything
+  // fixed inside it is drawn at that height, over the pop-up (z-50).
+  return <div className="relative z-[60]"><GameFeedback notices={notices} theme={theme} onDismiss={dismiss} /></div>;
 }
 
 function LevelMoment({
@@ -521,6 +561,11 @@ function LevelMoment({
             {up ? 'You are now' : 'You dropped to'} level {level.level}
           </p>
           <p className="mt-1 text-lg font-semibold text-gray-900">{levelTitle(level.level, theme)}</p>
+          {up && GAME_LEVELS[level.level] && (
+            <p className="mt-2 text-xs text-gray-500">
+              Next: {levelTitle(level.level + 1, theme)} at {fmt(GAME_LEVELS[level.level].xp)} XP
+            </p>
+          )}
           <button
             type="button"
             onClick={onClose}

@@ -224,6 +224,34 @@ export const STREAK_DAY_XP = 50;
  */
 export const STEP_XP = 5;
 
+/*
+ * XP for the day around the tasks (step 7 of the Planner redesign,
+ * 2026-11-25): planning it, closing it, and a seller's calls, emails and
+ * referrals. Each is paid by the server in the same write as the thing that
+ * earned it — the pop-up's answer, a tap — and recorded on `day`, so it is
+ * paid once a day however many tabs answer. The same under Gentle and Hard:
+ * Hard pays nothing extra.
+ */
+
+/**
+ * Planning the day, once: "Just one thing" a little, the suggested 3 more,
+ * the whole-day plan most. Planning more later the same day pays the
+ * difference, never the whole amount again.
+ */
+export const PLAN_XP = { one: 15, planned: 40, full: 60 } as const;
+export type PlanKind = keyof typeof PLAN_XP;
+/** Closing the day in the pop-up, once. "Not today" pays nothing. */
+export const CLOSE_DAY_XP = 30;
+/**
+ * Each tapped call, email or referral. Capped per day because they are
+ * self-reported: past TAP_XP_CAP the taps still count on the targets but
+ * stop paying, so the button is never worth more than the work.
+ */
+export const TAP_XP = 2;
+export const TAP_XP_CAP = 40;
+/** Every one of the day's targets met, once a day. */
+export const ALL_TARGETS_XP = 100;
+
 /** DankQuest's late scale: three days late keeps 75%, a week 50%, after that 25%. */
 export function lateShare(daysLate: number): number {
   if (daysLate <= 0) return 1;
@@ -384,6 +412,25 @@ export const HARD_BADGES: { id: string; weeks: number; label: string }[] = [
   { id: 'hard-26w', weeks: 26, label: 'Half a year in Hard mode' },
 ];
 
+/**
+ * Badges for the day's habits, either set of rules. Ids are stored: never
+ * rename one. `count` is how many days of that kind it takes.
+ */
+export const DAY_BADGES: { id: string; kind: 'planned' | 'closed' | 'targets'; count: number; label: string }[] = [
+  { id: 'plan-5', kind: 'planned', count: 5, label: '5 days planned' },
+  { id: 'plan-20', kind: 'planned', count: 20, label: '20 days planned' },
+  { id: 'plan-60', kind: 'planned', count: 60, label: '60 days planned' },
+  { id: 'close-5', kind: 'closed', count: 5, label: '5 days closed' },
+  { id: 'close-20', kind: 'closed', count: 20, label: '20 days closed' },
+  { id: 'targets-1', kind: 'targets', count: 1, label: 'Every target met in a day' },
+  { id: 'targets-10', kind: 'targets', count: 10, label: '10 days with every target met' },
+];
+
+/** What any badge id is called, Hard or day. Unknown ids are shown as they are. */
+export function badgeLabel(id: string): string {
+  return HARD_BADGES.find((b) => b.id === id)?.label ?? DAY_BADGES.find((b) => b.id === id)?.label ?? id;
+}
+
 /** A change into or out of Hard, waiting for its day. */
 export interface PendingRulesChange {
   to: GameRules | 'off';
@@ -499,9 +546,36 @@ export interface GameState {
   shields: number;
   /** Badges earned, kept for good. */
   badges: { id: string; at: string }[];
+  /** One office day's XP and the once-a-day payments, for the receipt and the caps. Reset by date. */
+  day: GameDay | null;
+  /** Days planned in the pop-up, days closed, days with every target met — what DAY_BADGES count. */
+  daysPlanned: number;
+  daysClosed: number;
+  targetDays: number;
+}
+
+export interface GameDay {
+  date: string;
+  /** Net XP that day, everything included: what the day's receipt shows. */
+  xp: number;
+  /** What planning has paid so far that day (an upgrade pays the difference). */
+  planXp: number;
+  closed: boolean;
+  /** What taps have paid that day, at most TAP_XP_CAP. */
+  tapXp: number;
+  allTargets: boolean;
 }
 
 export const MAX_GAME_LOG = 60;
+
+function freshDay(date: string): GameDay {
+  return { date, xp: 0, planXp: 0, closed: false, tapXp: 0, allTargets: false };
+}
+
+/** The day record for `date`: the stored one when it is that day's, else an empty one. */
+export function dayOf(state: Pick<GameState, 'day'>, date: string): GameDay {
+  return state.day?.date === date ? state.day : freshDay(date);
+}
 
 export type GameEvent =
   | { kind: 'xp'; amount: number; label: string }
@@ -578,6 +652,25 @@ export function cleanGameState(raw: unknown): GameState {
         .filter((b) => b && typeof b.id === 'string')
         .map((b) => ({ id: b.id as string, at: String(b.at ?? '') }))
       : [],
+    day: cleanDay(r.day),
+    daysPlanned: num(r.daysPlanned),
+    daysClosed: num(r.daysClosed),
+    targetDays: num(r.targetDays),
+  };
+}
+
+function cleanDay(raw: unknown): GameDay | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const date = str(r.date);
+  if (!date) return null;
+  return {
+    date,
+    xp: num(r.xp),
+    planXp: Math.max(0, num(r.planXp)),
+    closed: r.closed === true,
+    tapXp: Math.max(0, Math.min(TAP_XP_CAP, num(r.tapXp))),
+    allTargets: r.allTargets === true,
   };
 }
 
@@ -637,7 +730,80 @@ export class GameTurn {
     this.state.xp = Math.max(Math.min(floor, before), before + amount);
     const real = this.state.xp - before;
     this.state.log = [...this.state.log, { at: this.now, label, xp: real }].slice(-MAX_GAME_LOG);
-    if (announce) this.events.push({ kind: 'xp', amount: real, label });
+    const day = this.ensureDay();
+    day.xp += real;
+    if (announce && real !== 0) this.events.push({ kind: 'xp', amount: real, label });
+  }
+
+  /** Today's record, started fresh on the first change of a day. */
+  private ensureDay(): GameDay {
+    if (this.state.day?.date !== this.today) this.state.day = freshDay(this.today);
+    return this.state.day;
+  }
+
+  /** Badges for the day's habits, each once. */
+  private checkDayBadges() {
+    const s = this.state;
+    const counts = { planned: s.daysPlanned, closed: s.daysClosed, targets: s.targetDays };
+    for (const b of DAY_BADGES) {
+      if (counts[b.kind] >= b.count && !s.badges.some((x) => x.id === b.id)) {
+        s.badges = [...s.badges, { id: b.id, at: this.now }];
+        this.events.push({ kind: 'note', text: `Badge earned: ${b.label}` });
+      }
+    }
+  }
+
+  /**
+   * The day was planned in the pop-up. Pays PLAN_XP once; planning more
+   * later the same day pays only the difference, and planning less pays
+   * nothing — "Just one thing" after a whole plan is not a step down.
+   */
+  onPlanned(kind: PlanKind) {
+    if (!this.state.enabled) return;
+    const day = this.ensureDay();
+    const worth = PLAN_XP[kind];
+    if (worth <= day.planXp) return;
+    if (day.planXp === 0) this.state.daysPlanned++;
+    const owed = worth - day.planXp;
+    day.planXp = worth;
+    this.award(owed, kind === 'one' ? 'Planned one thing' : kind === 'full' ? 'Planned the whole day' : 'Planned the day');
+    this.checkDayBadges();
+  }
+
+  /** The day was closed in the pop-up. Once a day. */
+  onDayClosed() {
+    if (!this.state.enabled) return;
+    const day = this.ensureDay();
+    if (day.closed) return;
+    day.closed = true;
+    this.state.daysClosed++;
+    this.award(CLOSE_DAY_XP, 'Closed the day');
+    this.checkDayBadges();
+  }
+
+  /**
+   * A seller's day moved: `taps` is today's calls + emails + referrals, and
+   * `met`/`set` how many targets are met. Taps pay TAP_XP each up to the
+   * cap, worked out from the total rather than per tap, so a mis-tap taken
+   * back takes its XP with it and nothing can be paid twice. Meeting every
+   * target pays once a day and is never taken back: quotes and new clients
+   * are counted, and a counted number does not fall back.
+   */
+  onSalesDay(taps: number, met: number, set: number) {
+    if (!this.state.enabled) return;
+    const day = this.ensureDay();
+    const due = Math.min(TAP_XP_CAP, Math.max(0, taps) * TAP_XP);
+    if (due !== day.tapXp) {
+      const delta = due - day.tapXp;
+      day.tapXp = due;
+      this.award(delta, delta > 0 ? 'Calls, emails and referrals' : 'Tap taken back');
+    }
+    if (set > 0 && met >= set && !day.allTargets) {
+      day.allTargets = true;
+      this.state.targetDays++;
+      this.award(ALL_TARGETS_XP, 'Every target met today');
+      this.checkDayBadges();
+    }
   }
 
   private deal(pool: MissionDef[], set: MissionSet, n: number) {

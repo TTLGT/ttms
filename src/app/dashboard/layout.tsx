@@ -46,6 +46,7 @@ import LearnLayer from '@/components/learn/LearnLayer';
 import PlanningPrompt from '@/components/planning/PlanningPrompt';
 import PlanningPopup from '@/components/planner/PlanningPopup';
 import { SalesCounter } from '@/components/planner/SalesTargets';
+import { GameEventsLayer } from '@/components/tasks/TaskGame';
 import DayPlanSharedNotice from '@/components/planning/DayPlanSharedNotice';
 import ChangeOrderPrompt from '@/components/orders/ChangeOrderPrompt';
 import BreakReminder from '@/components/attendance/BreakReminder';
@@ -675,6 +676,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* Today's calls, emails and referrals, one tap from any page — Planner
           users who sell only; it draws nothing for anybody else. */}
       {plannerLoaded && planner.on && <SalesCounter />}
+      {/* Game mode's XP for planning, closing the day and taps — nothing
+          unless one of those just paid something. */}
+      <GameEventsLayer />
       <DayPlanSharedNotice />
 
       {/* Break, lunch and active-pause reminders — nothing unless clocked in and one is due. */}

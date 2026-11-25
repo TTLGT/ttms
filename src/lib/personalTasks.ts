@@ -56,6 +56,21 @@ interface GameReply {
   streak?: TaskStreak | null;
 }
 
+/**
+ * Game mode moved somewhere other than a task save — the planning pop-up's
+ * answer, a tap on today's targets (step 7). Those sit outside the task
+ * store, often over a page that has none, so they announce it: the task
+ * store takes the new state (its XP bar moves), and `GameEventsLayer` in the
+ * dashboard layout draws what to tell the person. Only the layer draws them,
+ * so nothing is said twice.
+ */
+export const GAME_MOVED_EVENT = 'ttms:game-moved';
+
+export function announceGame(reply: GameReply | null | undefined) {
+  if (!reply?.game) return;
+  window.dispatchEvent(new CustomEvent(GAME_MOVED_EVENT, { detail: { game: reply.game, events: reply.events ?? [] } }));
+}
+
 export async function listMyTasks(): Promise<{
   tasks: PersonalTask[]; settings: TaskReminderSettings; columns: BoardColumn[]; colorLabels: ColorLabels;
   todayPicks: TodayPicks | null;
@@ -299,6 +314,18 @@ function usePersonalTasksStore(enabled: boolean) {
   }, [takeGame]);
 
   useEffect(() => { if (enabled) reload(); }, [reload, enabled]);
+
+  // XP earned outside this store (the pop-up, a tap): the bar moves, and the
+  // dashboard layout's GameEventsLayer says what it was for.
+  useEffect(() => {
+    if (!enabled) return;
+    const onMoved = (e: Event) => {
+      const game = (e as CustomEvent<{ game?: GameState }>).detail?.game;
+      if (game) setGame(game);
+    };
+    window.addEventListener(GAME_MOVED_EVENT, onMoved);
+    return () => window.removeEventListener(GAME_MOVED_EVENT, onMoved);
+  }, [enabled]);
 
   // The planning pop-up saves through the same routes but outside this store
   // (it sits in the dashboard layout, over whatever page is open), so a list

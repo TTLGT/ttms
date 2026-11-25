@@ -9,7 +9,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { createMyTask, listMyTasks, saveMyTodayPicks, updateMyTask } from '@/lib/personalTasks';
 import { getMyPlanningDay } from '@/lib/planning';
-import { answerDayPlan, cachedDayPlan, getDayPlan, getPlanSuggestions, shareDayPlan, type DayPlanReply } from '@/lib/dailyPlan';
+import { answerDayPlan, answerDayPlanWithGame, cachedDayPlan, getDayPlan, getPlanSuggestions, shareDayPlan, type DayPlanReply } from '@/lib/dailyPlan';
 import { recordTour, tourSeen } from '@/lib/planner';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import PlannerTour, { POPUP_TOUR } from './PlannerTour';
@@ -21,6 +21,7 @@ import { MAX_TASK_TITLE, formatTime, isOverdue, occursOn, type PersonalTask } fr
 import { MAX_TODAY_PICKS, canPickForToday, picksIn, tasksForToday } from '@/types/planner';
 import { PLANNING_ASK_EVENT, addMinutes, freeStarts, officeNowTime, shiftQuarterHours, type DayItem, type PlanningDay } from '@/types/planning';
 import { nextWorkingDay } from '@/types/dayPlan';
+import { dayOf, levelFor, levelTitle, type GameState } from '@/types/taskGame';
 import {
   DAILY_PLAN_CHANGED_EVENT, DAILY_PLAN_OPEN_EVENT, PLAN_ITEM_MINUTES, PLAN_NOW_PARAM,
   SUGGESTION_GROUPS, SUGGESTION_GROUP_LABEL, closeDayAt, nextSnoozeMinutes, popupMode, questionsFor,
@@ -195,12 +196,7 @@ export default function PlanningPopup() {
     return (
       <CloseDay
         today={reply.today}
-        onDone={async (skipped) => {
-          try {
-            const s = await answerDayPlan(skipped ? 'closeSkipped' : 'closed');
-            finished({ ...reply, state: s });
-          } catch { setMode(null); }
-        }}
+        onDone={(s) => { if (s) finished({ ...reply, state: s }); else setMode(null); }}
       />
     );
   }
@@ -417,7 +413,10 @@ function PlanDay({ reply, onDemand, onClose, onSnooze, onOff, onPlanned }: {
       }
       await saveMyTodayPicks({ date: today, ids });
       if (share) await shareDayPlan(today);
-      const s = await answerDayPlan(one ? 'one' : 'planned', { full });
+      const answer = await answerDayPlanWithGame(one ? 'one' : 'planned', { full });
+      const s = answer.state;
+      // What planning paid today, for the done step (game mode only).
+      setPlanGame(answer.game?.enabled ? answer.game : null);
       setShared(share);
       setStep('done');
       // Told once "Back to work" is pressed, so the page underneath does not reload behind the card.
@@ -429,6 +428,7 @@ function PlanDay({ reply, onDemand, onClose, onSnooze, onOff, onPlanned }: {
     }
   };
   const doneState = useRef<{ state: DayPlanReply['state']; picks: number } | null>(null);
+  const [planGame, setPlanGame] = useState<GameState | null>(null);
 
   const snoozeLeft = nextSnoozeMinutes(reply.state.snoozes);
   const name = profile?.firstName || profile?.displayName?.split(' ')[0] || '';
@@ -724,6 +724,11 @@ function PlanDay({ reply, onDemand, onClose, onSnooze, onOff, onPlanned }: {
         <p className="mt-1 text-sm text-gray-600">
           Your {one ? 'one thing is' : `${picked.length} are`} on <Link href="/dashboard/planner" className="font-medium text-brand-700 hover:underline">Today</Link>.
         </p>
+        {planGame && (
+          <p className="mx-auto mt-3 inline-flex rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800">
+            Planning today: +{planGame.day?.planXp ?? 0} XP · Level {levelFor(planGame.xp).level}
+          </p>
+        )}
       </div>
     );
     foot = (
@@ -857,17 +862,27 @@ function Spinner() {
  * today, each one tap from done or from tomorrow, then a receipt. Ticking is
  * an ordinary save, so game mode, streaks and repeats all behave as they do
  * anywhere else.
+ *
+ * "Close my day" records the close before the receipt is drawn (step 7), so
+ * the receipt can show what game mode paid for the day; "Done" only puts the
+ * card away. A day with nothing to look back on is recorded as skipped: it
+ * closes quietly and earns nothing.
  */
-function CloseDay({ today, onDone }: { today: string; onDone: (skipped: boolean) => void }) {
+function CloseDay({ today, onDone }: { today: string; onDone: (state: DayPlanReply['state'] | null) => void }) {
   const { formatCalendarDate } = useDateFormatters();
   // The answer goes once: the page above re-renders every second for the
   // bar's clock, and a fresh onDone each time must not mean a fresh save.
-  const answered = useRef(false);
-  const finish = useCallback((skipped: boolean) => {
-    if (answered.current) return;
-    answered.current = true;
-    onDone(skipped);
-  }, [onDone]);
+  const answered = useRef<Promise<DayPlanReply['state'] | null> | null>(null);
+  const [game, setGame] = useState<GameState | null>(null);
+  const record = useCallback((skipped: boolean) => {
+    if (!answered.current) {
+      answered.current = answerDayPlanWithGame(skipped ? 'closeSkipped' : 'closed')
+        .then((r) => { setGame(r.game); return r.state; })
+        .catch(() => null);
+    }
+    return answered.current;
+  }, []);
+  const finish = useCallback(async (skipped: boolean) => { onDone(await record(skipped)); }, [onDone, record]);
   const [tasks, setTasks] = useState<PersonalTask[] | null>(null);
   const [pickIds, setPickIds] = useState<string[]>([]);
   const [moved, setMoved] = useState<Set<string>>(new Set());
@@ -896,7 +911,7 @@ function CloseDay({ today, onDone }: { today: string; onDone: (skipped: boolean)
 
   // Nothing to look back on: close quietly rather than show an empty card.
   useEffect(() => {
-    if (tasks && rows.length === 0 && moved.size === 0) finish(false);
+    if (tasks && rows.length === 0 && moved.size === 0) void finish(true);
   }, [tasks, rows.length, moved.size, finish]);
 
   const replace = (t: PersonalTask) => setTasks((list) => (list ?? []).map((x) => (x.id === t.id ? t : x)));
@@ -939,6 +954,14 @@ function CloseDay({ today, onDone }: { today: string; onDone: (skipped: boolean)
               <Receipt label="Done today" value={String(done)} />
               <Receipt label="Moved to tomorrow" value={String(moved.size)} />
               <Receipt label="Still open" value={String(open)} />
+              {/* Game mode's line on the receipt: what today paid, the level, the streak. */}
+              {game?.enabled && (
+                <>
+                  <Receipt label="XP today" value={`${dayOf(game, today).xp >= 0 ? '+' : ''}${dayOf(game, today).xp.toLocaleString('en-US')}`} />
+                  <Receipt label="Level" value={`${levelFor(game.xp).level} · ${levelTitle(levelFor(game.xp).level, game.theme)}`} />
+                  <Receipt label="Streak" value={`${game.streak} ${game.streak === 1 ? 'day' : 'days'}`} />
+                </>
+              )}
             </div>
           ) : (
             <>
@@ -991,7 +1014,7 @@ function CloseDay({ today, onDone }: { today: string; onDone: (skipped: boolean)
             <>
               <button type="button" onClick={() => finish(true)} className="text-sm font-medium text-gray-500 underline hover:text-gray-800">Not today</button>
               <span className="flex-1" />
-              <button type="button" disabled={!tasks} onClick={() => setReceipt(true)}
+              <button type="button" disabled={!tasks} onClick={async () => { await record(false); setReceipt(true); }}
                 className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-40">
                 Close my day
               </button>

@@ -353,3 +353,29 @@ export const CALENDAR_TOUR: TourStep[] = [
     es: { title: 'Configuración', text: 'Cómo te llegan los recordatorios, tus horarios de planificación, el plan que compartiste y, para administradores y RR. HH., los recordatorios de celebraciones.' },
   },
 ];
+
+/**
+ * Game mode's tour (step 7), on the Tasks tab the first time game mode is on
+ * there — after the Tasks tab's own tour, never over it. Targets are
+ * `data-tour` attributes in TaskGame.tsx.
+ */
+export const GAME_TOUR: TourStep[] = [
+  {
+    target: 'game-bar',
+    title: 'Your level and XP',
+    text: 'Finishing tasks and steps earns XP, and so do planning your day in the pop-up, closing it, and, if you have daily targets, your calls, emails and referrals. Your streak grows with each working day you finish something. Only you see any of this.',
+    es: { title: 'Tu nivel y tu XP', text: 'Terminar tareas y pasos da XP, y también planear tu día en la ventana, cerrarlo y, si tienes metas diarias, tus llamadas, correos y referidos. Tu racha crece cada día laboral en que terminas algo. Solo tú ves esto.' },
+  },
+  {
+    target: 'game-missions',
+    title: 'Missions, rules and badges',
+    text: 'Open this for today’s and this week’s missions, your recent XP, and the rules. Gentle is the default: nothing is ever taken away. Hard is for people who want it to cost something, and earns its own badges.',
+    es: { title: 'Misiones, reglas e insignias', text: 'Ábrelo para ver las misiones de hoy y de la semana, tu XP reciente y las reglas. Suave es lo normal: nunca se quita nada. Difícil es para quien quiere que cueste algo, y gana sus propias insignias.' },
+  },
+  {
+    target: 'game-theme',
+    title: 'Your theme',
+    text: 'Freight, wizarding, empires, fairy worlds, outer space or pirates. It changes how this page looks and what the levels are called, never your XP or what the buttons say.',
+    es: { title: 'Tu tema', text: 'Carga, magia, imperios, mundos de hadas, el espacio o piratas. Cambia cómo se ve esta página y cómo se llaman los niveles, nunca tu XP ni lo que dicen los botones.' },
+  },
+];

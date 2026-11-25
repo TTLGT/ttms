@@ -120,7 +120,8 @@ export function plannerState(access: PlannerAccess | null, choice: PlannerChoice
 // leads: the Clients → My leads board (step 4b), not a Planner tab, but the same tour and the same record.
 // tasks: the Tasks tab (step 5, 2026-11-25).
 // calendar: the Calendar tab (step 6, 2026-11-25).
-export const PLANNER_TOURS = { today: 2, popup: 1, leads: 1, tasks: 1, calendar: 1 } as const;
+// game: game mode, on the Tasks tab the first time it is on there (step 7, 2026-11-25).
+export const PLANNER_TOURS = { today: 2, popup: 1, leads: 1, tasks: 1, calendar: 1, game: 1 } as const;
 export type PlannerTourId = keyof typeof PLANNER_TOURS;
 
 export function isPlannerTourId(v: unknown): v is PlannerTourId {
@@ -144,6 +145,7 @@ export const TOUR_TICKS: Record<PlannerTourId, string | null> = {
   // The Tasks tab's tour ticks nothing of its own: "Take the Planner tour" is the Today tab's.
   tasks: null,
   calendar: null,
+  game: null,
 };
 
 // ── Today's 3 ────────────────────────────────────────────────────────────────

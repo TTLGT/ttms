@@ -283,4 +283,17 @@ export const ES_PLANNER: Record<string, string> = {
   'in force': 'vigente',
   'Switch': 'Cambiar',
   'Game mode (turning off)': 'Modo juego (apagándose)',
+
+  // ── Game mode rewards (step 7b, 2026-11-25) ──────────────────────────────
+  'day': 'día',
+  'days': 'días',
+  'XP today': 'XP de hoy',
+  'Level': 'Nivel',
+  'Streak': 'Racha',
+  'Planned one thing': 'Planeaste una cosa',
+  'Planned the day': 'Planeaste el día',
+  'Planned the whole day': 'Planeaste todo el día',
+  'Closed the day': 'Cerraste el día',
+  'Calls, emails and referrals': 'Llamadas, correos y referidos',
+  'Every target met today': 'Cumpliste todas las metas de hoy',
 };

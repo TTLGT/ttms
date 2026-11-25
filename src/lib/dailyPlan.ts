@@ -1,7 +1,8 @@
 'use client';
 
-import { authedFetch } from './personalTasks';
+import { announceGame, authedFetch } from './personalTasks';
 import type { DailyPlanState, PlanSuggestion } from '@/types/dailyPlan';
+import type { GameEvent, GameState } from '@/types/taskGame';
 
 /*
  * The browser's half of the planning pop-up — see src/types/dailyPlan.ts.
@@ -50,17 +51,29 @@ export async function getDayPlan(): Promise<DayPlanReply> {
   return reply;
 }
 
-export async function answerDayPlan(
-  action: 'snooze' | 'planned' | 'one' | 'off' | 'closed' | 'closeSkipped',
+type DayPlanAction = 'snooze' | 'planned' | 'one' | 'off' | 'closed' | 'closeSkipped';
+
+/**
+ * Record an answer, with game mode's side of it: the XP planning or closing
+ * the day paid (step 7) is announced to the page, and the game is handed
+ * back for the close-of-day receipt. `game` is null with game mode off.
+ */
+export async function answerDayPlanWithGame(
+  action: DayPlanAction,
   extra: { full?: boolean } = {},
-): Promise<DailyPlanState> {
-  const d = await authedFetch<{ state: DailyPlanState }>('/api/me/planner/day', {
+): Promise<{ state: DailyPlanState; game: GameState | null }> {
+  const d = await authedFetch<{ state: DailyPlanState; game?: GameState | null; events?: GameEvent[] }>('/api/me/planner/day', {
     method: 'PATCH',
     body: JSON.stringify({ action, ...extra }),
   });
   const cached = cachedDayPlan();
   if (cached) cacheDayPlan({ ...cached, state: d.state });
-  return d.state;
+  announceGame(d);
+  return { state: d.state, game: d.game ?? null };
+}
+
+export async function answerDayPlan(action: DayPlanAction, extra: { full?: boolean } = {}): Promise<DailyPlanState> {
+  return (await answerDayPlanWithGame(action, extra)).state;
 }
 
 export async function getPlanSuggestions(): Promise<PlanSuggestion[]> {
