@@ -1340,7 +1340,9 @@ browser side `src/lib/planner.ts`.
 - **Tours** (`PlannerTour.tsx`) are drawn over the page by `data-tour`
   attributes, never change it, and are recorded per account in
   `preferences.toursSeen.<id>` at the version in `PLANNER_TOURS` — bump it to
-  bring a changed tour back. Finishing ticks `d2-planner-tour` on My journey.
+  bring a changed tour back. Finishing ticks that tour's My journey step
+  (`TOUR_TICKS`: `d2-planner-tour` for Today, `w2-leads-tour` for My leads,
+  none for the pop-up).
   **Rename a `data-tour` target and change the tour the same day.**
 - **The Today drawing and guide section** (`planner-today` in
   `screens/taskScreens.tsx`, the `planner-today` section of the My tasks guide)
@@ -1477,6 +1479,10 @@ leads (`LeadsBoard`, `?tab=leads`). Counted goals: `GOAL_COUNTERS` in
   Quotes made on today's targets, so the day and the month agree. Adding a
   counter is a line in `GOAL_COUNTERS` and a branch in `countMonth()`;
   counter ids are stored on goals, so never rename one.
+- **My leads has its own tour** (`LEADS_TOUR` in `PlannerTour.tsx`, tour id
+  `leads`), the Planner's machinery reused: it starts on the first visit,
+  replays from the ? beside the tabs, and waits for the board to load
+  (`onLoaded`) so the board and card steps are not skipped.
 - Not built, on purpose: XP for calls (step 7), the Broker dashboard, and a
   separate "check-ins with existing clients" target.
 

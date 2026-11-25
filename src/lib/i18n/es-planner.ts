@@ -246,4 +246,5 @@ export const ES_PLANNER: Record<string, string> = {
   'Set to': 'Cambiar a',
   'Why (required)': 'Por qué (obligatorio)',
   'Save correction': 'Guardar corrección',
+  'Show me around My leads': 'Muéstrame Mis prospectos',
 };

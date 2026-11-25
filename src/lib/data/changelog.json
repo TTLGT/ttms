@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "c529ed91ac373dae89a6706085d64e892cabddee",
+      "date": "2026-11-25T08:40:13-06:00",
+      "author": "erwindank",
+      "subject": "Add leads and Incentives goals that TTMS counts, the second half of step 4 of the Planner redesign. Clients has a new My leads tab: a board of a broker's leads from Found to Contacted, Quoted and First load, where a lead is a client record from the day it is found. Each client's page has a Sales activity section with the stage, a next step and date, Log a call, Log an email and Add a note, and the full history; after the first load the strip shows the client type TTMS already works out. Logging a call or email also counts on today's targets, and a lead's next step due today shows up in the planning pop-up. Only the broker working the client, their Sales Manager and admins see any of it. On Incentives, each goal can now be typed by hand as before or counted by TTMS (quotes made, quotes to new clients, new clients added, new clients booked, loads booked, broker fee booked); anybody who records incentives can correct a counted number with a reason, which is logged and shown on the card, and go back to TTMS's count. The sales guides and the week-2 prospects step say how to use it",
+      "body": ""
+    },
+    {
       "hash": "9f6a5b0f341a9adc0740276ef273bb3be9f4fce9",
       "date": "2026-11-25T06:23:25-06:00",
       "author": "erwindank",

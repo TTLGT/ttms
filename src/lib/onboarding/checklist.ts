@@ -182,6 +182,12 @@ export const CHECKLIST: readonly ChecklistStep[] = [
   { id: 'w2-first-calls', stage: 'floor', order: 30, owner: 'mentor', tracks: SALES,
     when: { en: 'Week 2', es: 'Semana 2' },
     title: { en: 'Listen to the first calls and give feedback the same day', es: 'Escuchar las primeras llamadas y dar retroalimentación el mismo día' } },
+  // Ticked by finishing the tour on Clients → My leads (recordTour('leads') in
+  // src/lib/planner.ts). A new id, like d2-planner-tour.
+  { id: 'w2-leads-tour', stage: 'floor', order: 35, owner: 'you', tracks: SALES, href: '/dashboard/clients?tab=leads',
+    when: { en: 'Week 2', es: 'Semana 2' },
+    title: { en: 'Take the My leads tour', es: 'Hacer el recorrido de Mis prospectos' },
+    detail: { en: 'Open Clients → My leads and follow the tour. It ticks this step when you finish. Press the ? beside the tabs to see it again.', es: 'Abre Clientes → Mis prospectos y sigue el recorrido. Al terminarlo se marca este paso. Presiona el ? junto a las pestañas para verlo otra vez.' } },
   { id: 'w2-first-prospects', stage: 'floor', order: 40, owner: 'you', tracks: SALES, href: '/dashboard/clients',
     when: { en: 'Week 2', es: 'Semana 2' },
     title: { en: 'Your first 20 prospects in TTMS', es: 'Tus primeros 20 prospectos en TTMS' },

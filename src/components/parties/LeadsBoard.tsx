@@ -26,7 +26,10 @@ import {
  * else's board; the server decides who appears in that list and refuses any
  * other.
  */
-export default function LeadsBoard() {
+export default function LeadsBoard({ onLoaded }: {
+  /** Once the first board has drawn — the tour waits for it, or its board and card steps would find nothing. */
+  onLoaded?: () => void;
+} = {}) {
   const { user } = useAuth();
   const [uid, setUid] = useState<string>('');
   const [leads, setLeads] = useState<LeadCard[] | null>(null);
@@ -46,8 +49,10 @@ export default function LeadsBoard() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load the leads');
       setLeads([]);
+    } finally {
+      onLoaded?.();
     }
-  }, []);
+  }, [onLoaded]);
 
   useEffect(() => { void load('', true); }, [load]);
 
@@ -65,13 +70,15 @@ export default function LeadsBoard() {
   }
 
   const mine = !uid || uid === user?.uid;
+  // The tour lights one card: the first one, in column order.
+  const firstCard = leads ? BOARD_COLUMNS.map((c) => leads.find((l) => l.column === c)).find(Boolean)?.partyId : undefined;
   const others = people.filter((p) => p.uid !== user?.uid);
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         {others.length > 0 && (
-          <label className="text-sm text-gray-600">
+          <label className="text-sm text-gray-600" data-tour="leads-whose">
             <span data-es className="mr-2">Whose leads</span>
             <select value={uid} onChange={(e) => { setUid(e.target.value); setLeads(null); void load(e.target.value, false); }}
               className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white">
@@ -80,9 +87,9 @@ export default function LeadsBoard() {
             </select>
           </label>
         )}
-        <p className="text-sm text-gray-500"><Bi>Only you, your Sales Manager and admins see this board.</Bi></p>
+        <p className="text-sm text-gray-500" data-tour="leads-privacy"><Bi>Only you, your Sales Manager and admins see this board.</Bi></p>
         {mine && (
-          <Link href="/dashboard/parties/new?role=client&lead=1" data-es="Add a lead"
+          <Link href="/dashboard/parties/new?role=client&lead=1" data-es="Add a lead" data-tour="leads-add"
             className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
             <Plus className="w-4 h-4" aria-hidden />Add a lead
           </Link>
@@ -93,7 +100,7 @@ export default function LeadsBoard() {
       {leads === null ? (
         <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-gray-400" aria-hidden /></div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" data-tour="leads-board">
           {BOARD_COLUMNS.map((col) => {
             const cards = leads.filter((l) => l.column === col);
             const droppable = isLeadStage(col);
@@ -119,6 +126,7 @@ export default function LeadsBoard() {
                     const at = LEAD_STAGES.indexOf(card.stage);
                     return (
                       <div key={card.partyId} draggable={card.column !== 'won'}
+                        data-tour={card.partyId === firstCard ? 'leads-card' : undefined}
                         onDragStart={(e) => e.dataTransfer.setData('text/plain', card.partyId)}
                         className={`rounded-lg border bg-white p-3 text-sm ${card.column === 'won' ? 'border-green-300' : 'border-gray-200'} ${moving === card.partyId ? 'opacity-50' : ''}`}>
                         <Link href={`/dashboard/parties/${card.partyId}?from=client#sales`} className="font-semibold text-gray-900 hover:text-brand-600 hover:underline">

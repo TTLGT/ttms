@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { authedFetch } from './personalTasks';
 import {
-  PLANNER_TOURS, PLANNER_TOUR_STEP_ID, plannerState,
+  PLANNER_TOURS, TOUR_TICKS, plannerState,
   type PlannerAccess, type PlannerChoice, type PlannerRollout, type PlannerState, type PlannerTourId,
 } from '@/types/planner';
 
@@ -100,10 +100,11 @@ export async function recordTour(id: PlannerTourId, finished: boolean): Promise<
     method: 'PATCH',
     body: JSON.stringify({ toursSeen: { [id]: PLANNER_TOURS[id] } }),
   }).catch(() => undefined);
-  if (finished) {
+  const stepId = TOUR_TICKS[id];
+  if (finished && stepId) {
     await authedFetch('/api/onboarding/me', {
       method: 'POST',
-      body: JSON.stringify({ action: 'tick', stepId: PLANNER_TOUR_STEP_ID }),
+      body: JSON.stringify({ action: 'tick', stepId }),
     }).catch(() => undefined);
   }
 }

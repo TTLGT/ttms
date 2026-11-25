@@ -233,3 +233,48 @@ export const POPUP_TOUR: TourStep[] = [
     es: { title: 'Posponer', text: 'Puedes posponerlo dos veces: 15 minutos y luego 5. Después, planea solo una cosa para volver al trabajo. Planear toma como un minuto.' },
   },
 ];
+
+/**
+ * The Clients → My leads tour (step 4b). Targets are `data-tour` attributes in
+ * src/app/dashboard/clients/page.tsx and LeadsBoard.tsx. "Whose leads" only
+ * shows for a Sales Manager or an admin, and "A lead" only once there is a
+ * card, so each is skipped by itself where it is not drawn.
+ */
+export const LEADS_TOUR: TourStep[] = [
+  {
+    target: 'leads-tabs',
+    title: 'Your leads, beside your clients',
+    text: 'All clients is the usual list. My leads is every company you are working to win, from the day you find it to its first load.',
+    es: { title: 'Tus prospectos, junto a tus clientes', text: 'Todos los clientes es la lista de siempre. Mis prospectos son todas las empresas que estás tratando de ganar, desde el día en que las encuentras hasta su primera carga.' },
+  },
+  {
+    target: 'leads-add',
+    title: 'Add a lead',
+    text: 'The new-client form, with one difference: the client goes straight onto this board. A lead is a client record from the first day, so nothing has to be typed again when it books.',
+    es: { title: 'Agregar un prospecto', text: 'El formulario de cliente nuevo, con una diferencia: el cliente entra directo a este tablero. Un prospecto es un registro de cliente desde el primer día, así que no hay que escribir nada otra vez cuando reserva.' },
+  },
+  {
+    target: 'leads-board',
+    title: 'Found, Contacted, Quoted, First load',
+    text: 'Drag a card to another column, or use its arrows. Some moves happen by themselves: logging a call moves a found lead to Contacted, a load created for it moves it to Quoted, and its first booked load to First load.',
+    es: { title: 'Encontrado, Contactado, Cotizado, Primera carga', text: 'Arrastra una tarjeta a otra columna o usa sus flechas. Algunos cambios pasan solos: registrar una llamada mueve un prospecto encontrado a Contactado, una carga creada para él lo mueve a Cotizado, y su primera carga reservada a Primera carga.' },
+  },
+  {
+    target: 'leads-card',
+    title: 'A lead',
+    text: 'Its next step and when. Open it to log a call or an email under Sales activity: each one also counts on your today’s targets, and a next step due today shows up in your morning planning pop-up.',
+    es: { title: 'Un prospecto', text: 'Su siguiente paso y cuándo. Ábrelo para registrar una llamada o un correo en Actividad de ventas: cada uno también cuenta en tus metas de hoy, y un siguiente paso que vence hoy aparece en tu ventana de planificación de la mañana.' },
+  },
+  {
+    target: 'leads-whose',
+    title: 'Your team’s leads',
+    text: 'As a Sales Manager or an admin, pick somebody here to see their board.',
+    es: { title: 'Los prospectos de tu equipo', text: 'Como Sales Manager o administrador, elige a alguien aquí para ver su tablero.' },
+  },
+  {
+    target: 'leads-privacy',
+    title: 'Who sees this',
+    text: 'Only you, your Sales Manager and admins. Colleagues who can open a client still do not see its calls, emails or stage.',
+    es: { title: 'Quién ve esto', text: 'Solo tú, tu Sales Manager y los administradores. Los compañeros que pueden abrir un cliente igual no ven sus llamadas, correos ni etapa.' },
+  },
+];

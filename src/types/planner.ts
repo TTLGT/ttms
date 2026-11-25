@@ -117,7 +117,8 @@ export function plannerState(access: PlannerAccess | null, choice: PlannerChoice
  * than the browser.
  */
 // today: 2 since 2026-11-25 (the Today's targets step), so people who saw version 1 are shown it again.
-export const PLANNER_TOURS = { today: 2, popup: 1 } as const;
+// leads: the Clients → My leads board (step 4b), not a Planner tab, but the same tour and the same record.
+export const PLANNER_TOURS = { today: 2, popup: 1, leads: 1 } as const;
 export type PlannerTourId = keyof typeof PLANNER_TOURS;
 
 export function isPlannerTourId(v: unknown): v is PlannerTourId {
@@ -126,6 +127,19 @@ export function isPlannerTourId(v: unknown): v is PlannerTourId {
 
 /** The checklist step finishing a tour ticks. A new id — never reuse an old one. */
 export const PLANNER_TOUR_STEP_ID = 'd2-planner-tour';
+
+/** The step finishing the My leads tour ticks (2026-11-25). Same rule. */
+export const LEADS_TOUR_STEP_ID = 'w2-leads-tour';
+
+/**
+ * Which checklist step finishing each tour ticks. The pop-up's ticks nothing:
+ * "Take the Planner tour" is the Today tab's.
+ */
+export const TOUR_TICKS: Record<PlannerTourId, string | null> = {
+  today: PLANNER_TOUR_STEP_ID,
+  popup: null,
+  leads: LEADS_TOUR_STEP_ID,
+};
 
 // ── Today's 3 ────────────────────────────────────────────────────────────────
 
