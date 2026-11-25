@@ -1298,12 +1298,14 @@ Types and pure rules in `src/types/task.ts`; server in
 
 ### The Planner — My tasks and the Calendar as one page (2026-11-24)
 
-The redesign agreed on 2026-11-24 has seven steps; **steps 1–3 are
-built**: the Planner at `/dashboard/planner` with Today, Tasks and Calendar
-tabs, the rollout switch, the Today tour, and the onboarding updates for it
-(step 1); the planning pop-up (step 2, below); and suggestions and questions
-for every role (step 3, below). Steps 4–7 (broker goals and leads, the new
-editor and Tasks tab, the Calendar tab, game mode 2.0) are still to come. Pure rules in `src/types/planner.ts`;
+The redesign agreed on 2026-11-24 has seven steps; **steps 1–3 and the
+first half of 4 are built**: the Planner at `/dashboard/planner` with Today,
+Tasks and Calendar tabs, the rollout switch, the Today tour, and the
+onboarding updates for it (step 1); the planning pop-up (step 2, below);
+suggestions and questions for every role (step 3, below); and brokers' daily
+targets and numbers (step 4a, below). Still to come: the lead pipeline and
+counted Incentives goals (4b), the new editor and Tasks tab, the Calendar
+tab, game mode 2.0. Pure rules in `src/types/planner.ts`;
 browser side `src/lib/planner.ts`.
 
 - **It reaches people a few at a time.** `appSettings/general.plannerRollout`
@@ -1404,10 +1406,36 @@ on `personalTasks/{uid}.dailyPlan` through `/api/me/planner/day`.
   "Plan my day" button linking `?plan=1` — keep the two in step.
 - The pop-up tour is `POPUP_TOUR` (`PLANNER_TOURS.popup`); it records seen
   but does not tick "Take the Planner tour", which is the Today tab's.
-- Not built yet, on purpose: today's targets for any role (step 4, which
-  builds the tallies they need), XP for planning (step 7), "Not planned yet"
-  on Team plans, and Settings for the pop-up's times — the times are
-  constants in `dailyPlan.ts` for now.
+- Not built yet, on purpose: targets for roles other than brokers, XP for
+  planning (step 7), "Not planned yet" on Team plans, and Settings for the
+  pop-up's times — the times are constants in `dailyPlan.ts` for now.
+
+**Brokers' daily numbers (step 4a, 2026-11-25).** Rules in
+`src/types/salesDay.ts`, server `src/lib/salesDayServer.ts`, screens in
+`src/components/planner/SalesTargets.tsx` and
+`src/components/calendar/TeamNumbers.tsx`.
+
+- **Who sees them: the broker, their Sales Manager (`managedUids`), and
+  `sales.viewAll`** — a new permission (approved 2026-11-25), admin by
+  default, in no role bundle, so it widened nobody. Not the office: this is
+  not Incentives, which is public. `maySee()` is the one rule. Closed to the
+  browser — no rule matches `salesTargets` or `salesDays`.
+- **Only people who sell have numbers** — `sellsLoads()`: brokers (no role)
+  and Sales Managers. Everybody else is answered `{ day: null }` and nothing
+  is drawn.
+- **Tapped vs counted, and it says which.** Calls, emails, referrals are taps
+  (`/api/me/sales-day`, ±1, never below zero). Quotes made (top-level orders
+  `createdBy` the person today) and new clients added (client parties they
+  own created today) are worked out on read from one `createdAt` range each,
+  never stored or typed. Keep the labels saying "counts itself".
+- **Standing targets are set by an admin for anybody and a Sales Manager for
+  their own team, under `incentives.manage`** (`maySetTargets()`), from Team
+  plans → Numbers. The broker changes one day's in the whole-day plan's
+  targets step; the standing ones are untouched.
+- The Today card, the "Calls n/m" pill at the foot of every page (Planner
+  users who sell) and the close of day all share one answer through
+  `SALES_DAY_CHANGED_EVENT`. The Today tour has a step for the card
+  (`PLANNER_TOURS.today` is 2).
 
 ### Shipper and consignee addresses — never an address on its own (2026-11-06)
 

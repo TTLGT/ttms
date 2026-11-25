@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "hash": "21c15655eba4d73504dad22793e287bbd9765a27",
+      "date": "2026-11-24T23:41:02-06:00",
+      "author": "erwindank",
+      "subject": "Suggest each role's own work in the planning pop-up, step 3 of the Planner redesign. Besides a broker's loads and clients, the pop-up now offers what is waiting on each person by role, one task per queue with the screen it is worked on: SA and Dispatch Sheet reviews, BOLs to send, signed copies to verify, change orders and pickups today for dispatch; uninvoiced and unpaid delivered loads for finance; time-off requests, clock corrections and profile changes for HR (never their own); terms changes and access requests for whoever decides them; a Sales Manager's team plans before the huddle; and the next onboarding steps in somebody's first 90 days. Each queue is only checked for people who already hold the permission its own screen requires, and only says how many, never whose. \"Plan my whole day\" now asks questions written for each role, in English with Spanish underneath",
+      "body": ""
+    },
+    {
       "hash": "d556594a739b900a00a565d505059bddf8c2d598",
       "date": "2026-11-24T23:32:17-06:00",
       "author": "erwindank",

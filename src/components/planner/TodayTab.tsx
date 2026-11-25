@@ -16,6 +16,7 @@ import TaskEditor from '@/components/tasks/TaskEditor';
 import { TaskDirectoryProvider } from '@/components/tasks/TaskContacts';
 import { GameFeedback } from '@/components/tasks/TaskGame';
 import { Bi } from '@/components/spanish/Es';
+import { SalesTargetsCard } from './SalesTargets';
 import {
   calendarToday, deadlineDay, duplicateInput, formatTime, isOverdue, occursOn,
   type PersonalTask, type PersonalTaskInput, type TaskContact, type TaskOrder,
@@ -229,7 +230,11 @@ export default function TodayTab() {
             </section>
           </div>
 
-          <Timeline today={today} day={day} items={list} onOpen={(t) => setEditing({ task: t })} />
+          <div className="min-w-0 space-y-5 self-start">
+            <Timeline today={today} day={day} items={list} onOpen={(t) => setEditing({ task: t })} />
+            {/* Brokers and Sales Managers only — it draws nothing for anybody else. */}
+            <SalesTargetsCard />
+          </div>
         </div>
 
         {picking && (
@@ -557,7 +562,7 @@ function Timeline({ today, day, items, onOpen }: {
   const laneCount = Math.max(1, lanes.length);
 
   return (
-    <section data-tour="timeline" className="self-start rounded-xl border border-gray-200 bg-white p-4 lg:sticky lg:top-4">
+    <section data-tour="timeline" className="rounded-xl border border-gray-200 bg-white p-4">
       <div className="mb-3 flex items-center gap-2">
         <Clock size={16} className="text-brand-600" />
         <h3 className="flex-1 text-base font-semibold text-gray-900"><Bi>Your day</Bi></h3>

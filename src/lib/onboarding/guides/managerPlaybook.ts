@@ -30,6 +30,7 @@ export const MANAGER_PLAYBOOK_GUIDE: Guide = {
         b('Their clients and loads, so you can step in on a problem.', 'Sus clientes y cargas, para que puedas intervenir en un problema.'),
         b('Their attendance: clock times, breaks, lateness.', 'Su asistencia: horas de entrada, descansos, retrasos.'),
         b('Their shared day plans on the Calendar’s Team plans tab.', 'Sus planes del día compartidos en la pestaña Planes del equipo del Calendario.'),
+        b('Their daily numbers on Team plans → Numbers: calls, emails and referrals they tapped, quotes and new clients TTMS counted, against their targets. Set targets there changes the numbers they start each day with.', 'Sus números diarios en Planes del equipo → Números: llamadas, correos y referidos que tocaron, cotizaciones y clientes nuevos que contó TTMS, contra sus metas. Poner metas ahí cambia los números con los que empiezan cada día.'),
         b('Their book of business in the Directory.', 'Su cartera en el Directorio.'),
         b('Their onboarding progress, on My onboarding → Team progress, where you tick the team-lead and mentor steps.', 'Su avance de onboarding, en Mi onboarding → Avance del equipo, donde marcas los pasos de líder y mentor.'),
         b('Their details and permissions — but you cannot add or remove people, change a role, or give a permission you do not hold.', 'Sus datos y permisos — pero no puedes agregar ni quitar personas, cambiar un rol, ni dar un permiso que no tienes.'),

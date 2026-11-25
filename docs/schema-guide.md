@@ -3428,6 +3428,34 @@ dayPlans/{uid}__{YYYY-MM-DD}
   Building a copy uses two single-field queries on the owner's items (`date
   ==` and `repeat in`).
 
+## Collections: `salesTargets`, `salesDays` (brokers' daily numbers)
+
+```
+salesTargets/{uid}
+  targets   : { calls, emails, leads, quotes, referrals }   // whole numbers, 0–500
+  setByUid, setByName : string                               // the admin or Sales Manager
+  updatedAt : Timestamp
+
+salesDays/{uid}__{YYYY-MM-DD}                               // office date
+  uid, date : string
+  tallies   : { calls, emails, referrals }                   // the broker's taps, 0–2000
+  targets?  : { calls, emails, leads, quotes, referrals }   // present only when the broker
+                                                            // changed this one day's targets
+  updatedAt : Timestamp
+```
+
+- No `salesTargets` document means the defaults in `src/types/salesDay.ts`.
+- **Quotes made and new clients added are not stored**: they are counted on
+  read from `orders` and `parties` created that office day (single-field
+  `createdAt` ranges, no index needed).
+- **Read** through `GET /api/me/sales-day` (the caller's own) and
+  `GET /api/sales/daily?date=` (a Sales Manager's team, or everybody with
+  `sales.viewAll`). **Written** by `POST /api/me/sales-day` (taps, one day's
+  targets) and `PUT /api/sales/daily` (standing targets, `incentives.manage`
+  plus admin or the person's Sales Manager). No Firestore rule matches either
+  collection, so the browser can neither read nor write them.
+- Keyed by uid, so a change of email address has nothing here to move.
+
 ## Collection: `plannerNudgeRuns` (the Planner's 10:00 nudge)
 
 ```

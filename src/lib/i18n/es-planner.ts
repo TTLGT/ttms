@@ -89,6 +89,38 @@ export const ES_PLANNER: Record<string, string> = {
   'Clients to call': 'Clientes a llamar',
   'Your own': 'Tuyas',
   'Waiting on you': 'Esperándote',
+  // ── Today's targets (step 4) ──
+  'Today’s targets': 'Metas de hoy',
+  'Cold calls': 'Llamadas en frío',
+  'Cold emails': 'Correos en frío',
+  'New clients added': 'Clientes nuevos agregados',
+  'Quotes made': 'Cotizaciones hechas',
+  'Referrals asked': 'Referidos pedidos',
+  'One tap per call': 'Un toque por llamada',
+  'One tap per email': 'Un toque por correo',
+  'One tap each time you ask': 'Un toque cada vez que pides',
+  'Counts itself: clients you added today': 'Se cuenta solo: clientes que agregaste hoy',
+  'Counts itself: loads you created today': 'Se cuenta solo: cargas que creaste hoy',
+  'Your Sales Manager and admins see these numbers. Targets are a starting point your team lead sets; change today’s in the planning pop-up':
+    'Tu gerente y los administradores ven estos números. Las metas son un punto de partida que pone tu líder; cambia las de hoy en la ventana de planificación.',
+  'Quotes and new clients count themselves': 'Las cotizaciones y los clientes nuevos se cuentan solos.',
+  'Next: today’s targets': 'Siguiente: metas de hoy',
+  'Starting points from your team lead. Change them for today if you need to':
+    'Puntos de partida de tu líder. Cámbialos para hoy si lo necesitas.',
+  'For today only. Your Sales Manager sets the usual numbers; they and admins see how the day goes':
+    'Solo para hoy. Tu gerente pone los números de siempre; él y los administradores ven cómo va el día.',
+  'Met': 'Cumplidas',
+  'changed for today': 'cambiadas para hoy',
+  'Set targets': 'Poner metas',
+  'Save targets': 'Guardar metas',
+  'No brokers to show': 'No hay brokers que mostrar.',
+  'Calls, emails and referrals are what each broker tapped; quotes and new clients TTMS counts by itself. Only the broker, their Sales Manager and admins see these':
+    'Las llamadas, los correos y los referidos son lo que cada broker tocó; las cotizaciones y los clientes nuevos los cuenta TTMS solo. Solo el broker, su gerente y los administradores ven esto.',
+  'Every working day from now on. They can change one day’s in the planning pop-up; these stay as they are':
+    'Cada día laboral desde ahora. Pueden cambiar las de un día en la ventana de planificación; estas se quedan igual.',
+  'See everyone’s sales numbers': 'Ver los números de ventas de todos',
+  'Every broker’s daily targets and numbers — calls, emails, quotes, clients added — and their leads. A Sales Manager sees their own team’s already. Admins have this already':
+    'Las metas y los números diarios de cada broker — llamadas, correos, cotizaciones, clientes agregados — y sus prospectos. Un gerente de ventas ya ve los de su equipo. Los administradores ya lo tienen.',
   'Your onboarding': 'Tu inducción',
   'Something else?': '¿Algo más?',
   'Type it and press Add': 'Escríbelo y presiona Agregar',

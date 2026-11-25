@@ -13,6 +13,9 @@ import { answerDayPlan, cachedDayPlan, getDayPlan, getPlanSuggestions, shareDayP
 import { recordTour, tourSeen } from '@/lib/planner';
 import { useDateFormatters } from '@/lib/useDateFormatters';
 import PlannerTour, { POPUP_TOUR } from './PlannerTour';
+import { SalesTargetsCard, TargetSteppers } from './SalesTargets';
+import { setTodayTargets, useMySalesDay } from '@/lib/salesDay';
+import type { SalesTargets } from '@/types/salesDay';
 import { Bi } from '@/components/spanish/Es';
 import { MAX_TASK_TITLE, formatTime, isOverdue, occursOn, type PersonalTask } from '@/types/task';
 import { MAX_TODAY_PICKS, canPickForToday, picksIn, tasksForToday } from '@/types/planner';
@@ -246,7 +249,7 @@ interface Choice {
   score: number;
 }
 
-type Step = 'pick' | 'think' | 'times' | 'share' | 'done' | 'off';
+type Step = 'pick' | 'think' | 'targets' | 'times' | 'share' | 'done' | 'off';
 
 const GROUP_ICON: Record<SuggestionGroup, typeof Truck> = { queues: Inbox, loads: Truck, clients: Building2, learning: GraduationCap };
 
@@ -301,6 +304,11 @@ function PlanDay({ reply, onDemand, onClose, onSnooze, onOff, onPlanned }: {
   const [shared, setShared] = useState(false);
   const [touring, setTouring] = useState(false);
   const toured = useRef(false);
+  // Today's targets, for people who sell: set in the whole-day plan, saved
+  // with it, and for today only — the standing ones are their team lead's.
+  const { day: salesDay } = useMySalesDay();
+  const [targets, setTargets] = useState<SalesTargets | null>(null);
+  useEffect(() => { if (salesDay && !targets) setTargets(salesDay.targets); }, [salesDay, targets]);
 
   // Everything it needs, read once when it opens.
   useEffect(() => {
@@ -404,6 +412,9 @@ function PlanDay({ reply, onDemand, onClose, onSnooze, onOff, onPlanned }: {
         }
       }
       for (const title of extras) await createMyTask({ kind: 'task', title, date: today });
+      if (full && salesDay && targets && JSON.stringify(targets) !== JSON.stringify(salesDay.targets)) {
+        await setTodayTargets(targets);
+      }
       await saveMyTodayPicks({ date: today, ids });
       if (share) await shareDayPlan(today);
       const s = await answerDayPlan(one ? 'one' : 'planned', { full });
@@ -424,8 +435,15 @@ function PlanDay({ reply, onDemand, onClose, onSnooze, onOff, onPlanned }: {
   const hour = Number(officeNowTime().slice(0, 2));
   const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const loading = tasks === null || suggestions === null;
-  const dots = full ? 4 : 3;
-  const at = { pick: 0, think: 1, times: full ? 2 : 1, share: full ? 3 : 2, done: dots, off: 0 }[step];
+  // The whole-day plan has a targets step only for people who sell.
+  const withTargets = full && !!salesDay;
+  const dots = full ? (withTargets ? 5 : 4) : 3;
+  const at = {
+    pick: 0, think: 1, targets: 2,
+    times: full ? (withTargets ? 3 : 2) : 1,
+    share: full ? (withTargets ? 4 : 3) : 2,
+    done: dots, off: 0,
+  }[step];
   const questions = questionsFor(roleFlags);
   const head = (title: React.ReactNode, sub: React.ReactNode) => (
     <div className="shrink-0 bg-gradient-to-br from-brand-900 to-brand-700 px-5 pb-3 pt-4 text-white">
@@ -572,6 +590,25 @@ function PlanDay({ reply, onDemand, onClose, onSnooze, onOff, onPlanned }: {
       <>
         <BackButton onClick={() => setStep('pick')} />
         <span className="flex-1" />
+        <button type="button" onClick={() => (withTargets ? setStep('targets') : goTimes())}
+          className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-brand-700">
+          {withTargets ? 'Next: today’s targets' : 'Next: block my time'}
+        </button>
+      </>
+    );
+  } else if (step === 'targets' && salesDay && targets) {
+    body = (
+      <>
+        <TargetSteppers day={salesDay} value={targets} onChange={setTargets} />
+        <p className="mt-3 text-xs text-gray-500">
+          <Bi>For today only. Your Sales Manager sets the usual numbers; they and admins see how the day goes.</Bi>
+        </p>
+      </>
+    );
+    foot = (
+      <>
+        <BackButton onClick={() => setStep('think')} />
+        <span className="flex-1" />
         <button type="button" onClick={() => goTimes()} className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-brand-700">
           Next: block my time
         </button>
@@ -617,7 +654,7 @@ function PlanDay({ reply, onDemand, onClose, onSnooze, onOff, onPlanned }: {
     );
     foot = (
       <>
-        <BackButton onClick={() => setStep(full ? 'think' : 'pick')} />
+        <BackButton onClick={() => setStep(full ? (withTargets ? 'targets' : 'think') : 'pick')} />
         <span className="flex-1" />
         <button type="button" onClick={() => setStep('share')} className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-bold text-white hover:bg-brand-700">
           Looks good
@@ -653,6 +690,12 @@ function PlanDay({ reply, onDemand, onClose, onSnooze, onOff, onPlanned }: {
         <p className="mt-3 text-xs text-gray-500">
           <Bi>Your manager (and admins) see the names and times above — everything on your day, not only your 3. Notes, steps, contacts and whether you finish them stay private. Mark anything personal as Busy on the Calendar.</Bi>
         </p>
+        {withTargets && targets && (
+          <p className="mt-2 text-xs text-gray-600">
+            <span className="font-semibold">Targets:</span>{' '}
+            {targets.calls} calls · {targets.emails} emails · {targets.leads} new clients · {targets.quotes} quotes · {targets.referrals} referrals
+          </p>
+        )}
         {one && <p className="mt-2 text-xs font-semibold text-amber-800"><Bi>One is enough to get back to work. A bar stays at the top until you add the other two on Today.</Bi></p>}
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       </>
@@ -717,6 +760,7 @@ function PlanDay({ reply, onDemand, onClose, onSnooze, onOff, onPlanned }: {
   const titles: Record<Step, [React.ReactNode, React.ReactNode]> = {
     pick: [`${hello}${name ? `, ${name}` : ''}. Here’s a plan.`, found.length ? 'Your list, plus what TTMS found waiting on you today.' : 'Pick the three things that matter most today.'],
     think: ['Think it through', 'A few questions to catch what isn’t on your list. Tap anything to add it to today.'],
+    targets: ['Today’s targets', 'Starting points from your team lead. Change them for today if you need to.'],
     times: ['When will you do them?', 'Fitted into the free time between your meetings. Change any of them.'],
     share: ['Share it with your manager', 'This is what they will see.'],
     done: ['Planned', ''],
@@ -924,6 +968,8 @@ function CloseDay({ today, onDone }: { today: string; onDone: (skipped: boolean)
                 })}
               </ul>
               {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+              {/* Today's numbers, to fix a miscount before the day closes. Sellers only. */}
+              <SalesTargetsCard compact />
             </>
           )}
         </div>

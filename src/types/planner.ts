@@ -116,7 +116,8 @@ export function plannerState(access: PlannerAccess | null, choice: PlannerChoice
  * person as `preferences.toursSeen.<id>`, so it follows the account rather
  * than the browser.
  */
-export const PLANNER_TOURS = { today: 1, popup: 1 } as const;
+// today: 2 since 2026-11-25 (the Today's targets step), so people who saw version 1 are shown it again.
+export const PLANNER_TOURS = { today: 2, popup: 1 } as const;
 export type PlannerTourId = keyof typeof PLANNER_TOURS;
 
 export function isPlannerTourId(v: unknown): v is PlannerTourId {

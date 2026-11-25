@@ -350,6 +350,17 @@ export const PERMISSIONS = [
    * asked for a public scoreboard — so this is only about changing them.
    */
   'incentives.record',
+  /**
+   * See every broker's daily sales numbers — targets, calls, emails, quotes,
+   * clients added — and, from the lead pipeline on, their leads and the call
+   * and email history on them (src/types/salesDay.ts). A Sales Manager sees
+   * their own team's without this, through `managedUids`; a broker sees their
+   * own. Approved 2026-11-25.
+   *
+   * Admin only by default (admins hold every permission), grantable one
+   * person at a time. Added to no role, so it widened nobody.
+   */
+  'sales.viewAll',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -464,6 +475,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { key: 'onboarding.manage', label: 'Run onboarding', detail: 'Everybody’s 90-day onboarding: their progress, ticking the steps HR, the trainer and other departments do, setting their track, start date and mentor, and reading their survey answers. Admin and HR have this already.' },
       { key: 'incentives.manage', label: 'Run incentives', detail: 'Set up each month’s incentives: the goals, what each pays, the prize, who takes part and their own targets. Admin and Sales Managers have this already.' },
       { key: 'incentives.record', label: 'Record incentive progress', detail: 'Enter where everybody stands on this month’s incentives, which decides what is paid. Admin and HR have this already; a Sales Manager can already record their own team’s.' },
+      { key: 'sales.viewAll', label: 'See everyone’s sales numbers', detail: 'Every broker’s daily targets and numbers — calls, emails, quotes, clients added — and their leads. A Sales Manager sees their own team’s already. Admins have this already.' },
     ],
   },
 ];

@@ -45,6 +45,7 @@ import PreferenceSync from '@/components/dashboard/PreferenceSync';
 import LearnLayer from '@/components/learn/LearnLayer';
 import PlanningPrompt from '@/components/planning/PlanningPrompt';
 import PlanningPopup from '@/components/planner/PlanningPopup';
+import { SalesCounter } from '@/components/planner/SalesTargets';
 import DayPlanSharedNotice from '@/components/planning/DayPlanSharedNotice';
 import ChangeOrderPrompt from '@/components/orders/ChangeOrderPrompt';
 import BreakReminder from '@/components/attendance/BreakReminder';
@@ -671,6 +672,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           Calendar's "Set a time" opens it on purpose. */}
       <PlanningPrompt auto={plannerLoaded && !planner.on} />
       {plannerLoaded && planner.on && <PlanningPopup />}
+      {/* Today's calls, emails and referrals, one tap from any page — Planner
+          users who sell only; it draws nothing for anybody else. */}
+      {plannerLoaded && planner.on && <SalesCounter />}
       <DayPlanSharedNotice />
 
       {/* Break, lunch and active-pause reminders — nothing unless clocked in and one is due. */}

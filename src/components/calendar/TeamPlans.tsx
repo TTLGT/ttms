@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  CalendarDays, CalendarRange, ChevronLeft, ChevronRight, GanttChart, List, Search, Table2, X,
+  CalendarDays, CalendarRange, ChevronLeft, ChevronRight, GanttChart, List, Search, Table2, Target, X,
 } from 'lucide-react';
 import { fetchTeamPlans } from '@/lib/dayPlans';
 import { useDateFormatters } from '@/lib/useDateFormatters';
@@ -10,6 +10,7 @@ import { UserAvatar } from '@/components/settings/UserAvatar';
 import { addDays } from '@/types/taskGame';
 import { formatTime } from '@/types/task';
 import { Bi } from '@/components/spanish/Es';
+import TeamNumbers from './TeamNumbers';
 import {
   formatMinutes, itemLabel, itemSpan, mondayOf, planSummary,
   type DayPlan, type DayPlanItem, type TeamPlanPerson, type TeamPlansReply,
@@ -31,7 +32,7 @@ import {
  * is what refuses everybody else.
  */
 
-type View = 'agenda' | 'table' | 'timeline' | 'week';
+type View = 'agenda' | 'table' | 'timeline' | 'week' | 'numbers';
 const VIEW_KEY = 'ttms.teamPlans.view';
 
 const VIEWS: { id: View; label: string; Icon: typeof List }[] = [
@@ -39,6 +40,10 @@ const VIEWS: { id: View; label: string; Icon: typeof List }[] = [
   { id: 'table', label: 'Table', Icon: Table2 },
   { id: 'timeline', label: 'Timeline', Icon: GanttChart },
   { id: 'week', label: 'Week', Icon: CalendarRange },
+  // Brokers' daily numbers (src/types/salesDay.ts). Its own route and its own
+  // gate — a Sales Manager's team, or sales.viewAll — so it is a view here
+  // only because the same people open this screen to see their team's day.
+  { id: 'numbers', label: 'Numbers', Icon: Target },
 ];
 
 function storedView(): View {
@@ -432,6 +437,9 @@ export default function TeamPlans({ initialDate }: { initialDate: string }) {
           {view === 'table' && table}
           {view === 'timeline' && timeline}
           {view === 'week' && week}
+          {view === 'numbers' && (
+            <TeamNumbers date={date} onlyUids={team || query.trim() ? new Set(people.map((p) => p.uid)) : null} />
+          )}
         </div>
       )}
 

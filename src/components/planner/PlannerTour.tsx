@@ -194,6 +194,13 @@ export const TODAY_TOUR: TourStep[] = [
     es: { title: 'Agregar rápido', text: 'Escribe la tarea como la dirías: “Llamar a Rio Grande mañana a las 3 !urgente #10511 @Ana”. Fecha, hora, urgente, carga y compañero se reconocen solos.' },
   },
   {
+    // Brokers and Sales Managers only: the step is skipped where the card is not drawn.
+    target: 'targets',
+    title: 'Today’s targets',
+    text: 'Your calls, emails and referrals: tap +1 as you go, here or on the Calls button at the bottom of any page. Quotes and new clients count themselves. Your Sales Manager sets the usual numbers; change today’s in the planning pop-up.',
+    es: { title: 'Metas de hoy', text: 'Tus llamadas, correos y referidos: toca +1 mientras avanzas, aquí o en el botón Llamadas abajo de cualquier página. Las cotizaciones y los clientes nuevos se cuentan solos. Tu gerente pone los números de siempre; cambia los de hoy en la ventana de planificación.' },
+  },
+  {
     target: 'inbox',
     title: 'The inbox',
     text: 'Tasks with no day yet. Give each one a day, or put it in Today’s 3, so nothing you wrote down gets lost.',

@@ -25,6 +25,8 @@ import { Bi } from '@/components/spanish/Es';
  * somebody's own book, touching money or pay, or changing who can do what.
  */
 export const SENSITIVE: ReadonlySet<Permission> = new Set<Permission>([
+  // Every broker's numbers and leads: how each person is doing, by name.
+  'sales.viewAll',
   'orders.viewAll', 'clients.viewAll', 'shippers.viewAll', 'consignees.viewAll',
   'orders.delete', 'parties.delete', 'orders.payments', 'orders.waiveSignature',
   'people.view', 'people.manage', 'settings.manage', 'ownership.change',
